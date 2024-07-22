@@ -114,12 +114,12 @@ export const UserNavDropdown = ({
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <MotionDiv variants={menuItemAnimation}>
-            <DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <FeatureViewModal />
             </DropdownMenuItem>
           </MotionDiv>
           <MotionDiv variants={menuItemAnimation}>
-            <DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <GiveFeedbackDialog>
                 <div className="flex items-center w-full">
                   <Mail className="mr-2 h-4 w-4" /> Feedback

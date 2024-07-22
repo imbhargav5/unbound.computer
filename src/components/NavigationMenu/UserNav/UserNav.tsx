@@ -1,27 +1,26 @@
+// UserNav.tsx
 import { Notifications } from '@/components/NavigationMenu/Notifications';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { getUserProfile } from '@/data/user/user';
+import { getIsAppAdmin, getUserProfile } from '@/data/user/user';
 import { getUserAvatarUrl } from '@/utils/helpers';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import { Suspense } from 'react';
-import { AppAdminSidebarLink } from '../../AppAdminSidebarLink';
-import { UserNavPopover } from './UserNavPopover';
+import { UserNavDropdown } from './UserNavDropdown';
 
 export async function UserNav() {
   const user = await serverGetLoggedInUser();
   const { email } = user;
   if (!email) {
-    // unreachable
     throw new Error('User email not found');
   }
 
   const userProfile = await getUserProfile(user.id);
+  const isUserAppAdmin = await getIsAppAdmin();
+
   return (
-    <>
+    <div className="flex items-center space-x-4">
       <ThemeToggle />
       <Notifications userId={user.id} />
-
-      <UserNavPopover
+      <UserNavDropdown
         avatarUrl={getUserAvatarUrl({
           email,
           profileAvatarUrl: userProfile.avatar_url,
@@ -29,13 +28,8 @@ export async function UserNav() {
         userFullname={userProfile.full_name ?? `User ${email}`}
         userEmail={email}
         userId={user.id}
-        appAdminSidebarLink={
-          <Suspense>
-            <div className="h-px bg-gray-200 dark:bg-gray-700  my-2" />
-            <AppAdminSidebarLink />
-          </Suspense>
-        }
+        isUserAppAdmin={isUserAppAdmin}
       />
-    </>
+    </div>
   );
 }

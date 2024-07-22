@@ -1,7 +1,18 @@
 'use client';
-import { OnboardingModal } from './OnboardingModal';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { AnimatePresence, motion } from 'framer-motion';
+import { HelpCircle } from 'lucide-react';
+import Image from 'next/image';
+import { useState } from 'react';
 
-const onboardingFeatures = [
+const featureList = [
   {
     title: 'Organisations, Teams and Invitations',
     description: (
@@ -65,6 +76,77 @@ const onboardingFeatures = [
   },
 ];
 
-export function FeatureViewModal(): JSX.Element {
-  return <OnboardingModal featureList={onboardingFeatures} />;
+
+// ... (featureList remains the same)
+
+export function FeatureViewModal() {
+  const [open, setOpen] = useState(false);
+  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
+
+  const handleNext = () => {
+    setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % featureList.length);
+  };
+
+  const handlePrevious = () => {
+    setCurrentFeatureIndex(
+      (prevIndex) => (prevIndex - 1 + featureList.length) % featureList.length,
+    );
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setCurrentFeatureIndex(0);
+  };
+
+  const currentFeature = featureList[currentFeatureIndex];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" className="w-full justify-start px-2 py-1.5">
+          <HelpCircle className="mr-2 h-4 w-4" />
+          Help
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentFeatureIndex}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {currentFeatureIndex + 1} / {featureList.length}
+              </p>
+              <AspectRatio ratio={16 / 9} className="bg-muted">
+                <Image
+                  src={currentFeature.image}
+                  alt="Feature preview"
+                  fill
+                  className="rounded-md object-cover"
+                />
+              </AspectRatio>
+              <h3 className="text-lg font-semibold">{currentFeature.title}</h3>
+              <div className="text-sm text-muted-foreground">
+                {currentFeature.description}
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+        <DialogFooter className="mt-6">
+          <Button variant="outline" onClick={handlePrevious} disabled={currentFeatureIndex === 0}>
+            Previous
+          </Button>
+          {currentFeatureIndex < featureList.length - 1 ? (
+            <Button onClick={handleNext}>Next</Button>
+          ) : (
+            <Button onClick={handleClose}>Close</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
