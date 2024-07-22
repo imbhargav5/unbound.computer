@@ -6,8 +6,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +15,7 @@ import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import { generateSlug } from "@/lib/utils";
 import { CreateOrganizationSchema, createOrganizationSchema } from "@/utils/zod-schemas/organization";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Network, Plus } from "lucide-react";
+import { Network } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 
@@ -92,16 +91,6 @@ export function CreateOrganizationDialog({
         data-testid="create-organization-dialog"
         onOpenChange={setIsDialogOpen}
       >
-        <DialogTrigger asChild>
-          <Button
-            variant="default"
-            size="default"
-            className="w-full flex space-x-1"
-          >
-            <Plus />
-            <span>New Organization</span>
-          </Button>
-        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <div className="p-3 w-fit bg-gray-200/50 dark:bg-gray-700/40 mb-2 rounded-lg">

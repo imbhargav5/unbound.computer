@@ -1,85 +1,30 @@
-import { OrganizationSwitcher } from '@/components/SidebarComponents/OrganizationSwitcher';
 import { DesktopSidebarFallback } from '@/components/SidebarComponents/SidebarFallback';
-import { SwitcherAndToggle } from '@/components/SidebarComponents/SidebarLogo';
-import { SidebarLink } from '@/components/SidebarLink';
 import { fetchSlimOrganizations, getOrganizationSlugByOrganizationId } from '@/data/user/organizations';
 import { getSlimProjectById, getSlimProjectBySlug } from '@/data/user/projects';
-import { cn } from '@/utils/cn';
 import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
-import { ArrowLeft, Bird, History, Image, Layers, Settings } from 'lucide-react';
 import { Suspense } from 'react';
-
-async function ProjectSidebarInternal({ projectId, projectSlug }: { projectId: string; projectSlug: string }) {
-  const [slimOrganizations, project] = await Promise.all([
-    fetchSlimOrganizations(),
-    getSlimProjectById(projectId),
-  ]);
-  const organizationId = project.organization_id;
-  const organizationSlug = await getOrganizationSlugByOrganizationId(organizationId);
-
-  return (
-    <div
-      className={cn(
-        'flex flex-col justify-between h-full',
-        'lg:px-3 lg:py-4 lg:pt-2.5 ',
-      )}
-    >
-      <div>
-        <SwitcherAndToggle organizationId={organizationId} slimOrganizations={slimOrganizations} />
-        <div className="flex flex-col">
-          <SidebarLink
-            label="Back to organization"
-            href={`/${organizationSlug}`}
-            icon={<ArrowLeft className="h-5 w-5" />}
-          />
-          {project.team_id && (
-            <SidebarLink
-              label="Back to team"
-              href={`/${organizationSlug}/team/${project.team_id}`}
-              icon={<ArrowLeft className="h-5 w-5" />}
-            />
-          )}
-          <SidebarLink
-            label="Project Home"
-            href={`/project/${projectSlug}`}
-            icon={<Layers className="h-5 w-5" />}
-          />
-          <SidebarLink
-            label="Image Generator"
-            href={`/project/${projectSlug}/image-generator`}
-            icon={<Image className="h-5 w-5" />}
-          />
-          <SidebarLink
-            label="Post Generator"
-            href={`/project/${projectSlug}/post-generator`}
-            icon={<Bird className="h-5 w-5" />}
-          />
-          <SidebarLink
-            label="Project Settings"
-            href={`/project/${projectSlug}/settings`}
-            icon={<Settings className="h-5 w-5" />}
-          />
-          <SidebarLink
-            label="Chats"
-            href={`/project/${projectSlug}/chats`}
-            icon={<History className="h-5 w-5" />}
-          />
-        </div>
-      </div>
-      <OrganizationSwitcher
-        currentOrganizationId={organizationId}
-        slimOrganizations={slimOrganizations}
-      />
-    </div>
-  );
-}
+import { ProjectSidebarClient } from './ProjectSidebarClient';
 
 export async function ProjectSidebar({ params }: { params: unknown }) {
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
+  const [slimOrganizations, fullProject] = await Promise.all([
+    fetchSlimOrganizations(),
+    getSlimProjectById(project.id),
+  ]);
+  const organizationId = fullProject.organization_id;
+  const organizationSlug = await getOrganizationSlugByOrganizationId(organizationId);
+
   return (
     <Suspense fallback={<DesktopSidebarFallback />}>
-      <ProjectSidebarInternal projectId={project.id} projectSlug={project.slug} />
+      <ProjectSidebarClient
+        projectId={project.id}
+        projectSlug={project.slug}
+        organizationId={organizationId}
+        organizationSlug={organizationSlug}
+        project={fullProject}
+        slimOrganizations={slimOrganizations}
+      />
     </Suspense>
   );
 }

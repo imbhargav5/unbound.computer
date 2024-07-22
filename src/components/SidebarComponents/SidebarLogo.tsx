@@ -13,7 +13,7 @@ type Props = {
 
 export function SwitcherAndToggle({ organizationId, slimOrganizations }: Props) {
   return (
-    <div className="flex items-center w-full gap-4 justify-between">
+    <div className="flex items-center w-full gap-1 justify-between">
       {organizationId && slimOrganizations ? (
         <OrganizationSwitcher
           currentOrganizationId={organizationId}

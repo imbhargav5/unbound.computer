@@ -4,6 +4,7 @@ import { MOBILE_MEDIA_QUERY_MATCHER } from '@/constants';
 import { SidebarVisibilityContext } from '@/contexts/SidebarVisibilityContext';
 import useMatchMedia from '@/hooks/useMatchMedia';
 import { useContext } from 'react';
+import './mobilesidebar.css';
 
 export function MobileSidebarShell({
   children,
@@ -17,7 +18,8 @@ export function MobileSidebarShell({
   }
   return (
     <Sheet open={isVisible} onOpenChange={setVisibility}>
-      <SheetContent side="left">{children}</SheetContent>
+      <SheetContent side="left" className='mobile-sidebar w-[264px]'>{children}
+      </SheetContent>
     </Sheet>
   );
 }

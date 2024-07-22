@@ -25,7 +25,6 @@ export async function ApprovalControls({ projectId }: { projectId: string }) {
   const data = await fetchData(projectId);
   const isOrganizationManager =
     data.organizationRole === 'admin' || data.organizationRole === 'owner';
-  const isTopLevelProject = !data.projectByIdData.team_id;
   const canManage = isOrganizationManager;
 
   const canOnlyEdit = data.organizationRole === 'member';

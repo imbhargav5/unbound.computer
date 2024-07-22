@@ -403,17 +403,111 @@ export type Database = {
           },
         ]
       }
+      ls_customers: {
+        Row: {
+          ls_customer_id: string
+          organization_id: string
+        }
+        Insert: {
+          ls_customer_id: string
+          organization_id: string
+        }
+        Update: {
+          ls_customer_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ls_customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ls_plans: {
+        Row: {
+          description: string | null
+          features: Json | null
+          id: number
+          is_active: boolean | null
+          plan_name: string
+          prices: Json
+          product_id: string
+          variant_id: string
+        }
+        Insert: {
+          description?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          plan_name: string
+          prices: Json
+          product_id: string
+          variant_id: string
+        }
+        Update: {
+          description?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          plan_name?: string
+          prices?: Json
+          product_id?: string
+          variant_id?: string
+        }
+        Relationships: []
+      }
+      one_time_purchases: {
+        Row: {
+          amount: number
+          currency: string
+          id: number
+          item_name: string
+          organization_id: string | null
+          purchase_date: string | null
+        }
+        Insert: {
+          amount: number
+          currency: string
+          id?: number
+          item_name: string
+          organization_id?: string | null
+          purchase_date?: string | null
+        }
+        Update: {
+          amount?: number
+          currency?: string
+          id?: number
+          item_name?: string
+          organization_id?: string | null
+          purchase_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "one_time_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_credits: {
         Row: {
           credits: number
+          last_updated: string | null
           organization_id: string
         }
         Insert: {
           credits?: number
+          last_updated?: string | null
           organization_id: string
         }
         Update: {
           credits?: number
+          last_updated?: string | null
           organization_id?: string
         }
         Relationships: [
@@ -520,6 +614,56 @@ export type Database = {
           },
         ]
       }
+      organization_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          canceled_at: string | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: number
+          organization_id: string | null
+          plan_id: number | null
+          platform_name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: number
+          organization_id?: string | null
+          plan_id?: number | null
+          platform_name: string
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: number
+          organization_id?: string | null
+          plan_id?: number | null
+          platform_name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -562,6 +706,50 @@ export type Database = {
             foreignKeyName: "organizations_private_info_id_fkey"
             columns: ["id"]
             isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          currency: string
+          details: Json
+          id: number
+          invoice_url: string | null
+          organization_id: string | null
+          payment_date: string | null
+          payment_id: string
+          platform_name: string
+        }
+        Insert: {
+          amount: number
+          currency: string
+          details?: Json
+          id?: number
+          invoice_url?: string | null
+          organization_id?: string | null
+          payment_date?: string | null
+          payment_id: string
+          platform_name: string
+        }
+        Update: {
+          amount?: number
+          currency?: string
+          details?: Json
+          id?: number
+          invoice_url?: string | null
+          organization_id?: string | null
+          payment_date?: string | null
+          payment_id?: string
+          platform_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -687,7 +875,6 @@ export type Database = {
           organization_id: string
           project_status: Database["public"]["Enums"]["project_status"]
           slug: string
-          team_id: number | null
           updated_at: string
         }
         Insert: {
@@ -697,7 +884,6 @@ export type Database = {
           organization_id: string
           project_status?: Database["public"]["Enums"]["project_status"]
           slug?: string
-          team_id?: number | null
           updated_at?: string
         }
         Update: {
@@ -707,8 +893,60 @@ export type Database = {
           organization_id?: string
           project_status?: Database["public"]["Enums"]["project_status"]
           slug?: string
-          team_id?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_customers: {
+        Row: {
+          organization_id: string
+          stripe_customer_id: string
+        }
+        Insert: {
+          organization_id: string
+          stripe_customer_id: string
+        }
+        Update: {
+          organization_id?: string
+          stripe_customer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_plans: {
+        Row: {
+          description: string | null
+          features: Json | null
+          id: number
+          is_active: boolean | null
+          plan_name: string
+          prices: Json
+          product_id: string
+        }
+        Insert: {
+          description?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          plan_name: string
+          prices: Json
+          product_id: string
+        }
+        Update: {
+          description?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          plan_name?: string
+          prices?: Json
+          product_id?: string
         }
         Relationships: []
       }
@@ -1103,12 +1341,6 @@ export type Database = {
           member_id: string
         }[]
       }
-      get_organization_id_by_team_id: {
-        Args: {
-          p_id: number
-        }
-        Returns: string
-      }
       get_organization_id_for_project_id: {
         Args: {
           project_id: string
@@ -1130,12 +1362,6 @@ export type Database = {
         Returns: {
           organization_id: string
         }[]
-      }
-      get_team_id_for_project_id: {
-        Args: {
-          project_id: string
-        }
-        Returns: number
       }
       increment_credits: {
         Args: {
@@ -1184,7 +1410,6 @@ export type Database = {
       pricing_plan_interval: "day" | "week" | "month" | "year"
       pricing_type: "one_time" | "recurring"
       project_status: "draft" | "pending_approval" | "approved" | "completed"
-      project_team_member_role: "admin" | "member" | "readonly"
       subscription_status:
         | "trialing"
         | "active"

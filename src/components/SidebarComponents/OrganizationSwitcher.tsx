@@ -1,20 +1,16 @@
 'use client';
+
 import { CreateOrganizationDialog } from '@/components/CreateOrganizationDialog';
 import { Button } from '@/components/ui/button';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command';
-import { cn } from '@/utils/cn';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@radix-ui/react-popover';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { motion } from 'framer-motion';
 import { Check, ChevronsUpDown, UsersRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -30,88 +26,70 @@ export function OrganizationSwitcher({
   }>;
   currentOrganizationId: string;
 }) {
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const router = useRouter();
   const currentOrganization = slimOrganizations.find(
     (organization) => organization.id === currentOrganizationId,
   );
+
   return (
-    <Popover
-      open={isPopoverOpen}
-      onOpenChange={(isCurrentOpen) => {
-        setIsPopoverOpen(isCurrentOpen);
-        if (!isCurrentOpen) {
-          setIsDialogOpen(false);
-        }
-      }}
-    >
-      <PopoverTrigger asChild className="w-fit">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
-          name="organization-switcher"
-          role="combobox"
-          className="mx-0 px-2 py-5 border hover:border-neutral-700 dark:hover:border-gray-500 hover:bg-transparent rounded-sm font-normal text-gray-500 dark:text-gray-300 text-sm justify-between truncate w-full "
+          className="w-full justify-between px-3 py-2 text-left font-normal group max-w-[220px]"
         >
-          <div className="flex items-center gap-1">
-            <UsersRound className="mr-2 h-4 w-4 mt-0.5" />
-            {currentOrganization?.title ?? 'Select Organization'}
-          </div>
-          <ChevronsUpDown className=" h-4 w-4 shrink-0 opacity-50" />
+          <motion.div
+            className="flex items-center gap-2 w-full"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <UsersRound className="h-4 w-4 shrink-0" />
+            <span className="text-sm text-muted-foreground truncate flex-grow">
+              {currentOrganization?.title ?? 'Select Organization'}
+            </span>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-50 ml-2 transition-opacity" />
+          </motion.div>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        className="w-[238px] border -ml-1 my-2 rounded-lg p-0 "
-      >
-        <Command>
-          <CommandList>
-            <CommandEmpty>No Organization found.</CommandEmpty>
-            <CommandGroup heading="Organizations">
-              {slimOrganizations.map((organization) => (
-                <CommandItem
-                  key={organization.id}
-                  onSelect={() => {
-                    setIsPopoverOpen(false);
-                    router.push(`/${organization.slug}`);
-                  }}
-                  className="text-sm flex items-start"
-                >
-                  {/* <UsersIcon className="mr-2 h-4 w-4 mt-0.5" /> */}
-                  {organization.title}
-                  <Check
-                    className={cn(
-                      'ml-auto h-4 w-4',
-                      organization.id === currentOrganizationId
-                        ? 'opacity-100'
-                        : 'opacity-0',
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-
-          <CommandSeparator />
-          <CommandList>
-            <CommandGroup>
-              <CommandItem className="px-1 py-0 w-full">
-                <CreateOrganizationDialog
-                  variant="ghost"
-                  className="p-0 py-0 focus:ring-0 dark:focus:ring-0 hover:bg-transparent w-full"
-                  isDialogOpen={isDialogOpen}
-                  setIsDialogOpen={(isCurrentOpen) => {
-                    setIsDialogOpen(isCurrentOpen);
-                    setIsPopoverOpen(isCurrentOpen);
-                  }}
-                />
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[240px]">
+        <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {slimOrganizations.map((organization) => (
+          <DropdownMenuItem
+            key={organization.id}
+            onSelect={() => {
+              router.push(`/${organization.slug}`);
+            }}
+          >
+            <motion.div
+              className="flex items-center justify-between w-full"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              {organization.title}
+              {organization.id === currentOrganizationId && (
+                <Check className="h-4 w-4 text-primary" />
+              )}
+            </motion.div>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setIsDialogOpen(true)}>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-full"
+          >
+            Create Organization
+          </motion.div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+      <CreateOrganizationDialog
+        isDialogOpen={isDialogOpen}
+        setIsDialogOpen={setIsDialogOpen}
+      />
+    </DropdownMenu>
   );
 }

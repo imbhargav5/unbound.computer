@@ -24,7 +24,7 @@ export function SidebarClose() {
   return (
     <div
       className={cn(
-        'group border cursor-pointer flex items-center p-3 hover:bg-neutral-50 dark:hover:bg-white/5 rounded-md',
+        'group cursor-pointer flex items-center px-1 py-2 hover:bg-neutral-50 dark:hover:bg-white/5 rounded-md',
         'hidden lg:block',
       )}
       onClick={closeSidebar}
