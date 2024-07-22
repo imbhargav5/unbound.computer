@@ -1,6 +1,7 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
+import { useTheme } from "next-themes";
 import type React from "react";
 import { Suspense } from "react";
 import { Toaster as SonnerToaster } from "sonner";
@@ -9,6 +10,13 @@ import { useMyReportWebVitals } from "./reportWebVitals";
 
 // Create a client
 const queryClient = new QueryClient();
+
+function CustomerToaster() {
+  const theme = useTheme();
+  const currentTheme = theme.theme === 'light' ? 'light' : 'dark';
+  return <SonnerToaster richColors theme={currentTheme} />
+
+}
 
 /**
  * This is a wrapper for the app that provides the supabase client, the router event wrapper
@@ -29,7 +37,6 @@ export function AppProviders({
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClient}>
           {children}
-          <SonnerToaster theme={"light"} />
           <Suspense>
             <ProgressBar
               height="4px"
@@ -37,6 +44,7 @@ export function AppProviders({
               options={{ showSpinner: false }}
               shallowRouting
             />
+            <CustomerToaster />
           </Suspense>
         </QueryClientProvider>
       </ThemeProvider>
