@@ -12,6 +12,7 @@ import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supab
 import type { Table } from '@/types';
 import { parseNotification } from '@/utils/parseNotification';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Check } from 'lucide-react';
 import moment from 'moment';
 import { useRouter } from 'next/navigation';
@@ -122,59 +123,6 @@ function NextPageLoader({ onMount }: { onMount: () => void }) {
   return <div className="h-4"></div>;
 }
 
-function Notification({
-  notification,
-}: {
-  notification: Table<'user_notifications'>;
-}) {
-  const router = useRouter();
-  const notificationPayload = parseNotification(notification.payload);
-  const handleNotificationClick = useCallback(() => {
-    if (notificationPayload.type === 'welcome') {
-      toast('Welcome to Nextbase');
-    }
-  }, [notificationPayload]);
-
-  const { mutate: mutateSeeMutation } = useMutation(
-    async () => {
-      return await seeNotification(notification.id);
-    },
-    {
-      onSuccess: () => {
-        router.refresh();
-      },
-    },
-  );
-
-  return (
-    <NotificationItem
-      key={notification.id}
-      title={notificationPayload.title}
-      description={notificationPayload.description}
-      createdAt={moment(notification.created_at).fromNow()}
-      href={
-        notificationPayload.actionType === 'link'
-          ? notificationPayload.href
-          : undefined
-      }
-      onClick={
-        notificationPayload.actionType === 'button'
-          ? handleNotificationClick
-          : undefined
-      }
-      image={notificationPayload.image}
-      isRead={notification.is_read}
-      isNew={!notification.is_seen}
-      notificationId={notification.id}
-      onHover={() => {
-        if (!notification.is_seen) {
-          mutateSeeMutation();
-        }
-      }}
-    />
-  );
-}
-
 export const useReadAllNotifications = (userId: string) => {
   const router = useRouter();
   return useSAToastMutation(
@@ -202,7 +150,65 @@ export const useReadAllNotifications = (userId: string) => {
   );
 };
 
-export const Notifications = ({ userId, }: { userId: string }) => {
+
+
+function Notification({
+  notification,
+}: {
+  notification: Table<'user_notifications'>;
+}) {
+  const router = useRouter();
+  const notificationPayload = parseNotification(notification.payload);
+  const handleNotificationClick = useCallback(() => {
+    if (notificationPayload.type === 'welcome') {
+      toast('Welcome to Nextbase');
+    }
+  }, [notificationPayload]);
+
+  const { mutate: mutateSeeMutation } = useMutation(
+    async () => await seeNotification(notification.id),
+    {
+      onSuccess: () => router.refresh(),
+    }
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+    >
+      <NotificationItem
+        key={notification.id}
+        title={notificationPayload.title}
+        description={notificationPayload.description}
+        createdAt={moment(notification.created_at).fromNow()}
+        href={
+          notificationPayload.actionType === 'link'
+            ? notificationPayload.href
+            : undefined
+        }
+        onClick={
+          notificationPayload.actionType === 'button'
+            ? handleNotificationClick
+            : undefined
+        }
+        image={notificationPayload.image}
+        isRead={notification.is_read}
+        isNew={!notification.is_seen}
+        notificationId={notification.id}
+        onHover={() => {
+          if (!notification.is_seen) {
+            mutateSeeMutation();
+          }
+        }}
+      />
+    </motion.div>
+  );
+}
+
+export const Notifications = ({ userId }: { userId: string }) => {
   const unseenNotificationIds = useUnseenNotificationIds(userId);
   const {
     notifications,
@@ -212,107 +218,99 @@ export const Notifications = ({ userId, }: { userId: string }) => {
     isLoading,
     refetch,
   } = useNotifications(userId);
-  const { mutate } = useSAToastMutation(
-    async () => {
-      return readAllNotifications(userId);
-    },
-    {
-      loadingMessage: 'Marking all notifications as read...',
-      successMessage: 'All notifications marked as read',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to mark all notifications as read ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to mark all notifications as read';
-        }
-      },
-      onSuccess: () => {
-        refetch()
-      },
-    },
-  );
+  const { mutate } = useReadAllNotifications(userId);
 
   useEffect(() => {
-    refetch()
-  }, [unseenNotificationIds])
+    refetch();
+  }, [unseenNotificationIds, refetch]);
 
   return (
     <Popover>
-      <PopoverTrigger className="relative focus:ring-none">
-        <Bell className="px-0 w-5 h-5 text-muted-foreground hover:text-black dark:hover:text-white" />
-        {unseenNotificationIds?.length > 0 && (
-          <span className="-top-1.5 -right-2 absolute bg-red-500 px-1.5 rounded-full font-bold text-white text-xs">
-            {unseenNotificationIds?.length}
-          </span>
-        )}
+      <PopoverTrigger className="relative focus:outline-none">
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <Bell className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
+          <AnimatePresence>
+            {unseenNotificationIds?.length > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -top-1.5 -right-2 bg-red-500 px-1.5 rounded-full font-bold text-white text-xs"
+              >
+                {unseenNotificationIds.length}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </PopoverTrigger>
-
-      {notifications.length > 0 || unseenNotificationIds?.length > 0 ? (
-        <PopoverContent className="bg-background dark:bg-dark-background mr-12 p-0 rounded-xl w-[560px] overflow-hidden">
-          <div className="shadow-lg px-6 pb-2 border-b-2">
-            <div className="flex justify-between mt-7 mb-3">
-              <T.H3 className="mt-0 dark:text-white leading-7">
-                Notifications
-              </T.H3>
-              <div className="flex space-x-1 mt-2 font-medium text-sm cursor-pointer group">
-                {unseenNotificationIds?.length > 0 ? (
-                  <>
-                    <Check className="dark:group-hover:text-gray-400 w-5 h-5 text-muted-foreground" />{' '}
-                    <span
-                      onClick={() => {
-                        mutate();
-                      }}
-                      onKeyUp={(e) => {
-                        if (e.key === 'Enter') {
-                          mutate();
-                        }
-                      }}
-                      className="dark:group-hover:text-gray-400 text-muted-foreground underline underline-offset-4"
-                    >
-                      Mark as all read
-                    </span>
-                  </>
-                ) : null}
-              </div>
+      <PopoverContent className="w-[560px] p-0 rounded-xl overflow-hidden mr-12">
+        <div className="bg-background shadow-lg">
+          <div className="px-6 py-3 border-b"> {/* Reduced padding here */}
+            <div className="flex justify-between items-center">
+              <T.H3 className="text-foreground text-lg !mt-0"> {/* Reduced text size */}Notifications</T.H3>
+              {unseenNotificationIds?.length > 0 && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => mutate()}
+                  className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  Mark all as read
+                </motion.button>
+              )}
             </div>
           </div>
-          <div className="flex flex-col items-center mx-auto">
-            {isLoading ? (
-              <Skeleton className="py-4 w-16 h-6" />
-            ) : (
-              notifications?.map((notification) => {
-                return (
-                  <Notification
-                    key={notification.id}
-                    notification={notification}
-                  />
-                );
-              })
-            )}
-            {hasNextPage ? (
-              isFetchingNextPage ? (
-                <Skeleton className="py-4 w-16 h-6" />
+          <div className="max-h-[400px] overflow-y-auto">
+            <AnimatePresence>
+              {isLoading ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="p-4"
+                >
+                  <Skeleton className="h-16 mb-2" />
+                  <Skeleton className="h-16 mb-2" />
+                  <Skeleton className="h-16" />
+                </motion.div>
+              ) : notifications?.length > 0 ? (
+                notifications.map((notification) => (
+                  <Notification key={notification.id} notification={notification} />
+                ))
               ) : (
-                <NextPageLoader onMount={fetchNextPage} />
-              )
-            ) : (
-              <T.Subtle className="py-3 text-muted-foreground">
-                No more notifications
-              </T.Subtle>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="p-4 text-center text-muted-foreground"
+                >
+                  No notifications yet.
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {hasNextPage && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-4 text-center"
+              >
+                {isFetchingNextPage ? (
+                  <Skeleton className="h-8 w-24 mx-auto" />
+                ) : (
+                  <button
+                    onClick={() => fetchNextPage()}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Load more
+                  </button>
+                )}
+              </motion.div>
             )}
           </div>
-        </PopoverContent>
-      ) : (
-        <PopoverContent className="mr-12 p-0 rounded-xl overflow-hidden">
-          <div className="shadow-lg px-6 py-4">
-            <T.P className="text-muted-foreground">No notifications yet.</T.P>
-          </div>
-        </PopoverContent>
-      )}
+        </div>
+      </PopoverContent>
     </Popover>
   );
 };

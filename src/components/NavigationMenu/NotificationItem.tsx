@@ -1,7 +1,7 @@
-import { cn } from '@/utils/cn';
-
 import { T } from '@/components/ui/Typography';
+import { cn } from '@/utils/cn';
 import { useMutation } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { readNotification } from './fetchClientNotifications';
@@ -33,66 +33,59 @@ export function NotificationItem({
 }: NotificationItemProps) {
   const router = useRouter();
   const { mutate: mutateReadMutation } = useMutation(
-    async () => {
-      return await readNotification(notificationId);
-    },
+    async () => await readNotification(notificationId),
     {
-      onSuccess: () => {
-        router.refresh();
-      },
-    },
+      onSuccess: () => router.refresh(),
+    }
   );
+
   const content = (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
       onMouseOver={onHover}
       className={cn(
-        ' flex justify-between items-center w-full text-gray-900 dark:text-white px-6 border-b border-gray-300/75 dark:border-gray-700/75',
-        isRead
-          ? 'bg-gray-100/50 dark:bg-gray-800/50'
-          : 'bg-white dark:bg-gray-900',
+        'flex items-center w-full px-4 py-3 border-b',
+        isRead ? 'bg-accent/50' : 'bg-background',
+        'hover:bg-accent/25 transition-colors duration-200'
       )}
     >
-      <div className="flex justify-between items-start w-full  pt-1 ">
-        <div className="flex py-2 pb-3 items-start w-full">
-          <img
-            src={image}
-            alt={title}
-            className="h-14 w-14 rounded-2xl border-2 mr-4"
-          />
-          <div className="mr-3 mt-1">
-            <T.P className=" font-bold dark:text-white mb-0.5 leading-none">
-              {title}
-            </T.P>
-            <T.Small className=" font-medium text-muted-foreground">
-              {description}
-            </T.Small>
-            <T.Subtle className="text-xs mt-0.5 text-gray-400 dark:text-gray-600 font-medium tracking-wide">
-              {createdAt}
-            </T.Subtle>
-          </div>
-        </div>
-
-        {isNew && (
-          <div className="flex items-center justify-center h-3 w-3 mt-4 rounded-full bg-red-500 dark:bg-red-500"></div>
-        )}
+      <motion.img
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        transition={{ duration: 0.2 }}
+        src={image}
+        alt={title}
+        className="h-12 w-12 rounded-full object-cover mr-4"
+      />
+      <div className="flex-grow">
+        <T.P className="font-semibold text-foreground !leading-5">{title}</T.P>
+        <T.Small className="text-muted-foreground">{description}</T.Small>
+        <T.Subtle className="text-xs text-muted-foreground/75">{createdAt}</T.Subtle>
       </div>
-    </div>
+      {isNew && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="h-2 w-2 rounded-full bg-primary"
+        />
+      )}
+    </motion.div>
   );
+
   if (href) {
     return (
-      <Link
-        onClick={() => mutateReadMutation()}
-        href={href}
-        className="w-full flex flex-col items-center"
-      >
+      <Link href={href} onClick={() => mutateReadMutation()} className="block w-full">
         {content}
       </Link>
     );
-  } else {
-    return (
-      <div className="w-full flex flex-col items-center" onClick={onClick}>
-        {content}
-      </div>
-    );
   }
+
+  return (
+    <div className="w-full" onClick={onClick}>
+      {content}
+    </div>
+  );
 }
