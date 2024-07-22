@@ -603,3 +603,31 @@ export async function getInitialOrganizationToRedirectTo(): Promise<SAPayload<st
     status: 'success',
   };
 }
+
+export async function getMaybeInitialOrganizationToRedirectTo(): Promise<SAPayload<string | null>> {
+
+  const [slimOrganizations, defaultOrganizationId] = await Promise.all([
+    fetchSlimOrganizations(),
+    getDefaultOrganization(),
+  ]);
+
+  if (slimOrganizations.length === 0) {
+    return {
+      data: null,
+      status: 'success',
+    };
+  } else if (defaultOrganizationId) {
+    const slug = await getOrganizationSlugByOrganizationId(defaultOrganizationId);
+    return {
+      data: slug,
+      status: 'success',
+    };
+  } else {
+    return {
+      data: slimOrganizations[0].slug,
+      status: 'success',
+    };
+  }
+
+
+}

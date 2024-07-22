@@ -17,13 +17,11 @@ import {
   signInWithPassword,
   signInWithProvider,
 } from '@/data/auth/auth';
-import { getInitialOrganizationToRedirectTo } from '@/data/user/organizations';
+import { getMaybeInitialOrganizationToRedirectTo } from '@/data/user/organizations';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { AuthProvider } from '@/types';
-import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-reducer-types';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useDidMount } from 'rooks';
 
 export function Login({
   next,
@@ -37,19 +35,19 @@ export function Login({
 
   const router = useRouter();
 
-  useDidMount(() => {
-    console.log('prefetching dashboard')
-    router.prefetch('/dashboard', {
-      kind: PrefetchKind.AUTO
-    })
-  })
 
-  const initialOrgRedirectMutation = useSAToastMutation(getInitialOrganizationToRedirectTo, {
+
+  const initialOrgRedirectMutation = useSAToastMutation(getMaybeInitialOrganizationToRedirectTo, {
     loadingMessage: 'Loading your dashboard...',
-    errorMessage: 'Failed to load dashboard',
+    errorMessage: 'Login: Failed to load dashboard',
     successMessage: 'Redirecting to your dashboard...',
     onSuccess: (successPayload) => {
-      router.push(`/${successPayload.data}`);
+      const initialOrganization = successPayload.data;
+      if (initialOrganization) {
+        router.push(`/${initialOrganization}`);
+      } else {
+        router.push('/dashboard');
+      }
     },
     onError: (errorPayload) => {
       console.error(errorPayload);
@@ -92,7 +90,8 @@ export function Login({
       return await signInWithPassword(email, password);
     },
     {
-      onSuccess: () => {
+      onSuccess: (data, variables, context) => {
+        console.log(context);
         redirectToDashboard();
         setRedirectInProgress(true);
       },
@@ -109,6 +108,7 @@ export function Login({
         }
       },
       successMessage: 'Logged in!',
+      dismissOnSuccess: true,
     },
   );
   const providerMutation = useSAToastMutation(

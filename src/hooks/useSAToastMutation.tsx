@@ -7,6 +7,7 @@ import {
   type UseMutationResult,
 } from "@tanstack/react-query";
 import { useRef } from "react";
+import { useWillUnmount } from "rooks";
 import { toast } from "sonner";
 
 type MutationFn<TData, TVariables> = MutationFunction<TData, TVariables>;
@@ -43,9 +44,18 @@ export function useSAToastMutation<
   options?: Omit<ToastMutationOptions<SAPayload<TData>, TError, TVariables>, 'onSuccess' | 'onError'> & {
     onSuccess?: (data: SASuccessPayload<TData>, variables: TVariables, context: unknown) => void;
     onError?: (error: Error, variables: TVariables, context: unknown) => void;
+    dismissOnSuccess?: boolean;
+    dismissOnError?: boolean;
   },
 ): UseMutationResult<SAPayload<TData>, TError, TVariables> {
   const toastIdRef = useRef<string | number | null>(null);
+
+  useWillUnmount(() => {
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+  });
+
   return useMutation<SAPayload<TData>, TError, TVariables>(mutationFn, {
     ...options,
     onMutate: async (variables) => {
@@ -56,7 +66,6 @@ export function useSAToastMutation<
         : "Loading...";
 
       toastIdRef.current = toast.loading(loadingMessage);
-
       if (options?.onMutate) {
         await options.onMutate(variables);
       }
@@ -66,30 +75,25 @@ export function useSAToastMutation<
       const isHandledError = data.status === "error";
       // error scenario
       if (isHandledError) {
-        const baseErrorMessage = data.message;
-        const errorMessage = options?.errorMessage
-          ? typeof options.errorMessage === "function"
-            ? options.errorMessage(
-              new Error(baseErrorMessage) as TError,
-              variables,
-            )
-            : (options.errorMessage ?? "Error!") + `: ${baseErrorMessage}`
-          : "Error!";
-        toast.error(errorMessage, {
-          id: toastIdRef.current ?? undefined,
-        });
-        return;
+        throw new Error(data.message);
       }
-      // success scenario
-      const successMessage = options?.successMessage
-        ? typeof options.successMessage === "function"
-          ? options.successMessage(data, variables)
-          : options.successMessage
-        : "Success!";
-      toast.success(successMessage, {
-        id: toastIdRef.current ?? undefined,
-      });
+      if (options?.dismissOnSuccess && toastIdRef.current) {
+        toast.dismiss(toastIdRef.current);
+
+      } else {
+        // success scenario
+        const successMessage = options?.successMessage
+          ? typeof options.successMessage === "function"
+            ? options.successMessage(data, variables)
+            : options.successMessage
+          : "Success!";
+        toast.success(successMessage, {
+          id: toastIdRef.current ?? undefined,
+          dismissible: true,
+        });
+      }
       toastIdRef.current = null;
+
       if (options?.onSuccess) {
         options.onSuccess(data, variables, context);
       }
@@ -103,6 +107,7 @@ export function useSAToastMutation<
       console.warn("[useSAToastMutation]", errorMessage);
       toast.error(errorMessage, {
         id: toastIdRef.current ?? undefined,
+        dismissible: true,
       });
       toastIdRef.current = null;
       if (options?.onError) {

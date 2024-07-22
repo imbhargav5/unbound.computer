@@ -27,9 +27,11 @@ export default function HeroSection() {
             Experience.
           </p>
           <div className="flex flex-col md:flex-row items-center max-w-md w-full  gap-3 pt-2 ">
-            <Button className="w-full">
-              Log In
-              <ArrowRight size={16} className="ml-2" />
+            <Button className="w-full" asChild>
+              <Link href={'/login'}>
+                Log In
+                <ArrowRight size={16} className="ml-2" />
+              </Link>
             </Button>
             <Button className="w-full" variant={'secondary'}>
               Learn More
