@@ -1,82 +1,103 @@
-import { T } from "@/components/ui/Typography";
+// components/BlogListPage.tsx
+import { MotionDiv } from '@/components/motion'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PenSquareIcon } from 'lucide-react'
+import Link from 'next/link'
+import { Suspense } from 'react'
+import { z } from 'zod'
+
+import { Pagination } from '@/components/Pagination'
+import { Search } from '@/components/Search'
+import { T } from '@/components/ui/Typography'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+
+import BlogViews from '@/components/blog/BlogViews'
+import { BlogFacetedFilters } from './BlogFilters'
+import { ManageAuthorsDialog } from './ManageAuthorsDialog'
+import { ManageBlogTagsDialog } from './ManageBlogTagsDialog'
+import { SmallBlogPostList } from './RecentlyList'
+
 import {
   getAllAppAdmins,
   getAllAuthors,
   getAllBlogPosts,
   getAllBlogTags,
   getBlogPostsTotalPages,
-} from "@/data/admin/internal-blog";
+} from '@/data/admin/internal-blog'
+import type { Tables } from '@/lib/database.types'
+import { sortSchema } from './schema'
 
-import { Button } from "@/components/Button";
-import { Search } from "@/components/Search";
-import BlogViews from "@/components/blog/BlogViews";
-import { Label } from "@/components/ui/label";
-import type { Tables } from "@/lib/database.types";
-import { PenSquareIcon } from "lucide-react";
-import Link from "next/link";
-import { Suspense } from "react";
-import { BlogFacetedFilters } from "./BlogFilters";
-import { ManageAuthorsDialog } from "./ManageAuthorsDialog";
-import { ManageBlogTagsDialog } from "./ManageBlogTagsDialog";
+const blogFiltersSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  query: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  status: z.enum(['draft', 'published']).optional(),
+  sort: sortSchema,
+})
 
-import { z } from "zod";
-import { sortSchema } from "./schema";
+export type BlogFiltersSchema = z.infer<typeof blogFiltersSchema>
 
-import { Pagination } from '@/components/Pagination';
-import { Skeleton } from "@/components/ui/skeleton";
-import { SmallBlogPostList } from "./RecentlyList";
+export type BlogPostWithTags = Tables<'internal_blog_posts'> & {
+  author: Tables<'internal_blog_author_profiles'> | null
+  tags: Tables<'internal_blog_post_tags'>[]
+}
 
-async function ActionButtons() {
+
+const ActionButtons = async () => {
   const [authors, appAdmins, blogTags] = await Promise.all([
     getAllAuthors(),
     getAllAppAdmins(),
     getAllBlogTags(),
-  ]);
+  ])
+
   return (
-    <div className="content-start gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1">
+    <MotionDiv
+      className="content-start gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="flex flex-col gap-4">
         <ManageAuthorsDialog appAdmins={appAdmins} authorProfiles={authors} />
       </div>
-      <p className="text-muted-foreground text-xs">Hint :  Attach a blog post to an author so that they are all visible in that author's dedicated page publicly</p>
+      <p className="text-muted-foreground text-xs">
+        Hint: Attach a blog post to an author so that they are all visible in that author's dedicated page publicly
+      </p>
       <ManageBlogTagsDialog blogTags={blogTags} />
-
-      {/* {authors.length ? ( */}
       <Link href="/app_admin/blog/post/create">
         <Button variant="default" className="justify-start w-full">
           <PenSquareIcon className="mr-2 size-4" /> Create blog post
         </Button>
       </Link>
-      {/* ) : null} */}
-    </div>
-  );
+    </MotionDiv>
+  )
 }
 
-export type BlogPostWithTags = Tables<"internal_blog_posts"> & {
-  author: Tables<"internal_blog_author_profiles"> | null;
-  tags: Tables<"internal_blog_post_tags">[];
-};
+interface BlogListPageProps {
+  searchParams: unknown
+}
 
-const blogFiltersSchema = z
-  .object({
-    page: z.coerce.number().int().positive().optional(),
-    query: z.string().optional(),
-    keywords: z.array(z.string()).optional(),
-    status: z.enum(["draft", "published"]).optional(),
-  })
-  .merge(z.object({ sort: sortSchema }));
-
-export type BlogFiltersSchema = z.infer<typeof blogFiltersSchema>;
-
-export default async function BlogListPage({ searchParams }: { searchParams: unknown }) {
-  const filters = blogFiltersSchema.parse(searchParams);
-  const blogs: BlogPostWithTags[] = await getAllBlogPosts({ ...filters });
-  const tags = await getAllBlogTags();
-  const totalPages = await getBlogPostsTotalPages(filters);
-
+const BlogListPage = async ({ searchParams }: BlogListPageProps) => {
+  const filters = blogFiltersSchema.parse(searchParams)
+  const blogs: BlogPostWithTags[] = await getAllBlogPosts({ ...filters })
+  const tags = await getAllBlogTags()
+  const totalPages = await getBlogPostsTotalPages(filters)
 
   return (
-    <div className="gap-12 space-y-4 grid grid-cols-1 lg:grid-cols-6 w-full">
-      <div className="space-y-2 col-span-1 lg:col-span-4 row-start-2 lg:row-start-1">
+    <MotionDiv
+      className="gap-12 space-y-4 grid grid-cols-1 lg:grid-cols-6 w-full"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <MotionDiv
+        className="space-y-2 col-span-1 lg:col-span-4 row-start-2 lg:row-start-1"
+        initial={{ x: -20 }}
+        animate={{ x: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
         <div className="flex justify-between items-baseline">
           <div className="flex-1 mt-4">
             <T.H2 className="border-none">All posts</T.H2>
@@ -88,12 +109,22 @@ export default async function BlogListPage({ searchParams }: { searchParams: unk
             <BlogFacetedFilters tags={tags.map(tag => tag.name)} />
           </div>
 
-          {blogs.length > 0 ? <BlogViews blogs={blogs} /> : <T.Subtle>No blog posts yet!</T.Subtle>}
+          {blogs.length > 0 ? <BlogViews blogs={blogs} /> : <Card>
+            <CardHeader>
+              <CardTitle>No Blog Posts</CardTitle>
+              <CardDescription>There are no blog posts available at the moment.</CardDescription>
+            </CardHeader>
+          </Card>}
         </Suspense>
         <Pagination totalPages={totalPages} />
-      </div>
+      </MotionDiv>
 
-      <div className="space-y-8 col-span-1 lg:col-span-2 row-start-1">
+      <MotionDiv
+        className="space-y-8 col-span-1 lg:col-span-2 row-start-1"
+        initial={{ x: 20 }}
+        animate={{ x: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
         <div className="space-y-4">
           <Label className="text-md">Blog settings</Label>
           <Suspense fallback={<Skeleton className="w-16 h-6" />}>
@@ -104,20 +135,19 @@ export default async function BlogListPage({ searchParams }: { searchParams: unk
           <div className="space-y-4">
             <Label className="text-md">Recently published</Label>
             <Suspense fallback={<Skeleton className="w-16 h-6" />}>
-              <SmallBlogPostList typeList={"published"} />
+              <SmallBlogPostList typeList="published" />
             </Suspense>
           </div>
           <div className="space-y-4">
             <Label className="text-md">Drafted posts</Label>
             <Suspense fallback={<Skeleton className="w-16 h-6" />}>
-              <SmallBlogPostList typeList={"draft"} />
+              <SmallBlogPostList typeList="draft" />
             </Suspense>
           </div>
         </div>
-
-      </div>
-
-    </div>
-
-  );
+      </MotionDiv>
+    </MotionDiv>
+  )
 }
+
+export default BlogListPage

@@ -1,76 +1,76 @@
-import { SuspendedUserAvatarWithFullname } from '@/components/UserAvatarForAnonViewers';
-import { Badge } from '@/components/ui/badge';
-import type { Table } from '@/types';
-import { LightningBoltIcon } from '@radix-ui/react-icons';
-import Link from 'next/link';
+// components/FeedbackItem.tsx
+import { T } from "@/components/ui/Typography"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { formatDistance } from 'date-fns'
+import { Bug, LucideCloudLightning, MessageSquareDot } from "lucide-react"
+import Link from 'next/link'
 
-import { formatDistance } from 'date-fns';
-import { Bug, MessageSquareDotIcon } from 'lucide-react';
-import type { FiltersSchema } from './schema';
-
-const typeIcons = {
-  bug: <Bug className="h-4 w-4 mr-1 text-red-400" />,
-  feature_request: <LightningBoltIcon className="h-4 w-4 mr-1 text-blue-400" />,
-  general: <MessageSquareDotIcon className="h-4 w-4 mr-1 text-green-400" />,
-};
-
-enum TAGS {
-  bug = 'Bug',
-  feature_request = 'Feature Request',
-  general = 'General',
+interface FeedbackType {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  type: 'bug' | 'feature_request' | 'general'
+  created_at: string
 }
 
-export async function FeedbackItem({
-  feedback,
-  filters,
-  feedbackId,
-}: {
-  feedback: Table<'internal_feedback_threads'>;
-  filters: FiltersSchema;
-  feedbackId?: string;
-}) {
-  const searchParams = new URLSearchParams();
+interface FiltersSchema {
+  page?: number
+}
 
-  if (filters.page) searchParams.append('page', filters.page.toString());
+const typeIcons = {
+  bug: <Bug className="h-4 w-4 mr-1 text-destructive" />,
+  feature_request: <LucideCloudLightning className="h-4 w-4 mr-1 text-primary" />,
+  general: <MessageSquareDot className="h-4 w-4 mr-1 text-secondary" />,
+}
 
-  const href = `/feedback/${feedback.id}?${searchParams.toString()}`;
+const TAGS = {
+  bug: 'Bug',
+  feature_request: 'Feature Request',
+  general: 'General',
+}
+
+interface FeedbackItemProps {
+  feedback: FeedbackType
+  filters: FiltersSchema
+  feedbackId?: string
+}
+
+export function FeedbackItem({ feedback, filters, feedbackId }: FeedbackItemProps) {
+  const searchParams = new URLSearchParams()
+
+  if (filters.page) searchParams.append('page', filters.page.toString())
+
+  const href = `/feedback/${feedback.id}?${searchParams.toString()}`
 
   return (
     <Link href={href}>
-      <div
+      <Card
         data-testid="feedback-item"
         data-feedback={feedbackId === feedback.id}
-        className="w-full h-fit p-6 rounded-xl shadow-md border hover:bg-muted transition-colors duration-200 ease-in data-[feedback=true]:bg-muted hover:cursor-pointer hover:shadow-lg flex flex-col justify-between group gap-4 min-h-52"
+        className="hover:bg-muted transition-colors duration-200 ease-in cursor-pointer group"
       >
-        <div className="flex flex-col gap-4">
-          <div className='flex justify-between'>
-            <SuspendedUserAvatarWithFullname
-              userId={feedback?.user_id}
-              size={32}
-            />
-            <span className="text-muted-foreground text-sm">
-              {formatDistance(new Date(feedback?.created_at), new Date(), {
-                addSuffix: true,
-              })}
-            </span>
-          </div>
-          <div>
-            <h3 className="leading-none font-semibold text-lg">
-              {feedback?.title}
-            </h3>
-            <p className="text-ellipsis line-clamp-2 overflow-hidden text-muted-foreground">
-              {feedback?.content}
-            </p>
-          </div>
-
-        </div>
-
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className="rounded-full group-hover:bg-background ">
-            {typeIcons[feedback.type]} {TAGS[feedback?.type]}
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={`https://avatar.vercel.sh/${feedback.user_id}`} alt="User avatar" />
+            <AvatarFallback>U</AvatarFallback>
+          </Avatar>
+          <T.Small className="text-muted-foreground">
+            {formatDistance(new Date(feedback.created_at), new Date(), { addSuffix: true })}
+          </T.Small>
+        </CardHeader>
+        <CardContent>
+          <T.H3>{feedback.title}</T.H3>
+          <T.P className="text-muted-foreground line-clamp-2">{feedback.content}</T.P>
+        </CardContent>
+        <CardFooter>
+          <Badge variant="secondary" className="rounded-full group-hover:bg-background">
+            {typeIcons[feedback.type]} {TAGS[feedback.type]}
           </Badge>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </Link>
-  );
+  )
 }

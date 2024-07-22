@@ -59,33 +59,33 @@ export async function createCheckoutSessionAction({
 
     return stripeSession.id;
   }
-    const stripeSession = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      billing_address_collection: 'required',
-      customer,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      allow_promotion_codes: true,
-      subscription_data: {
-        trial_settings: {
-          end_behavior: {
-            missing_payment_method: 'cancel',
-          },
+  const stripeSession = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    billing_address_collection: 'required',
+    customer,
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    mode: 'subscription',
+    allow_promotion_codes: true,
+    subscription_data: {
+      trial_settings: {
+        end_behavior: {
+          missing_payment_method: 'cancel',
         },
       },
-      metadata: {},
-      success_url: toSiteURL(
-        `/${organizationSlug}/settings/billing`,
-      ),
-      cancel_url: toSiteURL(`/${organizationSlug}/settings/billing`),
-    });
+    },
+    metadata: {},
+    success_url: toSiteURL(
+      `/${organizationSlug}/settings/billing`,
+    ),
+    cancel_url: toSiteURL(`/${organizationSlug}/settings/billing`),
+  });
 
-    return stripeSession.id;
+  return stripeSession.id;
 }
 
 export async function createCustomerPortalLinkAction(organizationId: string) {
@@ -168,4 +168,99 @@ export const getSubscriptionsListStripe = async (
     status: 'all',
   });
   return subscriptions;
+};
+
+
+
+interface MonthlyData {
+  month: string;
+  value: number;
+}
+
+const getLastSixMonths = (): Date[] => {
+  const today = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    return d;
+  }).reverse();
+};
+
+const formatMonth = (date: Date): string => {
+  return date.toLocaleString('default', { month: 'long' });
+};
+
+export const getMonthlyChurn = async (): Promise<MonthlyData[]> => {
+  const lastSixMonths = getLastSixMonths();
+  const churnData: MonthlyData[] = [];
+
+  for (const monthStart of lastSixMonths) {
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+    const canceledSubscriptions = await stripe.subscriptions.list({
+      status: 'canceled',
+      created: {
+        gte: Math.floor(monthStart.getTime() / 1000),
+        lt: Math.floor(monthEnd.getTime() / 1000),
+      },
+    });
+
+    churnData.push({
+      month: formatMonth(monthStart),
+      value: canceledSubscriptions.data.length,
+    });
+  }
+
+  return churnData;
+};
+
+export const getMonthlyMRR = async (): Promise<MonthlyData[]> => {
+  const lastSixMonths = getLastSixMonths();
+  const mrrData: MonthlyData[] = [];
+
+  for (const monthStart of lastSixMonths) {
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+    const subscriptions = await stripe.subscriptions.list({
+      created: {
+        gte: Math.floor(monthStart.getTime() / 1000),
+        lt: Math.floor(monthEnd.getTime() / 1000),
+      },
+      status: 'active',
+    });
+
+    let mrr = 0;
+    subscriptions.data.forEach((sub) => {
+      mrr += ((sub.items.data[0].price.unit_amount ?? 0) * (sub.items.data[0].quantity ?? 0)) / 100;
+    });
+
+    mrrData.push({
+      month: formatMonth(monthStart),
+      value: mrr,
+    });
+  }
+
+  return mrrData;
+};
+
+export const getNewCustomers = async (): Promise<MonthlyData[]> => {
+  const lastSixMonths = getLastSixMonths();
+  const customerData: MonthlyData[] = [];
+
+  for (const monthStart of lastSixMonths) {
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+    const customers = await stripe.customers.list({
+      created: {
+        gte: Math.floor(monthStart.getTime() / 1000),
+        lt: Math.floor(monthEnd.getTime() / 1000),
+      },
+    });
+
+    customerData.push({
+      month: formatMonth(monthStart),
+      value: customers.data.length,
+    });
+  }
+
+  return customerData;
 };

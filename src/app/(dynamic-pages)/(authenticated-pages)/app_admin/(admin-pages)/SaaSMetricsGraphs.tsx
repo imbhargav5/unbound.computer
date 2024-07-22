@@ -1,39 +1,8 @@
 'use client';
-import { AreaChartComponent } from '@/components/AreaChart';
-import { BarChartComponent } from '@/components/BarChart';
-import { BarListComponent } from '@/components/BarList';
-import { DonutChartComponent } from '@/components/DonutChart';
 import { GraphContainer } from '@/components/GraphContainer';
-import { LineCharComponent } from '@/components/LineChart';
+import { MRRBarListChart } from './_graphs/MRRBarListChart';
 const valueFormatter = (number: number) =>
   `$ ${Intl.NumberFormat('us').format(number).toString()}`;
-const mrrBarListData = [
-  {
-    name: 'MRR',
-    value: 120,
-
-  },
-  {
-    name: 'ARR',
-    value: 157,
-
-  },
-  {
-    name: 'ARPU',
-    value: 109,
-
-  },
-  {
-    name: 'LTV',
-    value: 99,
-
-  },
-  {
-    name: 'CAC',
-    value: 132,
-
-  },
-];
 
 const mrrDonutListData = [
   {
@@ -99,13 +68,13 @@ export function SaaSMetricsGraphs({
           title="Monthly Churn Rate"
           subTitle="Monthly recurring revenue"
         >
-          <AreaChartComponent chartData={mrrBarListData} />
+          <MRRBarListChart />
         </GraphContainer>
         <GraphContainer
           title="MRR Analytics"
           subTitle="Monthly churn rate vs Organization Count"
         >
-          <DonutChartComponent chartData={mrrDonutListData} text='MRR' />
+          <MRRBarListChart />
         </GraphContainer>
       </div>
 
@@ -118,13 +87,13 @@ export function SaaSMetricsGraphs({
           title="Organizations by month"
           subTitle="Number of organizations"
         >
-          <BarChartComponent chartData={mrrBarListData} />
+          <MRRBarListChart />
         </GraphContainer>
         <GraphContainer title="Projects by Month" subTitle="Number of projects">
-          <LineCharComponent chartData={mrrBarListData} />
+          <MRRBarListChart />
         </GraphContainer>
         <GraphContainer title="User by month" subTitle="Number of users">
-          <BarListComponent chartData={mrrBarListData} />
+          <MRRBarListChart />
         </GraphContainer>
       </div>
     </div>

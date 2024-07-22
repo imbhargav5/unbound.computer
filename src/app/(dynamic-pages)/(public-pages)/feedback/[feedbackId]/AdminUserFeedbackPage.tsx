@@ -14,13 +14,12 @@ import { FeedbackFacetedFilters } from './FeedbackFacetedFilters';
 import { FeedbackItem } from './FeedbackItem';
 import { FeedbackDetailFallback } from './FeedbackPageFallbackUI';
 
-async function AdminUserFeedbackPage({
-  filters,
-  feedbackId,
-}: {
+interface AdminUserFeedbackPageProps {
   filters: FiltersSchema;
   feedbackId?: string;
-}) {
+}
+
+async function AdminUserFeedbackPage({ filters, feedbackId }: AdminUserFeedbackPageProps) {
   const feedbacks = await getPaginatedInternalFeedbackList(filters);
   const totalFeedbackPages = await getInternalFeedbackTotalPages(filters);
 
@@ -38,21 +37,16 @@ async function AdminUserFeedbackPage({
         </div>
         <div className="flex flex-col flex-1 overflow-y-auto gap-2 mb-4">
           {feedbacks.length > 0 ? (
-            feedbacks?.map((feedback) => (
+            feedbacks.map((feedback) => (
               <FeedbackItem
-                key={feedback?.id}
+                key={feedback.id}
                 feedback={feedback}
                 filters={filters}
-                feedbackId={
-                  // try to use feedbackId to highlight, if it's not presente use the first item
-                  feedbackId || feedbacks[0].id
-                }
+                feedbackId={feedbackId || feedbacks[0].id}
               />
             ))
           ) : (
-            <div
-              className="flex h-full w-full items-center justify-center rounded-lg border border-dashed shadow-sm" x-chunk="dashboard-02-chunk-1"
-            >
+            <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed shadow-sm">
               <div className="flex flex-col items-center gap-1 text-center">
                 <h3 className="text-2xl font-bold tracking-tight">
                   No feedbacks available
@@ -60,7 +54,6 @@ async function AdminUserFeedbackPage({
                 <p className="text-sm text-muted-foreground">
                   You must be logged in to view feedback.
                 </p>
-
               </div>
             </div>
           )}

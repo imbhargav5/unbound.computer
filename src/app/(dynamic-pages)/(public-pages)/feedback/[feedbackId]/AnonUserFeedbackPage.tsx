@@ -1,6 +1,4 @@
-import clsx from 'clsx';
-import type { FiltersSchema } from './schema';
-
+// components/AnonUserFeedbackPage.tsx
 import { Pagination } from '@/components/Pagination';
 import { Search } from '@/components/Search';
 import { Separator } from '@/components/ui/separator';
@@ -8,20 +6,20 @@ import {
   getAnonUserFeedbackList,
   getAnonUserFeedbackTotalPages,
 } from '@/data/anon/internalFeedback';
+import clsx from 'clsx';
 import FeedbackDetailWrapper from './FeedbackDetail';
 import { FeedbackFacetedFilters } from './FeedbackFacetedFilters';
 import { FeedbackItem } from './FeedbackItem';
+import { FiltersSchema } from './schema';
 
-async function AnonUserFeedbackPage({
-  filters,
-  feedbackId,
-}: {
+interface AnonUserFeedbackPageProps {
   filters: FiltersSchema;
   feedbackId?: string;
-}) {
+}
+
+async function AnonUserFeedbackPage({ filters, feedbackId }: AnonUserFeedbackPageProps) {
   const feedbacks = await getAnonUserFeedbackList(filters);
   const totalFeedbackPages = await getAnonUserFeedbackTotalPages(filters);
-
 
   return (
     <div className="h-full w-full flex md:gap-2">
@@ -37,21 +35,16 @@ async function AnonUserFeedbackPage({
         </div>
         <div className="flex flex-col h-full overflow-y-auto gap-2 mb-4">
           {feedbacks.length > 0 ? (
-            feedbacks?.map((feedback) => (
+            feedbacks.map((feedback) => (
               <FeedbackItem
-                key={feedback?.id}
+                key={feedback.id}
                 feedback={feedback}
                 filters={filters}
-                feedbackId={
-                  // try to use feedbackId to highlight, if it's not present use the first item
-                  feedbackId || feedbacks[0].id
-                }
+                feedbackId={feedbackId || feedbacks[0].id}
               />
             ))
           ) : (
-            <div
-              className="flex h-full w-full items-center justify-center rounded-lg border border-dashed shadow-sm" x-chunk="dashboard-02-chunk-1"
-            >
+            <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed shadow-sm">
               <div className="flex flex-col items-center gap-1 text-center">
                 <h3 className="text-2xl font-bold tracking-tight">
                   No feedbacks available
@@ -59,7 +52,6 @@ async function AnonUserFeedbackPage({
                 <p className="text-sm text-muted-foreground">
                   You must be logged in to view feedback.
                 </p>
-
               </div>
             </div>
           )}
@@ -72,11 +64,9 @@ async function AnonUserFeedbackPage({
       <div
         className={clsx(!feedbackId && '!hidden', 'md:block flex-1 relative')}
       >
-        {
-          feedbacks.length > 0 && (
-            <FeedbackDetailWrapper feedbackId={feedbackId ?? feedbacks[0]?.id} />
-          )
-        }
+        {feedbacks.length > 0 && (
+          <FeedbackDetailWrapper feedbackId={feedbackId ?? feedbacks[0]?.id} />
+        )}
       </div>
     </div>
   );
