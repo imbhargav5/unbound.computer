@@ -7,9 +7,9 @@ import { Hr } from '@react-email/hr';
 import { Html } from '@react-email/html';
 import { Link } from '@react-email/link';
 import { Text } from '@react-email/text';
-import React from "react";
+import React from 'react';
 
-interface projectApprovedProps {
+interface ProjectApprovedProps {
   userName: string;
   projectName: string;
   organisationName: string;
@@ -22,7 +22,7 @@ interface projectApprovedProps {
   dateOfApproval: Date;
 }
 
-const ProjectApproved = ({
+const ProjectApproved: React.FC<ProjectApprovedProps> = ({
   userName,
   projectName,
   organisationName,
@@ -33,81 +33,115 @@ const ProjectApproved = ({
   nextStepGuide,
   positionOfApprover,
   dateOfApproval,
-}: projectApprovedProps) => {
+}) => {
   return (
     <Html>
       <Head />
-      <Body style={{ backgroundColor: '#E5E7EB', fontFamily: 'sans-serif', fontWeight: 300 }}>
-        <Container style={{ backgroundColor: 'white', padding: '48px 60px' }}>
-          <Heading>
-            Your project{projectName} has been approved by {/*approver*/}Bob
+      <Body style={bodyStyle}>
+        <Container style={containerStyle}>
+          <Heading style={headingStyle}>
+            Your project "{projectName}" has been approved!
           </Heading>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>Dear {userName}Ronaldo,</Text>
-
-          <Text style={{ fontSize: '16px' }}>
-            The project you submitted for approval to organisation
-            {organisationName} has been approved by Bob, their CEO
-            {/*positionOfApprover*/} {/*dateOfApproval*/}on 11th July 2023
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>Dear {userName},</Text>
+          <Text style={textStyle}>
+            We are pleased to inform you that your project submission to {organisationName} has been approved by {approver}, {positionOfApprover}, on {dateOfApproval.toLocaleDateString()}.
           </Text>
-
-          {/* <Text style={{ fontSize: '16px' }}>
-            After careful evaluation and review of the submitted proposals,
-            your project stood out for several reasons:
+          <Text style={textStyle}>
+            This is an exciting milestone, and we're looking forward to seeing your project come to life. To proceed with the next steps, please click the button below:
           </Text>
-          <Text style={{ fontSize: '16px' }}>
-            1. Lorem ipsum dolor sit, amet consectetur adipisicing elit.{" "}
-            <br />
-            2. Lorem ipsum dolor sit amet consectetur, adipisicing elit.{" "}
-            <br />
-            3. Lorem ipsum dolor sit amet consectetur adipisicing elit.
-          </Text> */}
-          <Hr style={{ margin: '20px 0' }} />
-          {/* <Text style={{ fontSize: '16px' }}>
-            Your dedication, innovation, and attention to detail showcased
-            throughout the project proposal were truly impressive. We are
-            confident that your expertise and passion will contribute
-            significantly to the success of this collaboration.
-          </Text> */}
-          <Text style={{ fontSize: '16px' }}>
-            To move to the next steps, click on the button below
-          </Text>
-          {/* <Text style={{ fontSize: '16px' }}>
-            Lorem ipsum dolor sit amet consectetur adipisicing elit.
-            Architecto praesentium non itaque nihil mollitia dolor dolorem
-            velit quae? Mollitia nobis, expedita cum a aliquam cumque placeat
-            beatae sint sed est?
-          </Text> */}
-          <Button
-            style={{ fontSize: '16px', backgroundColor: 'black', fontWeight: 600, color: 'white', padding: '12px 40px', borderRadius: '4px' }}
-            href={nextStepGuide}
-          >
-            Next Steps
+          <Button href={nextStepGuide} style={buttonStyle}>
+            View Next Steps
           </Button>
-          <Hr style={{ margin: '20px 0' }} />
-          {/* <Text style={{ fontSize: '16px' }}>
-            Once again, congratulations on this achievement! We are excited to
-            work together and bring your {projectName}project project to life.
-          </Text> */}
-          <Text style={{ fontSize: '16px' }}>
-            If you have any questions or need further clarification, please do
-            not hesitate to reach out to us at{" "}
-            <Link href={organisationMail}>
-              organisation@organisation.co.in
+          <Text style={textStyle}>
+            If you have any questions or need further information, please don't hesitate to contact us at{' '}
+            <Link href={`mailto:${organisationMail}`} style={linkStyle}>
+              {organisationMail}
             </Link>
           </Text>
-          <Text style={{ fontSize: '16px' }}>Best regards,</Text>
-          <Text style={{ fontSize: '16px' }}>
-            {senderName}Cris Jefferson
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>
+            Congratulations once again on your project approval!
+          </Text>
+          <Text style={textStyle}>
+            Best regards,
             <br />
-            CEO{position}
+            {senderName}
             <br />
-            {organisationName}Organisation
+            {position}
             <br />
+            {organisationName}
           </Text>
         </Container>
       </Body>
     </Html>
   );
 };
+
+const bodyStyle: React.CSSProperties = {
+  backgroundColor: '#f6f9fc',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
+  lineHeight: 1.5,
+};
+
+const containerStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  margin: '0 auto',
+  padding: '40px 20px',
+  maxWidth: '600px',
+  borderRadius: '8px',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+};
+
+const headingStyle: React.CSSProperties = {
+  fontSize: '24px',
+  fontWeight: 'bold',
+  color: '#333',
+  textAlign: 'center',
+  margin: '20px 0',
+};
+
+const hrStyle: React.CSSProperties = {
+  borderColor: '#e6ebf1',
+  margin: '20px 0',
+};
+
+const textStyle: React.CSSProperties = {
+  fontSize: '16px',
+  color: '#4a4a4a',
+  marginBottom: '20px',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#4CAF50',
+  color: '#ffffff',
+  borderRadius: '4px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center',
+  display: 'inline-block',
+  padding: '12px 20px',
+  margin: '20px 0',
+};
+
+const linkStyle: React.CSSProperties = {
+  color: '#0366d6',
+  textDecoration: 'none',
+};
+
+// @ts-ignore
+ProjectApproved.PreviewProps = {
+  userName: 'John Doe',
+  projectName: 'Innovative Solution',
+  organisationName: 'TechCorp',
+  senderName: 'Jane Smith',
+  position: 'Project Manager',
+  nextStepGuide: 'https://example.com/next-steps',
+  organisationMail: 'support@techcorp.com',
+  approver: 'Alice Johnson',
+  positionOfApprover: 'Chief Innovation Officer',
+  dateOfApproval: new Date('2023-07-15'),
+};
+
 export default ProjectApproved;

@@ -5,6 +5,7 @@ import { Head } from '@react-email/head';
 import { Heading } from '@react-email/heading';
 import { Hr } from '@react-email/hr';
 import { Html } from '@react-email/html';
+import { Link } from '@react-email/link';
 import { Text } from '@react-email/text';
 import React from "react";
 
@@ -16,10 +17,13 @@ interface WelcomeEmailProps {
   positionInTeam: string;
   linkToApp: string;
   supportEmail: string;
-  socialMediaLinks: string;
+  socialMediaLinks: {
+    twitter: string;
+    facebook: string;
+  };
 }
 
-const WelcomeEmail = ({
+const WelcomeEmail: React.FC<WelcomeEmailProps> = ({
   appName,
   userName,
   purposeOfApp,
@@ -28,45 +32,134 @@ const WelcomeEmail = ({
   linkToApp,
   supportEmail,
   socialMediaLinks,
-}: WelcomeEmailProps) => {
+}) => {
   return (
     <Html>
       <Head />
-      <Body style={{ backgroundColor: '#f0f0f0', fontFamily: 'Arial, sans-serif', fontWeight: 'lighter' }}>
-        <Container style={{ backgroundColor: '#ffffff', padding: '48px', maxWidth: '600px', margin: '0 auto' }}>
-          <Heading>Welcome to {appName}</Heading>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>Dear {userName},</Text>
-          <Text style={{ fontSize: '16px' }}>Greetings!</Text>
-          <Text style={{ fontSize: '16px' }}>
+      <Body style={bodyStyle}>
+        <Container style={containerStyle}>
+          <Heading style={headingStyle}>Welcome to {appName}!</Heading>
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>Dear {userName},</Text>
+          <Text style={textStyle}>
             We're thrilled to welcome you to {appName}. Your account has been successfully created and is ready to use.
           </Text>
-          <Text style={{ fontSize: '16px' }}>
-            Through {appName}, our goal is to help you {purposeOfApp}.
+          <Text style={textStyle}>
+            Our mission is to help you {purposeOfApp}. We're excited to be part of your journey!
           </Text>
-          <Text style={{ fontSize: '16px' }}>Click the button below to get started:</Text>
-
-          <Button style={{ width: '100%', fontWeight: 'bold', textAlign: 'center', backgroundColor: '#000000', color: '#ffffff', padding: '10px', borderRadius: '5px' }} href={linkToApp}>
+          <Button href={linkToApp} style={buttonStyle}>
             Get Started
           </Button>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>
-            Should you need any assistance or further information, feel free to reach out to our support team at <Link href={`mailto:${supportEmail}`}>{supportEmail}</Link> or visit our FAQ section.
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>
+            Need help? Our support team is here for you at <Link href={`mailto:${supportEmail}`} style={linkStyle}>{supportEmail}</Link>.
           </Text>
-          <Text style={{ fontSize: '16px' }}>
-            Stay connected with us on our social media platforms for the latest updates: <Link href={socialMediaLinks}>Twitter</Link>, <Link href={socialMediaLinks}>Facebook</Link>.
+          <Text style={textStyle}>
+            Stay updated:
+            <Link href={socialMediaLinks.twitter} style={linkStyle}> Twitter</Link> |
+            <Link href={socialMediaLinks.facebook} style={linkStyle}> Facebook</Link>
           </Text>
-          <Text style={{ fontSize: '16px' }}>
+          <Text style={textStyle}>
             Thank you for choosing {appName}. We're excited to have you on board!
           </Text>
-          <Text style={{ fontSize: '16px' }}>Best Regards,</Text>
-          <Text style={{ fontSize: '16px' }}>{makerName}</Text>
-          <Text style={{ fontSize: '16px' }}>{positionInTeam}</Text>
-          <Text style={{ fontSize: '16px' }}>{appName} Team</Text>
+          <Text style={signatureStyle}>{makerName}</Text>
+          <Text style={positionStyle}>{positionInTeam}</Text>
+          <Text style={companyStyle}>{appName} Team</Text>
         </Container>
       </Body>
     </Html>
   );
+};
+
+const bodyStyle: React.CSSProperties = {
+  backgroundColor: '#f4f4f4',
+  fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  fontWeight: 300,
+  margin: 0,
+  padding: '20px 0',
+};
+
+const containerStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+  margin: '0 auto',
+  maxWidth: '600px',
+  padding: '40px',
+};
+
+const headingStyle: React.CSSProperties = {
+  color: '#333',
+  fontSize: '28px',
+  fontWeight: 700,
+  lineHeight: '32px',
+  margin: '0 0 20px',
+  textAlign: 'center',
+};
+
+const hrStyle: React.CSSProperties = {
+  borderColor: '#e6e6e6',
+  margin: '30px 0',
+};
+
+const textStyle: React.CSSProperties = {
+  color: '#444',
+  fontSize: '16px',
+  lineHeight: '24px',
+  margin: '0 0 20px',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#007bff',
+  borderRadius: '4px',
+  color: '#ffffff',
+  display: 'inline-block',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  margin: '20px 0',
+  padding: '12px 24px',
+  textAlign: 'center',
+  textDecoration: 'none',
+};
+
+const linkStyle: React.CSSProperties = {
+  color: '#007bff',
+  textDecoration: 'none',
+};
+
+const signatureStyle: React.CSSProperties = {
+  color: '#333',
+  fontSize: '18px',
+  fontWeight: 'bold',
+  margin: '30px 0 5px',
+};
+
+const positionStyle: React.CSSProperties = {
+  color: '#666',
+  fontSize: '14px',
+  margin: '0 0 5px',
+};
+
+const companyStyle: React.CSSProperties = {
+  color: '#666',
+  fontSize: '14px',
+  fontWeight: 'bold',
+  margin: '0',
+};
+
+// @ts-ignore
+WelcomeEmail.PreviewProps = {
+  appName: 'Awesome App',
+  userName: 'John Doe',
+  purposeOfApp: 'streamline your workflow',
+  makerName: 'Jane Smith',
+  positionInTeam: 'Founder & CEO',
+  linkToApp: 'https://awesomeapp.com/start',
+  supportEmail: 'support@awesomeapp.com',
+  socialMediaLinks: {
+    twitter: 'https://twitter.com/awesomeapp',
+    facebook: 'https://facebook.com/awesomeapp',
+  },
 };
 
 export default WelcomeEmail;

@@ -6,7 +6,8 @@ import { Heading } from '@react-email/heading';
 import { Hr } from '@react-email/hr';
 import { Html } from '@react-email/html';
 import { Text } from '@react-email/text';
-import React from "react";
+import React from 'react';
+
 interface UserLeftAReviewProps {
   reviewLink: string;
   appName: string;
@@ -15,44 +16,101 @@ interface UserLeftAReviewProps {
   rating: string;
 }
 
-const UserLeftAReview = ({
+const UserLeftAReview: React.FC<UserLeftAReviewProps> = ({
   reviewLink,
   appName,
   makerName,
   nameOfReviewer,
   rating,
-}: UserLeftAReviewProps) => {
+}) => {
   return (
     <Html>
       <Head />
-      <Body style={{ backgroundColor: '#f0f0f0', fontFamily: 'Arial, sans-serif', fontWeight: 'lighter' }}>
-        <Container style={{ backgroundColor: '#ffffff', padding: '48px', maxWidth: '600px', margin: '0 auto' }}>
-          <Heading>New review on {appName}</Heading>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>Dear {makerName},</Text>
-          <Text style={{ fontSize: '16px' }}>
-            We would like to inform you that a user has recently reviewed your app, {appName}.
+      <Body style={bodyStyle}>
+        <Container style={containerStyle}>
+          <Heading style={headingStyle}>New Review on {appName}</Heading>
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>Dear {makerName},</Text>
+          <Text style={textStyle}>
+            We're excited to inform you that a user has recently reviewed your app, {appName}.
           </Text>
-          <Text style={{ fontSize: '16px' }}>
+          <Text style={textStyle}>
             <strong>Reviewer:</strong> {nameOfReviewer}
             <br />
             <strong>Rating:</strong> {rating}
           </Text>
-          <Text style={{ fontSize: '16px' }}>
-            To view the full review, please click below:
+          <Text style={textStyle}>
+            To view the full review, please click the button below:
           </Text>
-          <Button style={{ backgroundColor: '#000000', color: '#ffffff', padding: '12px 20px', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold' }} href={reviewLink}>
+          <Button style={buttonStyle} href={reviewLink}>
             View Review
           </Button>
-          <Text style={{ fontSize: '16px', marginTop: '20px' }}>
-            Thank you for your attention to user feedback.
+          <Text style={textStyle}>
+            Your attention to user feedback is greatly appreciated. Keep up the great work!
           </Text>
-          <Text style={{ fontSize: '16px' }}>Best regards,</Text>
-          <Text style={{ fontSize: '16px' }}>The Company Team</Text>
+          <Text style={textStyle}>Best regards,</Text>
+          <Text style={textStyle}>The {appName} Team</Text>
         </Container>
       </Body>
     </Html>
   );
+};
+
+const bodyStyle: React.CSSProperties = {
+  backgroundColor: '#f6f9fc',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
+  lineHeight: '1.5',
+  padding: '20px 0',
+};
+
+const containerStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  margin: '0 auto',
+  padding: '40px',
+  maxWidth: '600px',
+  borderRadius: '8px',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+};
+
+const headingStyle: React.CSSProperties = {
+  fontSize: '24px',
+  fontWeight: 'bold',
+  color: '#333',
+  textAlign: 'center',
+  margin: '0 0 20px',
+};
+
+const hrStyle: React.CSSProperties = {
+  borderColor: '#e6ebf1',
+  margin: '20px 0',
+};
+
+const textStyle: React.CSSProperties = {
+  fontSize: '16px',
+  color: '#4a4a4a',
+  marginBottom: '20px',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#007bff',
+  color: '#ffffff',
+  borderRadius: '4px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center',
+  display: 'inline-block',
+  padding: '12px 20px',
+  margin: '20px 0',
+};
+
+// @ts-ignore
+UserLeftAReview.PreviewProps = {
+  reviewLink: 'https://example.com/review',
+  appName: 'Amazing App',
+  makerName: 'Jane Doe',
+  nameOfReviewer: 'John Smith',
+  rating: '5 stars',
 };
 
 export default UserLeftAReview;

@@ -5,9 +5,11 @@ import { Head } from '@react-email/head';
 import { Heading } from '@react-email/heading';
 import { Hr } from '@react-email/hr';
 import { Html } from '@react-email/html';
+import { Section } from '@react-email/section';
 import { Text } from '@react-email/text';
-import React from "react";
-interface policyUpdateProps {
+import React from 'react';
+
+interface PolicyUpdateProps {
   userName: string;
   change1: string;
   change2: string;
@@ -15,64 +17,129 @@ interface policyUpdateProps {
   policyLink: string;
 }
 
-const PolicyUpdate = ({
+const PolicyUpdate: React.FC<PolicyUpdateProps> = ({
   userName,
   change1,
   change2,
   change3,
   policyLink,
-}: policyUpdateProps) => {
-  //Map from changes array
+}) => {
   return (
     <Html>
       <Head />
-      <Body style={{ backgroundColor: '#E5E7EB', fontWeight: 300, fontFamily: 'sans-serif' }}>
-        <Container style={{ backgroundColor: 'white', padding: '48px 60px' }}>
-          <Heading>Important Policy update - Action required</Heading>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>Dear {userName},</Text>
-          <Text style={{ fontSize: '16px', marginBottom: 0 }}>
-            We are writing to inform you about a recent update to our
-            {/* organization's policies. These changes reflect our commitment to
-            upholding the highest standards of professionalism, compliance,
-            and safety. */}
+      <Body style={bodyStyle}>
+        <Container style={containerStyle}>
+          <Heading style={headingStyle}>Important Policy Update - Action Required</Heading>
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>Dear {userName},</Text>
+          <Text style={textStyle}>
+            We are writing to inform you about a recent update to our organization's policies. These changes reflect our commitment to upholding the highest standards of professionalism, compliance, and safety.
           </Text>
-          <Text style={{ fontSize: '16px' }}>
+          <Text style={textStyle}>
             In summary, the key updates include:
           </Text>
-          <Text style={{ fontSize: '16px', marginTop: '8px' }}>
-            1. {change1}
-            <br />
-            2. {change2}
-            <br />
-            3. {change3}
+          <Section style={listStyle}>
+            <Text style={listItemStyle}>1. {change1}</Text>
+            <Text style={listItemStyle}>2. {change2}</Text>
+            <Text style={listItemStyle}>3. {change3}</Text>
+          </Section>
+          <Hr style={hrStyle} />
+          <Text style={textStyle}>
+            To access the full updated policy document, please click the button below:
           </Text>
-          <Hr style={{ margin: '20px 0' }} />
-          <Text style={{ fontSize: '16px' }}>
-            To access the full updated policy document, please click the
-            button below:
+          <Section style={buttonContainerStyle}>
+            <Button style={buttonStyle} href={policyLink}>
+              Review Policy
+            </Button>
+          </Section>
+          <Text style={textStyle}>
+            We encourage you to take the time to review the revised policy thoroughly. If you have any questions or need further clarification, please contact our support team.
           </Text>
-          <Button
-            style={{ fontSize: '16px', backgroundColor: 'black', fontWeight: 600, color: 'white', padding: '12px 40px', borderRadius: '4px' }}
-            href={policyLink}
-          >
-            Review Policy
-          </Button>
-          {/* <Text style={{ fontSize: '16px' }}>
-            We encourage you to take the time to review the revised policy
-            thoroughly. If you have any questions or need further
-            clarification, may contact our support team at{" "}
-            <Link href={supportEmail}>support@acme.co.in</Link> or reply
-            directly to this email.
-          </Text> */}
-          <Text style={{ fontSize: '16px' }}>
-            We appreciate your understanding and cooperation as we continue to
-            improve our services to meet your needs.
+          <Text style={textStyle}>
+            We appreciate your understanding and cooperation as we continue to improve our services to meet your needs.
           </Text>
-          <Text style={{ fontSize: '16px' }}>Acme team</Text>
+          <Text style={signatureStyle}>Acme Team</Text>
         </Container>
       </Body>
     </Html>
   );
 };
+
+const bodyStyle: React.CSSProperties = {
+  backgroundColor: '#f4f4f4',
+  fontFamily: 'Arial, sans-serif',
+  lineHeight: 1.6,
+};
+
+const containerStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  margin: '0 auto',
+  padding: '40px',
+  maxWidth: '600px',
+  borderRadius: '8px',
+  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+};
+
+const headingStyle: React.CSSProperties = {
+  fontSize: '24px',
+  fontWeight: 'bold',
+  color: '#333333',
+  textAlign: 'center',
+  marginBottom: '20px',
+};
+
+const hrStyle: React.CSSProperties = {
+  borderColor: '#e0e0e0',
+  margin: '20px 0',
+};
+
+const textStyle: React.CSSProperties = {
+  fontSize: '16px',
+  color: '#4a4a4a',
+  marginBottom: '16px',
+};
+
+const listStyle: React.CSSProperties = {
+  marginLeft: '20px',
+  marginBottom: '20px',
+};
+
+const listItemStyle: React.CSSProperties = {
+  fontSize: '16px',
+  color: '#4a4a4a',
+  marginBottom: '8px',
+};
+
+const buttonContainerStyle: React.CSSProperties = {
+  textAlign: 'center',
+  margin: '30px 0',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#007bff',
+  color: '#ffffff',
+  borderRadius: '4px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  padding: '12px 24px',
+  display: 'inline-block',
+};
+
+const signatureStyle: React.CSSProperties = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#333333',
+  marginTop: '20px',
+};
+
+// @ts-ignore
+PolicyUpdate.PreviewProps = {
+  userName: 'John Doe',
+  change1: 'Updated data retention policy',
+  change2: 'New security protocols for remote access',
+  change3: 'Revised code of conduct guidelines',
+  policyLink: 'https://example.com/policy-update',
+};
+
 export default PolicyUpdate;
