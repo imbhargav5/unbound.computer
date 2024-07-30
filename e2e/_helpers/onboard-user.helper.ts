@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test';
-import { randomUUID } from 'crypto';
+import { expect, type Page } from '@playwright/test';
 
 export async function onboardUserHelper({
   page,
@@ -8,97 +7,39 @@ export async function onboardUserHelper({
   page: Page;
   name: string;
 }) {
-  const viewTermsDialog = await page.waitForSelector(
-    'div[data-testid="view-terms-onboarding"]',
-  );
-
-  if (!viewTermsDialog) {
-    throw new Error('acceptTermsForm not found');
-  }
-
-  const viewTermsButton = await viewTermsDialog.waitForSelector(
-    'button:has-text("View Terms")',
-  );
-
-  if (!viewTermsButton) {
-    throw new Error('view accept terms not found');
-  }
-
+  // Terms Acceptance
+  const viewTermsButton = page.getByRole('button', { name: 'View Terms' });
   await viewTermsButton.click();
 
-  const acceptTermsButton = await page.waitForSelector(
-    'button:has-text("Accept Terms")',
-  );
+  const termsDialog = page.getByRole('dialog');
+  await expect(termsDialog).toBeVisible();
 
-  if (!acceptTermsButton) {
-    throw new Error('acceptTermsButton not found');
-  }
-
+  const acceptTermsButton = termsDialog.getByRole('button', { name: 'Accept Terms' });
   await acceptTermsButton.click();
 
-  // wait for text "Terms accepted!"
-  await page.waitForSelector('text=Terms accepted!');
 
-  const form = await page.waitForSelector(
-    'form[data-testid="create-new-profile"]',
-  );
-  if (!form) {
-    throw new Error('form not found');
-  }
-  const input = await form.waitForSelector('input[name="name"]');
-  // enter text in the input field
-  await input.fill(name);
+  // Profile Update
+  const fullNameInput = page.getByRole('textbox', { name: 'Full Name' });
+  await expect(fullNameInput).toBeVisible();
+  await fullNameInput.fill(name);
 
-  // get button with text "save"
-  const submitButton = await form.waitForSelector('button:has-text("Save")');
-  if (!submitButton) {
-    throw new Error('submitButton not found');
-  }
-  await submitButton.click();
-
-  // wait for text "Profile updated!"
-  await page.waitForSelector('text=Profile updated!');
-
-  const createOrganizationForm = await page.waitForSelector(
-    'form[data-testid="create-new-organization"]',
-  );
-
-  if (!createOrganizationForm) {
-    throw new Error('createOrganizationForm not found');
-  }
-
-  const inputCreateOrg = await createOrganizationForm.waitForSelector(
-    'input[name="organizationTitle"]',
-  );
-
-  if (!inputCreateOrg) {
-    throw new Error('inputCreateOrg not found');
-  }
-
-  
-  await inputCreateOrg.fill('My Organization');
-
-  const inputSlug = await createOrganizationForm.waitForSelector(
-    'input[name="organizationSlug"]',
-  );
-
-  if (!inputSlug) {
-    throw new Error('inputSlug not found');
-  }
+  const saveProfileButton = page.getByRole('button', { name: 'Save Profile' });
+  await saveProfileButton.click();
 
 
-  await inputSlug.fill(randomUUID());
+  // Organization Creation
+  const orgTitleInput = page.getByRole('textbox', { name: 'Organization Name' });
+  await expect(orgTitleInput).toBeVisible();
+  await orgTitleInput.fill('My Organization');
 
-  const createOrganizationButton = await createOrganizationForm.waitForSelector(
-    'button:has-text("Create Organization")',
-  );
 
-  if (!createOrganizationButton) {
-    throw new Error('createOrganizationButton not found');
-  }
 
-  await createOrganizationButton.click();
+  const createOrgButton = page.getByRole('button', { name: 'Create Organization' });
+  await createOrgButton.click();
 
-  // wait for text "Organization created!"
-  await page.waitForSelector('text=Organization created!');
+
+  // Wait for redirection to a url matching `/<slug>` and get the slug
+  await page.waitForURL(/.*\//);
+  const slug = page.url().split('/').pop();
+  console.log('slug', slug);
 }

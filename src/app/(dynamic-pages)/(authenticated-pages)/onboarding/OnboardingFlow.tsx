@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 
@@ -10,8 +10,10 @@ import { OrganizationCreation } from "./OrganizationCreation";
 import { ProfileUpdate } from "./ProfileUpdate";
 import { TermsAcceptance } from "./TermsAcceptance";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Table } from "@/types";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
+import { useDidMount } from "rooks";
 
 type FLOW_STATE = "TERMS" | "PROFILE" | "ORGANIZATION" | "COMPLETE";
 
@@ -23,6 +25,14 @@ type UserOnboardingFlowProps = {
 
 const MotionCard = motion(Card);
 
+function OnboardingComplete() {
+  const router = useRouter();
+  useDidMount(() => {
+    router.replace("/dashboard");
+  });
+  return <Skeleton className="w-full max-w-md" />;
+}
+
 export function UserOnboardingFlow({
   userProfile,
   onboardingStatus,
@@ -32,20 +42,19 @@ export function UserOnboardingFlow({
   const [currentStep, setCurrentStep] = useState<FLOW_STATE>(
     getInitialFlowState(flowStates, onboardingStatus)
   );
-  const { replace } = useRouter();
 
   const nextStep = useCallback(() => {
-    const currentIndex = flowStates.indexOf(currentStep);
-    if (currentIndex < flowStates.length - 1) {
-      setCurrentStep(flowStates[currentIndex + 1]);
-    }
+    setCurrentStep((prevStep) => {
+      const currentIndex = flowStates.indexOf(prevStep);
+      if (currentIndex < flowStates.length - 1) {
+        return flowStates[currentIndex + 1];
+      }
+      return prevStep;
+    });
   }, [currentStep, flowStates]);
 
-  useEffect(() => {
-    if (currentStep === "COMPLETE") {
-      replace("/dashboard");
-    }
-  }, [currentStep, replace]);
+
+
 
   const cardVariants = {
     hidden: { opacity: 0, y: 50 },
@@ -75,6 +84,7 @@ export function UserOnboardingFlow({
         {currentStep === "ORGANIZATION" && (
           <OrganizationCreation onSuccess={nextStep} />
         )}
+        {currentStep === "COMPLETE" && <OnboardingComplete />}
       </MotionCard>
     </AnimatePresence>
   );

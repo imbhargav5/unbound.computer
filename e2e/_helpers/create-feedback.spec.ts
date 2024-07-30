@@ -1,36 +1,29 @@
-import { expect, type Page } from '@playwright/test';
+// @src/e2e/_helpers/create-feedback.spec.ts
+import { type Page } from '@playwright/test';
 
 export async function createFeedbackHelper(page: Page) {
   await page.goto('/dashboard');
 
-  const userNavAvatar = await page.waitForSelector(
-    'div[data-testid="user-nav-avatar"]',
-  );
+  // Wait for network idle state
+  await page.waitForLoadState('networkidle');
 
-  await page.waitForTimeout(12000);
+  // Use Promise.all to perform actions concurrently
+  await Promise.all([
+    page.click('div[data-testid="user-nav-avatar"]'),
+    page.locator('[data-testid="feedback-link"]').waitFor({ state: 'attached' }),
+  ]);
 
-  if (userNavAvatar) {
-    await userNavAvatar.click();
-  }
+  await page.click('[data-testid="feedback-link"]');
 
-  const feedbackLink = page.locator('[data-testid="feedback-link"]');
-
-  if (feedbackLink) {
-    await feedbackLink.click();
-  }
-
+  // Use locator for the form and its fields
   const form = page.locator('[data-testid="give-feedback-form"]');
-  await expect(form).toBeVisible();
+  await form.waitFor({ state: 'visible' });
 
-  const titleInput = form.locator('[name="title"]');
-  await expect(titleInput).toBeVisible();
-  await titleInput.fill('Test title');
+  await form.locator('[name="title"]').fill('Test title');
+  await form.locator('[name="content"]').fill('Test content');
 
-  const contentInput = form.locator('[name="content"]');
-  await expect(contentInput).toBeVisible();
-  await contentInput.fill('Test content');
-
-  const submitButton = page.locator('[data-testid="submit-feedback-button"]');
-  await expect(submitButton).toBeVisible();
-  await submitButton.click();
+  // Use Promise.all for the final click and navigation
+  await Promise.all([
+    page.click('[data-testid="submit-feedback-button"]'),
+  ]);
 }

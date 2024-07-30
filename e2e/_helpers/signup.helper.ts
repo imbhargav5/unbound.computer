@@ -3,6 +3,32 @@ import { expect, request } from '@playwright/test';
 
 const INBUCKET_URL = `http://localhost:54324`;
 
+/**
+ * Message samples
+ *
+ * ----------\nMagic Link\n----------\n\nFollow this link to login:\n\nLog In ( http://127.0.0.1:54321/auth/v1/verify?token=pkce_8727a6aad33b430c0a5d01d92e5b2fca0481beda04dfa028a59a50b0&type=magiclink&redirect_to=http://localhost:3000/auth/callback )\n\nAlternatively, enter the code: 122956
+ */
+
+const matchers = [{
+  tokenMatcher: /enter the code: ([0-9]+)/,
+  urlMatcher: /Confirm your email address \( (.+) \)/,
+}, {
+  tokenMatcher: /enter the code: ([0-9]+)/,
+  urlMatcher: /Log In \( (.+) \)/,
+}]
+
+function getTokenAndUrlFromEmailText(text: string) {
+  // the first matcher that matches the text is used
+  for (const matcher of matchers) {
+    const token = text.match(matcher.tokenMatcher)?.[1];
+    const url = text.match(matcher.urlMatcher)?.[1];
+    if (token && url) {
+      return { token, url };
+    }
+  }
+  throw new Error('No token and url found in email text');
+}
+
 // eg endpoint: https://api.testmail.app/api/json?apikey=${APIKEY}&namespace=${NAMESPACE}&pretty=true
 async function getConfirmEmail(username: string): Promise<{
   token: string;
@@ -29,7 +55,6 @@ async function getConfirmEmail(username: string): Promise<{
     );
 
   const latestMessageId = messages[0]?.id;
-
   if (latestMessageId) {
     const message = await requestContext
       .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessageId}`)
@@ -37,11 +62,8 @@ async function getConfirmEmail(username: string): Promise<{
 
     // We've got the latest email. We're going to use regular
     // expressions to match the bits we need.
-    const token = message.body.text.match(/enter the code: ([0-9]+)/)[1];
-    const url = message.body.text.match(
-      /Confirm your email address \( (.+) \)/,
-    )[1];
-
+    const { token, url } = getTokenAndUrlFromEmailText(message.body.text);
+    console.log("url", url)
     return { token, url };
   }
 

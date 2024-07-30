@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { dashboardDefaultOrganizationIdHelper } from '../_helpers/dashboard-default-organization-id.helper';
 
 test('dashboard for a user with profile', async ({ page }) => {
@@ -10,7 +10,7 @@ test('dashboard for a user with profile', async ({ page }) => {
   // check for the presence of the settings page
   await page.goto(settingsPageURL);
   // wait for text Edit Organization Title
-  await page.waitForSelector('text=Edit Organization Title');
+  expect(await page.locator('text=Edit Organization Title')).toBeVisible();
 
   // check for the presence of the members page
   await page.goto(membersPageURL);
@@ -18,7 +18,7 @@ test('dashboard for a user with profile', async ({ page }) => {
   // wait for page load completely
   await page.waitForTimeout(12000);
   // wait for text Team Members
-  await page.waitForSelector('text=Team Members');
+  expect(await page.locator('text=Team Members')).toBeVisible();
 
   // check for the presence of the billing page
   await page.goto(billingPageURL);
@@ -27,5 +27,5 @@ test('dashboard for a user with profile', async ({ page }) => {
   await page.waitForTimeout(12000);
 
   // wait for text Subscription
-  await page.waitForSelector('text=Subscription');
+  expect(await page.locator('text=Subscription')).toBeVisible();
 });

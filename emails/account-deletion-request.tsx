@@ -13,7 +13,7 @@ interface ConfirmAccountDeletionProps {
   deletionConfirmationLink: string;
   appName: string;
   userName: string;
-  logoUrl: string;
+  logoUrl?: string;
 }
 
 const ConfirmAccountDeletion: React.FC<ConfirmAccountDeletionProps> = ({
@@ -28,7 +28,7 @@ const ConfirmAccountDeletion: React.FC<ConfirmAccountDeletionProps> = ({
       <Body style={bodyStyle}>
         <Container style={containerStyle}>
           <Section style={headerStyle}>
-            <Img src={logoUrl} alt={`${appName} logo`} width={160} height={90} />
+            <Img src={logoUrl ?? `https://placehold.it/160x90`} alt={`${appName} logo`} width={160} height={90} />
           </Section>
           <Heading style={headingStyle}>Confirm Account Deletion</Heading>
           <Hr style={hrStyle} />

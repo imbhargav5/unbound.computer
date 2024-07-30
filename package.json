@@ -199,7 +199,7 @@
   "devDependencies": {
     "@microflash/rehype-slugify": "^1.0.0",
     "@next/eslint-plugin-next": "^14.0.0",
-    "@playwright/test": "^1.42.1",
+    "@playwright/test": "^1.45.3",
     "@testing-library/react": "^14.0.0",
     "@types/events": "^3.0.1",
     "@types/formidable": "^3.4.0",

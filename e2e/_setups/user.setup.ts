@@ -13,6 +13,9 @@ setup('create account', async ({ page }) => {
   const identifier = getIdentifier()
   const emailAddress = `${identifier}@myapp.com`
   await signupUserHelper({ page, emailAddress, identifier });
+  console.log('signup complete')
+
   await onboardUserHelper({ page, name: 'John Doe' });
+  console.log('onboarding complete')
   await page.context().storageState({ path: authFile });
 });

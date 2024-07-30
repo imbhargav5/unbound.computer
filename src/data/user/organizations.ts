@@ -56,9 +56,10 @@ export const createOrganization = async (
     isOnboardingFlow?: boolean;
   } = {},
 ): Promise<SAPayload<string>> => {
+  console.log('creating organization')
   const supabaseClient = createSupabaseUserServerActionClient();
   const user = await serverGetLoggedInUser();
-
+  console.log({ isOnboardingFlow })
   const organizationId = uuid();
 
   if (RESTRICTED_SLUG_NAMES.includes(slug)) {
@@ -75,7 +76,7 @@ export const createOrganization = async (
     slug: slug
   });
 
-  revalidatePath("/[organizationSlug]", 'layout');
+  revalidatePath(`/${slug}`, 'layout');
 
   if (error) {
     return { status: 'error', message: error.message };
