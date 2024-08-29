@@ -35,14 +35,14 @@ export async function GET(
     const url = new URL(toSiteURL('/login'));
     url.searchParams.append(
       'next',
-      `/invitations/${encodeURIComponent(invitationId)}`,
+      `/user/invitations/${encodeURIComponent(invitationId)}`,
     );
     url.searchParams.append('nextActionType', 'invitationPending');
     return redirect(url.toString());
   }
 
   if (typeof invitationId === 'string') {
-    redirect(`/invitations/${invitationId}`);
+    redirect(`/user/invitations/${invitationId}`);
   } else {
     return NextResponse.json({
       error: 'Invalid invitation ID',

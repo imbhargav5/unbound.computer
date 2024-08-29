@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createOrganization } from "@/data/user/organizations";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { generateSlug } from "@/lib/utils";
+import { generateOrganizationSlug } from "@/lib/utils";
 import { CreateOrganizationSchema, createOrganizationSchema } from "@/utils/zod-schemas/organization";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -56,7 +56,7 @@ export function OrganizationCreation({ onSuccess }: OrganizationCreationProps) {
             placeholder="Enter organization name"
             onChange={(e) => {
               setValue("organizationTitle", e.target.value, { shouldValidate: true });
-              setValue("organizationSlug", generateSlug(e.target.value, { withNanoIdSuffix: true }), { shouldValidate: true });
+              setValue("organizationSlug", generateOrganizationSlug(e.target.value), { shouldValidate: true });
             }}
           />
           {errors.organizationTitle && (
@@ -69,6 +69,7 @@ export function OrganizationCreation({ onSuccess }: OrganizationCreationProps) {
             id="organizationSlug"
             {...register("organizationSlug")}
             placeholder="organization-slug"
+            disabled
           />
           {errors.organizationSlug && (
             <p className="text-sm text-destructive">{errors.organizationSlug.message}</p>

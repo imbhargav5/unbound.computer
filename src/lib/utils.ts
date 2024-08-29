@@ -8,19 +8,36 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const generateSlug = (title: string, {
-  withNanoIdSuffix = true
+  withNanoIdSuffix = true,
+  prefix = ''
 }: {
   withNanoIdSuffix?: boolean
+  prefix?: string
 } = {}) => {
   const slug = slugify(title, {
     lower: true,
     strict: true,
     replacement: '-',
   });
-  return withNanoIdSuffix ? `${slug}-${nanoid()}` : slug;
+  const withSuffix = withNanoIdSuffix ? `${slug}-${simpleNanoid()}` : slug;
+  return prefix ? `${prefix}-${withSuffix}` : withSuffix;
 }
 
-export const nanoid = customAlphabet(
+export const generateOrganizationSlug = (title: string) => {
+  return generateSlug(title, {
+    prefix: 's',
+    withNanoIdSuffix: true,
+  });
+}
+
+export const generateProjectSlug = (title: string) => {
+  return generateSlug(title, {
+    prefix: 'p',
+    withNanoIdSuffix: true,
+  });
+}
+
+export const simpleNanoid = customAlphabet(
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
   7,
 ); //

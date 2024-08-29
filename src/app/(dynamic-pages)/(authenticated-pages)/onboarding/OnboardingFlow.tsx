@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 
@@ -13,7 +13,6 @@ import { TermsAcceptance } from "./TermsAcceptance";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Table } from "@/types";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
-import { useDidMount } from "rooks";
 
 type FLOW_STATE = "TERMS" | "PROFILE" | "ORGANIZATION" | "COMPLETE";
 
@@ -27,10 +26,12 @@ const MotionCard = motion(Card);
 
 function OnboardingComplete() {
   const router = useRouter();
-  useDidMount(() => {
-    router.replace("/dashboard");
-  });
-  return <Skeleton className="w-full max-w-md" />;
+  useEffect(() => {
+    router.push("/dashboard");
+  }, [router]);
+  return <div data-testid="onboarding-complete">
+    <Skeleton className="w-full max-w-md" />
+  </div>;
 }
 
 export function UserOnboardingFlow({

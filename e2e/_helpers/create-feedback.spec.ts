@@ -1,29 +1,31 @@
-// @src/e2e/_helpers/create-feedback.spec.ts
-import { type Page } from '@playwright/test';
+// @src/e2e/_helpers/create-feedback.helper.ts
+import { expect, type Locator, type Page } from '@playwright/test';
 
-export async function createFeedbackHelper(page: Page) {
-  await page.goto('/dashboard');
+export async function createFeedbackHelper(page: Page): Promise<void> {
+  await page.goto('/dashboard', { waitUntil: 'networkidle' });
 
-  // Wait for network idle state
-  await page.waitForLoadState('networkidle');
+  const userNavAvatar: Locator = page.getByTestId('user-nav-avatar');
+  const feedbackLink: Locator = page.getByTestId('feedback-link');
+  const feedbackForm: Locator = page.getByTestId('give-feedback-form');
+  const titleInput: Locator = feedbackForm.getByRole('textbox', { name: 'title' });
+  const contentInput: Locator = feedbackForm.getByRole('textbox', { name: 'content' });
+  const submitButton: Locator = feedbackForm.getByRole('button', { name: 'Submit Feedback' });
 
-  // Use Promise.all to perform actions concurrently
-  await Promise.all([
-    page.click('div[data-testid="user-nav-avatar"]'),
-    page.locator('[data-testid="feedback-link"]').waitFor({ state: 'attached' }),
-  ]);
+  await expect(userNavAvatar).toBeVisible();
+  await userNavAvatar.click();
 
-  await page.click('[data-testid="feedback-link"]');
+  await expect(feedbackLink).toBeVisible();
+  await feedbackLink.click();
 
-  // Use locator for the form and its fields
-  const form = page.locator('[data-testid="give-feedback-form"]');
-  await form.waitFor({ state: 'visible' });
+  await expect(feedbackForm).toBeVisible();
 
-  await form.locator('[name="title"]').fill('Test title');
-  await form.locator('[name="content"]').fill('Test content');
+  await titleInput.fill('Test title');
+  await contentInput.fill('Test content');
 
-  // Use Promise.all for the final click and navigation
-  await Promise.all([
-    page.click('[data-testid="submit-feedback-button"]'),
-  ]);
+  await expect(submitButton).toBeEnabled();
+
+  await submitButton.click();
+
+  await page.waitForURL((url) => url.pathname.startsWith('/feedback/'));
+
 }

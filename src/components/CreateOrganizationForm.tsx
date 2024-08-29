@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createOrganization } from "@/data/user/organizations";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { generateSlug } from "@/lib/utils";
+import { generateOrganizationSlug } from "@/lib/utils";
 import { CreateOrganizationSchema, createOrganizationSchema } from "@/utils/zod-schemas/organization";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Network } from "lucide-react";
@@ -96,7 +96,7 @@ export function CreateOrganizationForm({
                   id="name"
                   type="text"
                   placeholder="Organization Name"
-                  onChange={(e) => setValue("organizationTitle", generateSlug(e.target.value))}
+                  onChange={(e) => setValue("organizationTitle", generateOrganizationSlug(e.target.value))}
                   disabled={isCreatingOrg}
                 />
               </div>

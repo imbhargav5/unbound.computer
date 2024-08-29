@@ -32,10 +32,10 @@ const itemVariants = {
 
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
-  { label: "Account Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
-  { label: "Security Settings", href: "/settings/security", icon: <Shield className="h-5 w-5" /> },
-  { label: "Developer Settings", href: "/settings/developer", icon: <Code className="h-5 w-5" /> },
-  { label: "Invitations", href: "/invitations", icon: <Mail className="h-5 w-5" /> },
+  { label: "Account Settings", href: "/user/settings", icon: <Settings className="h-5 w-5" /> },
+  { label: "Security Settings", href: "/user/settings/security", icon: <Shield className="h-5 w-5" /> },
+  { label: "Developer Settings", href: "/user/settings/developer", icon: <Code className="h-5 w-5" /> },
+  { label: "Invitations", href: "/user/invitations", icon: <Mail className="h-5 w-5" /> },
   { label: "My Feedback", href: "/feedback", icon: <FileQuestion className="h-5 w-5" /> },
 ];
 

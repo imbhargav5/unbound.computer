@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { extractOrganizationIdFromUrl } from './dashboard-default-organization-id.helper';
 
 export async function onboardUserHelper({
   page,
@@ -37,9 +38,11 @@ export async function onboardUserHelper({
   const createOrgButton = page.getByRole('button', { name: 'Create Organization' });
   await createOrgButton.click();
 
+  // data-testid onboarding-complete should be visible
+  const onboardingComplete = page.getByTestId('onboarding-complete');
+  await expect(onboardingComplete).toBeDefined();
 
-  // Wait for redirection to a url matching `/<slug>` and get the slug
-  await page.waitForURL(/.*\//);
-  const slug = page.url().split('/').pop();
-  console.log('slug', slug);
+
+  const defaultOrganizationId = await extractOrganizationIdFromUrl({ page });
+  expect(defaultOrganizationId).not.toBeNull();
 }

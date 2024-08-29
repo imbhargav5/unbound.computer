@@ -7,7 +7,7 @@ export default function InvitationsNavbar() {
   return (
     <div className={cn('hidden lg:block', 'relative ')}>
       <T.P className="my-0">
-        <Link href="/invitations">
+        <Link href="/user/invitations">
           <span className="space-x-2 flex items-center">
             <ArrowLeftIcon />
             <span>Back to Invitations</span>

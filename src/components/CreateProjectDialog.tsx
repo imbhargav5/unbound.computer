@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProjectAction } from "@/data/user/projects";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { generateSlug } from "@/lib/utils";
+import { generateProjectSlug } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -100,7 +100,7 @@ export function CreateProjectDialog({
                 className="mt-1.5 shadow appearance-none border rounded-lg w-full"
                 onChange={(e) => {
                   setValue("name", e.target.value);
-                  setValue("slug", generateSlug(e.target.value), {
+                  setValue("slug", generateProjectSlug(e.target.value), {
                     shouldValidate: true,
                   });
                 }}

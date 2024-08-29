@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createOrganization } from "@/data/user/organizations";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { generateSlug } from "@/lib/utils";
+import { generateOrganizationSlug } from "@/lib/utils";
 import { CreateOrganizationSchema, createOrganizationSchema } from "@/utils/zod-schemas/organization";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Network } from "lucide-react";
@@ -113,7 +113,7 @@ export function CreateOrganizationDialog({
                   id="name"
                   type="text"
                   onChange={(e) => {
-                    setValue("organizationSlug", generateSlug(e.target.value), { shouldValidate: true });
+                    setValue("organizationSlug", generateOrganizationSlug(e.target.value), { shouldValidate: true });
                     setValue("organizationTitle", e.target.value, { shouldValidate: true });
                   }}
                   placeholder="Organization Name"

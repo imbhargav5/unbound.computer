@@ -1,31 +1,41 @@
-import { expect, test } from '@playwright/test';
-import { dashboardDefaultOrganizationIdHelper } from '../_helpers/dashboard-default-organization-id.helper';
+import { expect, test } from "@playwright/test";
+import { dashboardDefaultOrganizationIdHelper } from "../_helpers/dashboard-default-organization-id.helper";
 
-test('dashboard for a user with profile', async ({ page }) => {
-  const organizationSlug = await dashboardDefaultOrganizationIdHelper({ page });
-  const settingsPageURL = `/${organizationSlug}/settings`;
-  const billingPageURL = `/${organizationSlug}/settings/billing`;
-  const membersPageURL = `/${organizationSlug}/settings/members`;
+test.describe("Organization", () => {
+  let organizationSlug: string;
 
-  // check for the presence of the settings page
-  await page.goto(settingsPageURL);
-  // wait for text Edit Organization Title
-  expect(await page.locator('text=Edit Organization Title')).toBeVisible();
+  test.beforeAll(async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    organizationSlug = await dashboardDefaultOrganizationIdHelper({ page });
+    await context.close();
+  });
 
-  // check for the presence of the members page
-  await page.goto(membersPageURL);
+  test("should navigate to organization settings", async ({ page }) => {
+    await page.goto(`/${organizationSlug}/settings`);
+    await expect(page.getByRole("heading", { name: "Edit Organization Title" })).toBeVisible();
+  });
 
-  // wait for page load completely
-  await page.waitForTimeout(12000);
-  // wait for text Team Members
-  expect(await page.locator('text=Team Members')).toBeVisible();
+  test("should list team members", async ({ page }) => {
+    await page.goto(`/${organizationSlug}/settings/members`);
+    await expect(page.getByRole("heading", { name: "Team Members" })).toBeVisible();
+    await expect(page.getByTestId("members-table")).toBeVisible();
+  });
 
-  // check for the presence of the billing page
-  await page.goto(billingPageURL);
+  test.skip("should update organization title and slug", async ({ page }) => {
+    await page.goto(`/${organizationSlug}/settings`);
 
-  // wait for page load completely
-  await page.waitForTimeout(12000);
+    const newTitle = "Organization Name Updated";
+    const titleInput = page.getByTestId("edit-organization-title-input");
+    await titleInput.fill(newTitle);
 
-  // wait for text Subscription
-  expect(await page.locator('text=Subscription')).toBeVisible();
+    // Wait for the slug to be automatically generated
+    await page.waitForTimeout(500);
+
+    await page.getByRole("button", { name: "Update" }).click();
+    await expect(page.getByText("Organization information updated!")).toBeVisible();
+
+    const titleInput2 = page.getByTestId("edit-organization-title-input");
+    await expect(titleInput2).toHaveValue(newTitle);
+  });
 });

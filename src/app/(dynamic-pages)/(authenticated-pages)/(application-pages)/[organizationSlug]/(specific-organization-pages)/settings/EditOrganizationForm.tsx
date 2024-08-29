@@ -4,7 +4,7 @@ import { T } from "@/components/ui/Typography";
 import { Input } from "@/components/ui/input";
 import { updateOrganizationInfo } from "@/data/user/organizations";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { generateSlug } from "@/lib/utils";
+import { generateOrganizationSlug } from "@/lib/utils";
 import { createOrganizationSchema } from "@/utils/zod-schemas/organization";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -86,10 +86,11 @@ export function EditOrganizationForm({
         <Input
           type="text"
           id="organization-title"
+          data-testid="edit-organization-title-input"
           {...register("organizationTitle")}
           onChange={(e) => {
             setValue("organizationTitle", e.target.value, { shouldValidate: true });
-            setValue("organizationSlug", generateSlug(e.target.value), { shouldValidate: true });
+            setValue("organizationSlug", generateOrganizationSlug(e.target.value), { shouldValidate: true });
           }}
         />
         <div className="space-y-2">
@@ -102,6 +103,7 @@ export function EditOrganizationForm({
 
           type="text"
           id="organization-slug"
+          data-testid="edit-organization-slug-input"
           {...register("organizationSlug")}
         />
         <div className="inline-block">

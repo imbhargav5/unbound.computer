@@ -13,17 +13,17 @@ export default function UserSettingsClientLayout({
     return [
       {
         label: 'Account Settings',
-        href: `/settings`,
+        href: `/user/settings`,
         icon: <User />,
       },
       {
         label: 'Developer Settings',
-        href: `/settings/developer`,
+        href: `/user/settings/developer`,
         icon: <Computer />,
       },
       {
         label: 'Security',
-        href: `/settings/security`,
+        href: `/user/settings/security`,
         icon: <Lock />,
       },
     ];

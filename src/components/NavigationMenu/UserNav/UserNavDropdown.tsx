@@ -60,7 +60,7 @@ export const UserNavDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button data-testid="user-nav-avatar" variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             <AvatarImage src={avatarUrl} alt={userFullname} />
             <AvatarFallback>{userFullname.charAt(0)}</AvatarFallback>
@@ -83,21 +83,21 @@ export const UserNavDropdown = ({
           <DropdownMenuGroup>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/settings" className="flex items-center w-full">
+                <Link href="/user/settings" className="flex items-center w-full">
                   <User className="mr-2 h-4 w-4" /> Account settings
                 </Link>
               </DropdownMenuItem>
             </MotionDiv>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/settings/developer" className="flex items-center w-full">
+                <Link href="/user/settings/developer" className="flex items-center w-full">
                   <Computer className="mr-2 h-4 w-4" /> Developer Settings
                 </Link>
               </DropdownMenuItem>
             </MotionDiv>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/settings/security" className="flex items-center w-full">
+                <Link href="/user/settings/security" className="flex items-center w-full">
                   <Lock className="mr-2 h-4 w-4" /> Security Settings
                 </Link>
               </DropdownMenuItem>
@@ -121,7 +121,7 @@ export const UserNavDropdown = ({
           <MotionDiv variants={menuItemAnimation}>
             <DropdownMenuItem asChild>
               <GiveFeedbackDialog>
-                <div className="flex items-center w-full">
+                <div data-testid="feedback-link" className="flex items-center w-full">
                   <Mail className="mr-2 h-4 w-4" /> Feedback
                 </div>
               </GiveFeedbackDialog>

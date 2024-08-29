@@ -1,4 +1,4 @@
-// src/app/(dynamic-pages)/(authenticated-pages)/(user-pages)/settings/security/UpdateEmail.tsx
+// src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/UpdateEmail.tsx
 
 'use client';
 import { Button } from '@/components/ui/button';

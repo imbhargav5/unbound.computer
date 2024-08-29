@@ -321,9 +321,10 @@ export const getNormalizedOrganizationSubscription = async (
   organizationId: string,
 ): Promise<NormalizedSubscription> => {
   const supabase = createSupabaseUserServerComponentClient();
+  const activeProducts = await getActiveProductsWithPrices();
   const { data: subscriptions, error } = await supabase
-    .from('subscriptions')
-    .select('*, prices(*, products(*))')
+    .from('billing_subscriptions')
+    .select('*')
     .eq('organization_id', organizationId)
     .in('status', ['trialing', 'active']);
 
@@ -339,39 +340,32 @@ export const getNormalizedOrganizationSubscription = async (
 
   try {
     const subscription = subscriptions[0];
-    console.log(subscription);
 
-    const price = Array.isArray(subscription.prices)
-      ? subscription.prices[0]
-      : subscription.prices;
-    if (!price) {
-      throw new Error('No price found');
-    }
+    const planId = subscription.gateway_plan_id;
 
-    const product = Array.isArray(price.products)
-      ? price.products[0]
-      : price.products;
+
+    const product = activeProducts.find(product => product.gateway_plan_id === planId);
+
     if (!product) {
       throw new Error('No product found');
     }
 
+
     if (subscription.status === 'trialing') {
-      if (!subscription.trial_start || !subscription.trial_end) {
+      if (!subscription.current_period_start || !subscription.trial_ends_at) {
         throw new Error('No trial start or end found');
       }
       return {
         type: 'trialing',
-        trialStart: subscription.trial_start,
-        trialEnd: subscription.trial_end,
+        trialStart: subscription.current_period_start,
+        trialEnd: subscription.trial_ends_at,
         product: product,
-        price: price,
         subscription,
       };
     } else if (subscription.status) {
       return {
         type: subscription.status,
         product: product,
-        price: price,
         subscription,
       };
     } else {
@@ -389,11 +383,11 @@ export const getNormalizedOrganizationSubscription = async (
 export const getActiveProductsWithPrices = async () => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
-    .from('products')
-    .select('*, prices(*)')
+    .from('billing_plans')
+    .select('*, billing_plan_prices(*)')
     .eq('active', true)
-    .eq('prices.active', true)
-    .order('unit_amount', { foreignTable: 'prices' });
+    .eq('billing_plan_prices.active', true)
+    .order('unit_amount', { foreignTable: 'billing_plan_prices' });
 
   if (error) {
     throw error;

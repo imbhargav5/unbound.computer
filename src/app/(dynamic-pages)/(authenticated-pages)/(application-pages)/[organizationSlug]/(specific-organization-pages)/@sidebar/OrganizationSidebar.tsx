@@ -1,6 +1,5 @@
 // OrganizationSidebar.tsx (Server Component)
 import { DesktopSidebarFallback } from '@/components/SidebarComponents/SidebarFallback';
-import { SubscriptionCardSmall } from '@/components/SubscriptionCardSmall';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchSlimOrganizations, getOrganizationIdBySlug } from '@/data/user/organizations';
 import { organizationSlugParamSchema } from '@/utils/zod-schemas/params';
@@ -22,7 +21,7 @@ export async function OrganizationSidebar({ params }: { params: unknown }) {
           slimOrganizations={slimOrganizations}
           subscription={<Suspense fallback={<Skeleton className="h-2 w-full" />}>
             <div>
-              <SubscriptionCardSmall organizationSlug={organizationSlug} organizationId={organizationId} />
+              {/* <SubscriptionCardSmall organizationSlug={organizationSlug} organizationId={organizationId} /> */}
             </div>
           </Suspense>}
         />

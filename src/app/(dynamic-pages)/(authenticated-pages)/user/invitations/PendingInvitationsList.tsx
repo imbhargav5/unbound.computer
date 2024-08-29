@@ -53,7 +53,7 @@ const PendingInvitationsTable = ({
                 <TableCell>{invitation.role}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
-                    <Link href={`/invitations/${invitation.id}`}>
+                    <Link href={`/user/invitations/${invitation.id}`}>
                       <Button size="default" variant="default">
                         View Invitation
                       </Button>

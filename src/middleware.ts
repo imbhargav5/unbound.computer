@@ -1,12 +1,12 @@
 import {
-  createMiddlewareClient,
-  type User,
+  type User
 } from '@supabase/auth-helpers-nextjs';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 // const matchAppAdmin = match('/app_admin_preview/(.*)?');
 import { match } from 'path-to-regexp';
-import type { Database } from './lib/database.types';
+import { updateSession } from './supabase-clients/middleware';
+import { createSupabaseMiddlewareClient } from './supabase-clients/user/createSupabaseMiddlewareClient';
 import { toSiteURL } from './utils/helpers';
 import { authUserMetadataSchema } from './utils/zod-schemas/authUserMetadata';
 
@@ -69,7 +69,8 @@ function shouldOnboardUser(pathname: string, user: User | undefined) {
 // for any Server Component route that uses `createServerComponentSupabaseClient`
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  const supabase = createMiddlewareClient<Database>({ req, res });
+  await updateSession(req);
+  const supabase = createSupabaseMiddlewareClient(req);
   const sessionResponse = await supabase.auth.getSession();
   const maybeUser = sessionResponse?.data.session?.user;
   if (shouldOnboardUser(req.nextUrl.pathname, maybeUser)) {

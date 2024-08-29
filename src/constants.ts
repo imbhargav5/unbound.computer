@@ -1,7 +1,6 @@
 export const ADMIN_USER_LIST_VIEW_PAGE_SIZE = 10;
 export const ADMIN_ORGANIZATION_LIST_VIEW_PAGE_SIZE = 10;
 export const PRODUCT_NAME = 'NextBase';
-export const DEV_PORT = 4000;
 export const SIDEBAR_VISIBILITY_COOKIE_KEY = 'sidebar_visibility';
 export const MOBILE_MEDIA_QUERY_MATCHER = '(max-width: 1023px)';
 export const PAYMENT_PROVIDER: 'stripe' | 'lemonsqueezy' = 'stripe';
@@ -43,5 +42,5 @@ export const RESTRICTED_SLUG_NAMES = [
 ]
 
 // starts with a letter, ends with a letter or number, and can contain letters, numbers, and hyphens
-export const SLUG_PATTERN = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})|(^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9])$/;
+export const SLUG_PATTERN = /^[a-zA-Z0-9-]+$/;
 
