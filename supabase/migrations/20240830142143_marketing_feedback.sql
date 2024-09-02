@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_changelog_author_relationship" (
   "changelog_id" "uuid" NOT NULL REFERENCES "public"."marketing_changelog"("id") ON DELETE CASCADE
 );
 
+CREATE INDEX idx_marketing_changelog_author_relationship_author_id ON public.marketing_changelog_author_relationship(author_id);
+CREATE INDEX idx_marketing_changelog_author_relationship_changelog_id ON public.marketing_changelog_author_relationship(changelog_id);
+
 ALTER TABLE "public"."marketing_changelog_author_relationship" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_changelog_author_relationship" ENABLE ROW LEVEL SECURITY;
 
@@ -36,6 +39,8 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_feedback_threads" (
   "is_publicly_visible" boolean DEFAULT false NOT NULL
 );
 
+CREATE INDEX idx_marketing_feedback_threads_user_id ON public.marketing_feedback_threads(user_id);
+
 ALTER TABLE "public"."marketing_feedback_threads" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_feedback_threads" ENABLE ROW LEVEL SECURITY;
 
@@ -48,6 +53,9 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_feedback_comments" (
   "created_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
   "updated_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE INDEX idx_marketing_feedback_comments_user_id ON public.marketing_feedback_comments(user_id);
+CREATE INDEX idx_marketing_feedback_comments_thread_id ON public.marketing_feedback_comments(thread_id);
 
 
 ALTER TABLE "public"."marketing_feedback_comments" OWNER TO "postgres";

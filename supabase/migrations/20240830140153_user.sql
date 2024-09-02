@@ -23,17 +23,26 @@ CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
 ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
 ALTER TABLE "public"."user_profiles" ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS "public"."user_private_info" (
+
+CREATE TABLE IF NOT EXISTS "public"."user_settings" (
   "id" "uuid" PRIMARY KEY NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
-  "created_at" timestamp WITH time zone DEFAULT "now"(),
-  "default_organization" "uuid",
-  "email_readonly" character varying NOT NULL
+  "default_organization" "uuid"
 );
 
-ALTER TABLE "public"."user_private_info" OWNER TO "postgres";
-ALTER TABLE "public"."user_private_info" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."user_settings" OWNER TO "postgres";
+ALTER TABLE "public"."user_settings" ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX "idx_user_settings_default_organization" ON "public"."user_settings" ("default_organization");
 
+CREATE TABLE IF NOT EXISTS "public"."user_application_settings" (
+  "id" "uuid" PRIMARY KEY NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
+  "email_readonly" character varying NOT NULL -- This mirrors the auth.users table email column for convenience purposes as it makes joining tables in the public schema easier and can be queried safely via supabase.
+);
+
+ALTER TABLE "public"."user_application_settings" OWNER TO "postgres";
+ALTER TABLE "public"."user_application_settings" ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX "idx_user_application_settings_email_readonly" ON "public"."user_application_settings" ("email_readonly");
 
 CREATE TABLE IF NOT EXISTS "public"."user_roles" (
   "id" UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
@@ -48,8 +57,10 @@ ALTER TABLE "public"."user_roles" OWNER TO "postgres";
 COMMENT ON TABLE "public"."user_roles" IS 'Application roles for each user.';
 ALTER TABLE "public"."user_roles" ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX "idx_user_roles_user_id" ON "public"."user_roles" ("user_id");
+
 CREATE TABLE IF NOT EXISTS "public"."user_api_keys" (
-  "key_id" "text" NOT NULL,
+  "key_id" "text" PRIMARY KEY NOT NULL,
   "masked_key" "text" NOT NULL,
   "created_at" timestamp WITH time zone DEFAULT "now"() NOT NULL,
   "user_id" "uuid" NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
@@ -59,6 +70,10 @@ CREATE TABLE IF NOT EXISTS "public"."user_api_keys" (
 
 ALTER TABLE "public"."user_api_keys" OWNER TO "postgres";
 ALTER TABLE "public"."user_api_keys" ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX "idx_user_api_keys_user_id" ON "public"."user_api_keys" ("user_id");
+
+
 CREATE TABLE IF NOT EXISTS "public"."user_notifications" (
   "id" "uuid" PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   "user_id" "uuid" NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
@@ -71,6 +86,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_notifications" (
 
 ALTER TABLE "public"."user_notifications" OWNER TO "postgres";
 ALTER TABLE "public"."user_notifications" ENABLE ROW LEVEL SECURITY;
+CREATE INDEX "idx_user_notifications_user_id" ON "public"."user_notifications" ("user_id");
 
 ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
 
@@ -78,12 +94,14 @@ ALTER PUBLICATION "supabase_realtime"
 ADD TABLE ONLY "public"."user_notifications";
 
 CREATE TABLE IF NOT EXISTS "public"."account_delete_tokens" (
-  "token" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+  "token" "uuid" PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   "user_id" "uuid" NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE
 );
 
 ALTER TABLE "public"."account_delete_tokens" OWNER TO "postgres";
 ALTER TABLE "public"."account_delete_tokens" ENABLE ROW LEVEL SECURITY;
+CREATE INDEX "idx_account_delete_tokens_user_id" ON "public"."account_delete_tokens" ("user_id");
+
 
 CREATE POLICY "All authenticated users can request deletion" ON "public"."account_delete_tokens" FOR
 INSERT TO "authenticated" WITH CHECK (TRUE);
@@ -102,10 +120,34 @@ CREATE POLICY "Only the own user can update it" ON "public"."user_profiles" FOR
 UPDATE TO "authenticated" USING (
     (
       (
-        SELECT "auth"."uid"() AS "uid"
+        SELECT auth.uid()
       ) = "id"
     )
   );
+
+-- User Application Settings RLS
+CREATE POLICY "Users can view their own application settings" ON "public"."user_application_settings" FOR
+SELECT TO authenticated USING (
+    (
+      SELECT auth.uid()
+    ) = "id"
+  );
+
+-- User Settings RLS
+CREATE POLICY "Users can view their own settings" ON "public"."user_settings" FOR
+SELECT TO authenticated USING (
+    (
+      SELECT auth.uid()
+    ) = "id"
+  );
+
+CREATE POLICY "Users can update their own settings" ON "public"."user_settings" FOR
+UPDATE TO authenticated USING (
+    (
+      SELECT auth.uid()
+    ) = "id"
+  );
+
 -- User Roles RLS
 CREATE POLICY "Users can view their own roles" ON "public"."user_roles" FOR
 SELECT TO authenticated USING (
@@ -217,28 +259,3 @@ UPDATE TO "authenticated" USING (
       ) = "user_id"
     )
   );
-
-/*
- * Sync email for convenience
- */
--- Function to update email_readonly in user_private_info
-CREATE OR REPLACE FUNCTION public.update_user_private_info_email() RETURNS TRIGGER AS $$ BEGIN
-UPDATE public.user_private_info
-SET email_readonly = NEW.email
-WHERE id = NEW.id;
-RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger to update email_readonly when auth.users email is updated
-CREATE TRIGGER on_auth_user_email_updated
-AFTER
-UPDATE OF email ON auth.users FOR EACH ROW EXECUTE FUNCTION public.update_user_private_info_email();
-
--- Revoke execute permission from PUBLIC
-REVOKE EXECUTE ON FUNCTION public.update_user_private_info_email()
-FROM PUBLIC;
-
--- Grant execute permission only to postgres and service_role
-GRANT EXECUTE ON FUNCTION public.update_user_private_info_email() TO postgres,
-  service_role;

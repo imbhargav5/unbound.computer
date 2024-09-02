@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_blog_posts" (
   "json_content" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL
 );
 
+
 ALTER TABLE "public"."marketing_blog_posts" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_blog_posts" ENABLE ROW LEVEL SECURITY;
 
@@ -21,6 +22,9 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_blog_post_tags_relationship" (
   "blog_post_id" "uuid" NOT NULL REFERENCES "public"."marketing_blog_posts"("id") ON DELETE CASCADE,
   "tag_id" "uuid" NOT NULL REFERENCES "public"."marketing_tags"("id") ON DELETE CASCADE
 );
+
+CREATE INDEX idx_marketing_blog_post_tags_relationship_blog_post_id ON public.marketing_blog_post_tags_relationship(blog_post_id);
+CREATE INDEX idx_marketing_blog_post_tags_relationship_tag_id ON public.marketing_blog_post_tags_relationship(tag_id);
 
 ALTER TABLE "public"."marketing_blog_post_tags_relationship" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_blog_post_tags_relationship" ENABLE ROW LEVEL SECURITY;
@@ -31,6 +35,9 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_blog_author_posts" (
   "author_id" "uuid" NOT NULL REFERENCES "public"."marketing_author_profiles"("id") ON DELETE CASCADE,
   "post_id" "uuid" NOT NULL REFERENCES "public"."marketing_blog_posts"("id") ON DELETE CASCADE
 );
+
+CREATE INDEX idx_marketing_blog_author_posts_author_id ON public.marketing_blog_author_posts(author_id);
+CREATE INDEX idx_marketing_blog_author_posts_post_id ON public.marketing_blog_author_posts(post_id);
 
 ALTER TABLE "public"."marketing_blog_author_posts" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_blog_author_posts" ENABLE ROW LEVEL SECURITY;

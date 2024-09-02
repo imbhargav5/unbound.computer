@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS "public"."projects" (
   "slug" character varying(255) DEFAULT ("gen_random_uuid"())::"text" UNIQUE NOT NULL
 );
 
+CREATE INDEX idx_projects_workspace_id ON public.projects(workspace_id);
+
 ALTER TABLE "public"."projects" OWNER TO "postgres";
 ALTER TABLE "public"."projects" ENABLE ROW LEVEL SECURITY;
 
@@ -49,11 +51,15 @@ CREATE TABLE IF NOT EXISTS "public"."project_comments" (
   "project_id" "uuid" NOT NULL REFERENCES "public"."projects"("id") ON DELETE CASCADE
 );
 
+CREATE INDEX idx_project_comments_project_id ON public.project_comments(project_id);
+
 ALTER TABLE "public"."project_comments" OWNER TO "postgres";
 ALTER TABLE "public"."project_comments" ENABLE ROW LEVEL SECURITY;
 
 -- functions
-CREATE OR REPLACE FUNCTION "public"."get_project_workspace_uuid" (project_id uuid) RETURNS uuid LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION "public"."get_project_workspace_uuid" (project_id uuid) RETURNS uuid LANGUAGE plpgsql
+SET search_path = public,
+  pg_temp AS $$
 DECLARE workspace_id uuid;
 BEGIN
 SELECT p."workspace_id" INTO workspace_id

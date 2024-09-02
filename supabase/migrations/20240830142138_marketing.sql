@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS "public"."marketing_author_profiles" (
   "id" "uuid" PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+  "slug" "text" UNIQUE NOT NULL,
   "display_name" character varying(255) NOT NULL,
   "bio" "text" NOT NULL,
   "avatar_url" character varying(255) NOT NULL,
@@ -11,6 +12,7 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_author_profiles" (
   "created_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
   "updated_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
 
 ALTER TABLE "public"."marketing_author_profiles" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_author_profiles" ENABLE ROW LEVEL SECURITY;

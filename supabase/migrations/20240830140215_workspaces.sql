@@ -20,17 +20,32 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
 );
 
 
+-- These can be viewed and updated by workspace members
 CREATE TABLE IF NOT EXISTS public.workspace_settings (
   workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
   workspace_settings JSONB NOT NULL
 );
 
+CREATE INDEX idx_workspace_settings_workspace_id ON public.workspace_settings(workspace_id);
+
+-- These can only be viewed and updated by workspace admins
+CREATE TABLE IF NOT EXISTS public.workspace_admin_settings (
+  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
+  workspace_settings JSONB NOT NULL
+);
+
+CREATE INDEX idx_workspace_admin_settings_workspace_id ON public.workspace_admin_settings(workspace_id);
+
+
+
+-- These settings are automatically applied by application either via payments etc.
+-- They are visible to all workspace members
 CREATE TABLE IF NOT EXISTS public.workspace_application_settings (
   workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
   membership_type "public"."workspace_membership_type" DEFAULT 'solo' NOT NULL
 );
 
-
+CREATE INDEX idx_workspace_application_settings_workspace_id ON public.workspace_application_settings(workspace_id);
 
 COMMENT ON TABLE public.workspace_application_settings IS 'This table is for the application to manage workspace settings';
 
@@ -44,6 +59,9 @@ CREATE TABLE IF NOT EXISTS public.workspace_team_members (
   added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
+CREATE INDEX idx_workspace_team_members_workspace_id ON public.workspace_team_members(workspace_id);
+CREATE INDEX idx_workspace_team_members_user_profile_id ON public.workspace_team_members(user_profile_id);
+
 -- Create workspace_invitations table
 CREATE TABLE IF NOT EXISTS public.workspace_invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,6 +74,10 @@ CREATE TABLE IF NOT EXISTS public.workspace_invitations (
   invitee_user_id UUID REFERENCES public.user_profiles (id)
 );
 
+CREATE INDEX idx_workspace_invitations_workspace_id ON public.workspace_invitations(workspace_id);
+CREATE INDEX idx_workspace_invitations_invitee_user_id ON public.workspace_invitations(invitee_user_id);
+CREATE INDEX idx_workspace_invitations_inviter_user_id ON public.workspace_invitations(inviter_user_id);
+
 -- Create workspace_credits table
 CREATE TABLE IF NOT EXISTS public.workspace_credits (
   id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
@@ -63,6 +85,8 @@ CREATE TABLE IF NOT EXISTS public.workspace_credits (
   credits INT NOT NULL,
   last_reset_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_workspace_credits_workspace_id ON public.workspace_credits(workspace_id);
 
 -- Create workspace_credits_logs table
 CREATE TABLE IF NOT EXISTS public.workspace_credits_logs (
@@ -75,10 +99,15 @@ CREATE TABLE IF NOT EXISTS public.workspace_credits_logs (
   new_credits INT
 );
 
+CREATE INDEX idx_workspace_credits_logs_workspace_id ON public.workspace_credits_logs(workspace_id);
+CREATE INDEX idx_workspace_credits_logs_workspace_credits_id ON public.workspace_credits_logs(workspace_credits_id);
+
+
 
 -- Enable Row Level Security (RLS) on the new tables
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_admin_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_application_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_invitations ENABLE ROW LEVEL SECURITY;
@@ -97,7 +126,9 @@ INSERT TO "authenticated" WITH CHECK (TRUE);
 
 
 -- Workspace functions
-CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid") RETURNS TABLE("member_id" "uuid") LANGUAGE "plpgsql" SECURITY DEFINER AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
+CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid") RETURNS TABLE("member_id" "uuid") LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
   RETURN QUERY
 SELECT workspace_team_members.user_profile_id
 FROM workspace_team_members
@@ -115,7 +146,9 @@ FROM "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid") TO "service_role";
 
-CREATE OR REPLACE FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
+CREATE OR REPLACE FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
   RETURN QUERY
 SELECT EXISTS (
     SELECT 1
@@ -137,7 +170,9 @@ FROM "authenticated";
 GRANT EXECUTE ON FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") TO "service_role";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid") RETURNS TABLE("member_id" "uuid") LANGUAGE "plpgsql" SECURITY DEFINER AS $_$ BEGIN -- This function returns all admins of a workspace
+CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid") RETURNS TABLE("member_id" "uuid") LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $_$ BEGIN -- This function returns all admins of a workspace
   RETURN QUERY
 SELECT workspace_team_members.user_profile_id
 FROM workspace_team_members
@@ -160,7 +195,9 @@ FROM "authenticated";
 GRANT EXECUTE ON FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid") TO "service_role";
 
 
-CREATE OR REPLACE FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
+CREATE OR REPLACE FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
   RETURN QUERY
 SELECT EXISTS (
     SELECT 1
@@ -202,15 +239,64 @@ SELECT TO authenticated USING (
     )
   );
 
-CREATE POLICY "Workspace admins can update their workspaces" ON "public"."workspaces" FOR
+CREATE POLICY "Workspace members can update their workspaces" ON "public"."workspaces" FOR
 UPDATE TO authenticated USING (
-    "public"."is_workspace_admin" (
+    "public"."is_workspace_member" (
       (
         SELECT auth.uid()
       ),
       id
     )
   );
+
+-- Workspace settings policies
+CREATE POLICY "Workspace members can access settings" ON "public"."workspace_settings" FOR ALL TO authenticated USING (
+  "public"."is_workspace_member" (
+    (
+      SELECT auth.uid()
+    ),
+    workspace_id
+  )
+);
+
+CREATE POLICY "Workspace members can update settings" ON "public"."workspace_settings" FOR ALL TO authenticated USING (
+  "public"."is_workspace_member" (
+    (
+      SELECT auth.uid()
+    ),
+    workspace_id
+  )
+);
+
+-- Workspace admin settings policies
+CREATE POLICY "Workspace admins can access settings" ON "public"."workspace_admin_settings" FOR ALL TO authenticated USING (
+  "public"."is_workspace_admin" (
+    (
+      SELECT auth.uid()
+    ),
+    workspace_id
+  )
+);
+
+CREATE POLICY "Workspace admins can update settings" ON "public"."workspace_admin_settings" FOR ALL TO authenticated USING (
+  "public"."is_workspace_admin" (
+    (
+      SELECT auth.uid()
+    ),
+    workspace_id
+  )
+);
+
+-- Workspace application settings policies
+CREATE POLICY "Workspace members can access settings" ON "public"."workspace_application_settings" FOR ALL TO authenticated USING (
+  "public"."is_workspace_member" (
+    (
+      SELECT auth.uid()
+    ),
+    workspace_id
+  )
+);
+
 
 -- Workspace team members policies
 CREATE POLICY "Workspace members can read team members" ON "public"."workspace_team_members" FOR
@@ -232,20 +318,23 @@ CREATE POLICY "Workspace admins can manage team members" ON "public"."workspace_
   )
 );
 
--- Workspace private info policies
-CREATE POLICY "Only workspace admins can access settings" ON "public"."workspace_settings" FOR ALL TO authenticated USING (
-  "public"."is_workspace_admin" (
-    (
-      SELECT auth.uid()
-    ),
-    workspace_id
-  )
-);
+
 
 -- Workspace credits policies
 CREATE POLICY "Workspace members can view credits" ON "public"."workspace_credits" FOR
 SELECT TO authenticated USING (
     "public"."is_workspace_member"(
+      (
+        SELECT auth.uid()
+      ),
+      workspace_id
+    )
+  );
+
+  -- workspace credit logs
+CREATE POLICY "Workspace admins can view credit logs" ON "public"."workspace_credits_logs" FOR
+SELECT TO authenticated USING (
+    "public"."is_workspace_admin"(
       (
         SELECT auth.uid()
       ),

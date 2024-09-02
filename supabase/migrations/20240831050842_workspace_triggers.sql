@@ -10,11 +10,15 @@
  * The function is defined with SECURITY DEFINER, meaning it runs with the privileges of the user who defined it,
  * rather than the user who calls it, providing an additional layer of security.
  */
-CREATE OR REPLACE FUNCTION "public"."handle_workspace_created"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$ BEGIN
+CREATE OR REPLACE FUNCTION "public"."handle_workspace_created"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $$ BEGIN
 INSERT INTO public.workspace_settings (workspace_id)
 VALUES (NEW.workspace_id);
-INSERT INTO public.workspace_application_settings (id)
-VALUES (NEW.id);
+INSERT INTO public.workspace_admin_settings (workspace_id)
+VALUES (NEW.workspace_id);
+INSERT INTO public.workspace_application_settings (workspace_id)
+VALUES (NEW.workspace_id);
 RETURN NEW;
 END;
 $$;
@@ -36,7 +40,9 @@ GRANT ALL ON FUNCTION "public"."handle_workspace_created"() TO "service_role";
  * The function is defined with SECURITY DEFINER, meaning it runs with the privileges of the user who defined it,
  * rather than the user who calls it, providing an additional layer of security.
  */
-CREATE OR REPLACE FUNCTION "public"."handle_workspace_created_add_credits"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$ BEGIN
+CREATE OR REPLACE FUNCTION "public"."handle_workspace_created_add_credits"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $$ BEGIN
 INSERT INTO public.workspace_credits (workspace_id)
 VALUES (NEW.id);
 RETURN NEW;
@@ -58,7 +64,9 @@ GRANT ALL ON FUNCTION "public"."handle_workspace_created_add_credits"() TO "serv
  * 3. The new record's 'member_role' is set to the 'invitee_workspace_role' of the invitation (NEW.invitee_workspace_role).
  * 4. The new record's 'workspace_id' is set to the 'workspace_id' of the invitation (NEW.workspace_id).
  */
-CREATE OR REPLACE FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$BEGIN
+CREATE OR REPLACE FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $$BEGIN
 INSERT INTO workspace_team_members(member_id, member_role, workspace_id)
 VALUES (
     NEW.invitee_user_id,
@@ -103,7 +111,9 @@ UPDATE ON "public"."workspace_invitations" FOR EACH ROW
 
 
   -- Create function to log workspace credits changes
-CREATE OR REPLACE FUNCTION public.log_workspace_credits_changes() RETURNS TRIGGER AS $$ BEGIN IF TG_OP = 'UPDATE' THEN
+CREATE OR REPLACE FUNCTION public.log_workspace_credits_changes() RETURNS TRIGGER
+SET search_path = public,
+  pg_temp AS $$ BEGIN IF TG_OP = 'UPDATE' THEN
 INSERT INTO workspace_credits_logs (
     workspace_credits_id,
     workspace_id,

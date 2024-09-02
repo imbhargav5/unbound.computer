@@ -19,7 +19,10 @@
  After performing these insertions, the function returns the NEW record, which
  represents the newly inserted user in the auth.users table.
  */
-CREATE OR REPLACE FUNCTION "public"."handle_auth_user_created"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$ BEGIN
+CREATE OR REPLACE FUNCTION "public"."handle_auth_user_created"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp,
+  auth AS $$ BEGIN
 INSERT INTO public.user_profiles (id, email_readonly)
 VALUES (NEW.id, NEW.email);
 INSERT INTO public.user_private_info (id)
@@ -49,7 +52,9 @@ GRANT ALL ON FUNCTION "public"."handle_auth_user_created"() TO "service_role";
  After inserting the welcome notification, the function returns the NEW record, which
  represents the newly inserted user in the auth.users table.
  */
-CREATE OR REPLACE FUNCTION "public"."handle_create_welcome_notification"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$ BEGIN
+CREATE OR REPLACE FUNCTION "public"."handle_create_welcome_notification"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+SET search_path = public,
+  pg_temp AS $$ BEGIN
 INSERT INTO public.user_notifications (user_id, payload)
 VALUES (NEW.id, '{ "type": "welcome" }'::JSONB);
 RETURN NEW;
@@ -57,10 +62,10 @@ END;
 $$;
 
 /*
- This function, "sync_auth_email", is a trigger function that is executed
+ This function, "update_user_application_settings_email", is a trigger function that is executed
  after an update on the auth.users table. It performs the following task:
  
- 1. It updates the email_readonly column in the public.user_profiles table
+ 1. It updates the email_readonly column in the public.user_application_settings table
  with the email from the auth.users table for the corresponding user.
  
  The function is set to run with SECURITY DEFINER, which means it executes with
@@ -70,23 +75,35 @@ $$;
  
  After updating the email_readonly, the function returns the NEW record, which
  represents the updated user in the auth.users table.
+ 
+ This makes the email available to be queried using supabase client SDK.
  */
-CREATE OR REPLACE FUNCTION "public"."sync_auth_email"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER AS $$ BEGIN
-UPDATE public.user_profiles
+/*
+ * Sync email for convenience
+ */
+-- Function to update email_readonly in user_application_settings
+CREATE OR REPLACE FUNCTION public.update_user_application_settings_email() RETURNS TRIGGER
+SET search_path = public,
+  pg_temp AS $$ BEGIN
+UPDATE public.user_application_settings
 SET email_readonly = NEW.email
 WHERE id = NEW.id;
 RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-ALTER FUNCTION "public"."sync_auth_email"() OWNER TO "postgres";
-REVOKE ALL ON FUNCTION "public"."sync_auth_email"()
-FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."sync_auth_email"() TO "service_role";
-
-CREATE OR REPLACE TRIGGER "on_auth_user_updated_sync_email"
+-- Trigger to update email_readonly when auth.users email is updated
+CREATE OR REPLACE TRIGGER on_auth_user_email_updated
 AFTER
-UPDATE OF email ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."sync_auth_email"();
+UPDATE OF email ON auth.users FOR EACH ROW EXECUTE FUNCTION public.update_user_application_settings_email();
+
+-- Revoke execute permission from PUBLIC
+REVOKE EXECUTE ON FUNCTION public.update_user_application_settings_email()
+FROM PUBLIC;
+
+-- Grant execute permission only to postgres and service_role
+GRANT EXECUTE ON FUNCTION public.update_user_application_settings_email() TO postgres,
+  service_role;
 
 
 ALTER FUNCTION "public"."handle_create_welcome_notification"() OWNER TO "postgres";
@@ -102,7 +119,3 @@ INSERT ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."handle_auth_use
 CREATE OR REPLACE TRIGGER "on_auth_user_created_create_welcome_notification"
 AFTER
 INSERT ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."handle_create_welcome_notification"();
-
-CREATE OR REPLACE TRIGGER "on_auth_user_updated_sync_email"
-AFTER
-UPDATE OF email ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."sync_auth_email"();
