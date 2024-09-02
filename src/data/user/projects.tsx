@@ -289,3 +289,140 @@ export const getProjectsTotalCount = async ({
 
   return Math.ceil(count / limit) ?? 0;
 };
+
+export async function getSlimProjectByIdForWorkspace(projectId: string) {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("projects")
+    .select("id,name,project_status,workspace_id,slug")
+    .eq("id", projectId)
+    .single();
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+export const getSlimProjectBySlugForWorkspace = async (projectSlug: string) => {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("projects")
+    .select("id, slug, name")
+    .eq("slug", projectSlug)
+    .single();
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+export const createProjectActionForWorkspace = async ({
+  workspaceId,
+  name,
+  slug,
+}: {
+  workspaceId: string;
+  name: string;
+  slug: string;
+}): Promise<SAPayload<Tables<"projects">>> => {
+  "use server";
+  const supabaseClient = createSupabaseUserServerActionClient();
+  const { data: project, error } = await supabaseClient
+    .from("projects")
+    .insert({
+      workspace_id: workspaceId,
+      name,
+      slug,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    return {
+      status: 'error',
+      message: error.message,
+    };
+  }
+
+  revalidatePath("/[workspaceSlug]", "layout");
+  revalidatePath("/[workspaceSlug]/projects", "layout");
+
+  return {
+    status: 'success',
+    data: project,
+  };
+};
+
+export const getProjectsForWorkspace = async ({
+  workspaceId,
+  query = "",
+  page = 1,
+  limit = 5,
+}: {
+  query?: string;
+  page?: number;
+  workspaceId: string;
+  limit?: number;
+}) => {
+  const zeroIndexedPage = page - 1;
+  const supabase = createSupabaseUserServerComponentClient();
+  let supabaseQuery = supabase
+    .from("projects")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("name", `%${query}%`);
+  }
+
+  const { data, error } = await supabaseQuery.order("created_at", {
+    ascending: false,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+export const getProjectsTotalCountForWorkspace = async ({
+  workspaceId,
+  query = "",
+  page = 1,
+  limit = 5,
+}: {
+  workspaceId: string;
+  query?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const zeroIndexedPage = page - 1;
+  let supabaseQuery = supabaseAdminClient
+    .from("projects")
+    .select("id", {
+      count: "exact",
+      head: true,
+    })
+    .eq("workspace_id", workspaceId)
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("name", `%${query}%`);
+  }
+
+  const { count, error } = await supabaseQuery.order("created_at", {
+    ascending: false,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!count) {
+    return 0;
+  }
+
+  return Math.ceil(count / limit) ?? 0;
+};

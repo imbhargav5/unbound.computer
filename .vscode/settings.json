@@ -28,6 +28,7 @@
     "editor.defaultFormatter": "vscode.typescript-language-features"
   },
   "[sql]": {
-    "editor.defaultFormatter": "mtxr.sqltools"
+    "editor.defaultFormatter": "mtxr.sqltools",
+    "editor.wordWrapColumn": 80
   }
 }
