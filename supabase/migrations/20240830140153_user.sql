@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
   "avatar_url" character varying,
   "created_at" timestamp WITH time zone DEFAULT "now"() NOT NULL
 );
+COMMENT ON TABLE "public"."user_profiles" IS 'Stores public user profile information including full name, avatar URL, and creation timestamp.';
 
 ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
 ALTER TABLE "public"."user_profiles" ENABLE ROW LEVEL SECURITY;
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_settings" (
   "id" "uuid" PRIMARY KEY NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
   "default_organization" "uuid"
 );
+COMMENT ON TABLE "public"."user_settings" IS 'Stores user settings including the default organization.';
 
 ALTER TABLE "public"."user_settings" OWNER TO "postgres";
 ALTER TABLE "public"."user_settings" ENABLE ROW LEVEL SECURITY;
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_application_settings" (
   "id" "uuid" PRIMARY KEY NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
   "email_readonly" character varying NOT NULL -- This mirrors the auth.users table email column for convenience purposes as it makes joining tables in the public schema easier and can be queried safely via supabase.
 );
+COMMENT ON TABLE "public"."user_application_settings" IS 'These settings are updated by the application. Do not use this table to update the user email.';
 
 ALTER TABLE "public"."user_application_settings" OWNER TO "postgres";
 ALTER TABLE "public"."user_application_settings" ENABLE ROW LEVEL SECURITY;
@@ -49,6 +52,8 @@ CREATE TABLE IF NOT EXISTS "public"."user_roles" (
   "user_id" UUID NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
   "role" "public"."app_role" NOT NULL
 );
+COMMENT ON TABLE "public"."user_roles" IS 'Application roles for each user. To make a user an admin, just set this table role to "admin" for that user. And ask the user to logout and login to see the change.';
+
 
 ALTER TABLE "public"."user_roles"
 ADD CONSTRAINT "user_roles_user_id_role_key" UNIQUE ("user_id", "role");
@@ -67,6 +72,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_api_keys" (
   "expires_at" timestamp WITH time zone,
   "is_revoked" boolean DEFAULT false NOT NULL
 );
+COMMENT ON TABLE "public"."user_api_keys" IS 'API keys for each user.';
 
 ALTER TABLE "public"."user_api_keys" OWNER TO "postgres";
 ALTER TABLE "public"."user_api_keys" ENABLE ROW LEVEL SECURITY;
@@ -83,6 +89,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_notifications" (
   "created_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
   "updated_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+COMMENT ON TABLE "public"."user_notifications" IS 'User notifications including the payload, read status, and creation timestamp.';
 
 ALTER TABLE "public"."user_notifications" OWNER TO "postgres";
 ALTER TABLE "public"."user_notifications" ENABLE ROW LEVEL SECURITY;
@@ -97,6 +104,7 @@ CREATE TABLE IF NOT EXISTS "public"."account_delete_tokens" (
   "token" "uuid" PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   "user_id" "uuid" NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE
 );
+COMMENT ON TABLE "public"."account_delete_tokens" IS 'Tokens for account deletion requests.';
 
 ALTER TABLE "public"."account_delete_tokens" OWNER TO "postgres";
 ALTER TABLE "public"."account_delete_tokens" ENABLE ROW LEVEL SECURITY;
