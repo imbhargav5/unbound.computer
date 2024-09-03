@@ -12,21 +12,21 @@ import {
 } from "@/components/ui/dialog";
 import { deleteAuthorProfile } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import { Trash, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AddAuthorProfileDialog } from "./AddAuthorProfileDialog";
 import { EditAuthorProfileDialog } from "./EditAuthorProfileDialog";
 
-type AuthorProfile = Table<"internal_blog_author_profiles">;
+type AuthorProfile = DBTable<"internal_blog_author_profiles">;
 
 export const ManageAuthorsDialog = ({
   appAdmins,
   authorProfiles,
 }: {
-  appAdmins: Array<Table<"user_profiles">>;
-  authorProfiles: Array<Table<"internal_blog_author_profiles">>;
+  appAdmins: Array<DBTable<"user_profiles">>;
+  authorProfiles: Array<DBTable<"internal_blog_author_profiles">>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();

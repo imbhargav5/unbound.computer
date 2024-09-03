@@ -2,7 +2,7 @@
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import type { SAPayload, SupabaseFileUploadOptions, Table } from '@/types';
+import type { DBTable, SAPayload, SupabaseFileUploadOptions } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import type { Message } from 'ai';
 import { nanoid } from 'nanoid';
@@ -13,7 +13,7 @@ export const insertChat = async (
   projectId: string,
   payload: Message[],
   chatId: string,
-): Promise<SAPayload<Table<'chats'>>> => {
+): Promise<SAPayload<DBTable<'chats'>>> => {
   const supabase = createSupabaseUserServerActionClient();
   const user = await serverGetLoggedInUser();
 
@@ -44,7 +44,7 @@ export const insertChat = async (
   };
 };
 
-export const getChatById = async (chatId: string): Promise<Table<'chats'>> => {
+export const getChatById = async (chatId: string): Promise<DBTable<'chats'>> => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from('chats')
@@ -70,7 +70,7 @@ export const deleteChat = async (chatId: string): Promise<void> => {
   }
 };
 
-export const getChats = async (userId: string): Promise<Table<'chats'>[]> => {
+export const getChats = async (userId: string): Promise<DBTable<'chats'>[]> => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from('chats')
@@ -88,7 +88,7 @@ export const getChats = async (userId: string): Promise<Table<'chats'>[]> => {
 export const getChatsHistory = async (
   projectId: string,
   userId: string,
-): Promise<Table<'chats'>[]> => {
+): Promise<DBTable<'chats'>[]> => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from('chats')

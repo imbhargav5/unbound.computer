@@ -3,7 +3,7 @@ import { SIDEBAR_VISIBILITY_COOKIE_KEY } from '@/constants';
 import { LoggedInUserProvider } from '@/contexts/LoggedInUserContext';
 import { SidebarVisibilityProvider } from '@/contexts/SidebarVisibilityContext';
 import { errors } from '@/utils/errors';
-import { verifySession } from '@/utils/server/verifySession';
+import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import { cookies } from 'next/headers';
 import { Suspense, type ReactNode } from 'react';
 import { ClientLayout } from './ClientLayout';
@@ -18,7 +18,7 @@ function getSidebarVisibility() {
 }
 
 async function AuthenticatedLayout({ children }: { children: ReactNode }) {
-  const user = await verifySession();
+  const user = await serverGetLoggedInUser();
   try {
     const sidebarVisibility = getSidebarVisibility();
 

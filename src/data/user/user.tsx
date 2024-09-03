@@ -1,8 +1,9 @@
 "use server";
 import { PRODUCT_NAME } from "@/constants";
+import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
-import type { SAPayload, SupabaseFileUploadOptions, Table } from "@/types";
+import type { DBTable, SAPayload, SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
@@ -12,6 +13,7 @@ import ConfirmAccountDeletionEmail from "emails/account-deletion-request";
 import { revalidatePath } from "next/cache";
 import slugify from "slugify";
 import urlJoin from "url-join";
+import { z } from "zod";
 import { refreshSessionAction } from "./session";
 
 export async function getIsAppAdmin(): Promise<boolean> {
@@ -69,9 +71,9 @@ export const getUserAvatarUrl = async (userId: string) => {
 export const getUserPendingInvitationsByEmail = async (userEmail: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .select(
-      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), organization:organizations(*)",
+      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), workspace:workspaces(*)",
     )
     .ilike("invitee_user_email", `%${userEmail}%`)
     .eq("status", "active");
@@ -86,9 +88,9 @@ export const getUserPendingInvitationsByEmail = async (userEmail: string) => {
 export const getUserPendingInvitationsById = async (userId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .select(
-      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), organization:organizations(*)",
+      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), workspace:workspaces(*)",
     )
     .eq("invitee_user_id", userId)
     .eq("status", "active");
@@ -103,9 +105,8 @@ export const getUserPendingInvitationsById = async (userId: string) => {
 export const uploadPublicUserAvatar = async (
   formData: FormData,
   fileName: string,
-  fileOptions?: SupabaseFileUploadOptions | undefined,
-): Promise<SAPayload<string>> => {
-  "use server";
+  fileOptions?: SupabaseFileUploadOptions | undefined
+): Promise<string> => {
   const file = formData.get("file");
   if (!file) {
     throw new Error("File is empty");
@@ -125,7 +126,7 @@ export const uploadPublicUserAvatar = async (
     .upload(userImagesPath, file, fileOptions);
 
   if (error) {
-    return { status: "error", message: error.message };
+    throw new Error(error.message);
   }
 
   const { path } = data;
@@ -137,106 +138,112 @@ export const uploadPublicUserAvatar = async (
     filePath,
   );
 
-  return { status: "success", data: supabaseFileUrl };
+  return supabaseFileUrl;
 };
 
-export const updateUserProfileNameAndAvatar = async (
-  {
-    fullName,
-    avatarUrl,
-  }: {
-    fullName?: string;
-    avatarUrl?: string;
-  },
-  {
-    isOnboardingFlow = false,
-  }: {
-    isOnboardingFlow?: boolean;
-  } = {},
-): Promise<SAPayload<Table<"user_profiles">>> => {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-  const { data, error } = await supabaseClient
-    .from("user_profiles")
-    .update({
-      full_name: fullName,
-      avatar_url: avatarUrl,
-    })
-    .eq("id", user.id)
-    .select()
-    .single();
+const uploadPublicUserAvatarSchema = z.object({
+  formData: z.instanceof(FormData),
+  fileName: z.string(),
+  fileOptions: z.object({
+    cacheControl: z.string().optional(),
+    upsert: z.boolean().optional(),
+    contentType: z.string().optional(),
+  }).optional().default({}),
+});
 
-  if (error) {
-    return {
-      status: "error",
-      message: error.message,
-    };
+export const uploadPublicUserAvatarAction = authActionClient.schema(uploadPublicUserAvatarSchema).action(
+  async (
+    {
+      parsedInput: {
+        formData,
+        fileName,
+        fileOptions
+      }
+    }
+  ): Promise<string> => {
+    return await uploadPublicUserAvatar(formData, fileName, fileOptions);
   }
+);
 
-  if (isOnboardingFlow) {
-    const updateUserMetadataPayload: Partial<AuthUserMetadata> = {
-      onboardingHasCompletedProfile: true,
-    };
+const updateUserProfileNameAndAvatarSchema = z.object({
+  fullName: z.string(),
+  avatarUrl: z.string().optional(),
+  isOnboardingFlow: z.boolean().optional().default(false),
+});
 
-    const updateUserMetadataResponse = await supabaseClient.auth.updateUser({
-      data: updateUserMetadataPayload,
-    });
+export const updateUserProfileNameAndAvatarAction = authActionClient
+  .schema(updateUserProfileNameAndAvatarSchema)
+  .action(async ({ parsedInput: { fullName, avatarUrl, isOnboardingFlow } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUser();
+    const { data, error } = await supabaseClient
+      .from("user_profiles")
+      .update({
+        full_name: fullName,
+        avatar_url: avatarUrl,
+      })
+      .eq("id", user.id)
+      .select()
+      .single();
 
-    if (updateUserMetadataResponse.error) {
-      return {
-        status: "error",
-        message: updateUserMetadataResponse.error.message,
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (isOnboardingFlow) {
+      const updateUserMetadataPayload: Partial<AuthUserMetadata> = {
+        onboardingHasCompletedProfile: true,
       };
+
+      const updateUserMetadataResponse = await supabaseClient.auth.updateUser({
+        data: updateUserMetadataPayload,
+      });
+
+      if (updateUserMetadataResponse.error) {
+        throw new Error(updateUserMetadataResponse.error.message);
+      }
+
+      const refreshSessionResponse = await refreshSessionAction();
+      if (refreshSessionResponse.status === "error") {
+        throw new Error(refreshSessionResponse.message);
+      }
+
+      revalidatePath("/", "layout");
     }
 
-    const refreshSessionResponse = await refreshSessionAction();
-    if (refreshSessionResponse.status === "error") {
-      return refreshSessionResponse;
-    }
+    return data;
+  });
 
-    revalidatePath("/", "layout");
-  }
-
-  return {
-    status: "success",
-    data,
-  };
-};
-
-export const acceptTermsOfService = async (
-  accepted: boolean,
-): Promise<SAPayload<boolean>> => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+export async function acceptTermsOfService(): Promise<boolean> {
+  const supabaseClient = createSupabaseUserServerActionClient();
 
   const updateUserMetadataPayload: Partial<AuthUserMetadata> = {
     onboardingHasAcceptedTerms: true,
   };
 
-  const updateUserMetadataResponse = await supabaseClient.auth.updateUser({
+  const { error } = await supabaseClient.auth.updateUser({
     data: updateUserMetadataPayload,
   });
 
-  if (updateUserMetadataResponse.error) {
-    return {
-      status: "error",
-      message: updateUserMetadataResponse.error.message,
-    };
+
+  if (error) {
+    throw new Error(`Failed to accept terms of service: ${error.message}`);
   }
 
   const refreshSessionResponse = await refreshSessionAction();
   if (refreshSessionResponse.status === "error") {
-    return refreshSessionResponse;
+    throw new Error(`Failed to refresh session: ${refreshSessionResponse.message}`);
   }
 
-  return {
-    status: "success",
-    data: true,
-  };
-};
+  return true;
+}
 
-export async function requestAccountDeletion(): Promise<
-  SAPayload<Table<"account_delete_tokens">>
+export const acceptTermsOfServiceAction = authActionClient.action(async (): Promise<boolean> => {
+  return await acceptTermsOfService();
+});
+
+export async function requestAccountDeletionAction(): Promise<
+  SAPayload<DBTable<"account_delete_tokens">>
 > {
   const supabaseClient = createSupabaseUserServerActionClient();
   const user = await serverGetLoggedInUser();

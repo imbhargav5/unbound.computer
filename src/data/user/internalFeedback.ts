@@ -22,9 +22,9 @@ export async function getLoggedInUserFeedbackList({
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'internal_feedback_thread_type'>>;
-  statuses?: Array<Enum<'internal_feedback_thread_status'>>;
-  priorities?: Array<Enum<'internal_feedback_thread_priority'>>;
+  types?: Array<Enum<'marketing_feedback_thread_type'>>;
+  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
+  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
   sort?: 'asc' | 'desc';
   myFeedbacks?: string;
 }) {
@@ -34,7 +34,7 @@ export async function getLoggedInUserFeedbackList({
   const userId = (await serverGetLoggedInUser()).id;
 
   let supabaseQuery = supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .or(
       `added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true,user_id.eq.${userId}`,
@@ -88,9 +88,9 @@ export async function getLoggedInUserFeedbackTotalPages({
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'internal_feedback_thread_type'>>;
-  statuses?: Array<Enum<'internal_feedback_thread_status'>>;
-  priorities?: Array<Enum<'internal_feedback_thread_priority'>>;
+  types?: Array<Enum<'marketing_feedback_thread_type'>>;
+  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
+  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
   sort?: 'asc' | 'desc';
   myFeedbacks?: string;
 }) {
@@ -99,7 +99,7 @@ export async function getLoggedInUserFeedbackTotalPages({
   const userId = (await serverGetLoggedInUser()).id;
 
   let supabaseQuery = supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .or(
       'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
@@ -148,7 +148,7 @@ export async function getAllInternalFeedbackForLoggedInUser() {
   const user = await serverGetLoggedInUser();
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
@@ -163,7 +163,7 @@ export async function getAllInternalFeedbackForLoggedInUser() {
 export async function getAllInternalFeedbackForUser(userId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
@@ -182,13 +182,13 @@ export async function getAllInternalFeedback({
   priorities,
 }: {
   query: string;
-  types: Array<Enum<'internal_feedback_thread_type'>>;
-  statuses: Array<Enum<'internal_feedback_thread_status'>>;
-  priorities: Array<Enum<'internal_feedback_thread_priority'>>;
+  types: Array<Enum<'marketing_feedback_thread_type'>>;
+  statuses: Array<Enum<'marketing_feedback_thread_status'>>;
+  priorities: Array<Enum<'marketing_feedback_thread_priority'>>;
 }) {
   const supabaseClient = createSupabaseUserServerComponentClient();
   let supabaseQuery = supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*');
 
   if (query) {
@@ -221,7 +221,7 @@ export async function getAllInternalFeedback({
 export async function getInternalFeedbackById(feedbackId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('id', feedbackId);
 
@@ -234,11 +234,11 @@ export async function getInternalFeedbackById(feedbackId: string) {
 
 export async function updateInternalFeedbackStatus(
   feedbackId: string,
-  status: Enum<'internal_feedback_thread_status'>,
+  status: Enum<'marketing_feedback_thread_status'>,
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ status })
     .eq('id', feedbackId);
 
@@ -249,11 +249,11 @@ export async function updateInternalFeedbackStatus(
 
 export async function updateInternalFeedbackPriority(
   feedbackId: string,
-  priority: Enum<'internal_feedback_thread_priority'>,
+  priority: Enum<'marketing_feedback_thread_priority'>,
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ priority })
     .eq('id', feedbackId);
 
@@ -264,11 +264,11 @@ export async function updateInternalFeedbackPriority(
 
 export const updateInternalFeedbackType = async (
   feedbackId: string,
-  type: Enum<'internal_feedback_thread_type'>,
+  type: Enum<'marketing_feedback_thread_type'>,
 ) => {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ type })
     .eq('id', feedbackId);
 
@@ -282,12 +282,12 @@ export const updateInternalFeedbackType = async (
 export async function createInternalFeedback(payload: {
   title: string;
   content: string;
-  type: Enum<'internal_feedback_thread_type'>;
-}): Promise<SAPayload<Tables<'internal_feedback_threads'>>> {
+  type: Enum<'marketing_feedback_thread_type'>;
+}): Promise<SAPayload<Tables<'marketing_feedback_threads'>>> {
   const supabaseClient = createSupabaseUserServerActionClient();
   const user = await serverGetLoggedInUser();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .insert({
       title: payload.title,
       content: payload.content,
@@ -336,7 +336,7 @@ export async function createInternalFeedbackComment(
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_comments')
+    .from('marketing_feedback_comments')
     .insert({ thread_id: feedbackId, user_id: userId, content })
     .select('*')
     .single();
@@ -354,7 +354,7 @@ export async function toggleFeedbackThreadVisibility(
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ added_to_roadmap: isVisible })
     .eq('id', threadId)
     .select('*');
@@ -372,7 +372,7 @@ export async function toggleFeedbackThreadDiscussion(
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ open_for_public_discussion: isOpen })
     .eq('id', threadId)
     .select('*');
@@ -387,7 +387,7 @@ export async function toggleFeedbackThreadDiscussion(
 export async function createChangelog(title: string, changes: string) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_changelog')
+    .from('marketing_changelog')
     .insert({
       title,
       changes,
@@ -404,7 +404,7 @@ export async function createChangelog(title: string, changes: string) {
 export async function getChangelogById(changelogId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_changelog')
+    .from('marketing_changelog')
     .select('*')
     .eq('id', changelogId);
 
@@ -422,7 +422,7 @@ export async function updateChangelog(
 ) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_changelog')
+    .from('marketing_changelog')
     .update({
       title,
       changes,
@@ -440,7 +440,7 @@ export async function updateChangelog(
 export async function deleteChangelog(changelogId: string) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_changelog')
+    .from('marketing_changelog')
     .delete()
     .eq('id', changelogId);
 
@@ -454,7 +454,7 @@ export async function deleteChangelog(changelogId: string) {
 export const getInternalFeedbackComments = async (feedbackId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_comments')
+    .from('marketing_feedback_comments')
     .select('*')
     .eq('thread_id', feedbackId);
 
@@ -468,7 +468,7 @@ export const getInternalFeedbackComments = async (feedbackId: string) => {
 export const getSlimInternalFeedback = async (feedbackId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('title,content,status')
     .eq('id', feedbackId)
     .single();
@@ -486,7 +486,7 @@ export const updateInternalFeedbackIsOpenForDiscussion = async (
 ) => {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ open_for_public_discussion: isOpen })
     .eq('id', feedbackId)
     .select('*');
@@ -504,7 +504,7 @@ export const updateInternalFeedbackIsAddedToRoadmap = async (
 ) => {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ added_to_roadmap: isAdded })
     .eq('id', feedbackId)
     .select('*');
@@ -523,7 +523,7 @@ export const addCommentToInternalFeedbackThread = async (
   const user = await serverGetLoggedInUser();
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_comments')
+    .from('marketing_feedback_comments')
     .insert({ thread_id: feedbackId, user_id: user.id, content })
     .select('*');
 
@@ -542,11 +542,11 @@ export async function userUpdateInternalFeedbackType({
   type,
 }: {
   feedbackId: string;
-  type: Enum<'internal_feedback_thread_type'>;
+  type: Enum<'marketing_feedback_thread_type'>;
 }) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data, error } = await supabaseClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .update({ type })
     .eq('id', feedbackId)
     .select('*')

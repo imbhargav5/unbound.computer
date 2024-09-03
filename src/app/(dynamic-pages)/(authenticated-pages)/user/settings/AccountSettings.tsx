@@ -3,10 +3,10 @@ import { PageHeading } from '@/components/PageHeading';
 import { UpdateAvatarAndNameBody } from '@/components/UpdateAvatarAndName';
 import {
   updateUserProfileNameAndAvatar,
-  uploadPublicUserAvatar,
+  uploadPublicUserAvatarAction,
 } from '@/data/user/user';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ConfirmDeleteAccountDialog } from './ConfirmDeleteAccountDialog';
@@ -15,7 +15,7 @@ export function AccountSettings({
   userProfile,
   userEmail
 }: {
-  userProfile: Table<'user_profiles'>;
+  userProfile: DBTable<'user_profiles'>;
   userEmail: string | undefined;
 }) {
   const router = useRouter();
@@ -62,7 +62,7 @@ export function AccountSettings({
     async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      return await uploadPublicUserAvatar(formData, file.name, {
+      return await uploadPublicUserAvatarAction(formData, file.name, {
         upsert: true,
       });
     },

@@ -3,14 +3,14 @@ import type { CoreMessage } from "ai";
 import type { Database } from "./lib/database.types";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
-export type Table<T extends keyof Database["public"]["Tables"]> =
+export type DBTable<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];
-export type TableInsertPayload<T extends keyof Database["public"]["Tables"]> =
+export type DBTableInsertPayload<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Insert"];
-export type TableUpdatePayload<T extends keyof Database["public"]["Tables"]> =
+export type DBTableUpdatePayload<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Update"];
 
-export type View<T extends keyof Database["public"]["Views"]> =
+export type DBView<T extends keyof Database["public"]["Views"]> =
   Database["public"]["Views"][T]["Row"];
 export type DBFunction<T extends keyof Database["public"]["Functions"]> =
   Database["public"]["Functions"][T]["Returns"];
@@ -62,82 +62,11 @@ export type DropzoneFileWithDuration = DropzoneFile & {
   duration: number;
 };
 
-export type CommentWithUser = Table<"project_comments"> & {
-  user_profile: Table<"user_profiles">;
+export type CommentWithUser = DBTable<"project_comments"> & {
+  user_profile: DBTable<"user_profiles">;
 };
 
-export type NoSubscription = {
-  type: "no-subscription";
-};
 
-export type TrialSubscription = {
-  type: "trialing";
-  trialStart: string;
-  trialEnd: string;
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type ActiveSubscription = {
-  type: "active";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type PastDueSubscription = {
-  type: "past_due";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type CanceledSubscription = {
-  type: "canceled";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type PausedSubscription = {
-  type: "paused";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type IncompleteSubscription = {
-  type: "incomplete";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type IncompleteExpiredSubscription = {
-  type: "incomplete_expired";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type UnpaidSubscription = {
-  type: "unpaid";
-  product: Table<"products">;
-  price: Table<"prices">;
-  subscription: Table<"subscriptions">;
-};
-
-export type NormalizedSubscription =
-  | NoSubscription
-  | TrialSubscription
-  | ActiveSubscription
-  | PastDueSubscription
-  | CanceledSubscription
-  | PausedSubscription
-  | IncompleteSubscription
-  | IncompleteExpiredSubscription
-  | UnpaidSubscription;
 
 export type TeamMemberRowProps = {
   name?: string;

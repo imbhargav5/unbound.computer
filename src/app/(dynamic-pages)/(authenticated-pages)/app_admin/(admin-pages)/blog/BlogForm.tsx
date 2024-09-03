@@ -15,20 +15,20 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { createBlogPost, updateBlogPost } from '@/data/admin/internal-blog';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import {
-  type InternalBlogPostSchema,
   internalBlogPostSchema,
+  type InternalBlogPostSchema,
 } from '@/utils/zod-schemas/internalBlog';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  type Control,
   Controller,
   useController,
-  useForm
+  useForm,
+  type Control
 } from 'react-hook-form';
 import ReactSelect from 'react-select';
 import slugify from 'slugify';
@@ -172,8 +172,8 @@ export type EditBlogFormProps = {
 };
 
 type BlogFormProps = {
-  authors: Table<'internal_blog_author_profiles'>[];
-  tags: Table<'internal_blog_post_tags'>[];
+  authors: DBTable<'internal_blog_author_profiles'>[];
+  tags: DBTable<'internal_blog_post_tags'>[];
 } & (CreateBlogFormProps | EditBlogFormProps);
 
 export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {

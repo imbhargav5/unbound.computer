@@ -125,13 +125,13 @@ export async function createInvitationHandler({
   organizationId: string;
   email: string;
   role: Enum<"organization_member_role">;
-}): Promise<SAPayload<Tables<"organization_join_invitations">>> {
+}): Promise<SAPayload<Tables<"workspace_invitations">>> {
   "use server";
   const supabaseClient = createSupabaseUserServerActionClient();
   const user = await serverGetLoggedInUser();
   // check if organization exists
   const organizationResponse = await supabaseClient
-    .from("organizations")
+    .from("workspaces")
     .select("*")
     .eq("id", organizationId)
     .single();
@@ -143,7 +143,7 @@ export async function createInvitationHandler({
   const inviteeUserDetails = await setupInviteeUserDetails(email);
   // check if already invited
   const existingInvitationResponse = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .select("*")
     .eq("invitee_user_id", inviteeUserDetails.userId)
     .eq("inviter_user_id", user.id)
@@ -157,14 +157,14 @@ export async function createInvitationHandler({
   }
 
   const invitationResponse = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .insert({
       invitee_user_email: email,
       invitee_user_id: inviteeUserDetails.userId,
       inviter_user_id: user.id,
       status: "active",
-      organization_id: organizationId,
-      invitee_organization_role: role,
+      workspace_id: organizationId,
+      invitee_workspace_role: role,
     })
     .select("*")
     .single();

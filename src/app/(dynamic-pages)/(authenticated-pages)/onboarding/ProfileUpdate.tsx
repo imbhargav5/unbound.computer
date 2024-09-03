@@ -1,17 +1,18 @@
+'use client'
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
-import { updateUserProfileNameAndAvatar, uploadPublicUserAvatar } from "@/data/user/user";
-import type { Table } from "@/types";
+import { updateUserProfileNameAndAvatarAction, uploadPublicUserAvatarAction } from "@/data/user/user";
+import type { DBTable } from "@/types";
 import { getUserAvatarUrl } from "@/utils/helpers";
-import { useMutation } from "@tanstack/react-query";
+import { useAction } from "next-safe-action/hooks";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toast } from 'sonner';
 
 type ProfileUpdateProps = {
-  userProfile: Table<"user_profiles">;
+  userProfile: DBTable<"user_profiles">;
   onSuccess: () => void;
   userEmail: string | undefined;
 };
@@ -23,52 +24,62 @@ export function ProfileUpdate({
 }: ProfileUpdateProps) {
   const [fullName, setFullName] = useState(userProfile.full_name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(userProfile.avatar_url ?? undefined);
-  const { toast } = useToast();
+  const toastRef = useRef<string | number | undefined>(undefined);
 
   const avatarUrlWithFallback = getUserAvatarUrl({
     profileAvatarUrl: avatarUrl ?? userProfile.avatar_url,
     email: userEmail,
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: () => updateUserProfileNameAndAvatar({ fullName, avatarUrl }, { isOnboardingFlow: true }),
+  const updateProfileMutation = useAction(updateUserProfileNameAndAvatarAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Updating profile...", { description: "Please wait while we update your profile." });
+    },
     onSuccess: () => {
-      toast({ title: "Profile updated!", description: "Your profile has been successfully updated." });
+      toast.success("Profile updated!", { id: toastRef.current });
       onSuccess();
     },
     onError: () => {
-      toast({ title: "Failed to update profile", description: "Please try again.", variant: "destructive" });
+      toast.error("Failed to update profile", { id: toastRef.current });
     },
   });
 
-  const uploadAvatarMutation = useMutation({
-    mutationFn: (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return uploadPublicUserAvatar(formData, file.name, { upsert: true });
+  const uploadAvatarMutation = useAction(uploadPublicUserAvatarAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Uploading avatar...", { description: "Please wait while we upload your avatar." });
     },
     onSuccess: (response) => {
-      if (response.status === 'success') {
-        setAvatarUrl(response.data);
-        toast({ title: "Avatar uploaded!", description: "Your new avatar has been set." });
-      }
+      setAvatarUrl(response.data);
+      toast.success("Avatar uploaded!", { description: "Your avatar has been successfully uploaded.", id: toastRef.current });
+      toastRef.current = undefined;
     },
     onError: () => {
-      toast({ title: "Error uploading avatar", description: "Please try again.", variant: "destructive" });
+      toast.error("Error uploading avatar", { id: toastRef.current });
+      toastRef.current = undefined;
     },
   });
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      uploadAvatarMutation.mutate(file);
+      const formData = new FormData();
+      formData.append("file", file);
+      uploadAvatarMutation.execute({
+        formData, fileName: file.name, fileOptions: {
+          upsert: true,
+        }
+      });
     }
   };
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      updateProfileMutation.mutate();
+      updateProfileMutation.execute({
+        fullName,
+        avatarUrl,
+        isOnboardingFlow: true,
+      });
     }}>
       <CardHeader>
         <CardTitle>Create Your Profile</CardTitle>
@@ -92,10 +103,10 @@ export function ProfileUpdate({
                 className="hidden"
                 onChange={handleFileChange}
                 accept="image/*"
-                disabled={uploadAvatarMutation.isLoading}
+                disabled={uploadAvatarMutation.isPending}
               />
               <Button type="button" variant="outline" size="sm">
-                {uploadAvatarMutation.isLoading ? "Uploading..." : "Change Avatar"}
+                {uploadAvatarMutation.isPending ? "Uploading..." : "Change Avatar"}
               </Button>
             </Label>
           </div>
@@ -107,7 +118,7 @@ export function ProfileUpdate({
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Your full name"
-            disabled={updateProfileMutation.isLoading}
+            disabled={updateProfileMutation.isPending}
           />
         </div>
       </CardContent>
@@ -115,9 +126,9 @@ export function ProfileUpdate({
         <Button
           type="submit"
           className="w-full"
-          disabled={updateProfileMutation.isLoading || uploadAvatarMutation.isLoading}
+          disabled={updateProfileMutation.isPending || uploadAvatarMutation.isPending}
         >
-          {updateProfileMutation.isLoading ? "Saving..." : "Save Profile"}
+          {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
         </Button>
       </CardFooter>
     </form>

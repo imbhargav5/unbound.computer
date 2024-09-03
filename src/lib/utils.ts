@@ -30,6 +30,13 @@ export const generateOrganizationSlug = (title: string) => {
   });
 }
 
+export const generateWorkspaceSlug = (title: string) => {
+  return generateSlug(title, {
+    prefix: 'w',
+    withNanoIdSuffix: true,
+  });
+}
+
 export const generateProjectSlug = (title: string) => {
   return generateSlug(title, {
     prefix: 'p',

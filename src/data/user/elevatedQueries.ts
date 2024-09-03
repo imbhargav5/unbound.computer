@@ -10,21 +10,22 @@
 
 import { Json } from '@/lib/database.types';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
+import { UserAppMetadata } from '@supabase/supabase-js';
 
 /**
  * [Elevated Query]
- * Get the organization details for the invitation. This query is elevated to run as application admin.
- * Reason: The user is not yet part of the organization and hence cannot see the organization details.
- * Adding an RLS policy to allow inviter to see the organization details would be a security risk. We could
- * split the organization table into separate tables for public and private data. But that would make the
- * organization queries slower to run as they would involve joins across multiple tables.
+ * Get the workspace details for the invitation. This query is elevated to run as application admin.
+ * Reason: The user is not yet part of the workspace and hence cannot see the workspace details.
+ * Adding an RLS policy to allow inviter to see the workspace details would be a security risk. We could
+ * split the workspace table into separate tables for public and private data. But that would make the
+ * workspace queries slower to run as they would involve joins across multiple tables.
  * Hence, we selectively run this query as application admin and only within the context of the invitation.
  */
-export async function getInvitationOrganizationDetails(organizationId: string) {
+export async function getInvitationWorkspaceDetails(workspaceId: string) {
   const { data, error } = await supabaseAdminClient
-    .from('organizations')
+    .from('workspaces')
     .select('id, title')
-    .eq('id', organizationId)
+    .eq('id', workspaceId)
     .single();
 
   if (error) {
@@ -125,4 +126,81 @@ export const anonGetUserProfile = async (userId: string) => {
   ]);
 
   return { fullName, avatarUrl };
+};
+
+/**
+ * [Elevated Query]
+ * Add user creator as workspace owner
+ * This is a workaround to the issue that the workspace owner cannot be set to the user who created the workspace
+ * because the user who created the workspace is not yet part of the workspace. Since managing workspace settings
+ * are protected by RLS policies, we need to add the user who created the workspace as the workspace owner.
+ */
+export const addUserAsWorkspaceOwner = async ({
+  workspaceId,
+  userId,
+}: {
+  workspaceId: string;
+  userId: string;
+}) => {
+  const { data, error } = await supabaseAdminClient
+    .from('workspace_team_members')
+    .insert({
+      workspace_id: workspaceId,
+      user_profile_id: userId,
+      role: 'owner'
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+/**
+ * [Elevated Query]
+ * Update workspace membership type
+ * Reason: The user is not able to update the workspace membership type since whether a workspace should be solo or team depends on several factors which should
+ * not be in the organization admin control.
+ *
+ * This helper should be used to make a workspace solo or team.
+ */
+export const updateWorkspaceMembershipType = async ({
+  workspaceId,
+  workspaceMembershipType
+}: {
+  workspaceId: string;
+  workspaceMembershipType: 'solo' | 'team';
+}) => {
+  const { data, error } = await supabaseAdminClient
+    .from('workspace_application_settings')
+    .update({
+      membership_type: workspaceMembershipType
+    })
+    .eq('workspace_id', workspaceId);
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+/**
+ * [Elevated Query]
+ * Update user app metadata
+ * Reason: This can only be done using supabaseAdminClient
+ */
+export const updateUserAppMetadata = async ({
+  userId,
+  appMetadata
+}: {
+  userId: string;
+  appMetadata: UserAppMetadata;
+}) => {
+  const { data, error } = await supabaseAdminClient.auth.admin.updateUserById(userId, { user_metadata: appMetadata });
+  if (error) {
+    throw error;
+  }
+  return data;
 };

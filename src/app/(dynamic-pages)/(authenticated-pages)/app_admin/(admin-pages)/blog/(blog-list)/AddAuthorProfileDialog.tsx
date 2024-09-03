@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { createAuthorProfile } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import { authorProfileSchema } from "@/utils/zod-schemas/internalBlog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
@@ -33,15 +33,15 @@ import type { z } from "zod";
 
 type AuthorProfileFormType = z.infer<typeof authorProfileSchema>;
 export type CreateAuthorPayload = Omit<
-  Table<"internal_blog_author_profiles">,
+  DBTable<"internal_blog_author_profiles">,
   "created_at" | "updated_at"
 >;
 export const AddAuthorProfileDialog = ({
   appAdmins,
   authorProfiles,
 }: {
-  appAdmins: Array<Table<"user_profiles">>;
-  authorProfiles: Array<Table<"internal_blog_author_profiles">>;
+  appAdmins: Array<DBTable<"user_profiles">>;
+  authorProfiles: Array<DBTable<"internal_blog_author_profiles">>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();

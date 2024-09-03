@@ -18,7 +18,7 @@ import { z } from "zod";
 import { Textarea } from "@/components/ui/textarea";
 import { updateBlogTag } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import { SquarePen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -35,7 +35,7 @@ type BlogTagFormType = z.infer<typeof blogTagSchema>;
 export const EditBlogTagDialog = ({
   tag,
 }: {
-  tag: Table<"internal_blog_post_tags">;
+  tag: DBTable<"internal_blog_post_tags">;
 }) => {
   const router = useRouter();
 

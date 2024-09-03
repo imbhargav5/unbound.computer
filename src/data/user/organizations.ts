@@ -4,10 +4,10 @@ import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClien
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
 import type {
+  DBTable,
   Enum,
   NormalizedSubscription,
   SAPayload,
-  Table,
   UnwrapPromise,
 } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
@@ -295,7 +295,7 @@ export const updateOrganizationInfo = async (
   organizationId: string,
   title: string,
   slug: string,
-): Promise<SAPayload<Table<'organizations'>>> => {
+): Promise<SAPayload<DBTable<'organizations'>>> => {
   'use server';
   const supabase = createSupabaseUserServerActionClient();
   const { data, error } = await supabase
@@ -625,4 +625,27 @@ export async function getMaybeInitialOrganizationToRedirectTo(): Promise<SAPaylo
   }
 
 
+}
+
+export async function setDefaultWorkspace(
+  workspaceId: string
+): Promise<SAPayload<string>> {
+  const supabaseClient = createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUser();
+
+  const { error } = await supabaseClient
+    .from('user_settings')
+    .upsert({
+      id: user.id,
+      default_workspace: workspaceId
+    }, {
+      onConflict: 'id'
+    });
+
+  if (error) {
+    return { status: 'error', message: error.message };
+  }
+
+  revalidatePath('/workspaces', 'layout');
+  return { status: 'success', data: `Default workspace set to ${workspaceId}` };
 }

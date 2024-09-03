@@ -6,8 +6,9 @@
  as the newly created user. This ensures that each user has a corresponding
  profile record.
  
- 2. It also creates a new entry in the public.user_private_info table with the
+ 2. It also creates a new entry in the public.user_settings table with the
  same id as the newly created user. This table likely stores sensitive or
+ 
  private information about the user that needs to be kept separate from
  the public profile.
  
@@ -23,10 +24,13 @@ CREATE OR REPLACE FUNCTION "public"."handle_auth_user_created"() RETURNS "trigge
 SET search_path = public,
   pg_temp,
   auth AS $$ BEGIN
-INSERT INTO public.user_profiles (id, email_readonly)
-VALUES (NEW.id, NEW.email);
-INSERT INTO public.user_private_info (id)
+INSERT INTO public.user_profiles (id)
 VALUES (NEW.id);
+INSERT INTO public.user_settings (id)
+VALUES (NEW.id);
+INSERT INTO public.user_application_settings (id, email_readonly)
+VALUES (NEW.id, NEW.email);
+
 RETURN NEW;
 END;
 $$;

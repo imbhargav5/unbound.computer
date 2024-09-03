@@ -7,7 +7,7 @@
  \ \____________\ \_______\ \__\\ _\\ \__\\ \__\____\_\  \ \__\    \ \__\ \__\ \_______\ \_______\ \_______\
  \|____________|\|_______|\|__|\|__|\|__| \|__|\_________\|__|     \|__|\|__|\|_______|\|_______|\|_______|
  \|_________|
- 
+
  This file contains the database schema and related functions for the Workspaces feature.
  It includes tables for workspaces, team members, invitations, credits, and credit logs.
  The file also sets up triggers and Row Level Security (RLS) for these tables.
@@ -22,16 +22,16 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
 
 -- These can be viewed and updated by workspace members
 CREATE TABLE IF NOT EXISTS public.workspace_settings (
-  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
-  workspace_settings JSONB NOT NULL
+  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+  workspace_settings JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX idx_workspace_settings_workspace_id ON public.workspace_settings(workspace_id);
 
 -- These can only be viewed and updated by workspace admins
 CREATE TABLE IF NOT EXISTS public.workspace_admin_settings (
-  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
-  workspace_settings JSONB NOT NULL
+  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+  workspace_settings JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX idx_workspace_admin_settings_workspace_id ON public.workspace_admin_settings(workspace_id);
@@ -41,7 +41,7 @@ CREATE INDEX idx_workspace_admin_settings_workspace_id ON public.workspace_admin
 -- These settings are automatically applied by application either via payments etc.
 -- They are visible to all workspace members
 CREATE TABLE IF NOT EXISTS public.workspace_application_settings (
-  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id),
+  workspace_id UUID PRIMARY KEY NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
   membership_type "public"."workspace_membership_type" DEFAULT 'solo' NOT NULL
 );
 
@@ -53,8 +53,8 @@ COMMENT ON TABLE public.workspace_application_settings IS 'This table is for the
 -- Create workspace_team_members table
 CREATE TABLE IF NOT EXISTS public.workspace_team_members (
   id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-  workspace_id UUID NOT NULL REFERENCES public.workspaces (id),
-  user_profile_id UUID NOT NULL REFERENCES public.user_profiles (id),
+  workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+  user_profile_id UUID NOT NULL REFERENCES public.user_profiles (id) ON DELETE CASCADE,
   role public.workspace_user_role NOT NULL,
   added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
@@ -66,12 +66,12 @@ CREATE INDEX idx_workspace_team_members_user_profile_id ON public.workspace_team
 CREATE TABLE IF NOT EXISTS public.workspace_invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-  inviter_user_id UUID NOT NULL REFERENCES public.user_profiles (id),
+  inviter_user_id UUID NOT NULL REFERENCES public.user_profiles (id) ON DELETE CASCADE,
   STATUS public.workspace_invitation_link_status DEFAULT 'active' NOT NULL,
   invitee_user_email TEXT NOT NULL,
-  workspace_id UUID NOT NULL REFERENCES public.workspaces (id),
+  workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
   invitee_user_role public.workspace_user_role DEFAULT 'member' NOT NULL,
-  invitee_user_id UUID REFERENCES public.user_profiles (id)
+  invitee_user_id UUID REFERENCES public.user_profiles (id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_workspace_invitations_workspace_id ON public.workspace_invitations(workspace_id);
@@ -81,8 +81,8 @@ CREATE INDEX idx_workspace_invitations_inviter_user_id ON public.workspace_invit
 -- Create workspace_credits table
 CREATE TABLE IF NOT EXISTS public.workspace_credits (
   id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-  workspace_id UUID NOT NULL REFERENCES public.workspaces (id),
-  credits INT NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+  credits INT NOT NULL DEFAULT 12,
   last_reset_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -141,31 +141,27 @@ REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "
 FROM "public";
 REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid")
 FROM "anon";
-REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid")
-FROM "authenticated";
+
 
 GRANT EXECUTE ON FUNCTION "public"."get_workspace_team_member_ids"("workspace_id" "uuid") TO "service_role";
 
 CREATE OR REPLACE FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER
 SET search_path = public,
-  pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
-  RETURN QUERY
-SELECT EXISTS (
+  pg_temp AS $$ BEGIN RETURN EXISTS (
     SELECT 1
     FROM workspace_team_members
     WHERE workspace_team_members.user_profile_id = $1
       AND workspace_team_members.workspace_id = $2
   );
 END;
-$_$;
+$$;
 
 ALTER FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid")
 FROM "public";
 REVOKE ALL ON FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid")
 FROM "anon";
-REVOKE ALL ON FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid")
-FROM "authenticated";
+
 
 GRANT EXECUTE ON FUNCTION "public"."is_workspace_member"("user_id" "uuid", "workspace_id" "uuid") TO "service_role";
 
@@ -189,17 +185,14 @@ REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_admins"("workspace_id
 FROM "public";
 REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid")
 FROM "anon";
-REVOKE ALL ON FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid")
-FROM "authenticated";
+
 
 GRANT EXECUTE ON FUNCTION "public"."get_workspace_team_member_admins"("workspace_id" "uuid") TO "service_role";
 
 
 CREATE OR REPLACE FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid") RETURNS BOOLEAN LANGUAGE "plpgsql" SECURITY DEFINER
 SET search_path = public,
-  pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
-  RETURN QUERY
-SELECT EXISTS (
+  pg_temp AS $$ BEGIN RETURN EXISTS (
     SELECT 1
     FROM workspace_team_members
     WHERE workspace_team_members.user_profile_id = $1
@@ -210,15 +203,14 @@ SELECT EXISTS (
       )
   );
 END;
-$_$;
+$$;
 
 ALTER FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid") OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid")
 FROM "public";
 REVOKE ALL ON FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid")
 FROM "anon";
-REVOKE ALL ON FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid")
-FROM "authenticated";
+
 
 GRANT EXECUTE ON FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "workspace_id" "uuid") TO "service_role";
 
@@ -369,3 +361,9 @@ CREATE POLICY "Workspace admins can manage settings" ON "public"."workspace_sett
     workspace_id
   )
 );
+
+
+-- foreign key for user_settings table
+ALTER TABLE "public"."user_settings"
+ADD CONSTRAINT "user_settings_default_workspace_fkey" FOREIGN KEY ("default_workspace") REFERENCES "public"."workspaces"("id") ON DELETE
+SET NULL;

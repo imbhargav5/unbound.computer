@@ -1,32 +1,34 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchSlimOrganizations, getDefaultOrganization, setDefaultOrganization } from "@/data/user/organizations";
+import { setDefaultWorkspace } from "@/data/user/organizations";
 import { getUserProfile } from "@/data/user/user";
+import { fetchSlimWorkspaces, getMaybeDefaultWorkspace } from "@/data/user/workspaces";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { authUserMetadataSchema } from "@/utils/zod-schemas/authUserMetadata";
 import { Suspense } from 'react';
 import { UserOnboardingFlow } from "./OnboardingFlow";
 
 async function getDefaultOrganizationOrSet(): Promise<string | null> {
-  const [slimOrganizations, defaultOrganizationId] = await Promise.all([
-    fetchSlimOrganizations(),
-    getDefaultOrganization(),
+  console.log("getDefaultOrganizationOrSet");
+  const [slimWorkspaces, defaultWorkspaceResponse] = await Promise.all([
+    fetchSlimWorkspaces(),
+    getMaybeDefaultWorkspace(),
   ]);
-  const firstOrganization = slimOrganizations[0];
+  const firstWorkspace = slimWorkspaces[0];
 
-  if (defaultOrganizationId) {
-    return defaultOrganizationId;
+  if (defaultWorkspaceResponse) {
+    return defaultWorkspaceResponse.workspace.id;
   }
 
-  if (!firstOrganization) {
+  if (!firstWorkspace) {
     return null;
   }
 
   // if the user has an organization already for some
   // reason, because of an invite or for some other reason,
   // make sure that the default organization is set to the first
-  await setDefaultOrganization(firstOrganization.id);
+  await setDefaultWorkspace(firstWorkspace.id);
 
-  return firstOrganization.id;
+  return firstWorkspace.id;
 }
 
 async function getOnboardingConditions(userId: string) {
@@ -41,32 +43,31 @@ async function getOnboardingConditions(userId: string) {
   };
 }
 
-async function OnboardingFlowWrapper({ userId, userEmail }: { userId: string; userEmail: string | undefined }) {
-  const [onboardingConditions, user] = await Promise.all([
-    getOnboardingConditions(userId),
-    serverGetLoggedInUser(),
+async function OnboardingFlowWrapper() {
+  const user = await serverGetLoggedInUser();
+  const [onboardingConditions] = await Promise.all([
+    getOnboardingConditions(user.id),
   ]);
-  const { userProfile } = onboardingConditions;
   console.log(user.id);
-  console.log(user.user_metadata);
+  console.log("onboarding flow wrapper", user.user_metadata);
+  const { userProfile } = onboardingConditions;
+
   const onboardingStatus = authUserMetadataSchema.parse(user.user_metadata);
 
   return (
     <UserOnboardingFlow
       userProfile={userProfile}
       onboardingStatus={onboardingStatus}
-      userEmail={userEmail}
+      userEmail={user.email}
     />
   );
 }
 
 export default async function OnboardingPage() {
-  const user = await serverGetLoggedInUser();
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <Suspense fallback={<Skeleton className="w-full max-w-md h-[400px]" />}>
-        <OnboardingFlowWrapper userId={user.id} userEmail={user.email} />
+        <OnboardingFlowWrapper />
       </Suspense>
     </div>
   );

@@ -1,11 +1,11 @@
-import { CommentWithUser, Table } from '@/types';
+import { CommentWithUser, DBTable } from '@/types';
 
 export function normalizeComment(
-  comments: Table<'project_comments'> & {
+  comments: DBTable<'project_comments'> & {
     user_profiles:
-      | Table<'user_profiles'>
-      | Array<Table<'user_profiles'>>
-      | null;
+    | DBTable<'user_profiles'>
+    | Array<DBTable<'user_profiles'>>
+    | null;
   },
 ): CommentWithUser {
   const user_profiles = Array.isArray(comments.user_profiles)

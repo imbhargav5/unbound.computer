@@ -1,6 +1,6 @@
 'use client';
 import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supabaseUserClientComponentClient';
-import type { SAPayload, Table } from '@/types';
+import type { DBTable, SAPayload } from '@/types';
 
 export const readNotification = async (notificationId: string) => {
   const { data: notification, error } = await supabaseUserClientComponentClient
@@ -14,7 +14,7 @@ export const readNotification = async (notificationId: string) => {
 
 export const readAllNotifications = async (
   userId: string,
-): Promise<SAPayload<Table<'user_notifications'>[]>> => {
+): Promise<SAPayload<DBTable<'user_notifications'>[]>> => {
   const { data: notifications, error } = await supabaseUserClientComponentClient
     .from('user_notifications')
     .update({ is_read: true, is_seen: true })
@@ -48,7 +48,7 @@ export const getPaginatedNotifications = async (
   userId: string,
   pageNumber: number,
   limit: number,
-): Promise<[number, Array<Table<'user_notifications'>>]> => {
+): Promise<[number, Array<DBTable<'user_notifications'>>]> => {
   const { data: notifications, error } = await supabaseUserClientComponentClient
     .from('user_notifications')
     .select('*')

@@ -19,7 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { updateAuthorProfile } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import { authorProfileSchema } from "@/utils/zod-schemas/internalBlog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SquarePen } from "lucide-react";
@@ -30,7 +30,7 @@ import type { z } from "zod";
 
 type AuthorProfileFormType = z.infer<typeof authorProfileSchema>;
 export type UpdateAuthorPayload = Omit<
-  Table<"internal_blog_author_profiles">,
+  DBTable<"internal_blog_author_profiles">,
   "created_at" | "updated_at"
 >;
 
@@ -39,7 +39,7 @@ export const EditAuthorProfileDialog = ({
   appAdmins,
 }: {
   profile: UpdateAuthorPayload;
-  appAdmins: Array<Table<"user_profiles">>;
+  appAdmins: Array<DBTable<"user_profiles">>;
 }) => {
   const router = useRouter();
 

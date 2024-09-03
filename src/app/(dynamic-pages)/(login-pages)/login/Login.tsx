@@ -17,7 +17,6 @@ import {
   signInWithPassword,
   signInWithProvider,
 } from '@/data/auth/auth';
-import { getMaybeInitialOrganizationToRedirectTo } from '@/data/user/organizations';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { AuthProvider } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -37,29 +36,11 @@ export function Login({
 
 
 
-  const initialOrgRedirectMutation = useSAToastMutation(getMaybeInitialOrganizationToRedirectTo, {
-    loadingMessage: 'Loading your dashboard...',
-    errorMessage: 'Login: Failed to load dashboard',
-    successMessage: 'Redirecting to your dashboard...',
-    onSuccess: (successPayload) => {
-      const initialOrganization = successPayload.data;
-      if (initialOrganization) {
-        router.push(`/${initialOrganization}`);
-      } else {
-        router.push('/dashboard');
-      }
-    },
-    onError: (errorPayload) => {
-      console.error(errorPayload);
-    },
-  });
-
-
   function redirectToDashboard() {
     if (next) {
       router.push(`/auth/callback?next=${next}`);
     } else {
-      initialOrgRedirectMutation.mutate();
+      router.push('/dashboard');
     }
   }
   const magicLinkMutation = useSAToastMutation(

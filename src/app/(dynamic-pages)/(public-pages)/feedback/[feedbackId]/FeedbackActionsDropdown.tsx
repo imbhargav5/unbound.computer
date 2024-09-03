@@ -42,14 +42,14 @@ import {
 } from '@/data/feedback';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { Tables } from '@/lib/database.types';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import { userRoles } from '@/utils/userTypes';
 
 function FeedbackActionsDropdown({
   feedback,
   userRole,
 }: {
-  feedback: Table<'internal_feedback_threads'>;
+  feedback: DBTable<'internal_feedback_threads'>;
   userRole: UserRole;
 }) {
   if (userRole === userRoles.ANON) {

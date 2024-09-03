@@ -1,7 +1,7 @@
 import { T } from '@/components/ui/Typography';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInvitationById } from '@/data/user/invitation';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { z } from 'zod';
@@ -20,7 +20,7 @@ async function Invitation({ invitationId }: { invitationId: string }) {
       ? invitation.inviter[0]
       : invitation.inviter;
     const organization = Array.isArray(invitation.organization)
-      ? (invitation.organization[0] as Table<'organizations'> | null)
+      ? (invitation.organization[0] as DBTable<'organizations'> | null)
       : invitation.organization;
     if (!organization || !inviter) {
       throw new Error('Organization or Inviter not found');

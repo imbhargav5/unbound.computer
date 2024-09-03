@@ -2,9 +2,9 @@
 import type { CreateAuthorPayload } from '@/app/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/blog/(blog-list)/AddAuthorProfileDialog';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
 import type {
+  DBTableInsertPayload,
+  DBTableUpdatePayload,
   SAPayload,
-  TableInsertPayload,
-  TableUpdatePayload,
 } from '@/types';
 import { revalidatePath } from 'next/cache';
 
@@ -181,7 +181,7 @@ export const createAuthorProfile = async (
 
 export const createBlogPost = async (
   authorId: string | undefined,
-  payload: TableInsertPayload<'internal_blog_posts'>,
+  payload: DBTableInsertPayload<'internal_blog_posts'>,
   tagIds: number[],
 ): Promise<SAPayload> => {
   const { data: slugVerify, error: slugError } = await supabaseAdminClient
@@ -309,7 +309,7 @@ export const getBlogPostTags = async (postId: string) => {
 
 export const updateAuthorProfile = async (
   userId: string,
-  payload: Partial<TableUpdatePayload<'internal_blog_author_profiles'>>,
+  payload: Partial<DBTableUpdatePayload<'internal_blog_author_profiles'>>,
 ): Promise<SAPayload> => {
   const { data, error } = await supabaseAdminClient
     .from('internal_blog_author_profiles')
@@ -333,7 +333,7 @@ export const updateAuthorProfile = async (
 export const updateBlogPost = async (
   authorId: string | undefined,
   postId: string,
-  payload: Partial<TableUpdatePayload<'internal_blog_posts'>>,
+  payload: Partial<DBTableUpdatePayload<'internal_blog_posts'>>,
   tagIds: number[],
 ): Promise<SAPayload> => {
   const { data, error } = await supabaseAdminClient
@@ -471,7 +471,7 @@ export const deleteAuthorProfile = async (
 };
 
 export const createBlogTag = async (
-  payload: TableInsertPayload<'internal_blog_post_tags'>,
+  payload: DBTableInsertPayload<'internal_blog_post_tags'>,
 ): Promise<SAPayload> => {
   const { error, data } = await supabaseAdminClient
     .from('internal_blog_post_tags')
@@ -491,7 +491,7 @@ export const createBlogTag = async (
 
 export const updateBlogTag = async (
   id: number,
-  payload: Partial<TableUpdatePayload<'internal_blog_post_tags'>>,
+  payload: Partial<DBTableUpdatePayload<'internal_blog_post_tags'>>,
 ): Promise<SAPayload> => {
   const { data, error } = await supabaseAdminClient
     .from('internal_blog_post_tags')

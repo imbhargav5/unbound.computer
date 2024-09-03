@@ -14,11 +14,13 @@ CREATE OR REPLACE FUNCTION "public"."handle_workspace_created"() RETURNS "trigge
 SET search_path = public,
   pg_temp AS $$ BEGIN
 INSERT INTO public.workspace_settings (workspace_id)
-VALUES (NEW.workspace_id);
+VALUES (NEW.id);
 INSERT INTO public.workspace_admin_settings (workspace_id)
-VALUES (NEW.workspace_id);
+VALUES (NEW.id);
 INSERT INTO public.workspace_application_settings (workspace_id)
-VALUES (NEW.workspace_id);
+VALUES (NEW.id);
+INSERT INTO public.workspace_credits (workspace_id)
+VALUES (NEW.id);
 RETURN NEW;
 END;
 $$;
@@ -28,31 +30,7 @@ REVOKE ALL ON FUNCTION "public"."handle_workspace_created"()
 FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."handle_workspace_created"() TO "service_role";
 
-/*
- * This function is a trigger function that handles the addition of credits when a new workspace is created.
- * It is designed to be executed automatically after a new workspace is inserted into the 'workspaces' table.
- *
- * The function performs the following actions:
- * 1. It inserts a new record into the 'workspace_credits' table.
- * 2. The new record's 'workspace_id' is set to the 'id' of the newly created workspace (NEW.id).
- *
- * This ensures that every new workspace starts with an initial credit entry.
- * The function is defined with SECURITY DEFINER, meaning it runs with the privileges of the user who defined it,
- * rather than the user who calls it, providing an additional layer of security.
- */
-CREATE OR REPLACE FUNCTION "public"."handle_workspace_created_add_credits"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
-SET search_path = public,
-  pg_temp AS $$ BEGIN
-INSERT INTO public.workspace_credits (workspace_id)
-VALUES (NEW.id);
-RETURN NEW;
-END;
-$$;
 
-ALTER FUNCTION "public"."handle_workspace_created_add_credits"() OWNER TO "postgres";
-REVOKE ALL ON FUNCTION "public"."handle_workspace_created_add_credits"()
-FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."handle_workspace_created_add_credits"() TO "service_role";
 
 /*
  * This function is a trigger function that handles the addition of a workspace member after an invitation is accepted.
@@ -87,10 +65,6 @@ GRANT ALL ON FUNCTION "public"."handle_add_workspace_member_after_invitation_acc
 CREATE OR REPLACE TRIGGER "on_workspace_created"
 AFTER
 INSERT ON "public"."workspaces" FOR EACH ROW EXECUTE FUNCTION "public"."handle_workspace_created"();
-
-CREATE OR REPLACE TRIGGER "on_workspace_created_add_credits"
-AFTER
-INSERT ON "public"."workspaces" FOR EACH ROW EXECUTE FUNCTION "public"."handle_workspace_created_add_credits"();
 
 CREATE OR REPLACE TRIGGER "on_workspace_invitation_accepted_trigger"
 AFTER

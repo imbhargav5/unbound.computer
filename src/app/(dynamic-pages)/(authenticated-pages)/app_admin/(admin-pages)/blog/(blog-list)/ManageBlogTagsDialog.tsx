@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { deleteBlogTag } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import { Tag, Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -20,7 +20,7 @@ import { EditBlogTagDialog } from "./EditBlogTagDialog";
 export const ManageBlogTagsDialog = ({
   blogTags,
 }: {
-  blogTags: Array<Table<"internal_blog_post_tags">>;
+  blogTags: Array<DBTable<"internal_blog_post_tags">>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();

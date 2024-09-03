@@ -63,11 +63,11 @@ export async function getProjectTitleById(projectId: string) {
 }
 
 export const createProjectAction = async ({
-  organizationId,
+  workspaceId,
   name,
   slug,
 }: {
-  organizationId: string;
+  workspaceId: string;
   name: string;
   slug: string;
 }): Promise<SAPayload<Tables<"projects">>> => {
@@ -76,7 +76,7 @@ export const createProjectAction = async ({
   const { data: project, error } = await supabaseClient
     .from("projects")
     .insert({
-      organization_id: organizationId,
+      workspace_id: workspaceId,
       name,
       slug,
     })

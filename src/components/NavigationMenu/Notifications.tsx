@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/popover';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supabaseUserClientComponentClient';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import { parseNotification } from '@/utils/parseNotification';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -155,7 +155,7 @@ export const useReadAllNotifications = (userId: string) => {
 function Notification({
   notification,
 }: {
-  notification: Table<'user_notifications'>;
+  notification: DBTable<'user_notifications'>;
 }) {
   const router = useRouter();
   const notificationPayload = parseNotification(notification.payload);

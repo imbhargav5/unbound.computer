@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/button';
-import { Table } from '@/types';
+import { DBTable } from '@/types';
 import Link from 'next/link';
 
 export function TagsNav({
   tags,
 }: {
-  tags: Table<'internal_blog_post_tags'>[];
+  tags: DBTable<'internal_blog_post_tags'>[];
 }) {
   return (
     <div className="space-x-2 flex px-4 sm:px-0 flex-wrap justify-center">

@@ -6,18 +6,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 
-import { OrganizationCreation } from "./OrganizationCreation";
 import { ProfileUpdate } from "./ProfileUpdate";
 import { TermsAcceptance } from "./TermsAcceptance";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Table } from "@/types";
+import type { DBTable } from "@/types";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
+import { WorkspaceCreation } from "./WorkspaceCreation";
 
-type FLOW_STATE = "TERMS" | "PROFILE" | "ORGANIZATION" | "COMPLETE";
+type FLOW_STATE = "TERMS" | "PROFILE" | "WORKSPACE" | "COMPLETE";
 
 type UserOnboardingFlowProps = {
-  userProfile: Table<"user_profiles">;
+  userProfile: DBTable<"user_profiles">;
   onboardingStatus: AuthUserMetadata;
   userEmail: string | undefined;
 };
@@ -27,6 +27,7 @@ const MotionCard = motion(Card);
 function OnboardingComplete() {
   const router = useRouter();
   useEffect(() => {
+    console.log('pushing to dashboard');
     router.push("/dashboard");
   }, [router]);
   return <div data-testid="onboarding-complete">
@@ -54,7 +55,7 @@ export function UserOnboardingFlow({
     });
   }, [currentStep, flowStates]);
 
-
+  console.log('currentStep', currentStep);
 
 
   const cardVariants = {
@@ -82,8 +83,8 @@ export function UserOnboardingFlow({
             onSuccess={nextStep}
           />
         )}
-        {currentStep === "ORGANIZATION" && (
-          <OrganizationCreation onSuccess={nextStep} />
+        {currentStep === "WORKSPACE" && (
+          <WorkspaceCreation onSuccess={nextStep} />
         )}
         {currentStep === "COMPLETE" && <OnboardingComplete />}
       </MotionCard>
@@ -95,7 +96,7 @@ function getAllFlowStates(onboardingStatus: AuthUserMetadata): FLOW_STATE[] {
   const {
     onboardingHasAcceptedTerms,
     onboardingHasCompletedProfile,
-    onboardingHasCreatedOrganization,
+    onboardingHasCreatedWorkspace,
   } = onboardingStatus;
   const flowStates: FLOW_STATE[] = [];
 
@@ -105,8 +106,8 @@ function getAllFlowStates(onboardingStatus: AuthUserMetadata): FLOW_STATE[] {
   if (!onboardingHasCompletedProfile) {
     flowStates.push("PROFILE");
   }
-  if (!onboardingHasCreatedOrganization) {
-    flowStates.push("ORGANIZATION");
+  if (!onboardingHasCreatedWorkspace) {
+    flowStates.push("WORKSPACE");
   }
   flowStates.push("COMPLETE");
 
@@ -120,7 +121,7 @@ function getInitialFlowState(
   const {
     onboardingHasAcceptedTerms,
     onboardingHasCompletedProfile,
-    onboardingHasCreatedOrganization,
+    onboardingHasCreatedWorkspace,
   } = onboardingStatus;
 
   if (!onboardingHasAcceptedTerms && flowStates.includes("TERMS")) {
@@ -132,10 +133,10 @@ function getInitialFlowState(
   }
 
   if (
-    !onboardingHasCreatedOrganization &&
-    flowStates.includes("ORGANIZATION")
+    !onboardingHasCreatedWorkspace &&
+    flowStates.includes("WORKSPACE")
   ) {
-    return "ORGANIZATION";
+    return "WORKSPACE";
   }
 
   return "COMPLETE";

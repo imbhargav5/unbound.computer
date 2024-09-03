@@ -36,6 +36,7 @@ export const signInWithPassword = async (
   });
 
   if (error) {
+    console.log(error);
     return { status: 'error', message: error.message };
   }
 

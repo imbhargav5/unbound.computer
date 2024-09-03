@@ -1,4 +1,4 @@
-import { Enum, Table } from "@/types";
+import { DBTable, Enum } from "@/types";
 
 export class PaymentGatewayError extends Error {
   constructor(message: string, public code: string, public gateway: string) {
@@ -35,8 +35,8 @@ export interface SubscriptionData {
   cancelAtPeriodEnd: boolean;
 }
 
-export type PlanData = Table<'billing_plans'> & {
-  billing_plan_prices: Table<'billing_plan_prices'>[];
+export type PlanData = DBTable<'billing_plans'> & {
+  billing_plan_prices: DBTable<'billing_plan_prices'>[];
 };
 
 export interface CheckoutSessionData {
@@ -48,7 +48,7 @@ export interface CustomerPortalData {
   url: string;
 }
 
-export type InvoiceData = Table<'billing_invoices'>
+export type InvoiceData = DBTable<'billing_invoices'>
 
 export interface PaymentMethodData {
   id: string;
@@ -67,12 +67,12 @@ export abstract class PaymentGateway {
   abstract getName(): string;
 
   abstract db: {
-    createCustomer(userData: Partial<Table<'billing_customers'>>, organizationId: string): Promise<Table<'billing_customers'>>;
-    getCustomer(customerId: string): Promise<Table<'billing_customers'>>;
+    createCustomer(userData: Partial<DBTable<'billing_customers'>>, organizationId: string): Promise<DBTable<'billing_customers'>>;
+    getCustomer(customerId: string): Promise<DBTable<'billing_customers'>>;
     hasCustomer(customerId: string): Promise<boolean>
-    updateCustomer(customerId: string, updateData: Partial<Table<'billing_customers'>>): Promise<Table<'billing_customers'>>;
+    updateCustomer(customerId: string, updateData: Partial<DBTable<'billing_customers'>>): Promise<DBTable<'billing_customers'>>;
     deleteCustomer(customerId: string): Promise<void>;
-    listCustomers(options?: PaginationOptions): Promise<PaginatedResponse<Table<'billing_customers'>>>;
+    listCustomers(options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_customers'>>>;
     // Subscription methods
     getSubscription(subscriptionId: string): Promise<SubscriptionData>;
     listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<SubscriptionData>>;
@@ -85,8 +85,8 @@ export abstract class PaymentGateway {
   }
 
   abstract util: {
-    createCustomerForOrganization(organizationId: string): Promise<Table<'billing_customers'>>;
-    getCustomerByOrganizationId(organizationId: string): Promise<Table<'billing_customers'> | null>;
+    createCustomerForOrganization(organizationId: string): Promise<DBTable<'billing_customers'>>;
+    getCustomerByOrganizationId(organizationId: string): Promise<DBTable<'billing_customers'> | null>;
     supportsFeature(featureName: string): boolean;
   }
 

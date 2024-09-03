@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { requestAccountDeletion } from '@/data/user/user';
+import { requestAccountDeletionAction } from '@/data/user/user';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { Trash } from 'lucide-react';
 import { useState } from 'react';
@@ -28,7 +28,7 @@ export const ConfirmDeleteAccountDialog = () => {
     isLoading: isRequestingAccountDeletion,
   } = useSAToastMutation(
     async () => {
-      return requestAccountDeletion();
+      return requestAccountDeletionAction();
     },
     {
       errorMessage(error) {

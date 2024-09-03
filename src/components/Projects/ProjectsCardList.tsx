@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Table } from "@/types";
+import { DBTable } from "@/types";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { CalendarDays, Clock, Link as LinkIcon } from "lucide-react";
@@ -44,7 +44,7 @@ const itemVariants = {
 export const ProjectsCardList = ({
   projects,
 }: {
-  projects: Table<"projects">[];
+  projects: DBTable<"projects">[];
 }) => {
   if (projects.length === 0) {
     return (

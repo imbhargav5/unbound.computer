@@ -1,11 +1,11 @@
 import { T } from '@/components/ui/Typography';
-import { Table } from '@/types';
+import { DBTable } from '@/types';
 import moment from 'moment';
 
 export function PublicBlogList({
   blogPosts,
 }: {
-  blogPosts: Array<Table<'internal_blog_posts'>>;
+  blogPosts: Array<DBTable<'internal_blog_posts'>>;
 }) {
   return (
     <>

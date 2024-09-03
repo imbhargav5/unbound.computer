@@ -1,7 +1,7 @@
 'use client';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table } from '@/types';
+import { DBTable } from '@/types';
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 
@@ -13,7 +13,7 @@ const BlogContent = dynamic(
 export function BlogContentWrapper({
   jsonContent,
 }: {
-  jsonContent: Table<'internal_blog_posts'>['json_content'];
+  jsonContent: DBTable<'internal_blog_posts'>['json_content'];
 }) {
   return (
     <Suspense fallback={<Skeleton className="w-full h-6" />}>

@@ -1,6 +1,6 @@
 "use server";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
-import type { SAPayload, SupabaseFileUploadOptions, Table } from "@/types";
+import type { DBTable, SAPayload, SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { renderAsync } from "@react-email/render";
@@ -12,7 +12,7 @@ import { ensureAppAdmin } from "./security";
 
 export const appAdminGetUserProfile = async (
   userId: string,
-): Promise<Table<"user_profiles">> => {
+): Promise<DBTable<"user_profiles">> => {
   ensureAppAdmin();
   const { data, error } = await supabaseAdminClient
     .from("user_profiles")

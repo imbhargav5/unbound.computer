@@ -1,13 +1,13 @@
 'use client';
 
 import { getTipTapExtention } from '@/components/tip-tap-Editor/extensions';
-import type { Table } from '@/types';
+import type { DBTable } from '@/types';
 import { generateHTML } from '@tiptap/core';
 
 export function BlogContent({
   jsonContent,
 }: {
-  jsonContent: Table<'internal_blog_posts'>['json_content'];
+  jsonContent: DBTable<'internal_blog_posts'>['json_content'];
 }) {
   const validContent =
     typeof jsonContent === 'string'

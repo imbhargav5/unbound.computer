@@ -8,21 +8,30 @@ export const getSession = cache(async () => {
   return await supabase.auth.getSession();
 });
 
+export const getUser = cache(async () => {
+  const supabase = createSupabaseUserServerComponentClient();
+  return await supabase.auth.getUser();
+});
+
 // This is a server-side function that verifies the session of the user.
 // and runs in server components.
 export const verifySession = cache(async () => {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await getSession();
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await getSession();
 
-  if (sessionError) {
-    throw sessionError;
-  }
+    if (sessionError) {
+      throw sessionError;
+    }
 
-  if (!session?.user) {
+    if (!session?.user) {
+      redirect('/login');
+    }
+
+  } catch (error) {
     redirect('/login');
   }
-
-  return session.user;
 });
+

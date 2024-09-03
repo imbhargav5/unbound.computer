@@ -1,7 +1,7 @@
 'use server';
 import { getOrganizationAdmins, getOrganizationSlugByOrganizationId } from '@/data/user/organizations';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { Table } from '@/types';
+import { DBTable } from '@/types';
 import { toSiteURL } from '@/utils/helpers';
 import Stripe from 'stripe';
 import {
@@ -43,7 +43,7 @@ export class StripePaymentGateway implements PaymentGateway {
   }
 
   db = {
-    createCustomer: async (userData: Partial<Table<'billing_customers'>>, organizationId: string): Promise<Table<'billing_customers'>> => {
+    createCustomer: async (userData: Partial<DBTable<'billing_customers'>>, organizationId: string): Promise<DBTable<'billing_customers'>> => {
       const { billing_email } = userData;
       if (!billing_email) {
         return this.handleStripeError(new Error('Email is required'));
@@ -76,7 +76,7 @@ export class StripePaymentGateway implements PaymentGateway {
       }
     },
 
-    getCustomer: async (customerId: string): Promise<Table<'billing_customers'>> => {
+    getCustomer: async (customerId: string): Promise<DBTable<'billing_customers'>> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_customers')
         .select('*')
@@ -101,7 +101,7 @@ export class StripePaymentGateway implements PaymentGateway {
       return (count ?? 0) > 0;
     },
 
-    updateCustomer: async (customerId: string, updateData: Partial<Table<'billing_customers'>>): Promise<Table<'billing_customers'>> => {
+    updateCustomer: async (customerId: string, updateData: Partial<DBTable<'billing_customers'>>): Promise<DBTable<'billing_customers'>> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_customers')
         .update(updateData)
@@ -126,7 +126,7 @@ export class StripePaymentGateway implements PaymentGateway {
       if (error) throw error;
     },
 
-    listCustomers: async (options?: PaginationOptions): Promise<PaginatedResponse<Table<'billing_customers'>>> => {
+    listCustomers: async (options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_customers'>>> => {
       const { data, error, count } = await supabaseAdminClient
         .from('billing_customers')
         .select('*', { count: 'exact' })
@@ -259,7 +259,7 @@ export class StripePaymentGateway implements PaymentGateway {
   }
 
   util = {
-    createCustomerForOrganization: async (organizationId: string): Promise<Table<'billing_customers'>> => {
+    createCustomerForOrganization: async (organizationId: string): Promise<DBTable<'billing_customers'>> => {
       const orgAdmins = await getOrganizationAdmins(organizationId);
       if (!orgAdmins) throw new Error('Organization admins not found');
       const orgAdminUserId = orgAdmins[0].user_profiles.id;
@@ -274,7 +274,7 @@ export class StripePaymentGateway implements PaymentGateway {
       }, organizationId);
     },
 
-    getCustomerByOrganizationId: async (organizationId: string): Promise<Table<'billing_customers'> | null> => {
+    getCustomerByOrganizationId: async (organizationId: string): Promise<DBTable<'billing_customers'> | null> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_customers')
         .select('*')
