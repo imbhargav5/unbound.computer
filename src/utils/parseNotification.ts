@@ -1,14 +1,14 @@
 import { PRODUCT_NAME } from "@/constants";
 import {
   userNotificationPayloadSchema,
-  type UserNotification,
+  type UserNotificationPayloadType,
 } from "./zod-schemas/notifications";
 
 type NormalizedNotification = {
   title: string;
   description: string;
   image: string;
-  type: UserNotification["type"] | "unknown";
+  type: UserNotificationPayloadType["type"] | "unknown";
 } & (
     | {
       actionType: "link";

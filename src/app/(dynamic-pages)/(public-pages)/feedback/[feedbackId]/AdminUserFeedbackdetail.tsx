@@ -11,7 +11,7 @@ import {
   CommentTimeLineItem,
   SuspendedFeedbackComments,
 } from './CommentTimeLine';
-import FeedbackActionsDropdown from './FeedbackActionsDropdown';
+import { FeedbackActionsDropdown } from './FeedbackActionsDropdown';
 
 async function AdminUserFeedbackdetail({ feedbackId }) {
   const userRoleType = await serverGetUserType();

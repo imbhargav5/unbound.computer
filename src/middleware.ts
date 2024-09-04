@@ -35,6 +35,7 @@ const unprotectedPagePrefixes = [
   `/docs(/.*)?`,
   `/terms`,
   `/waitlist(/.*)?`,
+  `/testing(/.*)?`,
 ];
 
 function isUnprotectedPage(pathname: string) {
@@ -77,13 +78,8 @@ export async function middleware(req: NextRequest) {
     console.log('redirecting to onboarding');
     return NextResponse.redirect(toSiteURL('/onboarding'));
   }
-  if (!isUnprotectedPage(req.nextUrl.pathname) && maybeUser) {
-    // user is possibly logged in, but lets validate session
-    const user = await supabase.auth.getUser();
-    if (user.error) {
-      return NextResponse.redirect(toSiteURL('/login'));
-    }
-  }
+  // only do optimistic updates in middleware.
+  // don't try to contact the database.
   if (!isUnprotectedPage(req.nextUrl.pathname) && !maybeUser) {
     return NextResponse.redirect(toSiteURL('/login'));
   }

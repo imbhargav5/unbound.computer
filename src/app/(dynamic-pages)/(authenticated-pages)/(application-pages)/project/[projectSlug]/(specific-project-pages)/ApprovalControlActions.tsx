@@ -1,4 +1,5 @@
 "use client";
+
 import { T } from "@/components/ui/Typography";
 import {
   approveProjectAction,
@@ -6,118 +7,119 @@ import {
   rejectProjectAction,
   submitProjectForApprovalAction,
 } from "@/data/user/projects";
-import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { Enum } from "@/types";
+import { useAction } from "next-safe-action/hooks";
+import { useRef } from "react";
+import { toast } from "sonner";
 import { ConfirmApproveProjectDialog } from "./ConfirmApproveProjectDialog";
 import { ConfirmMarkProjectAsCompleteDialog } from "./ConfirmMarkProjectAsCompleteDialog";
 import { ConfirmRejectProjectDialog } from "./ConfirmRejectProjectDialog";
 import { SubmitProjectForApprovalDialog } from "./SubmitProjectForApprovalDialog";
+
+type ProjectStatus = Enum<"project_status">;
+
+interface ApprovalControlActionsProps {
+  projectId: string;
+  canManage: boolean;
+  canOnlyEdit: boolean;
+  projectStatus: ProjectStatus;
+}
 
 export function ApprovalControlActions({
   projectId,
   canManage,
   canOnlyEdit,
   projectStatus,
-}: {
-  projectId: string;
-  canManage: boolean;
-  canOnlyEdit: boolean;
-  projectStatus: Enum<"project_status">;
-}) {
-  const { mutate: submitProjectForApproval } = useSAToastMutation(
-    async () => {
-      return await submitProjectForApprovalAction(projectId);
+}: ApprovalControlActionsProps): JSX.Element {
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: submitProjectForApproval } = useAction(submitProjectForApprovalAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Submitting project for approval...");
     },
-    {
-      loadingMessage: "Submitting project for approval...",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to submit project for approval ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to submit project for approval';
-        }
-      },
-      successMessage: "Project submitted for approval!",
+    onSuccess: () => {
+      toast.success("Project submitted for approval!", {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-  );
-  const { mutate: markProjectAsCompleted } = useSAToastMutation(
-    async () => {
-      return await markProjectAsCompletedAction(projectId);
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to submit project for approval";
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-    {
-      loadingMessage: "Marking project as complete...",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to mark project as complete ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to mark project as complete';
-        }
-      },
-      successMessage: "Project marked as complete!",
+  });
+
+  const { execute: markProjectAsCompleted } = useAction(markProjectAsCompletedAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Marking project as complete...");
     },
-  );
-  const { mutate: approveProject } = useSAToastMutation(
-    async () => {
-      return await approveProjectAction(projectId);
+    onSuccess: () => {
+      toast.success("Project marked as complete!", {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-    {
-      loadingMessage: "Approving project...",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to approve project ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to approve project';
-        }
-      },
-      successMessage: "Project approved!",
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to mark project as complete";
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-  );
-  const { mutate: rejectProject } = useSAToastMutation(
-    async () => {
-      return await rejectProjectAction(projectId);
+  });
+
+  const { execute: approveProject } = useAction(approveProjectAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Approving project...");
     },
-    {
-      loadingMessage: "Rejecting project...",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to reject project ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to reject project';
-        }
-      },
-      successMessage: "Project rejected!",
+    onSuccess: () => {
+      toast.success("Project approved!", {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to approve project";
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: rejectProject } = useAction(rejectProjectAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Rejecting project...");
+    },
+    onSuccess: () => {
+      toast.success("Project rejected!", {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to reject project";
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
   return (
     <>
       {projectStatus === "draft" ? (
         canManage ? (
           <ConfirmMarkProjectAsCompleteDialog
-            onConfirm={markProjectAsCompleted}
+            onConfirm={() => markProjectAsCompleted({ projectId })}
           />
         ) : canOnlyEdit ? (
-          <>
-            <SubmitProjectForApprovalDialog
-              onSubmit={submitProjectForApproval}
-            />
-          </>
+          <SubmitProjectForApprovalDialog
+            onSubmit={() => submitProjectForApproval({ projectId })}
+          />
         ) : null
       ) : null}
       {!canManage && projectStatus === "pending_approval" ? (
@@ -125,13 +127,13 @@ export function ApprovalControlActions({
       ) : null}
       {canManage && projectStatus === "pending_approval" && (
         <>
-          <ConfirmApproveProjectDialog onConfirm={approveProject} />
-          <ConfirmRejectProjectDialog onConfirm={rejectProject} />
+          <ConfirmApproveProjectDialog onConfirm={() => approveProject({ projectId })} />
+          <ConfirmRejectProjectDialog onConfirm={() => rejectProject({ projectId })} />
         </>
       )}
       {projectStatus === "approved" && canManage ? (
         <ConfirmMarkProjectAsCompleteDialog
-          onConfirm={markProjectAsCompleted}
+          onConfirm={() => markProjectAsCompleted({ projectId })}
         />
       ) : null}
     </>

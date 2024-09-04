@@ -1,4 +1,4 @@
-import { uploadImage } from '@/data/admin/user';
+import { uploadImageAction } from '@/data/admin/user';
 import { EditorState, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, EditorView } from '@tiptap/pm/view';
 import { toast } from 'sonner';
@@ -119,7 +119,7 @@ export const handleImageUpload = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
   ('');
-  return await uploadImage(formData, file.name, {
+  return await uploadImageAction(formData, file.name, {
     upsert: true,
   });
 };

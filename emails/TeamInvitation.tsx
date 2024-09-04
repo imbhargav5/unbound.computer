@@ -10,14 +10,14 @@ import { Text } from '@react-email/text';
 
 interface TeamInvitationEmailProps {
   viewInvitationUrl: string;
-  organizationName: string;
+  workspaceName: string;
   inviterName: string;
   isNewUser: boolean;
 }
 
 export default function TeamInvitationEmail({
   viewInvitationUrl,
-  organizationName,
+  workspaceName,
   inviterName,
   isNewUser,
 }: TeamInvitationEmailProps) {
@@ -32,7 +32,7 @@ export default function TeamInvitationEmail({
             <>
               <Text style={textStyle}>
                 Hello, you have been invited to join the team{' '}
-                <strong>{organizationName}</strong>. Your account has been created and you can
+                <strong>{workspaceName}</strong>. Your account has been created and you can
                 confirm your email address and join the team by clicking the button
                 below.
               </Text>
@@ -44,7 +44,7 @@ export default function TeamInvitationEmail({
           ) : (
             <Text style={textStyle}>
               Hello, <strong>{inviterName}</strong> has invited you to join the team{' '}
-              <strong>{organizationName}</strong>.
+              <strong>{workspaceName}</strong>.
             </Text>
           )}
           <Section style={buttonContainerStyle}>
@@ -54,7 +54,7 @@ export default function TeamInvitationEmail({
           </Section>
           <Hr style={hrStyle} />
           <Text style={footerStyle}>
-            © {new Date().getFullYear()} {organizationName}. All rights reserved.
+            © {new Date().getFullYear()} {workspaceName}. All rights reserved.
           </Text>
         </Container>
       </Body>
@@ -123,7 +123,7 @@ const footerStyle: React.CSSProperties = {
 // @ts-ignore
 TeamInvitationEmail.PreviewProps = {
   viewInvitationUrl: 'https://example.com/view-invitation',
-  organizationName: 'Acme Inc.',
+  workspaceName: 'Acme Inc.',
   inviterName: 'John Doe',
   isNewUser: false,
 };

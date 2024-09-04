@@ -2,9 +2,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SIDEBAR_VISIBILITY_COOKIE_KEY } from '@/constants';
 import { LoggedInUserProvider } from '@/contexts/LoggedInUserContext';
 import { SidebarVisibilityProvider } from '@/contexts/SidebarVisibilityContext';
-import { errors } from '@/utils/errors';
-import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
+import { serverGetLoggedInUserVerified } from '@/utils/server/serverGetLoggedInUser';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 import { ClientLayout } from './ClientLayout';
 
@@ -18,8 +18,8 @@ function getSidebarVisibility() {
 }
 
 async function AuthenticatedLayout({ children }: { children: ReactNode }) {
-  const user = await serverGetLoggedInUser();
   try {
+    const user = await serverGetLoggedInUserVerified();
     const sidebarVisibility = getSidebarVisibility();
 
     return (
@@ -32,8 +32,9 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
       </SidebarVisibilityProvider>
     );
   } catch (fetchDataError) {
-    errors.add(fetchDataError);
-    return <p>Error: An error occurred.</p>;
+    console.log('fetchDataError', fetchDataError);
+    redirect('/login');
+    return null;
   }
 }
 export default async function Layout({ children }: { children: ReactNode }) {

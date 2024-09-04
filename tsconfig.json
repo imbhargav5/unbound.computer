@@ -24,7 +24,8 @@
       "@/*": ["src/*"],
       "@public/*": ["public/*"],
       // https://github.com/contentlayerdev/contentlayer/issues/456
-      "react": ["./node_modules/@types/react"]
+      "react": ["./node_modules/@types/react"],
+      "content-collections": ["./.content-collections/generated"]
     },
     "strictNullChecks": true
   },

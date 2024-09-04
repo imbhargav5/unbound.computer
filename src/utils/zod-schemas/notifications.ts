@@ -73,7 +73,7 @@ const feedbackFeedbackOpenForCommentUpdatedPayload = z.object({
   isOpenForComments: z.boolean()
 });
 
-export const userNotificationPayloadSchema = z.union([
+export const userNotificationPayloadSchema = z.discriminatedUnion('type', [
   invitedToWorkspacePayload,
   acceptedWorkspaceInvitationPayload,
   welcomeNotificationPayload,
@@ -87,4 +87,4 @@ export const userNotificationPayloadSchema = z.union([
   feedbackFeedbackOpenForCommentUpdatedPayload
 ]);
 
-export type UserNotification = z.infer<typeof userNotificationPayloadSchema>;
+export type UserNotificationPayloadType = z.infer<typeof userNotificationPayloadSchema>;

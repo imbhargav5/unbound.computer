@@ -1,13 +1,8 @@
 /** @type {import('next').NextConfig} */
+import { withContentCollections } from '@content-collections/next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 import createWithBundleAnalyzer from '@next/bundle-analyzer';
-import createWithMdx from '@next/mdx';
-import { withSentryConfig } from '@sentry/nextjs';
-import { h } from 'hastscript';
-import rehypePrettyCode from 'rehype-pretty-code';
-import rehypeSlug from 'rehype-slug';
-import rehypeToc from 'rehype-toc';
-import remarkGfm from 'remark-gfm';
 
 const withBundleAnalyzer = createWithBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -15,62 +10,11 @@ const withBundleAnalyzer = createWithBundleAnalyzer({
     process.env.ANALYZE === 'true' && process.env.OPEN_ANALYZER === 'true',
 });
 
-function rehypeWrapMainContent() {
-  return (tree) => {
-    let navNode;
-    const nonNavNodes = tree.children?.filter((node) => {
-      if (node.type === 'element' && node.tagName === 'TocNav') {
-        navNode = node;
-        return false;
-      }
-      return true;
-    });
-
-    if (navNode) {
-      tree.children = [
-        h('div.docs-main-contents', h('prose', nonNavNodes)),
-        h('div.docs-toc', navNode),
-      ];
-    }
-
-    return tree;
-  };
-}
-
-const withMDX = createWithMdx({
-  options: {
-    remarkPlugins: [remarkGfm],
-    rehypePlugins: [
-      rehypeSlug,
-      [
-        rehypeToc,
-        {
-          headings: ['h2', 'h3'],
-          customizeTOC: (toc) => {
-            // change element from nav to TOCNav
-            // We need this to be able to render a custom component in mdx-components
-            // to replace the `a` tags with `Link` components
-            toc.tagName = 'TocNav';
-            return toc;
-          },
-        },
-      ],
-      rehypeWrapMainContent,
-      [
-        rehypePrettyCode,
-        {
-          theme: 'one-dark-pro',
-        },
-      ],
-    ],
-  },
-});
-
 const nextConfig = {
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb"
-    }
+      bodySizeLimit: '10mb',
+    },
   },
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   images: {
@@ -142,4 +86,6 @@ const nextConfig = {
   },
 };
 
-export default withBundleAnalyzer(withSentryConfig(withMDX(nextConfig)));
+export default withContentCollections(
+  withBundleAnalyzer(withSentryConfig(nextConfig)),
+);

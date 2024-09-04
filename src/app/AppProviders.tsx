@@ -1,11 +1,11 @@
 "use client";
 import { QueryClient, QueryClientProvider, isServer } from "@tanstack/react-query";
+import { RootProvider } from 'fumadocs-ui/provider';
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
 import { useTheme } from "next-themes";
 import type React from "react";
 import { Suspense } from "react";
 import { Toaster as SonnerToaster } from "sonner";
-import { ThemeProvider } from "./ThemeProvider";
 import { useMyReportWebVitals } from "./reportWebVitals";
 
 
@@ -66,7 +66,13 @@ export function AppProviders({
   useMyReportWebVitals();
   return (
     <>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <RootProvider theme={{
+        enabled: true,
+      }}
+        search={{
+          enabled: true,
+        }}
+      >
         <QueryClientProvider client={queryClient}>
           {children}
           <Suspense>
@@ -79,7 +85,7 @@ export function AppProviders({
             <CustomerToaster />
           </Suspense>
         </QueryClientProvider>
-      </ThemeProvider>
+      </RootProvider>
     </>
   );
 }

@@ -1,14 +1,17 @@
 'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useAction } from 'next-safe-action/hooks';
+import { Fragment, startTransition, useOptimistic, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
+
 import { T } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
 import { SelectSeparator } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { createProjectCommentAction } from '@/data/user/projects';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Fragment, startTransition, useOptimistic } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 
 const addCommentSchema = z.object({
   text: z.string().min(1),
@@ -21,46 +24,38 @@ type InFlightComment = {
   id: string | number;
 };
 
-export const CommentInput = ({ projectId }: { projectId: string }) => {
+type CreateProjectCommentActionResult = Awaited<ReturnType<typeof createProjectCommentAction>>;
+
+export const CommentInput = ({ projectId }: { projectId: string }): JSX.Element => {
   const [commentsInFlight, addCommentToFlight] = useOptimistic<
     InFlightComment[],
     InFlightComment
-  >([], (statee, newMessage) => {
-    return [...statee, newMessage];
-  });
+  >([], (state, newMessage) => [...state, newMessage]);
 
-  const { mutate: addComment, isLoading } = useSAToastMutation(
-    async (text: string) => {
-      return createProjectCommentAction(projectId, text);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: addComment, status } = useAction(createProjectCommentAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Adding comment...');
     },
-    {
-      loadingMessage: 'Adding comment...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to add comment ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to add comment';
-        }
-      },
-      successMessage: 'Comment added!',
-      onSuccess: (response) => {
-        if (response.status === 'success') {
-          startTransition(() => {
-            if (response.data) {
-              addCommentToFlight({
-                children: response.data.commentList,
-                id: response.data.id,
-              });
-            };
+    onSuccess: (result) => {
+      toast.success('Comment added!', { id: toastRef.current });
+      toastRef.current = undefined;
+      startTransition(() => {
+        if (result.data) {
+          addCommentToFlight({
+            children: result.data.commentList,
+            id: result.data.id,
           });
         }
-      },
-    }
-  );
+      });
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to add comment';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
 
   const { handleSubmit, setValue, register } = useForm<AddCommentSchema>({
     resolver: zodResolver(addCommentSchema),
@@ -68,11 +63,12 @@ export const CommentInput = ({ projectId }: { projectId: string }) => {
       text: '',
     },
   });
+
   return (
     <>
       <form
         onSubmit={handleSubmit((data) => {
-          addComment(data.text);
+          addComment({ projectId, text: data.text });
           setValue('text', '');
         })}
       >
@@ -84,11 +80,11 @@ export const CommentInput = ({ projectId }: { projectId: string }) => {
             {...register('text')}
           />
           <div className="flex justify-end space-x-2">
-            <Button disabled={isLoading} variant="outline" type="reset">
+            <Button disabled={status === 'executing'} variant="outline" type="reset">
               Reset
             </Button>
-            <Button disabled={isLoading} type="submit">
-              {isLoading ? 'Adding comment...' : 'Add comment'}
+            <Button disabled={status === 'executing'} type="submit">
+              {status === 'executing' ? 'Adding comment...' : 'Add comment'}
             </Button>
           </div>
         </div>

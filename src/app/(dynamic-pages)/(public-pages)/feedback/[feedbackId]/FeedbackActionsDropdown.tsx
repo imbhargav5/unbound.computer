@@ -31,237 +31,123 @@ import {
   Tags,
   VolumeX,
 } from 'lucide-react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef } from 'react';
+import { toast } from 'sonner';
 
 import {
   adminToggleFeedbackFromRoadmapAction,
   adminToggleFeedbackOpenForCommentsAction,
   adminToggleFeedbackVisibilityAction,
-  adminUpdateFeedbackPriority,
+  adminUpdateFeedbackPriorityAction,
   adminUpdateFeedbackStatusAction,
   adminUpdateFeedbackTypeAction,
 } from '@/data/feedback';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import type { Tables } from '@/lib/database.types';
 import type { DBTable } from '@/types';
 import { userRoles } from '@/utils/userTypes';
 
-function FeedbackActionsDropdown({
+export function FeedbackActionsDropdown({
   feedback,
   userRole,
 }: {
-  feedback: DBTable<'internal_feedback_threads'>;
+  feedback: DBTable<'marketing_feedback_threads'>;
   userRole: UserRole;
 }) {
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: updateFeedbackStatus } = useAction(adminUpdateFeedbackStatusAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(`Updating status to ${input.status}...`);
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(`Status has been updated to ${input.status}`, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update status';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: updateFeedbackType } = useAction(adminUpdateFeedbackTypeAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(`Updating type to ${input.type}...`);
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(`Type has been updated to ${input.type}`, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update type';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: updateFeedbackPriority } = useAction(adminUpdateFeedbackPriorityAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(`Updating priority to ${input.priority}...`);
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(`Priority has been updated to ${input.priority}`, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update priority';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: updateRoadmap } = useAction(adminToggleFeedbackFromRoadmapAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(input.isInRoadmap ? 'Adding to roadmap...' : 'Removing from roadmap...');
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(input.isInRoadmap ? 'Added to roadmap' : 'Removed from roadmap', { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update roadmap status';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: updateOpenForComments } = useAction(adminToggleFeedbackOpenForCommentsAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(input.isOpenForComments ? 'Opening thread for comments...' : 'Closing thread for comments...');
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(input.isOpenForComments ? 'Thread is now open for comments' : 'Thread is now closed for comments', { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update open for comments status';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: updateVisibility } = useAction(adminToggleFeedbackVisibilityAction, {
+    onExecute: ({ input }) => {
+      toastRef.current = toast.loading(input.isPubliclyVisible ? 'Showing thread to public...' : 'Hiding thread from public...');
+    },
+    onSuccess: ({ data, input }) => {
+      toast.success(input.isPubliclyVisible ? 'Thread is now publicly visible' : 'Thread is now hidden from public', { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update visibility';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
   if (userRole === userRoles.ANON) {
     return null;
   }
-
-  const updateFeedbackStatus = useSAToastMutation(
-    async ({
-      feedbackId,
-      status,
-    }: {
-      feedbackId: string;
-      status: Tables<'internal_feedback_threads'>['status'];
-    }) => {
-      return await adminUpdateFeedbackStatusAction({ feedbackId, status })
-    },
-    {
-      loadingMessage(variables) {
-        return `Updating status to ${variables.status}`;
-      },
-      successMessage(data, variables) {
-        return `Status has been updated to ${variables.status}`;
-      },
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update status ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update status';
-        }
-      },
-    },
-  );
-
-  const updateFeedbackType = useSAToastMutation(
-    async ({
-      feedbackId,
-      type,
-    }: {
-      feedbackId: string;
-      type: Tables<'internal_feedback_threads'>['type'];
-    }) => {
-      return await adminUpdateFeedbackTypeAction({ feedbackId, type });
-    },
-    {
-      loadingMessage(variables) {
-        return `Updating type to ${variables.type}`;
-      },
-      successMessage(data, variables) {
-        return `Type has been updated to ${variables.type}`;
-      },
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update type ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update type';
-        }
-      },
-    },
-  );
-
-  const updateFeedbackPriority = useSAToastMutation(
-    async ({
-      feedbackId,
-      priority,
-    }: {
-      feedbackId: string;
-      priority: Tables<'internal_feedback_threads'>['priority'];
-    }) => {
-      return await adminUpdateFeedbackPriority({ feedbackId, priority });
-    },
-    {
-      loadingMessage(variables) {
-        return `Updating priority to ${variables.priority}`;
-      },
-      successMessage(data, variables) {
-        return `Priority has been updated to ${variables.priority}`;
-      },
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update priority ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update priority';
-        }
-      },
-    },
-  );
-
-  const updateRoadmap = useSAToastMutation(
-    async ({
-      feedbackId,
-      isInRoadmap,
-    }: {
-      feedbackId: string;
-      isInRoadmap: boolean;
-    }) => {
-      return await adminToggleFeedbackFromRoadmapAction({
-        feedbackId,
-        isInRoadmap,
-      });
-    },
-    {
-      loadingMessage(variables) {
-        return variables.isInRoadmap
-          ? 'Adding to roadmap'
-          : 'Removing from roadmap';
-      },
-      successMessage(data, variables) {
-        return variables.isInRoadmap
-          ? 'Added to roadmap'
-          : 'Removed from roadmap';
-      },
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update priority ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update priority';
-        }
-      },
-    },
-  );
-
-  const updateOpenForComments = useSAToastMutation(
-    async ({
-      feedbackId,
-      isOpenForComments,
-    }: {
-      feedbackId: string;
-      isOpenForComments: boolean;
-    }) => {
-      return await adminToggleFeedbackOpenForCommentsAction({
-        feedbackId,
-        isOpenForComments,
-      });
-    },
-    {
-      loadingMessage(variables) {
-        return variables.isOpenForComments
-          ? 'Opening thread for comments'
-          : 'Closing thread for comments';
-      },
-      successMessage(data, variables) {
-        return variables.isOpenForComments
-          ? 'Thread is now open for comments'
-          : 'Thread is now closed for comments';
-      },
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update open for comments ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update open for comments';
-        }
-      },
-    },
-  );
-
-  const updateVisibility = useSAToastMutation(
-    async ({
-      feedbackId,
-      isPubliclyVisible,
-    }: {
-      feedbackId: string;
-      isPubliclyVisible: boolean;
-    }) => {
-      return await adminToggleFeedbackVisibilityAction({
-        feedbackId,
-        isPubliclyVisible,
-      });
-    },
-    {
-      loadingMessage(variables) {
-        return variables.isPubliclyVisible
-          ? 'Showing thread from public'
-          : 'Hiding thread to public';
-      },
-      errorMessage(error, variables) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update visibility ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update visibility';
-        }
-      },
-      successMessage(data, variables) {
-        return variables.isPubliclyVisible
-          ? 'Thread is now publicly visible'
-          : 'Thread is now hidden from public';
-      },
-    },
-  );
 
   return (
     <DropdownMenu>
@@ -286,8 +172,8 @@ function FeedbackActionsDropdown({
                     {NEW_STATUS_OPTIONS?.map((status) => (
                       <DropdownMenuItem
                         key={status.label}
-                        onClick={async () => {
-                          updateFeedbackStatus.mutate({
+                        onClick={() => {
+                          updateFeedbackStatus({
                             feedbackId: feedback.id,
                             status: status.value,
                           });
@@ -309,8 +195,8 @@ function FeedbackActionsDropdown({
                     {NEW_TYPE_OPTIONS?.map((type) => (
                       <DropdownMenuItem
                         key={type.label}
-                        onClick={async () => {
-                          updateFeedbackType.mutate({
+                        onClick={() => {
+                          updateFeedbackType({
                             feedbackId: feedback.id,
                             type: type.value,
                           });
@@ -332,14 +218,14 @@ function FeedbackActionsDropdown({
                     {NEW_PRIORITY_OPTIONS?.map((priority) => (
                       <DropdownMenuItem
                         key={priority.label}
-                        onClick={async () => {
-                          updateFeedbackPriority.mutate({
+                        onClick={() => {
+                          updateFeedbackPriority({
                             feedbackId: feedback.id,
                             priority: priority.value,
                           });
                         }}
                       >
-                        <priority.icon className="h-4 w-4 mr-2" />{' '}
+                        <priority.icon className="h-4 w-4 mr-2" />
                         {priority.label}
                       </DropdownMenuItem>
                     ))}
@@ -365,8 +251,8 @@ function FeedbackActionsDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Admin Settings</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={async () => {
-                updateRoadmap.mutate({
+              onClick={() => {
+                updateRoadmap({
                   feedbackId: feedback.id,
                   isInRoadmap: !feedback?.added_to_roadmap,
                 });
@@ -385,8 +271,8 @@ function FeedbackActionsDropdown({
               )}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={async () => {
-                updateOpenForComments.mutate({
+              onClick={() => {
+                updateOpenForComments({
                   feedbackId: feedback.id,
                   isOpenForComments: !feedback?.open_for_public_discussion,
                 });
@@ -408,8 +294,8 @@ function FeedbackActionsDropdown({
               )}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={async () => {
-                updateVisibility.mutate({
+              onClick={() => {
+                updateVisibility({
                   feedbackId: feedback.id,
                   isPubliclyVisible: !feedback?.is_publicly_visible,
                 });
@@ -437,4 +323,3 @@ function FeedbackActionsDropdown({
   );
 }
 
-export default FeedbackActionsDropdown;

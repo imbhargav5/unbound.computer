@@ -308,14 +308,13 @@ export const getSlimProjectBySlugForWorkspace = async (projectSlug: string) => {
 
 const createProjectSchema = z.object({
   workspaceId: z.string().uuid(),
-  workspaceMembershipType: z.enum(['solo', 'team']),
   name: z.string(),
   slug: z.string(),
 });
 
 export const createProjectAction = authActionClient
   .schema(createProjectSchema)
-  .action(async ({ parsedInput: { workspaceId, workspaceMembershipType, name, slug } }) => {
+  .action(async ({ parsedInput: { workspaceId, name, slug } }) => {
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const { data: project, error } = await supabaseClient
@@ -331,13 +330,6 @@ export const createProjectAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
-
-    if (workspaceMembershipType === 'team') {
-      revalidatePath(`/workspace/${slug}`, "layout");
-    } else {
-      revalidatePath("/", "layout");
-    }
-
     return project;
   });
 

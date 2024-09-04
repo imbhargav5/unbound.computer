@@ -21,3 +21,5 @@ analyze
 # Local Netlify folder
 .netlify
 .DS_Store
+# content-collections
+.content-collections

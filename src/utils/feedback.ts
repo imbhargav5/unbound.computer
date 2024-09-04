@@ -18,7 +18,7 @@ export const formatFieldValue = (type: string) => {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
-export const STATUS_OPTIONS: Array<Enum<'internal_feedback_thread_status'>> = [
+export const STATUS_OPTIONS: Array<Enum<'marketing_feedback_thread_status'>> = [
   'open',
   'in_progress',
   'closed',
@@ -27,98 +27,98 @@ export const STATUS_OPTIONS: Array<Enum<'internal_feedback_thread_status'>> = [
 ];
 
 export const NEW_STATUS_OPTIONS: Array<{
-  value: Enum<'internal_feedback_thread_status'>;
+  value: Enum<'marketing_feedback_thread_status'>;
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: 'Open',
-    value: 'open',
-    icon: QuestionMarkCircledIcon,
-  },
-  {
-    label: 'In Progress',
-    value: 'in_progress',
-    icon: StopwatchIcon,
-  },
-  {
-    label: 'Closed',
-    value: 'closed',
-    icon: XCircle,
-  },
-  {
-    label: 'Planned',
-    value: 'planned',
-    icon: CalendarIcon,
-  },
-  {
-    label: 'Under Review',
-    value: 'under_review',
-    icon: ReaderIcon,
-  },
-  {
-    label: 'Completed',
-    value: 'completed',
-    icon: CheckCircledIcon,
-  },
-];
+    {
+      label: 'Open',
+      value: 'open',
+      icon: QuestionMarkCircledIcon,
+    },
+    {
+      label: 'In Progress',
+      value: 'in_progress',
+      icon: StopwatchIcon,
+    },
+    {
+      label: 'Closed',
+      value: 'closed',
+      icon: XCircle,
+    },
+    {
+      label: 'Planned',
+      value: 'planned',
+      icon: CalendarIcon,
+    },
+    {
+      label: 'Under Review',
+      value: 'under_review',
+      icon: ReaderIcon,
+    },
+    {
+      label: 'Completed',
+      value: 'completed',
+      icon: CheckCircledIcon,
+    },
+  ];
 
 export const NEW_PRIORITY_OPTIONS: Array<{
-  value: Enum<'internal_feedback_thread_priority'>;
+  value: Enum<'marketing_feedback_thread_priority'>;
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: 'Low',
-    value: 'low',
-    icon: ArrowDownIcon,
-  },
-  {
-    label: 'Medium',
-    value: 'medium',
-    icon: ArrowRightIcon,
-  },
-  {
-    label: 'High',
-    value: 'high',
-    icon: ArrowUpIcon,
-  },
-];
+    {
+      label: 'Low',
+      value: 'low',
+      icon: ArrowDownIcon,
+    },
+    {
+      label: 'Medium',
+      value: 'medium',
+      icon: ArrowRightIcon,
+    },
+    {
+      label: 'High',
+      value: 'high',
+      icon: ArrowUpIcon,
+    },
+  ];
 
 export const NEW_TYPE_OPTIONS: Array<{
-  value: Enum<'internal_feedback_thread_type'>;
+  value: Enum<'marketing_feedback_thread_type'>;
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: 'Bug',
-    value: 'bug',
-    icon: Bug,
-  },
-  {
-    label: 'Feature Request',
-    value: 'feature_request',
-    icon: LightningBoltIcon,
-  },
-  {
-    label: 'General',
-    value: 'general',
-    icon: MessageSquareDotIcon,
-  },
-];
+    {
+      label: 'Bug',
+      value: 'bug',
+      icon: Bug,
+    },
+    {
+      label: 'Feature Request',
+      value: 'feature_request',
+      icon: LightningBoltIcon,
+    },
+    {
+      label: 'General',
+      value: 'general',
+      icon: MessageSquareDotIcon,
+    },
+  ];
 
 export const PRIORITY_OPTIONS: Array<
-  Enum<'internal_feedback_thread_priority'>
+  Enum<'marketing_feedback_thread_priority'>
 > = ['low', 'medium', 'high'];
 
-export const TYPE_OPTIONS: Array<Enum<'internal_feedback_thread_type'>> = [
+export const TYPE_OPTIONS: Array<Enum<'marketing_feedback_thread_type'>> = [
   'bug',
   'feature_request',
   'general',
 ];
 
 export const mapStatusToVariant = (
-  status: Enum<'internal_feedback_thread_status'>,
+  status: Enum<'marketing_feedback_thread_status'>,
 ): BadgeProps['variant'] => {
   switch (status) {
     case 'closed':
@@ -135,7 +135,7 @@ export const mapStatusToVariant = (
 };
 
 export const mapTypeToVariant = (
-  type: Enum<'internal_feedback_thread_type'>,
+  type: Enum<'marketing_feedback_thread_type'>,
 ): BadgeProps['variant'] => {
   switch (type) {
     case 'bug':
@@ -150,7 +150,7 @@ export const mapTypeToVariant = (
 };
 
 export const mapPriorityToVariant = (
-  priority: Enum<'internal_feedback_thread_priority'>,
+  priority: Enum<'marketing_feedback_thread_priority'>,
 ): BadgeProps['variant'] => {
   switch (priority) {
     case 'low':

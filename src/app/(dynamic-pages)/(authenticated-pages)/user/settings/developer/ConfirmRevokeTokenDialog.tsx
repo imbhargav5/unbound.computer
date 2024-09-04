@@ -1,4 +1,5 @@
 'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,36 +10,39 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { revokeUnkeyToken } from '@/data/user/unkey';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { useState } from 'react';
+import { revokeUnkeyTokenAction } from '@/data/user/unkey';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 type Props = {
   keyId: string;
 };
 
-export const ConfirmRevokeTokenDialog = ({ keyId }: Props) => {
-  const [open, setOpen] = useState(false);
-  const { mutate, isLoading } = useSAToastMutation(async (keyId: string) => {
-    return await revokeUnkeyToken(keyId);
-  }, {
-    onSettled: () => {
+export const ConfirmRevokeTokenDialog = ({ keyId }: Props): JSX.Element => {
+  const [open, setOpen] = useState<boolean>(false);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute, status } = useAction(revokeUnkeyTokenAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Revoking API Key...');
+    },
+    onSuccess: () => {
+      toast.success('API Key revoked!', { id: toastRef.current });
+      toastRef.current = undefined;
       setOpen(false);
     },
-    loadingMessage: 'Revoking API Key...',
-    successMessage: 'API Key revoked!',
-    errorMessage(error) {
-      try {
-        if (error instanceof Error) {
-          return String(error.message);
-        }
-        return `Failed to revoke API Key ${String(error)}`;
-      } catch (_err) {
-        console.warn(_err);
-        return 'Failed to revoke API Key';
-      }
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to revoke API Key';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
     },
   });
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    execute({ keyId });
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -46,12 +50,7 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props) => {
         <Button>Revoke</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] [&>.dialog-close]:hidden">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            mutate(keyId);
-          }}
-        >
+        <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Revoke Token</DialogTitle>
             <DialogDescription>
@@ -64,9 +63,9 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props) => {
             <Button
               variant="destructive"
               type="submit"
-              aria-disabled={isLoading}
+              disabled={status === 'executing'}
             >
-              {isLoading ? 'Revoking API Key...' : 'Yes, revoke'}
+              {status === 'executing' ? 'Revoking API Key...' : 'Yes, revoke'}
             </Button>
             <Button
               type="button"

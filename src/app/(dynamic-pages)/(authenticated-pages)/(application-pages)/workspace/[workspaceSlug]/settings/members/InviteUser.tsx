@@ -1,7 +1,7 @@
 "use client";
 
 
-import { createInvitationHandler } from "@/data/user/invitation";
+import { createInvitationAction } from "@/data/user/invitation";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { Enum } from "@/types";
 import { InviteOrganizationMemberDialog } from "./InviteOrganizationMemberDialog";
@@ -15,7 +15,7 @@ export function InviteUser({ organizationId }: { organizationId: string }) {
       email: string;
       role: Enum<"organization_member_role">;
     }) => {
-      return await createInvitationHandler({
+      return await createInvitationAction({
         email,
         organizationId,
         role,

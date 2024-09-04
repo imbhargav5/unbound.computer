@@ -1,6 +1,5 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import { setDefaultOrganization } from '@/data/user/organizations';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 
 export function SetDefaultOrganizationButton({

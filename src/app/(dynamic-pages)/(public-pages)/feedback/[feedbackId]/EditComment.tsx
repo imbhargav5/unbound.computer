@@ -11,61 +11,67 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { ownerUpdateFeedbackCommentAction } from '@/data/feedback';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
+import { ownerUpdateMarketingFeedbackCommentAction } from '@/data/feedback';
 import { PenLine, Send } from 'lucide-react';
-import { useState } from 'react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+interface EditCommentProps {
+  feedbackId: string;
+  commentId: string;
+  userId: string;
+  defaultValue?: string;
+}
 
 function EditComment({
   feedbackId,
   commentId,
   userId,
   defaultValue = '',
-}: {
-  feedbackId: string;
-  commentId: string;
-  userId: string;
-  defaultValue?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [comment, setComment] = useState(defaultValue);
-  const { mutate, isLoading } = useSAToastMutation(
-    async () => {
-      return await ownerUpdateFeedbackCommentAction({
+}: EditCommentProps): JSX.Element {
+  const [open, setOpen] = useState<boolean>(false);
+  const [comment, setComment] = useState<string>(defaultValue);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute, isPending } = useAction(ownerUpdateMarketingFeedbackCommentAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating comment...');
+    },
+    onSuccess: () => {
+      toast.success('Successfully updated your comment', { id: toastRef.current });
+      toastRef.current = undefined;
+      setComment('');
+      setOpen(false);
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update comment';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const handleUpdateComment = () => {
+    if (comment.length > 0) {
+      execute({
         feedbackId,
         feedbackCommentOwnerId: userId,
         commentId,
         content: comment,
       });
-    },
-    {
-      loadingMessage: 'Adding Comment',
-      successMessage: 'Successfully added your comment',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update comment ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update comment';
-        }
-      },
-      onSuccess: () => {
-        setComment('');
-        setOpen(false);
-      },
-    },
-  );
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        <PenLine className="ml-auto h-4 w-4" />
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <PenLine className="h-4 w-4" />
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Update your comment.</DialogTitle>
+          <DialogTitle>Update your comment</DialogTitle>
           <DialogDescription>
             This action will update your comment.
           </DialogDescription>
@@ -79,12 +85,8 @@ function EditComment({
         </div>
         <DialogFooter>
           <Button
-            disabled={isLoading || comment.length === 0}
-            onClick={() => {
-              if (comment.length > 0) {
-                mutate();
-              }
-            }}
+            disabled={isPending || comment.length === 0}
+            onClick={handleUpdateComment}
           >
             <Send className="h-4 w-4 mr-2" />
             Update message
@@ -95,4 +97,4 @@ function EditComment({
   );
 }
 
-export default EditComment;
+export { EditComment };

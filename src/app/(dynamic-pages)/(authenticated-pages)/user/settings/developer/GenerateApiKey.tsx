@@ -1,62 +1,62 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-
-import { generateUnkeyToken } from '@/data/user/unkey';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
+import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { generateUnkeyTokenAction } from '@/data/user/unkey';
 import { ViewApiKeyDialog } from './ViewApiKeyDialog';
 
-export function GenerateApiKey() {
+type GenerateUnkeyTokenActionResult = Awaited<ReturnType<typeof generateUnkeyTokenAction>>;
+
+export function GenerateApiKey(): JSX.Element {
   const router = useRouter();
-  const { mutate, isLoading } = useSAToastMutation(async () => {
-    return await generateUnkeyToken();
-  }, {
-    onSuccess: (response) => {
-      if (response.status === 'success' && response.data) {
+  const [step, setStep] = useState<'form' | 'copy_modal' | 'complete'>('form');
+  const [keyPreview, setKeyPreview] = useState<string | null>(null);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute, isPending } = useAction(generateUnkeyTokenAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Generating new API Key...');
+    },
+    onSuccess: ({ data }) => {
+      toast.success('API Key generated successfully', { id: toastRef.current });
+      toastRef.current = undefined;
+      if (data) {
         setStep('copy_modal');
-        setKeyPreview(response.data.key);
+        setKeyPreview(data.key);
       }
     },
-    errorMessage(error) {
-      try {
-        if (error instanceof Error) {
-          return String(error.message);
-        }
-        return `Failed to generate API Key ${String(error)}`;
-      } catch (_err) {
-        console.warn(_err);
-        return 'Failed to generate API Key';
-      }
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to generate API Key';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
     },
   });
 
-  const [step, setStep] = useState<'form' | 'copy_modal' | 'complete'>('form');
-  const [keyPreview, setKeyPreview] = useState<string | null>(null);
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    execute();
+  };
 
   return (
     <>
-      <form
-        className=" max-w-sm"
-        onSubmit={(event) => {
-          event.preventDefault();
-          mutate();
-        }}
-      >
+      <form className="max-w-sm" onSubmit={handleSubmit}>
         <div className="space-y-2">
           <Button
             type="submit"
             size="lg"
             className="block w-full"
-            aria-disabled={isLoading}
+            disabled={isPending}
           >
-            {isLoading ? 'Generating new API Key...' : 'Generate API Key'}
+            {isPending ? 'Generating new API Key...' : 'Generate API Key'}
           </Button>
         </div>
       </form>
 
-      {step === 'copy_modal' && keyPreview ? (
+      {step === 'copy_modal' && keyPreview && (
         <ViewApiKeyDialog
           onCompleted={() => {
             setStep('complete');
@@ -64,7 +64,7 @@ export function GenerateApiKey() {
           }}
           apiKey={keyPreview}
         />
-      ) : null}
+      )}
     </>
   );
 }

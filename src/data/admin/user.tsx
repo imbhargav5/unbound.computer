@@ -27,7 +27,7 @@ export const appAdminGetUserProfile = async (
   return data;
 };
 
-export const uploadImage = async (
+export const uploadImageAction = async (
   formData: FormData,
   fileName: string,
   fileOptions?: SupabaseFileUploadOptions | undefined,

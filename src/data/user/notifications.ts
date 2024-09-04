@@ -1,10 +1,10 @@
 import { Json } from '@/lib/database.types';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import { UserNotification } from '@/utils/zod-schemas/notifications';
+import { UserNotificationPayloadType } from '@/utils/zod-schemas/notifications';
 import { getFeedbackStakeholdersExceptMentionedUser } from '../feedback';
 import { createAdminNotification } from './elevatedQueries';
 
-export const createNotification = async (userId: string, payload: Json) => {
+export const createNotification = async (userId: string, payload: UserNotificationPayloadType) => {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data: notification, error } = await supabaseClient
     .from('user_notifications')
@@ -40,7 +40,7 @@ export const createAcceptedWorkspaceInvitationNotification = async (
   },
 ) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'acceptedWorkspaceInvitation';
     }
@@ -68,7 +68,7 @@ export const createWorkspaceInvitationNotification = async (
   },
 ) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'invitedToWorkspace';
     }
@@ -95,7 +95,7 @@ export const createReceivedFeedbackNotification = async ({
   feedbackCreatorId: string;
 }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'receivedFeedback';
     }
@@ -124,7 +124,7 @@ export const createFeedbackReceivedCommentNotification = async ({
   commenterName: string;
 }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackReceivedComment';
     }
@@ -162,7 +162,7 @@ export const createFeedbackStatusChangedNotification = async ({
   statusUpdaterId: string;
 }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackStatusChanged';
     }
@@ -205,7 +205,7 @@ export const createFeedbackPriorityChangedNotification = async ({
   priorityUpdaterId: string;
 }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackPriorityChanged';
     }
@@ -247,7 +247,7 @@ export const createFeedbackTypeUpdatedNotification = async ({
   typeUpdaterId: string;
 }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackTypeUpdated';
     }
@@ -278,7 +278,7 @@ export const createFeedbackTypeUpdatedNotification = async ({
 
 export const createFeedbackAddedToRoadmapUpdatedNotification = async ({ feedbackId, isInRoadmap, updaterId }: { feedbackId: string; isInRoadmap: boolean; updaterId: string; }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackIsInRoadmapUpdated';
     }
@@ -294,7 +294,7 @@ export const createFeedbackAddedToRoadmapUpdatedNotification = async ({ feedback
 
 export const createUpdateFeedbackOpenForCommentsNotification = async ({ feedbackId, isOpenForComments, updaterId }: { feedbackId: string; isOpenForComments: boolean; updaterId: string }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackFeedbackOpenForCommentUpdated';
     }
@@ -310,7 +310,7 @@ export const createUpdateFeedbackOpenForCommentsNotification = async ({ feedback
 
 export const createFeedbackVisibilityUpdatedNotification = async ({ feedbackId, isPubliclyVisible, updaterId }: { feedbackId: string; isPubliclyVisible: boolean; updaterId: string }) => {
   const payload: Extract<
-    UserNotification,
+    UserNotificationPayloadType,
     {
       type: 'feedbackVisibilityUpdated';
     }

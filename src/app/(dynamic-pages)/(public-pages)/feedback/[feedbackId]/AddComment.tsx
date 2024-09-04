@@ -3,62 +3,58 @@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { addCommentToInternalFeedbackThreadAction } from '@/data/feedback';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-
 import { Send } from 'lucide-react';
-import { useState } from 'react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
-function AddComment({
-  feedbackId,
-  defaultValue = '',
-}: {
+interface AddCommentProps {
   feedbackId: string;
   defaultValue?: string;
-}) {
-  const [content, setContent] = useState(defaultValue);
+}
 
-  const { mutate, isLoading } = useSAToastMutation(
-    async () => {
-      return addCommentToInternalFeedbackThreadAction({ feedbackId, content });
+type AddCommentActionResult = Awaited<ReturnType<typeof addCommentToInternalFeedbackThreadAction>>;
+
+function AddComment({ feedbackId, defaultValue = '' }: AddCommentProps): JSX.Element {
+  const [content, setContent] = useState<string>(defaultValue);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute, status } = useAction(addCommentToInternalFeedbackThreadAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Adding Comment...');
     },
-    {
-      loadingMessage: 'Adding Comment',
-      successMessage: 'Successfully added your comment',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to add comment ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to add comment';
-        }
-      },
-      onSuccess: () => {
-        setContent('');
-      },
+    onSuccess: () => {
+      toast.success('Successfully added your comment', { id: toastRef.current });
+      toastRef.current = undefined;
+      setContent('');
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to add comment';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const handleAddComment = () => {
+    if (content.length > 0) {
+      execute({ feedbackId, content });
+    }
+  };
 
   return (
     <div className="grid w-full gap-2" data-testid="add-comment-form">
       <Textarea
         name="comment-area"
-        className='resize-none'
+        className="resize-none"
         placeholder="Type your message here."
         value={content}
-        disabled={isLoading}
+        disabled={status === 'executing'}
         onChange={(e) => setContent(e.target.value)}
       />
       <Button
         name="add-comment-button"
-        disabled={isLoading || content.length === 0}
-        onClick={() => {
-          if (content.length > 0) {
-            mutate();
-          }
-        }}
+        disabled={status === 'executing' || content.length === 0}
+        onClick={handleAddComment}
       >
         <Send className="h-4 w-4 mr-2" />
         Add Comment
@@ -67,4 +63,4 @@ function AddComment({
   );
 }
 
-export default AddComment;
+export { AddComment };

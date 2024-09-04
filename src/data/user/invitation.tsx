@@ -1,9 +1,8 @@
 "use server";
-import type { Tables } from "@/lib/database.types";
+import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
-import type { Enum, SAPayload } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
@@ -11,7 +10,8 @@ import { renderAsync } from "@react-email/render";
 import TeamInvitationEmail from "emails/TeamInvitation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getInvitationOrganizationDetails } from "./elevatedQueries";
+import { z } from "zod";
+import { getInvitationWorkspaceDetails } from "./elevatedQueries";
 import {
   createAcceptedWorkspaceInvitationNotification,
   createNotification,
@@ -21,7 +21,7 @@ import { getWorkspaceById } from "./workspaces";
 
 // This function allows an application admin with service_role
 // to check if a user with a given email exists in the auth.users table
-export const appAdminGetUserIdByEmail = async (
+const appAdminGetUserIdByEmail = async (
   email: string,
 ): Promise<string | null> => {
   const { data, error } = await supabaseAdminClient.rpc(
@@ -117,168 +117,174 @@ async function getViewInvitationUrl(
   return toSiteURL("/api/invitations/view/" + invitationId);
 }
 
-export async function createInvitationHandler({
-  organizationId,
-  email,
-  role,
-}: {
-  organizationId: string;
-  email: string;
-  role: Enum<"organization_member_role">;
-}): Promise<SAPayload<Tables<"workspace_invitations">>> {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-  // check if organization exists
-  const organizationResponse = await supabaseClient
-    .from("workspaces")
-    .select("*")
-    .eq("id", organizationId)
-    .single();
+const createInvitationSchema = z.object({
+  workspaceId: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(["admin", "member", "viewer"]) // Assuming these are the possible roles
+});
 
-  if (organizationResponse.error) {
-    return { status: 'error', message: organizationResponse.error.message };
-  }
+export const createInvitationAction = authActionClient
+  .schema(createInvitationSchema)
+  .action(async ({ parsedInput: { workspaceId, email, role }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  const inviteeUserDetails = await setupInviteeUserDetails(email);
-  // check if already invited
-  const existingInvitationResponse = await supabaseClient
-    .from("workspace_invitations")
-    .select("*")
-    .eq("invitee_user_id", inviteeUserDetails.userId)
-    .eq("inviter_user_id", user.id)
-    .eq("status", "active")
-    .eq("organization_id", organizationId);
+    // Check if organization exists
+    const { data: workspace, error: workspaceError } = await supabaseClient
+      .from("workspaces")
+      .select("*")
+      .eq("id", workspaceId)
+      .single();
 
-  if (existingInvitationResponse.error) {
-    return { status: 'error', message: existingInvitationResponse.error.message };
-  } if (existingInvitationResponse.data.length > 0) {
-    return { status: 'error', message: 'User already invited' };
-  }
+    if (workspaceError) {
+      throw new Error(workspaceError.message);
+    }
 
-  const invitationResponse = await supabaseClient
-    .from("workspace_invitations")
-    .insert({
-      invitee_user_email: email,
-      invitee_user_id: inviteeUserDetails.userId,
-      inviter_user_id: user.id,
-      status: "active",
-      workspace_id: organizationId,
-      invitee_workspace_role: role,
-    })
-    .select("*")
-    .single();
+    const inviteeUserDetails = await setupInviteeUserDetails(email);
 
-  if (invitationResponse.error) {
-    return { status: 'error', message: invitationResponse.error.message };
-  }
+    // Check if already invited
+    const { data: existingInvitations, error: existingInvitationError } = await supabaseClient
+      .from("workspace_invitations")
+      .select("*")
+      .eq("invitee_user_id", inviteeUserDetails.userId)
+      .eq("inviter_user_id", userId)
+      .eq("status", "active")
+      .eq("workspace_id", workspaceId);
 
-  const viewInvitationUrl = await getViewInvitationUrl(
-    invitationResponse.data.id,
-    inviteeUserDetails,
-    email,
-  );
+    if (existingInvitationError) {
+      throw new Error(existingInvitationError.message);
+    }
 
-  const userProfileData = await supabaseClient
-    .from("user_profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+    if (existingInvitations.length > 0) {
+      throw new Error('User already invited');
+    }
 
-  if (userProfileData.error) {
-    return { status: 'error', message: userProfileData.error.message };
-  }
+    // Create invitation
+    const { data: invitation, error: invitationError } = await supabaseClient
+      .from("workspace_invitations")
+      .insert({
+        invitee_user_email: email,
+        invitee_user_id: inviteeUserDetails.userId,
+        inviter_user_id: userId,
+        status: "active",
+        workspace_id: workspaceId,
+        invitee_workspace_role: role,
+      })
+      .select("*")
+      .single();
 
-  const inviterName = userProfileData.data?.full_name || `User [${user.email}]`;
+    if (invitationError) {
+      throw new Error(invitationError.message);
+    }
 
-  // send email
-  const invitationEmailHTML = await renderAsync(
-    <TeamInvitationEmail
-      viewInvitationUrl={viewInvitationUrl}
-      inviterName={`${inviterName}`}
-      isNewUser={inviteeUserDetails.type === "USER_CREATED"}
-      organizationName={organizationResponse.data.name}
-    />,
-  );
+    const viewInvitationUrl = await getViewInvitationUrl(
+      invitation.id,
+      inviteeUserDetails,
+      email,
+    );
 
-  await sendEmail({
-    to: email,
-    subject: `Invitation to join ${organizationResponse.data.name}`,
-    html: invitationEmailHTML,
-    from: process.env.ADMIN_EMAIL,
+    const { data: userProfile, error: userProfileError } = await supabaseClient
+      .from("user_profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (userProfileError) {
+      throw new Error(userProfileError.message);
+    }
+
+    const inviterName = userProfile?.full_name || `User [${userProfile?.id}]`;
+
+    // Send email
+    const invitationEmailHTML = await renderAsync(
+      <TeamInvitationEmail
+        viewInvitationUrl={viewInvitationUrl}
+        inviterName={inviterName}
+        isNewUser={inviteeUserDetails.type === "USER_CREATED"}
+        workspaceName={workspace.name}
+      />
+    );
+
+    await sendEmail({
+      to: email,
+      subject: `Invitation to join ${workspace.name}`,
+      html: invitationEmailHTML,
+      from: process.env.ADMIN_EMAIL,
+    });
+
+    // Create notification
+    await createNotification(inviteeUserDetails.userId, {
+      type: 'invitedToWorkspace',
+      inviterFullName: inviterName,
+      workspaceId: workspaceId,
+      workspaceName: workspace.name,
+      invitationId: invitation.id,
+    });
+
+    return invitation;
   });
 
-  // send notification
-  await createNotification(inviteeUserDetails.userId, {
-    inviterFullName: inviterName,
-    organizationId: organizationId,
-    organizationName: organizationResponse.data.name,
-    invitationId: invitationResponse.data.id,
+const acceptInvitationSchema = z.object({
+  invitationId: z.string()
+});
+
+export const acceptInvitationAction = authActionClient
+  .schema(acceptInvitationSchema)
+  .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { data: invitation, error: invitationError } = await supabaseClient
+      .from("workspace_invitations")
+      .update({
+        status: "finished_accepted",
+        invitee_user_id: userId,
+      })
+      .eq("id", invitationId)
+      .select("*")
+      .single();
+
+    if (invitationError) {
+      throw new Error(invitationError.message);
+    }
+
+    const userProfile = await getUserProfile(userId);
+
+    await createAcceptedWorkspaceInvitationNotification(
+      invitation.inviter_user_id,
+      {
+        workspaceId: invitation.workspace_id,
+        inviteeFullName: userProfile.full_name ?? `User ${userProfile.id}`,
+      },
+    );
+
+    revalidatePath("/", "layout");
+    const workspace = await getWorkspaceById(invitation.workspace_id);
+    return workspace.slug;
   });
 
-  revalidatePath("/[organizationSlug]/settings/members", "layout");
+const declineInvitationSchema = z.object({
+  invitationId: z.string()
+});
 
-  return { status: 'success', data: invitationResponse.data };
-}
+export const declineInvitationAction = authActionClient
+  .schema(declineInvitationSchema)
+  .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-export async function acceptInvitationAction(
-  invitationId: string,
-): Promise<SAPayload<string>> {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
+    const { error } = await supabaseClient
+      .from("workspace_invitations")
+      .update({
+        status: "finished_declined",
+        invitee_user_id: userId,
+      })
+      .eq("id", invitationId);
 
-  const invitationResponse = await supabaseClient
-    .from("workspace_invitations")
-    .update({
-      status: "finished_accepted",
-      invitee_user_id: user.id, // Add this information here, so that our database function can add this id to the team members table
-    })
-    .eq("id", invitationId)
-    .select("*")
-    .single();
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  if (invitationResponse.error) {
-    return { status: 'error', message: invitationResponse.error.message };
-  }
-
-  const userProfile = await getUserProfile(user.id);
-
-  await createAcceptedWorkspaceInvitationNotification(
-    invitationResponse.data?.inviter_user_id,
-    {
-      workspaceId: invitationResponse.data.workspace_id,
-      inviteeFullName: userProfile.full_name ?? `User ${userProfile.id}`,
-    },
-  );
-
-  revalidatePath("/", "layout");
-  const workspace = await getWorkspaceById(invitationResponse.data.workspace_id);
-  return { status: 'success', data: workspace.slug };
-}
-
-export async function declineInvitationAction(invitationId: string): Promise<SAPayload> {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-
-  const invitationResponse = await supabaseClient
-    .from("workspace_invitations")
-    .update({
-      status: "finished_declined",
-      invitee_user_id: user.id, // Add this information here, so that our database function can add this id to the team members table
-    })
-    .eq("id", invitationId)
-    .select("*")
-    .single();
-
-  if (invitationResponse.error) {
-    return { status: 'error', message: invitationResponse.error.message };
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/dashboard");
-}
+    revalidatePath("/", "layout");
+    redirect("/dashboard");
+  });
 
 export async function getPendingInvitationsOfUser() {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -296,7 +302,7 @@ export async function getPendingInvitationsOfUser() {
   }
 
   const invitationListPromise = data.map(async (invitation) => {
-    const workspace = await getInvitationOrganizationDetails(
+    const workspace = await getInvitationWorkspaceDetails(
       invitation.workspace_id,
     );
     return {
@@ -326,7 +332,7 @@ export const getInvitationById = async (invitationId: string) => {
 
   const workspaceId = data.workspace_id;
 
-  const workspace = await getInvitationOrganizationDetails(workspaceId);
+  const workspace = await getInvitationWorkspaceDetails(workspaceId);
 
   return {
     ...data,
@@ -357,21 +363,27 @@ export async function getPendingInvitationCountOfUser() {
   return idInvitationsCount;
 }
 
-export async function revokeInvitation(invitationId: string): Promise<SAPayload<Tables<"workspace_invitations">>> {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
+const revokeInvitationSchema = z.object({
+  invitationId: z.string().uuid()
+});
 
-  const invitationResponse = await supabaseClient
-    .from("workspace_invitations")
-    .delete()
-    .eq("id", invitationId)
-    .single();
+export const revokeInvitationAction = authActionClient
+  .schema(revokeInvitationSchema)
+  .action(async ({ parsedInput: { invitationId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  if (invitationResponse.error) {
-    return { status: 'error', message: invitationResponse.error.message };
-  }
+    const { data, error } = await supabaseClient
+      .from("workspace_invitations")
+      .delete()
+      .eq("id", invitationId)
+      .select()
+      .single();
 
-  revalidatePath("/", "layout");
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  return { status: 'success', data: invitationResponse.data };
-}
+    revalidatePath("/", "layout");
+
+    return data;
+  });

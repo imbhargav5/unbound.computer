@@ -1,6 +1,6 @@
 "use client";
 import { convertAndUploadOpenAiImageAction } from "@/data/user/chats";
-import { updateUserProfileNameAndAvatar } from "@/data/user/user";
+import { updateUserProfileNameAndAvatarAction } from "@/data/user/user";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { SAPayload } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,7 +36,7 @@ export const DallE = () => {
   const [images, setImages] = useState<string[]>([]);
 
   const { mutate: updateProfilePictureMutation } = useSAToastMutation(async (data: { avatarUrl: string }) => {
-    return await updateUserProfileNameAndAvatar(data);
+    return await updateUserProfileNameAndAvatarAction(data);
   }, {
     successMessage: "Profile picture updated successfully",
     errorMessage: "Error updating profile picture"

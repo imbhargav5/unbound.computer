@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { revokeInvitation } from '@/data/user/invitation';
+import { revokeInvitationAction } from '@/data/user/invitation';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { useState } from 'react';
 
@@ -21,7 +21,7 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
   const [open, setOpen] = useState(false);
   const { mutate, isLoading } = useSAToastMutation(
     async (invitationId: string) => {
-      return await revokeInvitation(invitationId);
+      return await revokeInvitationAction(invitationId);
     }, {
     onSettled: () => {
       setOpen(false);

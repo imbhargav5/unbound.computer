@@ -1,4 +1,14 @@
 'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { MessageSquare } from 'lucide-react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRouter } from 'next/navigation';
+import { useRef, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,17 +28,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createInternalFeedbackAction } from '@/data/user/internalFeedback';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import type { Enum } from '@/types';
 import { cn } from '@/utils/cn';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { MessageSquare } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
 
-type FeedbackType = Enum<'internal_feedback_thread_type'>;
+type FeedbackType = 'bug' | 'feature_request' | 'general';
 
 const FeedbackList: Array<FeedbackType> = ['bug', 'feature_request', 'general'];
 
@@ -39,65 +41,57 @@ const FeedbackLabelMap: Record<FeedbackType, string> = {
 };
 
 const feedbackSchema = z.object({
-  title: z.string(),
-  content: z.string(),
+  title: z.string().min(1, 'Title is required'),
+  content: z.string().min(1, 'Content is required'),
   type: z.enum(['bug', 'feature_request', 'general']),
 });
 
 type FeedbackFormType = z.infer<typeof feedbackSchema>;
 
-export const GiveFeedbackDialog = ({
-  children,
-  className,
-}: {
+interface GiveFeedbackDialogProps {
   children?: React.ReactNode;
   className?: string;
+}
+
+export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
+  children,
+  className,
 }) => {
-  const router = useRouter()
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const { control, handleSubmit, formState, reset } = useForm<FeedbackFormType>(
-    {
-      resolver: zodResolver(feedbackSchema),
-      defaultValues: {
-        type: 'bug',
-      },
-    },
-  );
+  const toastRef = useRef<string | number | undefined>(undefined);
 
-  const {
-    mutate: createInternalFeedbackMutation,
-    isLoading: isCreatingInternalFeedback,
-  } = useSAToastMutation(
-    async (data: FeedbackFormType) => {
-      return await createInternalFeedbackAction(data);
+  const { control, handleSubmit, formState, reset } = useForm<FeedbackFormType>({
+    resolver: zodResolver(feedbackSchema),
+    defaultValues: {
+      type: 'bug',
     },
-    {
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to create feedback ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to create feedback';
-        }
-      },
-      onSuccess: (response) => {
-        if (response.status === 'success') {
-          reset({}, { keepDefaultValues: false, keepValues: false });
-          setIsOpen(false);
-          router.push(`/feedback/${response.data?.id}`);
-        }
-      },
-    },
-  );
+  });
 
-  const { isValid, isLoading } = formState;
+  const { execute: createInternalFeedback, status } = useAction(createInternalFeedbackAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Creating feedback...');
+    },
+    onSuccess: ({ data }) => {
+      toast.success('Feedback created successfully', { id: toastRef.current });
+      toastRef.current = undefined;
+      reset({}, { keepDefaultValues: false, keepValues: false });
+      setIsOpen(false);
+      if (data?.id) {
+        router.push(`/feedback/${data.id}`);
+      }
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to create feedback';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { isValid } = formState;
 
   const onSubmit = (data: FeedbackFormType) => {
-    // handle form submission logic
-    createInternalFeedbackMutation(data);
+    createInternalFeedback(data);
   };
 
   return (
@@ -144,7 +138,6 @@ export const GiveFeedbackDialog = ({
               render={({ field }) => <Input {...field} placeholder="Content" />}
             />
           </div>
-
           <div className="space-y-1">
             <Label>Type</Label>
             <Controller
@@ -169,12 +162,10 @@ export const GiveFeedbackDialog = ({
           <Button
             className="w-full mt-4"
             data-testid="submit-feedback-button"
-            disabled={!isValid || isCreatingInternalFeedback}
+            disabled={!isValid || status === 'executing'}
             type="submit"
           >
-            {isLoading || isCreatingInternalFeedback
-              ? 'Submitting...'
-              : 'Submit Feedback'}
+            {status === 'executing' ? 'Submitting...' : 'Submit Feedback'}
           </Button>
         </form>
       </DialogContent>

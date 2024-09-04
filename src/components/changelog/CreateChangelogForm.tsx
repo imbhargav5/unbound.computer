@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createChangelog } from '@/data/admin/internal-changelog';
-import { uploadImage } from '@/data/admin/user';
+import { uploadImageAction } from '@/data/admin/user';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader } from 'lucide-react';
@@ -35,7 +35,7 @@ export const CreateChangelogForm = () => {
     async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      return await uploadImage(formData, file.name, {
+      return await uploadImageAction(formData, file.name, {
         upsert: true,
       });
     },
