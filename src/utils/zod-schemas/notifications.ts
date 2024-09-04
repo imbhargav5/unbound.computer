@@ -1,17 +1,17 @@
 import { z } from 'zod';
 
-const invitedToOrganizationPayload = z.object({
-  organizationName: z.string(),
-  organizationId: z.string(),
+const invitedToWorkspacePayload = z.object({
+  workspaceName: z.string(),
+  workspaceId: z.string(),
   inviterFullName: z.string(),
   invitationId: z.string(),
-  type: z.literal('invitedToOrganization'),
+  type: z.literal('invitedToWorkspace'),
 });
 
-export const acceptedOrganizationInvitationPayload = z.object({
+export const acceptedWorkspaceInvitationPayload = z.object({
   userFullName: z.string(),
-  organizationId: z.string(),
-  type: z.literal('acceptedOrganizationInvitation'),
+  workspaceId: z.string(),
+  type: z.literal('acceptedWorkspaceInvitation'),
 });
 
 export const welcomeNotificationPayload = z.object({
@@ -74,8 +74,8 @@ const feedbackFeedbackOpenForCommentUpdatedPayload = z.object({
 });
 
 export const userNotificationPayloadSchema = z.union([
-  invitedToOrganizationPayload,
-  acceptedOrganizationInvitationPayload,
+  invitedToWorkspacePayload,
+  acceptedWorkspaceInvitationPayload,
   welcomeNotificationPayload,
   receivedFeedbackPayload,
   feedbackReceivedCommentPayload,

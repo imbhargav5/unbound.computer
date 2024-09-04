@@ -1,34 +1,34 @@
 'use server';
-import type { CreateAuthorPayload } from '@/app/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/blog/(blog-list)/AddAuthorProfileDialog';
+import { Json } from '@/lib/database.types';
+import { adminActionClient } from '@/lib/safe-action';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
 import type {
   DBTableInsertPayload,
   DBTableUpdatePayload,
   SAPayload,
 } from '@/types';
+import { marketingAuthorProfileFormSchema, marketingBlogPostFormSchema } from '@/utils/zod-schemas/internalBlog';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
-export const deleteBlogPost = async (
-  blogPostId: string,
-): Promise<SAPayload> => {
-  'use server';
+const deleteBlogPostSchema = z.object({
+  blogPostId: z.string().uuid()
+});
 
-  const { error } = await supabaseAdminClient
-    .from('internal_blog_posts')
-    .delete()
-    .eq('id', blogPostId);
+export const adminDeleteBlogPostAction = adminActionClient
+  .schema(deleteBlogPostSchema)
+  .action(async ({ parsedInput: { blogPostId } }) => {
+    const { error } = await supabaseAdminClient
+      .from('marketing_blog_posts')
+      .delete()
+      .eq('id', blogPostId);
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
-  revalidatePath('/', 'layout');
-  return {
-    status: 'success',
-  };
-};
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath('/', 'layout');
+  });
 
 export const getAllBlogPosts = async ({
   query = '',
@@ -48,7 +48,7 @@ export const getAllBlogPosts = async ({
   const zeroIndexedPage = page - 1;
 
   let supabaseQuery = supabaseAdminClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select('*')
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
@@ -110,7 +110,7 @@ export async function getBlogPostsTotalPages({
 }) {
   const zeroIndexedPage = page - 1;
   let supabaseQuery = supabaseAdminClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select('id', { count: 'exact', head: true })
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
@@ -138,7 +138,7 @@ export async function getBlogPostsTotalPages({
 
 export const getAuthor = async (postId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_author_posts')
+    .from('marketing_blog_author_posts')
     .select('*')
     .eq('post_id', postId)
     .maybeSingle();
@@ -152,7 +152,7 @@ export const getAuthor = async (postId: string) => {
   }
 
   const { data: authorData } = await supabaseAdminClient
-    .from('internal_blog_author_profiles')
+    .from('marketing_author_profiles')
     .select('*')
     .eq('user_id', data.author_id)
     .single();
@@ -160,84 +160,46 @@ export const getAuthor = async (postId: string) => {
   return authorData;
 };
 
-export const createAuthorProfile = async (
-  payload: CreateAuthorPayload,
-): Promise<SAPayload> => {
-  const { error, data } = await supabaseAdminClient
-    .from('internal_blog_author_profiles')
-    .insert(payload);
+export const adminCreateAuthorProfileAction = adminActionClient
+  .schema(marketingAuthorProfileFormSchema)
+  .action(async ({ parsedInput }) => {
+    const { error, data } = await supabaseAdminClient
+      .from('marketing_author_profiles')
+      .insert(parsedInput);
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  return {
-    status: 'success',
-  };
-};
+    return data;
+  });
 
-export const createBlogPost = async (
-  authorId: string | undefined,
-  payload: DBTableInsertPayload<'internal_blog_posts'>,
-  tagIds: number[],
-): Promise<SAPayload> => {
-  const { data: slugVerify, error: slugError } = await supabaseAdminClient
-    .from('internal_blog_posts')
-    .select('*')
-    .eq('slug', payload.slug)
-    .maybeSingle();
+export const adminCreateBlogPostAction = adminActionClient
+  .schema(marketingBlogPostFormSchema)
+  .action(async ({ parsedInput: payload }) => {
+    const { data, error } = await supabaseAdminClient
+      .from('marketing_blog_posts')
+      .insert({
+        ...payload,
+        json_content: payload.json_content as Json,
+      })
+      .select('*')
+      .single();
 
-  if (slugError) {
-    return {
-      status: 'error',
-      message: slugError.message,
-    };
-  }
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  if (slugVerify) {
-    return {
-      status: 'error',
-      message: 'Slug already exists',
-    };
-  }
+    revalidatePath("/", 'layout');
 
-  const { data, error } = await supabaseAdminClient
-    .from('internal_blog_posts')
-    .insert(payload)
-    .select('*')
-    .single();
-
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
-
-  if (authorId) {
-    // assign to author
-    await supabaseAdminClient.from('internal_blog_author_posts').insert({
-      author_id: authorId,
-      post_id: data.id,
-    });
-  }
-
-  await updateBlogTagRelationships(data.id, tagIds);
-  revalidatePath("/", 'layout');
-
-  return {
-    status: 'success',
-  };
-};
+    return data;
+  });
 
 export const getBlogPostById = async (postId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .eq('id', postId)
     .single();
@@ -251,9 +213,9 @@ export const getBlogPostById = async (postId: string) => {
 
 export const getBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .eq('slug', slug)
     .single();
@@ -267,8 +229,8 @@ export const getBlogPostBySlug = async (slug: string) => {
 
 export const getBlogPostsByAuthorId = async (authorId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_author_posts')
-    .select('*, internal_blog_posts(*)')
+    .from('marketing_blog_author_posts')
+    .select('*, marketing_blog_posts(*)')
     .eq('author_id', authorId);
 
   if (error) {
@@ -280,7 +242,7 @@ export const getBlogPostsByAuthorId = async (authorId: string) => {
 
 export const getBlogPostTags = async (postId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_post_tags_relationship')
+    .from('marketing_blog_post_tags_relationship')
     .select('*')
     .eq('blog_post_id', postId);
 
@@ -291,7 +253,7 @@ export const getBlogPostTags = async (postId: string) => {
   const tags = await Promise.all(
     data.map(async (tag) => {
       const { data: tagData, error: tagError } = await supabaseAdminClient
-        .from('internal_blog_post_tags')
+        .from('marketing_tags')
         .select('*')
         .eq('id', tag.tag_id)
         .single();
@@ -307,37 +269,36 @@ export const getBlogPostTags = async (postId: string) => {
   return tags;
 };
 
-export const updateAuthorProfile = async (
-  userId: string,
-  payload: Partial<DBTableUpdatePayload<'internal_blog_author_profiles'>>,
-): Promise<SAPayload> => {
-  const { data, error } = await supabaseAdminClient
-    .from('internal_blog_author_profiles')
-    .update(payload)
-    .eq('user_id', userId)
-    .select('*')
-    .single();
+const updateAuthorProfileSchema = z.object({
+  authorId: z.string().uuid(),
+  payload: marketingAuthorProfileFormSchema.partial(),
+});
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
+export const adminUpdateAuthorProfileAction = adminActionClient
+  .schema(updateAuthorProfileSchema)
+  .action(async ({ parsedInput: { authorId, payload } }) => {
+    const { data, error } = await supabaseAdminClient
+      .from('marketing_author_profiles')
+      .update(payload)
+      .eq('id', authorId)
+      .select('*')
+      .single();
 
-  return {
-    status: 'success',
-  };
-};
+    if (error) {
+      throw new Error(error.message);
+    }
 
-export const updateBlogPost = async (
+    return data;
+  });
+
+export const adminUpdateBlogPostAction = async (
   authorId: string | undefined,
   postId: string,
-  payload: Partial<DBTableUpdatePayload<'internal_blog_posts'>>,
-  tagIds: number[],
+  payload: Partial<DBTableUpdatePayload<'marketing_blog_posts'>>,
+  tagIds: string[],
 ): Promise<SAPayload> => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .update(payload)
     .eq('id', postId)
     .select('*')
@@ -351,7 +312,7 @@ export const updateBlogPost = async (
   }
 
   const { data: oldAuthors, error: oldAuthorsError } = await supabaseAdminClient
-    .from('internal_blog_author_posts')
+    .from('marketing_blog_author_posts')
     .select('*')
     .eq('post_id', postId);
 
@@ -364,7 +325,7 @@ export const updateBlogPost = async (
 
   for (const oldAuthor of oldAuthors) {
     const { error: deleteError } = await supabaseAdminClient
-      .from('internal_blog_author_posts')
+      .from('marketing_blog_author_posts')
       .delete()
       .eq('author_id', oldAuthor.author_id)
       .eq('post_id', postId);
@@ -379,10 +340,10 @@ export const updateBlogPost = async (
 
   // assign new author to the post
   if (authorId) {
-    await assignBlogPostToAuthor(authorId, postId);
+    await adminAssignBlogPostToAuthorAction(authorId, postId);
   }
 
-  await updateBlogTagRelationships(data.id, tagIds);
+  await updateBlogTagRelationshipsAction(data.id, tagIds);
 
   revalidatePath(`/app_admin/blog/post/${data.id}/edit`, 'layout');
   revalidatePath('/app_admin/blog/', 'page');
@@ -392,12 +353,12 @@ export const updateBlogPost = async (
   };
 };
 
-export const assignBlogPostToAuthor = async (
+export const adminAssignBlogPostToAuthorAction = async (
   authorId: string,
   postId: string,
 ) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_author_posts')
+    .from('marketing_blog_author_posts')
     .insert({
       author_id: authorId,
       post_id: postId,
@@ -414,7 +375,7 @@ export const assignBlogPostToAuthor = async (
 
 export const getAllAuthors = async () => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_author_profiles')
+    .from('marketing_author_profiles')
     .select('*');
 
   if (error) {
@@ -424,57 +385,32 @@ export const getAllAuthors = async () => {
   return data;
 };
 
-export const getAllAppAdmins = async () => {
-  const { data: userIds, error } = await supabaseAdminClient
-    .from('organization_members')
-    .select('*')
-    .eq('member_role', 'admin');
 
-  if (error) {
-    throw error;
-  }
 
-  // get user profiles from user ids
-  const { data: userProfiles, error: error2 } = await supabaseAdminClient
-    .from('user_profiles')
-    .select('*')
-    .in(
-      'id',
-      userIds.map((user) => user.member_id),
-    );
+const deleteAuthorProfileSchema = z.object({
+  authorId: z.string().uuid()
+});
 
-  if (error2) {
-    throw error2;
-  }
+export const adminDeleteAuthorProfileAction = adminActionClient
+  .schema(deleteAuthorProfileSchema)
+  .action(async ({ parsedInput: { authorId } }) => {
+    const { error } = await supabaseAdminClient
+      .from('marketing_author_profiles')
+      .delete()
+      .eq('id', authorId);
 
-  return userProfiles;
-};
+    if (error) {
+      throw new Error(error.message);
+    }
 
-export const deleteAuthorProfile = async (
-  userId: string,
-): Promise<SAPayload> => {
-  const { error } = await supabaseAdminClient
-    .from('internal_blog_author_profiles')
-    .delete()
-    .eq('user_id', userId);
+    // No need to return anything if the operation is successful
+  });
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
-
-  return {
-    status: 'success',
-  };
-};
-
-export const createBlogTag = async (
-  payload: DBTableInsertPayload<'internal_blog_post_tags'>,
+export const adminCreateBlogTagAction = async (
+  payload: DBTableInsertPayload<'marketing_tags'>,
 ): Promise<SAPayload> => {
   const { error, data } = await supabaseAdminClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .insert(payload);
 
   if (error) {
@@ -489,12 +425,12 @@ export const createBlogTag = async (
   };
 };
 
-export const updateBlogTag = async (
+export const adminUpdateBlogTagAction = async (
   id: number,
-  payload: Partial<DBTableUpdatePayload<'internal_blog_post_tags'>>,
+  payload: Partial<DBTableUpdatePayload<'marketing_tags'>>,
 ): Promise<SAPayload> => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .update(payload)
     .eq('id', id)
     .select('*')
@@ -512,27 +448,27 @@ export const updateBlogTag = async (
   };
 };
 
-export const deleteBlogTag = async (id: number): Promise<SAPayload> => {
-  const { error } = await supabaseAdminClient
-    .from('internal_blog_post_tags')
-    .delete()
-    .eq('id', id);
+const deleteBlogTagSchema = z.object({
+  id: z.string().uuid()
+});
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
+export const adminDeleteBlogTagAction = adminActionClient
+  .schema(deleteBlogTagSchema)
+  .action(async ({ parsedInput: { id } }) => {
+    const { error } = await supabaseAdminClient
+      .from('marketing_tags')
+      .delete()
+      .eq('id', id);
 
-  return {
-    status: 'success',
-  };
-};
+    if (error) {
+      throw new Error(error.message);
+    }
 
+    // No need to return anything if the operation is successful
+  });
 export const getAllBlogTags = async () => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .select('*');
 
   if (error) {
@@ -544,7 +480,7 @@ export const getAllBlogTags = async () => {
 
 export const getBlogTagRelationships = async (blogPostId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('internal_blog_post_tags_relationship')
+    .from('marketing_blog_post_tags_relationship')
     .select('*')
     .eq('blog_post_id', blogPostId);
 
@@ -555,29 +491,35 @@ export const getBlogTagRelationships = async (blogPostId: string) => {
   return data;
 };
 
-export const updateBlogTagRelationships = async (
-  blogPostId: string,
-  tagIds: number[],
-) => {
-  const { data, error } = await supabaseAdminClient
-    .from('internal_blog_post_tags_relationship')
-    .delete()
-    .eq('blog_post_id', blogPostId);
+const updateBlogTagRelationshipsSchema = z.object({
+  blogPostId: z.string().uuid(),
+  tagIds: z.array(z.string().uuid()),
+});
 
-  if (error) {
-    throw error;
-  }
+export const updateBlogTagRelationshipsAction = adminActionClient
+  .schema(updateBlogTagRelationshipsSchema)
+  .action(async ({ parsedInput: { blogPostId, tagIds } }) => {
+    const { error: deleteError } = await supabaseAdminClient
+      .from('marketing_blog_post_tags_relationship')
+      .delete()
+      .eq('blog_post_id', blogPostId);
 
-  for (const tagId of tagIds) {
-    const { error: error2 } = await supabaseAdminClient
-      .from('internal_blog_post_tags_relationship')
-      .insert({
-        blog_post_id: blogPostId,
-        tag_id: tagId,
-      });
-
-    if (error2) {
-      throw error2;
+    if (deleteError) {
+      throw new Error(deleteError.message);
     }
-  }
-};
+
+    for (const tagId of tagIds) {
+      const { error: insertError } = await supabaseAdminClient
+        .from('marketing_blog_post_tags_relationship')
+        .insert({
+          blog_post_id: blogPostId,
+          tag_id: tagId,
+        });
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+    }
+
+    // No need to return anything if the operation is successful
+  });

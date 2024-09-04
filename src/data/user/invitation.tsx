@@ -13,11 +13,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getInvitationOrganizationDetails } from "./elevatedQueries";
 import {
-  createAcceptedOrgInvitationNotification,
+  createAcceptedWorkspaceInvitationNotification,
   createNotification,
 } from "./notifications";
-import { getOrganizationSlugByOrganizationId } from "./organizations";
 import { getUserProfile } from "./user";
+import { getWorkspaceById } from "./workspaces";
 
 // This function allows an application admin with service_role
 // to check if a user with a given email exists in the auth.users table
@@ -197,13 +197,13 @@ export async function createInvitationHandler({
       viewInvitationUrl={viewInvitationUrl}
       inviterName={`${inviterName}`}
       isNewUser={inviteeUserDetails.type === "USER_CREATED"}
-      organizationName={organizationResponse.data.title}
+      organizationName={organizationResponse.data.name}
     />,
   );
 
   await sendEmail({
     to: email,
-    subject: `Invitation to join ${organizationResponse.data.title}`,
+    subject: `Invitation to join ${organizationResponse.data.name}`,
     html: invitationEmailHTML,
     from: process.env.ADMIN_EMAIL,
   });
@@ -212,7 +212,7 @@ export async function createInvitationHandler({
   await createNotification(inviteeUserDetails.userId, {
     inviterFullName: inviterName,
     organizationId: organizationId,
-    organizationName: organizationResponse.data.title,
+    organizationName: organizationResponse.data.name,
     invitationId: invitationResponse.data.id,
   });
 
@@ -229,7 +229,7 @@ export async function acceptInvitationAction(
   const user = await serverGetLoggedInUser();
 
   const invitationResponse = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .update({
       status: "finished_accepted",
       invitee_user_id: user.id, // Add this information here, so that our database function can add this id to the team members table
@@ -244,17 +244,17 @@ export async function acceptInvitationAction(
 
   const userProfile = await getUserProfile(user.id);
 
-  await createAcceptedOrgInvitationNotification(
+  await createAcceptedWorkspaceInvitationNotification(
     invitationResponse.data?.inviter_user_id,
     {
-      organizationId: invitationResponse.data.organization_id,
+      workspaceId: invitationResponse.data.workspace_id,
       inviteeFullName: userProfile.full_name ?? `User ${userProfile.id}`,
     },
   );
 
   revalidatePath("/", "layout");
-  const organizationSlug = await getOrganizationSlugByOrganizationId(invitationResponse.data.organization_id);
-  return { status: 'success', data: organizationSlug };
+  const workspace = await getWorkspaceById(invitationResponse.data.workspace_id);
+  return { status: 'success', data: workspace.slug };
 }
 
 export async function declineInvitationAction(invitationId: string): Promise<SAPayload> {
@@ -263,7 +263,7 @@ export async function declineInvitationAction(invitationId: string): Promise<SAP
   const user = await serverGetLoggedInUser();
 
   const invitationResponse = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .update({
       status: "finished_declined",
       invitee_user_id: user.id, // Add this information here, so that our database function can add this id to the team members table
@@ -284,9 +284,9 @@ export async function getPendingInvitationsOfUser() {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUser();
   const { data, error } = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .select(
-      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), organization:organizations(*)",
+      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), workspace:workspaces(*)",
     )
     .eq("invitee_user_id", user.id)
     .eq("status", "active");
@@ -296,12 +296,12 @@ export async function getPendingInvitationsOfUser() {
   }
 
   const invitationListPromise = data.map(async (invitation) => {
-    const organization = await getInvitationOrganizationDetails(
-      invitation.organization_id,
+    const workspace = await getInvitationOrganizationDetails(
+      invitation.workspace_id,
     );
     return {
       ...invitation,
-      organization,
+      workspace,
     };
   });
 
@@ -312,9 +312,9 @@ export const getInvitationById = async (invitationId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .select(
-      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), organization:organizations(*)",
+      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), workspace:workspaces(*)",
     )
     .eq("id", invitationId)
     .eq("status", "active")
@@ -324,13 +324,13 @@ export const getInvitationById = async (invitationId: string) => {
     throw error;
   }
 
-  const organizationId = data.organization_id;
+  const workspaceId = data.workspace_id;
 
-  const organization = await getInvitationOrganizationDetails(organizationId);
+  const workspace = await getInvitationOrganizationDetails(workspaceId);
 
   return {
     ...data,
-    organization,
+    workspace,
   };
 };
 
@@ -340,7 +340,7 @@ export async function getPendingInvitationCountOfUser() {
 
   async function idInvitations(userId: string) {
     const { count, error } = await supabaseClient
-      .from("organization_join_invitations")
+      .from("workspace_invitations")
       .select("id", { count: "exact", head: true })
       .eq("invitee_user_id", userId)
       .eq("status", "active");
@@ -357,12 +357,12 @@ export async function getPendingInvitationCountOfUser() {
   return idInvitationsCount;
 }
 
-export async function revokeInvitation(invitationId: string): Promise<SAPayload<Tables<"organization_join_invitations">>> {
+export async function revokeInvitation(invitationId: string): Promise<SAPayload<Tables<"workspace_invitations">>> {
   "use server";
   const supabaseClient = createSupabaseUserServerActionClient();
 
   const invitationResponse = await supabaseClient
-    .from("organization_join_invitations")
+    .from("workspace_invitations")
     .delete()
     .eq("id", invitationId)
     .single();

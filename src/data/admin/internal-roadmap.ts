@@ -7,12 +7,12 @@ export type roadmapDataType = {
   title: string;
   description: string;
   status:
-    | 'open'
-    | 'under_review'
-    | 'planned'
-    | 'closed'
-    | 'in_progress'
-    | 'completed';
+  | 'open'
+  | 'under_review'
+  | 'planned'
+  | 'closed'
+  | 'in_progress'
+  | 'completed';
   priority: 'low' | 'medium' | 'high';
   tag: 'bug' | 'feature_request' | 'general';
   date: string;
@@ -20,7 +20,7 @@ export type roadmapDataType = {
 
 export const getRoadmap = async () => {
   const roadmapItemsResponse = await supabaseAdminClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('added_to_roadmap', true);
 

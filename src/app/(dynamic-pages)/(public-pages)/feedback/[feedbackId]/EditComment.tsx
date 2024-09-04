@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { ownerUpdateFeedbackComment } from '@/data/feedback';
+import { ownerUpdateFeedbackCommentAction } from '@/data/feedback';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { PenLine, Send } from 'lucide-react';
 import { useState } from 'react';
@@ -31,7 +31,7 @@ function EditComment({
   const [comment, setComment] = useState(defaultValue);
   const { mutate, isLoading } = useSAToastMutation(
     async () => {
-      return await ownerUpdateFeedbackComment({
+      return await ownerUpdateFeedbackCommentAction({
         feedbackId,
         feedbackCommentOwnerId: userId,
         commentId,

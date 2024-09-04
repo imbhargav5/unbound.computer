@@ -1,20 +1,17 @@
 "use server"
 
+import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
-import { SAPayload } from "@/types";
 
-export async function refreshSessionAction(): Promise<SAPayload> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const refreshSessionResponse = await supabaseClient.auth.refreshSession();
+export const refreshSessionAction = authActionClient.action(
+  async () => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const { error } = await supabaseClient.auth.refreshSession();
 
-  if (refreshSessionResponse.error) {
-    return {
-      status: 'error',
-      message: refreshSessionResponse.error.message,
-    };
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Return void if successful
   }
-
-  return {
-    status: 'success',
-  };
-}
+);

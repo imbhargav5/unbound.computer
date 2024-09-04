@@ -1,8 +1,7 @@
 'use server';
-import { createSupabaseUserRouteHandlerClient } from '@/supabase-clients/user/createSupabaseUserRouteHandlerClient';
+import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import type { SAPayload } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import axios from 'axios';
 import { revalidatePath } from 'next/cache';
@@ -20,81 +19,85 @@ function maskKey(key: string): string {
   return start + masked + end;
 }
 
-export async function generateUnkeyToken(): Promise<
-  SAPayload<{ keyId: string; key: string; createdAt: string }>
-> {
-  const user = await serverGetLoggedInUser();
-  const supabaseClient = createSupabaseUserRouteHandlerClient();
-  const response = await axios.post(
-    'https://api.unkey.dev/v1/keys',
-    {
-      apiId: process.env.UNKEY_API_ID,
-      ownerId: user.id,
-      prefix: 'st_',
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
-        'Content-Type': 'application/json',
+export const generateUnkeyTokenAction = authActionClient.action(
+  async ({ ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const response = await axios.post(
+      'https://api.unkey.dev/v1/keys',
+      {
+        apiId: process.env.UNKEY_API_ID,
+        ownerId: userId,
+        prefix: 'st_',
       },
-    },
-  );
-  const { keyId, key } = generateKeyResponseSchema.parse(response.data);
-  const { data: insertKeyResponse, error: insertKeyError } =
-    await supabaseClient
-      .from('user_api_keys')
-      .insert({
-        key_id: keyId,
-        masked_key: maskKey(key),
-        user_id: user.id,
-      })
-      .select('*')
-      .single();
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
 
-  if (insertKeyError) {
-    return { status: 'error', message: insertKeyError.message };
-  }
+    const { keyId, key } = generateKeyResponseSchema.parse(response.data);
 
-  return {
-    status: 'success',
-    data: {
+    const { data: insertKeyResponse, error: insertKeyError } =
+      await supabaseClient
+        .from('user_api_keys')
+        .insert({
+          key_id: keyId,
+          masked_key: maskKey(key),
+          user_id: userId,
+        })
+        .select('*')
+        .single();
+
+    if (insertKeyError) {
+      throw new Error(insertKeyError.message);
+    }
+
+    return {
       keyId,
       key,
       createdAt: insertKeyResponse.created_at,
-    },
-  };
-}
-
-export async function revokeUnkeyToken(
-  keyId: string,
-): Promise<SAPayload<{ ok: boolean }>> {
-  const response = await axios.delete(
-    `https://api.unkey.dev/v1/keys/${keyId}`,
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
-      },
-    },
-  );
-
-  const supabaseClient = createSupabaseUserServerActionClient();
-
-  const { error } = await supabaseClient
-    .from('user_api_keys')
-    .update({
-      is_revoked: true,
-    })
-    .eq('key_id', keyId)
-    .single();
-
-  if (error) {
-    return { status: 'error', message: error.message };
+    };
   }
+);
 
-  revalidatePath('/', 'layout');
 
-  return { status: 'success', data: { ok: true } };
-}
+const revokeUnkeyTokenSchema = z.object({
+  keyId: z.string(),
+});
+
+export const revokeUnkeyTokenAction = authActionClient
+  .schema(revokeUnkeyTokenSchema)
+  .action(async ({ parsedInput: { keyId } }) => {
+    const response = await axios.delete(
+      `https://api.unkey.dev/v1/keys/${keyId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
+        },
+      },
+    );
+
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { error } = await supabaseClient
+      .from('user_api_keys')
+      .update({
+        is_revoked: true,
+      })
+      .eq('key_id', keyId)
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath('/', 'layout');
+
+    return { ok: true };
+  });
 
 export const getActiveDeveloperKeys = async () => {
   const user = await serverGetLoggedInUser();

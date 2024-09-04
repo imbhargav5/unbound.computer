@@ -1,44 +1,42 @@
 'use server';
+import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import type { SAPayload } from '@/types';
+import { z } from 'zod';
 
-export async function updatePasswordAction(
-  password: string,
-): Promise<SAPayload<true>> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { error } = await supabaseClient.auth.updateUser({
-    password,
+const updatePasswordSchema = z.object({
+  password: z.string().min(4),
+});
+
+export const updatePasswordAction = authActionClient
+  .schema(updatePasswordSchema)
+  .action(async ({ parsedInput: { password } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const { error } = await supabaseClient.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
   });
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
 
-  return {
-    status: 'success',
-    data: true,
-  };
-}
+const updateEmailSchema = z.object({
+  email: z.string().email(),
+});
 
-export async function updateEmailAction(
-  email: string,
-): Promise<SAPayload> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { error } = await supabaseClient.auth.updateUser({
-    email,
+export const updateEmailAction = authActionClient
+  .schema(updateEmailSchema)
+  .action(async ({ parsedInput: { email } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const { error } = await supabaseClient.auth.updateUser({
+      email,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Return void if successful
   });
-
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
-
-  return {
-    status: 'success',
-  };
-}

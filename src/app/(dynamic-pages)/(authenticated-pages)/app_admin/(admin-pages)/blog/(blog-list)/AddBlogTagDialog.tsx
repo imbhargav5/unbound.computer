@@ -17,7 +17,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Textarea } from '@/components/ui/textarea';
-import { createBlogTag } from '@/data/admin/internal-blog';
+import { adminCreateBlogTagAction } from '@/data/admin/internal-blog';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { Tag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -41,7 +41,7 @@ export const AddBlogTagDialog = () => {
 
   const { mutate: createBlogTagMutation, isLoading: isCreatingBlogTag } =
     useSAToastMutation(
-      async (payload: BlogTagFormType) => await createBlogTag(payload),
+      async (payload: BlogTagFormType) => await adminCreateBlogTagAction(payload),
       {
         loadingMessage: 'Creating blog tag...',
         successMessage: 'Blog tag created!',

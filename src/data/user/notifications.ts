@@ -29,40 +29,40 @@ export async function createMultipleNotifications(notifications: Array<{ userId:
   return notificationsData;
 };
 
-export const createAcceptedOrgInvitationNotification = async (
+export const createAcceptedWorkspaceInvitationNotification = async (
   userId: string,
   {
-    organizationId,
+    workspaceId,
     inviteeFullName,
   }: {
-    organizationId: string;
+    workspaceId: string;
     inviteeFullName: string;
   },
 ) => {
   const payload: Extract<
     UserNotification,
     {
-      type: 'acceptedOrganizationInvitation';
+      type: 'acceptedWorkspaceInvitation';
     }
   > = {
-    organizationId,
-    type: 'acceptedOrganizationInvitation',
+    workspaceId,
+    type: 'acceptedWorkspaceInvitation',
     userFullName: inviteeFullName,
   };
 
   return await createNotification(userId, payload);
 };
 
-export const createInvitedToOrganizationNotification = async (
+export const createWorkspaceInvitationNotification = async (
   userId: string,
   {
-    organizationId,
-    organizationName,
+    workspaceId,
+    workspaceName,
     inviterFullName,
     invitationId,
   }: {
-    organizationId: string;
-    organizationName: string;
+    workspaceId: string;
+    workspaceName: string;
     inviterFullName: string;
     invitationId: string;
   },
@@ -70,14 +70,14 @@ export const createInvitedToOrganizationNotification = async (
   const payload: Extract<
     UserNotification,
     {
-      type: 'invitedToOrganization';
+      type: 'invitedToWorkspace';
     }
   > = {
-    organizationId,
-    organizationName,
+    workspaceId,
+    workspaceName,
     inviterFullName,
     invitationId,
-    type: 'invitedToOrganization',
+    type: 'invitedToWorkspace',
   };
 
   return await createNotification(userId, payload);

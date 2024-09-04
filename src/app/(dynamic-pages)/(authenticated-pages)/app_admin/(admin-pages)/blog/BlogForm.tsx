@@ -14,11 +14,11 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { createBlogPost, updateBlogPost } from '@/data/admin/internal-blog';
+import { adminUpdateBlogPostAction } from '@/data/admin/internal-blog';
 import type { DBTable } from '@/types';
 import {
-  internalBlogPostSchema,
-  type InternalBlogPostSchema,
+  marketingBlogPostFormSchema,
+  type MarketingBlogPostFormSchema,
 } from '@/utils/zod-schemas/internalBlog';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
@@ -113,7 +113,7 @@ const defaultContent = {
 };
 
 
-const baseDefaultValues: Partial<InternalBlogPostSchema> = {
+const baseDefaultValues: Partial<MarketingBlogPostFormSchema> = {
   status: 'draft',
   is_featured: false,
   title: '',
@@ -130,7 +130,7 @@ type CreateBlogFormProps = {
 const TipTapWrapper = ({
   control,
 }: {
-  control: Control<InternalBlogPostSchema>;
+  control: Control<MarketingBlogPostFormSchema>;
 }) => {
   const { field: contentField } = useController({
     name: 'content',
@@ -167,7 +167,7 @@ const TipTapWrapper = ({
 
 export type EditBlogFormProps = {
   mode: 'update';
-  initialBlogPost: Partial<InternalBlogPostSchema>;
+  initialBlogPost: Partial<MarketingBlogPostFormSchema>;
   postId: string;
 };
 
@@ -197,8 +197,8 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
     formState,
     getValues
   } =
-    useForm<InternalBlogPostSchema>({
-      resolver: zodResolver(internalBlogPostSchema),
+    useForm<MarketingBlogPostFormSchema>({
+      resolver: zodResolver(marketingBlogPostFormSchema),
       defaultValues,
     });
 
@@ -214,7 +214,7 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
 
   const { mutate: createPostMutation, isLoading: isCreatingPost } =
     useSAToastMutation(
-      async (data: InternalBlogPostSchema) => {
+      async (data: MarketingBlogPostFormSchema) => {
         const { author_id, tags, ...restPayload } = data;
         if (rest.mode !== 'create') {
           throw new Error('Invalid mode');
@@ -222,7 +222,7 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
         const json_content = JSON.stringify(
           restPayload.json_content instanceof Object ? restPayload.json_content : {}
         );
-        const response = await createBlogPost(
+        const response = await adminUpdateBlogPostAction(
           author_id,
           {
             ...restPayload,
@@ -275,7 +275,7 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
 
   const { mutate: updatePostMutation, isLoading: isUpdatingPost } =
     useSAToastMutation(
-      async (data: InternalBlogPostSchema) => {
+      async (data: MarketingBlogPostFormSchema) => {
         const { author_id, tags, ...restPayload } = data;
         if (rest.mode !== 'update') {
           throw new Error('Invalid mode');
@@ -289,7 +289,7 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
           json_content,
         }
 
-        return await updateBlogPost(
+        return await adminUpdateBlogPostAction(
           author_id,
           rest.postId,
           payload,
@@ -313,7 +313,7 @@ export const BlogForm = ({ authors, tags, ...rest }: BlogFormProps) => {
       }
     );
 
-  function onSubmit(data: InternalBlogPostSchema) {
+  function onSubmit(data: MarketingBlogPostFormSchema) {
     if (!data.author_id) {
       data.author_id = undefined;
     }

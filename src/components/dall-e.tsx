@@ -1,5 +1,5 @@
 "use client";
-import { convertAndUploadOpenAiImage } from "@/data/user/chats";
+import { convertAndUploadOpenAiImageAction } from "@/data/user/chats";
 import { updateUserProfileNameAndAvatar } from "@/data/user/user";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { SAPayload } from "@/types";
@@ -67,7 +67,7 @@ export const DallE = () => {
           const b64Data = openAIResponse.data[0].b64_json;
 
           try {
-            const image = await convertAndUploadOpenAiImage(b64Data);
+            const image = await convertAndUploadOpenAiImageAction(b64Data);
             if (image.status === "success" && image.data) {
               setImages([image.data]);
             }

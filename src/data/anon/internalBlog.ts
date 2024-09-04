@@ -4,9 +4,9 @@ import type { AppSupabaseClient } from '@/types';
 
 export const anonGetBlogPostById = async (postId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_blog_author_profiles(*))',
     )
     .eq('id', postId)
     .single();
@@ -20,9 +20,9 @@ export const anonGetBlogPostById = async (postId: string) => {
 
 export const anonGetBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .eq('slug', slug)
     .single();
@@ -36,9 +36,9 @@ export const anonGetBlogPostBySlug = async (slug: string) => {
 
 export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .eq('slug', slug)
     .eq('status', 'published')
@@ -53,9 +53,9 @@ export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
 
 export const anonGetPublishedBlogPosts = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .eq('status', 'published');
 
@@ -68,7 +68,7 @@ export const anonGetPublishedBlogPosts = async () => {
 
 export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
   const { data: tag, error: tagError } = await supabaseAnonClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .select('*')
     .eq('slug', tagSlug)
     .single();
@@ -81,7 +81,7 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
     data: blogPostTagRelationships,
     error: blogPostTagRelationshipsError,
   } = await supabaseAnonClient
-    .from('internal_blog_post_tags_relationship')
+    .from('marketing_blog_post_tags_relationship')
     .select('*')
     .eq('tag_id', tag.id);
 
@@ -94,9 +94,9 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
   );
 
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select(
-      '*, internal_blog_author_posts(*, internal_blog_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
     )
     .in('id', postIds)
     .eq('status', 'published');
@@ -110,8 +110,8 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
 
 export const anonGetBlogPostsByAuthorId = async (authorId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_author_posts')
-    .select('*, internal_blog_posts(*)')
+    .from('marketing_blog_author_posts')
+    .select('*, marketing_blog_posts(*)')
     .eq('author_id', authorId);
 
   if (error) {
@@ -125,7 +125,7 @@ export const anonGetAllBlogPosts = async (
   supabaseClient: AppSupabaseClient,
 ) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_posts')
+    .from('marketing_blog_posts')
     .select('*');
 
   if (error) {
@@ -137,7 +137,7 @@ export const anonGetAllBlogPosts = async (
 
 export const anonGetAllAuthors = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_author_profiles')
+    .from('marketing_author_profiles')
     .select('*');
 
   if (error) {
@@ -149,9 +149,9 @@ export const anonGetAllAuthors = async () => {
 
 export const anonGetOneAuthor = async (userId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_author_profiles')
+    .from('marketing_author_profiles')
     .select('*')
-    .eq('user_id', userId);
+    .eq('id', userId);
 
   if (error) {
     throw error;
@@ -162,7 +162,7 @@ export const anonGetOneAuthor = async (userId: string) => {
 
 export const anonGetTagBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .select('*')
     .eq('slug', slug)
     .single();
@@ -173,9 +173,10 @@ export const anonGetTagBySlug = async (slug: string) => {
 
   return data;
 };
+
 export const anonGetAllBlogTags = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('internal_blog_post_tags')
+    .from('marketing_tags')
     .select('*');
 
   if (error) {

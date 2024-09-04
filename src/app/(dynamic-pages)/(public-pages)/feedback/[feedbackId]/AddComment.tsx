@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { addCommentToInternalFeedbackThread } from '@/data/feedback';
+import { addCommentToInternalFeedbackThreadAction } from '@/data/feedback';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 
 import { Send } from 'lucide-react';
@@ -19,7 +19,7 @@ function AddComment({
 
   const { mutate, isLoading } = useSAToastMutation(
     async () => {
-      return addCommentToInternalFeedbackThread({ feedbackId, content });
+      return addCommentToInternalFeedbackThreadAction({ feedbackId, content });
     },
     {
       loadingMessage: 'Adding Comment',

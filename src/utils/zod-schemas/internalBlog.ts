@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-export const authorProfileSchema = z.object({
-  user_id: z.string(),
+export const marketingAuthorProfileFormSchema = z.object({
   display_name: z.string(),
   bio: z.string(),
   avatar_url: z.string(),
@@ -10,9 +9,10 @@ export const authorProfileSchema = z.object({
   facebook_handle: z.string().optional(),
   linkedin_handle: z.string().optional(),
   instagram_handle: z.string().optional(),
+  slug: z.string().min(1, { message: 'Slug is required' }),
 });
 
-export const internalBlogPostSchema = z.object({
+export const marketingBlogPostFormSchema = z.object({
   slug: z.string().min(1, { message: 'Slug is required' }),
   title: z.string().min(1, { message: 'Title is required' }),
   summary: z.string().min(1, { message: 'Summary is required' }),
@@ -22,7 +22,6 @@ export const internalBlogPostSchema = z.object({
   is_featured: z.boolean(),
   status: z.enum(['draft', 'published']),
   cover_image: z.string().optional(),
-  author_id: z.string().optional(),
   tags: z
     .object({
       id: z.number(),
@@ -32,4 +31,4 @@ export const internalBlogPostSchema = z.object({
   json_content: z.record(z.unknown()),
 });
 
-export type InternalBlogPostSchema = z.infer<typeof internalBlogPostSchema>;
+export type MarketingBlogPostFormSchema = z.infer<typeof marketingBlogPostFormSchema>;

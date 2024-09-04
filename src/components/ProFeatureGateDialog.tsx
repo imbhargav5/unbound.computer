@@ -1,5 +1,7 @@
 "use client";
 
+import { SlimWorkspace } from "@/types";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,11 +12,11 @@ import { AspectRatio } from "./ui/aspect-ratio";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 
 export function ProFeatureGateDialog({
-  organizationSlug,
+  workspace,
   label,
   icon,
 }: {
-  organizationSlug: string;
+  workspace: SlimWorkspace;
   label: string;
   icon: ReactNode;
 }) {
@@ -80,7 +82,7 @@ export function ProFeatureGateDialog({
           workspace and more.
         </Typography.P>
         <Link
-          href={`/${organizationSlug}/settings/billing`}
+          href={getWorkspaceSubPath(workspace, '/settings/billing')}
           className="w-full"
           onClick={() => setIsDialogOpen(false)}
         >

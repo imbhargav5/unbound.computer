@@ -16,7 +16,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Textarea } from "@/components/ui/textarea";
-import { updateBlogTag } from "@/data/admin/internal-blog";
+import { adminUpdateBlogTagAction } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { DBTable } from "@/types";
 import { SquarePen } from "lucide-react";
@@ -53,7 +53,7 @@ export const EditBlogTagDialog = ({
 
   const { mutate: updateBlogTagMutation, isLoading: isUpdatingBlogTag } =
     useSAToastMutation(
-      async (payload: BlogTagFormType) => updateBlogTag(tag.id, payload),
+      async (payload: BlogTagFormType) => adminUpdateBlogTagAction(tag.id, payload),
       {
         loadingMessage: "Updating blog tag...",
         successMessage: "Blog tag updated!",

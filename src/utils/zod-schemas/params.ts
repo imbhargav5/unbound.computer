@@ -1,12 +1,14 @@
 import { z } from 'zod';
 
-export const organizationParamSchema = z.object({
-  organizationId: z.string().uuid(),
-});
 
 export const organizationSlugParamSchema = z.object({
   organizationSlug: z.string(),
 });
+
+export const workspaceSlugParamSchema = z.object({
+  workspaceSlug: z.string(),
+});
+
 
 export const projectsfilterSchema = z.object({
   page: z.coerce.number().optional(),

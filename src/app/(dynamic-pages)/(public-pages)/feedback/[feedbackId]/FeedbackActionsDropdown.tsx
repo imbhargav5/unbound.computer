@@ -33,12 +33,12 @@ import {
 } from 'lucide-react';
 
 import {
-  adminToggleFeedbackFromRoadmap,
-  adminToggleFeedbackOpenForComments,
-  adminToggleFeedbackVisibility,
+  adminToggleFeedbackFromRoadmapAction,
+  adminToggleFeedbackOpenForCommentsAction,
+  adminToggleFeedbackVisibilityAction,
   adminUpdateFeedbackPriority,
-  adminUpdateFeedbackStatus,
-  adminUpdateFeedbackType,
+  adminUpdateFeedbackStatusAction,
+  adminUpdateFeedbackTypeAction,
 } from '@/data/feedback';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { Tables } from '@/lib/database.types';
@@ -64,7 +64,7 @@ function FeedbackActionsDropdown({
       feedbackId: string;
       status: Tables<'internal_feedback_threads'>['status'];
     }) => {
-      return await adminUpdateFeedbackStatus({ feedbackId, status })
+      return await adminUpdateFeedbackStatusAction({ feedbackId, status })
     },
     {
       loadingMessage(variables) {
@@ -95,7 +95,7 @@ function FeedbackActionsDropdown({
       feedbackId: string;
       type: Tables<'internal_feedback_threads'>['type'];
     }) => {
-      return await adminUpdateFeedbackType({ feedbackId, type });
+      return await adminUpdateFeedbackTypeAction({ feedbackId, type });
     },
     {
       loadingMessage(variables) {
@@ -157,7 +157,7 @@ function FeedbackActionsDropdown({
       feedbackId: string;
       isInRoadmap: boolean;
     }) => {
-      return await adminToggleFeedbackFromRoadmap({
+      return await adminToggleFeedbackFromRoadmapAction({
         feedbackId,
         isInRoadmap,
       });
@@ -195,7 +195,7 @@ function FeedbackActionsDropdown({
       feedbackId: string;
       isOpenForComments: boolean;
     }) => {
-      return await adminToggleFeedbackOpenForComments({
+      return await adminToggleFeedbackOpenForCommentsAction({
         feedbackId,
         isOpenForComments,
       });
@@ -233,7 +233,7 @@ function FeedbackActionsDropdown({
       feedbackId: string;
       isPubliclyVisible: boolean;
     }) => {
-      return await adminToggleFeedbackVisibility({
+      return await adminToggleFeedbackVisibilityAction({
         feedbackId,
         isPubliclyVisible,
       });

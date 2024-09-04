@@ -11,9 +11,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(toSiteURL('/500'));
     }
     if (initialWorkspace.workspaceMembershipType === 'solo') {
-      return NextResponse.redirect(new URL(`/${initialWorkspace.workspace.slug}`, req.url));
+      // return NextResponse.redirect(new URL(`/home`, req.url));
+      return NextResponse.redirect(new URL(`/workspace/${initialWorkspace.workspace.slug}`, req.url));
+    } else {
+      return NextResponse.redirect(new URL(`/workspace/${initialWorkspace.workspace.slug}`, req.url));
     }
-    return NextResponse.redirect(new URL(`/${initialWorkspace.workspace.slug}`, req.url));
+
   } catch (error) {
     console.error('Failed to load dashboard:', error);
     // Redirect to an error page or show an error message

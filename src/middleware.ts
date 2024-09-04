@@ -52,12 +52,12 @@ function shouldOnboardUser(pathname: string, user: User | undefined) {
     const {
       onboardingHasAcceptedTerms,
       onboardingHasCompletedProfile,
-      onboardingHasCreatedOrganization,
+      onboardingHasCreatedWorkspace,
     } = userMetadata;
     if (
       !onboardingHasAcceptedTerms ||
       !onboardingHasCompletedProfile ||
-      !onboardingHasCreatedOrganization
+      !onboardingHasCreatedWorkspace
     ) {
       return true;
     }

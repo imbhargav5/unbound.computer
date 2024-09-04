@@ -1,11 +1,13 @@
 'use server';
 
-import type { Tables } from '@/lib/database.types';
+import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import type { Enum, SAPayload } from '@/types';
+import type { Enum } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
+import { marketingFeedbackTypeEnum } from '@/utils/zod-schemas/feedback';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { createReceivedFeedbackNotification } from './notifications';
 import { getUserFullName } from './user';
 
@@ -279,57 +281,48 @@ export const updateInternalFeedbackType = async (
   return data;
 };
 
-export async function createInternalFeedback(payload: {
-  title: string;
-  content: string;
-  type: Enum<'marketing_feedback_thread_type'>;
-}): Promise<SAPayload<Tables<'marketing_feedback_threads'>>> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-  const { data, error } = await supabaseClient
-    .from('marketing_feedback_threads')
-    .insert({
-      title: payload.title,
-      content: payload.content,
-      type: payload.type,
-      user_id: user.id,
-    })
-    .select('*')
-    .single();
+const createInternalFeedbackSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  type: marketingFeedbackTypeEnum,
+});
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
+export const createInternalFeedbackAction = authActionClient
+  .schema(createInternalFeedbackSchema)
+  .action(async ({ parsedInput: { title, content, type }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  const insertedFeedback = data;
-  if (!insertedFeedback) {
-    return {
-      status: 'error',
-      message: 'Failed to create feedback',
-    };
-  }
+    const { data, error } = await supabaseClient
+      .from('marketing_feedback_threads')
+      .insert({
+        title,
+        content,
+        type,
+        user_id: userId,
+      })
+      .select('*')
+      .single();
 
-  const userFullName = await getUserFullName(user.id)
-  await createReceivedFeedbackNotification({
-    feedbackId: insertedFeedback.id,
-    feedbackTitle: insertedFeedback.title,
-    feedbackCreatorFullName: userFullName || 'User',
-    feedbackCreatorId: user.id
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const userFullName = await getUserFullName(userId);
+    await createReceivedFeedbackNotification({
+      feedbackId: data.id,
+      feedbackTitle: data.title,
+      feedbackCreatorFullName: userFullName || 'User',
+      feedbackCreatorId: userId
+    });
+
+    revalidatePath('/feedback', 'layout');
+    revalidatePath('/app_admin', 'layout');
+
+    return data;
   });
 
-  revalidatePath('/feedback', 'layout');
-  revalidatePath('/app_admin', 'layout');
 
-  return {
-    status: 'success',
-    data: insertedFeedback,
-  };
-}
-
-export async function createInternalFeedbackComment(
+export async function createInternalFeedbackCommentAction(
   feedbackId: string,
   userId: string,
   content: string,

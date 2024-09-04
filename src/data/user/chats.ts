@@ -9,7 +9,7 @@ import { nanoid } from 'nanoid';
 import slugify from 'slugify';
 import urlJoin from 'url-join';
 
-export const insertChat = async (
+export const insertChatAction = async (
   projectId: string,
   payload: Message[],
   chatId: string,
@@ -61,7 +61,7 @@ export const getChatById = async (chatId: string): Promise<DBTable<'chats'>> => 
   return data;
 };
 
-export const deleteChat = async (chatId: string): Promise<void> => {
+export const deleteChatAction = async (chatId: string): Promise<void> => {
   const supabase = createSupabaseUserServerActionClient();
   const { error } = await supabase.from('chats').delete().eq('id', chatId);
 
@@ -103,7 +103,7 @@ export const getChatsHistory = async (
   return data;
 };
 
-export const convertAndUploadOpenAiImage = async (b64_json: string): Promise<SAPayload<string>> => {
+export const convertAndUploadOpenAiImageAction = async (b64_json: string): Promise<SAPayload<string>> => {
   const byteCharacters = atob(b64_json);
   const byteNumbers = new Array(byteCharacters.length);
   for (let i = 0; i < byteCharacters.length; i++) {
@@ -115,7 +115,7 @@ export const convertAndUploadOpenAiImage = async (b64_json: string): Promise<SAP
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await uploadOpenAiImage(formData, file.name, {
+  const response = await uploadOpenAiImageAction(formData, file.name, {
     upsert: true,
   });
 
@@ -140,7 +140,7 @@ export const convertAndUploadOpenAiImage = async (b64_json: string): Promise<SAP
   };
 };
 
-export const uploadOpenAiImage = async (
+export const uploadOpenAiImageAction = async (
   formData: FormData,
   fileName: string,
   fileOptions?: SupabaseFileUploadOptions | undefined,

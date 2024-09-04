@@ -1,14 +1,14 @@
 "use server";
 import { CommentList } from "@/components/Projects/CommentList";
-import type { Tables } from "@/lib/database.types";
+import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
-import type { CommentWithUser, SAPayload } from "@/types";
+import type { CommentWithUser } from "@/types";
 import { normalizeComment } from "@/utils/comments";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { revalidatePath } from "next/cache";
 import { Suspense } from "react";
+import { z } from "zod";
 
 export async function getSlimProjectById(projectId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -62,44 +62,7 @@ export async function getProjectTitleById(projectId: string) {
   return data.name;
 }
 
-export const createProjectAction = async ({
-  workspaceId,
-  name,
-  slug,
-}: {
-  workspaceId: string;
-  name: string;
-  slug: string;
-}): Promise<SAPayload<Tables<"projects">>> => {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data: project, error } = await supabaseClient
-    .from("projects")
-    .insert({
-      workspace_id: workspaceId,
-      name,
-      slug,
-    })
-    .select("*")
-    .single();
 
-
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
-
-
-  revalidatePath("/[organizationSlug]", "layout");
-  revalidatePath("/[organizationSlug]/projects", "layout");
-
-  return {
-    status: 'success',
-    data: project,
-  };
-};
 
 export const getProjectComments = async (
   projectId: string,
@@ -116,115 +79,142 @@ export const getProjectComments = async (
 
   return data.map(normalizeComment);
 };
+const createProjectCommentSchema = z.object({
+  projectId: z.string(),
+  text: z.string(),
+});
 
-export const createProjectCommentAction = async (
-  projectId: string,
-  text: string,
-): Promise<SAPayload<{ id: number, commentList: React.JSX.Element }>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-  const { data, error } = await supabaseClient
-    .from("project_comments")
-    .insert({ project_id: projectId, text, user_id: user.id })
-    .select("*, user_profiles(*)")
-    .single();
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
-  revalidatePath(`/project/${projectId}`, "page");
+export const createProjectCommentAction = authActionClient
+  .schema(createProjectCommentSchema)
+  .action(async ({ parsedInput: { projectId, text }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  return {
-    status: 'success',
-    data: {
+    const { data, error } = await supabaseClient
+      .from("project_comments")
+      .insert({ project_id: projectId, text, user_id: userId })
+      .select("*, user_profiles(*)")
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath(`/project/${projectId}`, "page");
+
+    return {
       id: data.id,
       commentList: (
         <Suspense>
           <CommentList comments={[normalizeComment(data)]} />
         </Suspense>
       ),
-    },
-  };
-};
+    };
+  });
 
-export const approveProjectAction = async (projectId: string): Promise<SAPayload<Tables<"projects">>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data, error } = await supabaseClient
-    .from("projects")
-    .update({ project_status: "approved" })
-    .eq("id", projectId)
-    .select("*")
-    .single();
+const approveProjectSchema = z.object({
+  projectId: z.string().uuid()
+});
 
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
+export const approveProjectAction = authActionClient
+  .schema(approveProjectSchema)
+  .action(async ({ parsedInput: { projectId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  revalidatePath(`/project/${projectId}`, "layout");
-  return { status: 'success', data };
-};
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .update({ project_status: "approved" })
+      .eq("id", projectId)
+      .select("*")
+      .single();
 
-export const rejectProjectAction = async (projectId: string): Promise<SAPayload<Tables<"projects">>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data, error } = await supabaseClient
-    .from("projects")
-    .update({ project_status: "draft" })
-    .eq("id", projectId)
-    .select("*")
-    .single();
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
+    revalidatePath(`/project/${projectId}`, "layout");
+    return data;
+  });
 
-  revalidatePath(`/project/${projectId}`, "layout");
-  return { status: 'success', data };
-};
 
-export const submitProjectForApprovalAction = async (
-  projectId: string,
-): Promise<SAPayload<Tables<"projects">>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data, error } = await supabaseClient
-    .from("projects")
-    .update({ project_status: "pending_approval" })
-    .eq("id", projectId)
-    .select("*")
-    .single();
+const rejectProjectSchema = z.object({
+  projectId: z.string().uuid()
+});
 
-  if (error) {
-    return { status: "error", message: error.message };
-  }
+export const rejectProjectAction = authActionClient
+  .schema(rejectProjectSchema)
+  .action(async ({ parsedInput: { projectId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  revalidatePath(`/project/${projectId}`, "layout");
-  return { status: "success", data };
-};
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .update({ project_status: "draft" })
+      .eq("id", projectId)
+      .select("*")
+      .single();
 
-export const markProjectAsCompletedAction = async (projectId: string): Promise<SAPayload<Tables<"projects">>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data, error } = await supabaseClient
-    .from("projects")
-    .update({ project_status: "completed" })
-    .eq("id", projectId)
-    .select("*")
-    .single();
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
+    revalidatePath(`/project/${projectId}`, "layout");
+    return data;
+  });
+const submitProjectForApprovalSchema = z.object({
+  projectId: z.string().uuid()
+});
 
-  revalidatePath(`/project/${projectId}`, "layout");
-  return { status: 'success', data };
-};
+export const submitProjectForApprovalAction = authActionClient
+  .schema(submitProjectForApprovalSchema)
+  .action(async ({ parsedInput: { projectId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .update({ project_status: "pending_approval" })
+      .eq("id", projectId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath(`/project/${projectId}`, "layout");
+    return data;
+  });
+
+const markProjectAsCompletedSchema = z.object({
+  projectId: z.string().uuid()
+});
+
+export const markProjectAsCompletedAction = authActionClient
+  .schema(markProjectAsCompletedSchema)
+  .action(async ({ parsedInput: { projectId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .update({ project_status: "completed" })
+      .eq("id", projectId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath(`/project/${projectId}`, "layout");
+    return data;
+  });
 export const getProjects = async ({
-  organizationId,
+  workspaceId,
   query = "",
   page = 1,
   limit = 5,
 }: {
   query?: string;
   page?: number;
-  organizationId: string;
+  workspaceId: string;
   limit?: number;
 }) => {
   const zeroIndexedPage = page - 1;
@@ -232,7 +222,7 @@ export const getProjects = async ({
   let supabaseQuery = supabase
     .from("projects")
     .select("*")
-    .eq("organization_id", organizationId)
+    .eq("workspace_id", workspaceId)
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
@@ -251,12 +241,12 @@ export const getProjects = async ({
 };
 
 export const getProjectsTotalCount = async ({
-  organizationId,
+  workspaceId,
   query = "",
   page = 1,
   limit = 5,
 }: {
-  organizationId: string;
+  workspaceId: string;
   query?: string;
   page?: number;
   limit?: number;
@@ -268,7 +258,7 @@ export const getProjectsTotalCount = async ({
       count: "exact",
       head: true,
     })
-    .eq("organization_id", organizationId)
+    .eq("workspace_id", workspaceId)
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
@@ -316,42 +306,40 @@ export const getSlimProjectBySlugForWorkspace = async (projectSlug: string) => {
   return data;
 }
 
-export const createProjectActionForWorkspace = async ({
-  workspaceId,
-  name,
-  slug,
-}: {
-  workspaceId: string;
-  name: string;
-  slug: string;
-}): Promise<SAPayload<Tables<"projects">>> => {
-  "use server";
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const { data: project, error } = await supabaseClient
-    .from("projects")
-    .insert({
-      workspace_id: workspaceId,
-      name,
-      slug,
-    })
-    .select("*")
-    .single();
+const createProjectSchema = z.object({
+  workspaceId: z.string().uuid(),
+  workspaceMembershipType: z.enum(['solo', 'team']),
+  name: z.string(),
+  slug: z.string(),
+});
 
-  if (error) {
-    return {
-      status: 'error',
-      message: error.message,
-    };
-  }
+export const createProjectAction = authActionClient
+  .schema(createProjectSchema)
+  .action(async ({ parsedInput: { workspaceId, workspaceMembershipType, name, slug } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  revalidatePath("/[workspaceSlug]", "layout");
-  revalidatePath("/[workspaceSlug]/projects", "layout");
+    const { data: project, error } = await supabaseClient
+      .from("projects")
+      .insert({
+        workspace_id: workspaceId,
+        name,
+        slug,
+      })
+      .select("*")
+      .single();
 
-  return {
-    status: 'success',
-    data: project,
-  };
-};
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (workspaceMembershipType === 'team') {
+      revalidatePath(`/workspace/${slug}`, "layout");
+    } else {
+      revalidatePath("/", "layout");
+    }
+
+    return project;
+  });
 
 export const getProjectsForWorkspace = async ({
   workspaceId,

@@ -1,7 +1,8 @@
 'use server';
 
 import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
-import type { Enum } from '@/types';
+import { Enum } from '@/types';
+
 
 export async function getAnonUserFeedbackList({
   query = '',
@@ -15,15 +16,15 @@ export async function getAnonUserFeedbackList({
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'internal_feedback_thread_type'>>;
-  statuses?: Array<Enum<'internal_feedback_thread_status'>>;
-  priorities?: Array<Enum<'internal_feedback_thread_priority'>>;
+  types?: Array<Enum<'marketing_feedback_thread_type'>>;
+  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
+  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
   sort?: 'asc' | 'desc';
 }) {
   const zeroIndexedPage = page - 1;
 
   let supabaseQuery = supabaseAnonClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .or(
       'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
@@ -72,16 +73,16 @@ export async function getAnonUserFeedbackTotalPages({
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'internal_feedback_thread_type'>>;
-  statuses?: Array<Enum<'internal_feedback_thread_status'>>;
-  priorities?: Array<Enum<'internal_feedback_thread_priority'>>;
+  types?: Array<Enum<'marketing_feedback_thread_type'>>;
+  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
+  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
   sort?: 'asc' | 'desc';
 }) {
   const zeroIndexedPage = page - 1;
 
   let supabaseQuery = supabaseAnonClient
-    .from('internal_feedback_threads')
-    .select('*')
+    .from('marketing_feedback_threads')
+    .select('*', { count: 'exact', head: true })
     .or(
       'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
     )
@@ -123,7 +124,7 @@ export async function getAnonUserFeedbackTotalPages({
 
 export async function anonGetRoadmapFeedbackList() {
   const roadmapItemsResponse = await supabaseAnonClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('added_to_roadmap', true);
   if (roadmapItemsResponse.error) {
@@ -137,10 +138,10 @@ export async function anonGetRoadmapFeedbackList() {
 }
 
 async function getRoadmapFeedbackByStatus(
-  status: Enum<'internal_feedback_thread_status'>,
+  status: Enum<'marketing_feedback_thread_status'>,
 ) {
   const roadmapItemsResponse = await supabaseAnonClient
-    .from('internal_feedback_threads')
+    .from('marketing_feedback_threads')
     .select('*')
     .eq('added_to_roadmap', true)
     .eq('status', status);

@@ -17,10 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { updateAuthorProfile } from "@/data/admin/internal-blog";
+import { adminUpdateAuthorProfileAction } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { DBTable } from "@/types";
-import { authorProfileSchema } from "@/utils/zod-schemas/internalBlog";
+import { marketingAuthorProfileFormSchema } from "@/utils/zod-schemas/internalBlog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SquarePen } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import type { z } from "zod";
 
-type AuthorProfileFormType = z.infer<typeof authorProfileSchema>;
+type AuthorProfileFormType = z.infer<typeof marketingAuthorProfileFormSchema>;
 export type UpdateAuthorPayload = Omit<
   DBTable<"internal_blog_author_profiles">,
   "created_at" | "updated_at"
@@ -46,7 +46,7 @@ export const EditAuthorProfileDialog = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const { control, handleSubmit, formState } = useForm<AuthorProfileFormType>({
-    resolver: zodResolver(authorProfileSchema),
+    resolver: zodResolver(marketingAuthorProfileFormSchema),
     defaultValues: {
       user_id: profile.user_id,
       display_name: profile.display_name,
@@ -65,7 +65,7 @@ export const EditAuthorProfileDialog = ({
     isLoading: isUpdatingAuthorProfile,
   } = useSAToastMutation(
     async (payload: UpdateAuthorPayload) => {
-      return updateAuthorProfile(profile.user_id, payload);
+      return adminUpdateAuthorProfileAction(profile.user_id, payload);
     },
     {
       loadingMessage: "Updating author profile...",

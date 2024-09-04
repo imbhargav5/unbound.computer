@@ -1,23 +1,24 @@
 import { cn } from '@/lib/utils';
+import { SlimWorkspaces } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
 import darkLogo from 'public/logos/nextbase-dark-logo.png';
 import lightLogo from 'public/logos/nextbase-light-logo.png';
 import { T } from '../ui/Typography';
-import { OrganizationSwitcher } from './OrganizationSwitcher';
+import { WorkspaceSwitcher } from './OrganizationSwitcher';
 import { SidebarClose } from './SidebarClose';
 type Props = {
-  organizationId?: string;
-  slimOrganizations?: { id: string, title: string, slug: string }[];
+  workspaceId?: string;
+  slimWorkspaces?: SlimWorkspaces;
 };
 
-export function SwitcherAndToggle({ organizationId, slimOrganizations }: Props) {
+export function SwitcherAndToggle({ workspaceId, slimWorkspaces }: Props) {
   return (
     <div className="flex items-center w-full gap-1 justify-between">
-      {organizationId && slimOrganizations ? (
-        <OrganizationSwitcher
-          currentOrganizationId={organizationId}
-          slimOrganizations={slimOrganizations}
+      {workspaceId && slimWorkspaces ? (
+        <WorkspaceSwitcher
+          currentWorkspaceId={workspaceId}
+          slimWorkspaces={slimWorkspaces}
         />
       ) : <Link
         href="/dashboard"

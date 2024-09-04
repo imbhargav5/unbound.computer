@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { deleteBlogTag } from "@/data/admin/internal-blog";
+import { adminDeleteBlogTagAction } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { DBTable } from "@/types";
 import { Tag, Trash } from "lucide-react";
@@ -28,7 +28,7 @@ export const ManageBlogTagsDialog = ({
   const { mutate: deleteBlogTagMutation, isLoading: isDeletingBlogTag } =
     useSAToastMutation(
       async (slug: number) => {
-        return await deleteBlogTag(slug);
+        return await adminDeleteBlogTagAction(slug);
       },
       {
         loadingMessage: "Deleting blog tag...",

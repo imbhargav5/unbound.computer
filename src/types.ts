@@ -100,3 +100,7 @@ export type SAPayload<TData = undefined> = SASuccessPayload<TData> | SAErrorPayl
 export type Message = CoreMessage & {
   id: string;
 };
+
+export type SlimWorkspace = { id: string, name: string, slug: string, membershipType: Enum<'workspace_membership_type'> }
+export type SlimWorkspaces = Array<SlimWorkspace>
+export type WorkspaceWithMembershipType = DBTable<"workspaces"> & { membershipType: Enum<'workspace_membership_type'> }

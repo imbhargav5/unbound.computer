@@ -1,6 +1,6 @@
 'use client';
 import type { roadmapDataType } from '@/data/admin/internal-roadmap';
-import { adminUpdateFeedbackStatus } from '@/data/feedback';
+import { adminUpdateFeedbackStatusAction } from '@/data/feedback';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import Link from 'next/link';
 import { Droppable } from './_components/Droppable';
@@ -31,7 +31,7 @@ export function AppAdminRoadmap({
     const { over } = event;
 
     if (over) {
-      await adminUpdateFeedbackStatus({
+      await adminUpdateFeedbackStatusAction({
         feedbackId: event.active.id as string,
         status: statusesKey[over.id],
       });

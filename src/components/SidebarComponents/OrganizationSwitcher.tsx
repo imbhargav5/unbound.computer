@@ -10,26 +10,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SlimWorkspaces } from '@/types';
+import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { motion } from 'framer-motion';
 import { Check, ChevronsUpDown, UsersRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export function OrganizationSwitcher({
-  slimOrganizations,
-  currentOrganizationId,
+export function WorkspaceSwitcher({
+  slimWorkspaces,
+  currentWorkspaceId,
 }: {
-  slimOrganizations: Array<{
-    id: string;
-    title: string;
-    slug: string;
-  }>;
-  currentOrganizationId: string;
+  slimWorkspaces: SlimWorkspaces;
+  currentWorkspaceId: string;
 }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const router = useRouter();
-  const currentOrganization = slimOrganizations.find(
-    (organization) => organization.id === currentOrganizationId,
+  const currentWorkspace = slimWorkspaces.find(
+    (workspace) => workspace.id === currentWorkspaceId,
   );
 
   return (
@@ -46,7 +44,7 @@ export function OrganizationSwitcher({
           >
             <UsersRound className="h-4 w-4 shrink-0" />
             <span className="text-sm text-muted-foreground truncate flex-grow">
-              {currentOrganization?.title ?? 'Select Organization'}
+              {currentWorkspace?.name ?? 'Select Organization'}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-50 ml-2 transition-opacity" />
           </motion.div>
@@ -55,11 +53,11 @@ export function OrganizationSwitcher({
       <DropdownMenuContent align="start" className="w-[240px]">
         <DropdownMenuLabel>Organizations</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {slimOrganizations.map((organization) => (
+        {slimWorkspaces.map((workspace) => (
           <DropdownMenuItem
-            key={organization.id}
+            key={workspace.id}
             onSelect={() => {
-              router.push(`/${organization.slug}`);
+              router.push(getWorkspaceSubPath(workspace, '/home'));
             }}
           >
             <motion.div
@@ -68,8 +66,8 @@ export function OrganizationSwitcher({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.15 }}
             >
-              {organization.title}
-              {organization.id === currentOrganizationId && (
+              {workspace.name}
+              {workspace.id === currentWorkspaceId && (
                 <Check className="h-4 w-4 text-primary" />
               )}
             </motion.div>
@@ -82,7 +80,7 @@ export function OrganizationSwitcher({
             whileTap={{ scale: 0.95 }}
             className="w-full"
           >
-            Create Organization
+            Create Workspace
           </motion.div>
         </DropdownMenuItem>
       </DropdownMenuContent>

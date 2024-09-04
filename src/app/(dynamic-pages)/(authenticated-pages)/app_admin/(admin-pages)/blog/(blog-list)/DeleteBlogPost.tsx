@@ -1,13 +1,13 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import { deleteBlogPost } from '@/data/admin/internal-blog';
+import { adminDeleteBlogPostAction } from '@/data/admin/internal-blog';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { Trash2 } from 'lucide-react';
 
 export function DeleteBlogPost({ blogPostId }: { blogPostId: string }) {
   const { mutate, isLoading } = useSAToastMutation(
     async () => {
-      return deleteBlogPost(blogPostId);
+      return adminDeleteBlogPostAction(blogPostId);
     },
     {
       loadingMessage: 'Deleting blog post...',

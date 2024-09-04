@@ -3,7 +3,7 @@ import { PRODUCT_NAME } from "@/constants";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
-import type { DBTable, SAPayload, SupabaseFileUploadOptions } from "@/types";
+import type { SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
@@ -203,10 +203,8 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
         throw new Error(updateUserMetadataResponse.error.message);
       }
 
-      const refreshSessionResponse = await refreshSessionAction();
-      if (refreshSessionResponse.status === "error") {
-        throw new Error(refreshSessionResponse.message);
-      }
+      await refreshSessionAction();
+
 
       revalidatePath("/", "layout");
     }
@@ -230,10 +228,8 @@ export async function acceptTermsOfService(): Promise<boolean> {
     throw new Error(`Failed to accept terms of service: ${error.message}`);
   }
 
-  const refreshSessionResponse = await refreshSessionAction();
-  if (refreshSessionResponse.status === "error") {
-    throw new Error(`Failed to refresh session: ${refreshSessionResponse.message}`);
-  }
+  await refreshSessionAction();
+
 
   return true;
 }
@@ -242,46 +238,44 @@ export const acceptTermsOfServiceAction = authActionClient.action(async (): Prom
   return await acceptTermsOfService();
 });
 
-export async function requestAccountDeletionAction(): Promise<
-  SAPayload<DBTable<"account_delete_tokens">>
-> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
-  if (!user.email) {
-    return { status: "error", message: "User email not found" };
-  }
-  const { data, error } = await supabaseClient
-    .from("account_delete_tokens")
-    .upsert({
-      user_id: user.id,
-    })
-    .select("*")
-    .single();
+// Define the action to request account deletion
+export const requestAccountDeletionAction = authActionClient
+  .action(async () => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUser();
 
-  if (error) {
-    return { status: "error", message: error.message };
-  }
+    if (!user.email) {
+      throw new Error("User email not found");
+    }
 
-  const userFullName =
-    (await getUserFullName(user.id)) ?? `User ${user.email ?? ""}`;
+    const { data, error } = await supabaseClient
+      .from("account_delete_tokens")
+      .upsert({
+        user_id: user.id,
+      })
+      .select("*")
+      .single();
 
-  const deletionHTML = await renderAsync(
-    <ConfirmAccountDeletionEmail
-      deletionConfirmationLink={toSiteURL(`/confirm-delete-user/${data.token}`)}
-      userName={userFullName}
-      appName={PRODUCT_NAME}
-    />,
-  );
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  await sendEmail({
-    from: process.env.ADMIN_EMAIL,
-    html: deletionHTML,
-    subject: `Confirm Account Deletion - ${PRODUCT_NAME}`,
-    to: user.email,
+    const userFullName = await getUserFullName(user.id) ?? `User ${user.email ?? ""}`;
+
+    const deletionHTML = await renderAsync(
+      <ConfirmAccountDeletionEmail
+        deletionConfirmationLink={toSiteURL(`/confirm-delete-user/${data.token}`)}
+        userName={userFullName}
+        appName={PRODUCT_NAME}
+      />
+    );
+
+    await sendEmail({
+      from: process.env.ADMIN_EMAIL!,
+      html: deletionHTML,
+      subject: `Confirm Account Deletion - ${PRODUCT_NAME}`,
+      to: user.email,
+    });
+
+    return data;
   });
-
-  return {
-    status: "success",
-    data,
-  };
-}

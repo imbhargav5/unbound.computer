@@ -2,7 +2,7 @@
 
 import { useChat, type Message } from 'ai/react';
 
-import { insertChat } from '@/data/user/chats';
+import { insertChatAction } from '@/data/user/chats';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
@@ -22,7 +22,7 @@ export interface ChatProps extends React.ComponentProps<'div'> {
 
 export function ChatContainer({ id, initialMessages, className, project }: ChatProps) {
   const { mutate } = useSAToastMutation(async ({ chatId, projectId, content }: { chatId: string, projectId: string, content: Message[] }) => {
-    return await insertChat(projectId, content, chatId);
+    return await insertChatAction(projectId, content, chatId);
   }, {
     errorMessage(error) {
       try {

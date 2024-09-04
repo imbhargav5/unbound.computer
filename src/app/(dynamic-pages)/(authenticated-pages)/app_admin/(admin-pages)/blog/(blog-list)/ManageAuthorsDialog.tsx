@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { deleteAuthorProfile } from "@/data/admin/internal-blog";
+import { adminDeleteAuthorProfileAction } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { DBTable } from "@/types";
 import { Trash, Users } from "lucide-react";
@@ -36,7 +36,7 @@ export const ManageAuthorsDialog = ({
     isLoading: isDeletingAuthorProfile,
   } = useSAToastMutation(
     async (id: string) => {
-      return await deleteAuthorProfile(id);
+      return await adminDeleteAuthorProfileAction(id);
     },
     {
       loadingMessage: "Deleting author profile...",

@@ -1,4 +1,6 @@
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import { userRoles } from "@/utils/userTypes";
 import { createSafeActionClient } from "next-safe-action";
 
 export const actionClient = createSafeActionClient().use(async ({ next, clientInput, metadata }) => {
@@ -46,3 +48,11 @@ export const authActionClient = actionClient.use(
     });
   },
 );
+
+export const adminActionClient = authActionClient.use(async ({ next }) => {
+  const userType = await serverGetUserType();
+  if (userType !== userRoles.ADMIN) {
+    throw new Error("User is not an admin");
+  }
+  return await next();
+});

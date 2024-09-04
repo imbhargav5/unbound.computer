@@ -27,11 +27,11 @@ const createProjectFormSchema = z.object({
 });
 
 type CreateProjectDialogProps = {
-  organizationId: string;
+  workspaceId: string;
 };
 
 export function CreateProjectDialog({
-  organizationId,
+  workspaceId,
 }: CreateProjectDialogProps) {
   const { register, handleSubmit, setValue } = useForm({
     resolver: zodResolver(createProjectFormSchema),
@@ -45,11 +45,10 @@ export function CreateProjectDialog({
   const router = useRouter();
   const createProjectMutation = useSAToastMutation(
     async ({
-      organizationId,
       name,
       slug,
-    }: { organizationId: string; name: string; slug: string }) =>
-      await createProjectAction({ organizationId, name, slug }),
+    }: { workspaceId: string; name: string; slug: string }) =>
+      await createProjectAction({ workspaceId, name, slug }),
     {
       loadingMessage: "Creating project...",
       successMessage: "Project created!",
@@ -65,7 +64,6 @@ export function CreateProjectDialog({
 
   const onSubmit: SubmitHandler<{ name: string; slug: string }> = (data) => {
     createProjectMutation.mutate({
-      organizationId,
       name: data.name,
       slug: data.slug,
     });

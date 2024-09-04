@@ -1,8 +1,9 @@
 'use server';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
+import { SlimWorkspaces } from '@/types';
 import { ensureAppAdmin } from './security';
 
-export async function getOrganizationsTotalPages({
+export async function getWorkspacesTotalPages({
   query = '',
   limit = 10,
 }: {
@@ -10,35 +11,30 @@ export async function getOrganizationsTotalPages({
   limit?: number;
 }) {
   ensureAppAdmin();
-  const { data, error } = await supabaseAdminClient.rpc(
-    'app_admin_get_all_organizations_count',
-    {
-      search_query: query,
-    },
-  );
+  const { count, error } = await supabaseAdminClient.from('workspaces').select('id', {
+    count: 'exact',
+    head: true,
+  }).ilike('name', `%${query}%`);
   if (error) throw error;
-  return Math.ceil(data / limit);
+  if (!count) throw new Error('No count');
+  return Math.ceil(count / limit);
 }
 
-export async function getPaginatedOrganizationList({
+export async function getPaginatedWorkspaceList({
   limit = 10,
-  page,
-  query,
+  page = 1,
+  query = undefined,
 }: {
   page?: number;
-  query?: string;
+  query?: string | undefined;
   limit?: number;
 }) {
   ensureAppAdmin();
-
-  const { data, error } = await supabaseAdminClient.rpc(
-    'app_admin_get_all_organizations',
-    {
-      page: page,
-      search_query: query,
-      page_size: limit,
-    },
-  );
+  let requestQuery = supabaseAdminClient.from('workspaces').select('*');
+  if (query) {
+    requestQuery = requestQuery.ilike('name', `%${query}%`);
+  }
+  const { data, error } = await requestQuery.range((page - 1) * limit, page * limit);
   if (error) throw error;
   if (!data) {
     throw new Error('No data');
@@ -46,24 +42,23 @@ export async function getPaginatedOrganizationList({
   return data;
 }
 
-export async function getSlimOrganizationsOfUser(userId: string) {
-  const { data: organizations, error: organizationsError } =
+export async function getSlimWorkspacesOfUser(userId: string): Promise<SlimWorkspaces> {
+
+  const { data: workspaceTeamMembers, error: workspaceTeamMembersError } =
     await supabaseAdminClient
-      .from('organization_members')
+      .from('workspace_team_members')
       .select('*')
       .eq('member_id', userId);
 
-  if (organizationsError) {
-    throw organizationsError;
+  if (workspaceTeamMembersError) {
+    throw workspaceTeamMembersError;
   }
 
+
   const { data, error } = await supabaseAdminClient
-    .from('organizations')
-    .select('id,title')
-    .in(
-      'id',
-      organizations.map((org) => org.organization_id),
-    )
+    .from('workspaces')
+    .select('id,name,slug,workspace_application_settings(*)')
+    .in('id', workspaceTeamMembers.map((member) => member.workspace_id))
     .order('created_at', {
       ascending: false,
     });
@@ -71,16 +66,12 @@ export async function getSlimOrganizationsOfUser(userId: string) {
     throw error;
   }
 
-  const combinedData = data.map((org) => {
-    const organization = organizations.find(
-      (organization) => organization.organization_id === org.id,
-    );
-    if (!organization) throw new Error('Organization not found');
+  return data.map((workspace) => {
     return {
-      ...org,
-      member_role: organization?.member_role,
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      membershipType: workspace.workspace_application_settings?.membership_type ?? 'solo',
     };
   });
-
-  return combinedData;
 }

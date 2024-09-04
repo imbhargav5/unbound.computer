@@ -11,51 +11,42 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createAuthorProfile } from "@/data/admin/internal-blog";
+import { adminCreateAuthorProfileAction } from "@/data/admin/internal-blog";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import type { DBTable } from "@/types";
-import { authorProfileSchema } from "@/utils/zod-schemas/internalBlog";
+import { marketingAuthorProfileFormSchema } from "@/utils/zod-schemas/internalBlog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import slugify from 'slugify';
 import { toast } from "sonner";
 import type { z } from "zod";
 
-type AuthorProfileFormType = z.infer<typeof authorProfileSchema>;
-export type CreateAuthorPayload = Omit<
-  DBTable<"internal_blog_author_profiles">,
-  "created_at" | "updated_at"
->;
+type AuthorProfileFormType = z.infer<typeof marketingAuthorProfileFormSchema>;
+
 export const AddAuthorProfileDialog = ({
   appAdmins,
   authorProfiles,
 }: {
   appAdmins: Array<DBTable<"user_profiles">>;
-  authorProfiles: Array<DBTable<"internal_blog_author_profiles">>;
+  authorProfiles: Array<DBTable<"marketing_author_profiles">>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
-  const { control, handleSubmit, formState, reset, setValue } =
+  const { control, handleSubmit, formState, reset, watch, setValue } =
     useForm<AuthorProfileFormType>({
-      resolver: zodResolver(authorProfileSchema),
+      resolver: zodResolver(marketingAuthorProfileFormSchema),
     });
 
   const {
     mutate: createAuthorProfileMutation,
     isLoading: isCreatingAuthorProfile,
   } = useSAToastMutation(
-    async (payload: CreateAuthorPayload) => {
-      return createAuthorProfile(payload);
+    async (payload: AuthorProfileFormType) => {
+      return adminCreateAuthorProfileAction(payload);
     },
     {
       onSuccess: () => {
@@ -80,18 +71,21 @@ export const AddAuthorProfileDialog = ({
 
   const { isValid, isLoading } = formState;
 
+  const displayName = watch("display_name");
+
+  useEffect(() => {
+    if (typeof displayName === 'string') {
+      const slug = slugify(displayName, {
+        lower: true,
+        strict: true,
+        replacement: '-',
+      });
+      setValue('slug', slug);
+    }
+  }, [displayName, setValue]);
+
   const onSubmit = (data: AuthorProfileFormType) => {
-    void createAuthorProfileMutation({
-      user_id: data.user_id,
-      display_name: data.display_name,
-      bio: data.bio,
-      avatar_url: data.avatar_url,
-      website_url: data.website_url ?? null,
-      twitter_handle: data.twitter_handle ?? null,
-      facebook_handle: data.facebook_handle ?? null,
-      linkedin_handle: data.linkedin_handle ?? null,
-      instagram_handle: data.instagram_handle ?? null,
-    });
+    void createAuthorProfileMutation(data);
   };
 
   return (
@@ -116,32 +110,6 @@ export const AddAuthorProfileDialog = ({
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 ">
           <div className="fields space-y-4 max-h-96 px-1 overflow-auto">
-            <div className="space-y-2">
-              <Label>User ID</Label>
-              <Controller
-                control={control}
-                name="user_id"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {appAdmins.map((admin) => {
-                        const disabled = authorProfiles.some(
-                          (profile) => profile.user_id === admin.id,
-                        );
-                        return (
-                          <SelectItem key={admin.id} value={admin.id}>
-                            {admin.full_name || `User ${admin.id}`}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
             <div className="space-y-1">
               <Label>Display Name</Label>
               <Controller
@@ -149,6 +117,16 @@ export const AddAuthorProfileDialog = ({
                 name="display_name"
                 render={({ field }) => (
                   <Input {...field} placeholder="Display Name" />
+                )}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Slug</Label>
+              <Controller
+                control={control}
+                name="slug"
+                render={({ field }) => (
+                  <Input disabled {...field} placeholder="Slug" />
                 )}
               />
             </div>

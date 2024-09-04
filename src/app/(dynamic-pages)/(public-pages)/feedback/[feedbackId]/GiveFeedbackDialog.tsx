@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { createInternalFeedback } from '@/data/user/internalFeedback';
+import { createInternalFeedbackAction } from '@/data/user/internalFeedback';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { Enum } from '@/types';
 import { cn } from '@/utils/cn';
@@ -69,7 +69,7 @@ export const GiveFeedbackDialog = ({
     isLoading: isCreatingInternalFeedback,
   } = useSAToastMutation(
     async (data: FeedbackFormType) => {
-      return await createInternalFeedback(data);
+      return await createInternalFeedbackAction(data);
     },
     {
       errorMessage(error) {

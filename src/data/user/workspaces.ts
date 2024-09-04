@@ -4,15 +4,17 @@ import { Tables } from '@/lib/database.types';
 import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import type { DBTable, Enum, SAPayload } from '@/types';
+import type { Enum, SlimWorkspaces, WorkspaceWithMembershipType } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import { AuthUserMetadata } from '@/utils/zod-schemas/authUserMetadata';
 import { createWorkspaceSchema } from '@/utils/zod-schemas/workspaces';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { v4 as uuid } from 'uuid';
+import { z } from 'zod';
 import { addUserAsWorkspaceOwner, updateUserAppMetadata, updateWorkspaceMembershipType } from './elevatedQueries';
 import { refreshSessionAction } from './session';
-
 
 export const getWorkspaceIdBySlug = async (slug: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -28,6 +30,23 @@ export const getWorkspaceIdBySlug = async (slug: string) => {
   }
 
   return data.id;
+};
+
+export const getWorkspaceBySlug = async (slug: string): Promise<WorkspaceWithMembershipType> => {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+
+  const { data, error } = await supabaseClient
+    .from('workspaces')
+    .select('*, workspace_application_settings(membership_type)')
+    .eq('slug', slug)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const { workspace_application_settings, ...workspace } = data;
+  return { ...workspace, membershipType: workspace_application_settings?.membership_type ?? 'solo' };
 };
 
 export const getWorkspaceSlugById = async (workspaceId: string) => {
@@ -46,7 +65,28 @@ export const getWorkspaceSlugById = async (workspaceId: string) => {
   return data.slug;
 };
 
+export async function getWorkspaceTitle(workspaceId: string): Promise<string> {
+  const supabase = createServerComponentClient({ cookies });
+  const { data, error } = await supabase
+    .from('workspaces')
+    .select('title')
+    .eq('id', workspaceId)
+    .single();
 
+  if (error) throw error;
+  return data.title;
+}
+
+export async function getWorkspaces(userId: string) {
+  const supabase = createServerComponentClient({ cookies });
+  const { data, error } = await supabase
+    .from('workspace_members')
+    .select('workspace_id, workspaces(id, slug, title, is_solo)')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return data.map(({ workspaces }) => workspaces);
+}
 
 export const createWorkspace = authActionClient.schema(createWorkspaceSchema).action(
   async ({
@@ -116,10 +156,8 @@ export const createWorkspace = authActionClient.schema(createWorkspaceSchema).ac
       });
 
 
-      console.log('refreshing session');
       // Refresh the session
       await refreshSessionAction();
-      console.log('refreshed session');
     }
 
 
@@ -135,12 +173,12 @@ export const createWorkspace = authActionClient.schema(createWorkspaceSchema).ac
   }
 );
 
-export const getWorkspaceById = async (workspaceId: string) => {
+export const getWorkspaceById = async (workspaceId: string): Promise<WorkspaceWithMembershipType> => {
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from('workspaces')
-    .select('*')
+    .select('*, workspace_application_settings(membership_type)')
     .eq('id', workspaceId)
     .single();
 
@@ -148,7 +186,8 @@ export const getWorkspaceById = async (workspaceId: string) => {
     throw error;
   }
 
-  return data;
+  const { workspace_application_settings, ...workspace } = data;
+  return { ...workspace, membershipType: workspace_application_settings?.membership_type ?? 'solo' };
 };
 
 export const getWorkspaceTeamMembers = async (workspaceId: string) => {
@@ -182,44 +221,32 @@ export const getWorkspaceInvitations = async (workspaceId: string) => {
   return data;
 };
 
-export const updateWorkspace = async (
-  workspaceId: string,
-  updates: Partial<DBTable<'workspaces'>>,
-): Promise<SAPayload<DBTable<'workspaces'>>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
+const deleteWorkspaceParamsSchema = z.object({
+  workspaceId: z.string()
+});
 
-  const { data, error } = await supabaseClient
-    .from('workspaces')
-    .update(updates)
-    .eq('id', workspaceId)
-    .select()
-    .single();
+export const deleteWorkspaceAction = authActionClient.schema(deleteWorkspaceParamsSchema).action(
+  async ({
+    parsedInput: {
+      workspaceId
+    }
+  }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
 
-  if (error) {
-    return { status: 'error', message: error.message };
+    const { error } = await supabaseClient
+      .from('workspaces')
+      .delete()
+      .eq('id', workspaceId);
+
+    if (error) {
+      return { status: 'error', message: error.message };
+    }
+
+    revalidatePath('/workspaces', 'layout');
+
+    return { status: 'success', data: `Workspace ${workspaceId} deleted successfully` };
   }
-
-  revalidatePath(`/workspace/${data.slug}`, 'layout');
-
-  return { status: 'success', data };
-};
-
-export const deleteWorkspace = async (workspaceId: string): Promise<SAPayload<string>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
-
-  const { error } = await supabaseClient
-    .from('workspaces')
-    .delete()
-    .eq('id', workspaceId);
-
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
-
-  revalidatePath('/workspaces', 'layout');
-
-  return { status: 'success', data: `Workspace ${workspaceId} deleted successfully` };
-};
+);
 
 export const getWorkspaceCredits = async (workspaceId: string): Promise<number> => {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -237,25 +264,31 @@ export const getWorkspaceCredits = async (workspaceId: string): Promise<number> 
   return data.credits;
 };
 
-export const updateWorkspaceCredits = async (
-  workspaceId: string,
-  newCredits: number,
-): Promise<SAPayload<number>> => {
-  const supabaseClient = createSupabaseUserServerActionClient();
 
-  const { data, error } = await supabaseClient
-    .from('workspace_credits')
-    .update({ credits: newCredits })
-    .eq('workspace_id', workspaceId)
-    .select('credits')
-    .single();
 
-  if (error) {
-    return { status: 'error', message: error.message };
-  }
+const updateWorkspaceCreditsSchema = z.object({
+  workspaceId: z.string().uuid(),
+  newCredits: z.number().int().positive(),
+});
 
-  return { status: 'success', data: data.credits };
-};
+export const updateWorkspaceCreditsAction = authActionClient
+  .schema(updateWorkspaceCreditsSchema)
+  .action(async ({ parsedInput: { workspaceId, newCredits } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { data, error } = await supabaseClient
+      .from('workspace_credits')
+      .update({ credits: newCredits })
+      .eq('workspace_id', workspaceId)
+      .select('credits')
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data.credits;
+  });
 
 export const getWorkspaceCreditsLogs = async (workspaceId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -330,7 +363,7 @@ export async function getMaybeDefaultWorkspace(): Promise<{
 
 
 
-export async function fetchSlimWorkspaces() {
+export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
   const currentUser = await serverGetLoggedInUser();
   const supabaseClient = createSupabaseUserServerComponentClient();
 
@@ -346,7 +379,7 @@ export async function fetchSlimWorkspaces() {
 
   const { data, error } = await supabaseClient
     .from('workspaces')
-    .select('id,name,slug')
+    .select('id,name,slug,workspace_application_settings(membership_type)')
     .in(
       'id',
       workspaceMembers.map((member) => member.workspace_id),
@@ -360,7 +393,13 @@ export async function fetchSlimWorkspaces() {
     throw error;
   }
 
-  return data || [];
+  const workspaces = data.map((workspace) => ({
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    membershipType: workspace.workspace_application_settings?.membership_type ?? 'solo'
+  }));
+  return workspaces
 }
 
 export async function setDefaultWorkspace(
