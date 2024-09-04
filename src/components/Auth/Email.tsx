@@ -3,7 +3,6 @@ import { Button } from '@/components/Button';
 import { T } from '@/components/ui/Typography';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { PropsOf } from '@headlessui/react/dist/types';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
@@ -14,6 +13,8 @@ export const Email = ({
   successMessage,
   label = 'Email address',
   defaultValue,
+  className,
+  style
 }: {
   onSubmit: (email: string) => void;
   view: 'sign-in' | 'sign-up' | 'update-email' | 'forgot-password';
@@ -21,7 +22,9 @@ export const Email = ({
   successMessage?: string | null | undefined;
   label?: string;
   defaultValue?: string;
-} & PropsOf<typeof Button>) => {
+  className?: string;
+  style?: React.CSSProperties;
+}) => {
   const [email, setEmail] = useState<string>(defaultValue ?? '');
 
   const buttonLabelText = useMemo(() => {
@@ -44,6 +47,8 @@ export const Email = ({
         onSubmit(email);
       }}
       data-testid="magic-link-form"
+      className={className}
+      style={style}
     >
       <div className="space-y-2">
         <div className="space-y-2">

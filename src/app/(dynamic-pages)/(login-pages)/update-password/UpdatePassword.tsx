@@ -1,4 +1,10 @@
 'use client';
+
+import { useAction } from 'next-safe-action/hooks';
+import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
+import { toast } from 'sonner';
+
 import { Password } from '@/components/Auth/Password';
 import {
   Card,
@@ -8,34 +14,30 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { updatePasswordAction } from '@/data/user/security';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { useRouter } from 'next/navigation';
 
 export function UpdatePassword() {
   const router = useRouter();
-  const updatePasswordMutation = useSAToastMutation(
-    async (password: string) => {
-      return await updatePasswordAction(password);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute, status } = useAction(updatePasswordAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating password...');
     },
-    {
-      loadingMessage: 'Updating password...',
-      successMessage: 'Password updated!',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update password ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update password';
-        }
-      },
-      onSuccess: () => {
-        router.push('/auth/callback');
-      },
+    onSuccess: () => {
+      toast.success('Password updated!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      router.push('/auth/callback');
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update password';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
   return (
     <div className="container h-full grid items-center text-left max-w-lg mx-auto overflow-auto">
@@ -44,13 +46,13 @@ export function UpdatePassword() {
           <CardHeader>
             <CardTitle>Reset Password</CardTitle>
             <CardDescription>
-              Enter your email to recieve a Magic Link to reset your password.
+              Enter your email to receive a Magic Link to reset your password.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Password
-              isLoading={updatePasswordMutation.isLoading}
-              onSubmit={(password) => updatePasswordMutation.mutate(password)}
+              isLoading={status === 'executing'}
+              onSubmit={(password: string) => execute({ password })}
               label="Create your new Password"
               buttonLabel="Confirm Password"
             />

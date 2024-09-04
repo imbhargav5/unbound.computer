@@ -101,7 +101,7 @@ export const signInWithMagicLinkAction = actionClient
   });
 
 const signInWithProviderSchema = z.object({
-  provider: z.enum(['google', 'github', 'gitlab', 'bitbucket']),
+  provider: z.enum(['google', 'github', 'twitter']),
   next: z.string().optional(),
 });
 

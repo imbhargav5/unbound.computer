@@ -1,4 +1,10 @@
 'use client';
+
+import { useAction } from 'next-safe-action/hooks';
+import { useRouter } from 'next/navigation';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+
 import { Email } from '@/components/Auth/Email';
 import { EmailAndPassword } from '@/components/Auth/EmailAndPassword';
 import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmationPendingCard';
@@ -11,112 +17,72 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  signInWithMagicLink,
-  signInWithProvider,
-  signUp,
-} from '@/data/auth/auth';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import type { AuthProvider } from '@/types';
-import { useState } from 'react';
 
-export function SignUp({
-  next,
-  nextActionType,
-}: {
+import { signInWithMagicLinkAction, signInWithProviderAction, signUpAction } from '@/data/auth/auth';
+import type { AuthProvider } from '@/types';
+
+interface SignUpProps {
   next?: string;
   nextActionType?: string;
-}) {
+}
+
+export function SignUp({ next, nextActionType }: SignUpProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const toastRef = useRef<string | number | undefined>(undefined);
+  const router = useRouter();
 
-  const [resendData, setResendData] = useState<{
-    email: string;
-    password: string;
-  } | null>(null);
 
-  const resendMutation = useSAToastMutation(
-    async () => {
-      if (!resendData) {
-        throw new Error('No resend data');
-      }
-      return await signUp(resendData.email, resendData.password);
-    },
-    {
-      onSuccess: () => {
-        setSuccessMessage('A confirmation link has been sent to your email!');
-      },
-      loadingMessage: 'Resending confirmation link...',
-      errorMessage: 'Failed to resend confirmation link',
-      successMessage: 'Confirmation link sent!',
-    },
-  );
 
-  const magicLinkMutation = useSAToastMutation(
-    async (email: string) => {
-      // since we can't use the onSuccess callback here to redirect from here
-      // we pass on the `next` to the signInWithMagicLink function
-      // the user gets redirected from their email message
-      return await signInWithMagicLink(email, next);
+  const { execute: executeMagicLink, status: magicLinkStatus } = useAction(signInWithMagicLinkAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Sending magic link...');
     },
-    {
-      loadingMessage: 'Sending magic link...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Send magic link failed ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Send magic link failed ';
-        }
-      },
-      successMessage: 'A magic link has been sent to your email!',
-      onSuccess: () => {
-        setSuccessMessage('A magic link has been sent to your email!');
-      },
+    onSuccess: () => {
+      toast.success('A magic link has been sent to your email!', { id: toastRef.current });
+      toastRef.current = undefined;
+      setSuccessMessage('A magic link has been sent to your email!');
     },
-  );
-  const passwordMutation = useSAToastMutation(
-    async ({ email, password }: { email: string; password: string }) => {
-      setResendData({ email, password });
-      return await signUp(email, password);
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to send magic link';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
     },
-    {
-      onSuccess: () => {
-        setSuccessMessage('A confirmation link has been sent to your email!');
-      },
-      loadingMessage: 'Creating account...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Create account failed ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Create account failed ';
-        }
-      },
-      successMessage: 'Account created!',
+  });
+
+  const { execute: executeSignUp, status: signUpStatus } = useAction(signUpAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Creating account...');
     },
-  );
-  const providerMutation = useSAToastMutation(
-    async (provider: AuthProvider) => {
-      // since we can't use the onSuccess callback here to redirect from here
-      // we pass on the `next` to the signInWithProvider function
-      // the user gets redirected from the provider redirect callback
-      return signInWithProvider(provider, next);
+    onSuccess: () => {
+      toast.success('Account created!', { id: toastRef.current });
+      toastRef.current = undefined;
+      setSuccessMessage('A confirmation link has been sent to your email!');
     },
-    {
-      loadingMessage: 'Requesting login...',
-      successMessage: 'Redirecting...',
-      errorMessage: 'Failed to login',
-      onSuccess: (payload) => {
-        window.location.href = payload.data.url;
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to create account';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
+  const { execute: executeProvider, status: providerStatus } = useAction(signInWithProviderAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Requesting login...');
+    },
+    onSuccess: ({ data }) => {
+      toast.success('Redirecting...', { id: toastRef.current });
+      toastRef.current = undefined;
+      if (data?.url) {
+        window.location.href = data.url;
       }
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to login';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+
   return (
     <div
       data-success={successMessage}
@@ -124,13 +90,11 @@ export function SignUp({
     >
       {successMessage ? (
         <EmailConfirmationPendingCard
-          type={'sign-up'}
-          heading={"Confirmation Link Sent"}
+          type="sign-up"
+          heading="Confirmation Link Sent"
           message={successMessage}
           resetSuccessMessage={setSuccessMessage}
-          resendEmail={() => {
-            resendMutation.mutate();
-          }}
+
         />
       ) : (
         <div className="space-y-8 bg-background p-6 rounded-lg shadow dark:border">
@@ -151,9 +115,9 @@ export function SignUp({
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
                   <EmailAndPassword
-                    isLoading={passwordMutation.isLoading}
+                    isLoading={signUpStatus === 'executing'}
                     onSubmit={(data) => {
-                      passwordMutation.mutate(data);
+                      executeSignUp({ ...data, next });
                     }}
                     view="sign-up"
                   />
@@ -170,8 +134,8 @@ export function SignUp({
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
                   <Email
-                    onSubmit={(email) => magicLinkMutation.mutate(email)}
-                    isLoading={magicLinkMutation.isLoading}
+                    onSubmit={(email) => executeMagicLink({ email, next })}
+                    isLoading={magicLinkStatus === 'executing'}
                     view="sign-up"
                   />
                 </CardContent>
@@ -188,8 +152,8 @@ export function SignUp({
                 <CardContent className="space-y-2 p-0">
                   <RenderProviders
                     providers={['google', 'github', 'twitter']}
-                    isLoading={providerMutation.isLoading}
-                    onProviderLoginRequested={providerMutation.mutate}
+                    isLoading={providerStatus === 'executing'}
+                    onProviderLoginRequested={(provider: Extract<AuthProvider, 'google' | 'github' | 'twitter'>) => executeProvider({ provider, next })}
                   />
                 </CardContent>
               </Card>
