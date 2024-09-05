@@ -5,8 +5,8 @@ import Link from 'next/link';
 import darkLogo from 'public/logos/nextbase-dark-logo.png';
 import lightLogo from 'public/logos/nextbase-light-logo.png';
 import { T } from '../ui/Typography';
-import { WorkspaceSwitcher } from './OrganizationSwitcher';
 import { SidebarClose } from './SidebarClose';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 type Props = {
   workspaceId?: string;
   slimWorkspaces?: SlimWorkspaces;

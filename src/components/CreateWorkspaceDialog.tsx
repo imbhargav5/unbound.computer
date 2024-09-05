@@ -10,77 +10,69 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createOrganization } from "@/data/user/organizations";
-import { useSAToastMutation } from "@/hooks/useSAToastMutation";
+import { createWorkspaceAction } from "@/data/user/workspaces";
 import { generateOrganizationSlug } from "@/lib/utils";
-import { CreateOrganizationSchema, createOrganizationSchema } from "@/utils/zod-schemas/organization";
+import { CreateWorkspaceSchema, createWorkspaceSchema } from "@/utils/zod-schemas/workspaces";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Network } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
+import { useRef } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
-type CreateOrganizationDialogProps = {
-  variant?: "default" | "outline" | "ghost";
-  className?: string;
+type CreateWorkspaceDialogProps = {
+
   isDialogOpen: boolean;
   setIsDialogOpen: (isOpen: boolean) => void;
 };
 
-export function CreateOrganizationDialog({
-  variant,
-  className,
+export function CreateWorkspaceDialog({
+
   isDialogOpen,
   setIsDialogOpen,
-}: CreateOrganizationDialogProps) {
+}: CreateWorkspaceDialogProps) {
   const router = useRouter()
-  const { mutate: createOrg, isLoading: isCreatingOrg } = useSAToastMutation(
-    async ({
-      organizationTitle,
-      organizationSlug,
-    }: { organizationTitle: string; organizationSlug: string }) => {
-      const orgSlug = await createOrganization(
-        organizationTitle,
-        organizationSlug,
-        {
-          isOnboardingFlow: true,
-        },
-      );
-      return orgSlug;
+  const toastRef = useRef<string | number | undefined>(undefined);
+  const { execute: createWorkspaceExecute, isPending } = useAction(createWorkspaceAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Creating workspace...", {
+        description: "Please wait while we create your workspace.",
+      });
     },
-    {
-      successMessage: "Organization created!",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to create organization ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to create organization';
-        }
-      },
-      onSuccess: (response) => {
-        if (response.status === "success" && response.data) {
-          router.push(`/${response.data}`);
-        }
-      },
+    onSuccess: ({ data }) => {
+      toast.success("Workspace created!", {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      if (data) {
+        router.push(`/workspace/${data}`)
+      }
     },
-  );
+    onError: (error) => {
+      toast.error("Failed to create workspace.", {
+        description: String(error),
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
-  const onSubmit = (data: CreateOrganizationSchema) => {
-    createOrg({
-      organizationTitle: data.organizationTitle,
-      organizationSlug: data.organizationSlug,
+  const onSubmit = (data: CreateWorkspaceSchema) => {
+    createWorkspaceExecute({
+      name: data.name,
+      slug: data.slug,
+      workspaceType: 'team',
+      isOnboardingFlow: false
     });
   };
 
   const { register, watch, formState: { errors }, handleSubmit, setValue } =
-    useForm<CreateOrganizationSchema>({
-      resolver: zodResolver(createOrganizationSchema),
+    useForm<CreateWorkspaceSchema>({
+      resolver: zodResolver(createWorkspaceSchema),
       defaultValues: {
-        organizationTitle: "",
-        organizationSlug: "",
+        name: "",
+        slug: "",
       },
     });
 
@@ -97,9 +89,9 @@ export function CreateOrganizationDialog({
               <Network className=" w-6 h-6" />
             </div>
             <div className="p-1">
-              <DialogTitle className="text-lg">Create Organization</DialogTitle>
+              <DialogTitle className="text-lg">Create Workspace</DialogTitle>
               <DialogDescription className="text-base mt-0">
-                Create a new organization and get started.
+                Create a new workspace and get started.
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -108,26 +100,27 @@ export function CreateOrganizationDialog({
               <div>
                 <Label>Organization Name</Label>
                 <Input
-                  {...register("organizationTitle")}
+                  {...register("name")}
                   className="mt-1.5 shadow appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-none focus:shadow-outline text-base"
                   id="name"
                   type="text"
                   onChange={(e) => {
-                    setValue("organizationSlug", generateOrganizationSlug(e.target.value), { shouldValidate: true });
-                    setValue("organizationTitle", e.target.value, { shouldValidate: true });
+                    setValue("slug", generateOrganizationSlug(e.target.value), { shouldValidate: true });
+                    setValue("name", e.target.value, { shouldValidate: true });
                   }}
                   placeholder="Organization Name"
-                  disabled={isCreatingOrg}
+                  disabled={isPending}
                 />
               </div>
 
               <div>
                 <Label>Organization Slug</Label>
                 <Input
-                  {...register("organizationSlug")}
+                  {...register("slug")}
                   className="mt-1.5 shadow appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-none focus:shadow-outline text-base"
                   id="slug"
                   type="text"
+                  disabled={isPending}
                   placeholder="Organization Slug"
                 />
               </div>
@@ -138,7 +131,7 @@ export function CreateOrganizationDialog({
               <Button
                 type="button"
                 variant="outline"
-                disabled={isCreatingOrg}
+                disabled={isPending}
                 className="w-full"
                 onClick={() => {
                   setIsDialogOpen(false);
@@ -150,9 +143,9 @@ export function CreateOrganizationDialog({
                 variant="default"
                 type="submit"
                 className="w-full"
-                disabled={isCreatingOrg}
+                disabled={isPending}
               >
-                Create Organization
+                Create Workspace
               </Button>
             </DialogFooter>
           </form>

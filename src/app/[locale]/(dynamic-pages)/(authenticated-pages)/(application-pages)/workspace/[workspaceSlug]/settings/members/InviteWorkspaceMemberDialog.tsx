@@ -1,5 +1,5 @@
 "use client";
-import { OrganizationMemberRoleSelect } from "@/components/OrganizationMemberRoleSelect";
+import { WorkspaceMemberRoleSelect } from "@/components/WorkspaceMemberRoleSelect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,17 +17,17 @@ import { UserPlus } from "lucide-react";
 import { useState } from "react";
 
 type Props = {
-  onInvite: (email: string, role: Enum<"organization_member_role">) => void;
+  onInvite: (email: string, role: Exclude<Enum<"workspace_user_role">, "owner">) => void;
   isLoading: boolean;
 };
 
-export const InviteOrganizationMemberDialog = ({
+export const InviteWorkspaceMemberDialog = ({
   onInvite,
   isLoading,
 }: Props) => {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Enum<"organization_member_role">>("member");
+  const [role, setRole] = useState<Exclude<Enum<"workspace_user_role">, "owner">>("member");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -49,7 +49,7 @@ export const InviteOrganizationMemberDialog = ({
           <div className="p-1">
             <DialogTitle className="text-lg">Invite user</DialogTitle>
             <DialogDescription className="text-base mt-0">
-              Invite a user to your organization.
+              Invite a user to your workspace.
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -65,7 +65,7 @@ export const InviteOrganizationMemberDialog = ({
           <div className="mb-8">
             <div className="flex flex-col space-y-2 justify-start w-full mb-4">
               <Label className="text-muted-foreground">Select a role</Label>
-              <OrganizationMemberRoleSelect
+              <WorkspaceMemberRoleSelect
                 value={role}
                 onChange={(newRole) => setRole(newRole)}
               />

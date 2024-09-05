@@ -1,7 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { setDefaultWorkspace } from "@/data/user/organizations";
 import { getUserProfile } from "@/data/user/user";
-import { fetchSlimWorkspaces, getMaybeDefaultWorkspace } from "@/data/user/workspaces";
+import { fetchSlimWorkspaces, getMaybeDefaultWorkspace, setDefaultWorkspaceAction } from "@/data/user/workspaces";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { authUserMetadataSchema } from "@/utils/zod-schemas/authUserMetadata";
 import { Suspense } from 'react';
@@ -26,7 +25,9 @@ async function getDefaultOrganizationOrSet(): Promise<string | null> {
   // if the user has an organization already for some
   // reason, because of an invite or for some other reason,
   // make sure that the default organization is set to the first
-  await setDefaultWorkspace(firstWorkspace.id);
+  await setDefaultWorkspaceAction({
+    workspaceId: firstWorkspace.id,
+  });
 
   return firstWorkspace.id;
 }

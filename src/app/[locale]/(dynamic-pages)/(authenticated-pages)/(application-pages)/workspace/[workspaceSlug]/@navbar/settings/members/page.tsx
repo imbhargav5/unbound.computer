@@ -1,4 +1,4 @@
-import { getWorkspaceBySlug } from '@/data/user/workspaces';
+import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
 import { cn } from '@/utils/cn';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
@@ -11,7 +11,7 @@ export default async function WorkspaceSettingsMembersNavbar({
   params: unknown;
 }) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return (
     <div className={cn('hidden', 'relative flex gap-2 items-center')}>

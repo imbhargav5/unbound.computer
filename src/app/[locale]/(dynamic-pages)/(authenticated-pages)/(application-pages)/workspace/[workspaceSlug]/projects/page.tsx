@@ -4,7 +4,7 @@ import { Pagination } from "@/components/Pagination";
 import { Search } from "@/components/Search";
 import { T } from "@/components/ui/Typography";
 import { getProjects, getProjectsTotalCount } from "@/data/user/projects";
-import { getWorkspaceBySlug } from "@/data/user/workspaces";
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import {
   projectsfilterSchema,
   workspaceSlugParamSchema
@@ -42,7 +42,7 @@ export default async function Page({
   searchParams,
 }: DashboardProps) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   const filters = projectsfilterSchema.parse(searchParams);
 
   return (

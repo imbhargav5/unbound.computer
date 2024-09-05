@@ -5,32 +5,26 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { getNormalizedOrganizationSubscription } from '@/data/user/organizations';
-import { formatNormalizedSubscription } from '@/utils/formatNormalizedSubscription';
+import { WorkspaceWithMembershipType } from '@/types';
+import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { Card } from '../ui/card';
 
 export async function SubscriptionCardSmall({
-  organizationId,
-  organizationSlug,
+  workspace
 }: {
-  organizationId: string;
-  organizationSlug: string;
+  workspace: WorkspaceWithMembershipType
 }) {
-  const normalizedSubscription =
-    await getNormalizedOrganizationSubscription(organizationId);
-
-
-  const { title, sidenote, description } = formatNormalizedSubscription(
-    normalizedSubscription,
-  );
+  const title = "Pro"
+  const sidenote = "Manage your subscription"
+  const description = "You're subscribed to the Pro plan. You can manage your subscription and billing details here."
 
   if (title) {
     return (
       <HoverCard>
         <HoverCardTrigger asChild>
-          <Link href={`/${organizationSlug}/settings/billing`}>
+          <Link href={getWorkspaceSubPath(workspace, `/settings/billing`)}>
             <div className="group cursor-pointer flex flex-col gap-1 items-start p-2 py-2 pb-3 border     w-full rounded-lg">
               <T.P className="font-semibold ">{title} Pro</T.P>
               {sidenote ? (
@@ -50,7 +44,7 @@ export async function SubscriptionCardSmall({
       <p>{description}</p>
       <Link
         className="w-full cursor-pointer flex mr-2 gap-2 items-center mt-1 rounded-lg"
-        href={`/${organizationSlug}/settings/billing`}
+        href={getWorkspaceSubPath(workspace, `/settings/billing`)}
       >
         <Button variant="default" className="w-full">
           <ArrowUpRight className="h-5 w-5 mr-2 " />

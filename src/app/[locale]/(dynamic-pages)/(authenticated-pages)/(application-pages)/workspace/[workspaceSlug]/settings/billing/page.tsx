@@ -1,27 +1,13 @@
 import { T } from "@/components/ui/Typography";
-import {
-  getLoggedInUserOrganizationRole,
-  getNormalizedOrganizationSubscription,
-  getOrganizationIdBySlug,
-} from "@/data/user/organizations";
-import { organizationSlugParamSchema } from "@/utils/zod-schemas/params";
+import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { Suspense } from "react";
 
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import { WorkspaceWithMembershipType } from "@/types";
 import type { Metadata } from "next";
-import { OrganizationSubscripionDetails } from "./OrganizationSubscripionDetails";
 
-async function Subscription({ organizationId }: { organizationId: string }) {
-  const normalizedSubscription =
-    await getNormalizedOrganizationSubscription(organizationId);
-  const organizationRole =
-    await getLoggedInUserOrganizationRole(organizationId);
-  return (
-    <OrganizationSubscripionDetails
-      organizationId={organizationId}
-      organizationRole={organizationRole}
-      normalizedSubscription={normalizedSubscription}
-    />
-  );
+async function Subscription({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+  return null;
 }
 
 export const metadata: Metadata = {
@@ -34,11 +20,11 @@ export default async function OrganizationSettingsPage({
 }: {
   params: unknown;
 }) {
-  const { organizationSlug } = organizationSlugParamSchema.parse(params);
-  const organizationId = await getOrganizationIdBySlug(organizationSlug);
+  const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   return (
     <Suspense fallback={<T.Subtle>Loading billing details...</T.Subtle>}>
-      <Subscription organizationId={organizationId} />
+      <Subscription workspace={workspace} />
     </Suspense>
   );
 }

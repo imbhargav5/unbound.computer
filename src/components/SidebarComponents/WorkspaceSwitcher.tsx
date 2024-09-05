@@ -1,6 +1,6 @@
 'use client';
 
-import { CreateOrganizationDialog } from '@/components/CreateOrganizationDialog';
+import { CreateWorkspaceDialog } from '@/components/CreateWorkspaceDialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -84,7 +84,7 @@ export function WorkspaceSwitcher({
           </motion.div>
         </DropdownMenuItem>
       </DropdownMenuContent>
-      <CreateOrganizationDialog
+      <CreateWorkspaceDialog
         isDialogOpen={isDialogOpen}
         setIsDialogOpen={setIsDialogOpen}
       />

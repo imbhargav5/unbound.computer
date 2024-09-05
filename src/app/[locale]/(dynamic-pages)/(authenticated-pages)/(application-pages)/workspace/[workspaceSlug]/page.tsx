@@ -4,7 +4,7 @@ import { Search } from "@/components/Search";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getProjects } from "@/data/user/projects";
-import { getWorkspaceBySlug } from "@/data/user/workspaces";
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import {
   projectsfilterSchema,
@@ -41,7 +41,7 @@ export type DashboardProps = {
 
 async function Dashboard({ params, searchParams }: DashboardProps) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   const validatedSearchParams = projectsfilterSchema.parse(searchParams);
 
   return (
@@ -54,7 +54,7 @@ async function Dashboard({ params, searchParams }: DashboardProps) {
               <FileText className="mr-2 h-4 w-4" />
               Export PDF
             </Button>
-            <CreateProjectDialog organizationId={workspace.id} />
+            <CreateProjectDialog workspaceId={workspace.id} />
           </div>
         </CardHeader>
         <CardContent>
@@ -91,7 +91,7 @@ async function Dashboard({ params, searchParams }: DashboardProps) {
 
 export async function generateMetadata({ params }: DashboardProps): Promise<Metadata> {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return {
     title: `Dashboard | ${workspace.name}`,

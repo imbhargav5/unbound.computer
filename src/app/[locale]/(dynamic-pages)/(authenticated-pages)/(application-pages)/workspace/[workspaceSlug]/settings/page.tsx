@@ -1,52 +1,43 @@
-import {
-  getLoggedInUserOrganizationRole,
-  getOrganizationIdBySlug,
-  getOrganizationSlugByOrganizationId,
-  getOrganizationTitle,
-} from "@/data/user/organizations";
-import { organizationSlugParamSchema } from "@/utils/zod-schemas/params";
+import { getCachedLoggedInUserWorkspaceRole, getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DeleteWorkspace } from "./DeleteWorkspace";
-import { EditOrganizationForm } from "./EditOrganizationForm";
-import { SetDefaultOrganizationPreference } from "./SetDefaultOrganizationPreference";
+import { EditWorkspaceForm } from "./EditWorkspaceForm";
+import { SetDefaultWorkspacePreference } from "./SetDefaultWorkspacePreference";
 import { SettingsFormSkeleton } from "./SettingsSkeletons";
 
 async function EditOrganization({
-  organizationId,
+  workspaceSlug,
 }: {
-  organizationId: string;
+  workspaceSlug: string;
 }) {
-  const organizationTitle = await getOrganizationTitle(organizationId);
-  const organizationSlug =
-    await getOrganizationSlugByOrganizationId(organizationId);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   return (
-    <EditOrganizationForm
-      organizationId={organizationId}
-      initialTitle={organizationTitle}
-      initialSlug={organizationSlug}
+    <EditWorkspaceForm
+      workspace={workspace}
+      workspaceMembershipType={workspace.membershipType}
     />
   );
 }
 
 async function DeleteOrganizationIfAdmin({
-  organizationId,
+  workspaceId,
+  workspaceName
 }: {
-  organizationId: string;
+  workspaceId: string;
+  workspaceName: string;
 }) {
-  const [organizationTitle, organizationRole] = await Promise.all([
-    getOrganizationTitle(organizationId),
-    getLoggedInUserOrganizationRole(organizationId),
-  ]);
-  const isOrganizationAdmin =
-    organizationRole === "admin" || organizationRole === "owner";
-  if (!isOrganizationAdmin) {
+  const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspaceId);
+  const isWorkspaceAdmin =
+    workspaceRole === "admin" || workspaceRole === "owner";
+  if (!isWorkspaceAdmin) {
     return null;
   }
   return (
     <DeleteWorkspace
-      organizationId={organizationId}
-      organizationTitle={organizationTitle}
+      workspaceId={workspaceId}
+      workspaceName={workspaceName}
     />
   );
 }
@@ -59,23 +50,21 @@ export const metadata: Metadata = {
 export default async function EditOrganizationPage({
   params,
 }: {
-  params: {
-    organizationSlug: string;
-  };
+  params: unknown;
 }) {
-  const { organizationSlug } = organizationSlugParamSchema.parse(params);
-  const organizationId = await getOrganizationIdBySlug(organizationSlug);
+  const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return (
     <div className="space-y-4">
       <Suspense fallback={<SettingsFormSkeleton />}>
-        <EditOrganization organizationId={organizationId} />
+        <EditOrganization workspaceSlug={workspaceSlug} />
       </Suspense>
       <Suspense fallback={<SettingsFormSkeleton />}>
-        <SetDefaultOrganizationPreference organizationId={organizationId} />
+        <SetDefaultWorkspacePreference workspaceSlug={workspaceSlug} />
       </Suspense>
       <Suspense fallback={<SettingsFormSkeleton />}>
-        <DeleteOrganizationIfAdmin organizationId={organizationId} />
+        <DeleteOrganizationIfAdmin workspaceId={workspace.id} workspaceName={workspace.name} />
       </Suspense>
     </div>
   );

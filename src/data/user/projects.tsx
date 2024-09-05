@@ -14,7 +14,7 @@ export async function getSlimProjectById(projectId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
-    .select("id,name,project_status,organization_id,slug")
+    .select("id,name,project_status,workspace_id,slug")
     .eq("id", projectId)
     .single();
   if (error) {
@@ -42,6 +42,19 @@ export async function getProjectById(projectId: string) {
     .from("projects")
     .select("*")
     .eq("id", projectId)
+    .single();
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+export async function getProjectBySlug(projectSlug: string) {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("projects")
+    .select("*")
+    .eq("slug", projectSlug)
     .single();
   if (error) {
     throw error;

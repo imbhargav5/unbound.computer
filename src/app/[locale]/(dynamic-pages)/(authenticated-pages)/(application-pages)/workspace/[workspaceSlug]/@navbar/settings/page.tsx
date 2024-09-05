@@ -1,5 +1,5 @@
 import { T } from '@/components/ui/Typography';
-import { getWorkspaceBySlug } from '@/data/user/workspaces';
+import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
 import { cn } from '@/utils/cn';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
@@ -12,7 +12,7 @@ export default async function WorkspaceSettingsNavbar({
   params: unknown;
 }) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   return (
     <div className={cn('hidden lg:block', 'relative ')}>
       <T.P className="my-0">

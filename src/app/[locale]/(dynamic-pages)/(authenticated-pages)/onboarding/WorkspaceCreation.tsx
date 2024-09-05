@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createWorkspace } from "@/data/user/workspaces";
+import { createWorkspaceAction } from "@/data/user/workspaces";
 import { generateWorkspaceSlug } from "@/lib/utils";
 import { CreateWorkspaceSchema, createWorkspaceSchema } from "@/utils/zod-schemas/workspaces";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,7 +20,7 @@ export function WorkspaceCreation({ onSuccess }: WorkspaceCreationProps) {
     resolver: zodResolver(createWorkspaceSchema),
   });
   const toastRef = useRef<string | number | undefined>(undefined);
-  const { execute: createWorkspaceAction, isPending } = useAction(createWorkspace, {
+  const { execute: createWorkspaceExecute, isPending } = useAction(createWorkspaceAction, {
     onExecute: () => {
       toastRef.current = toast.loading("Creating workspace...", {
         description: "Please wait while we create your workspace.",
@@ -43,7 +43,7 @@ export function WorkspaceCreation({ onSuccess }: WorkspaceCreationProps) {
   });
 
   const onSubmit = (data: CreateWorkspaceSchema) => {
-    createWorkspaceAction({
+    createWorkspaceExecute({
       name: data.name,
       slug: data.slug,
       workspaceType: 'solo',

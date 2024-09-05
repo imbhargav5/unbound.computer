@@ -8,14 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  getLoggedInUserOrganizationRole,
-  getOrganizationIdBySlug,
-  getPendingInvitationsInOrganization,
-  getTeamMembersInOrganization,
-} from "@/data/user/organizations";
-import type { TeamMembersTableProps } from "@/types";
-import { organizationSlugParamSchema } from "@/utils/zod-schemas/params";
+
+import { getPendingInvitationsInWorkspace, getWorkspaceTeamMembers } from "@/data/user/workspaces";
+import { getCachedLoggedInUserWorkspaceRole, getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import type { TeamMembersTableProps, WorkspaceWithMembershipType } from "@/types";
+import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import moment from "moment";
 import type { Metadata } from "next";
 import { Suspense } from "react";
@@ -25,15 +22,15 @@ import { RevokeInvitationDialog } from "./RevokeInvitationDialog";
 
 export const metadata: Metadata = {
   title: "Members",
-  description: "You can edit your organization's members here.",
+  description: "You can edit your workspace's members here.",
 };
 
-async function TeamMembers({ organizationId }: { organizationId: string }) {
-  const members = await getTeamMembersInOrganization(organizationId);
-  const organizationRole =
-    await getLoggedInUserOrganizationRole(organizationId);
-  const isOrganizationAdmin =
-    organizationRole === "admin" || organizationRole === "owner";
+async function TeamMembers({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+  const members = await getWorkspaceTeamMembers(workspace.id);
+  const workspaceRole =
+    await getCachedLoggedInUserWorkspaceRole(workspace.id);
+  const isWorkspaceAdmin =
+    workspaceRole === "admin" || workspaceRole === "owner";
   const normalizedMembers: TeamMembersTableProps["members"] = members.map(
     (member, index) => {
       const userProfile = Array.isArray(member.user_profiles)
@@ -46,8 +43,8 @@ async function TeamMembers({ organizationId }: { organizationId: string }) {
         index: index + 1,
         id: userProfile.id,
         name: userProfile.full_name ?? `User ${userProfile.id}`,
-        role: member.member_role,
-        created_at: moment(member.created_at).format("DD MMM YYYY"),
+        role: member.role,
+        created_at: moment(member.added_at).format("DD MMM YYYY"),
       };
     },
   );
@@ -56,8 +53,8 @@ async function TeamMembers({ organizationId }: { organizationId: string }) {
     <div className="space-y-4 max-w-4xl">
       <div className="flex justify-between items-center">
         <T.H3 className="mt-0">Team Members</T.H3>
-        {isOrganizationAdmin ? (
-          <InviteUser organizationId={organizationId} />
+        {isWorkspaceAdmin ? (
+          <InviteUser workspace={workspace} />
         ) : null}
       </div>
 
@@ -93,10 +90,10 @@ async function TeamMembers({ organizationId }: { organizationId: string }) {
   );
 }
 
-async function TeamInvitations({ organizationId }: { organizationId: string }) {
-  const [invitations, organizationRole] = await Promise.all([
-    getPendingInvitationsInOrganization(organizationId),
-    getLoggedInUserOrganizationRole(organizationId),
+async function TeamInvitations({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+  const [invitations, workspaceRole] = await Promise.all([
+    getPendingInvitationsInWorkspace(workspace.id),
+    getCachedLoggedInUserWorkspaceRole(workspace.id),
   ]);
   const normalizedInvitations = invitations.map((invitation, index) => {
     return {
@@ -128,7 +125,7 @@ async function TeamInvitations({ organizationId }: { organizationId: string }) {
               <TableHead scope="col">Email</TableHead>
               <TableHead scope="col">Sent On</TableHead>
               <TableHead scope="col">Status</TableHead>
-              {organizationRole === "admin" || organizationRole === "owner" ? (
+              {workspaceRole === "admin" || workspaceRole === "owner" ? (
                 <TableHead scope="col">Actions</TableHead>
               ) : null}
             </TableRow>
@@ -147,8 +144,8 @@ async function TeamInvitations({ organizationId }: { organizationId: string }) {
                         : invitation.status}
                     </span>
                   </TableCell>
-                  {organizationRole === "admin" ||
-                    organizationRole === "owner" ? (
+                  {workspaceRole === "admin" ||
+                    workspaceRole === "owner" ? (
                     <TableCell>
                       <RevokeInvitationDialog invitationId={invitation.id} />
                     </TableCell>
@@ -163,20 +160,20 @@ async function TeamInvitations({ organizationId }: { organizationId: string }) {
   );
 }
 
-export default async function OrganizationPage({
+export default async function WorkspaceTeamPage({
   params,
 }: {
   params: unknown;
 }) {
-  const { organizationSlug } = organizationSlugParamSchema.parse(params);
-  const organizationId = await getOrganizationIdBySlug(organizationSlug);
+  const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   return (
     <div className="space-y-12">
       <Suspense fallback={<ProjectsTableLoadingFallback />}>
-        <TeamMembers organizationId={organizationId} />
+        <TeamMembers workspace={workspace} />
       </Suspense>
       <Suspense fallback={<ProjectsTableLoadingFallback />}>
-        <TeamInvitations organizationId={organizationId} />
+        <TeamInvitations workspace={workspace} />
       </Suspense>
     </div>
   );

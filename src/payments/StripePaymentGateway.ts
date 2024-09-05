@@ -1,5 +1,4 @@
 'use server';
-import { getOrganizationAdmins, getOrganizationSlugByOrganizationId } from '@/data/user/organizations';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
 import { DBTable } from '@/types';
 import { toSiteURL } from '@/utils/helpers';
@@ -259,9 +258,9 @@ export class StripePaymentGateway implements PaymentGateway {
   }
 
   util = {
-    createCustomerForOrganization: async (organizationId: string): Promise<DBTable<'billing_customers'>> => {
-      const orgAdmins = await getOrganizationAdmins(organizationId);
-      if (!orgAdmins) throw new Error('Organization admins not found');
+    createCustomerForWorkspace: async (workspaceId: string): Promise<DBTable<'billing_customers'>> => {
+      const workspaceAdmins = await getWorkspaceAdmins(workspaceId);
+      if (!workspaceAdmins) throw new Error('Workspace admins not found');
       const orgAdminUserId = orgAdmins[0].user_profiles.id;
       if (!orgAdminUserId) throw new Error('Organization admin email not found');
       const { data: orgAdminUser, error: orgAdminUserError } = await supabaseAdminClient.auth.admin.getUserById(orgAdminUserId);
@@ -271,14 +270,14 @@ export class StripePaymentGateway implements PaymentGateway {
       if (!maybeEmail) throw new Error('Organization admin email not found');
       return this.db.createCustomer({
         billing_email: maybeEmail,
-      }, organizationId);
+      }, workspaceId);
     },
 
-    getCustomerByOrganizationId: async (organizationId: string): Promise<DBTable<'billing_customers'> | null> => {
+    getCustomerByWorkspaceId: async (workspaceId: string): Promise<DBTable<'billing_customers'> | null> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_customers')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('workspace_id', workspaceId)
         .eq('gateway_name', this.getName())
         .single();
 
@@ -581,3 +580,7 @@ export class StripePaymentGateway implements PaymentGateway {
     return data?.organization_id || null;
   }
 }
+function getOrganizationAdmins(organizationId: string) {
+  throw new Error('Function not implemented.');
+}
+

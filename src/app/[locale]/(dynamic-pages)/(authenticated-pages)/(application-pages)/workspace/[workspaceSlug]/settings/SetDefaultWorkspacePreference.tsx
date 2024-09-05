@@ -2,17 +2,18 @@
 
 import { T } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
-import { getDefaultOrganization } from '@/data/user/organizations';
+import { getMaybeDefaultWorkspace } from '@/data/user/workspaces';
+import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
 import { Check } from 'lucide-react';
-import { SetDefaultOrganizationButton } from './SetDefaultOrganizationButton';
+import { SetDefaultWorkspaceButton } from './SetDefaultWorkspaceButton';
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <T.H3 className="dark:text-white">Default Organization</T.H3>
+        <T.H3 className="dark:text-white">Default Workspace</T.H3>
         <T.Subtle className="text-sm text-muted-foreground max-w-lg">
-          If you have multiple organizations, you can set a default
+          If you have multiple workspaces, you can set a default
           organization, which will be the organization that you are first taken
           to when you log in.
         </T.Subtle>
@@ -22,27 +23,29 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-export async function SetDefaultOrganizationPreference({
-  organizationId,
+export async function SetDefaultWorkspacePreference({
+  workspaceSlug,
 }: {
-  organizationId: string;
+  workspaceSlug: string;
 }) {
-  const defaultOrganizationId = await getDefaultOrganization();
-
-  const isDefaultOrganization = defaultOrganizationId === organizationId;
-  if (isDefaultOrganization) {
+  const [defaultWorkspace, workspace] = await Promise.all([
+    getMaybeDefaultWorkspace(),
+    getCachedWorkspaceBySlug(workspaceSlug)
+  ]);
+  const isDefaultWorkspace = defaultWorkspace?.workspace.id === workspace.id;
+  if (isDefaultWorkspace) {
     return (
       <Wrapper>
         <Button className="space-x-2 pointer-events-none select-none">
           <Check className="w-4 h-4 mr-2" />
-          <span>This is your default organization</span>
+          <span>This is your default workspace</span>
         </Button>
       </Wrapper>
     );
   } else {
     return (
       <Wrapper>
-        <SetDefaultOrganizationButton organizationId={organizationId} />
+        <SetDefaultWorkspaceButton workspaceId={workspace.id} />
       </Wrapper>
     );
   }

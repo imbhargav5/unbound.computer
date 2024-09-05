@@ -20,12 +20,12 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 type DeleteWorkspaceProps = {
-  workspaceTitle: string;
+  workspaceName: string;
   workspaceId: string;
 };
 
 export const DeleteWorkspace = ({
-  workspaceTitle,
+  workspaceName,
   workspaceId,
 }: DeleteWorkspaceProps) => {
   const [open, setOpen] = useState(false);
@@ -56,15 +56,15 @@ export const DeleteWorkspace = ({
   );
 
   type inputs = {
-    workspaceTitle: string;
+    workspaceName: string;
   };
 
   const formSchema = z.object({
-    workspaceTitle: z
+    workspaceName: z
       .string()
       .refine(
-        (v) => v === `delete ${workspaceTitle}`,
-        `Must match "delete ${workspaceTitle}"`,
+        (v) => v === `delete ${workspaceName}`,
+        `Must match "delete ${workspaceName}"`,
       ),
   });
 
@@ -100,17 +100,17 @@ export const DeleteWorkspace = ({
           <DialogHeader>
             <DialogTitle>Delete Organization</DialogTitle>
             <DialogDescription>
-              Type <strong> "delete {workspaceTitle}" </strong>to confirm.
+              Type <strong> "delete {workspaceName}" </strong>to confirm.
             </DialogDescription>
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
             onSubmit={handleSubmit(onSubmit)}
           >
-            <Input type="text" {...register('workspaceTitle')} />
-            {errors.workspaceTitle && (
+            <Input type="text" {...register('workspaceName')} />
+            {errors.workspaceName && (
               <p className="text-red-400 text-sm font-bold">
-                {errors.workspaceTitle.message}
+                {errors.workspaceName.message}
               </p>
             )}
 

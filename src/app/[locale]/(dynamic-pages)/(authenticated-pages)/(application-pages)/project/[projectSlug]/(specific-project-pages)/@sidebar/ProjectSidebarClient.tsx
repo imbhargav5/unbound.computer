@@ -2,7 +2,9 @@
 
 import { SwitcherAndToggle } from '@/components/SidebarComponents/SidebarLogo';
 import { SidebarLink } from '@/components/SidebarLink';
+import { DBTable, SlimWorkspaces, WorkspaceWithMembershipType } from '@/types';
 import { cn } from '@/utils/cn';
+import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Bird, History, Image, Layers, Settings } from 'lucide-react';
 
@@ -31,21 +33,16 @@ const itemVariants = {
 };
 
 interface ProjectSidebarClientProps {
-  projectId: string;
-  projectSlug: string;
-  organizationId: string;
-  organizationSlug: string;
-  project: any; // Replace with the correct type
-  slimOrganizations: any[]; // Replace with the correct type
+
+  workspace: WorkspaceWithMembershipType; // Replace with the correct type
+  project: DBTable<'projects'>; // Replace with the correct type
+  slimWorkspaces: SlimWorkspaces; // Replace with the correct type
 }
 
 export function ProjectSidebarClient({
-  projectId,
-  projectSlug,
-  organizationId,
-  organizationSlug,
   project,
-  slimOrganizations
+  workspace,
+  slimWorkspaces
 }: ProjectSidebarClientProps) {
   return (
     <motion.div
@@ -58,7 +55,7 @@ export function ProjectSidebarClient({
       transition={{ duration: 0.5 }}
     >
       <div>
-        <SwitcherAndToggle organizationId={organizationId} slimOrganizations={slimOrganizations} />
+        <SwitcherAndToggle workspaceId={workspace.id} slimWorkspaces={slimWorkspaces} />
         <motion.div
           className="flex flex-col"
           variants={containerVariants}
@@ -67,8 +64,8 @@ export function ProjectSidebarClient({
         >
           <motion.div variants={itemVariants}>
             <SidebarLink
-              label="Back to organization"
-              href={`/${organizationSlug}`}
+              label="Back to workspace"
+              href={getWorkspaceSubPath(workspace, `/home`)}
               icon={<ArrowLeft className="h-5 w-5" />}
             />
           </motion.div>
@@ -76,35 +73,35 @@ export function ProjectSidebarClient({
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Project Home"
-              href={`/project/${projectSlug}`}
+              href={`/project/${project.slug}`}
               icon={<Layers className="h-5 w-5" />}
             />
           </motion.div>
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Image Generator"
-              href={`/project/${projectSlug}/image-generator`}
+              href={`/project/${project.slug}/image-generator`}
               icon={<Image className="h-5 w-5" />}
             />
           </motion.div>
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Post Generator"
-              href={`/project/${projectSlug}/post-generator`}
+              href={`/project/${project.slug}/post-generator`}
               icon={<Bird className="h-5 w-5" />}
             />
           </motion.div>
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Project Settings"
-              href={`/project/${projectSlug}/settings`}
+              href={`/project/${project.slug}/settings`}
               icon={<Settings className="h-5 w-5" />}
             />
           </motion.div>
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Chats"
-              href={`/project/${projectSlug}/chats`}
+              href={`/project/${project.slug}/chats`}
               icon={<History className="h-5 w-5" />}
             />
           </motion.div>

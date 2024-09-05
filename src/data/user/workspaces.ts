@@ -6,6 +6,7 @@ import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/cr
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
 import type { Enum, SlimWorkspaces, WorkspaceWithMembershipType } from '@/types';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
+import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { AuthUserMetadata } from '@/utils/zod-schemas/authUserMetadata';
 import { createWorkspaceSchema } from '@/utils/zod-schemas/workspaces';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -88,7 +89,62 @@ export async function getWorkspaces(userId: string) {
   return data.map(({ workspaces }) => workspaces);
 }
 
-export const createWorkspace = authActionClient.schema(createWorkspaceSchema).action(
+export const getSlimWorkspaceById = async (workspaceId: string) => {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from('workspaces')
+    .select('id,name,slug')
+    .eq('id', workspaceId)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+export const getSlimWorkspaceBySlug = async (workspaceSlug: string) => {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from('workspaces')
+    .select('id,name,slug')
+    .eq('slug', workspaceSlug)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+
+export const getLoggedInUserWorkspaceRole = async (
+  workspaceId: string,
+): Promise<Enum<'workspace_user_role'>> => {
+  const { id: userId } = await serverGetLoggedInUser();
+  const supabase = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabase
+    .from('workspace_team_members')
+    .select('role')
+    .eq('user_profile_id', userId)
+    .eq('workspace_id', workspaceId)
+    .single();
+
+  if (error) {
+    throw error;
+  } else if (!data) {
+    throw new Error('User is not a member of this organization');
+  }
+
+  return data.role;
+};
+
+
+
+
+export const createWorkspaceAction = authActionClient.schema(createWorkspaceSchema).action(
   async ({
     parsedInput: {
       name,
@@ -189,6 +245,56 @@ export const getWorkspaceById = async (workspaceId: string): Promise<WorkspaceWi
   const { workspace_application_settings, ...workspace } = data;
   return { ...workspace, membershipType: workspace_application_settings?.membership_type ?? 'solo' };
 };
+
+export const getAllWorkspacesForUser = async (userId: string): Promise<WorkspaceWithMembershipType[]> => {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+
+  const { data: workspaceMembers, error: membersError } = await supabaseClient
+    .from('workspace_team_members')
+    .select('workspace_id')
+    .eq('user_profile_id', userId);
+
+  if (membersError) {
+    console.error("fetchSlimWorkspaces workspaceMembers", membersError);
+    throw membersError;
+  }
+
+  const { data, error } = await supabaseClient
+    .from('workspaces')
+    .select('*,workspace_application_settings(membership_type)')
+    .in(
+      'id',
+      workspaceMembers.map((member) => member.workspace_id),
+    )
+    .order('created_at', {
+      ascending: false,
+    });
+
+  if (error) {
+    console.error("fetchSlimWorkspaces workspaceMembers", error);
+    throw error;
+  }
+
+  const workspaces = data.map(({ workspace_application_settings, ...workspace }) => ({
+    ...workspace,
+    membershipType: workspace_application_settings?.membership_type ?? 'solo'
+  }));
+  return workspaces
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const getWorkspaceTeamMembers = async (workspaceId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -402,24 +508,82 @@ export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
   return workspaces
 }
 
-export async function setDefaultWorkspace(
-  workspaceId: string
-): Promise<string> {
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
+const setDefaultWorkspaceSchema = z.object({
+  workspaceId: z.string().uuid(),
+});
 
-  const { error } = await supabaseClient
-    .from('user_settings')
-    .upsert({
-      id: user.id,
-      default_workspace: workspaceId
-    }, {
-      onConflict: 'id'
-    });
+export const setDefaultWorkspaceAction = authActionClient
+  .schema(setDefaultWorkspaceSchema)
+  .action(async ({ parsedInput: { workspaceId }, ctx: { userId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { error } = await supabaseClient
+      .from('user_settings')
+      .upsert({
+        id: userId,
+        default_workspace: workspaceId
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return workspaceId;
+  });
+
+
+const updateWorkspaceInfoSchema = z.object({
+  workspaceId: z.string(),
+  title: z.string(),
+  slug: z.string(),
+  workspaceMembershipType: z.enum(['solo', 'team']),
+});
+
+export const updateWorkspaceInfoAction = authActionClient
+  .schema(updateWorkspaceInfoSchema)
+  .action(async ({ parsedInput: { workspaceId, title, slug, workspaceMembershipType } }) => {
+    const supabase = createSupabaseUserServerActionClient();
+    const { data, error } = await supabase
+      .from('workspaces')
+      .update({
+        title,
+        slug,
+      })
+      .eq('id', workspaceId)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    const revalidateLayoutPath = getWorkspaceSubPath(workspaceMembershipType, '/');
+    if (workspaceMembershipType !== 'solo') {
+      revalidatePath(revalidateLayoutPath, 'layout');
+    } else {
+      revalidatePath(revalidateLayoutPath, 'layout');
+    }
+
+    return data;
+  });
+
+
+export const getPendingInvitationsInWorkspace = async (
+  workspaceId: string,
+) => {
+  const supabase = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabase
+    .from('workspace_invitations')
+    .select(
+      '*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*)',
+    )
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'active');
 
   if (error) {
     throw error;
   }
 
-  return workspaceId;
-}
+  return data || [];
+};

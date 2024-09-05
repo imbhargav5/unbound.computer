@@ -2,7 +2,7 @@
 import { T } from '@/components/ui/Typography';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getWorkspaceBySlug } from '@/data/user/workspaces';
+import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
 import { WorkspaceWithMembershipType } from '@/types';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
@@ -13,7 +13,7 @@ import { Suspense } from 'react';
 export async function generateMetadata({ params }: { params: unknown }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-    const workspace = await getWorkspaceBySlug(workspaceSlug)
+    const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
 
     return {
       title: `${workspace.name} | Workspace | Nextbase Ultimate`,
@@ -44,7 +44,7 @@ export default async function OrganizationNavbar({
   params: unknown;
 }) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getWorkspaceBySlug(workspaceSlug)
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
   return (
     <div className="flex items-center">
       <Link href={getWorkspaceSubPath(workspace, '/home')}>

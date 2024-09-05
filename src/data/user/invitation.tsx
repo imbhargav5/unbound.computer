@@ -120,7 +120,7 @@ async function getViewInvitationUrl(
 const createInvitationSchema = z.object({
   workspaceId: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(["admin", "member", "viewer"]) // Assuming these are the possible roles
+  role: z.enum(["admin", "member", "readonly"]) // Assuming these are the possible roles
 });
 
 export const createInvitationAction = authActionClient

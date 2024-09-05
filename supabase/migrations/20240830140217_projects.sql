@@ -46,9 +46,10 @@ CREATE TABLE IF NOT EXISTS "public"."project_comments" (
   "id" "uuid" PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   "created_at" timestamp WITH time zone DEFAULT "now"(),
   "text" "text" NOT NULL,
-  "user_id" "uuid" NOT NULL,
-  "in_reply_to" uuid,
-  "project_id" "uuid" NOT NULL REFERENCES "public"."projects"("id") ON DELETE CASCADE
+  "user_id" "uuid" NOT NULL REFERENCES "public"."user_profiles"("id") ON DELETE CASCADE,
+  "in_reply_to" "uuid" REFERENCES "public"."project_comments"("id") ON DELETE
+  SET NULL,
+    "project_id" "uuid" NOT NULL REFERENCES "public"."projects"("id") ON DELETE CASCADE
 );
 
 CREATE INDEX idx_project_comments_project_id ON public.project_comments(project_id);
