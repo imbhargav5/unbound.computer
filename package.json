@@ -117,6 +117,8 @@
     "formidable": "^3.5.0",
     "framer-motion": "^11.0.0",
     "fumadocs-core": "^13.4.5",
+    "fumadocs-docgen": "^1.2.0",
+    "fumadocs-mdx": "^10.0.1",
     "fumadocs-ui": "^13.4.5",
     "geist": "^1.1.0",
     "hast-util-select": "^6.0.0",

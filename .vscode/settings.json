@@ -30,5 +30,8 @@
   "[sql]": {
     "editor.defaultFormatter": "mtxr.sqltools",
     "editor.wordWrapColumn": 80
+  },
+  "[mdx]": {
+    "editor.formatOnSave": false
   }
 }
