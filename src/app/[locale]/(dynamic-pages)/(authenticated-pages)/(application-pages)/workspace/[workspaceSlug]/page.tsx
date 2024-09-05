@@ -12,7 +12,7 @@ import {
 } from "@/utils/zod-schemas/params";
 import { FileText, Layers } from "lucide-react";
 import type { Metadata } from 'next';
-import Link from "next/link";
+import Link from 'next/link';
 import { Suspense } from "react";
 import type { z } from "zod";
 import { DashboardClientWrapper } from "./DashboardClientWrapper";

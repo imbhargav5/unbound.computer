@@ -1,4 +1,4 @@
-import { getPage, getPages } from '@/app/source';
+import { getPage, getPages } from '@/app/[locale]/source';
 import { MDXContent } from '@content-collections/mdx/react';
 import { TOCItemType } from 'fumadocs-core/server';
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';

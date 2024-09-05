@@ -1,5 +1,8 @@
 import { LandingPage } from '@/components/LandingPage';
+import 'server-only';
 
 export default function Page() {
-  return <LandingPage />;
+  return <main>
+    <LandingPage />
+  </main>
 }

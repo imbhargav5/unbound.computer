@@ -1,6 +1,6 @@
 "use client";
 
-import type { BlogPostWithTags } from "@/app/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/blog/(blog-list)/page";
+import type { BlogPostWithTags } from "@/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/blog/(blog-list)/page";
 import { TabsList } from "@radix-ui/react-tabs";
 import { format } from "date-fns";
 import { CalendarDays, Grid2X2, List, MoveUpRight, SquarePen } from "lucide-react";

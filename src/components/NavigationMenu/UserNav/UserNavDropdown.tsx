@@ -1,7 +1,7 @@
 // UserNavDropdown.tsx
 'use client';
 
-import { GiveFeedbackDialog } from '@/app/(dynamic-pages)/(public-pages)/feedback/[feedbackId]/GiveFeedbackDialog';
+import { GiveFeedbackDialog } from '@/app/[locale]/(dynamic-pages)/(public-pages)/feedback/[feedbackId]/GiveFeedbackDialog';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {

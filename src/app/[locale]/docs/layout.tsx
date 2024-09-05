@@ -1,4 +1,4 @@
-import { pageTree } from '@/app/source';
+import { pageTree } from '@/app/[locale]/source';
 import { RootToggle } from 'fumadocs-ui/components/layout/root-toggle';
 import { DocsLayout } from 'fumadocs-ui/layout';
 import { Home } from 'lucide-react';

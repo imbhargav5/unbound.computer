@@ -6,6 +6,7 @@ import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
 import { Layers } from 'lucide-react';
 import Link from 'next/link';
 
+
 import { Suspense } from 'react';
 
 async function Title({ projectId }: { projectId: string }) {

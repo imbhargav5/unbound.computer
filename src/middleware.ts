@@ -4,13 +4,18 @@ import {
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 // const matchAppAdmin = match('/app_admin_preview/(.*)?');
+import createMiddleware from 'next-intl/middleware';
 import { match } from 'path-to-regexp';
+import urlJoin from 'url-join';
+import { DEFAULT_LOCALE, LOCALES, LOCALE_GLOB_PATTERN, isValidLocale } from './constants';
 import { updateSession } from './supabase-clients/middleware';
 import { createSupabaseMiddlewareClient } from './supabase-clients/user/createSupabaseMiddlewareClient';
 import { toSiteURL } from './utils/helpers';
 import { authUserMetadataSchema } from './utils/zod-schemas/authUserMetadata';
 
-const onboardingPaths = `/onboarding/(.*)?`;
+
+const onboardingPaths = [`/onboarding/(.*)?`];
+const appAdminPaths = [`/app_admin/(.*)?`];
 // Using a middleware to protect pages from unauthorized access
 // may seem repetitive however it massively increases the security
 // and performance of your application. This is because the middleware
@@ -35,8 +40,36 @@ const unprotectedPagePrefixes = [
   `/docs(/.*)?`,
   `/terms`,
   `/waitlist(/.*)?`,
-  `/testing(/.*)?`,
 ];
+
+const protectedPagePrefixes = [
+  `/app_admin/(.*)?`,
+  `/dashboard/(.*)?`,
+  `/settings/(.*)?`,
+  `/profile/(.*)?`,
+  `/workspace/(.*)?`,
+  `/project/(.*)?`,
+  `/onboarding/(.*)?`,
+  `/home/(.*)?`,
+  `/settings/(.*)?`,
+  `/user/(.*)?`,
+];
+
+const rootPaths = ['/']
+
+const allSubPathsWithoutLocale = [...unprotectedPagePrefixes, ...protectedPagePrefixes, ...onboardingPaths, ...appAdminPaths];
+
+
+const unprotectedPagesWithLocale = unprotectedPagePrefixes.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
+const protectedPagesWithLocale = protectedPagePrefixes.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
+const onboardingPathsWithLocale = onboardingPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
+const appAdminPathsWithLocale = appAdminPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
+const rootPathsWithLocale = rootPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
+const allSubPathsWithLocale = [...rootPathsWithLocale, ...unprotectedPagesWithLocale, ...protectedPagesWithLocale, ...onboardingPathsWithLocale, ...appAdminPathsWithLocale];
+
+
+
+
 
 function isUnprotectedPage(pathname: string) {
   return unprotectedPagePrefixes.some((prefix) => {
@@ -44,6 +77,111 @@ function isUnprotectedPage(pathname: string) {
     return matchPath(pathname);
   });
 }
+
+type MiddlewareFunction = (request: NextRequest) => Promise<NextResponse>
+
+interface MiddlewareConfig {
+  matcher: string | string[]
+  middleware: MiddlewareFunction
+}
+
+const middlewares: MiddlewareConfig[] = [
+  {
+    matcher: ['/', ...allSubPathsWithoutLocale],
+    middleware: async (request) => {
+      // redirect to /en if the locale is not /en or /
+      const currentLocale = request.cookies.get('NEXT_LOCALE')?.value;
+      if (currentLocale) {
+        const parsedLocale = isValidLocale(currentLocale);
+        if (parsedLocale) {
+          return NextResponse.redirect(
+            urlJoin(request.nextUrl.origin, currentLocale, request.nextUrl.pathname)
+          );
+        }
+      }
+      const response = NextResponse.redirect(
+        urlJoin(request.nextUrl.origin, DEFAULT_LOCALE, request.nextUrl.pathname)
+      );
+      response.cookies.set('NEXT_LOCALE', DEFAULT_LOCALE);
+      return response;
+    }
+  },
+
+  {
+    matcher: allSubPathsWithLocale,
+    middleware: async (request) => {
+      console.log('all i18n paths')
+      const localeFromPath = request.nextUrl.pathname.split('/')[1];
+
+      // Step 2: Create and call the next-intl middleware (example)
+      const handleI18nRouting = createMiddleware({
+        locales: LOCALES,
+        defaultLocale: DEFAULT_LOCALE,
+      });
+      const response = handleI18nRouting(request);
+      console.log(localeFromPath);
+      if (isValidLocale(localeFromPath)) {
+        // save cookie
+        response.cookies.set('NEXT_LOCALE', localeFromPath);
+      } else {
+        response.cookies.delete('NEXT_LOCALE');
+      }
+      return response;
+    }
+  },
+  {
+    // protected routes
+    matcher: protectedPagesWithLocale,
+    middleware: async (req) => {
+      const res = NextResponse.next();
+      await updateSession(req);
+      const supabase = createSupabaseMiddlewareClient(req);
+      const sessionResponse = await supabase.auth.getSession();
+      const maybeUser = sessionResponse?.data.session?.user;
+      if (!maybeUser) {
+        return NextResponse.redirect(toSiteURL('/login'));
+      }
+      return res;
+    }
+  },
+  {
+    matcher: onboardingPathsWithLocale,
+    middleware: async (req) => {
+      const res = NextResponse.next();
+      await updateSession(req);
+      const supabase = createSupabaseMiddlewareClient(req);
+      const sessionResponse = await supabase.auth.getSession();
+      const maybeUser = sessionResponse?.data.session?.user;
+      if (shouldOnboardUser(req.nextUrl.pathname, maybeUser)) {
+        return NextResponse.redirect(toSiteURL('/onboarding'));
+      }
+      return res;
+    }
+  },
+
+  {
+    // match /app_admin and /app_admin/ and all subpaths
+    matcher: appAdminPathsWithLocale,
+    middleware: async (req) => {
+      const res = NextResponse.next();
+      await updateSession(req);
+      const supabase = createSupabaseMiddlewareClient(req);
+      const sessionResponse = await supabase.auth.getSession();
+      const maybeUser = sessionResponse?.data.session?.user;
+      if (
+        !(
+          maybeUser &&
+          'user_role' in maybeUser &&
+          maybeUser.user_role === 'admin'
+        )
+      ) {
+        return NextResponse.redirect(toSiteURL('/dashboard'));
+      }
+      return res;
+    }
+  },
+
+]
 
 function shouldOnboardUser(pathname: string, user: User | undefined) {
   const matchOnboarding = match(onboardingPaths);
@@ -66,38 +204,30 @@ function shouldOnboardUser(pathname: string, user: User | undefined) {
   return false;
 }
 
-// this middleware refreshes the user's session and must be run
-// for any Server Component route that uses `createServerComponentSupabaseClient`
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  await updateSession(req);
-  const supabase = createSupabaseMiddlewareClient(req);
-  const sessionResponse = await supabase.auth.getSession();
-  const maybeUser = sessionResponse?.data.session?.user;
-  if (shouldOnboardUser(req.nextUrl.pathname, maybeUser)) {
-    console.log('redirecting to onboarding');
-    return NextResponse.redirect(toSiteURL('/onboarding'));
+
+
+
+function matchesPath(matcher: string | string[], pathname: string): boolean {
+  const matchers = Array.isArray(matcher) ? matcher : [matcher]
+  return matchers.some(m => {
+    const matchFn = match(m, { decode: decodeURIComponent })
+    return matchFn(pathname) !== false
+  })
+}
+
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  const applicableMiddlewares = middlewares.filter(m => matchesPath(m.matcher, pathname))
+
+  let response = NextResponse.next()
+
+  for (const { middleware } of applicableMiddlewares) {
+    response = await middleware(request)
   }
-  // only do optimistic updates in middleware.
-  // don't try to contact the database.
-  if (!isUnprotectedPage(req.nextUrl.pathname) && !maybeUser) {
-    return NextResponse.redirect(toSiteURL('/login'));
-  }
-  if (
-    !req.nextUrl.pathname.startsWith(`/app_admin_preview`) &&
-    req.nextUrl.pathname.startsWith('/app_admin')
-  ) {
-    if (
-      !(
-        maybeUser &&
-        'user_role' in maybeUser &&
-        maybeUser.user_role === 'admin'
-      )
-    ) {
-      return NextResponse.redirect(toSiteURL('/dashboard'));
-    }
-  }
-  return res;
+
+  return response
 }
 
 export const config = {
