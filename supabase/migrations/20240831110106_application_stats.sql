@@ -41,11 +41,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_workspaces_created_per_month"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_workspaces_created_per_month"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_workspaces_created_per_month"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_workspaces_created_per_month"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_projects_created_per_month"() RETURNS TABLE("month" "date", "number_of_projects" integer) LANGUAGE "plpgsql" AS $$ BEGIN IF CURRENT_ROLE NOT IN (
@@ -87,11 +84,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_projects_created_per_month"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_projects_created_per_month"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_projects_created_per_month"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_projects_created_per_month"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_recent_30_day_signin_count"() RETURNS integer LANGUAGE "plpgsql" AS $$
 DECLARE signin_count INTEGER;
@@ -112,11 +106,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_recent_30_day_signin_count"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_recent_30_day_signin_count"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_recent_30_day_signin_count"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_recent_30_day_signin_count"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 
 
@@ -137,11 +128,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_total_organization_count"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_total_organization_count"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_organization_count"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_organization_count"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_total_project_count"() RETURNS integer LANGUAGE "plpgsql" AS $$
 DECLARE proj_count INTEGER;
@@ -160,11 +148,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_total_project_count"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_total_project_count"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_project_count"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_project_count"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_total_user_count"() RETURNS integer LANGUAGE "plpgsql" AS $$
 DECLARE user_count INTEGER;
@@ -183,11 +168,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_total_user_count"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_total_user_count"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_user_count"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_total_user_count"()
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_user_id_by_email"("emailarg" "text") RETURNS "uuid" LANGUAGE "plpgsql" SECURITY DEFINER AS $$
 DECLARE v_user_id uuid;
@@ -209,11 +191,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_user_id_by_email"("emailarg" "text") OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_user_id_by_email"("emailarg" "text")
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_user_id_by_email"("emailarg" "text")
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_user_id_by_email"("emailarg" "text")
-FROM "authenticated";
+FROM anon,
+  authenticated;
 
 CREATE OR REPLACE FUNCTION "public"."app_admin_get_users_created_per_month"() RETURNS TABLE("month" "date", "number_of_users" integer) LANGUAGE "plpgsql" AS $$ BEGIN IF CURRENT_ROLE NOT IN (
     'service_role',
@@ -254,12 +233,8 @@ $$;
 
 ALTER FUNCTION "public"."app_admin_get_users_created_per_month"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."app_admin_get_users_created_per_month"()
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."app_admin_get_users_created_per_month"()
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."app_admin_get_users_created_per_month"()
-FROM "authenticated";
-
+FROM anon,
+  authenticated;
 CREATE OR REPLACE FUNCTION "public"."check_if_authenticated_user_owns_email"("email" character varying) RETURNS boolean LANGUAGE "plpgsql" SECURITY DEFINER AS $_$ BEGIN -- Check if the email exists in the auth.users table and if the id column matches the (select auth.uid()) function
   IF EXISTS (
     SELECT *
@@ -279,12 +254,8 @@ $_$;
 
 ALTER FUNCTION "public"."check_if_authenticated_user_owns_email"("email" character varying) OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."check_if_authenticated_user_owns_email"("email" character varying)
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."check_if_authenticated_user_owns_email"("email" character varying)
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."check_if_authenticated_user_owns_email"("email" character varying)
-FROM "authenticated";
-
+FROM anon,
+  authenticated;
 
 
 
@@ -298,8 +269,5 @@ $$;
 
 ALTER FUNCTION "public"."decrement_credits"("org_id" "uuid", "amount" integer) OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."decrement_credits"("org_id" "uuid", "amount" integer)
-FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."decrement_credits"("org_id" "uuid", "amount" integer)
-FROM "anon";
-REVOKE ALL ON FUNCTION "public"."decrement_credits"("org_id" "uuid", "amount" integer)
-FROM "authenticated";
+FROM anon,
+  authenticated;

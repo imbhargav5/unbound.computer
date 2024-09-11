@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { format } from 'date-fns';
 import { Calendar, EyeIcon, EyeOffIcon } from 'lucide-react';
-import AddComment from './AddComment';
+import { AddComment } from './AddComment';
 import {
   CommentTimeLineItem,
   SuspendedFeedbackComments,

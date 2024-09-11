@@ -1,5 +1,6 @@
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { userRoles } from '@/utils/userTypes';
+import { Suspense } from 'react';
 import AdminUserFeedbackPage from './[feedbackId]/AdminUserFeedbackPage';
 import AnonUserFeedbackPage from './[feedbackId]/AnonUserFeedbackPage';
 import LoggedInUserFeedbackPage from './[feedbackId]/LoggedInUserFeedbackPage';
@@ -17,7 +18,7 @@ async function FeedbackPage({
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
   return (
-    <>
+    <Suspense key={suspenseKey} fallback={<div>Loading...</div>}>
       {userRoleType === userRoles.ANON && (
         <>
           <AnonUserFeedbackPage
@@ -41,7 +42,7 @@ async function FeedbackPage({
           filters={validatedSearchParams}
         />
       )}
-    </>
+    </Suspense>
   );
 }
 

@@ -6,6 +6,7 @@ import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user
 import type { SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
+import { isSupabaseUserAppAdmin } from "@/utils/isSupabaseUserAppAdmin";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
 import { renderAsync } from "@react-email/render";
@@ -18,10 +19,7 @@ import { refreshSessionAction } from "./session";
 
 export async function getIsAppAdmin(): Promise<boolean> {
   const user = await serverGetLoggedInUser();
-  if ("user_role" in user) {
-    return user.user_role === "admin";
-  }
-  return false;
+  return isSupabaseUserAppAdmin(user);
 }
 
 export const getUserProfile = async (userId: string) => {

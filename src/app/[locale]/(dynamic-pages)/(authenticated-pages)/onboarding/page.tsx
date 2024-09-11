@@ -7,7 +7,6 @@ import { Suspense } from 'react';
 import { UserOnboardingFlow } from "./OnboardingFlow";
 
 async function getDefaultOrganizationOrSet(): Promise<string | null> {
-  console.log("getDefaultOrganizationOrSet");
   const [slimWorkspaces, defaultWorkspaceResponse] = await Promise.all([
     fetchSlimWorkspaces(),
     getMaybeDefaultWorkspace(),
@@ -49,7 +48,7 @@ async function OnboardingFlowWrapper() {
   const [onboardingConditions] = await Promise.all([
     getOnboardingConditions(user.id),
   ]);
-  console.log(user.id);
+  console.log(user);
   console.log("onboarding flow wrapper", user.user_metadata);
   const { userProfile } = onboardingConditions;
 

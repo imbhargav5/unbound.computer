@@ -1,5 +1,6 @@
 'use server';
 import { cache } from 'react';
+import { isSupabaseUserAppAdmin } from '../isSupabaseUserAppAdmin';
 import { serverGetLoggedInUser } from './serverGetLoggedInUser';
 
 type UserRole = 'admin' | 'user';
@@ -11,9 +12,9 @@ type UserRole = 'admin' | 'user';
  */
 export const serverGetLoggedInUserRole = cache(async () => {
   const user = await serverGetLoggedInUser();
-  if ('user_role' in user) {
-    return user.user_role as UserRole;
-  } else {
-    return 'user' as UserRole;
+  if (isSupabaseUserAppAdmin(user)) {
+    return 'admin' as UserRole;
   }
+  // legacy conditions.
+  return 'user' as UserRole;
 });

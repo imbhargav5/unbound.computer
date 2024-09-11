@@ -256,7 +256,7 @@
     "remark-gfm": "^4.0.0",
     "remark-toc": "^9.0.0",
     "strip-ansi": "^7.1.0",
-    "supabase": "^1.191.3",
+    "supabase": "^1.192.5",
     "tailwindcss-cli": "^0.1.2",
     "typescript": "^5.0.0",
     "unimported": "^1.31.1",

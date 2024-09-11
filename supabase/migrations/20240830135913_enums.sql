@@ -5,7 +5,7 @@
  |  __|| . ` | | | | |\/| |\___ \
  | |___| |\  | |_| | |  | |____) |
  |_____|_| \_|\___/|_|  |_|_____/
- 
+
  *********************************************
  *                                           *
  *  This file contains enum type definitions *
@@ -15,9 +15,6 @@
  *                                           *
  *********************************************
  */
-CREATE TYPE "public"."app_admin_role" AS ENUM ('moderator', 'admin', 'super_admin');
-
-
 CREATE TYPE "public"."app_role" AS ENUM ('admin');
 
 

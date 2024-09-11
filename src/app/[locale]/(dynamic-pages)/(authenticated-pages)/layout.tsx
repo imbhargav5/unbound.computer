@@ -21,7 +21,7 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
   try {
     const user = await serverGetLoggedInUserVerified();
     const sidebarVisibility = getSidebarVisibility();
-
+    console.log('user', user);
     return (
       <SidebarVisibilityProvider initialValue={sidebarVisibility}>
         <LoggedInUserProvider user={user}>

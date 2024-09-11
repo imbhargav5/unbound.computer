@@ -7,7 +7,7 @@
  \ \____________\ \_______\ \__\\ _\\ \__\\ \__\____\_\  \ \__\    \ \__\ \__\ \_______\ \_______\ \_______\
  \|____________|\|_______|\|__|\|__|\|__| \|__|\_________\|__|     \|__|\|__|\|_______|\|_______|\|_______|
  \|_________|
-
+ 
  This file contains the database schema and related functions for the Workspaces feature.
  It includes tables for workspaces, team members, invitations, credits, and credit logs.
  The file also sets up triggers and Row Level Security (RLS) for these tables.
@@ -64,7 +64,7 @@ CREATE INDEX idx_workspace_team_members_user_profile_id ON public.workspace_team
 
 -- Create workspace_invitations table
 CREATE TABLE IF NOT EXISTS public.workspace_invitations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
   inviter_user_id UUID NOT NULL REFERENCES public.user_profiles (id) ON DELETE CASCADE,
   STATUS public.workspace_invitation_link_status DEFAULT 'active' NOT NULL,

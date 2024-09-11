@@ -11,6 +11,7 @@ import { DEFAULT_LOCALE, LOCALES, LOCALE_GLOB_PATTERN, isValidLocale } from './c
 import { updateSession } from './supabase-clients/middleware';
 import { createSupabaseMiddlewareClient } from './supabase-clients/user/createSupabaseMiddlewareClient';
 import { toSiteURL } from './utils/helpers';
+import { isSupabaseUserAppAdmin } from './utils/isSupabaseUserAppAdmin';
 import { authUserMetadataSchema } from './utils/zod-schemas/authUserMetadata';
 
 
@@ -89,6 +90,7 @@ const middlewares: MiddlewareConfig[] = [
   {
     matcher: ['/', ...allSubPathsWithoutLocale],
     middleware: async (request) => {
+      console.log('middleware without locale paths', request.nextUrl.pathname)
       // redirect to /en if the locale is not /en or /
       const currentLocale = request.cookies.get('NEXT_LOCALE')?.value;
       if (currentLocale) {
@@ -110,7 +112,7 @@ const middlewares: MiddlewareConfig[] = [
   {
     matcher: allSubPathsWithLocale,
     middleware: async (request) => {
-      console.log('all i18n paths')
+      console.log('all i18n paths', request.nextUrl.pathname)
       const localeFromPath = request.nextUrl.pathname.split('/')[1];
 
       // Step 2: Create and call the next-intl middleware (example)
@@ -131,8 +133,9 @@ const middlewares: MiddlewareConfig[] = [
   },
   {
     // protected routes
-    matcher: protectedPagesWithLocale,
+    matcher: [...onboardingPathsWithLocale, ...protectedPagesWithLocale],
     middleware: async (req) => {
+      console.log('middleware protected paths with locale', req.nextUrl.pathname)
       const res = NextResponse.next();
       await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
@@ -145,10 +148,10 @@ const middlewares: MiddlewareConfig[] = [
     }
   },
   {
-    matcher: onboardingPathsWithLocale,
+    matcher: protectedPagesWithLocale,
     middleware: async (req) => {
+      console.log('middleware protected paths with locale protected pages', req.nextUrl.pathname)
       const res = NextResponse.next();
-      await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
@@ -163,6 +166,7 @@ const middlewares: MiddlewareConfig[] = [
     // match /app_admin and /app_admin/ and all subpaths
     matcher: appAdminPathsWithLocale,
     middleware: async (req) => {
+      console.log('middleware app admin paths with locale', req.nextUrl.pathname)
       const res = NextResponse.next();
       await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
@@ -171,8 +175,7 @@ const middlewares: MiddlewareConfig[] = [
       if (
         !(
           maybeUser &&
-          'user_role' in maybeUser &&
-          maybeUser.user_role === 'admin'
+          isSupabaseUserAppAdmin(maybeUser)
         )
       ) {
         return NextResponse.redirect(toSiteURL('/dashboard'));
@@ -184,7 +187,7 @@ const middlewares: MiddlewareConfig[] = [
 ]
 
 function shouldOnboardUser(pathname: string, user: User | undefined) {
-  const matchOnboarding = match(onboardingPaths);
+  const matchOnboarding = match(onboardingPathsWithLocale);
   const isOnboardingRoute = matchOnboarding(pathname);
   if (!isUnprotectedPage(pathname) && user && !isOnboardingRoute) {
     const userMetadata = authUserMetadataSchema.parse(user.user_metadata);

@@ -9,7 +9,7 @@ import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser'
 import { serverGetUserType } from '@/utils/server/serverGetUserType'
 import { format } from 'date-fns'
 import { Calendar } from 'lucide-react'
-import AddComment from './AddComment'
+import { AddComment } from './AddComment'
 import { CommentTimeLineItem, SuspendedFeedbackComments } from './CommentTimeLine'
 import { FeedbackActionsDropdown } from './FeedbackActionsDropdown'
 

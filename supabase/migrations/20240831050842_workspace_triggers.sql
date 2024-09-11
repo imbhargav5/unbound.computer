@@ -27,7 +27,8 @@ $$;
 
 ALTER FUNCTION "public"."handle_workspace_created"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."handle_workspace_created"()
-FROM PUBLIC;
+FROM anon,
+  authenticated;
 GRANT ALL ON FUNCTION "public"."handle_workspace_created"() TO "service_role";
 
 
@@ -57,7 +58,8 @@ $$;
 
 ALTER FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"()
-FROM PUBLIC;
+FROM anon,
+  authenticated;
 GRANT ALL ON FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() TO "service_role";
 
 

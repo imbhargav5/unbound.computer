@@ -1,9 +1,11 @@
-import { createSupabaseUserRouteHandlerClient } from '@/supabase-clients/user/createSupabaseUserRouteHandlerClient';
+import { createSupabaseClient } from '@/supabase-clients/user/server';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const supabase = createSupabaseUserRouteHandlerClient();
+  const cookieSTore = cookies();
+  const supabase = createSupabaseClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
@@ -17,6 +19,10 @@ export async function GET() {
   await supabase.auth.refreshSession({
     refresh_token: data.session?.refresh_token,
   });
+  const session = await supabase.auth.getSession();
+  console.log('session', session);
+  const user = await supabase.auth.getUser();
+  console.log('user', user);
 
-  return new Response(JSON.stringify({ message: 'Refreshed' }), { headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ message: 'Refreshed', user, session }), { headers: { 'Content-Type': 'application/json' } });
 }

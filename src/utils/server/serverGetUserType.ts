@@ -2,6 +2,7 @@
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
 import { userRoles } from '@/utils/userTypes';
 import { cache } from 'react';
+import { isSupabaseUserAppAdmin } from '../isSupabaseUserAppAdmin';
 
 // make sure to return one of UserRoles
 export const serverGetUserType = cache(async () => {
@@ -20,8 +21,7 @@ export const serverGetUserType = cache(async () => {
   }
 
   if (
-    'user_role' in session.user &&
-    session.user.user_role == userRoles.ADMIN
+    isSupabaseUserAppAdmin(session.user)
   ) {
     return userRoles.ADMIN;
   }
