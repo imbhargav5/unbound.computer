@@ -1,5 +1,5 @@
 import { T } from '@/components/ui/Typography';
-import { anonGetAllAuthors } from '@/data/anon/internalBlog';
+import { anonGetAllAuthors } from '@/data/anon/marketing-blog';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import AuthorCard from '../AuthorCard';
@@ -22,7 +22,7 @@ export default async function BlogPostPage({ params }: { params: unknown }) {
         <div className="flex gap-5 flex-col">
           <Suspense fallback={<T.Subtle>Loading authors...</T.Subtle>}>
             {authors.map((author) => (
-              <AuthorCard author={author} key={author.user_id} />
+              <AuthorCard author={author} key={author.id} />
             ))}
           </Suspense>
         </div>

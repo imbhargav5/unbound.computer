@@ -38,7 +38,7 @@ export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
     .from('marketing_blog_posts')
     .select(
-      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
+      '*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))',
     )
     .eq('slug', slug)
     .eq('status', 'published')
@@ -121,6 +121,7 @@ export const anonGetBlogPostsByAuthorId = async (authorId: string) => {
   return data;
 };
 
+
 export const anonGetAllBlogPosts = async (
   supabaseClient: AppSupabaseClient,
 ) => {
@@ -152,6 +153,20 @@ export const anonGetOneAuthor = async (userId: string) => {
     .from('marketing_author_profiles')
     .select('*')
     .eq('id', userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+export const anonGetOneAuthorBySlug = async (slug: string) => {
+  const { data, error } = await supabaseAnonClient
+    .from('marketing_author_profiles')
+    .select('*')
+    .eq('slug', slug)
+    .single();
 
   if (error) {
     throw error;

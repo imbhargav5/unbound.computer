@@ -1,57 +1,73 @@
 import { T } from '@/components/ui/Typography';
+import { anonGetMarketingAuthorById } from "@/data/anon/marketing-authors";
 import { DBTable } from '@/types';
+import { CalendarDays } from "lucide-react";
 import moment from 'moment';
+import Image from "next/image";
+import Link from 'next/link';
+import { Fragment } from 'react';
+
+
+async function AuthorProfile({ authorId }: { authorId: string }) {
+  if (authorId) {
+    const author = await anonGetMarketingAuthorById(authorId);
+    return (
+      <div className="flex items-center text-sm text-gray-500">
+        <Image
+          src={author.avatar_url}
+          alt={author.display_name}
+          width={32}
+          height={32}
+          className="w-8 h-8 rounded-full mr-2 object-cover"
+        />
+        <span>{author.display_name}</span>
+      </div>
+    );
+  }
+  return null;
+}
+
 
 export function PublicBlogList({
   blogPosts,
 }: {
-  blogPosts: Array<DBTable<'internal_blog_posts'>>;
+  blogPosts: Array<DBTable<'marketing_blog_posts'> & {
+    marketing_blog_author_posts: Array<DBTable<'marketing_blog_author_posts'>>;
+  }>;
 }) {
   return (
-    <>
+    <Fragment>
       {blogPosts.length ? (
-        <div className="space-y-2 mx-4 sm:mx-8 md:mx-0">
-          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            {blogPosts.map((post) => (
-              <article
-                key={post.id}
-                className="flex max-w-xl flex-col items-start justify-start"
-              >
-                <div className="relative w-full">
-                  <img
+        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-8">
+          {blogPosts.map((post) => {
+            const authorId = post.marketing_blog_author_posts[0]?.author_id;
+            return (
+              <Link href={`/blog/${post.slug}`} key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <Image
                     src={post.cover_image ?? '/images/nextbase-logo.png'}
                     alt={post.title}
-                    className="aspect-[16/9] w-full rounded-2xl bg-neutral-100 object-cover sm:aspect-[2/1] lg:aspect-[3/2]"
+                    width={600}
+                    height={400}
+                    className="w-full h-48 object-cover"
                   />
-                </div>
-                <div className="max-w-xl">
-                  <div className="mt-5 flex items-center gap-x-4 text-xs">
-                    <time
-                      dateTime={post.created_at}
-                      className="text-neutral-500 uppercase"
-                    >
-                      {moment(post.created_at).format('MMM D, YYYY')}
-                    </time>
-                  </div>
-                  <div className="group relative">
-                    <h3 className="mt-2 text-2xl font-semibold text-neutral-900 group-hover:text-neutral-600">
-                      <a href={`/blog/${post.slug}`}>
-                        <span className="absolute inset-0" />
-                        {post.title}
-                      </a>
-                    </h3>
-                    <p className="mt-2 line-clamp-3 text-base text-neutral-600">
-                      {post.summary}
-                    </p>
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold mb-2">{post.title}</h2>
+                    <p className="text-gray-600 mb-4">{post.summary}</p>
+                    <div className="flex items-center text-sm text-gray-500 mb-2">
+                      <CalendarDays className="w-4 h-4 mr-2" />
+                      <span>{moment(post.created_at).format('MMM D, YYYY')}</span>
+                    </div>
+                    <AuthorProfile authorId={authorId} />
                   </div>
                 </div>
-              </article>
-            ))}
-          </div>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <T.Subtle className="text-center">No blog posts yet.</T.Subtle>
       )}
-    </>
+    </Fragment>
   );
 }

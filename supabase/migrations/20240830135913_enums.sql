@@ -30,8 +30,11 @@ CREATE TYPE "public"."marketing_feedback_thread_status" AS ENUM (
   'planned',
   'closed',
   'in_progress',
-  'completed'
+  'completed',
+  'moderator_hold'
 );
+
+CREATE TYPE public.marketing_feedback_moderator_hold_category AS ENUM ('spam', 'off_topic', 'inappropriate', 'other');
 
 
 CREATE TYPE "public"."marketing_feedback_thread_type" AS ENUM ('bug', 'feature_request', 'general');

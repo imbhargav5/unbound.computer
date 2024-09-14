@@ -51,13 +51,13 @@ const links = [
     icon: <PenTool className="h-5 w-5" />,
   },
   {
-    label: 'Feedback List',
+    label: 'Marketing Feedback List',
     href: `/feedback`,
     icon: <HelpCircle className="h-5 w-5" />,
   },
 
   {
-    label: 'MarketingChangelog List',
+    label: 'Marketing Changelog List',
     href: `/app_admin/marketing/changelog`,
     icon: <Book className="h-5 w-5" />,
   },

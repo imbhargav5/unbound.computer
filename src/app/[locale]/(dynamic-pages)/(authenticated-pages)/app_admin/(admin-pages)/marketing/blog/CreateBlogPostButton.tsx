@@ -55,7 +55,7 @@ export const CreateBlogPostButton: React.FC = () => {
   return (
     <Button onClick={handleCreatePost} disabled={createPostMutation.status === 'executing'}>
       <Plus className="mr-2 h-4 w-4" />
-      Create Random Blog Post
+      Create Blog Post
     </Button>
   );
 };

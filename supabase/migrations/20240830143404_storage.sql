@@ -22,95 +22,26 @@ SELECT USING (("bucket_id" = 'changelog-assets'::"text"));
 CREATE POLICY "Allow users to read their openai images" ON "storage"."objects" FOR
 SELECT USING (("bucket_id" = 'openai-images'::"text"));
 
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
-SELECT TO "authenticated" USING (
-    (
-      ("bucket_id" = 'user-assets'::"text")
-      AND (
-        (
-          (
-            SELECT (
-                SELECT "auth"."uid"() AS "uid"
-              ) AS "uid"
-          )
-        )::"text" = ("storage"."foldername"("name")) [1]
-      )
-    )
-  );
-
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
-INSERT TO "authenticated" WITH CHECK (
-    (
-      ("bucket_id" = 'user-assets'::"text")
-      AND (
-        (
-          (
-            SELECT "auth"."uid"() AS "uid"
-          )
-        )::"text" = ("storage"."foldername"("name")) [1]
-      )
-    )
-  );
-
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
-UPDATE TO "authenticated" USING (
-    (
-      ("bucket_id" = 'user-assets'::"text")
-      AND (
-        (
-          (
-            SELECT "auth"."uid"() AS "uid"
-          )
-        )::"text" = ("storage"."foldername"("name")) [1]
-      )
-    )
-  );
-
-CREATE POLICY "Give users access to own folder 10fq7k5_3" ON "storage"."objects" FOR DELETE TO "authenticated" USING (
+CREATE POLICY "Users can manage their own private assets" ON "storage"."objects" FOR ALL TO "authenticated" USING (
   (
     ("bucket_id" = 'user-assets'::"text")
     AND (
       (
         (
-          SELECT "auth"."uid"() AS "uid"
+          SELECT (
+              SELECT "auth"."uid"() AS "uid"
+            ) AS "uid"
         )
       )::"text" = ("storage"."foldername"("name")) [1]
     )
   )
 );
 
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
+
+CREATE POLICY "Users can view public assets of all users" ON "storage"."objects" FOR
 SELECT USING (("bucket_id" = 'public-user-assets'::"text"));
 
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
-INSERT WITH CHECK (
-    (
-      ("bucket_id" = 'public-user-assets'::"text")
-      AND (
-        (
-          (
-            SELECT "auth"."uid"() AS "uid"
-          )
-        )::"text" = ("storage"."foldername"("name")) [1]
-      )
-    )
-  );
-
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR
-UPDATE USING (
-    (
-      ("bucket_id" = 'public-user-assets'::"text")
-      AND (
-        (
-          (
-            SELECT "auth"."uid"() AS "uid"
-          )
-        )::"text" = ("storage"."foldername"("name")) [1]
-      )
-    )
-  );
-
-CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR DELETE USING (
+CREATE POLICY "Users can upload to their own public assets" ON "storage"."objects" FOR ALL WITH CHECK (
   (
     ("bucket_id" = 'public-user-assets'::"text")
     AND (
@@ -122,6 +53,8 @@ CREATE POLICY "Give users access to own folder " ON "storage"."objects" FOR DELE
     )
   )
 );
+
+
 
 CREATE POLICY "Public Access for admin-blog " ON "storage"."objects" FOR
 SELECT USING (("bucket_id" = 'admin-blog'::"text"));

@@ -2,7 +2,7 @@ import { T } from '@/components/ui/Typography';
 import {
   anonGetAllBlogTags,
   anonGetPublishedBlogPosts,
-} from '@/data/anon/internalBlog';
+} from '@/data/anon/marketing-blog';
 import { Suspense } from 'react';
 import { PublicBlogList } from '../PublicBlogList';
 import { TagsNav } from '../TagsNav';
@@ -24,6 +24,8 @@ async function BlogList() {
   const blogPosts = await anonGetPublishedBlogPosts();
   return <PublicBlogList blogPosts={blogPosts} />;
 }
+
+
 
 export default async function BlogListPage() {
   return (

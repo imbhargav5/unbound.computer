@@ -13,7 +13,7 @@ const BlogContent = dynamic(
 export function BlogContentWrapper({
   jsonContent,
 }: {
-  jsonContent: DBTable<'internal_blog_posts'>['json_content'];
+  jsonContent: DBTable<'marketing_blog_posts'>['json_content'];
 }) {
   return (
     <Suspense fallback={<Skeleton className="w-full h-6" />}>

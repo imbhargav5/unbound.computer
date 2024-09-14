@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_feedback_threads" (
   "status" "public"."marketing_feedback_thread_status" DEFAULT 'open'::"public"."marketing_feedback_thread_status" NOT NULL,
   "added_to_roadmap" boolean DEFAULT false NOT NULL,
   "open_for_public_discussion" boolean DEFAULT false NOT NULL,
-  "is_publicly_visible" boolean DEFAULT false NOT NULL
+  "is_publicly_visible" boolean DEFAULT false NOT NULL,
+  "moderator_hold_category" "public"."marketing_feedback_moderator_hold_category" DEFAULT NULL
 );
 
 CREATE INDEX idx_marketing_feedback_threads_user_id ON public.marketing_feedback_threads(user_id);
@@ -25,7 +26,8 @@ CREATE TABLE IF NOT EXISTS "public"."marketing_feedback_comments" (
   "thread_id" "uuid" NOT NULL REFERENCES "public"."marketing_feedback_threads"("id") ON DELETE CASCADE,
   "content" "text" NOT NULL,
   "created_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  "updated_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+  "updated_at" timestamp WITH time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "moderator_hold_category" "public"."marketing_feedback_moderator_hold_category" DEFAULT NULL
 );
 
 CREATE INDEX idx_marketing_feedback_comments_user_id ON public.marketing_feedback_comments(user_id);
@@ -45,6 +47,9 @@ UPDATE USING ("user_id" = "auth"."uid"()) WITH CHECK ("user_id" = "auth"."uid"()
 
 -- Own user can delete comments
 CREATE POLICY "Authenticated users can delete their own feedback comments" ON "public"."marketing_feedback_comments" FOR DELETE USING ("user_id" = "auth"."uid"());
+-- comments are visible unless moderator hold
+CREATE POLICY "Authenticated users can view feedback comments" ON "public"."marketing_feedback_comments" FOR
+SELECT USING ("moderator_hold_category" IS NULL);
 
 
 -- threads
@@ -78,12 +83,6 @@ SELECT USING (
         )
       )
       OR ("open_for_public_discussion" = TRUE)
+      OR ("moderator_hold_category" IS NULL)
     )
   );
-
-  -- changelog
-CREATE POLICY "Changelog is visible to everyone" ON "public"."marketing_changelog" FOR
-SELECT USING (TRUE);
-
-CREATE POLICY "Changelog author relationship is visible to everyone" ON "public"."marketing_changelog_author_relationship" FOR
-SELECT USING (TRUE);

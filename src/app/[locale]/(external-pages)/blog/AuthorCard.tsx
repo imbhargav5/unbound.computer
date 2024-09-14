@@ -5,27 +5,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DBTable } from '@/types';
 import Link from 'next/link';
 
 type Props = {
-  author: {
-    avatar_url: string;
-    bio: string;
-    created_at: string;
-    display_name: string;
-    facebook_handle: string | null;
-    instagram_handle: string | null;
-    linkedin_handle: string | null;
-    twitter_handle: string | null;
-    updated_at: string;
-    user_id: string;
-    website_url: string | null;
-  };
+  author: DBTable<'marketing_author_profiles'>;
+  trimSummary?: boolean;
 };
 
-const AuthorCard = ({ author }: Props) => {
+const AuthorCard = ({ author, trimSummary = true }: Props) => {
   return (
-    <Link href={`/blog/authors/${author.user_id}`} key={author.user_id}>
+    <Link href={`/blog/authors/${author.slug}`} key={author.id}>
       <Card>
         <CardHeader>
           <div className="flex">
@@ -38,9 +28,11 @@ const AuthorCard = ({ author }: Props) => {
             <div className="ml-4">
               <CardTitle>{author.display_name}</CardTitle>
               <CardDescription className="mt-2">
-                {author.bio.length > 120
-                  ? author.bio.slice(0, 120) + '...'
-                  : author.bio.length}
+                {trimSummary
+                  ? author.bio.length > 120
+                    ? author.bio.slice(0, 120) + '...'
+                    : author.bio.length
+                  : author.bio}
               </CardDescription>
             </div>
           </div>

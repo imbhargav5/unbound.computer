@@ -5,7 +5,7 @@ import Link from 'next/link';
 export function TagsNav({
   tags,
 }: {
-  tags: DBTable<'internal_blog_post_tags'>[];
+  tags: DBTable<'marketing_tags'>[];
 }) {
   return (
     <div className="space-x-2 flex px-4 sm:px-0 flex-wrap justify-center">

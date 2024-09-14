@@ -21,3 +21,14 @@ CREATE INDEX idx_marketing_changelog_author_relationship_changelog_id ON public.
 
 ALTER TABLE "public"."marketing_changelog_author_relationship" OWNER TO "postgres";
 ALTER TABLE "public"."marketing_changelog_author_relationship" ENABLE ROW LEVEL SECURITY;
+
+  -- changelog
+-- ... existing code ...
+CREATE POLICY "Only published changelogs are visible to everyone" ON "public"."marketing_changelog" FOR
+SELECT USING (
+    STATUS = 'published'::"public"."marketing_changelog_status"
+  );
+
+-- ... existing code ...
+CREATE POLICY "Changelog author relationship is visible to everyone" ON "public"."marketing_changelog_author_relationship" FOR
+SELECT USING (TRUE);
