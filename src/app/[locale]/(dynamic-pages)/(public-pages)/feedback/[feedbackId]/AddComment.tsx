@@ -29,7 +29,7 @@ function AddComment({ feedbackId, defaultValue = '' }: AddCommentProps): JSX.Ele
       setContent('');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to add comment';
+      const errorMessage = error.serverError ?? 'Failed to add comment';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

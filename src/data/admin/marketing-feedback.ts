@@ -50,13 +50,16 @@ export const getPaginatedInternalFeedbackList = async ({
     supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
   }
 
-  const { data, error } = await supabaseQuery;
+  const { data, count, error } = await supabaseQuery;
 
   if (error) {
     throw error;
   }
 
-  return data;
+  return {
+    data,
+    count
+  };
 };
 
 export async function getInternalFeedbackTotalPages({

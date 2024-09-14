@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { createInternalFeedbackAction } from '@/data/user/internalFeedback';
+import { createInternalFeedbackAction } from '@/data/user/marketing-feedback';
 import { cn } from '@/utils/cn';
 
 type FeedbackType = 'bug' | 'feature_request' | 'general';
@@ -82,7 +82,7 @@ export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to create feedback';
+      const errorMessage = error.serverError ?? 'Failed to create feedback';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

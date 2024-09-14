@@ -1,9 +1,13 @@
+import { PageHeading } from '@/components/PageHeading';
+import { GiveFeedbackAnonUser } from '@/components/give-feedback-anon-use';
+import { Button } from '@/components/ui/button';
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { userRoles } from '@/utils/userTypes';
-import { Suspense } from 'react';
-import AdminUserFeedbackPage from './[feedbackId]/AdminUserFeedbackPage';
-import AnonUserFeedbackPage from './[feedbackId]/AnonUserFeedbackPage';
-import LoggedInUserFeedbackPage from './[feedbackId]/LoggedInUserFeedbackPage';
+import { Fragment, Suspense } from 'react';
+import { AdminFeedbackList } from './[feedbackId]/AdminFeedbackList';
+import { AnonFeedbackList } from './[feedbackId]/AnonFeedbackList';
+import { GiveFeedbackDialog } from './[feedbackId]/GiveFeedbackDialog';
+import { LoggedInUserFeedbackList } from './[feedbackId]/LoggedInUserFeedbackList';
 import { filtersSchema } from './[feedbackId]/schema';
 
 async function FeedbackPage({
@@ -18,31 +22,50 @@ async function FeedbackPage({
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
   return (
-    <Suspense key={suspenseKey} fallback={<div>Loading...</div>}>
-      {userRoleType === userRoles.ANON && (
-        <>
-          <AnonUserFeedbackPage
-            feedbackId={params?.feedbackId}
-            filters={validatedSearchParams}
-          />
-        </>
-      )}
-
-
-      {userRoleType === userRoles.USER && (
-        <LoggedInUserFeedbackPage
-          feedbackId={params?.feedbackId}
-          filters={validatedSearchParams}
+    <Fragment>
+      <div className="flex justify-between items-center">
+        <PageHeading
+          title="Explore Feedback"
+          subTitle="Browse the collection of feedback from your users."
         />
-      )}
 
-      {userRoleType === userRoles.ADMIN && (
-        <AdminUserFeedbackPage
-          feedbackId={params?.feedbackId}
-          filters={validatedSearchParams}
-        />
-      )}
-    </Suspense>
+        {userRoleType === userRoles.ANON ? (
+          <GiveFeedbackAnonUser className='w-fit'>
+            <Button variant="secondary">Create Feedback</Button>
+          </GiveFeedbackAnonUser>
+        ) : (
+          <GiveFeedbackDialog className='w-fit'>
+            <Button variant="default">Create Feedback</Button>
+          </GiveFeedbackDialog>
+        )}
+      </div>
+
+      <div className="w-full h-full max-h-[88vh]">
+
+        <Suspense key={suspenseKey} fallback={<div>Loading...</div>}>
+          {userRoleType === userRoles.ANON && (
+            <>
+              <AnonFeedbackList
+                filters={validatedSearchParams}
+              />
+            </>
+          )}
+
+
+          {userRoleType === userRoles.USER && (
+            <LoggedInUserFeedbackList
+              filters={validatedSearchParams}
+            />
+          )}
+
+          {userRoleType === userRoles.ADMIN && (
+            <AdminFeedbackList
+              filters={validatedSearchParams}
+            />
+          )}
+        </Suspense>
+      </div>
+    </Fragment>
   );
 }
 

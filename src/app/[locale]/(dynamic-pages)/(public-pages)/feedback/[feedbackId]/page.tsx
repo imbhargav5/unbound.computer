@@ -1,45 +1,29 @@
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { userRoles } from '@/utils/userTypes';
 import { Suspense } from 'react';
-import AdminUserFeedbackPage from './AdminUserFeedbackPage';
-import AnonUserFeedbackPage from './AnonUserFeedbackPage';
-import FeedbackPageFallbackUI from './FeedbackPageFallbackUI';
-import LoggedInUserFeedbackPage from './LoggedInUserFeedbackPage';
-import { filtersSchema } from './schema';
+import AdminUserFeedbackdetail from './AdminUserFeedbackdetail';
+import AnonUserFeedbackdetail from './AnonUserFeedbackdetail';
+import { FeedbackDetailFallback } from './FeedbackPageFallbackUI';
+import LoggedInUserFeedbackDetail from './LoggedInUserFeedbackDetail';
 
 async function FeedbackPage({
   params,
-  searchParams,
 }: {
-  searchParams: unknown;
   params: { feedbackId: string };
 }) {
-  const validatedSearchParams = filtersSchema.parse(searchParams);
   const userRoleType = await serverGetUserType();
-  const suspenseKey = JSON.stringify(validatedSearchParams);
+  const feedbackId = params.feedbackId;
 
   return (
-    <Suspense
-      key={JSON.stringify(suspenseKey)}
-      fallback={<FeedbackPageFallbackUI feedbackId={params?.feedbackId} />}
-    >
+    <Suspense fallback={<FeedbackDetailFallback />}>
       {userRoleType === userRoles.ANON && (
-        <AnonUserFeedbackPage
-          feedbackId={params?.feedbackId}
-          filters={validatedSearchParams}
-        />
+        <AnonUserFeedbackdetail feedbackId={feedbackId} />
       )}
       {userRoleType === userRoles.USER && (
-        <LoggedInUserFeedbackPage
-          feedbackId={params?.feedbackId}
-          filters={validatedSearchParams}
-        />
+        <LoggedInUserFeedbackDetail feedbackId={feedbackId} />
       )}
       {userRoleType === userRoles.ADMIN && (
-        <AdminUserFeedbackPage
-          feedbackId={params?.feedbackId}
-          filters={validatedSearchParams}
-        />
+        <AdminUserFeedbackdetail feedbackId={feedbackId} />
       )}
     </Suspense>
   );

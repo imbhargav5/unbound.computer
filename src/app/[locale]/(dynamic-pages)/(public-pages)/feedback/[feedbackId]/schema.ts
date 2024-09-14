@@ -1,6 +1,11 @@
-import { z, type ZodTypeAny } from 'zod';
+import { Database } from '@/lib/database.types';
+import { z } from 'zod';
 
-const singleOrArray = <T extends ZodTypeAny>(schema: T) => {
+type MarketingFeedbackThreadStatus = Database['public']['Enums']['marketing_feedback_thread_status'];
+type MarketingFeedbackThreadType = Database['public']['Enums']['marketing_feedback_thread_type'];
+type MarketingFeedbackThreadPriority = Database['public']['Enums']['marketing_feedback_thread_priority'];
+
+const singleOrArray = <T extends z.ZodType>(schema: T) => {
   return z.preprocess((obj) => {
     if (Array.isArray(obj)) {
       return obj;
@@ -14,22 +19,15 @@ const singleOrArray = <T extends ZodTypeAny>(schema: T) => {
 };
 
 export const feedbackStatusesSchema = singleOrArray(
-  z.enum([
-    'open',
-    'in_progress',
-    'closed',
-    'planned',
-    'under_review',
-    'completed',
-  ]),
+  z.enum(['open', 'in_progress', 'closed', 'planned', 'under_review', 'completed'] as [MarketingFeedbackThreadStatus, ...MarketingFeedbackThreadStatus[]]),
 );
 
 export const feedbackTypesSchema = singleOrArray(
-  z.enum(['bug', 'feature_request', 'general']),
+  z.enum(['bug', 'feature_request', 'general'] as [MarketingFeedbackThreadType, ...MarketingFeedbackThreadType[]]),
 );
 
 export const feedbackPrioritiesSchema = singleOrArray(
-  z.enum(['low', 'medium', 'high']),
+  z.enum(['low', 'medium', 'high'] as [MarketingFeedbackThreadPriority, ...MarketingFeedbackThreadPriority[]]),
 );
 
 export const dropdownFiltersSchema = z.object({

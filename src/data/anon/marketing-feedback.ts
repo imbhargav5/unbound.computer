@@ -1,8 +1,12 @@
 'use server';
 
+import { Database } from '@/lib/database.types';
 import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
-import { Enum } from '@/types';
 
+type MarketingFeedbackThread = Database['public']['Tables']['marketing_feedback_threads']['Row'];
+type MarketingFeedbackThreadType = Database['public']['Enums']['marketing_feedback_thread_type'];
+type MarketingFeedbackThreadStatus = Database['public']['Enums']['marketing_feedback_thread_status'];
+type MarketingFeedbackThreadPriority = Database['public']['Enums']['marketing_feedback_thread_priority'];
 
 export async function getAnonUserFeedbackList({
   query = '',
@@ -16,9 +20,9 @@ export async function getAnonUserFeedbackList({
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'marketing_feedback_thread_type'>>;
-  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
-  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
+  types?: MarketingFeedbackThreadType[];
+  statuses?: MarketingFeedbackThreadStatus[];
+  priorities?: MarketingFeedbackThreadPriority[];
   sort?: 'asc' | 'desc';
 }) {
   const zeroIndexedPage = page - 1;
@@ -29,6 +33,7 @@ export async function getAnonUserFeedbackList({
     .or(
       'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
     )
+    .is('moderator_hold_category', null)
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
@@ -47,18 +52,17 @@ export async function getAnonUserFeedbackList({
     supabaseQuery = supabaseQuery.in('priority', priorities);
   }
 
-  if (sort === 'asc') {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: true });
-  } else {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
-  }
+  supabaseQuery = supabaseQuery.order('created_at', { ascending: sort === 'asc' });
 
-  const { data, error } = await supabaseQuery;
+  const { data, count, error } = await supabaseQuery;
   if (error) {
     throw error;
   }
 
-  return data;
+  return {
+    data,
+    count: count ?? 0,
+  };
 }
 
 export async function getAnonUserFeedbackTotalPages({
@@ -66,27 +70,21 @@ export async function getAnonUserFeedbackTotalPages({
   types = [],
   statuses = [],
   priorities = [],
-  page = 1,
   limit = 10,
-  sort = 'desc',
 }: {
-  page?: number;
-  limit?: number;
   query?: string;
-  types?: Array<Enum<'marketing_feedback_thread_type'>>;
-  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
-  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
-  sort?: 'asc' | 'desc';
-}) {
-  const zeroIndexedPage = page - 1;
-
+  types?: MarketingFeedbackThreadType[];
+  statuses?: MarketingFeedbackThreadStatus[];
+  priorities?: MarketingFeedbackThreadPriority[];
+  limit?: number;
+}): Promise<number> {
   let supabaseQuery = supabaseAnonClient
     .from('marketing_feedback_threads')
     .select('*', { count: 'exact', head: true })
     .or(
       'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
     )
-    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+    .is('moderator_hold_category', null);
 
   if (query) {
     supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
@@ -102,12 +100,6 @@ export async function getAnonUserFeedbackTotalPages({
 
   if (priorities.length > 0) {
     supabaseQuery = supabaseQuery.in('priority', priorities);
-  }
-
-  if (sort === 'asc') {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: true });
-  } else {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
   }
 
   const { count, error } = await supabaseQuery;
@@ -122,36 +114,35 @@ export async function getAnonUserFeedbackTotalPages({
   return Math.ceil(count / limit);
 }
 
-export async function anonGetRoadmapFeedbackList() {
-  const roadmapItemsResponse = await supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*')
-    .eq('added_to_roadmap', true);
-  if (roadmapItemsResponse.error) {
-    throw roadmapItemsResponse.error;
-  }
-  if (!roadmapItemsResponse.data) {
-    throw new Error('No data found');
-  }
-
-  return roadmapItemsResponse.data;
-}
-
-async function getRoadmapFeedbackByStatus(
-  status: Enum<'marketing_feedback_thread_status'>,
-) {
-  const roadmapItemsResponse = await supabaseAnonClient
+export async function anonGetRoadmapFeedbackList(): Promise<MarketingFeedbackThread[]> {
+  const { data, error } = await supabaseAnonClient
     .from('marketing_feedback_threads')
     .select('*')
     .eq('added_to_roadmap', true)
-    .eq('status', status);
-  if (roadmapItemsResponse.error) {
-    throw roadmapItemsResponse.error;
+    .is('moderator_hold_category', null);
+
+  if (error) {
+    throw error;
   }
-  if (!roadmapItemsResponse.data) {
-    throw new Error('No data found');
+
+  return data;
+}
+
+async function getRoadmapFeedbackByStatus(
+  status: MarketingFeedbackThreadStatus
+): Promise<MarketingFeedbackThread[]> {
+  const { data, error } = await supabaseAnonClient
+    .from('marketing_feedback_threads')
+    .select('*')
+    .eq('added_to_roadmap', true)
+    .eq('status', status)
+    .is('moderator_hold_category', null);
+
+  if (error) {
+    throw error;
   }
-  return roadmapItemsResponse.data;
+
+  return data;
 }
 
 export const anonGetPlannedRoadmapFeedbackList = () =>
@@ -160,3 +151,42 @@ export const anonGetInProgressRoadmapFeedbackList = () =>
   getRoadmapFeedbackByStatus('in_progress');
 export const anonGetCompletedRoadmapFeedbackList = () =>
   getRoadmapFeedbackByStatus('completed');
+
+// Add this new function
+export async function getAnonUserFeedbackById(feedbackId: string): Promise<MarketingFeedbackThread | null> {
+  const { data, error } = await supabaseAnonClient
+    .from('marketing_feedback_threads')
+    .select('*')
+    .eq('id', feedbackId)
+    .or(
+      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+    )
+    .is('moderator_hold_category', null)
+    .single();
+
+  if (error) {
+    console.error('Error fetching feedback:', error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function getRecentPublicFeedback() {
+  const { data, error } = await supabaseAnonClient
+    .from('marketing_feedback_threads')
+    .select('id, title, created_at')
+    .or(
+      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+    )
+    .is('moderator_hold_category', null)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (error) {
+    console.error('Error fetching recent feedback:', error);
+    return [];
+  }
+
+  return data;
+}

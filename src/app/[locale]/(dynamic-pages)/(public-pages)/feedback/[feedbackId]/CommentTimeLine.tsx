@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import { appAdminGetInternalFeedbackComments } from '@/data/admin/internal-feedback';
-import { getInternalFeedbackComments } from '@/data/user/internalFeedback';
+import { appAdminGetInternalFeedbackComments } from '@/data/admin/marketing-feedback';
+import { getInternalFeedbackComments } from '@/data/user/marketing-feedback';
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { userRoles } from '@/utils/userTypes';
 
@@ -121,16 +121,18 @@ export async function SuspendedFeedbackComments({
   const userRoleType = await serverGetUserType();
 
   return (
-    <Suspense fallback={<FeedbackCommentsFallback />}>
-      {userRoleType == userRoles.ANON && (
-        <AnonUserFeedbackComments feedbackId={feedbackId} />
-      )}
-      {userRoleType == userRoles.ADMIN && (
-        <AdminFeedbackComments feedbackId={feedbackId} />
-      )}
-      {userRoleType == userRoles.USER && (
-        <LoggedInUserFeedbackComments feedbackId={feedbackId} />
-      )}
-    </Suspense>
+    <div className="py-2">
+      <Suspense fallback={<FeedbackCommentsFallback />}>
+        {userRoleType == userRoles.ANON && (
+          <AnonUserFeedbackComments feedbackId={feedbackId} />
+        )}
+        {userRoleType == userRoles.ADMIN && (
+          <AdminFeedbackComments feedbackId={feedbackId} />
+        )}
+        {userRoleType == userRoles.USER && (
+          <LoggedInUserFeedbackComments feedbackId={feedbackId} />
+        )}
+      </Suspense>
+    </div>
   );
 }
