@@ -17,14 +17,21 @@ export const CreateChangelogButton: React.FC = () => {
       toastRef.current = toast.loading('Creating changelog...', { description: 'Please wait while we create the changelog.' });
     },
     onSuccess: ({ data }) => {
-      toast.success('Changelog created!', { id: toastRef.current });
-      toastRef.current = undefined;
+      toast.success('Changelog created!', {
+        id: toastRef.current,
+        description: 'Redirecting to the changelog...',
+      });
       if (data) {
         router.push(`/app_admin/marketing/changelog/${data.id}`);
       }
     },
     onError: ({ error }) => {
-      toast.error(`Failed to create changelog: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(`Failed to create changelog: ${error.serverError || 'Unknown error'}`, {
+        id: toastRef.current,
+        description: 'Please try again.',
+      });
+    },
+    onSettled: () => {
       toastRef.current = undefined;
     },
   });

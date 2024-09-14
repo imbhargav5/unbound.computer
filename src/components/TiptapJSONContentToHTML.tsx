@@ -1,4 +1,3 @@
-'use client';
 
 import type { DBTable } from '@/types';
 import { Color } from '@tiptap/extension-color';
@@ -22,7 +21,7 @@ const extensions = [
   }),
 ]
 
-export function BlogContent({
+export function TiptapJSONContentToHTML({
   jsonContent,
 }: {
   jsonContent: DBTable<'marketing_blog_posts'>['json_content'];

@@ -3,6 +3,7 @@ import {
   anonGetPublishedBlogPosts,
 } from "@/data/anon/marketing-blog";
 
+import { TiptapJSONContentToHTML } from "@/components/TiptapJSONContentToHTML";
 import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/ui/Typography";
 import type { Metadata } from "next";
@@ -10,7 +11,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import AuthorCard from "../AuthorCard";
-import { BlogContentWrapper } from "./BlogContentWrapper";
 
 const paramsSchema = z.object({
   slug: z.string(),
@@ -68,7 +68,7 @@ export default async function BlogPostPage({ params }: { params: unknown }) {
         ) : null}
         <div className="prose prose-lg dark:prose-invert prose-headings:font-display font-default focus:outline-none max-w-full">
           <h1>{post.title}</h1>
-          <BlogContentWrapper jsonContent={post.json_content} />
+          <TiptapJSONContentToHTML jsonContent={post.json_content} />
         </div>
         {post?.marketing_blog_author_posts[0]?.marketing_author_profiles ? (
           <>

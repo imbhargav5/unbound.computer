@@ -150,7 +150,7 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
           {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
         </div>
 
-        <div className="nextbase-editor">
+        <div className="nextbase-editor overflow-hidden max-w-full">
           <Label htmlFor="json_content">Content</Label>
           <Controller
             name="json_content"
@@ -192,7 +192,7 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
         </Button>
       </form>
 
-      <div className="w-96 space-y-6">
+      <div className="w-96 space-y-6 flex-shrink-0">
         <AuthorsSelect
           changelog={changelog}
           authors={authors}
