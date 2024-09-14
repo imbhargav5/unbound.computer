@@ -1,5 +1,5 @@
-// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/DeleteBlogPostDialog.tsx
 'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,35 +10,35 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { deleteBlogPostAction } from '@/data/admin/marketing-blog';
+import { deleteChangelogAction } from '@/data/admin/marketing-changelog';
 import { Trash2 } from 'lucide-react';
 import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
 import React, { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-type DeleteBlogPostDialogProps = {
-  postId: string;
-  postTitle: string;
+type DeleteChangelogDialogProps = {
+  changelogId: string;
+  changelogTitle: string;
 };
 
-export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ postId, postTitle }) => {
+export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ changelogId, changelogTitle }) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number>();
   const router = useRouter();
 
-  const deleteMutation = useAction(deleteBlogPostAction, {
+  const deleteChangelogMutation = useAction(deleteChangelogAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting blog post...', { description: 'Please wait while we delete the post.' });
+      toastRef.current = toast.loading('Deleting changelog...', { description: 'Please wait while we delete the changelog.' });
     },
     onSuccess: () => {
-      toast.success('Blog post deleted successfully', { id: toastRef.current });
+      toast.success('Changelog deleted successfully', { id: toastRef.current });
       toastRef.current = undefined;
       setOpen(false);
       router.refresh();
     },
     onError: ({ error }) => {
-      toast.error(`Failed to delete blog post: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(`Failed to delete changelog: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
       toastRef.current = undefined;
     },
     onSettled: () => {
@@ -47,7 +47,7 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
   });
 
   const handleDelete = () => {
-    deleteMutation.execute({ id: postId });
+    deleteChangelogMutation.execute({ id: changelogId });
   };
 
   return (
@@ -59,14 +59,14 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Delete Blog Post</DialogTitle>
+          <DialogTitle>Delete Changelog</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete the blog post "{postTitle}"? This action cannot be undone.
+            Are you sure you want to delete the changelog "{changelogTitle}"? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.status === 'executing'}>
-            {deleteMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
+          <Button variant="destructive" onClick={handleDelete} disabled={deleteChangelogMutation.status === 'executing'}>
+            {deleteChangelogMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

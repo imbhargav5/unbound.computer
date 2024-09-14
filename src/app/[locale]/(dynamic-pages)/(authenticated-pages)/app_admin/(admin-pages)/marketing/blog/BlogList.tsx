@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/BlogList.tsx
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
 import {

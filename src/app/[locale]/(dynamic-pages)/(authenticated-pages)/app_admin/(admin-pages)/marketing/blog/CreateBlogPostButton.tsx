@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/CreateBlogPostButton.tsx
 'use client';
 import { Button } from '@/components/ui/button';
 import { createBlogPostAction } from '@/data/admin/marketing-blog';
@@ -45,6 +46,8 @@ export const CreateBlogPostButton: React.FC = () => {
       slug,
       summary: chance.paragraph({ sentences: 2 }),
       content: chance.paragraph({ sentences: 5 }),
+      stringified_json_content: JSON.stringify({}),
+      stringified_seo_data: JSON.stringify({}),
       status: 'draft',
     });
   };

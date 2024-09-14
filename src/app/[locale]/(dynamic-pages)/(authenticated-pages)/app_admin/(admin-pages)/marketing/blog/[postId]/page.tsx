@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/page.tsx
 import { getAllAuthorProfiles } from '@/data/admin/marketing-authors';
 import { getBlogPostById } from '@/data/admin/marketing-blog';
 import { getAllTags } from '@/data/admin/marketing-tags';

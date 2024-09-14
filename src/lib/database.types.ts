@@ -656,26 +656,29 @@ export type Database = {
       }
       marketing_changelog: {
         Row: {
-          changes: string
           cover_image: string | null
           created_at: string | null
           id: string
+          json_content: Json
+          status: Database["public"]["Enums"]["marketing_changelog_status"]
           title: string
           updated_at: string | null
         }
         Insert: {
-          changes: string
           cover_image?: string | null
           created_at?: string | null
           id?: string
+          json_content?: Json
+          status?: Database["public"]["Enums"]["marketing_changelog_status"]
           title: string
           updated_at?: string | null
         }
         Update: {
-          changes?: string
           cover_image?: string | null
           created_at?: string | null
           id?: string
+          json_content?: Json
+          status?: Database["public"]["Enums"]["marketing_changelog_status"]
           title?: string
           updated_at?: string | null
         }
@@ -1478,6 +1481,7 @@ export type Database = {
     Enums: {
       app_role: "admin"
       marketing_blog_post_status: "draft" | "published"
+      marketing_changelog_status: "draft" | "published"
       marketing_feedback_thread_priority: "low" | "medium" | "high"
       marketing_feedback_thread_status:
         | "open"

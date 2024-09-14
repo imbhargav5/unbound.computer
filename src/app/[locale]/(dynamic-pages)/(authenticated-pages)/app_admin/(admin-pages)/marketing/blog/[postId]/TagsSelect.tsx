@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/TagsSelect.tsx
 'use client';
 import { Label } from '@/components/ui/label';
 import { updateBlogPostTagsAction } from '@/data/admin/marketing-blog';

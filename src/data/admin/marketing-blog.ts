@@ -1,9 +1,9 @@
+// @/data/admin/marketing-blog.ts
 'use server'
 
 import { adminActionClient } from '@/lib/safe-action';
 import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { toSafeJSONB } from '@/utils/jsonb';
-import { createMarketingBlogPostSchema, deleteMarketingBlogPostSchema, updateBlogPostAuthorsSchema, updateBlogPostTagsSchema, updateMarketingBlogPostSchema } from '@/utils/zod-schemas/marketingBlog';
+import { createMarketingBlogPostActionSchema, deleteMarketingBlogPostSchema, updateBlogPostAuthorsSchema, updateBlogPostTagsSchema, updateMarketingBlogPostActionSchema } from '@/utils/zod-schemas/marketingBlog';
 import { revalidatePath } from 'next/cache';
 import urlJoin from 'url-join';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,14 +14,17 @@ import { zfd } from "zod-form-data";
  * Creates a new marketing blog post.
  */
 export const createBlogPostAction = adminActionClient
-  .schema(createMarketingBlogPostSchema)
+  .schema(createMarketingBlogPostActionSchema)
   .action(async ({ parsedInput }) => {
+    const { stringified_json_content, stringified_seo_data, ...createData } = parsedInput;
+    const jsonContent = JSON.parse(stringified_json_content);
+    const seoData = JSON.parse(stringified_seo_data);
     const { data, error } = await supabaseAdminClient
       .from('marketing_blog_posts')
       .insert({
-        ...parsedInput,
-        json_content: toSafeJSONB(parsedInput.json_content),
-        seo_data: toSafeJSONB(parsedInput.seo_data),
+        ...createData,
+        json_content: jsonContent,
+        seo_data: seoData,
       })
       .select()
       .single();
@@ -36,16 +39,21 @@ export const createBlogPostAction = adminActionClient
  * Updates an existing marketing blog post.
  */
 export const updateBlogPostAction = adminActionClient
-  .schema(updateMarketingBlogPostSchema)
+  .schema(updateMarketingBlogPostActionSchema)
   .action(async ({ parsedInput }) => {
-    const { id, ...updateData } = parsedInput;
+    const { id, stringified_json_content, stringified_seo_data, ...updateData } = parsedInput;
 
+    console.log('updateData', updateData);
+    const jsonContent = JSON.parse(stringified_json_content);
+    const seoData = JSON.parse(stringified_seo_data);
+    console.log('jsonContent', jsonContent);
+    console.log('seoData', seoData);
     const { data, error } = await supabaseAdminClient
       .from('marketing_blog_posts')
       .update({
         ...updateData,
-        json_content: toSafeJSONB(updateData.json_content),
-        seo_data: toSafeJSONB(updateData.seo_data),
+        json_content: jsonContent,
+        seo_data: seoData,
       })
       .eq('id', id)
       .select()

@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/reactSelectStyles.ts
 import { StylesConfig } from 'react-select';
 
 export const reactSelectStyles: StylesConfig = {

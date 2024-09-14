@@ -22,9 +22,27 @@ export const createMarketingBlogPostSchema = marketingBlogPostSchema.omit({
   updated_at: true,
 });
 
+export const createMarketingBlogPostActionSchema = createMarketingBlogPostSchema
+  .omit({
+    json_content: true,
+    seo_data: true,
+  }).extend({
+    stringified_json_content: z.string(),
+    stringified_seo_data: z.string(),
+  });
+
 export const updateMarketingBlogPostSchema = marketingBlogPostSchema.partial().extend({
   id: z.string().uuid(),
 });
+
+export const updateMarketingBlogPostActionSchema = updateMarketingBlogPostSchema
+  .omit({
+    json_content: true,
+    seo_data: true,
+  }).extend({
+    stringified_json_content: z.string(),
+    stringified_seo_data: z.string(),
+  });
 
 export const deleteMarketingBlogPostSchema = z.object({
   id: z.string().uuid(),

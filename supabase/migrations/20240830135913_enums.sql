@@ -5,7 +5,7 @@
  |  __|| . ` | | | | |\/| |\___ \
  | |___| |\  | |_| | |  | |____) |
  |_____|_| \_|\___/|_|  |_|_____/
-
+ 
  *********************************************
  *                                           *
  *  This file contains enum type definitions *
@@ -93,3 +93,6 @@ CREATE TYPE public.workspace_invitation_link_status AS ENUM(
   'inactive'
 );
 CREATE TYPE public.workspace_membership_type AS ENUM ('solo', 'team');
+
+
+CREATE TYPE public.marketing_changelog_status AS ENUM ('draft', 'published');

@@ -1,3 +1,4 @@
+// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/EditBlogPostForm.tsx
 'use client';
 import { Tiptap } from "@/components/TipTap";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -102,8 +103,17 @@ export const EditBlogPostForm: React.FC<EditBlogPostFormProps> = ({ post }) => {
     },
   });
 
-  const onSubmit = async (data: FormData) => {
-    await updateMutation.execute(data);
+  const onSubmit = async ({
+    json_content,
+    seo_data,
+    ...data
+  }: FormData) => {
+    console.log('json_content', json_content);
+    await updateMutation.execute({
+      ...data,
+      stringified_json_content: JSON.stringify(json_content ?? {}),
+      stringified_seo_data: JSON.stringify(seo_data ?? {}),
+    });
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,29 +129,33 @@ export const EditBlogPostForm: React.FC<EditBlogPostFormProps> = ({ post }) => {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
         <Label htmlFor="cover_image">Cover Image</Label>
-        <div
-          className="mt-2 relative w-full rounded-lg overflow-hidden cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <AspectRatio ratio={16 / 9}>
-            {coverImageUrl ? (
-              <Image
-                src={coverImageUrl}
-                alt="Cover image"
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center bg-gray-100">
-                <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-              <span className="text-white font-semibold">Change Cover Image</span>
+        <div className="bg-black rounded-lg 2xl:py-12 2xl:px-2">
+          <div
+            className="mt-2 relative w-full max-w-4xl mx-auto rounded-lg overflow-hidden cursor-pointer flex items-center justify-center"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="w-full max-w-4xl">
+              <AspectRatio ratio={16 / 9}>
+                {coverImageUrl ? (
+                  <Image
+                    src={coverImageUrl}
+                    alt="Cover image"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-gray-100">
+                    <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <span className="text-white font-semibold">Change Cover Image</span>
+                </div>
+              </AspectRatio>
             </div>
-          </AspectRatio>
+          </div>
         </div>
         <input
           ref={fileInputRef}

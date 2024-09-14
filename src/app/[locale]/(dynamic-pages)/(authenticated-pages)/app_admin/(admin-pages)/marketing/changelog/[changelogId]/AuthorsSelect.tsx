@@ -1,18 +1,17 @@
-// @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/AuthorsSelect.tsx
 'use client';
+
 import { Label } from '@/components/ui/label';
-import { updateBlogPostAuthorsAction } from '@/data/admin/marketing-blog';
+import { updateChangelogAuthorsAction } from '@/data/admin/marketing-changelog';
 import { DBTable } from '@/types';
 import { useAction } from 'next-safe-action/hooks';
 import React, { useRef } from 'react';
 import Select, { MultiValue } from 'react-select';
 import { toast } from 'sonner';
-import { reactSelectStyles } from './reactSelectStyles';
 
 type AuthorsSelectProps = {
-  post: {
+  changelog: {
     id: string;
-    marketing_blog_author_posts?: DBTable<'marketing_blog_author_posts'>[];
+    marketing_changelog_author_relationship: { author_id: string }[];
   };
   authors: DBTable<'marketing_author_profiles'>[];
 };
@@ -22,10 +21,10 @@ type AuthorOption = {
   label: string;
 };
 
-export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({ post, authors }) => {
+export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({ changelog, authors }) => {
   const toastRef = useRef<string | number>();
 
-  const updateAuthorsMutation = useAction(updateBlogPostAuthorsAction, {
+  const updateAuthorsMutation = useAction(updateChangelogAuthorsAction, {
     onExecute: () => {
       toastRef.current = toast.loading('Updating authors...', { description: 'Please wait while we update the authors.' });
     },
@@ -42,10 +41,10 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({ post, authors }) =
 
   const handleAuthorsChange = (selectedOptions: MultiValue<AuthorOption>) => {
     const selectedAuthorIds = selectedOptions.map(option => option.value);
-    updateAuthorsMutation.execute({ postId: post.id, authorIds: selectedAuthorIds });
+    updateAuthorsMutation.execute({ changelogId: changelog.id, authorIds: selectedAuthorIds });
   };
 
-  const selectedAuthorIds = post.marketing_blog_author_posts?.map(a => a.author_id) ?? [];
+  const selectedAuthorIds = changelog.marketing_changelog_author_relationship.map(a => a.author_id);
   const options = authors.map(author => ({ value: author.id, label: author.display_name }));
   const defaultValue = options.filter(option => selectedAuthorIds.includes(option.value));
 
@@ -60,7 +59,6 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({ post, authors }) =
         onChange={handleAuthorsChange}
         placeholder="Select authors..."
         classNamePrefix="select"
-        styles={reactSelectStyles}
       />
     </div>
   );
