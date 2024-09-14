@@ -1,6 +1,6 @@
 "use client";
 
-import type { BlogPostWithTags } from "@/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/blog/(blog-list)/page";
+import type { BlogPostWithTags } from "@/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/(blog-list)/page";
 import { TabsList } from "@radix-ui/react-tabs";
 import { format } from "date-fns";
 import { CalendarDays, Grid2X2, List, MoveUpRight, SquarePen } from "lucide-react";
@@ -85,7 +85,7 @@ const BlogViews = ({ blogs }: Props) => {
               </div>
               <div className="flex gap-8 items-center self-end md:self-center">
                 <Button variant="outline" className="rounded-full p-4 h-fit bg-accent hover:bg-background group-hover:bg-background border-transparent hover:border-input" asChild>
-                  <Link href={`/app_admin/blog/post/${blog.id}/edit`}>
+                  <Link href={`/app_admin/marketing/blog/post/${blog.id}/edit`}>
                     <SquarePen className="size-4" />
                   </Link>
                 </Button>
@@ -111,7 +111,7 @@ const BlogViews = ({ blogs }: Props) => {
         <div className="grid grid-cols-2 gap-8 col-span-5 w-full">
           {blogs.map((blog) => (
             <Link
-              href={`/app_admin/blog/post/${blog.id}/edit`}
+              href={`/app_admin/marketing/blog/post/${blog.id}/edit`}
               className="group col-span-1"
             >
               <Card

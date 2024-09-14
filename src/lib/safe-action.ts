@@ -3,7 +3,18 @@ import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 import { createSafeActionClient } from "next-safe-action";
 
-export const actionClient = createSafeActionClient().use(async ({ next, clientInput, metadata }) => {
+export const actionClient = createSafeActionClient({
+  handleServerError(e, utils) {
+    // You can access these properties inside the `utils` object.
+    const { clientInput, bindArgsClientInputs, metadata, ctx } = utils;
+
+    // Log to console.
+    console.log("Action error:", e.message);
+
+    // Return generic message
+    return "Oh no, something went wrong!";
+  },
+}).use(async ({ next, clientInput, metadata }) => {
   if (process.env.NODE_ENV === 'development') {
     console.log("LOGGING MIDDLEWARE");
 

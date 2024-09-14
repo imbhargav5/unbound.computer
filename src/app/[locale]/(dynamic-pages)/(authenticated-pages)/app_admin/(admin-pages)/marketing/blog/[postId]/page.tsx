@@ -1,0 +1,23 @@
+import { getAllAuthorProfiles } from '@/data/admin/marketing-authors';
+import { getBlogPostById } from '@/data/admin/marketing-blog';
+import { getAllTags } from '@/data/admin/marketing-tags';
+import { notFound } from 'next/navigation';
+import { EditBlogPostLayout } from './EditBlogPostLayout';
+
+export default async function EditBlogPostPage({ params }: { params: { postId: string } }) {
+  const post = await getBlogPostById(params.postId);
+
+  if (!post) {
+    notFound();
+  }
+
+  const authors = await getAllAuthorProfiles();
+  const tags = await getAllTags();
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Edit Blog Post</h1>
+      <EditBlogPostLayout post={post} authors={authors} tags={tags} />
+    </div>
+  );
+}

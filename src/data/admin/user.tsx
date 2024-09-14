@@ -299,12 +299,10 @@ export const uploadBlogImage = async (
     replacement: "-",
   });
 
-  const user = await serverGetLoggedInUser();
-  const userId = user.id;
-  const userImagesPath = `${userId}/images/${slugifiedFilename}`;
+  const userImagesPath = `blog/images/${slugifiedFilename}`;
 
   const { data, error } = await supabaseAdminClient.storage
-    .from("admin-blog")
+    .from("marketing-assets")
     .upload(userImagesPath, file, {
       cacheControl: "3600",
       upsert: true,
@@ -319,9 +317,11 @@ export const uploadBlogImage = async (
   const filePath = path.split(",")[0];
   const supabaseFileUrl = urlJoin(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    "/storage/v1/object/public/admin-blog",
+    "/storage/v1/object/public/marketing-assets",
     filePath,
   );
 
   return { status: "success", data: supabaseFileUrl };
 };
+
+

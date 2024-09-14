@@ -48,7 +48,6 @@ export interface CustomerPortalData {
   url: string;
 }
 
-export type InvoiceData = DBTable<'billing_invoices'>
 
 export interface PaymentMethodData {
   id: string;
@@ -66,39 +65,71 @@ export type CheckoutSessionOptions = {
 export abstract class PaymentGateway {
   abstract getName(): string;
 
+  /**
+   * These are methods which perform operations on the database.
+  */
   abstract db: {
-    createCustomer(userData: Partial<DBTable<'billing_customers'>>, organizationId: string): Promise<DBTable<'billing_customers'>>;
-    getCustomer(customerId: string): Promise<DBTable<'billing_customers'>>;
+    createCustomer(customerData: Partial<DBTable<'billing_customers'>>, workspaceId: string): Promise<DBTable<'billing_customers'>>;
+    getCustomerByCustomerId(customerId: string): Promise<DBTable<'billing_customers'>>;
+    getCustomerByWorkspaceId(workspaceId: string): Promise<DBTable<'billing_customers'> | null>;
     hasCustomer(customerId: string): Promise<boolean>
     updateCustomer(customerId: string, updateData: Partial<DBTable<'billing_customers'>>): Promise<DBTable<'billing_customers'>>;
     deleteCustomer(customerId: string): Promise<void>;
     listCustomers(options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_customers'>>>;
     // Subscription methods
-    getSubscription(subscriptionId: string): Promise<SubscriptionData>;
-    listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<SubscriptionData>>;
+    getSubscriptionsByCustomerId(customerId: string): Promise<Array<DBTable<'billing_subscriptions'>>>;
+    getSubscriptionsByWorkspaceId(workspaceId: string): Promise<Array<DBTable<'billing_subscriptions'>>>;
+    getSubscription(subscriptionId: string): Promise<DBTable<'billing_subscriptions'>>;
+    listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_subscriptions'>>>;
     // Invoice methods
-    getInvoice(invoiceId: string): Promise<InvoiceData>;
-    listInvoices(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>>;
+    getInvoice(invoiceId: string): Promise<DBTable<'billing_invoices'>>;
+    listInvoicesByCustomerId(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
+    listInvoicesByWorkspaceId(workspaceId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
     // Plan methods
     getPlan(planId: string): Promise<PlanData>;
-    listPlans(options?: PaginationOptions): Promise<PaginatedResponse<PlanData>>;
+    listPlans(options?: PaginationOptions): Promise<Array<PlanData>>;
   }
 
   abstract util: {
-    createCustomerForOrganization(organizationId: string): Promise<DBTable<'billing_customers'>>;
-    getCustomerByOrganizationId(organizationId: string): Promise<DBTable<'billing_customers'> | null>;
+    createCustomerForWorkspace(workspaceId: string): Promise<DBTable<'billing_customers'>>;
+    getCustomerByWorkspaceId(workspaceId: string): Promise<DBTable<'billing_customers'> | null>;
     supportsFeature(featureName: string): boolean;
+    isTestMode(): boolean;
   }
 
+  /**
+   * These are methods which perform operations on the payment gateway.
+  */
   abstract gateway: {
-    createCustomer(userData: Partial<CustomerData>): Promise<CustomerData>;
+    createGatewayCustomer(userData: Partial<CustomerData>): Promise<CustomerData>;
     // Webhook methods
-    handleWebhook(body: any, signature: string): Promise<void>;
-    // Checkout methods
-    createCheckoutSession(organizationId: string, planId: string, options?: CheckoutSessionOptions): Promise<CheckoutSessionData>;
-    // Customer portal methods
-    createCustomerPortalSession(gatewayCustomerId: string, returnUrl: string): Promise<CustomerPortalData>;
-    syncPlans(): Promise<void>;
+    handleGatewayWebhook(body: any, signature: string): Promise<void>;
   }
-
+  abstract anonScope: {
+    listVisiblePlans(): Promise<PlanData[]>;
+  }
+  abstract userScope: {
+    getWorkspaceDatabasePlan(workspaceId: string): Promise<PlanData>;
+    getWorkspaceDatabaseSubscriptions(workspaceId: string): Promise<DBTable<'billing_subscriptions'>[]>;
+    getWorkspaceDatabaseOneTimePurchases(workspaceId: string): Promise<DBTable<'billing_one_time_payments'>[]>;
+    getWorkspaceDatabaseInvoices(workspaceId: string): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
+    getWorkspaceDatabaseCharges(workspaceId: string): Promise<DBTable<'billing_charges'>[]>;
+    getWorkspaceDatabasePaymentMethods(workspaceId: string): Promise<DBTable<'billing_payment_methods'>[]>;
+    getWorkspaceDatabaseCustomer(workspaceId: string): Promise<DBTable<'billing_customers'>>;
+    // Checkout methods
+    createGatewayCheckoutSession(workspaceId: string, planId: string, options?: CheckoutSessionOptions): Promise<CheckoutSessionData>;
+    // Customer portal methods
+    createGatewayCustomerPortalSession(workspaceId: string, returnUrl: string): Promise<CustomerPortalData>;
+  }
+  abstract superAdminScope: {
+    syncPlans(): Promise<void>;
+    syncCustomers(): Promise<void>;
+    togglePlanVisibility(planId: string, isVisible: boolean): Promise<void>;
+    listAllPlans(): Promise<PlanData[]>;
+    getCurrentMRR(): Promise<number>;
+    getRevenueByMonthSince(date: Date): Promise<{ month: Date, revenue: number }[]>;
+    getCurrentMonthlySubscriptions(): Promise<number>;
+    getSubscriptionsByMonthSince(date: Date): Promise<{ month: Date, subscriptions: number }[]>;
+    getCurrentRevenueByPlan(): Promise<{ planId: string, revenue: number }[]>;
+  }
 }

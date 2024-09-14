@@ -1,7 +1,7 @@
 import { SwitcherAndToggle } from '@/components/SidebarComponents/SidebarLogo';
 import { SidebarLink } from '@/components/SidebarLink';
 import { cn } from '@/utils/cn';
-import { Book, Briefcase, FileLineChart, HelpCircle, Home, Map, PenTool, Settings, Users } from 'lucide-react';
+import { Book, Briefcase, CreditCard, FileLineChart, HelpCircle, Home, Map, PenTool, Settings, Users } from 'lucide-react';
 
 const links = [
   {
@@ -15,23 +15,39 @@ const links = [
     icon: <FileLineChart className="h-5 w-5" />,
   },
   {
+    label: 'Payment Gateways',
+    href: `/app_admin/payment-gateway`,
+    icon: <CreditCard className="h-5 w-5" />,
+  },
+  {
     label: 'Users',
     href: `/app_admin/users`,
     icon: <Users className="h-5 w-5" />,
   },
   {
-    label: 'Organizations',
-    href: `/app_admin/organizations`,
+    label: 'Workspaces',
+    href: `/app_admin/workspaces`,
     icon: <Briefcase className="h-5 w-5" />,
   },
+
   {
     label: 'Application Settings',
     href: `/app_admin/settings`,
     icon: <Settings className="h-5 w-5" />,
   },
   {
-    label: 'Blog',
-    href: `/app_admin/blog`,
+    label: 'Marketing Authors',
+    href: `/app_admin/marketing/authors`,
+    icon: <CreditCard className="h-5 w-5" />,
+  },
+  {
+    label: 'Marketing Tags',
+    href: `/app_admin/marketing/tags`,
+    icon: <CreditCard className="h-5 w-5" />,
+  },
+  {
+    label: 'Marketing Blog',
+    href: `/app_admin/marketing/blog`,
     icon: <PenTool className="h-5 w-5" />,
   },
   {
@@ -41,12 +57,12 @@ const links = [
   },
 
   {
-    label: 'Changelog List',
-    href: `/app_admin/changelog`,
+    label: 'MarketingChangelog List',
+    href: `/app_admin/marketing/changelog`,
     icon: <Book className="h-5 w-5" />,
   },
   {
-    label: 'Roadmap',
+    label: 'Marketing Roadmap',
     href: "/roadmap",
     icon: <Map className="h-5 w-5" />,
   },
