@@ -8,11 +8,12 @@ function isWorkspace(arg: SlimWorkspace | Enum<'workspace_membership_type'>): ar
 export function getWorkspaceSubPath(workspace: SlimWorkspace, subPath: string): string;
 export function getWorkspaceSubPath(workspaceSlug: Enum<'workspace_membership_type'>, subPath: string): string;
 export function getWorkspaceSubPath(arg: SlimWorkspace | Enum<'workspace_membership_type'>, subPath: string): string {
-  console.log(arg);
   if (isWorkspace(arg)) {
     const workspace = arg;
     if (workspace.membershipType === 'solo') {
-      return urlJoin('/', subPath);
+      // TODO: solo workspaces are the root workspace, so we don't need to include the workspace slug
+      // remove the workspace slug from the subpath
+      return urlJoin('/workspace/${workspace.slug}', subPath);
     }
     return urlJoin(`/workspace/${workspace.slug}`, subPath);
   }
