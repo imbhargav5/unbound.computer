@@ -205,9 +205,32 @@ export async function sendLoginLinkAction(email: string): Promise<SAPayload> {
       url.pathname = `/auth/confirm`;
       url.search = searchParams.toString();
 
+      const {
+        data: userProfile,
+        error: userProfileError,
+      } = await supabaseAdminClient.from('user_profiles')
+        .select('id,full_name, user_application_settings(*)')
+        .eq('user_application_settings.email_readonly', email)
+        .single();
+
+      if (userProfileError) {
+        throw userProfileError;
+      }
+
+      const userEmail = userProfile.user_application_settings?.email_readonly;
+      const userName = userProfile.full_name;
+
+      if (!userEmail) {
+        throw new Error("User email not found");
+      }
+
+
+
       // send email
       const signInEmailHTML = await renderAsync(
-        <SignInEmail signInUrl={url.toString()} />,
+        <SignInEmail signInUrl={url.toString()} companyName="Nextbase"
+          userName={userName ?? "User"}
+          logoUrl={urlJoin(process.env.NEXT_PUBLIC_SUPABASE_URL, "/storage/v1/object/public/marketing-assets", "nextbase-logo.png")} />,
       );
 
       if (process.env.NODE_ENV === "development") {
@@ -245,14 +268,17 @@ export const getPaginatedUserList = async ({
   query?: string;
 }) => {
   ensureAppAdmin();
-  const { data, error } = await supabaseAdminClient.rpc(
-    "app_admin_get_all_users",
-    {
-      page: page,
-      search_query: query,
-      page_size: limit,
-    },
-  );
+  console.log("query", query);
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const { data, error } = await supabaseAdminClient
+    .from('user_profiles')
+    .select('*, user_application_settings(*), user_roles(*)')
+    .textSearch('full_name', query)
+    .textSearch('id', query)
+    .textSearch('user_application_settings.email_readonly', query)
+    .limit(limit)
+    .range(startIndex, endIndex)
 
   if (error) {
     throw error;
@@ -268,19 +294,26 @@ export const getUsersTotalPages = async ({
   limit?: number;
   query?: string;
 }) => {
+  console.log("query", query);
   ensureAppAdmin();
-  const { data, error } = await supabaseAdminClient.rpc(
-    "app_admin_get_all_users_count",
-    {
-      search_query: query,
-    },
-  );
+
+  console.log('isadmin');
+  const { count, error } = await supabaseAdminClient
+    .from('user_profiles')
+    .select('*', {
+      count: 'exact',
+      head: true,
+    })
+    .textSearch('full_name', query)
+    .textSearch('id', query)
+    .textSearch('user_application_settings.email_readonly', query)
+    .limit(limit)
 
   if (error) {
     throw error;
   }
 
-  return Math.ceil(data / limit);
+  return Math.ceil((count ?? 0) / limit);
 };
 
 export const uploadBlogImage = async (

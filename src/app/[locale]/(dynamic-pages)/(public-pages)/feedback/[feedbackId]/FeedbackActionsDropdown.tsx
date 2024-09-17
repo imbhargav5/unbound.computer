@@ -64,7 +64,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update status';
+      const errorMessage = error.serverError ?? 'Failed to update status';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -79,7 +79,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update type';
+      const errorMessage = error.serverError ?? 'Failed to update type';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -94,7 +94,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update priority';
+      const errorMessage = error.serverError ?? 'Failed to update priority';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -109,7 +109,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update roadmap status';
+      const errorMessage = error.serverError ?? 'Failed to update roadmap status';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -124,7 +124,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update open for comments status';
+      const errorMessage = error.serverError ?? 'Failed to update open for comments status';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -139,7 +139,7 @@ export function FeedbackActionsDropdown({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update visibility';
+      const errorMessage = error.serverError ?? 'Failed to update visibility';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
