@@ -1,12 +1,14 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table as ShadcnTable,
+  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Typography } from '@/components/ui/Typography';
+import { getSlimWorkspacesOfUserAction } from '@/data/admin/workspaces';
 import { Suspense } from 'react';
 import { z } from 'zod';
 
@@ -14,29 +16,46 @@ const paramsSchema = z.object({
   userId: z.string(),
 });
 
-async function OrganizationsTable({ userId }: { userId: string }) {
-  const organizationsForUser = await getSlimOrganizationsOfUser(userId);
+async function WorkspacesTable({ userId }: { userId: string }) {
+  const workspacesActionResult = await getSlimWorkspacesOfUserAction({ userId });
 
-  return (
-    <div className="space-y-4">
-      <ShadcnTable>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Organization Name</TableHead>
-            <TableHead>Role</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {organizationsForUser.map((org) => (
-            <TableRow key={org.id}>
-              <TableCell>{org.title}</TableCell>
-              <TableCell>{org.member_role}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </ShadcnTable>
-    </div>
-  );
+  if (workspacesActionResult?.data) {
+    const workspaces = workspacesActionResult.data;
+    return (
+      <div className="space-y-6">
+        <Typography.H2>Workspaces</Typography.H2>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Workspace Name</TableHead>
+                <TableHead>Slug</TableHead>
+                <TableHead>Membership Type</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {workspaces.map((workspace) => (
+                <TableRow key={workspace.id}>
+                  <TableCell>{workspace.name ?? '-'}</TableCell>
+                  <TableCell>{workspace.slug ?? '-'}</TableCell>
+                  <TableCell>{workspace.membershipType ?? '-'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  } else {
+    if (workspacesActionResult?.serverError) {
+      console.log("***************");
+      console.log(workspacesActionResult.serverError);
+      return <div>{workspacesActionResult.serverError}</div>
+    } else {
+      console.error(workspacesActionResult);
+      return <div>Failed to load workspaces for user</div>
+    }
+  }
 }
 
 export default async function AdminUserPage({ params }: { params: unknown }) {
@@ -44,7 +63,7 @@ export default async function AdminUserPage({ params }: { params: unknown }) {
 
   return (
     <Suspense fallback={<Skeleton className="w-full h-6" />}>
-      <OrganizationsTable userId={userId} />
+      <WorkspacesTable userId={userId} />
     </Suspense>
   );
 }

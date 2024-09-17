@@ -53,20 +53,29 @@ const getSlimWorkspacesOfUserSchema = z.object({
 export const getSlimWorkspacesOfUserAction = adminActionClient
   .schema(getSlimWorkspacesOfUserSchema)
   .action(async ({ parsedInput: { userId } }): Promise<SlimWorkspaces> => {
+    console.log(`&&&&&&&&&&&&&&&&`);
+    console.log(userId);
     const { data: workspaceTeamMembers, error: workspaceTeamMembersError } =
       await supabaseAdminClient
         .from('workspace_team_members')
-        .select('*')
-        .eq('member_id', userId);
+        .select('workspace_id')
+        .eq('user_profile_id', userId);
 
     if (workspaceTeamMembersError) {
+      console.log(`&&&&&&&&&&&&&&&&`);
+      console.log(workspaceTeamMembersError);
       throw workspaceTeamMembersError;
     }
+
+
+    const workspaceIds = workspaceTeamMembers.map((member) => member.workspace_id);
+
+    console.log(workspaceIds);
 
     const { data, error } = await supabaseAdminClient
       .from('workspaces')
       .select('id,name,slug,workspace_application_settings(*)')
-      .in('id', workspaceTeamMembers.map((member) => member.workspace_id))
+      .in('id', workspaceIds)
       .order('created_at', {
         ascending: false,
       });
