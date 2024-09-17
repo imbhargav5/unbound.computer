@@ -1,13 +1,13 @@
 'use client';
 import { T } from '@/components/ui/Typography';
-import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supabaseUserClientComponentClient';
-import { useDidMount } from 'rooks';
+import { supabaseUserClientComponent } from '@/supabase-clients/user/supabaseUserClientComponent';
 import { useRouter } from 'next/navigation';
+import { useDidMount } from 'rooks';
 
 export default function Logout() {
   const router = useRouter();
   useDidMount(async () => {
-    await supabaseUserClientComponentClient.auth.signOut();
+    await supabaseUserClientComponent.auth.signOut();
     router.refresh();
     router.replace('/');
   });

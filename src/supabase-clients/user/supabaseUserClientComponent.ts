@@ -4,7 +4,7 @@ import { createBrowserClient } from '@supabase/ssr';
 // apologies for the name, but it's the best I could come up with as
 // the util exported from @supabase/auth-helpers-nextjs is called
 // createClientComponentClient
-export const supabaseUserClientComponentClient =
+export const supabaseUserClientComponent =
   createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

@@ -1,5 +1,5 @@
 import { PageHeading } from '@/components/PageHeading';
-import { getWorkspaceTitle } from '@/data/user/workspaces';
+import { getWorkspaceName } from '@/data/user/workspaces';
 
 export async function WorkspacePageHeading({
     workspaceId,
@@ -8,7 +8,7 @@ export async function WorkspacePageHeading({
     workspaceId: string;
     workspaceSlug: string;
 }) {
-    const workspaceTitle = await getWorkspaceTitle(workspaceId);
+    const workspaceTitle = await getWorkspaceName(workspaceId);
     return (
         <PageHeading
             title={workspaceTitle}

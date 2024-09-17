@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supabaseUserClientComponentClient';
+import { supabaseUserClientComponent } from '@/supabase-clients/user/supabaseUserClientComponent';
 import type { DBTable } from '@/types';
 import { parseNotification } from '@/utils/parseNotification';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
@@ -41,7 +41,7 @@ const useUnseenNotificationIds = (userId: string) => {
   );
   useEffect(() => {
     const channelId = `user-notifications:${userId}`;
-    const channel = supabaseUserClientComponentClient
+    const channel = supabaseUserClientComponent
       .channel(channelId)
       .on(
         'postgres_changes',

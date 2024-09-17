@@ -87,30 +87,20 @@ const appAdminGetUserImpersonationUrlSchema = z.object({
 export const appAdminGetUserImpersonationUrlAction = adminActionClient
   .schema(appAdminGetUserImpersonationUrlSchema)
   .action(async ({ parsedInput: { userId } }) => {
-    ensureAppAdmin();
     const response = await supabaseAdminClient.auth.admin.getUserById(userId);
 
     const { data: user, error: userError } = response;
 
     if (userError) {
-      return {
-        status: "error",
-        message: userError.message,
-      };
+      throw userError;
     }
 
     if (!user?.user) {
-      return {
-        status: "error",
-        message: "user does not exist",
-      };
+      throw new Error("User does not exist");
     }
 
     if (!user.user.email) {
-      return {
-        status: "error",
-        message: "user does not have an email",
-      };
+      throw new Error("User does not have an email");
     }
 
     const generateLinkResponse =
@@ -123,10 +113,7 @@ export const appAdminGetUserImpersonationUrlAction = adminActionClient
       generateLinkResponse;
 
     if (generateLinkError) {
-      return {
-        status: "error",
-        message: generateLinkError.message,
-      };
+      throw generateLinkError;
     }
 
     if (process.env.NEXT_PUBLIC_SITE_URL !== undefined) {
@@ -145,16 +132,10 @@ export const appAdminGetUserImpersonationUrlAction = adminActionClient
       checkAuthUrl.pathname = `/auth/confirm`;
       checkAuthUrl.search = searchParams.toString();
 
-      return {
-        status: "success",
-        data: checkAuthUrl,
-      };
+      return checkAuthUrl.toString();
     }
 
-    return {
-      status: "error",
-      message: "site url is undefined",
-    };
+    throw new Error("Failed to generate login link");
   });
 
 const createUserSchema = z.object({

@@ -1,9 +1,8 @@
-import {
-  type User
-} from '@supabase/auth-helpers-nextjs';
+
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 // const matchAppAdmin = match('/app_admin_preview/(.*)?');
+import { User } from '@supabase/supabase-js';
 import createMiddleware from 'next-intl/middleware';
 import { match } from 'path-to-regexp';
 import urlJoin from 'url-join';
@@ -93,16 +92,18 @@ const middlewares: MiddlewareConfig[] = [
       console.log('middleware without locale paths', request.nextUrl.pathname)
       // redirect to /en if the locale is not /en or /
       const currentLocale = request.cookies.get('NEXT_LOCALE')?.value;
+      const searchParams = request.nextUrl.searchParams;
+      const pathname = request.nextUrl.pathname;
       if (currentLocale) {
         const parsedLocale = isValidLocale(currentLocale);
         if (parsedLocale) {
           return NextResponse.redirect(
-            urlJoin(request.nextUrl.origin, currentLocale, request.nextUrl.pathname)
+            urlJoin(request.nextUrl.origin, currentLocale, pathname, `?${searchParams.toString()}`)
           );
         }
       }
       const response = NextResponse.redirect(
-        urlJoin(request.nextUrl.origin, DEFAULT_LOCALE, request.nextUrl.pathname)
+        urlJoin(request.nextUrl.origin, DEFAULT_LOCALE, pathname, `?${searchParams.toString()}`)
       );
       response.cookies.set('NEXT_LOCALE', DEFAULT_LOCALE);
       return response;

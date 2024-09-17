@@ -1,9 +1,9 @@
 'use client';
-import { supabaseUserClientComponentClient } from '@/supabase-clients/user/supabaseUserClientComponentClient';
+import { supabaseUserClientComponent } from '@/supabase-clients/user/supabaseUserClientComponent';
 import type { DBTable, SAPayload } from '@/types';
 
 export const readNotification = async (notificationId: string) => {
-  const { data: notification, error } = await supabaseUserClientComponentClient
+  const { data: notification, error } = await supabaseUserClientComponent
     .from('user_notifications')
     .update({ is_read: true })
     .match({ id: notificationId })
@@ -15,7 +15,7 @@ export const readNotification = async (notificationId: string) => {
 export const readAllNotifications = async (
   userId: string,
 ): Promise<SAPayload<DBTable<'user_notifications'>[]>> => {
-  const { data: notifications, error } = await supabaseUserClientComponentClient
+  const { data: notifications, error } = await supabaseUserClientComponent
     .from('user_notifications')
     .update({ is_read: true, is_seen: true })
     .match({ user_id: userId })
@@ -35,7 +35,7 @@ export const readAllNotifications = async (
 };
 
 export const seeNotification = async (notificationId: string) => {
-  const { data: notification, error } = await supabaseUserClientComponentClient
+  const { data: notification, error } = await supabaseUserClientComponent
     .from('user_notifications')
     .update({ is_seen: true })
     .match({ id: notificationId })
@@ -49,7 +49,7 @@ export const getPaginatedNotifications = async (
   pageNumber: number,
   limit: number,
 ): Promise<[number, Array<DBTable<'user_notifications'>>]> => {
-  const { data: notifications, error } = await supabaseUserClientComponentClient
+  const { data: notifications, error } = await supabaseUserClientComponent
     .from('user_notifications')
     .select('*')
     .match({ user_id: userId })
@@ -60,7 +60,7 @@ export const getPaginatedNotifications = async (
 };
 
 export const getUnseenNotificationIds = async (userId: string) => {
-  const { data: notifications, error } = await supabaseUserClientComponentClient
+  const { data: notifications, error } = await supabaseUserClientComponent
     .from('user_notifications')
     .select('id')
     .eq('is_seen', false)

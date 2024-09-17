@@ -9,46 +9,56 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { appAdminGetUserImpersonationUrl } from '@/data/admin/user';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
+import { appAdminGetUserImpersonationUrlAction } from '@/data/admin/user';
 import { Link } from 'lucide-react';
-import { useState } from 'react';
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from 'react';
+import { toast } from "sonner";
 
 export const GetLoginLinkDialog = ({ userId }: { userId: string }) => {
   const [open, setOpen] = useState(false);
-  const { mutate: onConfirm, isLoading } = useSAToastMutation(
-    async () => {
-      return await appAdminGetUserImpersonationUrl(userId);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: getLoginLink, isPending } = useAction(appAdminGetUserImpersonationUrlAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Generating login link...");
     },
-    {
-      onSuccess: (payload) => {
-        navigator.clipboard.writeText((payload.data).toString());
-      },
-      loadingMessage: 'Generating login link...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to generate login link ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to generate login link';
-        }
-      },
+    onSuccess: ({ data }) => {
+      if (data) {
+        navigator.clipboard.writeText(data);
+        toast.success("Login link copied to clipboard!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      } else {
+        throw new Error("Failed to generate login link");
+      }
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? "Failed to generate login link";
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
+
+  const handleGetLoginLink = () => {
+    getLoginLink({ userId });
+    setOpen(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" aria-disabled={isLoading}>
+        <Button variant="ghost" disabled={isPending}>
           Get login link
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <div className="p-3 w-fit bg-gray-200/50 dark:bg-gray-700/40 mb-2 rounded-lg">
-            <Link className=" w-6 h-6" />
+            <Link className="w-6 h-6" />
           </div>
           <div className="p-1">
             <DialogTitle className="text-lg">Get Login Link</DialogTitle>
@@ -62,10 +72,8 @@ export const GetLoginLinkDialog = ({ userId }: { userId: string }) => {
             type="button"
             variant="outline"
             className="w-full"
-            aria-disabled={isLoading}
-            onClick={() => {
-              setOpen(false);
-            }}
+            disabled={isPending}
+            onClick={() => setOpen(false)}
           >
             Cancel
           </Button>
@@ -73,11 +81,8 @@ export const GetLoginLinkDialog = ({ userId }: { userId: string }) => {
             type="button"
             variant="default"
             className="w-full"
-            onClick={() => {
-              onConfirm();
-              setOpen(false);
-            }}
-            aria-disabled={isLoading}
+            onClick={handleGetLoginLink}
+            disabled={isPending}
           >
             Get Login Link
           </Button>

@@ -9,9 +9,7 @@ import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { AuthUserMetadata } from '@/utils/zod-schemas/authUserMetadata';
 import { createWorkspaceSchema } from '@/utils/zod-schemas/workspaces';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { v4 as uuid } from 'uuid';
 import { z } from 'zod';
 import { addUserAsWorkspaceOwner, updateUserAppMetadata, updateWorkspaceMembershipType } from './elevatedQueries';
@@ -66,22 +64,23 @@ export const getWorkspaceSlugById = async (workspaceId: string) => {
   return data.slug;
 };
 
-export async function getWorkspaceTitle(workspaceId: string): Promise<string> {
-  const supabase = createServerComponentClient({ cookies });
-  const { data, error } = await supabase
+export async function getWorkspaceName(workspaceId: string): Promise<string> {
+  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
     .from('workspaces')
-    .select('title')
+    .select('name')
     .eq('id', workspaceId)
     .single();
 
   if (error) throw error;
-  return data.title;
+  return data.name;
 }
 
 export async function getWorkspaces(userId: string) {
-  const supabase = createServerComponentClient({ cookies });
-  const { data, error } = await supabase
-    .from('workspace_members')
+  const supabaseClient = createSupabaseUserServerComponentClient();
+
+  const { data, error } = await supabaseClient
+    .from('workspace_team_members')
     .select('workspace_id, workspaces(id, slug, title, is_solo)')
     .eq('user_id', userId);
 
@@ -124,8 +123,9 @@ export const getLoggedInUserWorkspaceRole = async (
   workspaceId: string,
 ): Promise<Enum<'workspace_user_role'>> => {
   const { id: userId } = await serverGetLoggedInUser();
-  const supabase = createSupabaseUserServerComponentClient();
-  const { data, error } = await supabase
+  const supabaseClient = createSupabaseUserServerComponentClient();
+
+  const { data, error } = await supabaseClient
     .from('workspace_team_members')
     .select('role')
     .eq('user_profile_id', userId)
@@ -572,8 +572,9 @@ export const updateWorkspaceInfoAction = authActionClient
 export const getPendingInvitationsInWorkspace = async (
   workspaceId: string,
 ) => {
-  const supabase = createSupabaseUserServerComponentClient();
-  const { data, error } = await supabase
+  const supabaseClient = createSupabaseUserServerComponentClient();
+
+  const { data, error } = await supabaseClient
     .from('workspace_invitations')
     .select(
       '*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*)',
