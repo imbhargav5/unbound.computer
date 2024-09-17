@@ -16,7 +16,6 @@ async function EditOrganization({
   return (
     <EditWorkspaceForm
       workspace={workspace}
-      workspaceMembershipType={workspace.membershipType}
     />
   );
 }

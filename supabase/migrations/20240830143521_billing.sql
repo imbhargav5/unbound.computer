@@ -181,40 +181,6 @@ CREATE INDEX idx_billing_invoices_gateway_customer_id ON public.billing_invoices
 CREATE INDEX idx_billing_usage_logs_gateway_customer_id ON public.billing_usage_logs(gateway_customer_id);
 
 
--- billing tables can only be viewed by authenticated users
-REVOKE ALL ON TABLE public.billing_plans
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_plan_prices
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_volume_tiers
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_customers
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_subscriptions
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_one_time_payments
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_charges
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_payment_methods
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_invoices
-FROM anon,
-  authenticated;
-REVOKE ALL ON TABLE public.billing_usage_logs
-FROM anon,
-  authenticated;
-
-
-
 -- Grant necessary permissions
 GRANT SELECT ON TABLE public.billing_plans TO authenticated;
 GRANT SELECT ON TABLE public.billing_plan_prices TO authenticated;

@@ -385,6 +385,14 @@ export class StripePaymentGateway implements PaymentGateway {
           case 'customer.updated':
             await this.handleCustomerUpdate(event.data.object as Stripe.Customer);
             break;
+          case 'product.created':
+          case 'product.updated':
+            await this.handleProductChange(event.data.object as Stripe.Product);
+            break;
+          case 'price.created':
+          case 'price.updated':
+            await this.handlePriceChange(event.data.object as Stripe.Price);
+            break;
         }
       } catch (error) {
         this.util.handleStripeError(error);
@@ -496,6 +504,45 @@ export class StripePaymentGateway implements PaymentGateway {
 
     if (error) throw error;
   }
+
+  private async handleProductChange(product: Stripe.Product) {
+    const { error } = await supabaseAdminClient
+      .from('billing_plans')
+      .upsert({
+        gateway_plan_id: product.id,
+        gateway_name: this.getName(),
+        name: product.name,
+        description: product.description,
+        is_subscription: product.active,
+        is_visible_in_ui: product.active,
+        features: product.metadata.features,
+      }, {
+        onConflict: 'gateway_plan_id,gateway_name'
+      });
+
+    if (error) throw error;
+  }
+
+  private async handlePriceChange(price: Stripe.Price) {
+    const { error } = await supabaseAdminClient
+      .from('billing_plan_prices')
+      .upsert({
+        gateway_plan_id: price.product as string,
+        gateway_name: this.getName(),
+        gateway_price_id: price.id,
+        currency: price.currency,
+        amount: price.unit_amount ?? 0,
+        recurring_interval: price.recurring?.interval ?? 'month',
+        active: price.active,
+      }, {
+        onConflict: 'gateway_price_id'
+      });
+
+    if (error) throw error;
+  }
+
+
+
 
   private async getOrganizationIdFromCustomer(stripeCustomerId: string): Promise<string | null> {
     const { data, error } = await supabaseAdminClient
@@ -785,6 +832,15 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getRevenueByMonthSince: async (date: Date): Promise<{ month: Date, revenue: number }[]> => {
+      return [];
+    },
+    getCurrentMonthlySubscriptions: async (): Promise<number> => {
+      return 0;
+    },
+    getSubscriptionsByMonthSince: async (date: Date): Promise<{ month: Date, subscriptions: number }[]> => {
+      return [];
+    },
+    getCurrentRevenueByPlan: async (): Promise<{ planId: string, revenue: number }[]> => {
       return [];
     },
 

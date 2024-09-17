@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const stripeGateway = new StripePaymentGateway();
 
   try {
-    await stripeGateway.gateway.handleWebhook(Buffer.from(body), sig);
+    await stripeGateway.gateway.handleGatewayWebhook(Buffer.from(body), sig);
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (err) {
     console.error('Error processing webhook:', err);
@@ -20,3 +20,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  return NextResponse.json({ ok: true });
+}
