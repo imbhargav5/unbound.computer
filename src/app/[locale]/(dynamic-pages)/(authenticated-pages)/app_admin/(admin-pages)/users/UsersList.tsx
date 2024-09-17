@@ -24,7 +24,6 @@ export async function UserList({
   filters: AppAdminUserFiltersSchema;
 }) {
   const usersActionResult = await getPaginatedUserListAction(filters);
-  console.log("usersActionResult", usersActionResult);
   if (usersActionResult?.data) {
     const users = usersActionResult.data;
     return (
