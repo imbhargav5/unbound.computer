@@ -289,23 +289,26 @@ const getPaginatedUserListSchema = z.object({
 export const getPaginatedUserListAction = adminActionClient
   .schema(getPaginatedUserListSchema)
   .action(async ({ parsedInput: { query = "", page = 1, limit = 10 } }) => {
-    ensureAppAdmin();
     console.log("query", query);
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
-    const { data, error } = await supabaseAdminClient
+    let supabaseQuery = supabaseAdminClient
       .from('user_profiles')
       .select('*, user_application_settings(*), user_roles(*)')
-      .textSearch('full_name', query)
-      .textSearch('id', query)
-      .textSearch('user_application_settings.email_readonly', query)
+    console.log(query);
+    if (query) {
+      supabaseQuery = supabaseQuery
+        .ilike('full_name', `%${query}%`)
+    }
+    console.log(startIndex, endIndex);
+    const { data, error } = await supabaseQuery
       .limit(limit)
       .range(startIndex, endIndex)
 
     if (error) {
       throw error;
     }
-
+    console.log(data);
     return data;
   });
 
@@ -318,21 +321,22 @@ export const getUsersTotalPagesAction = adminActionClient
   .schema(getUsersTotalPagesSchema)
   .action(async ({ parsedInput: { query = "", limit = 10 } }) => {
     console.log("query", query);
-    ensureAppAdmin();
-
-    console.log('isadmin');
-    const { count, error } = await supabaseAdminClient
+    let supabaseQuery = supabaseAdminClient
       .from('user_profiles')
-      .select('*', {
+      .select('*, user_application_settings(*), user_roles(*)', {
         count: 'exact',
         head: true,
       })
-      .textSearch('full_name', query)
-      .textSearch('id', query)
-      .textSearch('user_application_settings.email_readonly', query)
-      .limit(limit)
+    if (query) {
+      supabaseQuery = supabaseQuery
+        .ilike('full_name', `%${query}%`)
+
+    }
+    const { count, error } = await supabaseQuery
 
     if (error) {
+      console.log("supabase***************");
+      console.error(error);
       throw error;
     }
 
