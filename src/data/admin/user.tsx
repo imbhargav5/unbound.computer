@@ -1,199 +1,139 @@
 "use server";
+import { adminActionClient } from '@/lib/safe-action';
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
-import type { DBTable, SAPayload, SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { renderAsync } from "@react-email/render";
-import type { User } from "@supabase/supabase-js";
 import SignInEmail from "emails/SignInEmail";
 import slugify from "slugify";
 import urlJoin from "url-join";
+import { z } from 'zod';
+import { zfd } from "zod-form-data";
 import { ensureAppAdmin } from "./security";
 
-export const appAdminGetUserProfile = async (
-  userId: string,
-): Promise<DBTable<"user_profiles">> => {
-  ensureAppAdmin();
-  const { data, error } = await supabaseAdminClient
-    .from("user_profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
+const appAdminGetUserProfileSchema = z.object({
+  userId: z.string(),
+});
 
-  if (error) {
-    throw error;
-  }
+export const appAdminGetUserProfileAction = adminActionClient
+  .schema(appAdminGetUserProfileSchema)
+  .action(async ({ parsedInput: { userId } }) => {
+    ensureAppAdmin();
+    const { data, error } = await supabaseAdminClient
+      .from("user_profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
 
-  return data;
-};
-
-export const uploadImageAction = async (
-  formData: FormData,
-  fileName: string,
-  fileOptions?: SupabaseFileUploadOptions | undefined,
-): Promise<SAPayload<string>> => {
-  "use server";
-  const file = formData.get("file");
-  if (!file) {
-    return {
-      status: "error",
-      message: "File is empty",
-    };
-  }
-  const slugifiedFilename = slugify(fileName, {
-    lower: true,
-    strict: true,
-    replacement: "-",
+    if (error) throw error;
+    return data;
   });
 
-  const user = await serverGetLoggedInUser();
-  const userId = user.id;
-  const userImagesPath = `${userId}/images/${slugifiedFilename}`;
+const uploadImageSchema = z.object({
+  formData: zfd.formData({
+    file: zfd.file(),
+  }),
+  fileName: z.string(),
+  fileOptions: z.object({}).optional(),
+});
 
-  const { data, error } = await supabaseAdminClient.storage
-    .from("changelog-assets")
-    .upload(userImagesPath, file, fileOptions);
-
-  if (error) {
-    return {
-      status: "error",
-      message: error.message,
-    };
-  }
-
-  const { path } = data;
-
-  const filePath = path.split(",")[0];
-  const supabaseFileUrl = urlJoin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    "/storage/v1/object/public/changelog-assets",
-    filePath,
-  );
-
-  return {
-    status: "success",
-    data: supabaseFileUrl,
-  };
-};
-
-export async function appAdminGetUserImpersonationUrl(userId: string): Promise<SAPayload<URL>> {
-  ensureAppAdmin();
-  const response = await supabaseAdminClient.auth.admin.getUserById(userId);
-
-  const { data: user, error: userError } = response;
-
-  if (userError) {
-    return {
-      status: "error",
-      message: userError.message,
-    };
-  }
-
-  if (!user?.user) {
-    return {
-      status: "error",
-      message: "user does not exist",
-    };
-  }
-
-  if (!user.user.email) {
-    return {
-      status: "error",
-      message: "user does not have an email",
-    };
-  }
-
-  const generateLinkResponse =
-    await supabaseAdminClient.auth.admin.generateLink({
-      email: user.user.email,
-      type: "magiclink",
+export const uploadImageAction = adminActionClient
+  .schema(uploadImageSchema)
+  .action(async ({ parsedInput: { formData, fileName, fileOptions } }) => {
+    const file = formData.file
+    if (!file) {
+      return { status: "error", message: "File is empty" };
+    }
+    const slugifiedFilename = slugify(fileName, {
+      lower: true,
+      strict: true,
+      replacement: "-",
     });
 
-  const { data: generateLinkData, error: generateLinkError } =
-    generateLinkResponse;
+    const user = await serverGetLoggedInUser();
+    const userId = user.id;
+    const userImagesPath = `${userId}/images/${slugifiedFilename}`;
 
-  if (generateLinkError) {
-    return {
-      status: "error",
-      message: generateLinkError.message,
-    };
-  }
+    const { data, error } = await supabaseAdminClient.storage
+      .from("changelog-assets")
+      .upload(userImagesPath, file, fileOptions);
 
-  if (process.env.NEXT_PUBLIC_SITE_URL !== undefined) {
-    // change the origin of the link to the site url
-    const {
-      properties: { hashed_token },
-    } = generateLinkData;
+    if (error) {
+      return {
+        status: "error",
+        message: error.message,
+      };
+    }
 
-    const tokenHash = hashed_token;
-    const searchParams = new URLSearchParams({
-      token_hash: tokenHash,
-      next: "/dashboard",
-    });
+    const { path } = data;
 
-    const checkAuthUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL);
-    checkAuthUrl.pathname = `/auth/confirm`;
-    checkAuthUrl.search = searchParams.toString();
+    const filePath = path.split(",")[0];
+    const supabaseFileUrl = urlJoin(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      "/storage/v1/object/public/changelog-assets",
+      filePath,
+    );
 
     return {
       status: "success",
-      data: checkAuthUrl,
+      data: supabaseFileUrl,
     };
-  }
-
-  return {
-    status: "error",
-    message: "site url is undefined",
-  };
-}
-
-export async function createUserAction(email: string): Promise<SAPayload<User>> {
-  const response = await supabaseAdminClient.auth.admin.createUser({
-    email,
   });
 
-  if (response.error) {
-    return {
-      status: "error",
-      message: response.error.message,
-    };
-  }
+const appAdminGetUserImpersonationUrlSchema = z.object({
+  userId: z.string(),
+});
 
-  const { user } = response.data;
+export const appAdminGetUserImpersonationUrlAction = adminActionClient
+  .schema(appAdminGetUserImpersonationUrlSchema)
+  .action(async ({ parsedInput: { userId } }) => {
+    ensureAppAdmin();
+    const response = await supabaseAdminClient.auth.admin.getUserById(userId);
 
-  if (user) {
-    // revalidatePath('/app_admin');
-    return {
-      status: "success",
-      data: user,
-    };
-  }
+    const { data: user, error: userError } = response;
 
-  throw new Error("User not created");
-}
+    if (userError) {
+      return {
+        status: "error",
+        message: userError.message,
+      };
+    }
 
-export async function sendLoginLinkAction(email: string): Promise<SAPayload> {
-  const response = await supabaseAdminClient.auth.admin.generateLink({
-    email,
-    type: "magiclink",
-  });
+    if (!user?.user) {
+      return {
+        status: "error",
+        message: "user does not exist",
+      };
+    }
 
-  if (response.error) {
-    return {
-      status: "error",
-      message: response.error.message,
-    };
-  }
+    if (!user.user.email) {
+      return {
+        status: "error",
+        message: "user does not have an email",
+      };
+    }
 
-  const generateLinkData = response.data;
+    const generateLinkResponse =
+      await supabaseAdminClient.auth.admin.generateLink({
+        email: user.user.email,
+        type: "magiclink",
+      });
 
-  if (generateLinkData) {
-    const {
-      properties: { hashed_token },
-    } = generateLinkData;
+    const { data: generateLinkData, error: generateLinkError } =
+      generateLinkResponse;
+
+    if (generateLinkError) {
+      return {
+        status: "error",
+        message: generateLinkError.message,
+      };
+    }
 
     if (process.env.NEXT_PUBLIC_SITE_URL !== undefined) {
       // change the origin of the link to the site url
+      const {
+        properties: { hashed_token },
+      } = generateLinkData;
 
       const tokenHash = hashed_token;
       const searchParams = new URLSearchParams({
@@ -201,160 +141,248 @@ export async function sendLoginLinkAction(email: string): Promise<SAPayload> {
         next: "/dashboard",
       });
 
-      const url = new URL(process.env.NEXT_PUBLIC_SITE_URL);
-      url.pathname = `/auth/confirm`;
-      url.search = searchParams.toString();
+      const checkAuthUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL);
+      checkAuthUrl.pathname = `/auth/confirm`;
+      checkAuthUrl.search = searchParams.toString();
 
+      return {
+        status: "success",
+        data: checkAuthUrl,
+      };
+    }
+
+    return {
+      status: "error",
+      message: "site url is undefined",
+    };
+  });
+
+const createUserSchema = z.object({
+  email: z.string().email(),
+});
+
+export const createUserAction = adminActionClient
+  .schema(createUserSchema)
+  .action(async ({ parsedInput: { email } }) => {
+    const response = await supabaseAdminClient.auth.admin.createUser({
+      email,
+    });
+
+    if (response.error) {
+      return {
+        status: "error",
+        message: response.error.message,
+      };
+    }
+
+    const { user } = response.data;
+
+    if (user) {
+      // revalidatePath('/app_admin');
+      return {
+        status: "success",
+        data: user,
+      };
+    }
+
+    throw new Error("User not created");
+  });
+
+const sendLoginLinkSchema = z.object({
+  email: z.string().email(),
+});
+
+export const sendLoginLinkAction = adminActionClient
+  .schema(sendLoginLinkSchema)
+  .action(async ({ parsedInput: { email } }) => {
+    const response = await supabaseAdminClient.auth.admin.generateLink({
+      email,
+      type: "magiclink",
+    });
+
+    if (response.error) {
+      return {
+        status: "error",
+        message: response.error.message,
+      };
+    }
+
+    const generateLinkData = response.data;
+
+    if (generateLinkData) {
       const {
-        data: userProfile,
-        error: userProfileError,
-      } = await supabaseAdminClient.from('user_profiles')
-        .select('id,full_name, user_application_settings(*)')
-        .eq('user_application_settings.email_readonly', email)
-        .single();
+        properties: { hashed_token },
+      } = generateLinkData;
 
-      if (userProfileError) {
-        throw userProfileError;
-      }
+      if (process.env.NEXT_PUBLIC_SITE_URL !== undefined) {
+        // change the origin of the link to the site url
 
-      const userEmail = userProfile.user_application_settings?.email_readonly;
-      const userName = userProfile.full_name;
-
-      if (!userEmail) {
-        throw new Error("User email not found");
-      }
-
-
-
-      // send email
-      const signInEmailHTML = await renderAsync(
-        <SignInEmail signInUrl={url.toString()} companyName="Nextbase"
-          userName={userName ?? "User"}
-          logoUrl={urlJoin(process.env.NEXT_PUBLIC_SUPABASE_URL, "/storage/v1/object/public/marketing-assets", "nextbase-logo.png")} />,
-      );
-
-      if (process.env.NODE_ENV === "development") {
-        // In development, we log the email to the console instead of sending it.
-        console.log({
-          link: url.toString(),
+        const tokenHash = hashed_token;
+        const searchParams = new URLSearchParams({
+          token_hash: tokenHash,
+          next: "/dashboard",
         });
-      } else {
-        await sendEmail({
-          to: email,
-          subject: `Here is your login link `,
-          html: signInEmailHTML,
-          //TODO: Modify this to your app's admin email
-          // Make sure you have verified this email in your Sendgrid (mail provider) account
-          from: process.env.ADMIN_EMAIL,
-        });
+
+        const url = new URL(process.env.NEXT_PUBLIC_SITE_URL);
+        url.pathname = `/auth/confirm`;
+        url.search = searchParams.toString();
+
+        const {
+          data: userProfile,
+          error: userProfileError,
+        } = await supabaseAdminClient.from('user_profiles')
+          .select('id,full_name, user_application_settings(*)')
+          .eq('user_application_settings.email_readonly', email)
+          .single();
+
+        if (userProfileError) {
+          throw userProfileError;
+        }
+
+        const userEmail = userProfile.user_application_settings?.email_readonly;
+        const userName = userProfile.full_name;
+
+        if (!userEmail) {
+          throw new Error("User email not found");
+        }
+
+
+
+        // send email
+        const signInEmailHTML = await renderAsync(
+          <SignInEmail signInUrl={url.toString()} companyName="Nextbase"
+            userName={userName ?? "User"}
+            logoUrl={urlJoin(process.env.NEXT_PUBLIC_SUPABASE_URL, "/storage/v1/object/public/marketing-assets", "nextbase-logo.png")} />,
+        );
+
+        if (process.env.NODE_ENV === "development") {
+          // In development, we log the email to the console instead of sending it.
+          console.log({
+            link: url.toString(),
+          });
+        } else {
+          await sendEmail({
+            to: email,
+            subject: `Here is your login link `,
+            html: signInEmailHTML,
+            //TODO: Modify this to your app's admin email
+            // Make sure you have verified this email in your Sendgrid (mail provider) account
+            from: process.env.ADMIN_EMAIL,
+          });
+        }
       }
+      return {
+        status: "success",
+      };
     }
     return {
       status: "success",
     };
-  }
-  return {
-    status: "success",
-  };
-}
-
-export const getPaginatedUserList = async ({
-  query = "",
-  page = 1,
-  limit = 10,
-}: {
-  page?: number;
-  limit?: number;
-  query?: string;
-}) => {
-  ensureAppAdmin();
-  console.log("query", query);
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const { data, error } = await supabaseAdminClient
-    .from('user_profiles')
-    .select('*, user_application_settings(*), user_roles(*)')
-    .textSearch('full_name', query)
-    .textSearch('id', query)
-    .textSearch('user_application_settings.email_readonly', query)
-    .limit(limit)
-    .range(startIndex, endIndex)
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-};
-
-export const getUsersTotalPages = async ({
-  query = "",
-  limit = 10,
-}: {
-  limit?: number;
-  query?: string;
-}) => {
-  console.log("query", query);
-  ensureAppAdmin();
-
-  console.log('isadmin');
-  const { count, error } = await supabaseAdminClient
-    .from('user_profiles')
-    .select('*', {
-      count: 'exact',
-      head: true,
-    })
-    .textSearch('full_name', query)
-    .textSearch('id', query)
-    .textSearch('user_application_settings.email_readonly', query)
-    .limit(limit)
-
-  if (error) {
-    throw error;
-  }
-
-  return Math.ceil((count ?? 0) / limit);
-};
-
-export const uploadBlogImage = async (
-  formData: FormData,
-  fileName: string,
-  fileOptions?: SupabaseFileUploadOptions | undefined,
-): Promise<SAPayload<string>> => {
-  "use server";
-  const file = formData.get("file");
-  if (!file) {
-    throw new Error("File is empty");
-  }
-  const slugifiedFilename = slugify(fileName, {
-    lower: true,
-    strict: true,
-    replacement: "-",
   });
 
-  const userImagesPath = `blog/images/${slugifiedFilename}`;
+const getPaginatedUserListSchema = z.object({
+  query: z.string().optional(),
+  page: z.number().optional(),
+  limit: z.number().optional(),
+});
 
-  const { data, error } = await supabaseAdminClient.storage
-    .from("marketing-assets")
-    .upload(userImagesPath, file, {
-      cacheControl: "3600",
-      upsert: true,
+export const getPaginatedUserListAction = adminActionClient
+  .schema(getPaginatedUserListSchema)
+  .action(async ({ parsedInput: { query = "", page = 1, limit = 10 } }) => {
+    ensureAppAdmin();
+    console.log("query", query);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const { data, error } = await supabaseAdminClient
+      .from('user_profiles')
+      .select('*, user_application_settings(*), user_roles(*)')
+      .textSearch('full_name', query)
+      .textSearch('id', query)
+      .textSearch('user_application_settings.email_readonly', query)
+      .limit(limit)
+      .range(startIndex, endIndex)
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  });
+
+const getUsersTotalPagesSchema = z.object({
+  query: z.string().optional(),
+  limit: z.number().optional(),
+});
+
+export const getUsersTotalPagesAction = adminActionClient
+  .schema(getUsersTotalPagesSchema)
+  .action(async ({ parsedInput: { query = "", limit = 10 } }) => {
+    console.log("query", query);
+    ensureAppAdmin();
+
+    console.log('isadmin');
+    const { count, error } = await supabaseAdminClient
+      .from('user_profiles')
+      .select('*', {
+        count: 'exact',
+        head: true,
+      })
+      .textSearch('full_name', query)
+      .textSearch('id', query)
+      .textSearch('user_application_settings.email_readonly', query)
+      .limit(limit)
+
+    if (error) {
+      throw error;
+    }
+
+    return Math.ceil((count ?? 0) / limit);
+  });
+
+const uploadBlogImageSchema = z.object({
+  formData: zfd.formData({
+    file: zfd.file(),
+  }),
+  fileName: z.string(),
+  fileOptions: z.object({}).optional(),
+});
+
+export const uploadBlogImageAction = adminActionClient
+  .schema(uploadBlogImageSchema)
+  .action(async ({ parsedInput: { formData, fileName, fileOptions } }) => {
+    const file = formData.file;
+    if (!file) {
+      return { status: "error", message: "File is empty" };
+    }
+    const slugifiedFilename = slugify(fileName, {
+      lower: true,
+      strict: true,
+      replacement: "-",
     });
 
-  if (error) {
-    return { status: "error", message: error.message };
-  }
+    const userImagesPath = `blog/images/${slugifiedFilename}`;
 
-  const { path } = data;
+    const { data, error } = await supabaseAdminClient.storage
+      .from("marketing-assets")
+      .upload(userImagesPath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
 
-  const filePath = path.split(",")[0];
-  const supabaseFileUrl = urlJoin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    "/storage/v1/object/public/marketing-assets",
-    filePath,
-  );
+    if (error) {
+      return { status: "error", message: error.message };
+    }
 
-  return { status: "success", data: supabaseFileUrl };
-};
+    const { path } = data;
+
+    const filePath = path.split(",")[0];
+    const supabaseFileUrl = urlJoin(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      "/storage/v1/object/public/marketing-assets",
+      filePath,
+    );
+
+    return { status: "success", data: supabaseFileUrl };
+  });
 
 
