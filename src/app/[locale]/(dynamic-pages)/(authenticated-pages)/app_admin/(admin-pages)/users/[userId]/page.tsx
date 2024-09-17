@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getSlimOrganizationsOfUser } from '@/data/admin/organizations';
 import { Suspense } from 'react';
 import { z } from 'zod';
 

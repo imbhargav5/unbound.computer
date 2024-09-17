@@ -2,7 +2,6 @@ import { PageHeading } from '@/components/PageHeading';
 import { Pagination } from '@/components/Pagination';
 import { Search } from '@/components/Search';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getWorkspacesTotalPages } from '@/data/admin/organizations';
 import { Suspense } from 'react';
 import { OrganizationList } from './OrganizationList';
 import { appAdminOrganizationsFiltersSchema } from './schema';
@@ -18,7 +17,7 @@ export default async function AdminOrganizationsList({
 }) {
   const validatedSearchParams =
     appAdminOrganizationsFiltersSchema.parse(searchParams);
-  const totalPages = await getWorkspacesTotalPages(validatedSearchParams);
+  const totalPages = await getWorkspacesTotalPagesAction(validatedSearchParams);
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
   return (
