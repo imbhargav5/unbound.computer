@@ -13,7 +13,6 @@ async function Subscription({ workspace }: { workspace: WorkspaceWithMembershipT
   try {
     const subscription = await stripePaymentGateway.userScope.getWorkspaceDatabaseSubscriptions(workspace.id);
   } catch (error) {
-    console.error(error);
     const plans = await stripePaymentGateway.anonScope.listVisiblePlans();
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
