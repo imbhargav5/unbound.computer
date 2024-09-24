@@ -43,7 +43,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
       setSuccessMessage('A magic link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to send magic link';
+      const errorMessage = error.serverError ?? 'Failed to send magic link';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -59,7 +59,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
       setSuccessMessage('A confirmation link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to create account';
+      const errorMessage = error.serverError ?? 'Failed to create account';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -77,7 +77,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to login';
+      const errorMessage = error.serverError ?? 'Failed to login';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

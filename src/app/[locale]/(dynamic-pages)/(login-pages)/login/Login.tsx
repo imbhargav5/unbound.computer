@@ -89,12 +89,14 @@ export function Login({
     onExecute: () => {
       toastRef.current = toast.loading('Requesting login...');
     },
-    onSuccess: (payload) => {
-      toast.success('Redirecting...', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      window.location.href = payload.url;
+    onSuccess: ({ data }) => {
+      if (data) {
+        toast.success('Redirecting...', {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        window.location.href = data.url;
+      }
     },
     onError: (error) => {
       toast.error('Failed to login', {

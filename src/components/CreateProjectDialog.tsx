@@ -61,7 +61,7 @@ export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps): 
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to create project";
+      const errorMessage = error.serverError ?? "Failed to create project";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

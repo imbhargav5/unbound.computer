@@ -45,7 +45,7 @@ function EditComment({
       setOpen(false);
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to update comment';
+      const errorMessage = error.serverError ?? 'Failed to update comment';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

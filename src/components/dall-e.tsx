@@ -1,14 +1,14 @@
 "use client";
 import { convertAndUploadOpenAiImageAction } from "@/data/user/chats";
-import { updateUserProfileNameAndAvatarAction } from "@/data/user/user";
-import { useSAToastMutation } from "@/hooks/useSAToastMutation";
+import { updateUserProfilePictureAction } from "@/data/user/user";
 import type { SAPayload } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { CircleUserRound, Copy, Loader } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -24,7 +24,6 @@ import {
 } from "./ui/select";
 import { Skeleton } from "./ui/skeleton";
 
-
 type OpenAIImageList = { created: string; data: { b64_json: string }[] };
 
 const generateImageSchema = z.object({
@@ -34,12 +33,25 @@ const generateImageSchema = z.object({
 
 export const DallE = () => {
   const [images, setImages] = useState<string[]>([]);
+  const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { mutate: updateProfilePictureMutation } = useSAToastMutation(async (data: { avatarUrl: string }) => {
-    return await updateUserProfileNameAndAvatarAction(data);
-  }, {
-    successMessage: "Profile picture updated successfully",
-    errorMessage: "Error updating profile picture"
+  const { execute: updateProfilePicture, isPending: isUpdatingProfilePicture } = useAction(updateUserProfilePictureAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating profile picture...');
+    },
+    onSuccess: () => {
+      toast.success('Profile picture updated successfully', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Error updating profile picture';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
   });
 
   const { mutate: generateImageMutation, isLoading } = useMutation(
@@ -85,7 +97,6 @@ export const DallE = () => {
   }> = (data) => {
     generateImageMutation(data);
   };
-
 
   const { register, handleSubmit, control, formState: { errors } } = useForm({
     defaultValues: {
@@ -146,7 +157,8 @@ export const DallE = () => {
                 navigator.clipboard.writeText(image)
                 toast.success("Copied to clipboard")
               }}><Copy className="size-4" /> Copy link</Button>
-              <Button className="flex flex-row gap-2" onClick={() => updateProfilePictureMutation({ avatarUrl: image })}> <CircleUserRound className="size-4" /> Use as Profile Picture</Button>
+              <Button disabled={isUpdatingProfilePicture}
+                className="flex flex-row gap-2" onClick={() => updateProfilePicture({ avatarUrl: image })}> <CircleUserRound className="size-4" /> Use as Profile Picture</Button>
             </div>
           </div>
         ))}
@@ -158,8 +170,6 @@ export const DallE = () => {
           </Skeleton>
         </div>
       </div>}
-
-
     </div>
   );
 };

@@ -210,6 +210,29 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
     return data;
   });
 
+const updateUserProfilePictureSchema = z.object({
+  avatarUrl: z.string(),
+});
+
+export const updateUserProfilePictureAction = authActionClient.schema(updateUserProfilePictureSchema).action(async ({ parsedInput: { avatarUrl } }) => {
+  const supabaseClient = createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUser();
+  const { data, error } = await supabaseClient
+    .from("user_profiles")
+    .update({
+      avatar_url: avatarUrl,
+    })
+    .eq("id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+});
+
 export async function acceptTermsOfService(): Promise<boolean> {
   const supabaseClient = createSupabaseUserServerActionClient();
 
