@@ -1,4 +1,5 @@
 import { DBTable, Enum } from "@/types";
+import { Dictionary } from "lodash";
 
 export class PaymentGatewayError extends Error {
   constructor(message: string, public code: string, public gateway: string) {
@@ -28,16 +29,34 @@ export type CustomerData = {
 export interface SubscriptionData {
   id: string;
   customerId: string;
-  planId: string;
+  productId: string;
+  priceId: string;
   status: Enum<'subscription_status'>
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
 }
 
-export type PlanData = DBTable<'billing_plans'> & {
-  billing_plan_prices: DBTable<'billing_plan_prices'>[];
+export type ProductData = DBTable<'billing_products'> & {
+  billing_prices: DBTable<'billing_prices'>[];
 };
+
+export type ProductAndPrice = {
+  product: DBTable<'billing_products'>;
+  price: DBTable<'billing_prices'>;
+}
+
+export type InvoiceData = DBTable<'billing_invoices'> & {
+  billing_products: DBTable<'billing_products'> | null;
+  billing_prices: DBTable<'billing_prices'> | null;
+}
+
+export type OneTimePaymentData = DBTable<'billing_one_time_payments'> & {
+  billing_products: DBTable<'billing_products'> | null;
+  billing_prices: DBTable<'billing_prices'> | null;
+  billing_invoices: DBTable<'billing_invoices'> | null;
+}
+
 
 export interface CheckoutSessionData {
   id: string;
@@ -59,7 +78,7 @@ export interface PaymentMethodData {
 }
 
 export type CheckoutSessionOptions = {
-  isTrial?: boolean;
+  freeTrialDays?: number;
 }
 
 export abstract class PaymentGateway {
@@ -82,12 +101,12 @@ export abstract class PaymentGateway {
     getSubscription(subscriptionId: string): Promise<DBTable<'billing_subscriptions'>>;
     listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_subscriptions'>>>;
     // Invoice methods
-    getInvoice(invoiceId: string): Promise<DBTable<'billing_invoices'>>;
-    listInvoicesByCustomerId(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
-    listInvoicesByWorkspaceId(workspaceId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
-    // Plan methods
-    getPlan(planId: string): Promise<PlanData>;
-    listPlans(options?: PaginationOptions): Promise<Array<PlanData>>;
+    getInvoice(invoiceId: string): Promise<InvoiceData>;
+    listInvoicesByCustomerId(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>>;
+    listInvoicesByWorkspaceId(workspaceId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>>;
+    // Product methods
+    getProduct(productId: string): Promise<ProductData>;
+    listProducts(options?: PaginationOptions): Promise<Array<ProductData>>;
   }
 
   abstract util: {
@@ -106,30 +125,47 @@ export abstract class PaymentGateway {
     handleGatewayWebhook(body: any, signature: string): Promise<void>;
   }
   abstract anonScope: {
-    listVisiblePlans(): Promise<PlanData[]>;
+
+    listAllProducts(): Promise<ProductAndPrice[]>;
+    /**
+     * List all subscription products that are visible to the user.
+     */
+    listAllSubscriptionProducts(): Promise<Dictionary<ProductAndPrice[]>>;
+    /**
+     * List all one-time products that are visible to the user.
+     */
+    listAllOneTimeProducts(): Promise<ProductAndPrice[]>;
   }
   abstract userScope: {
-    getWorkspaceDatabasePlan(workspaceId: string): Promise<PlanData>;
     getWorkspaceDatabaseSubscriptions(workspaceId: string): Promise<DBTable<'billing_subscriptions'>[]>;
-    getWorkspaceDatabaseOneTimePurchases(workspaceId: string): Promise<DBTable<'billing_one_time_payments'>[]>;
-    getWorkspaceDatabaseInvoices(workspaceId: string): Promise<PaginatedResponse<DBTable<'billing_invoices'>>>;
-    getWorkspaceDatabaseCharges(workspaceId: string): Promise<DBTable<'billing_charges'>[]>;
+    getWorkspaceDatabaseOneTimePurchases(workspaceId: string): Promise<OneTimePaymentData[]>;
+    getWorkspaceDatabaseInvoices(workspaceId: string): Promise<PaginatedResponse<InvoiceData>>;
     getWorkspaceDatabasePaymentMethods(workspaceId: string): Promise<DBTable<'billing_payment_methods'>[]>;
     getWorkspaceDatabaseCustomer(workspaceId: string): Promise<DBTable<'billing_customers'>>;
     // Checkout methods
-    createGatewayCheckoutSession(workspaceId: string, planId: string, options?: CheckoutSessionOptions): Promise<CheckoutSessionData>;
+    createGatewayCheckoutSession({
+      productId,
+      priceId,
+      options,
+      workspaceId,
+    }: {
+      workspaceId: string;
+      productId: string;
+      priceId: string;
+      options?: CheckoutSessionOptions;
+    }): Promise<CheckoutSessionData>;
     // Customer portal methods
     createGatewayCustomerPortalSession(workspaceId: string, returnUrl: string): Promise<CustomerPortalData>;
   }
   abstract superAdminScope: {
-    syncPlans(): Promise<void>;
+    syncProducts(): Promise<void>;
     syncCustomers(): Promise<void>;
-    togglePlanVisibility(planId: string, isVisible: boolean): Promise<void>;
-    listAllPlans(): Promise<PlanData[]>;
+    toggleProductVisibility(productId: string, isVisible: boolean): Promise<void>;
+    listAllProducts(): Promise<ProductData[]>;
     getCurrentMRR(): Promise<number>;
     getRevenueByMonthSince(date: Date): Promise<{ month: Date, revenue: number }[]>;
     getCurrentMonthlySubscriptions(): Promise<number>;
     getSubscriptionsByMonthSince(date: Date): Promise<{ month: Date, subscriptions: number }[]>;
-    getCurrentRevenueByPlan(): Promise<{ planId: string, revenue: number }[]>;
+    getCurrentRevenueByProduct(): Promise<{ productId: string, revenue: number }[]>;
   }
 }

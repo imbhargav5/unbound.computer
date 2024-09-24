@@ -3,6 +3,6 @@ import { StripePaymentGatewayAdminPanel } from "./StripePaymentGatewayAdminPanel
 
 export default async function PaymentsAdminPanel() {
   const stripeGateway = new StripePaymentGateway();
-  const plans = await stripeGateway.superAdminScope.listAllPlans();
-  return <StripePaymentGatewayAdminPanel plans={plans} />;
+  const products = await stripeGateway.superAdminScope.listAllProducts();
+  return <StripePaymentGatewayAdminPanel products={products} />;
 }

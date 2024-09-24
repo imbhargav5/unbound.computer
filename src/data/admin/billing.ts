@@ -8,25 +8,25 @@ import { z } from 'zod';
 // Create a schema for the sync plans action
 const syncPlansSchema = z.object({});
 
-// Create the adminSyncPlansAction
-export const adminSyncPlansAction = adminActionClient
+// Create the adminSyncProductsAction
+export const adminSyncProductsAction = adminActionClient
   .schema(syncPlansSchema)
   .action(async () => {
     const stripeGateway = new StripePaymentGateway();
-    await stripeGateway.superAdminScope.syncPlans();
+    await stripeGateway.superAdminScope.syncProducts();
     revalidatePath('/', 'layout');
   });
 
 
 const visibilityToggleSchema = z.object({
-  plan_id: z.string(),
+  product_id: z.string(),
   is_visible_in_ui: z.boolean(),
 });
 
-export const adminTogglePlanVisibilityAction = adminActionClient
+export const adminToggleProductVisibilityAction = adminActionClient
   .schema(visibilityToggleSchema)
-  .action(async ({ parsedInput: { plan_id, is_visible_in_ui } }) => {
+  .action(async ({ parsedInput: { product_id, is_visible_in_ui } }) => {
     const stripeGateway = new StripePaymentGateway();
-    await stripeGateway.superAdminScope.togglePlanVisibility(plan_id, is_visible_in_ui);
+    await stripeGateway.superAdminScope.toggleProductVisibility(product_id, is_visible_in_ui);
     revalidatePath('/', 'layout');
   });

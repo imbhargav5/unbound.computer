@@ -5,6 +5,7 @@ import { superAdminGetWorkspaceAdmins } from '@/supabase-clients/admin/workspace
 import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
 import { DBTable, DBTableInsertPayload } from '@/types';
 import { toSiteURL } from '@/utils/helpers';
+import { Dictionary, groupBy } from 'lodash';
 import 'server-only';
 import Stripe from 'stripe';
 import {
@@ -12,12 +13,16 @@ import {
   CheckoutSessionOptions,
   CustomerData,
   CustomerPortalData,
+  InvoiceData,
+  OneTimePaymentData,
   PaginatedResponse,
   PaginationOptions,
   PaymentGateway,
   PaymentGatewayError,
-  PlanData
+  ProductAndPrice,
+  ProductData
 } from './AbstractPaymentGateway';
+
 
 export class StripePaymentGateway implements PaymentGateway {
   private stripe: Stripe;
@@ -38,6 +43,10 @@ export class StripePaymentGateway implements PaymentGateway {
   getName(): string {
     return 'stripe';
   }
+
+
+
+
 
   db = {
     createCustomer: async (userData: Partial<DBTable<'billing_customers'>>, workspaceId: string): Promise<DBTable<'billing_customers'>> => {
@@ -211,10 +220,10 @@ export class StripePaymentGateway implements PaymentGateway {
       };
     },
 
-    getInvoice: async (invoiceId: string): Promise<DBTable<'billing_invoices'>> => {
+    getInvoice: async (invoiceId: string): Promise<InvoiceData> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_invoices')
-        .select('*')
+        .select('*, billing_products(*), billing_prices(*)')
         .eq('id', invoiceId)
         .single();
 
@@ -223,11 +232,12 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
 
-    listInvoicesByCustomerId: async (customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>> => {
+    listInvoicesByCustomerId: async (customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>> => {
       const { data, error, count } = await supabaseAdminClient
         .from('billing_invoices')
-        .select('*', { count: 'exact' })
+        .select('*, billing_products(*), billing_prices(*)', { count: 'exact' })
         .eq('gateway_customer_id', customerId)
+        .eq('gateway_name', this.getName())
         .range(
           options?.startingAfter ? parseInt(options.startingAfter) : 0,
           options?.limit ? parseInt(options.startingAfter || '0') + options.limit - 1 : 9999
@@ -242,7 +252,7 @@ export class StripePaymentGateway implements PaymentGateway {
       };
     },
 
-    listInvoicesByWorkspaceId: async (workspaceId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_invoices'>>> => {
+    listInvoicesByWorkspaceId: async (workspaceId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>> => {
       const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
       if (!customer) {
         throw new Error('Customer not found');
@@ -250,11 +260,11 @@ export class StripePaymentGateway implements PaymentGateway {
       return this.db.listInvoicesByCustomerId(customer.gateway_customer_id, options);
     },
 
-    getPlan: async (planId: string): Promise<PlanData> => {
+    getProduct: async (productId: string): Promise<ProductData> => {
       const { data, error } = await supabaseAdminClient
-        .from('billing_plans')
-        .select('*, billing_plan_prices(*)')
-        .eq('gateway_plan_id', planId)
+        .from('billing_products')
+        .select('*, billing_prices(*)')
+        .eq('gateway_product_id', productId)
         .eq('gateway_name', this.getName())
         .single();
 
@@ -262,28 +272,31 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
 
-    listPlans: async (): Promise<Array<PlanData>> => {
+    getPrice: async (priceId: string): Promise<DBTable<'billing_prices'>> => {
       const { data, error } = await supabaseAdminClient
-        .from('billing_plans')
-        .select('*, billing_plan_prices(*)', { count: 'exact' })
+        .from('billing_prices')
+        .select('*')
+        .eq('gateway_price_id', priceId)
+        .eq('gateway_name', this.getName())
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    listPlans: async (): Promise<Array<ProductData>> => {
+      const { data, error } = await supabaseAdminClient
+        .from('billing_products')
+        .select('*, billing_prices(*)', { count: 'exact' })
         .eq('gateway_name', this.getName())
 
 
       if (error) throw error;
       return data;
     },
-    getWorkspaceDatabaseCharges: async (workspaceId: string): Promise<DBTable<'billing_charges'>[]> => {
-      const { data, error } = await supabaseAdminClient
-        .from('billing_charges')
-        .select('*')
-        .eq('workspace_id', workspaceId);
-      if (error) throw error;
-      return data;
-    },
-    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<DBTable<'billing_one_time_payments'>[]> => {
+
+    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<OneTimePaymentData[]> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_one_time_payments')
-        .select('*')
+        .select(' *, billing_products(*), billing_prices(*), billing_invoices(*)')
         .eq('workspace_id', workspaceId);
       if (error) throw error;
       return data;
@@ -297,6 +310,17 @@ export class StripePaymentGateway implements PaymentGateway {
       if (error) throw error;
       return data;
     },
+
+    listProducts: async (): Promise<Array<ProductData>> => {
+      const { data, error } = await supabaseAdminClient
+        .from('billing_products')
+        .select('*, billing_prices(*)', { count: 'exact' })
+        .eq('gateway_name', this.getName());
+      if (error) throw error;
+      return data;
+    },
+
+
 
 
   }
@@ -393,6 +417,9 @@ export class StripePaymentGateway implements PaymentGateway {
           case 'price.updated':
             await this.handlePriceChange(event.data.object as Stripe.Price);
             break;
+          case 'charge.succeeded':
+            await this.handleChargeChange(event.data.object as Stripe.Charge);
+            break;
         }
       } catch (error) {
         this.util.handleStripeError(error);
@@ -431,15 +458,16 @@ export class StripePaymentGateway implements PaymentGateway {
       });
 
       if (createUserError) throw createUserError;
-
     }
+    const { product } = subscription.items.data[0].price
+
     const { error } = await supabaseAdminClient
       .from('billing_subscriptions')
       .upsert({
         gateway_customer_id: stripeCustomerId,
         gateway_name: this.getName(),
         gateway_subscription_id: subscription.id,
-        gateway_plan_id: subscription.items.data[0].price.id,
+        gateway_product_id: typeof product === 'string' ? product : product.id,
         status: subscription.status,
         current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
         current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
@@ -447,6 +475,9 @@ export class StripePaymentGateway implements PaymentGateway {
         is_trial: subscription.trial_end !== null,
         cancel_at_period_end: subscription.cancel_at_period_end,
         quantity: subscription.items.data[0].quantity,
+        gateway_price_id: subscription.items.data[0].price.id,
+      }, {
+        onConflict: 'gateway_name,gateway_subscription_id'
       });
 
     if (error) throw error;
@@ -460,33 +491,68 @@ export class StripePaymentGateway implements PaymentGateway {
     if (!customerId) {
       return this.util.handleStripeError(new Error('Invoice customer not found'));
     }
-    const organizationId = await this.getOrganizationIdFromCustomer(customerId);
-    if (!organizationId) {
-      return this.util.handleStripeError(new Error('Organization not found'));
-    }
+
     const dueDate = invoice.due_date;
-    if (!dueDate) {
-      return this.util.handleStripeError(new Error('Invoice due date not found'));
-    }
+
     const paidDate = invoice.status_transitions.paid_at;
+    const priceId = invoice.lines.data[0].price?.id;
+    const product = invoice.lines.data[0].price?.product;
+    const productId = typeof product === 'string' ? product : product?.id ?? null;
     const { error } = await supabaseAdminClient
       .from('billing_invoices')
       .upsert({
         gateway_customer_id: customerId,
+        gateway_name: this.getName(),
+        gateway_invoice_id: invoice.id,
         amount: invoice.total,
         currency: invoice.currency,
         status: invoice.status ?? 'unknown',
-        due_date: new Date(dueDate * 1000).toISOString(),
+        due_date: dueDate ? new Date(dueDate * 1000).toISOString() : null,
         paid_date: paidDate ? new Date(paidDate * 1000).toISOString() : null,
-        id: invoice.id,
-        organization_id: organizationId,
         hosted_invoice_url: invoice.hosted_invoice_url,
+        gateway_price_id: priceId,
+        gateway_product_id: productId,
       }, {
-        onConflict: 'id'
+        onConflict: 'gateway_name,gateway_invoice_id'
       });
 
     if (error) {
       return this.util.handleStripeError(error);
+    }
+
+    const invoiceLines = invoice.lines.data
+    if (invoiceLines.length > 0) {
+      const line = invoiceLines[0];
+      if (line.price) {
+        if (!line.price.recurring?.interval) {
+          // this is a one-time charge
+          // we don't need to handle subscription charges since subscription tables handle that.
+          // this should have a charge field
+          const chargeId = typeof invoice.charge === 'string' ? invoice.charge : null;
+          if (!chargeId) {
+            return this.util.handleStripeError(new Error('Invoice charge not found'));
+          }
+          const charge = await this.stripe.charges.retrieve(chargeId);
+          const { error: createChargeError } = await supabaseAdminClient
+            .from('billing_one_time_payments')
+            .upsert({
+              charge_date: new Date(charge.created * 1000).toISOString(),
+              gateway_invoice_id: invoice.id,
+              gateway_price_id: line.price.id,
+              gateway_product_id: line.price.product as string,
+              gateway_customer_id: customerId,
+              gateway_name: this.getName(),
+              gateway_charge_id: chargeId,
+              amount: line.amount,
+              currency: line.currency,
+              status: charge.status,
+            }, {
+              onConflict: 'gateway_charge_id'
+            });
+
+          if (createChargeError) throw createChargeError;
+        }
+      }
     }
   }
 
@@ -507,9 +573,9 @@ export class StripePaymentGateway implements PaymentGateway {
 
   private async handleProductChange(product: Stripe.Product) {
     const { error } = await supabaseAdminClient
-      .from('billing_plans')
+      .from('billing_products')
       .upsert({
-        gateway_plan_id: product.id,
+        gateway_product_id: product.id,
         gateway_name: this.getName(),
         name: product.name,
         description: product.description,
@@ -517,7 +583,7 @@ export class StripePaymentGateway implements PaymentGateway {
         is_visible_in_ui: product.active,
         features: product.metadata.features,
       }, {
-        onConflict: 'gateway_plan_id,gateway_name'
+        onConflict: 'gateway_product_id,gateway_name'
       });
 
     if (error) throw error;
@@ -525,14 +591,15 @@ export class StripePaymentGateway implements PaymentGateway {
 
   private async handlePriceChange(price: Stripe.Price) {
     const { error } = await supabaseAdminClient
-      .from('billing_plan_prices')
+      .from('billing_prices')
       .upsert({
-        gateway_plan_id: price.product as string,
+        gateway_product_id: price.product as string,
         gateway_name: this.getName(),
         gateway_price_id: price.id,
         currency: price.currency,
         amount: price.unit_amount ?? 0,
         recurring_interval: price.recurring?.interval ?? 'month',
+        recurring_interval_count: price.recurring?.interval_count ?? 1,
         active: price.active,
       }, {
         onConflict: 'gateway_price_id'
@@ -541,54 +608,115 @@ export class StripePaymentGateway implements PaymentGateway {
     if (error) throw error;
   }
 
+  private async handleChargeChange(charge: Stripe.Charge) {
+    const { data: chargeExists, error: chargeExistsError } = await supabaseAdminClient.from('billing_one_time_payments')
+      .select('gateway_charge_id')
+      .eq('gateway_charge_id', charge.id)
+    if (chargeExistsError) throw chargeExistsError;
+    if (chargeExists?.length < 0) {
+      return this.util.handleStripeError(new Error('This is likely not a charge for a one-time payment. Ignoring charge.'));
+    }
 
 
-
-  private async getOrganizationIdFromCustomer(stripeCustomerId: string): Promise<string | null> {
-    const { data, error } = await supabaseAdminClient
-      .from('billing_customers')
-      .select('workspace_id')
-      .eq('gateway_customer_id', stripeCustomerId)
-      .eq('gateway_name', this.getName())
-      .single();
+    const { error } = await supabaseAdminClient
+      .from('billing_one_time_payments')
+      .update({
+        amount: charge.amount,
+        currency: charge.currency,
+        status: charge.status,
+        charge_date: new Date(charge.created * 1000).toISOString(),
+      })
+      .eq('gateway_charge_id', charge.id);
 
     if (error) throw error;
-    return data?.workspace_id || null;
   }
 
+
+
+
+
   anonScope = {
-    listVisiblePlans: async (): Promise<PlanData[]> => {
-      const { data: plans, error } = await supabaseAnonClient
-        .from('billing_plans')
-        .select('*, billing_plan_prices(*)')
+    /**
+   * List all products that are visible to the user.
+   */
+    listAllProducts: async (): Promise<ProductAndPrice[]> => {
+      const { data: products, error } = await supabaseAnonClient
+        .from('billing_products')
+        .select('*, billing_prices(*)')
         .eq('gateway_name', this.getName())
         .eq('is_visible_in_ui', true);
       if (error) throw error;
 
-      return plans;
+      const productsAndPrices: ProductAndPrice[] = []
+
+      for (const product of products) {
+        const { billing_prices, ...coreProduct } = product
+        billing_prices.forEach(price => {
+          productsAndPrices.push({
+            product: coreProduct,
+            price,
+          })
+        })
+      }
+      return productsAndPrices;
+    },
+    /**
+     * List all subscription products that are visible to the user.
+     */
+    listAllSubscriptionProducts: async (): Promise<Dictionary<ProductAndPrice[]>> => {
+      const { data: products, error } = await supabaseAnonClient
+        .from('billing_products')
+        .select('*, billing_prices(*)')
+        .eq('gateway_name', this.getName())
+        .eq('is_visible_in_ui', true)
+      if (error) throw error;
+
+      const productsAndPrices: ProductAndPrice[] = []
+
+      for (const product of products) {
+        const { billing_prices, ...coreProduct } = product
+        billing_prices.forEach(price => {
+          productsAndPrices.push({
+            product: coreProduct,
+            price,
+          })
+        })
+      }
+
+      const groupedProductsAndPrices = groupBy(productsAndPrices, 'price.recurring_interval')
+
+      return groupedProductsAndPrices
+    },
+    /**
+     * List all one-time products that are visible to the user.
+     */
+    listAllOneTimeProducts: async (): Promise<ProductAndPrice[]> => {
+      const { data: products, error } = await supabaseAnonClient
+        .from('billing_products')
+        .select('*, billing_prices(*)')
+        .eq('billing_prices.recurring_interval', 'one-time')
+        .eq('gateway_name', this.getName())
+        .eq('is_visible_in_ui', true)
+      if (error) throw error;
+      const productsAndPrices: ProductAndPrice[] = []
+
+      for (const product of products) {
+        const { billing_prices, ...coreProduct } = product
+        billing_prices.forEach(price => {
+          productsAndPrices.push({
+            product: coreProduct,
+            price,
+          })
+        })
+      }
+      return productsAndPrices;
     },
   }
 
 
+
   userScope = {
-    /**
-     * Retrieves the database plan for a given workspace.
-     *
-     * @param workspaceId - The unique identifier of the workspace.
-     * @returns A promise that resolves to the PlanData for the workspace.
-     * @throws Error if the customer or plan is not found.
-     */
-    getWorkspaceDatabasePlan: async (workspaceId: string): Promise<PlanData> => {
-      const databaseCustomer = await this.db.getCustomerByWorkspaceId(workspaceId);
-      if (!databaseCustomer) {
-        throw new Error('Customer not found');
-      }
-      const planId = databaseCustomer.gateway_plan_id;
-      if (!planId) {
-        throw new Error('Plan not found');
-      }
-      return this.db.getPlan(planId);
-    },
+
 
     /**
      * Fetches the database subscription for a given workspace.
@@ -606,7 +734,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @param workspaceId - The unique identifier of the workspace.
      * @returns A promise that resolves to an array of billing payment data.
      */
-    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<DBTable<'billing_one_time_payments'>[]> => {
+    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<OneTimePaymentData[]> => {
       return this.db.getWorkspaceDatabaseOneTimePurchases(workspaceId);
     },
 
@@ -616,13 +744,11 @@ export class StripePaymentGateway implements PaymentGateway {
      * @param workspaceId - The unique identifier of the workspace.
      * @returns A promise that resolves to a paginated response of billing invoice data.
      */
-    getWorkspaceDatabaseInvoices: async (workspaceId: string): Promise<PaginatedResponse<DBTable<'billing_invoices'>>> => {
+    getWorkspaceDatabaseInvoices: async (workspaceId: string): Promise<PaginatedResponse<InvoiceData>> => {
       return this.db.listInvoicesByWorkspaceId(workspaceId);
     },
 
-    getWorkspaceDatabaseCharges: async (workspaceId: string): Promise<DBTable<'billing_charges'>[]> => {
-      return this.db.getWorkspaceDatabaseCharges(workspaceId);
-    },
+
 
     /**
      * Retrieves all payment methods associated with a given workspace.
@@ -645,49 +771,48 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
 
-    createGatewayCheckoutSession: async (workspaceId: string, planId: string, options?: CheckoutSessionOptions): Promise<CheckoutSessionData> => {
+    createGatewayCheckoutSession: async ({
+      workspaceId,
+      priceId,
+      options,
+    }: {
+      workspaceId: string;
+      priceId: string;
+      options?: CheckoutSessionOptions;
+    }): Promise<CheckoutSessionData> => {
       let customer = await this.util.getCustomerByWorkspaceId(workspaceId);
 
       if (!customer) {
         customer = await this.util.createCustomerForWorkspace(workspaceId);
       }
 
-      const { isTrial } = options ?? {};
-      const plan = await this.db.getPlan(planId);
-      if (!plan) {
-        throw new Error('Plan not found');
+      const { freeTrialDays } = options ?? {};
+      const price = await this.db.getPrice(priceId);
+      if (!price) {
+        throw new Error('Price not found');
       }
 
-      const allowsFreeTrial = (plan.free_trial_days ?? 0) > 0;
 
-      if (isTrial && !allowsFreeTrial) {
-        throw new Error('This plan does not offer a free trial');
-      }
 
-      const organizationSlug = await getWorkspaceSlugById(workspaceId);
+      const workspaceSlug = await getWorkspaceSlugById(workspaceId);
 
       let sessionConfig: Stripe.Checkout.SessionCreateParams = {
         customer: customer.gateway_customer_id,
         payment_method_types: ['card'],
         billing_address_collection: 'required',
-        line_items: [{ price: planId, quantity: 1 }],
-        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
         allow_promotion_codes: true,
-        success_url: toSiteURL(`/${organizationSlug}/settings/billing`),
-        cancel_url: toSiteURL(`/${organizationSlug}/settings/billing`),
+        success_url: toSiteURL(`/workspace/${workspaceSlug}/settings/billing?success=true`),
+        cancel_url: toSiteURL(`/workspace/${workspaceSlug}/settings/billing?cancel=true`),
       };
 
-      if (isTrial && allowsFreeTrial) {
-        sessionConfig.subscription_data = {
-          trial_period_days: plan.free_trial_days ?? 14,
-          trial_settings: {
-            end_behavior: {
-              missing_payment_method: 'cancel',
-            },
-          },
-          metadata: {},
-        };
+      if (price.recurring_interval === 'one-time') {
+        sessionConfig.mode = 'payment';
+        sessionConfig.invoice_creation = {
+          enabled: true,
+        }
       } else {
+        sessionConfig.mode = 'subscription';
         sessionConfig.subscription_data = {
           trial_settings: {
             end_behavior: {
@@ -695,6 +820,10 @@ export class StripePaymentGateway implements PaymentGateway {
             },
           },
         };
+
+        if (freeTrialDays) {
+          sessionConfig.subscription_data.trial_period_days = freeTrialDays ?? 14;
+        }
       }
 
       const session = await this.stripe.checkout.sessions.create(sessionConfig);
@@ -768,63 +897,62 @@ export class StripePaymentGateway implements PaymentGateway {
       }
     },
 
-    syncPlans: async (): Promise<void> => {
+    syncProducts: async (): Promise<void> => {
 
-      const [stripePrices, products] = await Promise.all([
+      const [stripePrices, stripeProducts] = await Promise.all([
         this.stripe.prices.list({ active: true }),
         this.stripe.products.list({ active: true })
       ]);
-      const productMap = new Map(products.data.map(product => [product.id, product]));
 
-      const plansToUpsert = stripePrices.data.map(stripePlan => {
-        const product = productMap.get(stripePlan.product as string);
-        if (!product) throw new Error(`Product not found for plan ${stripePlan.id}`);
-
+      const productsToUpsert: DBTableInsertPayload<'billing_products'>[] = stripeProducts.data.map(stripeProduct => {
         return {
-          gateway_plan_id: stripePlan.id,
+          gateway_product_id: stripeProduct.id,
           gateway_name: this.getName(),
-          name: product.name,
-          description: product.description,
-          is_subscription: true,
-          features: product.metadata.features ? JSON.parse(product.metadata.features) : null,
+          name: stripeProduct.name,
+          description: stripeProduct.description,
+          active: stripeProduct.active,
+          features: stripeProduct.metadata.features ? JSON.parse(stripeProduct.metadata.features) : null,
         };
       });
 
-      console.log("plansToUpsert", plansToUpsert);
+      console.log("productsToUpsert", productsToUpsert);
       console.log("stripePrices", stripePrices);
 
       const { error: upsertError } = await supabaseAdminClient
-        .from('billing_plans')
-        .upsert(plansToUpsert, { onConflict: 'gateway_plan_id,gateway_name' });
+        .from('billing_products')
+        .upsert(productsToUpsert, { onConflict: 'gateway_product_id,gateway_name' });
       if (upsertError) throw upsertError;
 
-      const pricesToUpsert: DBTableInsertPayload<'billing_plan_prices'>[] = stripePrices.data.map(stripePlan => ({
-        gateway_plan_id: stripePlan.id,
-        currency: stripePlan.currency,
-        amount: stripePlan.unit_amount ?? 0,
-        recurring_interval: stripePlan.recurring?.interval ?? 'month',
+      const pricesToUpsert: DBTableInsertPayload<'billing_prices'>[] = stripePrices.data.map(stripePrice => ({
+        gateway_product_id: stripePrice.product as string,
+        currency: stripePrice.currency,
+        amount: stripePrice.unit_amount ?? 0,
+        recurring_interval: stripePrice.recurring?.interval ?? 'one-time',
+        recurring_interval_count: stripePrice.recurring?.interval_count ?? 1,
         gateway_name: this.getName(),
-        gateway_price_id: stripePlan.id,
-        active: stripePlan.active,
+        gateway_price_id: stripePrice.id,
+        active: stripePrice.active,
       }));
 
+      console.log("pricesToUpsert", pricesToUpsert);
+
       const { error: priceUpsertError } = await supabaseAdminClient
-        .from('billing_plan_prices')
+        .from('billing_prices')
         .upsert(pricesToUpsert, { onConflict: 'gateway_price_id' });
       console.log("priceUpsertError", priceUpsertError);
       if (priceUpsertError) throw priceUpsertError;
     },
 
-    togglePlanVisibility: async (planId: string, isVisible: boolean): Promise<void> => {
+    toggleProductVisibility: async (productId: string, isVisible: boolean): Promise<void> => {
       await supabaseAdminClient
-        .from('billing_plans')
+        .from('billing_products')
         .update({ is_visible_in_ui: isVisible })
-        .eq('gateway_plan_id', planId)
+        .eq('gateway_product_id', productId)
         .eq('gateway_name', this.getName());
     },
 
-    listAllPlans: async (): Promise<PlanData[]> => {
-      return this.db.listPlans();
+    listAllProducts: async (): Promise<ProductData[]> => {
+      return this.db.listProducts();
     },
 
     getCurrentMRR: async (): Promise<number> => {
@@ -840,10 +968,8 @@ export class StripePaymentGateway implements PaymentGateway {
     getSubscriptionsByMonthSince: async (date: Date): Promise<{ month: Date, subscriptions: number }[]> => {
       return [];
     },
-    getCurrentRevenueByPlan: async (): Promise<{ planId: string, revenue: number }[]> => {
+    getCurrentRevenueByProduct: async (): Promise<{ productId: string, revenue: number }[]> => {
       return [];
     },
-
-
   }
 }

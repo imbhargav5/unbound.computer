@@ -57,61 +57,12 @@ export type Database = {
           },
         ]
       }
-      billing_charges: {
-        Row: {
-          amount: number
-          charge_date: string
-          currency: string
-          gateway_charge_id: string
-          gateway_customer_id: string
-          gateway_name: string
-          gateway_plan_id: string | null
-          status: string
-        }
-        Insert: {
-          amount: number
-          charge_date: string
-          currency: string
-          gateway_charge_id: string
-          gateway_customer_id: string
-          gateway_name: string
-          gateway_plan_id?: string | null
-          status: string
-        }
-        Update: {
-          amount?: number
-          charge_date?: string
-          currency?: string
-          gateway_charge_id?: string
-          gateway_customer_id?: string
-          gateway_name?: string
-          gateway_plan_id?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "billing_charges_gateway_customer_id_fkey"
-            columns: ["gateway_customer_id"]
-            isOneToOne: false
-            referencedRelation: "billing_customers"
-            referencedColumns: ["gateway_customer_id"]
-          },
-          {
-            foreignKeyName: "billing_charges_gateway_plan_id_fkey"
-            columns: ["gateway_plan_id"]
-            isOneToOne: false
-            referencedRelation: "billing_plans"
-            referencedColumns: ["gateway_plan_id"]
-          },
-        ]
-      }
       billing_customers: {
         Row: {
           billing_email: string
           default_currency: string | null
           gateway_customer_id: string
           gateway_name: string
-          gateway_plan_id: string | null
           metadata: Json | null
           workspace_id: string
         }
@@ -120,7 +71,6 @@ export type Database = {
           default_currency?: string | null
           gateway_customer_id: string
           gateway_name: string
-          gateway_plan_id?: string | null
           metadata?: Json | null
           workspace_id: string
         }
@@ -129,18 +79,10 @@ export type Database = {
           default_currency?: string | null
           gateway_customer_id?: string
           gateway_name?: string
-          gateway_plan_id?: string | null
           metadata?: Json | null
           workspace_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "billing_customers_gateway_plan_id_fkey"
-            columns: ["gateway_plan_id"]
-            isOneToOne: false
-            referencedRelation: "billing_plans"
-            referencedColumns: ["gateway_plan_id"]
-          },
           {
             foreignKeyName: "billing_customers_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -154,30 +96,39 @@ export type Database = {
         Row: {
           amount: number
           currency: string
-          due_date: string
+          due_date: string | null
           gateway_customer_id: string
+          gateway_invoice_id: string
+          gateway_name: string
+          gateway_price_id: string | null
+          gateway_product_id: string | null
           hosted_invoice_url: string | null
-          id: string
           paid_date: string | null
           status: string
         }
         Insert: {
           amount: number
           currency: string
-          due_date: string
+          due_date?: string | null
           gateway_customer_id: string
+          gateway_invoice_id: string
+          gateway_name: string
+          gateway_price_id?: string | null
+          gateway_product_id?: string | null
           hosted_invoice_url?: string | null
-          id?: string
           paid_date?: string | null
           status: string
         }
         Update: {
           amount?: number
           currency?: string
-          due_date?: string
+          due_date?: string | null
           gateway_customer_id?: string
+          gateway_invoice_id?: string
+          gateway_name?: string
+          gateway_price_id?: string | null
+          gateway_product_id?: string | null
           hosted_invoice_url?: string | null
-          id?: string
           paid_date?: string | null
           status?: string
         }
@@ -189,32 +140,58 @@ export type Database = {
             referencedRelation: "billing_customers"
             referencedColumns: ["gateway_customer_id"]
           },
+          {
+            foreignKeyName: "billing_invoices_gateway_price_id_fkey"
+            columns: ["gateway_price_id"]
+            isOneToOne: false
+            referencedRelation: "billing_prices"
+            referencedColumns: ["gateway_price_id"]
+          },
+          {
+            foreignKeyName: "billing_invoices_gateway_product_id_fkey"
+            columns: ["gateway_product_id"]
+            isOneToOne: false
+            referencedRelation: "billing_products"
+            referencedColumns: ["gateway_product_id"]
+          },
         ]
       }
       billing_one_time_payments: {
         Row: {
           amount: number
+          charge_date: string
           currency: string
+          gateway_charge_id: string
           gateway_customer_id: string
-          gateway_plan_id: string | null
-          id: string
-          payment_date: string
+          gateway_invoice_id: string
+          gateway_name: string
+          gateway_price_id: string
+          gateway_product_id: string
+          status: string
         }
         Insert: {
           amount: number
+          charge_date: string
           currency: string
+          gateway_charge_id: string
           gateway_customer_id: string
-          gateway_plan_id?: string | null
-          id?: string
-          payment_date: string
+          gateway_invoice_id: string
+          gateway_name: string
+          gateway_price_id: string
+          gateway_product_id: string
+          status: string
         }
         Update: {
           amount?: number
+          charge_date?: string
           currency?: string
+          gateway_charge_id?: string
           gateway_customer_id?: string
-          gateway_plan_id?: string | null
-          id?: string
-          payment_date?: string
+          gateway_invoice_id?: string
+          gateway_name?: string
+          gateway_price_id?: string
+          gateway_product_id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -225,11 +202,25 @@ export type Database = {
             referencedColumns: ["gateway_customer_id"]
           },
           {
-            foreignKeyName: "billing_one_time_payments_gateway_plan_id_fkey"
-            columns: ["gateway_plan_id"]
+            foreignKeyName: "billing_one_time_payments_gateway_invoice_id_fkey"
+            columns: ["gateway_invoice_id"]
             isOneToOne: false
-            referencedRelation: "billing_plans"
-            referencedColumns: ["gateway_plan_id"]
+            referencedRelation: "billing_invoices"
+            referencedColumns: ["gateway_invoice_id"]
+          },
+          {
+            foreignKeyName: "billing_one_time_payments_gateway_price_id_fkey"
+            columns: ["gateway_price_id"]
+            isOneToOne: false
+            referencedRelation: "billing_prices"
+            referencedColumns: ["gateway_price_id"]
+          },
+          {
+            foreignKeyName: "billing_one_time_payments_gateway_product_id_fkey"
+            columns: ["gateway_product_id"]
+            isOneToOne: false
+            referencedRelation: "billing_products"
+            referencedColumns: ["gateway_product_id"]
           },
         ]
       }
@@ -268,56 +259,60 @@ export type Database = {
           },
         ]
       }
-      billing_plan_prices: {
+      billing_prices: {
         Row: {
           active: boolean
           amount: number
           currency: string
+          free_trial_days: number | null
           gateway_name: string
-          gateway_plan_id: string
           gateway_price_id: string
+          gateway_product_id: string
           recurring_interval: string
+          recurring_interval_count: number
           tier: string | null
         }
         Insert: {
           active?: boolean
           amount: number
           currency: string
+          free_trial_days?: number | null
           gateway_name: string
-          gateway_plan_id: string
           gateway_price_id?: string
+          gateway_product_id: string
           recurring_interval: string
+          recurring_interval_count?: number
           tier?: string | null
         }
         Update: {
           active?: boolean
           amount?: number
           currency?: string
+          free_trial_days?: number | null
           gateway_name?: string
-          gateway_plan_id?: string
           gateway_price_id?: string
+          gateway_product_id?: string
           recurring_interval?: string
+          recurring_interval_count?: number
           tier?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "billing_plan_prices_gateway_plan_id_fkey"
-            columns: ["gateway_plan_id"]
+            foreignKeyName: "billing_prices_gateway_product_id_fkey"
+            columns: ["gateway_product_id"]
             isOneToOne: false
-            referencedRelation: "billing_plans"
-            referencedColumns: ["gateway_plan_id"]
+            referencedRelation: "billing_products"
+            referencedColumns: ["gateway_product_id"]
           },
         ]
       }
-      billing_plans: {
+      billing_products: {
         Row: {
           active: boolean
           description: string | null
           features: Json | null
-          free_trial_days: number | null
           gateway_name: string
-          gateway_plan_id: string
-          is_subscription: boolean
+          gateway_product_id: string
           is_visible_in_ui: boolean
           name: string
         }
@@ -325,10 +320,8 @@ export type Database = {
           active?: boolean
           description?: string | null
           features?: Json | null
-          free_trial_days?: number | null
           gateway_name: string
-          gateway_plan_id: string
-          is_subscription: boolean
+          gateway_product_id: string
           is_visible_in_ui?: boolean
           name: string
         }
@@ -336,10 +329,8 @@ export type Database = {
           active?: boolean
           description?: string | null
           features?: Json | null
-          free_trial_days?: number | null
           gateway_name?: string
-          gateway_plan_id?: string
-          is_subscription?: boolean
+          gateway_product_id?: string
           is_visible_in_ui?: boolean
           name?: string
         }
@@ -353,7 +344,8 @@ export type Database = {
           current_period_start: string
           gateway_customer_id: string
           gateway_name: string
-          gateway_plan_id: string
+          gateway_price_id: string
+          gateway_product_id: string
           gateway_subscription_id: string
           id: string
           is_trial: boolean
@@ -368,7 +360,8 @@ export type Database = {
           current_period_start: string
           gateway_customer_id: string
           gateway_name: string
-          gateway_plan_id: string
+          gateway_price_id: string
+          gateway_product_id: string
           gateway_subscription_id: string
           id?: string
           is_trial: boolean
@@ -383,7 +376,8 @@ export type Database = {
           current_period_start?: string
           gateway_customer_id?: string
           gateway_name?: string
-          gateway_plan_id?: string
+          gateway_price_id?: string
+          gateway_product_id?: string
           gateway_subscription_id?: string
           id?: string
           is_trial?: boolean
@@ -398,6 +392,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "billing_customers"
             referencedColumns: ["gateway_customer_id"]
+          },
+          {
+            foreignKeyName: "billing_subscriptions_gateway_price_id_fkey"
+            columns: ["gateway_price_id"]
+            isOneToOne: false
+            referencedRelation: "billing_prices"
+            referencedColumns: ["gateway_price_id"]
+          },
+          {
+            foreignKeyName: "billing_subscriptions_gateway_product_id_fkey"
+            columns: ["gateway_product_id"]
+            isOneToOne: false
+            referencedRelation: "billing_products"
+            referencedColumns: ["gateway_product_id"]
           },
         ]
       }
@@ -460,7 +468,7 @@ export type Database = {
             foreignKeyName: "billing_volume_tiers_gateway_price_id_fkey"
             columns: ["gateway_price_id"]
             isOneToOne: false
-            referencedRelation: "billing_plan_prices"
+            referencedRelation: "billing_prices"
             referencedColumns: ["gateway_price_id"]
           },
         ]
@@ -719,6 +727,9 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          moderator_hold_category:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           thread_id: string
           updated_at: string
           user_id: string
@@ -727,6 +738,9 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          moderator_hold_category?:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           thread_id: string
           updated_at?: string
           user_id: string
@@ -735,6 +749,9 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          moderator_hold_category?:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           thread_id?: string
           updated_at?: string
           user_id?: string
@@ -763,6 +780,9 @@ export type Database = {
           created_at: string
           id: string
           is_publicly_visible: boolean
+          moderator_hold_category:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           open_for_public_discussion: boolean
           priority: Database["public"]["Enums"]["marketing_feedback_thread_priority"]
           status: Database["public"]["Enums"]["marketing_feedback_thread_status"]
@@ -777,6 +797,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_publicly_visible?: boolean
+          moderator_hold_category?:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           open_for_public_discussion?: boolean
           priority?: Database["public"]["Enums"]["marketing_feedback_thread_priority"]
           status?: Database["public"]["Enums"]["marketing_feedback_thread_status"]
@@ -791,6 +814,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_publicly_visible?: boolean
+          moderator_hold_category?:
+            | Database["public"]["Enums"]["marketing_feedback_moderator_hold_category"]
+            | null
           open_for_public_discussion?: boolean
           priority?: Database["public"]["Enums"]["marketing_feedback_thread_priority"]
           status?: Database["public"]["Enums"]["marketing_feedback_thread_status"]
@@ -1482,6 +1508,11 @@ export type Database = {
       app_role: "admin"
       marketing_blog_post_status: "draft" | "published"
       marketing_changelog_status: "draft" | "published"
+      marketing_feedback_moderator_hold_category:
+        | "spam"
+        | "off_topic"
+        | "inappropriate"
+        | "other"
       marketing_feedback_thread_priority: "low" | "medium" | "high"
       marketing_feedback_thread_status:
         | "open"
@@ -1490,6 +1521,7 @@ export type Database = {
         | "closed"
         | "in_progress"
         | "completed"
+        | "moderator_hold"
       marketing_feedback_thread_type: "bug" | "feature_request" | "general"
       organization_joining_status:
         | "invited"

@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { adminSyncPlansAction, adminTogglePlanVisibilityAction } from '@/data/admin/billing'
-import { PlanData } from '@/payments/AbstractPaymentGateway'
+import { adminSyncProductsAction, adminToggleProductVisibilityAction } from '@/data/admin/billing'
+import { ProductData } from '@/payments/AbstractPaymentGateway'
 import { DBTable } from "@/types"
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion } from 'framer-motion'
@@ -44,8 +44,8 @@ const customerData = [
 
 
 
-interface PlanCardProps {
-  plan: DBTable<'billing_plans'>;
+interface ProductCardProps {
+  product: DBTable<'billing_products'>;
 }
 
 const visibilityToggleFormSchema = z.object({
@@ -54,25 +54,25 @@ const visibilityToggleFormSchema = z.object({
 
 type VisibilityToggleFormType = z.infer<typeof visibilityToggleFormSchema>;
 
-const PlanCard: React.FC<PlanCardProps> = ({ plan }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { control } = useForm<VisibilityToggleFormType>({
     resolver: zodResolver(visibilityToggleFormSchema),
     defaultValues: {
-      is_visible_in_ui: plan.is_visible_in_ui,
+      is_visible_in_ui: product.is_visible_in_ui,
     },
   });
 
-  const { execute: toggleVisibility } = useAction(adminTogglePlanVisibilityAction, {
+  const { execute: toggleVisibility } = useAction(adminToggleProductVisibilityAction, {
     onSuccess: () => {
-      toast.success("Plan visibility updated successfully");
+      toast.success("Product visibility updated successfully");
     },
     onError: ({ error }) => {
-      toast.error(error.serverError || "Failed to update plan visibility");
+      toast.error(error.serverError || "Failed to update product visibility");
     },
   });
 
   const handleVisibilityToggle = (checked: boolean) => {
-    toggleVisibility({ plan_id: plan.gateway_plan_id, is_visible_in_ui: checked });
+    toggleVisibility({ product_id: product.gateway_product_id, is_visible_in_ui: checked });
   };
 
   return (
@@ -83,15 +83,15 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan }) => {
     >
       <Card className="w-full max-w-md">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-          <Badge variant={plan.active ? "default" : "secondary"}>
-            {plan.active ? "Active" : "Inactive"}
+          <CardTitle className="text-2xl font-bold">{product.name}</CardTitle>
+          <Badge variant={product.active ? "default" : "secondary"}>
+            {product.active ? "Active" : "Inactive"}
           </Badge>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">{plan.description || "No description"}</p>
+              <p className="text-sm text-muted-foreground">{product.description || "No description"}</p>
             </div>
             <div className="flex justify-between items-center">
               <Label htmlFor="visible" className="text-sm font-medium">
@@ -113,10 +113,10 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan }) => {
               />
             </div>
             <div className="pt-2">
-              <p className="text-xs text-muted-foreground">Gateway: {plan.gateway_name}</p>
-              <p className="text-xs text-muted-foreground">Plan ID: {plan.gateway_plan_id}</p>
-              {plan.free_trial_days && (
-                <p className="text-xs text-muted-foreground">Free trial: {plan.free_trial_days} days</p>
+              <p className="text-xs text-muted-foreground">Gateway: {product.gateway_name}</p>
+              <p className="text-xs text-muted-foreground">Product ID: {product.gateway_product_id}</p>
+              {product.free_trial_days && (
+                <p className="text-xs text-muted-foreground">Free trial: {product.free_trial_days} days</p>
               )}
             </div>
           </div>
@@ -126,20 +126,16 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan }) => {
   );
 };
 
-export const StripePlanManager: React.FC<{ plans: DBTable<'billing_plans'>[] }> = ({ plans }) => {
-  const handleVisibilityToggle = (planId: string, isVisible: boolean) => {
-    // Implement the logic to update plan visibility
-    console.log(`Toggled visibility for plan ${planId}: ${isVisible}`);
-  };
+export const StripeProductManager: React.FC<{ products: DBTable<'billing_products'>[] }> = ({ products }) => {
 
   return (
     <div className="space-y-8">
-      <Typography.H4>Stripe Plan Manager</Typography.H4>
+      <Typography.H4>Stripe Product Manager</Typography.H4>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {plans.map((plan) => (
-          <PlanCard
-            key={plan.gateway_plan_id}
-            plan={plan}
+        {products.map((product) => (
+          <ProductCard
+            key={product.gateway_product_id}
+            product={product}
           />
         ))}
       </div>
@@ -149,38 +145,38 @@ export const StripePlanManager: React.FC<{ plans: DBTable<'billing_plans'>[] }> 
 
 
 export function StripePaymentGatewayAdminPanel({
-  plans
+  products
 }: {
-  plans: PlanData[]
+  products: ProductData[]
 }) {
   const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
-  const { execute: syncPlans, status: syncPlansStatus } = useAction(adminSyncPlansAction, {
+  const { execute: syncProducts, status: syncProductsStatus } = useAction(adminSyncProductsAction, {
     onExecute: () => {
-      toastRef.current = toast.loading("Syncing Stripe plans...")
+      toastRef.current = toast.loading("Syncing Stripe products...")
     },
     onSuccess: () => {
-      toast.success("Stripe plans synced successfully", {
+      toast.success("Stripe products synced successfully", {
         id: toastRef.current,
       })
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      toast.error(error.serverError || "Failed to sync Stripe plans", {
+      toast.error(error.serverError || "Failed to sync Stripe products", {
         id: toastRef.current,
       })
       toastRef.current = undefined;
     },
   })
 
-  const handleSyncPlans = () => {
-    syncPlans({})
+  const handleSyncProducts = () => {
+    syncProducts({})
   }
 
   return (
     <div className="container mx-auto p-6">
       <Typography.H2>Admin Panel</Typography.H2>
-      <StripePlanManager plans={plans} />
+      <StripeProductManager products={products} />
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -231,8 +227,8 @@ export function StripePaymentGatewayAdminPanel({
             <CardDescription>Sync your Stripe data</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={handleSyncPlans} disabled={syncPlansStatus === 'executing'}>
-              {syncPlansStatus === 'executing' ? "Syncing..." : "Sync Stripe Plans"}
+            <Button onClick={handleSyncProducts} disabled={syncProductsStatus === 'executing'}>
+              {syncProductsStatus === 'executing' ? "Syncing..." : "Sync Stripe Products"}
             </Button>
             {/* <Button onClick={handleSyncCustomers} disabled={syncCustomersStatus === 'executing'}>
               {syncCustomersStatus === 'executing' ? "Syncing..." : "Sync Stripe Customers"}
