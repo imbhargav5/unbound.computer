@@ -9,17 +9,20 @@
     "**/*.d.ts",
     "**/public/**",
     "**/styles/**",
-    "next.config.js"
+    "next.config.js",
+    "src/components/ui/**/*.tsx"
   ],
   "entry": [
     "./src/pages/**/*.{js,jsx,ts,tsx}",
     "./src/app/**/{route,layout,page,loading,error,not-found,default}.{js,jsx,ts,tsx}",
-    "src/middleware.{js,jsx,ts,tsx}",
-    "next.config.{js,jsx,ts,tsx,mjs}",
-    "src/mdx-components.{js,jsx,ts,tsx}"
+    "./src/middleware.{js,jsx,ts,tsx}",
+    "./next.config.{js,jsx,ts,tsx,mjs}",
+    "./src/mdx-components.{js,jsx,ts,tsx}",
+    "./src/i18n/request.ts",
+    "./src/i18n/routing.ts"
   ],
   "ignoreUnimported": [],
-  "ignoreUnused": ["next", "react", "react-dom"],
+  "ignoreUnused": [],
   "ignoreUnresolved": [],
   "respectGitignore": true
 }
