@@ -9,14 +9,14 @@ import { Badge, type BadgeProps } from './ui/badge';
 type InternalRoadmapCardProps = {
   title: string;
   description: string;
-  tag: Enum<'internal_feedback_thread_type'>;
+  tag: Enum<'marketing_feedback_thread_type'>;
   date: string;
-  priority: Enum<'internal_feedback_thread_priority'>;
+  priority: Enum<'marketing_feedback_thread_priority'>;
   feedbackItemId: string;
   isAdmin?: boolean;
 };
 
-const getIconVariantForTag = (tag: Enum<'internal_feedback_thread_type'>) => {
+const getIconVariantForTag = (tag: Enum<'marketing_feedback_thread_type'>) => {
   switch (tag) {
     case 'bug':
       return <Bug className="mr-2 h-4 w-4" />;
@@ -30,7 +30,7 @@ const getIconVariantForTag = (tag: Enum<'internal_feedback_thread_type'>) => {
 };
 
 const getPriorityVariant = (
-  priority: Enum<'internal_feedback_thread_priority'>,
+  priority: Enum<'marketing_feedback_thread_priority'>,
 ): BadgeProps['variant'] => {
   switch (priority) {
     case 'high':

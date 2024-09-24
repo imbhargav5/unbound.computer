@@ -1,8 +1,11 @@
 'use client';
-import type { roadmapDataType } from '@/data/admin/internal-roadmap';
+import type { roadmapDataType } from '@/data/admin/marketing-roadmap';
 import { adminUpdateFeedbackStatusAction } from '@/data/feedback';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
+import { useAction } from 'next-safe-action/hooks';
 import Link from 'next/link';
+import { useRef } from 'react';
+import { toast } from 'sonner';
 import { Droppable } from './_components/Droppable';
 import { RoadmapList } from './_components/RoadmapList';
 
@@ -27,11 +30,30 @@ export function AppAdminRoadmap({
     completedCards: roadmapDataType[];
   };
 }) {
-  async function handleDragEnd(event: DragEndEvent) {
+  const toastRef = useRef<string | number | undefined>(undefined);
+  const { execute, isPending } = useAction(adminUpdateFeedbackStatusAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating feedback status');
+    },
+    onSuccess: () => {
+      toast.success('Feedback status updated', {
+        id: toastRef.current,
+      });
+    },
+    onError: () => {
+      toast.error('Error updating feedback status', {
+        id: toastRef.current,
+      });
+    },
+    onSettled: () => {
+      toastRef.current = undefined;
+    },
+  });
+  function handleDragEnd(event: DragEndEvent) {
     const { over } = event;
 
     if (over) {
-      await adminUpdateFeedbackStatusAction({
+      execute({
         feedbackId: event.active.id as string,
         status: statusesKey[over.id],
       });
@@ -44,8 +66,10 @@ export function AppAdminRoadmap({
         If you want to add items to the roadmap, add them{' '}
         <Link href="/feedback" className='text-primary underline font-bold'>here.</Link>
       </div>
-      <div className="grid grid-cols-3 gap-10">
-        <DndContext onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-3 gap-10" style={{
+        pointerEvents: isPending ? 'none' : 'auto',
+      }}>
+        <DndContext onDragEnd={handleDragEnd} >
 
           {Object.keys(roadmapData).map((cardListName) => (
             <Droppable

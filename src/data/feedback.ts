@@ -162,7 +162,8 @@ export const adminUpdateFeedbackStatusAction = adminActionClient
       statusUpdaterId: userId,
     });
 
-    revalidatePath('/', 'layout');
+    revalidatePath('/[locale]/roadmap', 'layout');
+    revalidatePath(`/[locale]/feedback`, 'layout');
 
     return { status };
   });

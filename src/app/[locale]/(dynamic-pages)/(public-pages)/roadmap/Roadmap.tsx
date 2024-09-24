@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import type { roadmapDataType } from '@/data/admin/internal-roadmap';
+import type { roadmapDataType } from '@/data/admin/marketing-roadmap';
 import { RoadmapList } from './_components/RoadmapList';
 
 export enum Statuses {
