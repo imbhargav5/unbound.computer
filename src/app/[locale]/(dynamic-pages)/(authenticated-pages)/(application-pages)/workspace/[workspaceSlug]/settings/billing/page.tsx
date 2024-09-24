@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { T, Typography } from "@/components/ui/Typography";
 import { InvoiceData, OneTimePaymentData } from '@/payments/AbstractPaymentGateway';
 import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
@@ -140,12 +141,13 @@ const SubscriptionProducts = async ({ workspace }: { workspace: WorkspaceWithMem
   const yearlyProducts = productWithPriceListGroup['year'] ?? [];
 
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription Plans</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <Tabs defaultValue="monthly">
+      <TabsList>
+        <TabsTrigger value="monthly">Monthly Billing</TabsTrigger>
+        <TabsTrigger value="yearly">Annual Billing</TabsTrigger>
+      </TabsList>
+      <TabsContent value="monthly">
+        <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {monthlyProducts.map((p) => (
               <Card key={p.price.gateway_price_id}>
@@ -161,13 +163,10 @@ const SubscriptionProducts = async ({ workspace }: { workspace: WorkspaceWithMem
               </Card>
             ))}
           </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Yearly Subscriptions</CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </TabsContent>
+      <TabsContent value="yearly">
+        <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {yearlyProducts.map((p) => (
               <Card key={p.price.gateway_price_id}>
@@ -177,15 +176,15 @@ const SubscriptionProducts = async ({ workspace }: { workspace: WorkspaceWithMem
                 <CardContent>
                   <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
                   <T.H4 className="mb-2">{formatGatewayPrice(p.price)}</T.H4>
-                  <ul className="list-disc list-inside mb-4"> </ul>
+                  <ul className="list-disc list-inside mb-4">Features</ul>
                   <SubscriptionSelect priceId={p.price.gateway_price_id} workspaceId={workspace.id} />
                 </CardContent>
               </Card>
             ))}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 
@@ -194,29 +193,23 @@ const OneTimeProducts = async ({ workspace }: { workspace: WorkspaceWithMembersh
   const productWithPriceListGroup = await stripePaymentGateway.anonScope.listAllOneTimeProducts();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>One-Time Purchases</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {productWithPriceListGroup.map((p) => (
-            <Card key={p.price.gateway_price_id}>
-              <CardHeader>
-                <CardTitle>{p.product.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
-                <T.H4 className="mb-2">{formatGatewayPrice(p.price)}</T.H4>
-                <ul className="list-disc list-inside mb-4"> </ul>
-                <SubscriptionSelect isOneTimePurchase priceId={p.price.gateway_price_id} workspaceId={workspace.id} />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
+    <div className="space-y-4">
+      <Typography.H2>One-Time Purchases</Typography.H2>
+      {productWithPriceListGroup.map((p) => (
+        <Card key={p.price.gateway_price_id}>
+          <CardHeader>
+            <CardTitle>{p.product.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
+            <T.H4 className="mb-2">{formatGatewayPrice(p.price)}</T.H4>
+            <ul className="list-disc list-inside mb-4"> </ul>
+            <SubscriptionSelect isOneTimePurchase priceId={p.price.gateway_price_id} workspaceId={workspace.id} />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
 };
 
 const Invoices = async ({ workspace }: { workspace: WorkspaceWithMembershipType }) => {
@@ -268,6 +261,7 @@ export default async function WorkspaceSettingsBillingPage({ params }: { params:
         <Subscription workspace={workspace} />
       </Suspense>
       <Suspense fallback={<T.Subtle>Loading subscription products...</T.Subtle>}>
+        <Typography.H2>Plans</Typography.H2>
         <SubscriptionProducts workspace={workspace} />
       </Suspense>
       <Suspense fallback={<T.Subtle>Loading one-time products...</T.Subtle>}>

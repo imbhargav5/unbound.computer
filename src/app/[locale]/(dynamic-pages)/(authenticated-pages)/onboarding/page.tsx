@@ -48,8 +48,6 @@ async function OnboardingFlowWrapper() {
   const [onboardingConditions] = await Promise.all([
     getOnboardingConditions(user.id),
   ]);
-  console.log(user);
-  console.log("onboarding flow wrapper", user.user_metadata);
   const { userProfile } = onboardingConditions;
 
   const onboardingStatus = authUserMetadataSchema.parse(user.user_metadata);

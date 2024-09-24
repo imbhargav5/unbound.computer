@@ -20,9 +20,7 @@ export async function GET() {
     refresh_token: data.session?.refresh_token,
   });
   const session = await supabase.auth.getSession();
-  console.log('session', session);
   const user = await supabase.auth.getUser();
-  console.log('user', user);
 
   return new Response(JSON.stringify({ message: 'Refreshed', user, session }), { headers: { 'Content-Type': 'application/json' } });
 }
