@@ -48,7 +48,7 @@ export default function TeamInvitationEmail({
             </Text>
           )}
           <Section style={buttonContainerStyle}>
-            <Button pX={20} pY={12} style={buttonStyle} href={viewInvitationUrl}>
+            <Button style={buttonStyle} href={viewInvitationUrl}>
               View Invitation
             </Button>
           </Section>

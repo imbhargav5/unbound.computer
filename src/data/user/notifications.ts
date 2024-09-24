@@ -33,9 +33,11 @@ export const createAcceptedWorkspaceInvitationNotification = async (
   userId: string,
   {
     workspaceId,
+    workspaceSlug,
     inviteeFullName,
   }: {
     workspaceId: string;
+    workspaceSlug: string;
     inviteeFullName: string;
   },
 ) => {
@@ -48,6 +50,7 @@ export const createAcceptedWorkspaceInvitationNotification = async (
     workspaceId,
     type: 'acceptedWorkspaceInvitation',
     userFullName: inviteeFullName,
+    workspaceSlug,
   };
 
   return await createNotification(userId, payload);

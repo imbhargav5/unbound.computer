@@ -26,21 +26,21 @@ export const parseNotification = (
     const notification =
       userNotificationPayloadSchema.parse(notificationPayload);
     switch (notification.type) {
-      case "invitedToOrganization":
+      case "invitedToWorkspace":
         return {
-          title: "Invitation to join organization",
-          description: `You have been invited to join ${notification.organizationName}`,
+          title: "Invitation to join workspace",
+          description: `You have been invited to join ${notification.workspaceName}`,
           // 2 days ago
           href: `/user/invitations/${notification.invitationId}`,
           image: "/logos/logo-black.png",
           actionType: "link",
           type: notification.type,
         };
-      case "acceptedOrganizationInvitation":
+      case "acceptedWorkspaceInvitation":
         return {
-          title: "Accepted invitation to join organization",
-          description: `${notification.userFullName} has accepted your invitation to join your organization`,
-          href: `/organization/${notification.organizationId}/settings/members`,
+          title: "Accepted invitation to join workspace",
+          description: `${notification.userFullName} has accepted your invitation to join your workspace`,
+          href: `/workspace/${notification.workspaceSlug}/settings/members`,
           image: "/logos/logo-black.png",
           actionType: "link",
           type: notification.type,

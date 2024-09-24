@@ -10,6 +10,7 @@ export const marketingFeedbackStatusEnum = z.enum([
   "closed",
   "in_progress",
   "completed",
+  'moderator_hold'
 ]);
 
 export type MarketingFeedbackStatusEnum = z.infer<typeof marketingFeedbackStatusEnum>;

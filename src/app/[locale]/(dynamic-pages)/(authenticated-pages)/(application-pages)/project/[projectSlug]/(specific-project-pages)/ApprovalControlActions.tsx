@@ -44,7 +44,7 @@ export function ApprovalControlActions({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to submit project for approval";
+      const errorMessage = error.serverError ?? "Failed to submit project for approval";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -63,7 +63,7 @@ export function ApprovalControlActions({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to mark project as complete";
+      const errorMessage = error.serverError ?? "Failed to mark project as complete";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -82,7 +82,7 @@ export function ApprovalControlActions({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to approve project";
+      const errorMessage = error.serverError ?? "Failed to approve project";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -101,7 +101,7 @@ export function ApprovalControlActions({
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to reject project";
+      const errorMessage = error.serverError ?? "Failed to reject project";
       toast.error(errorMessage, {
         id: toastRef.current,
       });

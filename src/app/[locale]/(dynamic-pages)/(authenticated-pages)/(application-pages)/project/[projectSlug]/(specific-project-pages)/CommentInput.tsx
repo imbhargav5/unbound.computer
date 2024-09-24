@@ -51,7 +51,7 @@ export const CommentInput = ({ projectId }: { projectId: string }): JSX.Element 
       });
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to add comment';
+      const errorMessage = error.serverError ?? 'Failed to add comment';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

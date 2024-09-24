@@ -46,7 +46,7 @@ export function EditWorkspaceForm({
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? "Failed to update workspace information";
+      const errorMessage = error.serverError ?? "Failed to update workspace information";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

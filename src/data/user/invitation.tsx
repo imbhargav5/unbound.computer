@@ -247,17 +247,18 @@ export const acceptInvitationAction = authActionClient
     }
 
     const userProfile = await getUserProfile(userId);
+    const workspace = await getWorkspaceById(invitation.workspace_id);
 
     await createAcceptedWorkspaceInvitationNotification(
       invitation.inviter_user_id,
       {
         workspaceId: invitation.workspace_id,
+        workspaceSlug: workspace.slug,
         inviteeFullName: userProfile.full_name ?? `User ${userProfile.id}`,
       },
     );
 
     revalidatePath("/", "layout");
-    const workspace = await getWorkspaceById(invitation.workspace_id);
     return workspace.slug;
   });
 

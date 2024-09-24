@@ -11,6 +11,7 @@ const invitedToWorkspacePayload = z.object({
 export const acceptedWorkspaceInvitationPayload = z.object({
   userFullName: z.string(),
   workspaceId: z.string(),
+  workspaceSlug: z.string(),
   type: z.literal('acceptedWorkspaceInvitation'),
 });
 
