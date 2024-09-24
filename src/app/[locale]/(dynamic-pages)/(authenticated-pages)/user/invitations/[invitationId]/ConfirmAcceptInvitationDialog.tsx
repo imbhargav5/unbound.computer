@@ -10,10 +10,11 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { acceptInvitationAction } from '@/data/user/invitation';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { Check } from 'lucide-react';
+import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 export const ConfirmAcceptInvitationDialog = ({
   invitationId,
@@ -22,30 +23,28 @@ export const ConfirmAcceptInvitationDialog = ({
 }) => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { mutate, isLoading } = useSAToastMutation(
-    async (invitationId: string) => {
-      return await acceptInvitationAction(invitationId);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: acceptInvitation, isPending: isAccepting } = useAction(acceptInvitationAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Accepting invitation...');
     },
-    {
-      loadingMessage: 'Accepting invitation...',
-      successMessage: 'Invitation accepted!',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to accept invitation ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to accept invitation';
-        }
-      },
-      onSuccess: (response) => {
-        if (response.status === 'success') {
-          router.push(`/${response.data}`);
-        }
-      },
-    });
+    onSuccess: ({ data }) => {
+      toast.success('Invitation accepted!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      router.push(`/${data}`);
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to accept invitation';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -75,7 +74,7 @@ export const ConfirmAcceptInvitationDialog = ({
         <DialogFooter className="mt-4">
           <Button
             type="button"
-            disabled={isLoading}
+            disabled={isAccepting}
             variant="outline"
             className="w-full"
             data-testid="cancel"
@@ -88,15 +87,15 @@ export const ConfirmAcceptInvitationDialog = ({
           <Button
             type="button"
             data-testid="confirm"
-            disabled={isLoading}
+            disabled={isAccepting}
             variant="default"
             className="w-full"
             onClick={() => {
-              mutate(invitationId);
+              acceptInvitation({ invitationId });
               setOpen(false);
             }}
           >
-            {isLoading ? 'Accepting...' : 'Accept'}
+            {isAccepting ? 'Accepting...' : 'Accept'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,9 +4,11 @@
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { updateEmailAction } from '@/data/user/security';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { classNames } from '@/utils/classNames';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef } from 'react';
 import { useInput } from 'rooks';
+import { toast } from 'sonner';
 
 export const UpdateEmail = ({
   initialEmail,
@@ -14,27 +16,26 @@ export const UpdateEmail = ({
   initialEmail?: string | undefined;
 }) => {
   const emailInput = useInput(initialEmail ?? '');
+  const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { mutate: updateEmail, isLoading } = useSAToastMutation(
-    async () => {
-      return await updateEmailAction(emailInput.value);
+  const { execute: updateEmail, isPending } = useAction(updateEmailAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating email...');
     },
-    {
-      loadingMessage: 'Updating email...',
-      successMessage: 'Email updated!',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update email ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update email';
-        }
-      },
+    onSuccess: () => {
+      toast.success('Email updated!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to update email';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -54,19 +55,19 @@ export const UpdateEmail = ({
           />
         </div>
         <Button
-          aria-disabled={isLoading}
+          aria-disabled={isPending}
           type="button"
           onClick={() => {
-            updateEmail();
+            updateEmail({ email: emailInput.value });
           }}
           className={classNames(
-            'flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
-            isLoading
-              ? 'bg-yellow-300 dark:bg-yellow-700 '
-              : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ',
+            'flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+            isPending
+              ? 'bg-yellow-300 dark:bg-yellow-700'
+              : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100',
           )}
         >
-          {isLoading ? 'Updating...' : 'Update Email'}
+          {isPending ? 'Updating...' : 'Update Email'}
         </Button>
       </div>
     </div>

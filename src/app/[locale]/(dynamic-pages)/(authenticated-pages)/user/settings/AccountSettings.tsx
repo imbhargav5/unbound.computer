@@ -2,13 +2,14 @@
 import { PageHeading } from '@/components/PageHeading';
 import { UpdateAvatarAndNameBody } from '@/components/UpdateAvatarAndName';
 import {
-  updateUserProfileNameAndAvatar,
+  updateUserProfileNameAndAvatarAction,
   uploadPublicUserAvatarAction,
 } from '@/data/user/user';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import type { DBTable } from '@/types';
+import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ConfirmDeleteAccountDialog } from './ConfirmDeleteAccountDialog';
 
 export function AccountSettings({
@@ -19,99 +20,72 @@ export function AccountSettings({
   userEmail: string | undefined;
 }) {
   const router = useRouter();
-  const { mutate, isLoading } = useSAToastMutation(
-    async ({
-      fullName,
-      avatarUrl,
-    }: {
-      fullName: string;
-      avatarUrl?: string;
-    }) => {
-      return await updateUserProfileNameAndAvatar({
-        fullName,
-        avatarUrl,
-      });
-    },
-    {
-      loadingMessage: 'Updating profile...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to update profile ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to update profile';
-        }
-      },
-      successMessage: 'Profile updated!',
-    },
-  );
-  // This loading state is for the new avatar image
-  // being fetched from the server to the browser. At this point the
-  // upload is complete, but the new image is not yet available to the browser.
-  const [isNewAvatarImageLoading, setIsNewAvatarImageLoading] =
-    useState<boolean>(false);
+  const toastRef = useRef<string | number | undefined>(undefined);
 
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(
-    userProfile.avatar_url ?? undefined,
-  );
-
-  const { mutate: upload, isLoading: isUploading } = useSAToastMutation(
-    async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      return await uploadPublicUserAvatarAction(formData, file.name, {
-        upsert: true,
+  const { execute: updateUserProfile, isPending: isUpdatingProfile } = useAction(updateUserProfileNameAndAvatarAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Updating profile...');
+    },
+    onSuccess: () => {
+      toast.success('Profile updated!', {
+        id: toastRef.current,
       });
+      toastRef.current = undefined;
     },
-    {
-      loadingMessage: 'Uploading avatar...',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to upload avatar ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to upload avatar';
-        }
-      },
-      successMessage: 'Avatar uploaded!',
-      onSuccess: (response) => {
-        if (response.status === 'success' && response.data) {
-          router.refresh();
-          setAvatarUrl(response.data);
-          setIsNewAvatarImageLoading(true);
-        }
-      },
-      onError: (error) => {
-        console.log(String(error));
-      },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to update profile';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
-  );
+  });
+
+  const [isNewAvatarImageLoading, setIsNewAvatarImageLoading] = useState<boolean>(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userProfile.avatar_url ?? undefined);
+
+  const { execute: uploadAvatar, isPending: isUploadingAvatar } = useAction(uploadPublicUserAvatarAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Uploading avatar...');
+    },
+    onSuccess: ({ data }) => {
+      router.refresh();
+      setIsNewAvatarImageLoading(true);
+      setAvatarUrl(data);
+      toast.success('Avatar uploaded!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to upload avatar';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
   return (
     <div className="max-w-sm">
       <div className="space-y-16">
         <UpdateAvatarAndNameBody
           onSubmit={(fullName: string) => {
-            mutate({
-              fullName,
-              avatarUrl,
-            });
+            updateUserProfile({ fullName, avatarUrl });
           }}
           onFileUpload={(file: File) => {
-            upload(file);
+            const formData = new FormData();
+            formData.append('file', file);
+            uploadAvatar({
+              formData, fileName: file.name, fileOptions: { upsert: true }
+            });
           }}
           userId={userProfile.id}
           userEmail={userEmail}
           isNewAvatarImageLoading={isNewAvatarImageLoading}
           setIsNewAvatarImageLoading={setIsNewAvatarImageLoading}
-          isUploading={isUploading}
-          isLoading={isLoading ?? isUploading}
+          isUploading={isUploadingAvatar}
+          isLoading={isUpdatingProfile || isUploadingAvatar}
           profileAvatarUrl={avatarUrl ?? undefined}
           profileFullname={userProfile.full_name ?? undefined}
         />

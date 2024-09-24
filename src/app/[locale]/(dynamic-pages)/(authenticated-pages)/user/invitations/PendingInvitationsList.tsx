@@ -19,8 +19,8 @@ const PendingInvitationsTable = ({
     id: string;
     inviterUserFullName: string;
     organizationTitle: string;
-    status: Enum<'organization_join_invitation_link_status'>;
-    role: Enum<'organization_member_role'>;
+    status: Enum<'workspace_invitation_link_status'>;
+    role: Enum<'workspace_user_role'>;
     organizationId: string;
   }>;
 }) => {
@@ -77,20 +77,20 @@ export const PendingInvitationsList = async () => {
       const inviter = Array.isArray(invitation.inviter)
         ? invitation.inviter[0]
         : invitation.inviter;
-      const organization = Array.isArray(invitation.organization)
-        ? invitation.organization[0]
-        : invitation.organization;
-      if (!organization || !inviter) {
+      const workspace = Array.isArray(invitation.workspace)
+        ? invitation.workspace[0]
+        : invitation.workspace;
+      if (!workspace || !inviter) {
         throw new Error('Organization or Inviter not found');
       }
 
       return {
         id: invitation.id,
         inviterUserFullName: inviter.full_name ?? invitation.invitee_user_email,
-        organizationTitle: organization.title,
+        organizationTitle: workspace.name,
         status: invitation.status,
-        role: invitation.invitee_organization_role,
-        organizationId: organization.id,
+        role: invitation.invitee_user_role,
+        organizationId: workspace.id,
       };
     })
     .filter(Boolean);

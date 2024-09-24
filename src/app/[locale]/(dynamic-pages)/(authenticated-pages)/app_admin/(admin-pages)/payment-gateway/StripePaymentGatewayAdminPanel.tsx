@@ -115,9 +115,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <div className="pt-2">
               <p className="text-xs text-muted-foreground">Gateway: {product.gateway_name}</p>
               <p className="text-xs text-muted-foreground">Product ID: {product.gateway_product_id}</p>
-              {product.free_trial_days && (
-                <p className="text-xs text-muted-foreground">Free trial: {product.free_trial_days} days</p>
-              )}
+
             </div>
           </div>
         </CardContent>

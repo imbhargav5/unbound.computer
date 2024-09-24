@@ -10,9 +10,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { sendLoginLinkAction } from '@/data/admin/user';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { Send } from 'lucide-react';
-import { useState } from 'react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 export const ConfirmSendLoginLinkDialog = ({
   userEmail,
@@ -20,20 +21,32 @@ export const ConfirmSendLoginLinkDialog = ({
   userEmail: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const { mutate: onConfirm, isLoading } = useSAToastMutation(
-    async () => {
-      return await sendLoginLinkAction(userEmail);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: sendLoginLink, isPending: isSending } = useAction(sendLoginLinkAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Sending login link...');
     },
-    {
-      loadingMessage: 'Sending login link...',
-      successMessage: 'Login link sent!',
-      errorMessage: 'Failed to send login link',
+    onSuccess: () => {
+      toast.success('Login link sent!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      setOpen(false);
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to send login link';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={'ghost'} aria-disabled={isLoading}>
+        <Button variant={'ghost'} aria-disabled={isSending}>
           Send login link
         </Button>
       </DialogTrigger>
@@ -54,7 +67,7 @@ export const ConfirmSendLoginLinkDialog = ({
             type="button"
             variant="outline"
             className="w-full"
-            aria-disabled={isLoading}
+            aria-disabled={isSending}
             onClick={() => {
               setOpen(false);
             }}
@@ -65,10 +78,9 @@ export const ConfirmSendLoginLinkDialog = ({
             type="button"
             variant="default"
             className="w-full"
-            aria-disabled={isLoading}
+            aria-disabled={isSending}
             onClick={() => {
-              onConfirm();
-              setOpen(false);
+              sendLoginLink({ email: userEmail });
             }}
           >
             Send Login Link

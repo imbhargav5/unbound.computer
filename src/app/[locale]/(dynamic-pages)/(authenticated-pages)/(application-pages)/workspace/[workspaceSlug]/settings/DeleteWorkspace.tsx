@@ -46,7 +46,7 @@ export const DeleteWorkspace = ({
         router.push('/dashboard');
       },
       onError: ({ error }) => {
-        const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to delete workspace';
+        const errorMessage = error.serverError ?? 'Failed to delete workspace';
         toast.error(errorMessage, {
           id: toastRef.current,
         });

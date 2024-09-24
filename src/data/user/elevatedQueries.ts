@@ -24,7 +24,7 @@ import { UserAppMetadata } from '@supabase/supabase-js';
 export async function getInvitationWorkspaceDetails(workspaceId: string) {
   const { data, error } = await supabaseAdminClient
     .from('workspaces')
-    .select('id, title')
+    .select('id, name')
     .eq('id', workspaceId)
     .single();
 

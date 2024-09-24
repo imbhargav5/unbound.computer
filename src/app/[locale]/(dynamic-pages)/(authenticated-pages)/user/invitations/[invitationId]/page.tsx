@@ -19,11 +19,11 @@ async function Invitation({ invitationId }: { invitationId: string }) {
     const inviter = Array.isArray(invitation.inviter)
       ? invitation.inviter[0]
       : invitation.inviter;
-    const organization = Array.isArray(invitation.organization)
-      ? (invitation.organization[0] as DBTable<'organizations'> | null)
-      : invitation.organization;
-    if (!organization || !inviter) {
-      throw new Error('Organization or Inviter not found');
+    const workspace = Array.isArray(invitation.workspace)
+      ? (invitation.workspace[0] as DBTable<'workspaces'> | null)
+      : invitation.workspace;
+    if (!workspace || !inviter) {
+      throw new Error('Workspace or Inviter not found');
     }
 
     return (
@@ -31,8 +31,8 @@ async function Invitation({ invitationId }: { invitationId: string }) {
         <T.H2>Invitation from {inviter.full_name}</T.H2>
         <div className="space-y-2">
           <T.P>
-            You have been invited to join <strong>{organization.title}</strong>{' '}
-            as a <strong>{invitation.invitee_organization_role}</strong>.
+            You have been invited to join <strong>{workspace.name}</strong>{' '}
+            as a <strong>{invitation.invitee_user_role}</strong>.
           </T.P>
           <div className="space-x-2">
             <ConfirmAcceptInvitationDialog invitationId={invitation.id} />

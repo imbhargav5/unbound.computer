@@ -35,7 +35,7 @@ export const UpdatePassword = () => {
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Update password failed';
+      const errorMessage = error.serverError ?? 'Update password failed';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

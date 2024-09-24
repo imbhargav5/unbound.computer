@@ -24,7 +24,7 @@ export function SetDefaultWorkspaceButton({ workspaceId }: SetDefaultWorkspaceBu
     onError: ({ error }) => {
       const errorMessage = error instanceof Error
         ? error.message
-        : error.serverError ?? error.fetchError ?? 'Failed to set as default workspace';
+        : error.serverError ?? 'Failed to set as default workspace';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

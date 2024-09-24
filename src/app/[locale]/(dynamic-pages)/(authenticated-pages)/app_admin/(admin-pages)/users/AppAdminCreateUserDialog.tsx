@@ -12,11 +12,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createUserAction } from '@/data/admin/user';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { Plus } from 'lucide-react';
+import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useInput } from 'rooks';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -25,30 +25,29 @@ export const AppAdminCreateUserDialog = () => {
   const emailInput = useInput('');
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { mutate: createUser, isLoading } = useSAToastMutation(
-    async (email: string) => {
-      return await createUserAction(email);
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: createUser, isPending: isCreatingUser } = useAction(createUserAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Creating user...');
     },
-    {
-      loadingMessage: 'Creating user...',
-      successMessage: 'User created!',
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to create user ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return 'Failed to create user';
-        }
-      },
-      onSuccess: () => {
-        setOpen(false);
-        router.refresh();
-      },
+    onSuccess: () => {
+      toast.success('User created!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      setOpen(false);
+      router.refresh();
     },
-  );
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to create user';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -79,17 +78,17 @@ export const AppAdminCreateUserDialog = () => {
             onClick={() => {
               try {
                 const validEmail = z.string().email().parse(emailInput.value);
-                createUser(validEmail);
+                createUser({ email: validEmail });
               } catch (error) {
                 const message = getErrorMessage(error);
                 toast.error(message);
               }
             }}
-            aria-disabled={isLoading}
+            aria-disabled={isCreatingUser}
             type="button"
             className="w-full"
           >
-            {isLoading ? 'Loading...' : 'Create User'}
+            {isCreatingUser ? 'Loading...' : 'Create User'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -30,7 +30,7 @@ export function GenerateApiKey(): JSX.Element {
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? error.fetchError ?? 'Failed to generate API Key';
+      const errorMessage = error.serverError ?? 'Failed to generate API Key';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

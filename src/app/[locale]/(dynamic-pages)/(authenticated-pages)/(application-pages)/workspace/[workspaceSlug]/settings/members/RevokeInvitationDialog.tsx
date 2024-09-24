@@ -10,8 +10,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { revokeInvitationAction } from '@/data/user/invitation';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { useState } from 'react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 type Props = {
   invitationId: string;
@@ -19,25 +20,25 @@ type Props = {
 
 export const RevokeInvitationDialog = ({ invitationId }: Props) => {
   const [open, setOpen] = useState(false);
-  const { mutate, isLoading } = useSAToastMutation(
-    async (invitationId: string) => {
-      return await revokeInvitationAction(invitationId);
-    }, {
-    onSettled: () => {
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: revokeInvitation, isPending: isRevoking } = useAction(revokeInvitationAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Revoking Invitation...');
+    },
+    onSuccess: () => {
+      toast.success('Invitation revoked!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
       setOpen(false);
     },
-    loadingMessage: 'Revoking Invitation...',
-    successMessage: 'Invitation revoked!',
-    errorMessage(error) {
-      try {
-        if (error instanceof Error) {
-          return String(error.message);
-        }
-        return `Failed to revoke invitation ${String(error)}`;
-      } catch (_err) {
-        console.warn(_err);
-        return 'Failed to revoke invitation';
-      }
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to revoke invitation';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
   });
 
@@ -50,7 +51,7 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            mutate(invitationId);
+            revokeInvitation({ invitationId });
           }}
         >
           <DialogHeader>
@@ -65,9 +66,9 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
             <Button
               variant="destructive"
               type="submit"
-              aria-disabled={isLoading}
+              aria-disabled={isRevoking}
             >
-              {isLoading ? 'Revoking Invitation...' : 'Yes, revoke'}
+              {isRevoking ? 'Revoking Invitation...' : 'Yes, revoke'}
             </Button>
             <Button
               type="button"

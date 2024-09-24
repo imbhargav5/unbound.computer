@@ -10,9 +10,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { declineInvitationAction } from '@/data/user/invitation';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useAction } from 'next-safe-action/hooks';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 export const ConfirmDeclineInvitationDialog = ({
   invitationId,
@@ -20,23 +21,28 @@ export const ConfirmDeclineInvitationDialog = ({
   invitationId: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const { mutate, isLoading } = useSAToastMutation(async (invitationId: string) => {
-    return await declineInvitationAction(invitationId)
-  }, {
-    loadingMessage: 'Declining invitation...',
-    successMessage: 'Invitation declined!',
-    errorMessage(error) {
-      try {
-        if (error instanceof Error) {
-          return String(error.message);
-        }
-        return `Failed to decline invitation ${String(error)}`;
-      } catch (_err) {
-        console.warn(_err);
-        return 'Failed to decline invitation';
-      }
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: declineInvitation, isPending: isDeclining } = useAction(declineInvitationAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Declining invitation...');
+    },
+    onSuccess: () => {
+      toast.success('Invitation declined!', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      setOpen(false);
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to decline invitation';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
     },
   });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -59,7 +65,7 @@ export const ConfirmDeclineInvitationDialog = ({
         <DialogFooter className="mt-4">
           <Button
             type="button"
-            disabled={isLoading}
+            disabled={isDeclining}
             variant="outline"
             className="w-full"
             onClick={() => {
@@ -70,15 +76,15 @@ export const ConfirmDeclineInvitationDialog = ({
           </Button>
           <Button
             type="button"
-            disabled={isLoading}
+            disabled={isDeclining}
             variant="destructive"
             className="w-full"
             onClick={() => {
-              mutate(invitationId);
+              declineInvitation({ invitationId });
               setOpen(false);
             }}
           >
-            {isLoading ? 'Declining...' : 'Decline'}
+            {isDeclining ? 'Declining...' : 'Decline'}
           </Button>
         </DialogFooter>
       </DialogContent>
