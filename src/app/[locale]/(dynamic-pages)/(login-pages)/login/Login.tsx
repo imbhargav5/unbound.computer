@@ -17,7 +17,6 @@ import {
   signInWithPasswordAction,
   signInWithProviderAction
 } from '@/data/auth/auth';
-import type { AuthProvider } from '@/types';
 import { useAction } from 'next-safe-action/hooks';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
@@ -143,7 +142,7 @@ export function Login({
                   <EmailAndPassword
                     isLoading={passwordStatus === 'executing'}
                     onSubmit={(data) => {
-                      executePassword({ email: data.email, password: data.password, next });
+                      executePassword({ email: data.email, password: data.password });
                     }}
                     view="sign-in"
                   />
@@ -180,7 +179,7 @@ export function Login({
                   <RenderProviders
                     providers={['google', 'github', 'twitter']}
                     isLoading={providerStatus === 'executing'}
-                    onProviderLoginRequested={(provider: AuthProvider) => executeProvider({ provider, next })}
+                    onProviderLoginRequested={(provider) => executeProvider({ provider, next })}
                   />
                 </CardContent>
               </Card>

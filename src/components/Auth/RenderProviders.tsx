@@ -6,7 +6,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { AuthProvider } from '@/types';
+import { SocialProvider } from '@/utils/zod-schemas/social-providers';
 import { Fragment } from 'react';
 
 function capitalize(word: string) {
@@ -21,8 +21,8 @@ export const RenderProviders = ({
   onProviderLoginRequested,
   isLoading,
 }: {
-  providers: AuthProvider[];
-  onProviderLoginRequested: (provider: AuthProvider) => void;
+  providers: SocialProvider[];
+  onProviderLoginRequested: (provider: SocialProvider) => void;
   isLoading: boolean;
 }) => {
   return (

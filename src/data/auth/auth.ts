@@ -2,6 +2,7 @@
 import { actionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { toSiteURL } from '@/utils/helpers';
+import { socialProviders } from '@/utils/zod-schemas/social-providers';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
@@ -101,7 +102,7 @@ export const signInWithMagicLinkAction = actionClient
   });
 
 const signInWithProviderSchema = z.object({
-  provider: z.enum(['google', 'github', 'twitter']),
+  provider: socialProviders,
   next: z.string().optional(),
 });
 
