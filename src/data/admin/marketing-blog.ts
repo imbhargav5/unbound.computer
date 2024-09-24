@@ -29,6 +29,7 @@ export const createBlogPostAction = adminActionClient
       .select()
       .single();
 
+
     if (error) throw new Error(error.message);
 
     revalidatePath('/', 'layout');
@@ -43,11 +44,8 @@ export const updateBlogPostAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { id, stringified_json_content, stringified_seo_data, ...updateData } = parsedInput;
 
-    console.log('updateData', updateData);
     const jsonContent = JSON.parse(stringified_json_content);
     const seoData = JSON.parse(stringified_seo_data);
-    console.log('jsonContent', jsonContent);
-    console.log('seoData', seoData);
     const { data, error } = await supabaseAdminClient
       .from('marketing_blog_posts')
       .update({
@@ -58,6 +56,7 @@ export const updateBlogPostAction = adminActionClient
       .eq('id', id)
       .select()
       .single();
+
 
     if (error) throw new Error(error.message);
 

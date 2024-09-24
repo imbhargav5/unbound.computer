@@ -44,6 +44,9 @@ importers:
       '@mdx-js/react':
         specifier: ^3.0.1
         version: 3.0.1(@types/react@18.3.2)(react@18.3.1)
+      '@next-safe-action/adapter-react-hook-form':
+        specifier: ^1.0.13
+        version: 1.0.13(@hookform/resolvers@3.9.0(react-hook-form@7.53.0(react@18.3.1)))(next-safe-action@7.9.3(@sinclair/typebox@0.27.8)(next@14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.23.8))(next@14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.53.0(react@18.3.1))(react@18.3.1)
       '@next/bundle-analyzer':
         specifier: ^14.2.13
         version: 14.2.13
@@ -320,6 +323,9 @@ importers:
       hastscript:
         specifier: ^9.0.0
         version: 9.0.0
+      hooks:
+        specifier: link:@next-safe-action/adapter-react-hook-form/hooks
+        version: link:@next-safe-action/adapter-react-hook-form/hooks
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
@@ -2359,6 +2365,16 @@ packages:
 
   '@microflash/rehype-slugify@1.0.0':
     resolution: {integrity: sha512-pp9LB4zp8cxF+Pf6oXNpqCMNXAmFKeIP9Ab6MOb/SrzxDvGfi0O2RZwG7znXh7dmVgYa0//Dte4X5kcIf+G3/w==}
+
+  '@next-safe-action/adapter-react-hook-form@1.0.13':
+    resolution: {integrity: sha512-J1zfdiVWcs6w388fKwdm0V/2UojU3KkqSQb4dx428HMujuF23UKaZ7v+R10I+AQrkR3yH7RIMIhYOdNwZN33DA==}
+    peerDependencies:
+      '@hookform/resolvers': '>= 3.0.0'
+      next: '>= 14.0.0'
+      next-safe-action: '>= 7.6.0'
+      react: '>= 18.2.0'
+      react-dom: '>= 18.2.0'
+      react-hook-form: '>= 7.0.0'
 
   '@next/bundle-analyzer@14.2.13':
     resolution: {integrity: sha512-CQOVKmfenD9HsG4AmyXG2ElMvtGKAT9TlS2JLgpL/EORi4WX+QMiQ8Ri6b+A7HRT+AiUGjsYnocIOET59i6Jfw==}
@@ -12397,6 +12413,15 @@ snapshots:
       hast-util-heading-rank: 2.1.1
       hast-util-to-string: 2.0.0
       unist-util-visit: 4.1.2
+
+  '@next-safe-action/adapter-react-hook-form@1.0.13(@hookform/resolvers@3.9.0(react-hook-form@7.53.0(react@18.3.1)))(next-safe-action@7.9.3(@sinclair/typebox@0.27.8)(next@14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.23.8))(next@14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.53.0(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@hookform/resolvers': 3.9.0(react-hook-form@7.53.0(react@18.3.1))
+      next: 14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      next-safe-action: 7.9.3(@sinclair/typebox@0.27.8)(next@14.2.8(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.23.8)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-hook-form: 7.53.0(react@18.3.1)
 
   '@next/bundle-analyzer@14.2.13':
     dependencies:

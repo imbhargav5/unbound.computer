@@ -20,14 +20,21 @@ export const CreateBlogPostButton: React.FC = () => {
       toastRef.current = toast.loading('Creating blog post...', { description: 'Please wait while we create the post.' });
     },
     onSuccess: ({ data }) => {
-      toast.success('Blog post created!', { id: toastRef.current });
+      toast.success('Blog post created!', {
+        id: toastRef.current,
+        description: 'Please wait while we redirect you to the new post.',
+
+      });
       toastRef.current = undefined;
       if (data) {
         router.push(`/app_admin/marketing/blog/${data.id}`);
       }
     },
     onError: ({ error }) => {
-      toast.error(`Failed to create blog post: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(`Failed to create blog post: ${error.serverError || 'Unknown error'}`, {
+        id: toastRef.current,
+        description: 'Please try again.',
+      });
       toastRef.current = undefined;
     },
   });
