@@ -293,13 +293,22 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
 
-    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<OneTimePaymentData[]> => {
+    getOneTimePurchasesByCustomerId: async (customerId: string): Promise<OneTimePaymentData[]> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_one_time_payments')
         .select(' *, billing_products(*), billing_prices(*), billing_invoices(*)')
-        .eq('workspace_id', workspaceId);
+        .eq('gateway_customer_id', customerId)
+        .eq('gateway_name', this.getName());
       if (error) throw error;
       return data;
+    },
+
+    getWorkspaceDatabaseOneTimePurchases: async (workspaceId: string): Promise<OneTimePaymentData[]> => {
+      const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
+      return this.db.getOneTimePurchasesByCustomerId(customer.gateway_customer_id);
     },
 
     getWorkspaceDatabasePaymentMethods: async (workspaceId: string): Promise<DBTable<'billing_payment_methods'>[]> => {

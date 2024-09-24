@@ -13,7 +13,7 @@ import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { Suspense } from "react";
 
 import { SubscriptionSelect } from "@/components/SubscriptionSelect";
-import { InvoiceData } from '@/payments/AbstractPaymentGateway';
+import { InvoiceData, OneTimePaymentData } from '@/payments/AbstractPaymentGateway';
 import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { WorkspaceWithMembershipType } from "@/types";
@@ -107,7 +107,7 @@ async function OneTimeProducts({ workspace }: { workspace: WorkspaceWithMembersh
                   {formatGatewayPrice(p.price)}
                 </T.H4>
                 <ul className="list-disc list-inside mb-4"> </ul>
-                <SubscriptionSelect priceId={p.price.gateway_price_id} workspaceId={workspace.id} />
+                <SubscriptionSelect isOneTimePurchase priceId={p.price.gateway_price_id} workspaceId={workspace.id} />
               </div>
             )
           })}
@@ -199,7 +199,58 @@ async function Invoices({ workspace }: { workspace: WorkspaceWithMembershipType 
   );
 }
 
-export default async function OrganizationSettingsPage({
+function OneTimePurchasesTable({ purchases }: { purchases: OneTimePaymentData[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Purchase ID</TableHead>
+          <TableHead>Date</TableHead>
+          <TableHead>Amount</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Product</TableHead>
+          <TableHead>Invoice</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {purchases.map((purchase) => (
+          <TableRow key={purchase.gateway_charge_id}>
+            <TableCell className="font-medium">{purchase.gateway_charge_id}</TableCell>
+            <TableCell>{formatDate(purchase.charge_date)}</TableCell>
+            <TableCell>{formatCurrency(purchase.amount, purchase.currency)}</TableCell>
+            <TableCell>
+              <Badge variant={getStatusVariant(purchase.status)}>{purchase.status}</Badge>
+            </TableCell>
+            <TableCell>{purchase.billing_products?.name || 'N/A'}</TableCell>
+            <TableCell>
+              {purchase.billing_invoices?.hosted_invoice_url && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={purchase.billing_invoices.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                    View Invoice
+                  </a>
+                </Button>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+async function OneTimePurchases({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+  const stripePaymentGateway = new StripePaymentGateway();
+  const purchases = await stripePaymentGateway.userScope.getWorkspaceDatabaseOneTimePurchases(workspace.id);
+
+  return (
+    <div className="space-y-6">
+      <Typography.H3>One-Time Purchases</Typography.H3>
+      <OneTimePurchasesTable purchases={purchases} />
+    </div>
+  );
+}
+
+export default async function WorkspaceSettingsBillingPage({
   params,
 }: {
   params: unknown;
@@ -211,6 +262,9 @@ export default async function OrganizationSettingsPage({
       <Suspense fallback={<T.Subtle>Loading invoices...</T.Subtle>}>
         <Invoices workspace={workspace} />
       </Suspense>
+      <Suspense fallback={<T.Subtle>Loading one-time purchases...</T.Subtle>}>
+        <OneTimePurchases workspace={workspace} />
+      </Suspense>
       <Suspense fallback={<T.Subtle>Loading subscription details...</T.Subtle>}>
         <Subscription workspace={workspace} />
       </Suspense>
@@ -220,7 +274,6 @@ export default async function OrganizationSettingsPage({
       <Suspense fallback={<T.Subtle>Loading one-time products...</T.Subtle>}>
         <OneTimeProducts workspace={workspace} />
       </Suspense>
-
     </>
   );
 }

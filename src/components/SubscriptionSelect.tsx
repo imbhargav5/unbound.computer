@@ -8,9 +8,10 @@ import { toast } from "sonner";
 interface SubscriptionSelectProps {
   workspaceId: string;
   priceId: string;
+  isOneTimePurchase?: boolean;
 }
 
-export function SubscriptionSelect({ workspaceId, priceId }: SubscriptionSelectProps): JSX.Element {
+export function SubscriptionSelect({ workspaceId, priceId, isOneTimePurchase = false }: SubscriptionSelectProps): JSX.Element {
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute: createCheckoutSession } = useAction(createWorkspaceCheckoutSession,
@@ -39,7 +40,7 @@ export function SubscriptionSelect({ workspaceId, priceId }: SubscriptionSelectP
       className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors"
       onClick={() => createCheckoutSession({ workspaceId, priceId })}
     >
-      Select Plan
+      {isOneTimePurchase ? 'Purchase' : 'Select Plan'}
     </button>
   );
 }
