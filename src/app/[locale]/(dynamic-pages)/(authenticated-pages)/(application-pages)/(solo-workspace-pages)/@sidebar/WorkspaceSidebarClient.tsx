@@ -10,13 +10,7 @@ import { motion } from 'framer-motion';
 import { DollarSign, FileBox, Home, Layers, Settings, UserRound } from 'lucide-react';
 import { ReactNode } from 'react';
 
-const sidebarLinks = [
-  { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
-  { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
-  { label: "Projects", href: "/projects", icon: <Layers className="h-5 w-5" /> },
-  { label: "Members", href: "/settings/members", icon: <UserRound className="h-5 w-5" /> },
-  { label: "Billing", href: "/settings/billing", icon: <DollarSign className="h-5 w-5" /> },
-];
+
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -57,6 +51,20 @@ export default function WorkspaceSidebarClient({
   subscription,
   workspace
 }: WorkspaceSidebarClientProps) {
+
+  const sidebarLinks = workspace.membershipType === 'solo' ? [
+    { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
+    { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
+    { label: "Projects", href: "/projects", icon: <Layers className="h-5 w-5" /> },
+    { label: "Billing", href: "/settings/billing", icon: <DollarSign className="h-5 w-5" /> },
+  ] : [
+    { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
+    { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
+    { label: "Projects", href: "/projects", icon: <Layers className="h-5 w-5" /> },
+    { label: "Members", href: "/settings/members", icon: <UserRound className="h-5 w-5" /> },
+    { label: "Billing", href: "/settings/billing", icon: <DollarSign className="h-5 w-5" /> },
+  ];
+
   return (
     <motion.div
       className={cn(

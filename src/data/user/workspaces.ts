@@ -1,6 +1,5 @@
 'use server';
 
-import { Tables } from '@/lib/database.types';
 import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
@@ -413,7 +412,7 @@ export const getWorkspaceCreditsLogs = async (workspaceId: string) => {
 };
 
 export async function getMaybeDefaultWorkspace(): Promise<{
-  workspace: Tables<'workspaces'>,
+  workspace: WorkspaceWithMembershipType,
   workspaceMembershipType: Enum<'workspace_membership_type'>
 } | null> {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -452,12 +451,19 @@ export async function getMaybeDefaultWorkspace(): Promise<{
     // if a default workspace is set, return it
     if (defaultWorkspace) {
       return {
-        workspace: defaultWorkspace,
+        workspace: {
+          ...defaultWorkspace,
+          membershipType: defaultWorkspace.workspace_application_settings?.membership_type ?? 'solo'
+        },
         workspaceMembershipType: defaultWorkspace.workspace_application_settings?.membership_type ?? 'solo'
       };
     } else {
+      const w = workspaceList[0];
       return {
-        workspace: workspaceList[0],
+        workspace: {
+          ...w,
+          membershipType: w.workspace_application_settings?.membership_type ?? 'solo'
+        },
         workspaceMembershipType: workspaceList[0].workspace_application_settings?.membership_type ?? 'solo'
       };
     }
@@ -467,6 +473,18 @@ export async function getMaybeDefaultWorkspace(): Promise<{
 
 }
 
+
+export async function getSoloWorkspace(): Promise<WorkspaceWithMembershipType> {
+  const user = await serverGetLoggedInUser();
+
+  const allWorkspaces = await getAllWorkspacesForUser(user.id);
+  const soloWorkspace = allWorkspaces.find((workspace) => workspace.membershipType === 'solo');
+  if (!soloWorkspace) {
+    throw new Error('No solo workspace found');
+  }
+  return soloWorkspace;
+
+}
 
 
 export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {

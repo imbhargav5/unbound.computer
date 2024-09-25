@@ -1,5 +1,6 @@
 import { getMaybeDefaultWorkspace } from '@/data/user/workspaces';
 import { toSiteURL } from '@/utils/helpers';
+import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -10,12 +11,8 @@ export async function GET(req: NextRequest) {
     if (!initialWorkspace) {
       return NextResponse.redirect(toSiteURL('/500'));
     }
-    if (initialWorkspace.workspaceMembershipType === 'solo') {
-      // return NextResponse.redirect(new URL(`/home`, req.url));
-      return NextResponse.redirect(new URL(`/workspace/${initialWorkspace.workspace.slug}`, req.url));
-    } else {
-      return NextResponse.redirect(new URL(`/workspace/${initialWorkspace.workspace.slug}`, req.url));
-    }
+    console.log('initialWorkspace', initialWorkspace.workspace.membershipType);
+    return NextResponse.redirect(new URL(getWorkspaceSubPath(initialWorkspace.workspace, '/home'), req.url));
 
   } catch (error) {
     console.error('Failed to load dashboard:', error);
