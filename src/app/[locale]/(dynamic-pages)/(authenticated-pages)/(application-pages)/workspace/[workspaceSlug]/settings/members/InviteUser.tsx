@@ -28,7 +28,6 @@ export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipTy
           errorMessage = `Failed to invite organization member: ${String(error)}`;
         }
       } catch (_err) {
-        console.warn(_err);
         errorMessage = 'Failed to invite organization member';
       }
       toast.error(errorMessage, { id: toastRef.current });
