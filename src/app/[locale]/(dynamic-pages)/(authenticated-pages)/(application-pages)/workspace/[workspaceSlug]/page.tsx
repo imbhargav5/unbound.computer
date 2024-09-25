@@ -11,7 +11,7 @@ import {
   projectsfilterSchema,
   workspaceSlugParamSchema
 } from "@/utils/zod-schemas/params";
-import { FileText, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import type { Metadata } from 'next';
 import { Suspense } from "react";
 import type { z } from "zod";
@@ -50,10 +50,6 @@ async function Dashboard({ params, searchParams }: DashboardProps) {
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <CardTitle className="text-3xl font-bold tracking-tight">Dashboard</CardTitle>
           <div className="flex space-x-4">
-            <Button variant="outline" size="sm">
-              <FileText className="mr-2 h-4 w-4" />
-              Export PDF
-            </Button>
             <CreateProjectDialog workspaceId={workspace.id} />
           </div>
         </CardHeader>

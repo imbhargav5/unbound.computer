@@ -54,8 +54,9 @@ export function Login({
       toastRef.current = undefined;
       setEmailSentSuccessMessage('A magic link has been sent to your email!');
     },
-    onError: (error) => {
-      const errorMessage = error instanceof Error ? error.message : `Send magic link failed ${String(error)}`;
+    onError: ({ error }) => {
+      console.log('error', error);
+      const errorMessage = error.serverError ? error.serverError : `Send magic link failed ${String(error)}`;
       toast.error(errorMessage, {
         id: toastRef.current,
       });

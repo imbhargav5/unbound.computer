@@ -63,8 +63,8 @@ export const addCommentToInternalFeedbackThreadAction = authActionClient
       commenterName: userFullName ?? 'User',
     })
 
-    revalidatePath('/feedback', 'layout');
-    revalidatePath(`/feedback/${feedbackId}`, 'layout');
+    revalidatePath('/[locale]/feedback', 'layout');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'layout');
     return data
   })
 
@@ -101,8 +101,8 @@ export const ownerUpdateMarketingFeedbackCommentAction = authActionClient
         message: error.message,
       };
     }
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
     return data;
   })
 
@@ -204,8 +204,8 @@ export const adminUpdateFeedbackTypeAction = adminActionClient
       typeUpdaterId: userId,
     });
 
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
 
     return { type };
   });
@@ -245,8 +245,8 @@ export const adminUpdateFeedbackPriorityAction = adminActionClient
       priorityUpdaterId: userId,
     });
 
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
 
     return { priority };
   });
@@ -282,8 +282,8 @@ export const adminToggleFeedbackFromRoadmapAction = adminActionClient
       updaterId: userId
     });
 
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
 
     return updatedFeedbackData;
   });
@@ -318,8 +318,8 @@ export const adminToggleFeedbackOpenForCommentsAction = adminActionClient
       updaterId: userId
     });
 
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
 
     return { isOpenForComments };
   });
@@ -347,8 +347,8 @@ export const adminToggleFeedbackVisibilityAction = adminActionClient
       updaterId: userId
     });
 
-    revalidatePath('/feedback', 'page');
-    revalidatePath(`/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, 'page');
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
 
     return { isPubliclyVisible };
   });

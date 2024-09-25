@@ -1,5 +1,4 @@
 import { createSupabaseUserRouteHandlerClient } from '@/supabase-clients/user/createSupabaseUserRouteHandlerClient';
-import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -18,7 +17,7 @@ export async function GET(request: Request) {
       // Potentially return an error response here
     }
   }
-  revalidatePath('/', 'layout');
+  // revalidatePath('/', 'layout');
 
   let redirectTo = new URL('/dashboard', requestUrl.origin);
 

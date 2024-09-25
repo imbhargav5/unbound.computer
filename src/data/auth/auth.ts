@@ -87,14 +87,17 @@ export const signInWithMagicLinkAction = actionClient
     if (next) {
       redirectUrl.searchParams.set('next', next);
     }
+    console.log('redirectUrl', redirectUrl.toString());
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
+        shouldCreateUser: false,
         emailRedirectTo: redirectUrl.toString(),
       },
     });
 
     if (error) {
+      console.log('error', error);
       throw new Error(error.message);
     }
 
