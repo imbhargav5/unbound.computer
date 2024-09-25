@@ -1101,12 +1101,20 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const revenueByMonth: { [key: string]: number } = {};
 
+      // Initialize all months with zero revenue
+      let currentMonth = new Date(startDate);
+      while (currentMonth <= endDate) {
+        const monthKey = currentMonth.toISOString().slice(0, 7); // YYYY-MM
+        revenueByMonth[monthKey] = 0;
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+      }
+
       invoices.forEach(invoice => {
         if (invoice.paid_date) {
           const month = new Date(invoice.paid_date).toISOString().slice(0, 7); // YYYY-MM
           const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
           const revenue = convertAmountToUSD(amount, invoice.currency);
-          revenueByMonth[month] = (revenueByMonth[month] || 0) + revenue;
+          revenueByMonth[month] += revenue;
         }
       });
 
@@ -1170,9 +1178,18 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const subscriptionsByMonth: { [key: string]: number } = {};
 
+      // Initialize all months with zero subscriptions
+      let currentMonth = new Date(startDate);
+      while (currentMonth <= endDate) {
+        const monthKey = currentMonth.toISOString().slice(0, 7); // YYYY-MM
+        subscriptionsByMonth[monthKey] = 0;
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+      }
+
+      // Count subscriptions for each month
       subscriptions.forEach(subscription => {
         const month = new Date(subscription.current_period_start).toISOString().slice(0, 7); // YYYY-MM
-        subscriptionsByMonth[month] = (subscriptionsByMonth[month] || 0) + 1;
+        subscriptionsByMonth[month]++;
       });
 
       return Object.entries(subscriptionsByMonth).map(([month, count]) => ({
