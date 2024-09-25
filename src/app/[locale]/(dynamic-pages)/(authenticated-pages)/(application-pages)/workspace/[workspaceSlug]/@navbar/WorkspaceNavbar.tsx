@@ -39,7 +39,7 @@ async function Title({ workspace }: { workspace: WorkspaceWithMembershipType }) 
   );
 }
 
-export default async function OrganizationNavbar({
+export async function WorkspaceNavbar({
   params,
 }: {
   params: unknown;

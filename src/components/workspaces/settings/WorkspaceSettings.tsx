@@ -59,9 +59,13 @@ export async function WorkspaceSettings({
       <Suspense fallback={<SettingsFormSkeleton />}>
         <SetDefaultWorkspacePreference workspaceSlug={workspaceSlug} />
       </Suspense>
-      <Suspense fallback={<SettingsFormSkeleton />}>
-        <AdminDeleteWorkspace workspaceId={workspace.id} workspaceName={workspace.name} />
-      </Suspense>
+      {
+        workspace.membershipType === 'team' ?
+          <Suspense fallback={<SettingsFormSkeleton />}>
+            <AdminDeleteWorkspace workspaceId={workspace.id} workspaceName={workspace.name} />
+          </Suspense>
+          : null
+      }
     </div>
   );
 }
