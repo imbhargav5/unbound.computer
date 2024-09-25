@@ -10,7 +10,7 @@ export async function ProjectSidebar({ params }: { params: unknown }) {
   const project = await getSlimProjectBySlug(projectSlug);
   const [slimWorkspaces, fullProject] = await Promise.all([
     fetchSlimWorkspaces(),
-    getProjectBySlug(project.id),
+    getProjectBySlug(project.slug),
   ]);
   const workspaceId = fullProject.workspace_id;
   const workspace = await getWorkspaceById(workspaceId);

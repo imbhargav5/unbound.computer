@@ -8,7 +8,7 @@ import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { PlusIcon } from "@radix-ui/react-icons";
 
 import { getChats, getChatsHistory } from "@/data/user/chats";
-import { getSlimProjectById } from "@/data/user/projects";
+import { getCachedProjectBySlug } from '@/rsc-data/user/projects';
 import type { Message } from "ai";
 import { formatRelative, subDays } from "date-fns";
 import { HomeIcon } from "lucide-react";
@@ -50,7 +50,7 @@ async function ChatList({ userId }: { userId: string }) {
 
 export async function ChatHistory({ projectId }: { projectId: string }) {
   const user = await serverGetLoggedInUser();
-  const project = await getSlimProjectById(projectId)
+  const project = await getCachedProjectBySlug(projectId)
   const userId = user.id;
   const chatsHistory = await getChatsHistory(projectId, userId)
   return (

@@ -31,6 +31,7 @@ export const getSlimProjectBySlug = async (projectSlug: string) => {
     .eq("slug", projectSlug)
     .single();
   if (error) {
+    console.log('getslimprojectbyslug', error)
     throw error;
   }
   return data;
