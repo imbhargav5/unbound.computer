@@ -1,3 +1,5 @@
+import { Locale } from "./i18n/routing";
+
 export const ADMIN_USER_LIST_VIEW_PAGE_SIZE = 10;
 export const ADMIN_ORGANIZATION_LIST_VIEW_PAGE_SIZE = 10;
 export const PRODUCT_NAME = 'NextBase';
@@ -47,22 +49,10 @@ export const RESTRICTED_SLUG_NAMES = [
 
 // starts with a letter, ends with a letter or number, and can contain letters, numbers, and hyphens
 export const SLUG_PATTERN = /^[a-zA-Z0-9-]+$/;
-export const LOCALES = ['en', 'hi'] as const;
+export const LOCALES = ['en', 'de'] as const;
 export function isValidLocale(locale: string): locale is typeof LOCALES[number] {
   return LOCALES.includes(locale as any);
 }
 // eg: en|de
 export const LOCALE_GLOB_PATTERN = `${LOCALES.join('|')}`;
-export const DEFAULT_LOCALE = 'en';
-export const LOCALE_INFO: Record<typeof LOCALES[number], { label: string; dir: 'ltr' | 'rtl'; icon: string }> = {
-  en: {
-    label: 'English',
-    dir: 'ltr',
-    icon: '🇬🇧'
-  },
-  hi: {
-    label: 'Hindi',
-    dir: 'ltr',
-    icon: '🇮🇳'
-  }
-};
+export const DEFAULT_LOCALE: Locale = 'en';

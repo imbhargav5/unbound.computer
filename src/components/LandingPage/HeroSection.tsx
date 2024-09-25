@@ -1,10 +1,12 @@
 import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronRight, Sparkles } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import HeroImage from '/public/images/hero.jpeg';
 
 export default function HeroSection() {
+  const t = useTranslations('HomePage');
   return (
     <section className=" py-10 lg:py-20 text-left px-6 lg:text-center max-w-5xl mx-auto">
       <div className="flex flex-col  gap-10 w-full">
@@ -19,12 +21,10 @@ export default function HeroSection() {
             </div>
           </Link>
           <h1 className="font-semibold text-3xl lg:text-5xl">
-            Nextbase Ultimate Landing Page
+            {t('title')}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 leading-loose lg:text-lg lg:leading-relaxed max-w-4xl">
-            Welcome to Nextbase Ultimate Landing Page: Your Gateway to
-            Innovation. Discover the Future of Excellence and Elevate Your
-            Experience.
+            {t('description')}
           </p>
           <div className="flex flex-col md:flex-row items-center max-w-md w-full  gap-3 pt-2 ">
             <Button className="w-full" asChild>

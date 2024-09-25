@@ -1,6 +1,13 @@
 {
   "HomePage": {
-    "title": "Hello world!",
-    "about": "Go to the about page"
+    "title": "Nextbase Ultimate Landing Page",
+    "description": "Welcome to Nextbase Ultimate Landing Page: Your Gateway to Innovation. Discover the Future of Excellence and Elevate Your Experience."
+  },
+  "LocaleSwitcher": {
+    "label": "Change language",
+    "localeLabels": {
+      "en": "English",
+      "de": "German"
+    }
   }
 }
