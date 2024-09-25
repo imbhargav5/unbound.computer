@@ -16,6 +16,7 @@ import { InvoiceData, OneTimePaymentData } from '@/payments/AbstractPaymentGatew
 import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { WorkspaceWithMembershipType } from "@/types";
+import { formatCurrency } from "@/utils/currency";
 import { formatGatewayPrice } from "@/utils/formatGatewayPrice";
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { Suspense } from 'react';
@@ -29,13 +30,6 @@ const formatDate = (dateString: string): string => {
   });
 };
 
-const formatCurrency = (amount: number, currency: string): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount / 100);
-};
 
 const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
   switch (status.toLowerCase()) {

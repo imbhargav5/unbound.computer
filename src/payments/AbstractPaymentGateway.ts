@@ -163,9 +163,9 @@ export abstract class PaymentGateway {
     toggleProductVisibility(productId: string, isVisible: boolean): Promise<void>;
     listAllProducts(): Promise<ProductData[]>;
     getCurrentMRR(): Promise<number>;
-    getRevenueByMonthSince(date: Date): Promise<{ month: Date, revenue: number }[]>;
-    getCurrentMonthlySubscriptions(): Promise<number>;
-    getSubscriptionsByMonthSince(date: Date): Promise<{ month: Date, subscriptions: number }[]>;
+    getSubscriptionsByMonthBetween(startDate: Date, endDate: Date): Promise<{ month: Date, subscriptions: number }[]>;
     getCurrentRevenueByProduct(): Promise<{ productId: string, revenue: number }[]>;
+    getCurrentMonthRevenue(): Promise<number>;
+    getLastMonthRevenue(): Promise<number>;
   }
 }

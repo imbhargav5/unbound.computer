@@ -1,12 +1,29 @@
+import { Typography } from "@/components/ui/Typography";
 import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
-import { StripePaymentGatewayAdminPanel } from "./StripePaymentGatewayAdminPanel";
+import { Suspense } from "react";
+import { DataAndReports } from "./DataAndReports";
+import { QuickMetrics } from "./QuickMetrics";
+import { RevenueCharts } from "./RevenueCharts";
+import { StripeProductManager } from "./StripeProductManager";
 
 export default async function PaymentsAdminPanel() {
   const stripeGateway = new StripePaymentGateway();
-  const products = await stripeGateway.superAdminScope.listAllProducts();
-  const currentMRR = await stripeGateway.superAdminScope.getCurrentMRR();
-  const last30DaysRevenue = await stripeGateway.superAdminScope.getLast30DaysRevenue();
-  console.log("currentMRR", currentMRR);
-  console.log("last30DaysRevenue", last30DaysRevenue);
-  return <StripePaymentGatewayAdminPanel products={products} />;
+
+  return <div className="container mx-auto p-6">
+    <Typography.H2>Admin Panel</Typography.H2>
+    <div className="space-y-6">
+      <Suspense fallback={<div>Loading...</div>}>
+        <StripeProductManager />
+      </Suspense>
+      <Suspense fallback={<div>Loading...</div>}>
+        <QuickMetrics />
+      </Suspense>
+      <Suspense fallback={<div>Loading...</div>}>
+        <DataAndReports />
+      </Suspense>
+      <Suspense fallback={<div>Loading...</div>}>
+        <RevenueCharts />
+      </Suspense>
+    </div>
+  </div>
 }

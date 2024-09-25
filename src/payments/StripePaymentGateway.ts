@@ -944,12 +944,10 @@ export class StripePaymentGateway implements PaymentGateway {
         active: stripePrice.active,
       }));
 
-      console.log("pricesToUpsert", pricesToUpsert);
 
       const { error: priceUpsertError } = await supabaseAdminClient
         .from('billing_prices')
         .upsert(pricesToUpsert, { onConflict: 'gateway_price_id' });
-      console.log("priceUpsertError", priceUpsertError);
       if (priceUpsertError) throw priceUpsertError;
     },
 
@@ -964,62 +962,106 @@ export class StripePaymentGateway implements PaymentGateway {
     listAllProducts: async (): Promise<ProductData[]> => {
       return this.db.listProducts();
     },
+    getMRRBetween: async (startDate: Date, endDate: Date): Promise<number> => {
+      const { data: subscriptionPrices, error: pricesError } = await supabaseAdminClient
+        .from('billing_prices')
+        .select('gateway_price_id, currency, amount')
+        .eq('gateway_name', this.getName())
+        .neq('recurring_interval', 'one-time');
+
+      if (pricesError) throw pricesError;
+
+      const priceIds = subscriptionPrices.map(price => price.gateway_price_id);
+      const { data: invoices, error: invoicesError } = await supabaseAdminClient
+        .from('billing_invoices')
+        .select('amount, currency, gateway_price_id')
+        .eq('gateway_name', this.getName())
+        .eq('status', 'paid')
+        .in('gateway_price_id', priceIds)
+        .gte('paid_date', startDate.toISOString())
+        .lte('paid_date', endDate.toISOString());
+
+      if (invoicesError) throw invoicesError;
+
+      const mrr = invoices.reduce((acc, invoice) => {
+        const price = subscriptionPrices.find(p => p.gateway_price_id === invoice.gateway_price_id);
+        if (!price) return acc;
+
+        const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
+        return acc + convertAmountToUSD(amount, invoice.currency);
+      }, 0);
+
+      return mrr;
+    },
+
     /**
      * This gets current active subscription revenue.
      */
     getCurrentMRR: async (): Promise<number> => {
-      const { data: activePrices, error } = await supabaseAdminClient
-        .from('billing_prices')
-        .select('*')
-        .eq('active', true)
-        .eq('gateway_name', this.getName());
-      if (error) throw error;
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30);
 
-      const activePricesPromises = await Promise.all(activePrices.map(async (price) => {
-        const { count, data, error } = await supabaseAdminClient
-          .from('billing_subscriptions')
-          .select('gateway_subscription_id', { count: 'exact', head: true })
-          .eq('gateway_name', this.getName())
-          .eq('gateway_price_id', price.gateway_price_id)
-          .eq('status', 'active')
-        if (error) {
-          return {
-            currency: price.currency,
-            amount: 0,
-          };
-        }
-        if (count) {
-          const amount = price.currency === 'usd' ? price.amount / 100 : price.amount;
-          return {
-            currency: price.currency,
-            amount: amount * count,
-          };
-        }
-        return {
-          currency: price.currency,
-          amount: 0,
-        };
-      }));
-
-
-      const usdRevenue = activePricesPromises.reduce((acc, price) => acc + convertAmountToUSD(price.amount, price.currency), 0);
-      return usdRevenue;
+      return this.superAdminScope.getRevenueBetween(startDate, endDate);
     },
-    getLast30DaysRevenue: async (): Promise<number> => {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    getLastMonthMRR: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 60);
+      endDate.setDate(endDate.getDate() - 30);
+
+      return this.superAdminScope.getRevenueBetween(startDate, endDate);
+    },
+
+
+    getRevenueBetween: async (startDate: Date, endDate: Date): Promise<number> => {
       const { data: invoices, error } = await supabaseAdminClient
         .from('billing_invoices')
         .select('amount, currency')
         .eq('gateway_name', this.getName())
-        .gte('paid_date', thirtyDaysAgo.toISOString())
+        .gte('paid_date', startDate.toISOString())
+        .lte('paid_date', endDate.toISOString())
         .eq('status', 'paid');
 
       if (error) throw error;
 
       const totalRevenue = invoices.reduce((acc, invoice) => {
-        // cents to dollars if currency is usd
+        const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
+        return acc + convertAmountToUSD(amount, invoice.currency);
+      }, 0);
+
+      return totalRevenue;
+    },
+    getCurrentMonthRevenue: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30);
+
+      return this.superAdminScope.getRevenueBetween(startDate, endDate);
+    },
+
+    getLastMonthRevenue: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 60);
+      endDate.setDate(endDate.getDate() - 30);
+
+      return this.superAdminScope.getRevenueBetween(startDate, endDate);
+    },
+
+    getOneTimePurchasesBetween: async (startDate: Date, endDate: Date): Promise<number> => {
+      const { data: invoices, error } = await supabaseAdminClient
+        .from('billing_one_time_payments')
+        .select('amount, currency')
+        .eq('gateway_name', this.getName())
+        .gte('charge_date', startDate.toISOString())
+        .lte('charge_date', endDate.toISOString())
+        .eq('status', 'succeeded');
+
+      if (error) throw error;
+
+      const totalRevenue = invoices.reduce((acc, invoice) => {
         const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
         return acc + convertAmountToUSD(amount, invoice.currency);
       }, 0);
@@ -1027,12 +1069,31 @@ export class StripePaymentGateway implements PaymentGateway {
       return totalRevenue;
     },
 
-    getRevenueByMonthSince: async (date: Date): Promise<{ month: Date, revenue: number }[]> => {
+
+    getCurrentMonthOneTimePurchaseRevenue: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30);
+
+      return this.superAdminScope.getOneTimePurchasesBetween(startDate, endDate);
+    },
+
+    getLastMonthOneTimePurchaseRevenue: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 60);
+      endDate.setDate(endDate.getDate() - 30);
+
+      return this.superAdminScope.getOneTimePurchasesBetween(startDate, endDate);
+    },
+
+    getRevenueByMonthBetween: async (startDate: Date, endDate: Date): Promise<{ month: Date, revenue: number }[]> => {
       const { data: invoices, error } = await supabaseAdminClient
         .from('billing_invoices')
         .select('amount, currency, paid_date')
         .eq('gateway_name', this.getName())
-        .gte('paid_date', date.toISOString())
+        .gte('paid_date', startDate.toISOString())
+        .lte('paid_date', endDate.toISOString())
         .eq('status', 'paid');
 
       if (error) throw error;
@@ -1054,24 +1115,55 @@ export class StripePaymentGateway implements PaymentGateway {
       })).sort((a, b) => a.month.getTime() - b.month.getTime());
     },
 
-    getCurrentMonthlySubscriptions: async (): Promise<number> => {
-      const { count, error } = await supabaseAdminClient
-        .from('billing_subscriptions')
+
+    getSubscriberCountBetween: async (startDate: Date, endDate: Date): Promise<number> => {
+      const { data: subscriptionPrices, error: pricesError } = await supabaseAdminClient
+        .from('billing_prices')
+        .select('gateway_price_id, currency, amount')
+        .eq('gateway_name', this.getName())
+        .neq('recurring_interval', 'one-time');
+      if (pricesError) throw pricesError;
+      const priceIds = subscriptionPrices.map(price => price.gateway_price_id);
+      console.log("priceIds", priceIds);
+      const { count: invoiceCount, error: invoicesError } = await supabaseAdminClient
+        .from('billing_invoices')
         .select('*', { count: 'exact', head: true })
         .eq('gateway_name', this.getName())
-        .eq('status', 'active');
+        .eq('status', 'paid')
+        .in('gateway_price_id', priceIds)
+        .gte('paid_date', startDate.toISOString())
+        .lte('paid_date', endDate.toISOString());
 
-      if (error) throw error;
-
-      return count || 0;
+      if (invoicesError) throw invoicesError;
+      return invoiceCount || 0;
     },
 
-    getSubscriptionsByMonthSince: async (date: Date): Promise<{ month: Date, subscriptions: number }[]> => {
+
+
+    getCurrentMonthlySubscriptionCount: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30);
+
+      return this.superAdminScope.getSubscriberCountBetween(startDate, endDate);
+    },
+
+    getLastMonthSubscriptionCount: async (): Promise<number> => {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 60);
+      endDate.setDate(endDate.getDate() - 30);
+
+      return this.superAdminScope.getSubscriberCountBetween(startDate, endDate);
+    },
+
+    getSubscriptionsByMonthBetween: async (startDate: Date, endDate: Date): Promise<{ month: Date, subscriptions: number }[]> => {
       const { data: subscriptions, error } = await supabaseAdminClient
         .from('billing_subscriptions')
         .select('current_period_start')
         .eq('gateway_name', this.getName())
-        .gte('current_period_start', date.toISOString());
+        .gte('current_period_start', startDate.toISOString())
+        .lte('current_period_start', endDate.toISOString());
 
       if (error) throw error;
 
@@ -1116,6 +1208,6 @@ export class StripePaymentGateway implements PaymentGateway {
         productId,
         revenue
       }));
-    },
+    }
   }
 }
