@@ -56,9 +56,9 @@ export const getSlimWorkspacesOfUserAction = adminActionClient
 
     const { data: workspaceTeamMembers, error: workspaceTeamMembersError } =
       await supabaseAdminClient
-        .from('workspace_team_members')
+        .from('workspace_members')
         .select('workspace_id')
-        .eq('user_profile_id', userId);
+        .eq('workspace_member_id', userId);
 
     if (workspaceTeamMembersError) {
 

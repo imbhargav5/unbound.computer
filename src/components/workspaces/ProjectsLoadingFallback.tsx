@@ -19,4 +19,5 @@ const ProjectsLoadingFallback = ({ quantity }: Props) => {
   )
 }
 
-export default ProjectsLoadingFallback
+export { ProjectsLoadingFallback }
+

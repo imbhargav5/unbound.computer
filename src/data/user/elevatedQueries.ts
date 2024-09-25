@@ -143,11 +143,11 @@ export const addUserAsWorkspaceOwner = async ({
   userId: string;
 }) => {
   const { data, error } = await supabaseAdminClient
-    .from('workspace_team_members')
+    .from('workspace_members')
     .insert({
       workspace_id: workspaceId,
-      user_profile_id: userId,
-      role: 'owner'
+      workspace_member_id: userId,
+      workspace_member_role: 'owner'
     });
 
   if (error) {
@@ -203,4 +203,57 @@ export const updateUserAppMetadata = async ({
     throw error;
   }
   return data;
+};
+
+
+/**
+ * [Elevated Query]
+ * Update user workspace role
+ * Reason: Only workspace admins can update the user workspace role.
+ * This is to prevent a non admin user from updating the role of another user in the workspace.
+ */
+export const acceptWorkspaceInvitation = async ({
+  invitationId,
+  userId
+}: {
+  invitationId: string;
+  userId: string;
+}) => {
+  const { data: invitation, error: invitationError } = await supabaseAdminClient
+    .from("workspace_invitations")
+    .update({
+      status: "finished_accepted",
+      invitee_user_id: userId,
+    })
+    .eq("id", invitationId)
+    .select("*")
+    .single();
+
+  if (invitationError) {
+    throw new Error(invitationError.message);
+  }
+  return invitation;
+};
+
+export const declineWorkspaceInvitation = async ({
+  invitationId,
+  userId
+}: {
+  invitationId: string;
+  userId: string;
+}) => {
+  const { data: invitation, error: invitationError } = await supabaseAdminClient
+    .from("workspace_invitations")
+    .update({
+      status: "finished_declined",
+      invitee_user_id: userId,
+    })
+    .eq("id", invitationId)
+    .select("*")
+    .single();
+
+  if (invitationError) {
+    throw new Error(invitationError.message);
+  }
+  return invitation;
 };

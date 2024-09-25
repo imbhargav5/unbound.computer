@@ -39,22 +39,26 @@ GRANT ALL ON FUNCTION "public"."handle_workspace_created"() TO "service_role";
  *
  * The function performs the following actions:
  * 1. It inserts a new record into the 'workspace_members' table.
- * 2. The new record's 'member_id' is set to the 'invitee_user_id' of the invitation (NEW.invitee_user_id).
- * 3. The new record's 'member_role' is set to the 'invitee_workspace_role' of the invitation (NEW.invitee_workspace_role).
+ * 2. The new record's 'workspace_member_id' is set to the 'invitee_user_id' of the invitation (NEW.invitee_user_id).
+ * 3. The new record's 'workspace_member_role' is set to the 'invitee_workspace_role' of the invitation (NEW.invitee_workspace_role).
  * 4. The new record's 'workspace_id' is set to the 'workspace_id' of the invitation (NEW.workspace_id).
  */
-CREATE OR REPLACE FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() RETURNS "trigger" LANGUAGE "plpgsql" SECURITY DEFINER
+CREATE OR REPLACE FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() RETURNS "trigger"
 SET search_path = public,
   pg_temp AS $$BEGIN
-INSERT INTO workspace_team_members(member_id, member_role, workspace_id)
+INSERT INTO workspace_members(
+    workspace_member_id,
+    workspace_member_role,
+    workspace_id
+  )
 VALUES (
     NEW.invitee_user_id,
-    NEW.invitee_workspace_role,
+    NEW.invitee_user_role,
     NEW.workspace_id
   );
 RETURN NEW;
 END;
-$$;
+$$ LANGUAGE "plpgsql" SECURITY DEFINER;
 
 ALTER FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"() OWNER TO "postgres";
 REVOKE ALL ON FUNCTION "public"."handle_add_workspace_member_after_invitation_accepted"()

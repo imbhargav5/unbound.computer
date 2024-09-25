@@ -15,6 +15,8 @@ export const projectsfilterSchema = z.object({
   query: z.string().optional(),
 });
 
+export type ProjectsFilter = z.infer<typeof projectsfilterSchema>;
+
 export const projectParamSchema = z.object({
   projectId: z.string().uuid(),
 });

@@ -88,7 +88,7 @@ CREATE TYPE "public"."subscription_status" AS ENUM (
 
 
 -- Create enum types
-CREATE TYPE public.workspace_user_role AS ENUM('owner', 'admin', 'member', 'readonly');
+CREATE TYPE public.workspace_member_role_type AS ENUM('owner', 'admin', 'member', 'readonly');
 CREATE TYPE public.workspace_invitation_link_status AS ENUM(
   'active',
   'finished_accepted',

@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-export default function ProjectsTableLoadingFallback() {
+export function WorkspaceProjectsPageFallback() {
   return <div className="p-2 mt-8">
     <div className="mb-6">
       <Skeleton className="h-6 w-48" />

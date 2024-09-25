@@ -30,11 +30,13 @@ export const ConfirmAcceptInvitationDialog = ({
       toastRef.current = toast.loading('Accepting invitation...');
     },
     onSuccess: ({ data }) => {
-      toast.success('Invitation accepted!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      router.push(`/${data}`);
+      if (data) {
+        toast.success('Invitation accepted!', {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        router.push(data);
+      }
     },
     onError: ({ error }) => {
       const errorMessage = error.serverError ?? 'Failed to accept invitation';

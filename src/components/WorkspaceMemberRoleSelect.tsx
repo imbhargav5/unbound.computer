@@ -13,23 +13,23 @@ import {
 import { Enum } from '@/types';
 
 type DefaultValueProp = {
-  defaultValue: Exclude<Enum<'workspace_user_role'>, 'owner'>;
+  defaultValue: Exclude<Enum<'workspace_member_role_type'>, 'owner'>;
 };
 
 type ValueProp = {
-  value: Exclude<Enum<'workspace_user_role'>, 'owner'>;
+  value: Exclude<Enum<'workspace_member_role_type'>, 'owner'>;
 };
 
 type OtherProps = DefaultValueProp | ValueProp;
 
 type TeamMemberRoleSelectProps = {
-  onChange: (value: Exclude<Enum<'workspace_user_role'>, 'owner'>) => void;
+  onChange: (value: Exclude<Enum<'workspace_member_role_type'>, 'owner'>) => void;
 } & OtherProps;
 
 // typeguard to narrow string to Enum<'organization_member_role'>
 function isTeamMemberRole(
   value: string,
-): value is Exclude<Enum<'workspace_user_role'>, 'owner'> {
+): value is Exclude<Enum<'workspace_member_role_type'>, 'owner'> {
   return ['admin', 'member', 'readonly'].includes(value);
 }
 

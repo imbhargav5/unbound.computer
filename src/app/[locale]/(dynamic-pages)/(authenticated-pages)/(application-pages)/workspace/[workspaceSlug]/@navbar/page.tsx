@@ -8,6 +8,7 @@ import { WorkspaceWithMembershipType } from '@/types';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
 import { UsersRound } from 'lucide-react';
+import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 export async function generateMetadata({ params }: { params: unknown }) {
@@ -43,17 +44,21 @@ export default async function OrganizationNavbar({
 }: {
   params: unknown;
 }) {
-  const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
-  return (
-    <div className="flex items-center">
-      <Link href={getWorkspaceSubPath(workspace, '/home')}>
-        <span className="flex items-center space-x-2">
-          <Suspense fallback={<Skeleton className="w-16 h-6" />}>
-            <Title workspace={workspace} />
-          </Suspense>
-        </span>
-      </Link>
-    </div>
-  );
+  try {
+    const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+    const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
+    return (
+      <div className="flex items-center">
+        <Link href={getWorkspaceSubPath(workspace, '/home')}>
+          <span className="flex items-center space-x-2">
+            <Suspense fallback={<Skeleton className="w-16 h-6" />}>
+              <Title workspace={workspace} />
+            </Suspense>
+          </span>
+        </Link>
+      </div>
+    );
+  } catch (error) {
+    return notFound()
+  }
 }

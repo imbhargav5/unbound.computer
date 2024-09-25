@@ -80,7 +80,7 @@ export async function getWorkspaces(userId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from('workspace_team_members')
+    .from('workspace_members')
     .select('workspace_id, workspaces(id, slug, title, is_solo)')
     .eq('user_id', userId);
 
@@ -121,14 +121,14 @@ export const getSlimWorkspaceBySlug = async (workspaceSlug: string) => {
 
 export const getLoggedInUserWorkspaceRole = async (
   workspaceId: string,
-): Promise<Enum<'workspace_user_role'>> => {
+): Promise<Enum<'workspace_member_role_type'>> => {
   const { id: userId } = await serverGetLoggedInUser();
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from('workspace_team_members')
-    .select('role')
-    .eq('user_profile_id', userId)
+    .from('workspace_members')
+    .select('workspace_member_role')
+    .eq('workspace_member_id', userId)
     .eq('workspace_id', workspaceId)
     .single();
 
@@ -138,7 +138,7 @@ export const getLoggedInUserWorkspaceRole = async (
     throw new Error('User is not a member of this organization');
   }
 
-  return data.role;
+  return data.workspace_member_role;
 };
 
 
@@ -250,9 +250,9 @@ export const getAllWorkspacesForUser = async (userId: string): Promise<Workspace
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data: workspaceMembers, error: membersError } = await supabaseClient
-    .from('workspace_team_members')
+    .from('workspace_members')
     .select('workspace_id')
-    .eq('user_profile_id', userId);
+    .eq('workspace_member_id', userId);
 
   if (membersError) {
     console.error("fetchSlimWorkspaces workspaceMembers", membersError);
@@ -300,7 +300,7 @@ export const getWorkspaceTeamMembers = async (workspaceId: string) => {
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from('workspace_team_members')
+    .from('workspace_members')
     .select('*, user_profiles(*)')
     .eq('workspace_id', workspaceId);
 
@@ -474,9 +474,9 @@ export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
   const supabaseClient = createSupabaseUserServerComponentClient();
 
   const { data: workspaceMembers, error: membersError } = await supabaseClient
-    .from('workspace_team_members')
+    .from('workspace_members')
     .select('workspace_id')
-    .eq('user_profile_id', currentUser.id);
+    .eq('workspace_member_id', currentUser.id);
 
   if (membersError) {
     console.error("fetchSlimWorkspaces workspaceMembers", membersError);

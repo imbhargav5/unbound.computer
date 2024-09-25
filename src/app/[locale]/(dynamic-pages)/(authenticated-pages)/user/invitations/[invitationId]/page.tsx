@@ -42,7 +42,6 @@ async function Invitation({ invitationId }: { invitationId: string }) {
       </div>
     );
   } catch (error) {
-    console.log(error);
     return notFound();
   }
 }

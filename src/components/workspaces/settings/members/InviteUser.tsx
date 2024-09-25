@@ -35,7 +35,7 @@ export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipTy
     },
   });
 
-  const handleInvite = (email: string, role: Exclude<Enum<"workspace_user_role">, "owner">) => {
+  const handleInvite = (email: string, role: Exclude<Enum<"workspace_member_role_type">, "owner">) => {
     execute({
       email,
       workspaceId: workspace.id,

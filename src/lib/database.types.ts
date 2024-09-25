@@ -1250,7 +1250,7 @@ export type Database = {
           id: string
           invitee_user_email: string
           invitee_user_id: string | null
-          invitee_user_role: Database["public"]["Enums"]["workspace_user_role"]
+          invitee_user_role: Database["public"]["Enums"]["workspace_member_role_type"]
           inviter_user_id: string
           status: Database["public"]["Enums"]["workspace_invitation_link_status"]
           workspace_id: string
@@ -1260,7 +1260,7 @@ export type Database = {
           id?: string
           invitee_user_email: string
           invitee_user_id?: string | null
-          invitee_user_role?: Database["public"]["Enums"]["workspace_user_role"]
+          invitee_user_role?: Database["public"]["Enums"]["workspace_member_role_type"]
           inviter_user_id: string
           status?: Database["public"]["Enums"]["workspace_invitation_link_status"]
           workspace_id: string
@@ -1270,7 +1270,7 @@ export type Database = {
           id?: string
           invitee_user_email?: string
           invitee_user_id?: string | null
-          invitee_user_role?: Database["public"]["Enums"]["workspace_user_role"]
+          invitee_user_role?: Database["public"]["Enums"]["workspace_member_role_type"]
           inviter_user_id?: string
           status?: Database["public"]["Enums"]["workspace_invitation_link_status"]
           workspace_id?: string
@@ -1299,6 +1299,45 @@ export type Database = {
           },
         ]
       }
+      workspace_members: {
+        Row: {
+          added_at: string
+          id: string
+          workspace_id: string
+          workspace_member_id: string
+          workspace_member_role: Database["public"]["Enums"]["workspace_member_role_type"]
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          workspace_id: string
+          workspace_member_id: string
+          workspace_member_role: Database["public"]["Enums"]["workspace_member_role_type"]
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          workspace_id?: string
+          workspace_member_id?: string
+          workspace_member_role?: Database["public"]["Enums"]["workspace_member_role_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_members_workspace_member_id_fkey"
+            columns: ["workspace_member_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_settings: {
         Row: {
           workspace_id: string
@@ -1317,45 +1356,6 @@ export type Database = {
             foreignKeyName: "workspace_settings_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workspace_team_members: {
-        Row: {
-          added_at: string
-          id: string
-          role: Database["public"]["Enums"]["workspace_user_role"]
-          user_profile_id: string
-          workspace_id: string
-        }
-        Insert: {
-          added_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["workspace_user_role"]
-          user_profile_id: string
-          workspace_id: string
-        }
-        Update: {
-          added_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["workspace_user_role"]
-          user_profile_id?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workspace_team_members_user_profile_id_fkey"
-            columns: ["user_profile_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workspace_team_members_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -1547,8 +1547,8 @@ export type Database = {
         | "finished_accepted"
         | "finished_declined"
         | "inactive"
+      workspace_member_role_type: "owner" | "admin" | "member" | "readonly"
       workspace_membership_type: "solo" | "team"
-      workspace_user_role: "owner" | "admin" | "member" | "readonly"
     }
     CompositeTypes: {
       [_ in never]: never

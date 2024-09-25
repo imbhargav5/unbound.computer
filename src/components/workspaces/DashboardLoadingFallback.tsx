@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import ProjectsLoadingFallback from "./ProjectsLoadingFallback"
+import { ProjectsLoadingFallback } from "./ProjectsLoadingFallback"
 
 
 

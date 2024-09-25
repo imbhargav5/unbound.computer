@@ -20,7 +20,7 @@ const PendingInvitationsTable = ({
     inviterUserFullName: string;
     organizationTitle: string;
     status: Enum<'workspace_invitation_link_status'>;
-    role: Enum<'workspace_user_role'>;
+    role: Enum<'workspace_member_role_type'>;
     organizationId: string;
   }>;
 }) => {

@@ -50,17 +50,17 @@ CREATE INDEX idx_workspace_application_settings_workspace_id ON public.workspace
 COMMENT ON TABLE public.workspace_application_settings IS 'This table is for the application to manage workspace settings';
 
 
--- Create workspace_team_members table
-CREATE TABLE IF NOT EXISTS public.workspace_team_members (
+-- Create workspace_members table
+CREATE TABLE IF NOT EXISTS public.workspace_members (
   id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
   workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-  user_profile_id UUID NOT NULL REFERENCES public.user_profiles (id) ON DELETE CASCADE,
-  role public.workspace_user_role NOT NULL,
+  workspace_member_id UUID NOT NULL REFERENCES public.user_profiles (id) ON DELETE CASCADE,
+  workspace_member_role public.workspace_member_role_type NOT NULL,
   added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
-CREATE INDEX idx_workspace_team_members_workspace_id ON public.workspace_team_members(workspace_id);
-CREATE INDEX idx_workspace_team_members_user_profile_id ON public.workspace_team_members(user_profile_id);
+CREATE INDEX idx_workspace_members_workspace_id ON public.workspace_members(workspace_id);
+CREATE INDEX idx_workspace_members_workspace_member_id ON public.workspace_members(workspace_member_id);
 
 -- Create workspace_invitations table
 CREATE TABLE IF NOT EXISTS public.workspace_invitations (
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS public.workspace_invitations (
   STATUS public.workspace_invitation_link_status DEFAULT 'active' NOT NULL,
   invitee_user_email TEXT NOT NULL,
   workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-  invitee_user_role public.workspace_user_role DEFAULT 'member' NOT NULL,
+  invitee_user_role public.workspace_member_role_type DEFAULT 'member' NOT NULL,
   invitee_user_id UUID REFERENCES public.user_profiles (id) ON DELETE CASCADE
 );
 
@@ -109,7 +109,7 @@ ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_admin_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_application_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workspace_team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_credits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_credits_logs ENABLE ROW LEVEL SECURITY;
@@ -130,9 +130,9 @@ CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_ids"("workspace_i
 SET search_path = public,
   pg_temp AS $_$ BEGIN -- This function returns the member_id column for all rows in the organization_members table
   RETURN QUERY
-SELECT workspace_team_members.user_profile_id
-FROM workspace_team_members
-WHERE workspace_team_members.workspace_id = $1;
+SELECT workspace_members.workspace_member_id
+FROM workspace_members
+WHERE workspace_members.workspace_id = $1;
 END;
 $_$;
 
@@ -149,9 +149,9 @@ CREATE OR REPLACE FUNCTION "public"."is_workspace_member"("user_id" "uuid", "wor
 SET search_path = public,
   pg_temp AS $$ BEGIN RETURN EXISTS (
     SELECT 1
-    FROM workspace_team_members
-    WHERE workspace_team_members.user_profile_id = $1
-      AND workspace_team_members.workspace_id = $2
+    FROM workspace_members
+    WHERE workspace_members.workspace_member_id = $1
+      AND workspace_members.workspace_id = $2
   );
 END;
 $$;
@@ -170,12 +170,12 @@ CREATE OR REPLACE FUNCTION "public"."get_workspace_team_member_admins"("workspac
 SET search_path = public,
   pg_temp AS $_$ BEGIN -- This function returns all admins of a workspace
   RETURN QUERY
-SELECT workspace_team_members.user_profile_id
-FROM workspace_team_members
-WHERE workspace_team_members.workspace_id = $1 -- role is admin or owner
+SELECT workspace_members.workspace_member_id
+FROM workspace_members
+WHERE workspace_members.workspace_id = $1 -- workspace_member_role is admin or owner
   AND (
-    workspace_team_members.role = 'admin'
-    OR workspace_team_members.role = 'owner'
+    workspace_members.workspace_member_role = 'admin'
+    OR workspace_members.workspace_member_role = 'owner'
   );
 END;
 $_$;
@@ -194,12 +194,12 @@ CREATE OR REPLACE FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "work
 SET search_path = public,
   pg_temp AS $$ BEGIN RETURN EXISTS (
     SELECT 1
-    FROM workspace_team_members
-    WHERE workspace_team_members.user_profile_id = $1
-      AND workspace_team_members.workspace_id = $2
+    FROM workspace_members
+    WHERE workspace_members.workspace_member_id = $1
+      AND workspace_members.workspace_id = $2
       AND (
-        workspace_team_members.role = 'admin'
-        OR workspace_team_members.role = 'owner'
+        workspace_members.workspace_member_role = 'admin'
+        OR workspace_members.workspace_member_role = 'owner'
       )
   );
 END;
@@ -217,7 +217,7 @@ GRANT EXECUTE ON FUNCTION "public"."is_workspace_admin"("user_id" "uuid", "works
 /*
  * Row Level Security (RLS) Policies for Workspaces
  * ------------------------------------------------
- * These policies control access to the workspace-related tables based on the user's role and permissions.
+ * These policies control access to the workspace-related tables based on the user's workspace_member_role and permissions.
  * They ensure that users can only access and modify data they are authorized to interact with.
  */
 -- Workspace access policies
@@ -291,7 +291,7 @@ CREATE POLICY "Workspace members can access settings" ON "public"."workspace_app
 
 
 -- Workspace team members policies
-CREATE POLICY "Workspace members can read team members" ON "public"."workspace_team_members" FOR
+CREATE POLICY "Workspace members can read team members" ON "public"."workspace_members" FOR
 SELECT TO authenticated USING (
     "public"."is_workspace_member" (
       (
@@ -301,7 +301,7 @@ SELECT TO authenticated USING (
     )
   );
 
-CREATE POLICY "Workspace admins can manage team members" ON "public"."workspace_team_members" FOR ALL TO authenticated USING (
+CREATE POLICY "Workspace admins can manage team members" ON "public"."workspace_members" FOR ALL TO authenticated USING (
   "public"."is_workspace_admin" (
     (
       SELECT auth.uid()

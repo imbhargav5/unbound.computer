@@ -9,7 +9,7 @@ export async function PendingInvitationCounter() {
   const count = await getPendingInvitationCountOfUser();
   if (count) {
     return (
-      <Link href="/invitations">
+      <Link href="/user/invitations">
         <Badge
 
           size="lg"

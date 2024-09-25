@@ -6,12 +6,13 @@ import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { renderAsync } from "@react-email/render";
 import TeamInvitationEmail from "emails/TeamInvitation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getInvitationWorkspaceDetails } from "./elevatedQueries";
+import { acceptWorkspaceInvitation, declineWorkspaceInvitation, getInvitationWorkspaceDetails } from "./elevatedQueries";
 import {
   createAcceptedWorkspaceInvitationNotification,
   createNotification,
@@ -167,7 +168,7 @@ export const createInvitationAction = authActionClient
         inviter_user_id: userId,
         status: "active",
         workspace_id: workspaceId,
-        invitee_workspace_role: role,
+        invitee_user_role: role,
       })
       .select("*")
       .single();
@@ -230,21 +231,11 @@ const acceptInvitationSchema = z.object({
 export const acceptInvitationAction = authActionClient
   .schema(acceptInvitationSchema)
   .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
 
-    const { data: invitation, error: invitationError } = await supabaseClient
-      .from("workspace_invitations")
-      .update({
-        status: "finished_accepted",
-        invitee_user_id: userId,
-      })
-      .eq("id", invitationId)
-      .select("*")
-      .single();
-
-    if (invitationError) {
-      throw new Error(invitationError.message);
-    }
+    const invitation = await acceptWorkspaceInvitation({
+      invitationId,
+      userId
+    });
 
     const userProfile = await getUserProfile(userId);
     const workspace = await getWorkspaceById(invitation.workspace_id);
@@ -259,7 +250,7 @@ export const acceptInvitationAction = authActionClient
     );
 
     revalidatePath("/", "layout");
-    return workspace.slug;
+    return getWorkspaceSubPath(workspace, "/");
   });
 
 const declineInvitationSchema = z.object({
@@ -269,23 +260,16 @@ const declineInvitationSchema = z.object({
 export const declineInvitationAction = authActionClient
   .schema(declineInvitationSchema)
   .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
 
-    const { error } = await supabaseClient
-      .from("workspace_invitations")
-      .update({
-        status: "finished_declined",
-        invitee_user_id: userId,
-      })
-      .eq("id", invitationId);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    await declineWorkspaceInvitation({
+      invitationId,
+      userId
+    });
 
     revalidatePath("/", "layout");
     redirect("/dashboard");
   });
+
 
 export async function getPendingInvitationsOfUser() {
   const supabaseClient = createSupabaseUserServerComponentClient();
