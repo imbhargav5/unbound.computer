@@ -4,6 +4,7 @@ import { superAdminGetUserIdByEmail } from '@/supabase-clients/admin/user';
 import { superAdminGetWorkspaceAdmins } from '@/supabase-clients/admin/workspaces';
 import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
 import { DBTable, DBTableInsertPayload } from '@/types';
+import { convertAmountToUSD } from '@/utils/currency';
 import { toSiteURL } from '@/utils/helpers';
 import { Dictionary, groupBy } from 'lodash';
 import 'server-only';
@@ -963,22 +964,158 @@ export class StripePaymentGateway implements PaymentGateway {
     listAllProducts: async (): Promise<ProductData[]> => {
       return this.db.listProducts();
     },
-
+    /**
+     * This gets current active subscription revenue.
+     */
     getCurrentMRR: async (): Promise<number> => {
-      return 0;
+      const { data: activePrices, error } = await supabaseAdminClient
+        .from('billing_prices')
+        .select('*')
+        .eq('active', true)
+        .eq('gateway_name', this.getName());
+      if (error) throw error;
+
+      const activePricesPromises = await Promise.all(activePrices.map(async (price) => {
+        const { count, data, error } = await supabaseAdminClient
+          .from('billing_subscriptions')
+          .select('gateway_subscription_id', { count: 'exact', head: true })
+          .eq('gateway_name', this.getName())
+          .eq('gateway_price_id', price.gateway_price_id)
+          .eq('status', 'active')
+        if (error) {
+          return {
+            currency: price.currency,
+            amount: 0,
+          };
+        }
+        if (count) {
+          const amount = price.currency === 'usd' ? price.amount / 100 : price.amount;
+          return {
+            currency: price.currency,
+            amount: amount * count,
+          };
+        }
+        return {
+          currency: price.currency,
+          amount: 0,
+        };
+      }));
+
+
+      const usdRevenue = activePricesPromises.reduce((acc, price) => acc + convertAmountToUSD(price.amount, price.currency), 0);
+      return usdRevenue;
+    },
+    getLast30DaysRevenue: async (): Promise<number> => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: invoices, error } = await supabaseAdminClient
+        .from('billing_invoices')
+        .select('amount, currency')
+        .eq('gateway_name', this.getName())
+        .gte('paid_date', thirtyDaysAgo.toISOString())
+        .eq('status', 'paid');
+
+      if (error) throw error;
+
+      const totalRevenue = invoices.reduce((acc, invoice) => {
+        // cents to dollars if currency is usd
+        const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
+        return acc + convertAmountToUSD(amount, invoice.currency);
+      }, 0);
+
+      return totalRevenue;
     },
 
     getRevenueByMonthSince: async (date: Date): Promise<{ month: Date, revenue: number }[]> => {
-      return [];
+      const { data: invoices, error } = await supabaseAdminClient
+        .from('billing_invoices')
+        .select('amount, currency, paid_date')
+        .eq('gateway_name', this.getName())
+        .gte('paid_date', date.toISOString())
+        .eq('status', 'paid');
+
+      if (error) throw error;
+
+      const revenueByMonth: { [key: string]: number } = {};
+
+      invoices.forEach(invoice => {
+        if (invoice.paid_date) {
+          const month = new Date(invoice.paid_date).toISOString().slice(0, 7); // YYYY-MM
+          const amount = invoice.currency === 'usd' ? invoice.amount / 100 : invoice.amount;
+          const revenue = convertAmountToUSD(amount, invoice.currency);
+          revenueByMonth[month] = (revenueByMonth[month] || 0) + revenue;
+        }
+      });
+
+      return Object.entries(revenueByMonth).map(([month, revenue]) => ({
+        month: new Date(month),
+        revenue
+      })).sort((a, b) => a.month.getTime() - b.month.getTime());
     },
+
     getCurrentMonthlySubscriptions: async (): Promise<number> => {
-      return 0;
+      const { count, error } = await supabaseAdminClient
+        .from('billing_subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('gateway_name', this.getName())
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      return count || 0;
     },
+
     getSubscriptionsByMonthSince: async (date: Date): Promise<{ month: Date, subscriptions: number }[]> => {
-      return [];
+      const { data: subscriptions, error } = await supabaseAdminClient
+        .from('billing_subscriptions')
+        .select('current_period_start')
+        .eq('gateway_name', this.getName())
+        .gte('current_period_start', date.toISOString());
+
+      if (error) throw error;
+
+      const subscriptionsByMonth: { [key: string]: number } = {};
+
+      subscriptions.forEach(subscription => {
+        const month = new Date(subscription.current_period_start).toISOString().slice(0, 7); // YYYY-MM
+        subscriptionsByMonth[month] = (subscriptionsByMonth[month] || 0) + 1;
+      });
+
+      return Object.entries(subscriptionsByMonth).map(([month, count]) => ({
+        month: new Date(month),
+        subscriptions: count
+      })).sort((a, b) => a.month.getTime() - b.month.getTime());
     },
+
     getCurrentRevenueByProduct: async (): Promise<{ productId: string, revenue: number }[]> => {
-      return [];
+      const { data: subscriptions, error } = await supabaseAdminClient
+        .from('billing_subscriptions')
+        .select(`
+          gateway_product_id,
+          billing_prices (amount, currency)
+        `)
+        .eq('gateway_name', this.getName())
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      const revenueByProduct: { [key: string]: number } = {};
+
+      subscriptions.forEach(subscription => {
+        const price = subscription.billing_prices;
+        if (!price) {
+          return;
+        }
+        const amount = price.currency === 'usd' ? price.amount / 100 : price.amount;
+        const revenue = convertAmountToUSD(amount, price.currency);
+        revenueByProduct[subscription.gateway_product_id] = (revenueByProduct[subscription.gateway_product_id] || 0) + revenue;
+      });
+
+      return Object.entries(revenueByProduct).map(([productId, revenue]) => ({
+        productId,
+        revenue
+      }));
     },
   }
 }

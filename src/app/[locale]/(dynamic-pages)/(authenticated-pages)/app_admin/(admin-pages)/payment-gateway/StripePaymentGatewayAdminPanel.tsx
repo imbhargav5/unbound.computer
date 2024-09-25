@@ -12,7 +12,7 @@ import { ProductData } from '@/payments/AbstractPaymentGateway'
 import { DBTable } from "@/types"
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion } from 'framer-motion'
-import { Activity, ArrowUpRight, CreditCard, DollarSign, Users } from "lucide-react"
+import { ArrowUpRight } from "lucide-react"
 import { useAction } from 'next-safe-action/hooks'
 import { useRouter } from 'next/navigation'
 import { useRef } from "react"
@@ -20,6 +20,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { QuickMetrics } from './QuickMetrics'
 
 // Mock data for charts
 const revenueData = [
@@ -127,7 +128,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 export const StripeProductManager: React.FC<{ products: DBTable<'billing_products'>[] }> = ({ products }) => {
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <Typography.H4>Stripe Product Manager</Typography.H4>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map((product) => (
@@ -174,128 +175,85 @@ export function StripePaymentGatewayAdminPanel({
   return (
     <div className="container mx-auto p-6">
       <Typography.H2>Admin Panel</Typography.H2>
-      <StripeProductManager products={products} />
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
-            <p className="text-xs text-muted-foreground">+20.1% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Subscriptions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+2350</div>
-            <p className="text-xs text-muted-foreground">+180.1% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sales</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+12,234</div>
-            <p className="text-xs text-muted-foreground">+19% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Now</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+573</div>
-            <p className="text-xs text-muted-foreground">+201 since last hour</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        <Card className="col-span-2">
-          <CardHeader>
-            <CardTitle>Stripe Integration</CardTitle>
-            <CardDescription>Sync your Stripe data</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button onClick={handleSyncProducts} disabled={syncProductsStatus === 'executing'}>
-              {syncProductsStatus === 'executing' ? "Syncing..." : "Sync Stripe Products"}
-            </Button>
-            {/* <Button onClick={handleSyncCustomers} disabled={syncCustomersStatus === 'executing'}>
-              {syncCustomersStatus === 'executing' ? "Syncing..." : "Sync Stripe Customers"}
-            </Button> */}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Useful admin options</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button className="w-full justify-between">
-              View All Customers <ArrowUpRight className="h-4 w-4" />
-            </Button>
-            <Button className="w-full justify-between">
-              Manage Subscriptions <ArrowUpRight className="h-4 w-4" />
-            </Button>
-            <Button className="w-full justify-between">
-              Generate Reports <ArrowUpRight className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="revenue" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-        </TabsList>
-        <TabsContent value="revenue" className="space-y-4">
-          <Card>
+      <div className="space-y-6">
+        <StripeProductManager products={products} />
+        <QuickMetrics />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-6">
+          <Card className="col-span-2">
             <CardHeader>
-              <CardTitle>Revenue Overview</CardTitle>
-              <CardDescription>Monthly revenue for the past 6 months</CardDescription>
+              <CardTitle>Stripe Integration</CardTitle>
+              <CardDescription>Sync your Stripe data</CardDescription>
             </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
+            <CardContent className="space-y-4">
+              <Button onClick={handleSyncProducts} disabled={syncProductsStatus === 'executing'}>
+                {syncProductsStatus === 'executing' ? "Syncing..." : "Sync Stripe Products"}
+              </Button>
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="customers" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Customer Growth</CardTitle>
-              <CardDescription>Monthly customer acquisition for the past 6 months</CardDescription>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Useful admin options</CardDescription>
             </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={customerData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#82ca9d" />
-                </LineChart>
-              </ResponsiveContainer>
+            <CardContent className="space-y-4">
+              <Button className="w-full justify-between">
+                View All Customers <ArrowUpRight className="h-4 w-4" />
+              </Button>
+              <Button className="w-full justify-between">
+                Manage Subscriptions <ArrowUpRight className="h-4 w-4" />
+              </Button>
+              <Button className="w-full justify-between">
+                Generate Reports <ArrowUpRight className="h-4 w-4" />
+              </Button>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+
+        <Tabs defaultValue="revenue" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="revenue">Revenue</TabsTrigger>
+            <TabsTrigger value="customers">Customers</TabsTrigger>
+          </TabsList>
+          <TabsContent value="revenue" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Overview</CardTitle>
+                <CardDescription>Monthly revenue for the past 6 months</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#8884d8" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="customers" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer Growth</CardTitle>
+                <CardDescription>Monthly customer acquisition for the past 6 months</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={customerData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#82ca9d" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }
