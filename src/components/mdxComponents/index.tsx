@@ -1,6 +1,6 @@
+import { Link } from '@/components/intl-link';
 import { cn } from '@/utils/cn';
 import type { MDXComponents } from 'mdx/types';
-import Link from 'next/link';
 import React, { HTMLAttributes } from 'react';
 import { HashLink } from './/HashLink';
 

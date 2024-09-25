@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { Link } from '@/components/intl-link';
 import { useContext } from 'react';
 import { LoginCTAButton } from './LoginCTAButton';
 import { MobileMenuContext } from './MobileMenuContext';

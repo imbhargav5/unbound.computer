@@ -1,5 +1,5 @@
+import { Link } from '@/components/intl-link';
 import type { UseChatHelpers } from "ai/react";
-import Link from "next/link";
 import * as React from "react";
 
 

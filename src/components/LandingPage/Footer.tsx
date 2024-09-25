@@ -1,7 +1,7 @@
+import { Link } from '@/components/intl-link';
 import darkLogo from '@public/logos/acme-logo-dark.png';
 import lightLogo from '@public/logos/acme-logo-light.png';
 import Image from 'next/image';
-import Link from 'next/link';
 import { footerItems, footerSocialItems } from './footer-items';
 
 export function Footer() {

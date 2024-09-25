@@ -1,7 +1,7 @@
 "use client";
+import { Link } from '@/components/intl-link';
 import { useChat } from "ai/react";
 import { Bot, CircleUser, Share } from "lucide-react";
-import Link from "next/link";
 import type { FormEvent } from "react";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";

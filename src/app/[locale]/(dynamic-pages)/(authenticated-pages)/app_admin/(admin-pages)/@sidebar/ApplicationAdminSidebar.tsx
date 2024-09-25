@@ -2,7 +2,6 @@ import { SwitcherAndToggle } from '@/components/SidebarComponents/SidebarLogo';
 import { SidebarLink } from '@/components/SidebarLink';
 import { cn } from '@/utils/cn';
 import { Book, Briefcase, CreditCard, FileLineChart, HelpCircle, Home, Map, PenTool, Settings, Users } from 'lucide-react';
-
 const links = [
   {
     label: 'Home',

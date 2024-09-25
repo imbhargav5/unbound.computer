@@ -1,5 +1,5 @@
 
-import Link from "next/link";
+import { Link } from '@/components/intl-link';
 
 import { buttonVariants } from "@/components/ui/button";
 

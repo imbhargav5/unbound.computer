@@ -1,11 +1,11 @@
 'use client';
 
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { MOBILE_MEDIA_QUERY_MATCHER } from '@/constants';
 import { SidebarVisibilityContext } from '@/contexts/SidebarVisibilityContext';
 import useMatchMedia from '@/hooks/useMatchMedia';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import React, { useContext } from 'react';
 
 type SidebarLinkProps = {

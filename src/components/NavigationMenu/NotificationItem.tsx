@@ -1,8 +1,8 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { cn } from '@/utils/cn';
 import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { readNotification } from './fetchClientNotifications';
 

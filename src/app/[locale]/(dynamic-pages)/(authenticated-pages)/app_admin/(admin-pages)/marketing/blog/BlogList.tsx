@@ -1,4 +1,5 @@
 // @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/BlogList.tsx
+import { Link } from '@/components/intl-link';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +13,6 @@ import {
 import { DBTable } from '@/types';
 import { format } from 'date-fns';
 import { Edit } from 'lucide-react';
-import Link from 'next/link';
 import React from 'react';
 import { CreateBlogPostButton } from './CreateBlogPostButton';
 import { DeleteBlogPostDialog } from './DeleteBlogPostDialog';

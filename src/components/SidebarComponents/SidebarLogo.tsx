@@ -1,7 +1,7 @@
+import { Link } from '@/components/intl-link';
 import { cn } from '@/lib/utils';
 import { SlimWorkspaces } from '@/types';
 import Image from 'next/image';
-import Link from 'next/link';
 import darkLogo from 'public/logos/nextbase-dark-logo.png';
 import lightLogo from 'public/logos/nextbase-light-logo.png';
 import { T } from '../ui/Typography';

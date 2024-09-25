@@ -1,13 +1,14 @@
 "use client";
 import { QueryClient, QueryClientProvider, isServer } from "@tanstack/react-query";
 import { RootProvider } from 'fumadocs-ui/provider';
+import { NextIntlClientProvider } from 'next-intl';
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
 import { useTheme } from "next-themes";
 import type React from "react";
 import { Suspense } from "react";
 import { Toaster as SonnerToaster } from "sonner";
+import type { AbstractIntlMessages } from 'use-intl';
 import { useMyReportWebVitals } from "./reportWebVitals";
-
 
 function CustomerToaster() {
   const theme = useTheme();
@@ -51,11 +52,15 @@ function getQueryClient() {
  * The listener is used to listen for changes to the user's session and update the UI accordingly.
  */
 export function AppProviders({
+  locale,
+  messages,
   // Layouts must accept a children prop.
   // This will be populated with nested layouts or pages
   children,
 }: {
   children: React.ReactNode;
+  locale: string;
+  messages: AbstractIntlMessages;
 }) {
   // NOTE: Avoid useState when initializing the query client if you don't
   //       have a suspense boundary between this and the code that may
@@ -74,7 +79,9 @@ export function AppProviders({
         }}
       >
         <QueryClientProvider client={queryClient}>
-          {children}
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            {children}
+          </NextIntlClientProvider>
           <Suspense>
             <ProgressBar
               height="4px"

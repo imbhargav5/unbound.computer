@@ -1,11 +1,11 @@
 'use client';
+import { Link } from '@/components/intl-link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import lightLogo from '@public/logos/acme-logo-dark.png';
 import darkLogo from '@public/logos/acme-logo-light.png';
 import { PanelLeft } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ComponentProps, useState } from 'react';
 import { DocsNavigation } from './DocsNavigation';

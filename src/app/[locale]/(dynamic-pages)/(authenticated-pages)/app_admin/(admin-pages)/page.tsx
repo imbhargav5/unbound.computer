@@ -1,7 +1,7 @@
+import { Link } from '@/components/intl-link';
 import { Typography } from "@/components/ui/Typography";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Book, Briefcase, CreditCard, HelpCircle, Map, PenTool, Settings, Users } from 'lucide-react';
-import Link from "next/link";
 
 const adminLinks = [
   {

@@ -1,7 +1,7 @@
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronRight, Sparkles } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import HeroImage from '/public/images/hero.jpeg';
 
 export default function HeroSection() {

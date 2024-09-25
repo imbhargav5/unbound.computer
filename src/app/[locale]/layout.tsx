@@ -2,6 +2,7 @@ import '@/styles/globals.css';
 import '@/styles/prosemirror.css';
 import { GeistSans } from 'geist/font/sans';
 import { Metadata } from 'next';
+import { getMessages } from 'next-intl/server';
 import 'server-only';
 import { AppProviders } from './AppProviders';
 
@@ -19,14 +20,20 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
+  params: { locale }
 }: {
   children: React.ReactNode;
+  params: { locale: string };
 }) {
+  // Providing all messages to the client
+  // side is the easiest way to get started
+  const messages = await getMessages({
+    locale: locale,
+  });
   return (
-    <html lang="en" className={GeistSans.className} suppressHydrationWarning>
-      <head></head>
+    <html lang={locale} className={GeistSans.className} suppressHydrationWarning>
       <body className="">
-        <AppProviders>{children}</AppProviders>
+        <AppProviders locale={locale} messages={messages}>{children}</AppProviders>
       </body>
     </html>
   );

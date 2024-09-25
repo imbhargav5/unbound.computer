@@ -1,5 +1,6 @@
 "use client";
 import { ProjectStatus } from '@/components/Projects/ProjectsCardList';
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { ProjectBadge } from '@/components/ui/badge-project';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,6 @@ import {
 } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { ChevronsUpDown } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 
 type Props = {

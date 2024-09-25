@@ -1,3 +1,4 @@
+import { Link } from '@/components/intl-link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Card,
@@ -6,7 +7,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { DBTable } from '@/types';
-import Link from 'next/link';
 
 type Props = {
   author: DBTable<'marketing_author_profiles'>;

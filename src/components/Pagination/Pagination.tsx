@@ -1,8 +1,8 @@
 'use client';
 
+import { Link } from '@/components/intl-link';
 import { ArrowLeftIcon, ArrowRightIcon } from '@radix-ui/react-icons';
 import clsx from 'clsx';
-import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 export const generatePagination = (currentPage: number, totalPages: number) => {

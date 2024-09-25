@@ -1,10 +1,10 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { anonGetMarketingAuthorById } from "@/data/anon/marketing-authors";
 import { DBTable } from '@/types';
 import { CalendarDays } from "lucide-react";
 import moment from 'moment';
 import Image from "next/image";
-import Link from 'next/link';
 import { Fragment } from 'react';
 
 

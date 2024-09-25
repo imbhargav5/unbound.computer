@@ -1,4 +1,5 @@
 "use client";
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,7 +10,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { cn } from '@/utils/cn';
-import Link from 'next/link';
 import { useState } from 'react';
 
 type Props = {

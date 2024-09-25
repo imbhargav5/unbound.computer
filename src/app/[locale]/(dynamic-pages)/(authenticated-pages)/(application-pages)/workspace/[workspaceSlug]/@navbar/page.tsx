@@ -1,4 +1,5 @@
 // https://github.com/vercel/next.js/issues/58272
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,7 +8,6 @@ import { WorkspaceWithMembershipType } from '@/types';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
 import { UsersRound } from 'lucide-react';
-import Link from 'next/link';
 import { Suspense } from 'react';
 
 export async function generateMetadata({ params }: { params: unknown }) {

@@ -3,11 +3,11 @@ import {
   anonGetPublishedBlogPosts,
 } from "@/data/anon/marketing-blog";
 
+import { Link } from '@/components/intl-link';
 import { TiptapJSONContentToHTML } from "@/components/TiptapJSONContentToHTML";
 import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/ui/Typography";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import AuthorCard from "../AuthorCard";

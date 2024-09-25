@@ -1,4 +1,5 @@
 'use client';
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -8,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import Link from 'next/link';
 
 export const ConfirmDeletionViaEmailDialog = ({
   open,

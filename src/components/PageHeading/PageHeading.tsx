@@ -1,6 +1,6 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { cn } from '@/utils/cn';
-import Link from 'next/link';
 
 type PageHeadingProps = {
   title: string;

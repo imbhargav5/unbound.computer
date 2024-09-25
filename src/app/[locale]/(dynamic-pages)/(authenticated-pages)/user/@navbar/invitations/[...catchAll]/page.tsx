@@ -1,7 +1,7 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { cn } from '@/utils/cn';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import Link from 'next/link';
 
 export default function InvitationsNavbar() {
   return (

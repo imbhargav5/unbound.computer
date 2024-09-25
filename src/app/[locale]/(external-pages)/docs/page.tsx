@@ -1,7 +1,7 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import Link from 'next/link'
+import { Link } from '@/components/intl-link';
+import { motion } from 'framer-motion';
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },

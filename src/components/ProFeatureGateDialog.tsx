@@ -1,10 +1,10 @@
 "use client";
 
+import { Link } from '@/components/intl-link';
 import { SlimWorkspace } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { T, Typography } from "./ui/Typography";

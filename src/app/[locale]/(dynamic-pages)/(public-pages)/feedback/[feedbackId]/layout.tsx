@@ -1,8 +1,8 @@
+import { Link } from '@/components/intl-link';
 import { RecentPublicFeedback } from "@/components/RecentPublicFeedback";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Info } from "lucide-react";
-import Link from "next/link";
 import { Suspense } from 'react';
 
 function RecentFeedbackSkeleton() {

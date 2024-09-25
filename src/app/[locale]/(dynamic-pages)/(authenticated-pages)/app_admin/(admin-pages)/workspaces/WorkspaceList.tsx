@@ -1,5 +1,6 @@
 'use server';
 
+import { Link } from '@/components/intl-link';
 import {
   Table as ShadcnTable,
   TableBody,
@@ -10,7 +11,6 @@ import {
 } from '@/components/ui/table';
 import { getPaginatedWorkspaceListAction } from '@/data/admin/workspaces';
 import { format } from 'date-fns';
-import Link from 'next/link';
 import { AppAdminWorkspacesFiltersSchema } from './schema';
 
 export async function WorkspaceList({

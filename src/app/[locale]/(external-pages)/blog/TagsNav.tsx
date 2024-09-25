@@ -1,6 +1,6 @@
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import { DBTable } from '@/types';
-import Link from 'next/link';
 
 export function TagsNav({
   tags,

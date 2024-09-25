@@ -1,5 +1,5 @@
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 
 export function ExternalNavigationCTAButton({
   isLoggedIn = false,

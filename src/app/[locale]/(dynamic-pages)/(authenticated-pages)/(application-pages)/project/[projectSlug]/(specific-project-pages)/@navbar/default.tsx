@@ -1,10 +1,10 @@
 // https://github.com/vercel/next.js/issues/58272
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getProjectById, getSlimProjectBySlug } from '@/data/user/projects';
 import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
 import { Layers } from 'lucide-react';
-import Link from 'next/link';
 
 
 import { Suspense } from 'react';

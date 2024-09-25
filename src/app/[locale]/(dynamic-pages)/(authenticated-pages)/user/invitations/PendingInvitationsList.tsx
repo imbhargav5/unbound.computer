@@ -1,3 +1,4 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +11,6 @@ import {
 } from '@/components/ui/table';
 import { getPendingInvitationsOfUser } from '@/data/user/invitation';
 import type { Enum } from '@/types';
-import Link from 'next/link';
 
 const PendingInvitationsTable = ({
   pendingInvitationsList,

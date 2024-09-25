@@ -1,10 +1,10 @@
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
 import { cn } from '@/utils/cn';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import Link from 'next/link';
 
 export default async function WorkspaceSettingsNavbar({
   params,

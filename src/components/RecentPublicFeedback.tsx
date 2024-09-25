@@ -1,5 +1,5 @@
+import { Link } from '@/components/intl-link';
 import { getRecentPublicFeedback } from '@/data/anon/marketing-feedback';
-import Link from 'next/link';
 
 export async function RecentPublicFeedback() {
   const recentFeedback = await getRecentPublicFeedback();

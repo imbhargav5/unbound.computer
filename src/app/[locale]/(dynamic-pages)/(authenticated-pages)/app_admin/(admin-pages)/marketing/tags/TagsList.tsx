@@ -1,5 +1,6 @@
 'use client';
 
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -11,7 +12,6 @@ import {
 } from '@/components/ui/table';
 import { DBTable } from '@/types';
 import { Edit } from 'lucide-react';
-import Link from 'next/link';
 import React from 'react';
 import { DeleteTagDialog } from './DeleteTagDialog';
 

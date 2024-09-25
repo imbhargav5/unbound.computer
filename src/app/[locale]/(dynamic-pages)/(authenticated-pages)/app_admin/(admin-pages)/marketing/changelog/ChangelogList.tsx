@@ -1,5 +1,6 @@
 'use client';
 
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -12,7 +13,6 @@ import {
 import { DBTable } from '@/types';
 import { format } from 'date-fns';
 import { Edit } from 'lucide-react';
-import Link from 'next/link';
 import React from 'react';
 import { DeleteChangelogDialog } from './DeleteChangelogDialog';
 

@@ -1,8 +1,8 @@
+import { Link } from '@/components/intl-link';
 import { getSlimProjectBySlug } from '@/data/user/projects';
 import { cn } from '@/utils/cn';
 import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import Link from 'next/link';
 
 
 

@@ -1,7 +1,7 @@
 'use client';
+import { Link } from '@/components/intl-link';
 import { classNames } from '@/utils/classNames';
 import { Server } from 'lucide-react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { match } from 'path-to-regexp';
 

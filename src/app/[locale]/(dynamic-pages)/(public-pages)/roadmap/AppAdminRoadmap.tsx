@@ -1,9 +1,9 @@
 'use client';
+import { Link } from '@/components/intl-link';
 import type { roadmapDataType } from '@/data/admin/marketing-roadmap';
 import { adminUpdateFeedbackStatusAction } from '@/data/feedback';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import { useAction } from 'next-safe-action/hooks';
-import Link from 'next/link';
 import { useRef } from 'react';
 import { toast } from 'sonner';
 import { Droppable } from './_components/Droppable';

@@ -1,5 +1,6 @@
 'use server';
 
+import { Link } from '@/components/intl-link';
 import { T } from '@/components/ui/Typography';
 import {
   Table as ShadcnTable,
@@ -12,7 +13,6 @@ import {
 import { getPaginatedUserListAction } from '@/data/admin/user';
 import { format } from 'date-fns';
 import { Check, Mail, X } from 'lucide-react';
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { ConfirmSendLoginLinkDialog } from './ConfirmSendLoginLinkDialog';
 import { GetLoginLinkDialog } from './GetLoginLinkDialog';

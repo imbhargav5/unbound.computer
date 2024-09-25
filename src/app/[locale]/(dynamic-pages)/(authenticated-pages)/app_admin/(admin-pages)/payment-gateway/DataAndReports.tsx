@@ -1,12 +1,12 @@
 "use client"
 
+import { Link } from '@/components/intl-link'
 import { Typography } from '@/components/ui/Typography'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { adminSyncProductsAction } from '@/data/admin/billing'
 import { ArrowUpRight, RotateCcw } from "lucide-react"
 import { useAction } from 'next-safe-action/hooks'
-import Link from 'next/link'
 import { useRef } from "react"
 import { toast } from 'sonner'
 

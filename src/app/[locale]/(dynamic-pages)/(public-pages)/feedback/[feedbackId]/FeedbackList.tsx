@@ -1,5 +1,6 @@
 import { Pagination } from '@/components/Pagination';
 import { Search } from '@/components/Search';
+import { Link } from '@/components/intl-link';
 import { T } from "@/components/ui/Typography";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DBTable } from '@/types';
 import { formatDistance } from 'date-fns';
 import { Bug, LucideCloudLightning, MessageSquareDot } from "lucide-react";
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { FeedbackFacetedFilters } from './FeedbackFacetedFilters';
 import type { FiltersSchema } from './schema';

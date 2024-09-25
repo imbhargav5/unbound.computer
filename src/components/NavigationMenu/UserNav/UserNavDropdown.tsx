@@ -2,6 +2,7 @@
 'use client';
 
 import { GiveFeedbackDialog } from '@/app/[locale]/(dynamic-pages)/(public-pages)/feedback/[feedbackId]/GiveFeedbackDialog';
+import { Link } from '@/components/intl-link';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { Computer, Lock, LogOut, Mail, Server, User } from 'lucide-react';
-import Link from 'next/link';
 import { FeatureViewModal } from './FeatureViewModal';
 
 const MotionDiv = motion.div;

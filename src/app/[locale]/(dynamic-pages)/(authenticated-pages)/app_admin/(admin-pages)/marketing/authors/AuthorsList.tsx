@@ -1,5 +1,6 @@
 // src/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/authors/AuthorsList.tsx
 'use client';
+import { Link } from '@/components/intl-link';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +15,6 @@ import { DBTable } from '@/types';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Edit } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React from 'react';
 import { CreateMarketingAuthorProfileButton } from './CreateMarketingAuthorProfileButton';

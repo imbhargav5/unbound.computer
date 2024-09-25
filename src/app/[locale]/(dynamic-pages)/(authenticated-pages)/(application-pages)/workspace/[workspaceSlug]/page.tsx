@@ -1,6 +1,7 @@
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { ProjectsCardList } from "@/components/Projects/ProjectsCardList";
 import { Search } from "@/components/Search";
+import { Link } from '@/components/intl-link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getProjects } from "@/data/user/projects";
@@ -12,7 +13,6 @@ import {
 } from "@/utils/zod-schemas/params";
 import { FileText, Layers } from "lucide-react";
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Suspense } from "react";
 import type { z } from "zod";
 import { DashboardClientWrapper } from "./DashboardClientWrapper";

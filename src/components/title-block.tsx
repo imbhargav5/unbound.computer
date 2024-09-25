@@ -1,5 +1,5 @@
+import { Link } from '@/components/intl-link';
 import { ArrowRight } from 'lucide-react';
-import Link from 'next/link';
 
 type TitleBlockProps = {
   title: string;

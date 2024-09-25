@@ -1,8 +1,8 @@
+import { Link } from '@/components/intl-link';
 import { Button } from '@/components/ui/button';
 import type { Enum } from '@/types';
 import { formatFieldValue } from '@/utils/feedback';
 import { Bug, Calendar, Command, EyeIcon, Info, Pencil } from 'lucide-react';
-import Link from 'next/link';
 import type { HtmlHTMLAttributes } from 'react';
 import { Badge, type BadgeProps } from './ui/badge';
 
