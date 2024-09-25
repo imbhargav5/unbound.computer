@@ -6,7 +6,7 @@ import { DBTable, SlimWorkspaces, WorkspaceWithMembershipType } from '@/types';
 import { cn } from '@/utils/cn';
 import { getWorkspaceSubPath } from '@/utils/workspaces';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bird, History, Image, Layers, Settings } from 'lucide-react';
+import { ArrowLeft, Bird, History, Layers, Settings } from 'lucide-react';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -77,13 +77,13 @@ export function ProjectSidebarClient({
               icon={<Layers className="h-5 w-5" />}
             />
           </motion.div>
-          <motion.div variants={itemVariants}>
+          {/* <motion.div variants={itemVariants}>
             <SidebarLink
               label="Image Generator"
               href={`/project/${project.slug}/image-generator`}
               icon={<Image className="h-5 w-5" />}
             />
-          </motion.div>
+          </motion.div> */}
           <motion.div variants={itemVariants}>
             <SidebarLink
               label="Post Generator"

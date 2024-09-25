@@ -18,7 +18,7 @@ import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { WorkspaceWithMembershipType } from "@/types";
 import { formatCurrency } from "@/utils/currency";
 import { formatGatewayPrice } from "@/utils/formatGatewayPrice";
-import { Suspense } from 'react';
+import { Fragment, Suspense } from 'react';
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
@@ -133,6 +133,13 @@ const SubscriptionProducts = async ({ workspace }: { workspace: WorkspaceWithMem
   const monthlyProducts = productWithPriceListGroup['month'] ?? [];
   const yearlyProducts = productWithPriceListGroup['year'] ?? [];
 
+  if (monthlyProducts.length === 0 && yearlyProducts.length === 0) {
+    return <div className="space-y-4">
+      <Typography.H2>Plans</Typography.H2>
+      <T.Subtle>No subscription products found</T.Subtle>
+    </div>
+  }
+
   return (
     <Tabs defaultValue="monthly">
       <TabsList>
@@ -184,7 +191,12 @@ const SubscriptionProducts = async ({ workspace }: { workspace: WorkspaceWithMem
 const OneTimeProducts = async ({ workspace }: { workspace: WorkspaceWithMembershipType }) => {
   const stripePaymentGateway = new StripePaymentGateway();
   const productWithPriceListGroup = await stripePaymentGateway.anonScope.listAllOneTimeProducts();
-
+  if (productWithPriceListGroup.length === 0) {
+    return <div className="space-y-4">
+      <Typography.H2>One-Time Purchases</Typography.H2>
+      <T.Subtle>No one-time purchase products found</T.Subtle>
+    </div>
+  }
   return (
     <div className="space-y-4">
       <Typography.H2>One-Time Purchases</Typography.H2>
@@ -237,27 +249,42 @@ const OneTimePurchases = async ({ workspace }: { workspace: WorkspaceWithMembers
   );
 };
 
+export async function CustomerDetails({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+  try {
+    const stripePaymentGateway = new StripePaymentGateway();
+    const customer = await stripePaymentGateway.userScope.getWorkspaceDatabaseCustomer(workspace.id);
+    return (
+      <Fragment>
+        <Suspense fallback={<T.Subtle>Loading invoices...</T.Subtle>}>
+          <Invoices workspace={workspace} />
+        </Suspense>
+        <Suspense fallback={<T.Subtle>Loading one-time purchases...</T.Subtle>}>
+          <OneTimePurchases workspace={workspace} />
+        </Suspense>
+        <Suspense fallback={<T.Subtle>Loading subscription details...</T.Subtle>}>
+          <Subscription workspace={workspace} />
+        </Suspense>
+      </Fragment>
+    );
+  } catch (error) {
+    console.error(error);
+    return <div className="space-y-4">
+      <Typography.H2>Choose a plan</Typography.H2>
+      <T.Subtle>Once you choose a plan, you will be able to see your subscriptions, invoices and one-time purchases here.</T.Subtle>
+    </div>
+  }
+}
 export async function WorkspaceBilling({
   workspaceSlug,
 }: {
   workspaceSlug: string;
 }) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
-
   return (
     <div className="space-y-8 max-w-4xl pt-6">
       <Typography.H1>Billing</Typography.H1>
-      <Suspense fallback={<T.Subtle>Loading invoices...</T.Subtle>}>
-        <Invoices workspace={workspace} />
-      </Suspense>
-      <Suspense fallback={<T.Subtle>Loading one-time purchases...</T.Subtle>}>
-        <OneTimePurchases workspace={workspace} />
-      </Suspense>
-      <Suspense fallback={<T.Subtle>Loading subscription details...</T.Subtle>}>
-        <Subscription workspace={workspace} />
-      </Suspense>
+      <CustomerDetails workspace={workspace} />
       <Suspense fallback={<T.Subtle>Loading subscription products...</T.Subtle>}>
-        <Typography.H2>Plans</Typography.H2>
         <SubscriptionProducts workspace={workspace} />
       </Suspense>
       <Suspense fallback={<T.Subtle>Loading one-time products...</T.Subtle>}>
