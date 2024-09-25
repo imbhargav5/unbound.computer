@@ -1,4 +1,4 @@
-import { DBTable, Enum } from "@/types";
+import { DBTable } from "@/types";
 import { Dictionary } from "lodash";
 
 export class PaymentGatewayError extends Error {
@@ -26,15 +26,9 @@ export type CustomerData = {
   metadata?: { [key: string]: any };
 }
 
-export interface SubscriptionData {
-  id: string;
-  customerId: string;
-  productId: string;
-  priceId: string;
-  status: Enum<'subscription_status'>
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
+export type SubscriptionData = DBTable<'billing_subscriptions'> & {
+  billing_prices: DBTable<'billing_prices'> | null;
+  billing_products: DBTable<'billing_products'> | null;
 }
 
 export type ProductData = DBTable<'billing_products'> & {
@@ -167,5 +161,8 @@ export abstract class PaymentGateway {
     getCurrentRevenueByProduct(): Promise<{ productId: string, revenue: number }[]>;
     getCurrentMonthRevenue(): Promise<number>;
     getLastMonthRevenue(): Promise<number>;
+    listCurrentMonthInvoices(): Promise<InvoiceData[]>;
+    listCurrentMonthSubscriptions(): Promise<SubscriptionData[]>;
+    listCustomers(): Promise<DBTable<'billing_customers'>[]>;
   }
 }

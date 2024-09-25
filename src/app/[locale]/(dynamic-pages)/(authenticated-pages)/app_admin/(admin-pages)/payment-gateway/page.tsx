@@ -1,5 +1,4 @@
 import { Typography } from "@/components/ui/Typography";
-import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
 import { Suspense } from "react";
 import { DataAndReports } from "./DataAndReports";
 import { QuickMetrics } from "./QuickMetrics";
@@ -7,7 +6,6 @@ import { RevenueCharts } from "./RevenueCharts";
 import { StripeProductManager } from "./StripeProductManager";
 
 export default async function PaymentsAdminPanel() {
-  const stripeGateway = new StripePaymentGateway();
 
   return <div className="container mx-auto p-6">
     <Typography.H2>Admin Panel</Typography.H2>

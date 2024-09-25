@@ -21,7 +21,8 @@ import {
   PaymentGateway,
   PaymentGatewayError,
   ProductAndPrice,
-  ProductData
+  ProductData,
+  SubscriptionData
 } from './AbstractPaymentGateway';
 
 
@@ -1208,6 +1209,41 @@ export class StripePaymentGateway implements PaymentGateway {
         productId,
         revenue
       }));
-    }
+    },
+    listCurrentMonthInvoices: async (): Promise<InvoiceData[]> => {
+      const startDate = new Date();
+      const endDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const { data: invoices, error } = await supabaseAdminClient
+        .from('billing_invoices')
+        .select('*, billing_prices(*), billing_products(*)')
+        .eq('gateway_name', this.getName())
+        .gte('paid_date', startDate.toISOString())
+        .lte('paid_date', endDate.toISOString())
+      if (error) throw error;
+      return invoices;
+    },
+    listCurrentMonthSubscriptions: async (): Promise<SubscriptionData[]> => {
+      const startDate = new Date();
+      const endDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const { data: subscriptions, error } = await supabaseAdminClient
+        .from('billing_subscriptions')
+        .select('*, billing_prices(*), billing_products(*)')
+        .eq('gateway_name', this.getName())
+        .gte('current_period_start', startDate.toISOString())
+        .lte('current_period_start', endDate.toISOString());
+      if (error) throw error;
+      return subscriptions;
+    },
+    listCustomers: async (): Promise<DBTable<'billing_customers'>[]> => {
+      const { data: customers, error } = await supabaseAdminClient
+        .from('billing_customers')
+        .select('*')
+        .eq('gateway_name', this.getName());
+      if (error) throw error;
+      return customers;
+    },
   }
+
 }
