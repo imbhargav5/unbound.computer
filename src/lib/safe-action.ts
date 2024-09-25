@@ -10,9 +10,12 @@ export const actionClient = createSafeActionClient({
 
     // Log to console.
     console.log("Action error:", e.message);
-
+    // You can optionally return a generic message on production
     // Return generic message
-    return "Oh no, something went wrong!";
+    // if(process.env.NODE_ENV !== 'development') {
+    //   return "Oh no, something went wrong!";
+    // }
+    return e.message
   },
 }).use(async ({ next, clientInput, metadata }) => {
   if (process.env.NODE_ENV === 'development') {

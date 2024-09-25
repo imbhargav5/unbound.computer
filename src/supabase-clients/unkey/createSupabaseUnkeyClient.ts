@@ -22,7 +22,7 @@ function createJWT(userId: string) {
 }
 
 const resultSchema = z.object({
-  ownerId: z.string(),
+  externalId: z.string(),
   valid: z.boolean(),
   expires: z.number().optional(),
 });
@@ -41,7 +41,7 @@ export async function createSupabaseUnkeyClient(req: NextRequest) {
     throw error;
   }
 
-  const { ownerId: userId } = resultSchema.parse(result);
+  const { externalId: userId } = resultSchema.parse(result);
 
   const jwt = createJWT(userId);
   const client = createClient<Database>(

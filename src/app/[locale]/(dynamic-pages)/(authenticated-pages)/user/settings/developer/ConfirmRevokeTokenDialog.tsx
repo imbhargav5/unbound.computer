@@ -33,6 +33,7 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props): JSX.Element => {
       setOpen(false);
     },
     onError: ({ error }) => {
+      console.log(error);
       const errorMessage = error.serverError ?? 'Failed to revoke API Key';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;

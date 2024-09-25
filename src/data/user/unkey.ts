@@ -3,7 +3,7 @@ import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
 import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
 import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -24,10 +24,10 @@ export const generateUnkeyTokenAction = authActionClient.action(
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const response = await axios.post(
-      'https://api.unkey.dev/v1/keys',
+      'https://api.unkey.dev/v1/keys.createKey',
       {
         apiId: process.env.UNKEY_API_ID,
-        ownerId: userId,
+        externalId: userId,
         prefix: 'st_',
       },
       {
@@ -71,17 +71,28 @@ const revokeUnkeyTokenSchema = z.object({
 export const revokeUnkeyTokenAction = authActionClient
   .schema(revokeUnkeyTokenSchema)
   .action(async ({ parsedInput: { keyId } }) => {
-    const response = await axios.delete(
-      `https://api.unkey.dev/v1/keys/${keyId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
+    console.log('revoking key', keyId);
+    try {
+      const response = await axios.post(
+        `https://api.unkey.dev/v1/keys.deleteKey`,
+        {
+          keyId,
         },
-      },
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.UNKEY_ROOT_KEY}`,
+          },
 
+        },
+      );
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        throw new Error('[Unkey API]: Error revoking key ' + error.response?.data);
+      }
+      throw error;
+    }
     const supabaseClient = createSupabaseUserServerActionClient();
-
+    console.log('revoking key', keyId);
     const { error } = await supabaseClient
       .from('user_api_keys')
       .update({
