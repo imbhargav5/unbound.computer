@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SubscriptionData } from "@/payments/AbstractPaymentGateway";
-import { formatCurrency } from "@/utils/currency";
+import { formatCurrency, normalizePriceAndCurrency } from "@/utils/currency";
 
 interface SubscriptionsTableProps {
   subscriptions: SubscriptionData[];
@@ -34,8 +34,7 @@ export function SubscriptionsTable({ subscriptions }: SubscriptionsTableProps) {
         {subscriptions.map((subscription) => {
           const amount = subscription.billing_prices?.amount
           const currency = subscription.billing_prices?.currency
-          const normalizedAmount = currency === 'usd' ? amount ? amount / 100 : amount : amount
-          const formattedPrice = normalizedAmount ? formatCurrency(normalizedAmount, currency) : 'N/A'
+          const formattedPrice = amount && currency ? formatCurrency(normalizePriceAndCurrency(amount, currency), currency) : 'N/A'
           return (
             <TableRow key={subscription.id}>
               <TableCell>{subscription.gateway_subscription_id}</TableCell>

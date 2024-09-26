@@ -23,6 +23,18 @@ export function convertAmountToUSD(amount: number, currency: string): number {
   return amount * exchangeRate;
 }
 
+/**
+  * Stripe says currency is USD but stores cents.
+  * We have to divide by 100 to get the correct amount.
+  * This function normalizes the price and currency to the correct amount.
+ */
+export function normalizePriceAndCurrency(amount: number, currency: string): number {
+  if (currency?.toLowerCase() === 'usd') {
+    return amount / 100;
+  }
+  return amount;
+}
+
 export function formatCurrency(amount: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

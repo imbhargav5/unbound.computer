@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InvoiceData } from "@/payments/AbstractPaymentGateway";
-import { formatCurrency } from "@/utils/currency";
+import { formatCurrency, normalizePriceAndCurrency } from "@/utils/currency";
 
 interface InvoicesTableProps {
   invoices: InvoiceData[];
@@ -34,8 +34,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
         {invoices.map((invoice) => {
           const amount = invoice.billing_prices?.amount
           const currency = invoice.billing_prices?.currency
-          const normalizedAmount = currency === 'usd' ? amount ? amount / 100 : amount : amount
-          const formattedPrice = normalizedAmount ? formatCurrency(normalizedAmount, currency) : 'N/A'
+          const formattedPrice = amount && currency ? formatCurrency(normalizePriceAndCurrency(amount, currency), currency) : 'N/A'
           return (
             <TableRow key={invoice.gateway_invoice_id}>
               <TableCell>{invoice.gateway_invoice_id}</TableCell>

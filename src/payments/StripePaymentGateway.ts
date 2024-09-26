@@ -167,24 +167,24 @@ export class StripePaymentGateway implements PaymentGateway {
       };
     },
 
-    getSubscriptionsByCustomerId: async (customerId: string): Promise<Array<DBTable<'billing_subscriptions'>>> => {
+    getSubscriptionsByCustomerId: async (customerId: string): Promise<SubscriptionData[]> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_subscriptions')
-        .select('*')
+        .select('*, billing_products(*), billing_prices(*)')
         .eq('gateway_customer_id', customerId)
         .eq('gateway_name', this.getName())
 
       if (error) throw error;
       return data;
     },
-    getSubscriptionsByWorkspaceId: async (workspaceId: string): Promise<Array<DBTable<'billing_subscriptions'>>> => {
+    getSubscriptionsByWorkspaceId: async (workspaceId: string): Promise<SubscriptionData[]> => {
       const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
       if (!customer) {
         throw new Error('Customer not found');
       }
       const { data, error } = await supabaseAdminClient
         .from('billing_subscriptions')
-        .select('*')
+        .select('*, billing_products(*), billing_prices(*)')
         .eq('gateway_customer_id', customer.gateway_customer_id)
         .eq('gateway_name', this.getName())
 
@@ -192,10 +192,10 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
 
-    getSubscription: async (subscriptionId: string): Promise<DBTable<'billing_subscriptions'>> => {
+    getSubscription: async (subscriptionId: string): Promise<SubscriptionData> => {
       const { data, error } = await supabaseAdminClient
         .from('billing_subscriptions')
-        .select('*')
+        .select('*, billing_products(*), billing_prices(*)')
         .eq('gateway_subscription_id', subscriptionId)
         .single();
 
@@ -206,10 +206,10 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
 
-    listSubscriptions: async (customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_subscriptions'>>> => {
+    listSubscriptions: async (customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<SubscriptionData>> => {
       const { data, error, count } = await supabaseAdminClient
         .from('billing_subscriptions')
-        .select('*', { count: 'exact' })
+        .select('*, billing_products(*), billing_prices(*)', { count: 'exact' })
         .eq('gateway_customer_id', customerId)
         .eq('gateway_name', this.getName())
         .range(
@@ -741,7 +741,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @param workspaceId - The unique identifier of the workspace.
      * @returns A promise that resolves to the billing subscription data or null if not found.
      */
-    getWorkspaceDatabaseSubscriptions: async (workspaceId: string): Promise<Array<DBTable<'billing_subscriptions'>>> => {
+    getWorkspaceDatabaseSubscriptions: async (workspaceId: string): Promise<SubscriptionData[]> => {
       return this.db.getSubscriptionsByWorkspaceId(workspaceId);
     },
 

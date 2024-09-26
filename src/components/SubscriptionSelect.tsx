@@ -4,6 +4,7 @@ import { createWorkspaceCheckoutSession } from "@/data/user/billing";
 import { useAction } from "next-safe-action/hooks";
 import { useRef } from "react";
 import { toast } from "sonner";
+import { Button } from "./ui/button";
 
 interface SubscriptionSelectProps {
   workspaceId: string;
@@ -36,11 +37,11 @@ export function SubscriptionSelect({ workspaceId, priceId, isOneTimePurchase = f
   );
 
   return (
-    <button
-      className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors"
+    <Button
+      className="w-full"
       onClick={() => createCheckoutSession({ workspaceId, priceId })}
     >
       {isOneTimePurchase ? 'Purchase' : 'Select Plan'}
-    </button>
+    </Button>
   );
 }

@@ -94,10 +94,10 @@ export abstract class PaymentGateway {
     deleteCustomer(customerId: string): Promise<void>;
     listCustomers(options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_customers'>>>;
     // Subscription methods
-    getSubscriptionsByCustomerId(customerId: string): Promise<Array<DBTable<'billing_subscriptions'>>>;
-    getSubscriptionsByWorkspaceId(workspaceId: string): Promise<Array<DBTable<'billing_subscriptions'>>>;
-    getSubscription(subscriptionId: string): Promise<DBTable<'billing_subscriptions'>>;
-    listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<DBTable<'billing_subscriptions'>>>;
+    getSubscriptionsByCustomerId(customerId: string): Promise<SubscriptionData[]>;
+    getSubscriptionsByWorkspaceId(workspaceId: string): Promise<SubscriptionData[]>;
+    getSubscription(subscriptionId: string): Promise<SubscriptionData>;
+    listSubscriptions(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<SubscriptionData>>;
     // Invoice methods
     getInvoice(invoiceId: string): Promise<InvoiceData>;
     listInvoicesByCustomerId(customerId: string, options?: PaginationOptions): Promise<PaginatedResponse<InvoiceData>>;
