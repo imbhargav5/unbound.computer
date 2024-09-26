@@ -81,8 +81,8 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
         <T.P className="text-sm text-gray-600">{billing_products.description}</T.P>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-gray-500" />
+          <div className="flex items-start gap-2">
+            <DollarSign className="w-5 h-5 text-gray-500 mt-1" />
             <div>
               <T.P className="font-semibold">{
                 formatCurrency(amount, currency)
@@ -94,8 +94,8 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
               </T.Small>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-gray-500" />
+          <div className="flex items-start gap-2">
+            <RefreshCw className="w-5 h-5 text-gray-500 mt-1" />
             <div>
               <T.P className="font-semibold">Next Billing Date</T.P>
               <T.Small className="text-gray-500">{formatDate(subscription.current_period_end)}</T.Small>
@@ -104,15 +104,15 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-gray-500" />
+          <div className="flex items-start gap-2">
+            <CalendarDays className="w-5 h-5 text-gray-500 mt-1" />
             <div>
               <T.P className="font-semibold">Subscription Start</T.P>
               <T.Small className="text-gray-500">{formatDate(subscription.current_period_start)}</T.Small>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-gray-500" />
+          <div className="flex items-start gap-2">
+            <CalendarDays className="w-5 h-5 text-gray-500 mt-1" />
             <div>
               <T.P className="font-semibold">
                 {subscription.cancel_at_period_end ? 'Cancellation Date' : 'Next Renewal'}
