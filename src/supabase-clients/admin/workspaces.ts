@@ -5,7 +5,7 @@ export async function superAdminGetWorkspaceAdmins(workspaceId: string): Promise
     .from('workspace_members')
     .select('*')
     .eq('workspace_id', workspaceId)
-    .or('role.in.("admin","owner")');
+    .or('workspace_member_role.in.("admin","owner")');
 
   if (error) {
     throw error;

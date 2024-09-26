@@ -53,31 +53,35 @@ export class StripePaymentGateway implements PaymentGateway {
   db = {
     createCustomer: async (userData: Partial<DBTable<'billing_customers'>>, workspaceId: string): Promise<DBTable<'billing_customers'>> => {
       const { billing_email } = userData;
-      if (!billing_email) {
-        return this.util.handleStripeError(new Error('Email is required'));
+      try {
+        if (!billing_email) {
+          return this.util.handleStripeError(new Error('Email is required'));
+        }
+        const customer = await this.stripe.customers.create({
+          email: billing_email,
+          name: `Workspace ${workspaceId}`,
+          metadata: {
+            workspace_id: workspaceId,
+          },
+        });
+
+        const { data, error } = await supabaseAdminClient
+          .from('billing_customers')
+          .insert({
+            gateway_name: this.getName(),
+            gateway_customer_id: customer.id,
+            billing_email: billing_email,
+            workspace_id: workspaceId,
+          })
+          .select('*')
+          .single();
+
+        if (error) throw error;
+
+        return data;
+      } catch (error) {
+        return this.util.handleStripeError(error);
       }
-      const customer = await this.stripe.customers.create({
-        email: billing_email,
-        name: `Organization ${workspaceId}`,
-        metadata: {
-          organization_id: workspaceId,
-        },
-      });
-
-      const { data, error } = await supabaseAdminClient
-        .from('billing_customers')
-        .insert({
-          gateway_name: this.getName(),
-          gateway_customer_id: customer.id,
-          billing_email: billing_email,
-          workspace_id: workspaceId,
-        })
-        .select('*')
-        .single();
-
-      if (error) throw error;
-
-      return data;
 
     },
 
@@ -332,30 +336,32 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
 
-
-
   }
 
   util = {
     handleStripeError: (error: any) => {
-      console.log('Stripe error', error);
-      throw new PaymentGatewayError(error.message, error.code, this.getName());
+      throw new PaymentGatewayError(`StripePaymentGatewayError: ${error.message}`, error.code, this.getName());
     },
     isTestMode: () => {
       return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.includes('pk_test') ?? false;
     },
     createCustomerForWorkspace: async (workspaceId: string): Promise<DBTable<'billing_customers'>> => {
-      const workspaceAdmins = await superAdminGetWorkspaceAdmins(workspaceId);
-      const orgAdminUserId = workspaceAdmins[0];
-      if (!orgAdminUserId) throw new Error('Organization admin email not found');
-      const { data: orgAdminUser, error: orgAdminUserError } = await supabaseAdminClient.auth.admin.getUserById(orgAdminUserId);
-      if (orgAdminUserError) throw orgAdminUserError;
-      if (!orgAdminUser) throw new Error('Organization admin user not found');
-      const maybeEmail = orgAdminUser.user.email;
-      if (!maybeEmail) throw new Error('Organization admin email not found');
-      return this.db.createCustomer({
-        billing_email: maybeEmail,
-      }, workspaceId);
+      try {
+        const workspaceAdmins = await superAdminGetWorkspaceAdmins(workspaceId);
+        const orgAdminUserId = workspaceAdmins[0];
+        if (!orgAdminUserId) throw new Error('Organization admin email not found');
+        const { data: orgAdminUser, error: orgAdminUserError } = await supabaseAdminClient.auth.admin.getUserById(orgAdminUserId);
+        if (orgAdminUserError) throw orgAdminUserError;
+        if (!orgAdminUser) throw new Error('Organization admin user not found');
+        const maybeEmail = orgAdminUser.user.email;
+        if (!maybeEmail) throw new Error('Organization admin email not found');
+        return this.db.createCustomer({
+          billing_email: maybeEmail,
+        }, workspaceId);
+      } catch (error) {
+        console.log("error", error)
+        return this.util.handleStripeError(error);
+      }
     },
 
     getCustomerByWorkspaceId: async (workspaceId: string): Promise<DBTable<'billing_customers'> | null> => {
@@ -792,10 +798,12 @@ export class StripePaymentGateway implements PaymentGateway {
       options?: CheckoutSessionOptions;
     }): Promise<CheckoutSessionData> => {
       let customer = await this.util.getCustomerByWorkspaceId(workspaceId);
-
+      console.log("already existing customer", customer)
       if (!customer) {
         customer = await this.util.createCustomerForWorkspace(workspaceId);
       }
+
+      console.log(customer)
 
       const { freeTrialDays } = options ?? {};
       const price = await this.db.getPrice(priceId);
