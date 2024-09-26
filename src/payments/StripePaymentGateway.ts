@@ -596,9 +596,9 @@ export class StripePaymentGateway implements PaymentGateway {
         gateway_name: this.getName(),
         name: product.name,
         description: product.description,
-        is_subscription: product.active,
         is_visible_in_ui: product.active,
         features: product.metadata.features,
+        active: product.active
       }, {
         onConflict: 'gateway_product_id,gateway_name'
       });
@@ -686,6 +686,8 @@ export class StripePaymentGateway implements PaymentGateway {
         .select('*, billing_prices(*)')
         .eq('gateway_name', this.getName())
         .eq('is_visible_in_ui', true)
+        .eq('active', true)
+        .eq('billing_prices.active', true)
       if (error) throw error;
 
       const productsAndPrices: ProductAndPrice[] = []
@@ -714,6 +716,8 @@ export class StripePaymentGateway implements PaymentGateway {
         .eq('billing_prices.recurring_interval', 'one-time')
         .eq('gateway_name', this.getName())
         .eq('is_visible_in_ui', true)
+        .eq('active', true)
+        .eq('billing_prices.active', true)
       if (error) throw error;
       const productsAndPrices: ProductAndPrice[] = []
 
