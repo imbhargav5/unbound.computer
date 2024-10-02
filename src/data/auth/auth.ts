@@ -70,6 +70,7 @@ export const signInWithPasswordAction = actionClient
 const signInWithMagicLinkSchema = z.object({
   email: z.string().email(),
   next: z.string().optional(),
+  shouldCreateUser: z.boolean().optional().default(false),
 });
 
 /**
@@ -81,7 +82,7 @@ const signInWithMagicLinkSchema = z.object({
  */
 export const signInWithMagicLinkAction = actionClient
   .schema(signInWithMagicLinkSchema)
-  .action(async ({ parsedInput: { email, next } }) => {
+  .action(async ({ parsedInput: { email, next, shouldCreateUser } }) => {
     const supabase = createSupabaseUserServerActionClient();
     const redirectUrl = new URL(toSiteURL('/auth/callback'));
     if (next) {
@@ -91,7 +92,7 @@ export const signInWithMagicLinkAction = actionClient
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: false,
+        shouldCreateUser,
         emailRedirectTo: redirectUrl.toString(),
       },
     });

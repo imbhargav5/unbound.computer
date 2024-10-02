@@ -184,7 +184,7 @@
     "zod-form-data": "^2.0.2"
   },
   "scripts": {
-    "dev": "NODE_OPTIONS='--no-warnings' concurrently \"content-collections watch\" \"next dev\"",
+    "dev": "NODE_OPTIONS='--no-warnings' concurrently \"content-collections watch\" \"next dev --turbo \"",
     "dev:debug": "NODE_OPTIONS='--inspect' next dev",
     "email:dev": "email dev",
     "start": "next start",

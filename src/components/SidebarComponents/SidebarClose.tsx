@@ -28,6 +28,7 @@ export function SidebarClose() {
         'hidden lg:block',
       )}
       onClick={closeSidebar}
+      data-testid="sidebar-close-trigger"
     >
       <PanelLeftClose className="h-4 w-4 text-neutral-500 group-hover:text-neutral-700 dark:text-slate-400 group-hover:dark:text-slate-300" />
     </div>

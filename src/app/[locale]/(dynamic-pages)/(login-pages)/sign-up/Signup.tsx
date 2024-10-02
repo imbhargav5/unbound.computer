@@ -134,7 +134,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
                   <Email
-                    onSubmit={(email) => executeMagicLink({ email, next })}
+                    onSubmit={(email) => executeMagicLink({ email, next, shouldCreateUser: true })}
                     isLoading={magicLinkStatus === 'executing'}
                     view="sign-up"
                   />

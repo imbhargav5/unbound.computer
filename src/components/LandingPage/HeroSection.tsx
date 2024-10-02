@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronRight, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
-import HeroImage from '/public/images/hero.jpeg';
 
 export default function HeroSection() {
   const t = useTranslations('HomePage');
@@ -42,7 +41,8 @@ export default function HeroSection() {
         <div className="rounded-md border-2 flex-1 overflow-hidden border-border shadow-sm">
           <Image
             alt="Hero Image"
-            src={HeroImage}
+            src={`/images/hero.jpeg`}
+            fill
             className="overflow-hidden h-[500px] max-h-[500px]  object-cover"
           />
         </div>

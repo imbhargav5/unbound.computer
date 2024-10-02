@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { SIDEBAR_VISIBILITY_COOKIE_KEY } from '@/constants';
+import { CreateWorkspaceDialogProvider } from '@/contexts/CreateWorkspaceDialogContext';
 import { LoggedInUserProvider } from '@/contexts/LoggedInUserContext';
 import { SidebarVisibilityProvider } from '@/contexts/SidebarVisibilityContext';
 import { serverGetLoggedInUserVerified } from '@/utils/server/serverGetLoggedInUser';
@@ -23,11 +24,13 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
     const sidebarVisibility = getSidebarVisibility();
     return (
       <SidebarVisibilityProvider initialValue={sidebarVisibility}>
-        <LoggedInUserProvider user={user}>
-          <ClientLayout >
-            {children}
-          </ClientLayout>
-        </LoggedInUserProvider>
+        <CreateWorkspaceDialogProvider>
+          <LoggedInUserProvider user={user}>
+            <ClientLayout>
+              {children}
+            </ClientLayout>
+          </LoggedInUserProvider>
+        </CreateWorkspaceDialogProvider>
       </SidebarVisibilityProvider>
     );
   } catch (fetchDataError) {
@@ -36,6 +39,7 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
     return null;
   }
 }
+
 export default async function Layout({ children }: { children: ReactNode }) {
   return (
     <Suspense fallback={<Skeleton className="w-16 h-6" />}>

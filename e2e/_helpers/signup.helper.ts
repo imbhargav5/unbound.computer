@@ -117,5 +117,5 @@ export async function signupUserHelper({
     .toBe('string');
 
   await page.goto(url);
-  await page.waitForURL('/onboarding');
+  await page.waitForURL(/\/[a-z]{2}\/onboarding/);
 }

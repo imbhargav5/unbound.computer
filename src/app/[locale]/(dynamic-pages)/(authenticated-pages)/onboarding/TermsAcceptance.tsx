@@ -108,6 +108,7 @@ export function TermsAcceptance({ onSuccess }: TermsAcceptanceProps) {
             </div>
             <DialogFooter className="mt-4">
               <Button
+                data-testid="accept-terms-button"
                 onClick={() => execute()}
                 disabled={isPending}
                 className="w-full sm:w-auto"

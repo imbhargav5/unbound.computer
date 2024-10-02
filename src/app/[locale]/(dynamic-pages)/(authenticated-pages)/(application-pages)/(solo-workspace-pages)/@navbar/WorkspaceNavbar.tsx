@@ -16,7 +16,7 @@ export async function generateMetadata() {
 
     return {
       title: `${workspace.name} | Workspace | Nextbase Ultimate`,
-      description: 'Organization title',
+      description: 'Workspace title',
     };
   } catch (error) {
     return {

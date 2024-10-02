@@ -7,8 +7,9 @@ export default {
   darkMode: ['class'],
   content: [
     './node_modules/fumadocs-ui/dist/**/*.js',
-    './src/**/*.{js,ts,jsx,tsx,mdx}',
-    './content/**/*.mdx',
+    './src/app/**/*.tsx',
+    './src/components/**/*.tsx',
+    './src/content/**/*.mdx',
   ],
   prefix: '',
   theme: {

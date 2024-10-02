@@ -1,19 +1,20 @@
 // OrganizationSidebar.tsx (Server Component)
 import { DesktopSidebarFallback } from '@/components/SidebarComponents/SidebarFallback';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchSlimWorkspaces } from '@/data/user/workspaces';
-import { getCachedSoloWorkspace } from '@/rsc-data/user/workspaces';
+import { getCachedSlimWorkspaces, getCachedSoloWorkspace } from '@/rsc-data/user/workspaces';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import WorkspaceSidebarClient from './WorkspaceSidebarClient';
+import SoloWorkspaceSidebarClient from './SoloWorkspaceSidebarClient';
 
-export async function WorkspaceSidebar() {
+export async function SoloWorkspaceSidebar() {
   try {
-    const workspace = await getCachedSoloWorkspace();
-    const slimWorkspaces = await fetchSlimWorkspaces();
+    const [workspace, slimWorkspaces] = await Promise.all([
+      getCachedSoloWorkspace(),
+      getCachedSlimWorkspaces()
+    ]);
     return (
       <Suspense fallback={<DesktopSidebarFallback />}>
-        <WorkspaceSidebarClient
+        <SoloWorkspaceSidebarClient
           workspaceId={workspace.id}
           workspaceSlug={workspace.slug}
           workspace={workspace}

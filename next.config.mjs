@@ -1,11 +1,10 @@
 /** @type {import('next').NextConfig} */
 import { withContentCollections } from '@content-collections/next';
+import createWithBundleAnalyzer from '@next/bundle-analyzer';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin();
-
-import createWithBundleAnalyzer from '@next/bundle-analyzer';
 
 const withBundleAnalyzer = createWithBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -21,8 +20,13 @@ const nextConfig = {
   },
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   images: {
-    domains: ['localhost'],
     remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '',
+        pathname: '/**',
+      },
       {
         protocol: 'https',
         hostname: '*.supabase.co',
@@ -70,6 +74,16 @@ const nextConfig = {
   logging: {
     fetches: {
       fullUrl: true,
+    },
+  },
+  experimental: {
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
     },
   },
 };

@@ -5,9 +5,9 @@ import { fetchSlimWorkspaces, getWorkspaceIdBySlug } from '@/data/user/workspace
 import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import WorkspaceSidebarClient from './WorkspaceSidebarClient';
+import TeamWorkspaceSidebarClient from './TeamWorkspaceSidebarClient';
 
-export async function WorkspaceSidebar({ params }: { params: unknown }) {
+export async function TeamWorkspaceSidebar({ params }: { params: unknown }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
     const workspaceId = await getWorkspaceIdBySlug(workspaceSlug);
@@ -18,7 +18,7 @@ export async function WorkspaceSidebar({ params }: { params: unknown }) {
     }
     return (
       <Suspense fallback={<DesktopSidebarFallback />}>
-        <WorkspaceSidebarClient
+        <TeamWorkspaceSidebarClient
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           workspace={workspace}

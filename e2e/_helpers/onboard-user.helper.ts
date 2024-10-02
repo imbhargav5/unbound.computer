@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { extractOrganizationIdFromUrl } from './dashboard-default-organization-id.helper';
+import { matchPathAndExtractWorkspaceInfo } from './workspace.helper';
 
 export async function onboardUserHelper({
   page,
@@ -15,9 +15,8 @@ export async function onboardUserHelper({
   const termsDialog = page.getByRole('dialog');
   await expect(termsDialog).toBeVisible();
 
-  const acceptTermsButton = termsDialog.getByRole('button', { name: 'Accept Terms' });
+  const acceptTermsButton = termsDialog.getByRole('button', { name: /i accept the terms/i });
   await acceptTermsButton.click();
-
 
   // Profile Update
   const fullNameInput = page.getByRole('textbox', { name: 'Full Name' });
@@ -27,22 +26,15 @@ export async function onboardUserHelper({
   const saveProfileButton = page.getByRole('button', { name: 'Save Profile' });
   await saveProfileButton.click();
 
+  // Workspace Creation (renamed from Organization)
+  const workspaceNameInput = page.getByRole('textbox', { name: 'Workspace Name' });
+  await expect(workspaceNameInput).toBeVisible();
+  await workspaceNameInput.fill('My Workspace');
 
-  // Organization Creation
-  const orgTitleInput = page.getByRole('textbox', { name: 'Organization Name' });
-  await expect(orgTitleInput).toBeVisible();
-  await orgTitleInput.fill('My Organization');
-
-
-
-  const createOrgButton = page.getByRole('button', { name: 'Create Organization' });
-  await createOrgButton.click();
-
-  // data-testid onboarding-complete should be visible
-  const onboardingComplete = page.getByTestId('onboarding-complete');
-  await expect(onboardingComplete).toBeDefined();
+  const createWorkspaceButton = page.getByRole('button', { name: 'Create Workspace' });
+  await createWorkspaceButton.click();
 
 
-  const defaultOrganizationId = await extractOrganizationIdFromUrl({ page });
-  expect(defaultOrganizationId).not.toBeNull();
+  const { workspaceId } = await matchPathAndExtractWorkspaceInfo({ page });
+  expect(workspaceId).not.toBeNull();
 }

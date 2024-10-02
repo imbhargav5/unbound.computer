@@ -38,6 +38,7 @@ export function SidebarOpen() {
             className={cn(
               'flex group cursor-pointer border items-center p-1.5 h-[30px] hover:bg-neutral-100 rounded-md',
             )}
+            data-testid="sidebar-open-trigger"
             onClick={openSidebar}
           >
             <PanelLeftOpen className="h-4 w-4 text-neutral-500 group-hover:text-neutral-700" />

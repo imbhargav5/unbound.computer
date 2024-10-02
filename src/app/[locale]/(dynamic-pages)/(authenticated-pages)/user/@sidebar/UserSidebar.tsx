@@ -1,6 +1,6 @@
 'use client';
 
-import { SwitcherAndToggle } from '@/components/SidebarComponents/SidebarLogo';
+import { SwitcherAndToggle } from '@/components/SidebarComponents/SwitcherAndToggle';
 import { SidebarLink } from '@/components/SidebarLink';
 import { cn } from '@/utils/cn';
 import { motion } from 'framer-motion';

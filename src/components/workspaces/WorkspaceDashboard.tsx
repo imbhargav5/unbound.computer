@@ -40,10 +40,10 @@ export async function WorkspaceDashboard({ workspaceSlug, projectFilters }: Dash
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return (
-    <DashboardClientWrapper>
-      <Card >
+    <DashboardClientWrapper >
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-          <CardTitle className="text-3xl font-bold tracking-tight">Dashboard</CardTitle>
+          <CardTitle data-testid="dashboard-title" className="text-3xl font-bold tracking-tight">Dashboard</CardTitle>
           <div className="flex space-x-4">
             <CreateProjectDialog workspaceId={workspace.id} />
           </div>

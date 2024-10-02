@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dashboardDefaultOrganizationIdHelper } from '../_helpers/dashboard-default-organization-id.helper';
+import { matchPathAndExtractWorkspaceInfo } from '../_helpers/workspace.helper';
 
 test.describe.parallel('admin panel', () => {
   test.beforeEach(async ({ browser }, testInfo) => {
@@ -11,7 +11,7 @@ test.describe.parallel('admin panel', () => {
       storageState: 'playwright/.auth/admin.json',
     });
     const adminPage = await adminContext.newPage();
-    await dashboardDefaultOrganizationIdHelper({ page: adminPage });
+    await matchPathAndExtractWorkspaceInfo({ page: adminPage });
 
     const anchorElement = await adminPage.locator('[data-testid="admin-panel-link"]');
     await expect(anchorElement).toHaveAttribute('tagName', 'A', { ignoreCase: true });
