@@ -1,4 +1,3 @@
-
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 // const matchAppAdmin = match('/app_admin_preview/(.*)?');
@@ -40,6 +39,7 @@ const unprotectedPagePrefixes = [
   `/docs(/.*)?`,
   `/terms`,
   `/waitlist(/.*)?`,
+  `/500(/.*)?`,
 ];
 
 const protectedPagePrefixes = [
@@ -225,13 +225,17 @@ export async function middleware(request: NextRequest) {
 
   const applicableMiddlewares = middlewares.filter(m => matchesPath(m.matcher, pathname))
 
-  let response = NextResponse.next()
+  let response: NextResponse | undefined
 
   for (const { middleware } of applicableMiddlewares) {
-    response = await middleware(request)
+    const result = await middleware(request)
+
+    if (result.status >= 300) {
+      return result
+    }
   }
 
-  return response
+  return response || NextResponse.next()
 }
 
 export const config = {

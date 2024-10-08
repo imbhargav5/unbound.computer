@@ -57,13 +57,17 @@ const config: PlaywrightTestConfig = {
       testMatch: "_setups/admin.setup.ts",
     },
     {
+      name: "with-second-user",
+      testMatch: "_setups/user2.setup.ts",
+    },
+    {
       name: "admin-users",
       testMatch: "admin/**/*.spec.ts",
       retries: 0,
       dependencies: ["with-app-admin"],
       use: {
         ...devices["Desktop Chrome"],
-        // storage state is loaded within test cases
+        storageState: "playwright/.auth/admin.json",
       },
     },
     {
@@ -77,12 +81,23 @@ const config: PlaywrightTestConfig = {
       },
     },
     {
+      name: "misc",
+      testMatch: "misc/**/*.spec.ts",
+      dependencies: ["with-auth", "with-second-user", "with-app-admin"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+
+      },
+    },
+    {
       name: "anon-users",
       testMatch: "anon/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
       },
     },
+
   ],
   globalSetup: "./playwright/global-setup.ts",
 };

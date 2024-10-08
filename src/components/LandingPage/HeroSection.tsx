@@ -7,8 +7,8 @@ import Image from 'next/image';
 export default function HeroSection() {
   const t = useTranslations('HomePage');
   return (
-    <section className=" py-10 lg:py-20 text-left px-6 lg:text-center max-w-5xl mx-auto">
-      <div className="flex flex-col  gap-10 w-full">
+    <section className="py-10 lg:py-20 text-left px-6 lg:text-center max-w-5xl mx-auto">
+      <div className="flex flex-col gap-10 w-full">
         <div className="space-y-4 flex flex-col  lg:items-center  flex-1">
           <Link href={'#'}>
             <div className="flex items-center  gap-2 py-1 px-3 w-fit rounded-full border border-border dark:border-none bg-secondary">
@@ -38,12 +38,14 @@ export default function HeroSection() {
             </Button>
           </div>
         </div>
-        <div className="rounded-md border-2 flex-1 overflow-hidden border-border shadow-sm">
+        <div className="relative w-full aspect-[21/9] rounded-md border-2 border-border shadow-sm overflow-hidden">
           <Image
             alt="Hero Image"
-            src={`/images/hero.jpeg`}
+            src="/images/hero.jpeg"
             fill
-            className="overflow-hidden h-[500px] max-h-[500px]  object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover"
+            priority
           />
         </div>
       </div>

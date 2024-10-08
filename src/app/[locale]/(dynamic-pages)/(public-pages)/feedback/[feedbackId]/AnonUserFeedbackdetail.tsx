@@ -3,13 +3,14 @@ import { Badge } from '@/components/ui/badge'
 import { getAnonUserFeedbackById } from '@/data/anon/marketing-feedback'
 import { format } from 'date-fns'
 import { Calendar, EyeIcon } from 'lucide-react'
+import { notFound } from "next/navigation"
 import { SuspendedFeedbackComments } from './CommentTimeLine'
 
 async function AnonUserFeedbackDetail({ feedbackId }: { feedbackId: string }) {
   const feedback = await getAnonUserFeedbackById(feedbackId)
 
   if (!feedback) {
-    return <div>Feedback not found or not publicly visible.</div>
+    return notFound();
   }
 
   return (

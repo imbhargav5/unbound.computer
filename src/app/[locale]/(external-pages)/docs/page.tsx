@@ -16,7 +16,7 @@ export default function DocsPage() {
         className="text-4xl font-bold mb-6"
         {...fadeIn}
       >
-        Nextbase ships with Fumadocs
+        Documentation
       </motion.h1>
 
       <motion.p
@@ -24,7 +24,7 @@ export default function DocsPage() {
         {...fadeIn}
         transition={{ delay: 0.1 }}
       >
-        Fumadocs is a powerful documentation framework integrated into Nextbase Ultimate, designed to make creating beautiful and functional documentation a breeze.
+        Nextbase Ultimate ships with Fumadocs. Fumadocs is a powerful documentation framework integrated into Nextbase Ultimate, designed to make creating beautiful and functional documentation a breeze.
       </motion.p>
 
       <motion.section

@@ -76,14 +76,6 @@
   display: none; /* This assumes you know the classes applied to DialogClose, adjust selector accordingly */
 }
 
-.docs-main-contents {
-  @apply min-w-0 max-w-2xl text-red-400 flex-auto px-4 py-16 lg:max-w-none lg:pl-8 lg:pr-0 xl:px-16;
-}
-
-.docs-main-contents > div {
-  @apply max-w-[720px] mx-auto;
-}
-
 /* TipTap Styles */
 .nextbase-editor .tiptap {
   @apply min-h-96 bg-background border rounded-md p-4;

@@ -237,7 +237,8 @@ export const getProjects = async ({
     .from("projects")
     .select("*")
     .eq("workspace_id", workspaceId)
-    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1)
+    .order("created_at", { ascending: false });
 
   if (query) {
     supabaseQuery = supabaseQuery.ilike("name", `%${query}%`);
@@ -344,6 +345,8 @@ export const createProjectAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
+
+    revalidatePath(`/workspace/${workspaceId}`);
     return project;
   });
 

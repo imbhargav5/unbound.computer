@@ -3,6 +3,7 @@
 import { createInvitationAction } from "@/data/user/invitation";
 import type { Enum, WorkspaceWithMembershipType } from "@/types";
 import { useAction } from 'next-safe-action/hooks';
+import { useRouter } from "next/navigation";
 import { useRef } from 'react';
 import { toast } from 'sonner';
 import { InviteWorkspaceMemberDialog } from "./InviteWorkspaceMemberDialog";
@@ -10,7 +11,7 @@ import { InviteWorkspaceMemberDialog } from "./InviteWorkspaceMemberDialog";
 
 export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipType }): JSX.Element {
   const toastRef = useRef<string | number | undefined>(undefined);
-
+  const router = useRouter();
   const { execute, status } = useAction(createInvitationAction, {
     onExecute: () => {
       toastRef.current = toast.loading('Inviting user...');
@@ -20,16 +21,7 @@ export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipTy
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      let errorMessage: string;
-      try {
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        } else {
-          errorMessage = `Failed to invite organization member: ${String(error)}`;
-        }
-      } catch (_err) {
-        errorMessage = 'Failed to invite organization member';
-      }
+      const errorMessage = error.serverError || 'Failed to invite user';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

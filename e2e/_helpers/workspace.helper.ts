@@ -51,6 +51,6 @@ export async function goToWorkspaceArea({
   if (isSoloWorkspace) {
     await page.goto(areaPath);
   } else {
-    await page.goto(`/${workspaceSlug}${areaPath}`);
+    await page.goto(`/workspace/${workspaceSlug}${areaPath}`);
   }
 }

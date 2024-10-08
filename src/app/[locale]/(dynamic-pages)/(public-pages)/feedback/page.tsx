@@ -25,8 +25,8 @@ async function FeedbackPage({
     <Fragment>
       <div className="flex justify-between items-center">
         <PageHeading
-          title="Explore Feedback"
-          subTitle="Browse the collection of feedback from your users."
+          title="Community Feedback"
+          subTitle="Engage with the community and share your ideas."
         />
 
         {userRoleType === userRoles.ANON ? (

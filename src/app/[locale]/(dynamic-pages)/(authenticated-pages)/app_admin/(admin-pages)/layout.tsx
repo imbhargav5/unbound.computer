@@ -13,9 +13,9 @@ export default async function Layout({
 }) {
   return (
     <ApplicationLayoutShell sidebar={<Suspense>{sidebar}</Suspense>}>
-      <div className="h-full overflow-y-auto">
+      <div className="h-full overflow-y-auto" data-testid="admin-panel-layout">
         <InternalNavbar>
-          <div className="flex items-center justify-start w-full">
+          <div data-testid="admin-panel-title" className="flex items-center justify-start w-full">
             Admin panel
           </div>
         </InternalNavbar>

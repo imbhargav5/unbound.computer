@@ -25,18 +25,20 @@ import { getWorkspaceById } from "./workspaces";
 const appAdminGetUserIdByEmail = async (
   email: string,
 ): Promise<string | null> => {
-  const { data, error } = await supabaseAdminClient.rpc(
-    "app_admin_get_user_id_by_email",
-    {
-      emailarg: email,
-    },
-  );
+  const { data, error } = await supabaseAdminClient
+    .from('user_application_settings')
+    .select('*')
+    .eq('email_readonly', email)
 
   if (error) {
     throw error;
   }
 
-  return data;
+  if (data.length === 0) {
+    return null;
+  }
+
+  return data[0].id;
 };
 
 async function setupInviteeUserDetails(email: string): Promise<{
@@ -44,6 +46,9 @@ async function setupInviteeUserDetails(email: string): Promise<{
   userId: string;
 }> {
   const inviteeUserId = await appAdminGetUserIdByEmail(email);
+  /**
+   * User does not exist in auth.users table, create a new user
+  */
   if (!inviteeUserId) {
     const { data, error } = await supabaseAdminClient.auth.admin.createUser({
       email: email,
@@ -64,6 +69,7 @@ async function setupInviteeUserDetails(email: string): Promise<{
 }
 
 async function getMagicLink(email: string): Promise<string> {
+
   const response = await supabaseAdminClient.auth.admin.generateLink({
     email,
     type: "magiclink",
@@ -220,7 +226,7 @@ export const createInvitationAction = authActionClient
       workspaceName: workspace.name,
       invitationId: invitation.id,
     });
-
+    revalidatePath("/user/invitations");
     return invitation;
   });
 
@@ -266,7 +272,9 @@ export const declineInvitationAction = authActionClient
       userId
     });
 
-    revalidatePath("/", "layout");
+    revalidatePath("/user/invitations");
+    revalidatePath("/home");
+    revalidatePath("/workspace/[workspaceSlug]", "layout");
     redirect("/dashboard");
   });
 
@@ -368,7 +376,6 @@ export const revokeInvitationAction = authActionClient
       throw new Error(error.message);
     }
 
-    revalidatePath("/", "layout");
-
+    revalidatePath("/user/invitations");
     return data;
   });

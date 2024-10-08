@@ -7,6 +7,7 @@ import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
 import { format } from 'date-fns';
 import { Calendar } from 'lucide-react';
+import { notFound } from 'next/navigation';
 import { AddComment } from './AddComment';
 import { SuspendedFeedbackComments } from './CommentTimeLine';
 import { FeedbackActionsDropdown } from './FeedbackActionsDropdown';
@@ -17,7 +18,7 @@ async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }
   const feedback = await getLoggedInUserFeedbackById(feedbackId);
 
   if (!feedback) {
-    return <div>Feedback not found.</div>;
+    return notFound();
   }
 
   return (

@@ -21,7 +21,6 @@ type Props = {
 export const RevokeInvitationDialog = ({ invitationId }: Props) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number | undefined>(undefined);
-
   const { execute: revokeInvitation, isPending: isRevoking } = useAction(revokeInvitationAction, {
     onExecute: () => {
       toastRef.current = toast.loading('Revoking Invitation...');

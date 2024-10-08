@@ -89,6 +89,4 @@ export async function loginUserHelper({
 
   await page.goto(url);
 
-  // wait for the page to load completely
-  await page.waitForTimeout(12000);
 }
