@@ -53,7 +53,7 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ ch
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button data-testid="delete-changelog-dialog-trigger" variant="outline" size="sm">
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -65,7 +65,7 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ ch
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleteChangelogMutation.status === 'executing'}>
+          <Button data-testid="confirm-delete-button" variant="destructive" onClick={handleDelete} disabled={deleteChangelogMutation.status === 'executing'}>
             {deleteChangelogMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>

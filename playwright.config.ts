@@ -51,6 +51,7 @@ const config: PlaywrightTestConfig = {
     {
       name: "with-auth",
       testMatch: "_setups/user.setup.ts",
+
     },
     {
       name: "with-app-admin",
@@ -64,7 +65,7 @@ const config: PlaywrightTestConfig = {
       name: "admin-users",
       testMatch: "admin/**/*.spec.ts",
       retries: 0,
-      dependencies: ["with-app-admin"],
+      dependencies: ["with-auth", "with-second-user", "with-app-admin"],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/admin.json",
@@ -75,6 +76,7 @@ const config: PlaywrightTestConfig = {
       testMatch: "user/**/*.spec.ts",
       retries: 0,
       dependencies: ["with-auth"],
+
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/user.json",
@@ -87,7 +89,6 @@ const config: PlaywrightTestConfig = {
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/user.json",
-
       },
     },
     {

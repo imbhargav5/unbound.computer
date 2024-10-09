@@ -1,16 +1,18 @@
 'use client';
 
+import { FormInput } from '@/components/form-components/FormInput';
+import { FormSelect } from '@/components/form-components/FormSelect';
 import { Tiptap } from "@/components/TipTap";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Form } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateChangelogAction, uploadChangelogCoverImageAction } from '@/data/admin/marketing-changelog';
 import { DBTable } from '@/types';
 import { toSafeJSONB } from '@/utils/jsonb';
 import { updateMarketingChangelogSchema } from '@/utils/zod-schemas/marketingChangelog';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { useAction } from 'next-safe-action/hooks';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -35,15 +37,6 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
   const [coverImageUrl, setCoverImageUrl] = useState(changelog.cover_image || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { register, handleSubmit, formState: { errors }, control, setValue } = useForm<FormData>({
-    resolver: zodResolver(updateMarketingChangelogSchema),
-    defaultValues: {
-      ...changelog,
-      created_at: changelog.created_at ?? undefined,
-      updated_at: changelog.updated_at ?? undefined,
-      json_content: toSafeJSONB(changelog.json_content),
-    },
-  });
   const updateMutation = useAction(updateChangelogAction, {
     onExecute: () => {
       toastRef.current = toast.loading('Updating changelog...', { description: 'Please wait while we update the changelog.' });
@@ -65,6 +58,23 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
       toastRef.current = undefined;
     },
   });
+
+  const { hookFormValidationErrors } = useHookFormActionErrorMapper<
+    typeof updateMarketingChangelogSchema
+  >(updateMutation.result.validationErrors, { joinBy: "\n" });
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(updateMarketingChangelogSchema),
+    defaultValues: {
+      ...changelog,
+      created_at: changelog.created_at ?? undefined,
+      updated_at: changelog.updated_at ?? undefined,
+      json_content: toSafeJSONB(changelog.json_content),
+    },
+    errors: hookFormValidationErrors,
+  });
+
+  const { handleSubmit, control, setValue } = form;
 
   const uploadImageMutation = useAction(uploadChangelogCoverImageAction, {
     onExecute: () => {
@@ -109,88 +119,84 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
 
   return (
     <div className="flex gap-6">
-      <form onSubmit={handleSubmit(onSubmit)} className="flex-grow space-y-6">
-        <div>
-          <Label htmlFor="cover_image">Cover Image</Label>
-          <div className="bg-black rounded-lg 2xl:py-12 2xl:px-2">
-            <div
-              className="mt-2 relative w-full max-w-4xl mx-auto rounded-lg overflow-hidden cursor-pointer flex items-center justify-center"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div className="w-full max-w-4xl">
-                <AspectRatio ratio={16 / 9}>
-                  {coverImageUrl ? (
-                    <Image
-                      src={coverImageUrl}
-                      alt="Cover image"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-gray-100">
-                      <span className="text-gray-400">Click to upload image</span>
-                    </div>
-                  )}
-                </AspectRatio>
+      <Form {...form}>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex-grow space-y-6">
+          <div>
+            <Label htmlFor="cover_image">Cover Image</Label>
+            <div className="bg-black rounded-lg 2xl:py-12 2xl:px-2">
+              <div
+                className="mt-2 relative w-full max-w-4xl mx-auto rounded-lg overflow-hidden cursor-pointer flex items-center justify-center"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="w-full max-w-4xl">
+                  <AspectRatio ratio={16 / 9}>
+                    {coverImageUrl ? (
+                      <Image
+                        src={coverImageUrl}
+                        alt="Cover image"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-gray-100">
+                        <span className="text-gray-400">Click to upload image</span>
+                      </div>
+                    )}
+                  </AspectRatio>
+                </div>
               </div>
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageUpload}
+            />
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleImageUpload}
-          />
-        </div>
 
-        <div>
-          <Label htmlFor="title">Title</Label>
-          <Input id="title" {...register('title')} />
-          {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
-        </div>
-
-        <div className="nextbase-editor overflow-hidden max-w-full">
-          <Label htmlFor="json_content">Content</Label>
-          <Controller
-            name="json_content"
+          <FormInput
+            id="title"
+            label="Title"
             control={control}
-            render={({ field }) => (
-              <Tiptap
-                initialContent={field.value}
-                onUpdate={({ editor }) => {
-                  field.onChange(editor.getJSON());
-                }}
-              />
-            )}
+            name="title"
+            description="Enter the title of the changelog"
           />
-        </div>
 
-        <div>
-          <Label htmlFor="status">Status</Label>
-          <Controller
+          <div className="nextbase-editor overflow-hidden max-w-full">
+            <Label htmlFor="json_content">Content</Label>
+            <Controller
+              name="json_content"
+              control={control}
+              render={({ field }) => (
+                <Tiptap
+                  initialContent={field.value}
+                  onUpdate={({ editor }) => {
+                    field.onChange(editor.getJSON());
+                  }}
+                />
+              )}
+            />
+          </div>
+
+          <FormSelect
+            id="status"
+            label="Status"
+            control={control}
             name="status"
-            control={control}
-            render={({ field }) => (
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            options={[
+              { label: 'Draft', value: 'draft' },
+              { label: 'Published', value: 'published' },
+            ]}
+            placeholder="Select status"
+            description="Select the status of the changelog"
           />
-          {errors.status && <p className="text-red-500 text-sm mt-1">{errors.status.message}</p>}
-        </div>
 
-
-        <Button type="submit" disabled={updateMutation.status === 'executing'}>
-          {updateMutation.status === 'executing' ? 'Updating...' : 'Update Changelog'}
-        </Button>
-      </form>
+          <Button type="submit" disabled={updateMutation.status === 'executing'}>
+            {updateMutation.status === 'executing' ? 'Updating...' : 'Update Changelog'}
+          </Button>
+        </form>
+      </Form>
 
       <div className="w-96 space-y-6 flex-shrink-0">
         <AuthorsSelect
