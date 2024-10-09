@@ -84,6 +84,7 @@ export function FeedbackFacetedFilters() {
   return (
     <div className="flex gap-2 flex-wrap">
       <Select
+        data-testid="sort-select"
         onValueChange={(val) => {
           const parsedValue = sortSchema.parse(val);
           setSort(parsedValue);

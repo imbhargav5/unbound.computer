@@ -32,7 +32,7 @@ import { cn } from '@/utils/cn';
 
 type FeedbackType = 'bug' | 'feature_request' | 'general';
 
-const FeedbackList: Array<FeedbackType> = ['bug', 'feature_request', 'general'];
+const feedbackTypeList: Array<FeedbackType> = ['bug', 'feature_request', 'general'];
 
 const FeedbackLabelMap: Record<FeedbackType, string> = {
   bug: 'Bug',
@@ -127,7 +127,9 @@ export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
             <Controller
               control={control}
               name="title"
-              render={({ field }) => <Input {...field} placeholder="Title" />}
+              render={({ field }) => <Input
+                data-testid="feedback-title-input"
+                {...field} placeholder="Title" />}
             />
           </div>
           <div className="space-y-1">
@@ -135,7 +137,9 @@ export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
             <Controller
               control={control}
               name="content"
-              render={({ field }) => <Input {...field} placeholder="Content" />}
+              render={({ field }) => <Input
+                data-testid="feedback-content-input"
+                {...field} placeholder="Content" />}
             />
           </div>
           <div className="space-y-1">
@@ -144,12 +148,12 @@ export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
               control={control}
               name="type"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select aria-label="Feedback Type" value={field.value} data-testid="feedback-type-select" onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {FeedbackList.map((type) => (
+                    {feedbackTypeList.map((type) => (
                       <SelectItem key={type} value={type}>
                         {FeedbackLabelMap[type]}
                       </SelectItem>

@@ -32,6 +32,8 @@ async function UserAvatarWithFullname({
             className="rounded-full border shadow-sm"
             placeholder="blur"
             blurDataURL={blurFallback}
+            data-testid="anon-user-avatar"
+            data-user-id={userId}
             alt={`${userFullName} avatar`}
             src={userAvatarUrl || ''}
             width={size}

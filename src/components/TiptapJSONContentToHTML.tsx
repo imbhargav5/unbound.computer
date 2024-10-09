@@ -26,12 +26,16 @@ export function TiptapJSONContentToHTML({
 }: {
   jsonContent: DBTable<'marketing_blog_posts'>['json_content'];
 }) {
+  console.log('jsonContent', jsonContent);
   const validContent =
     typeof jsonContent === 'string'
       ? JSON.parse(jsonContent)
       : typeof jsonContent === 'object' && jsonContent !== null
         ? jsonContent
         : {};
+  if (Object.keys(validContent).length === 0) {
+    return <div />;
+  }
   return (
     <div
       dangerouslySetInnerHTML={{

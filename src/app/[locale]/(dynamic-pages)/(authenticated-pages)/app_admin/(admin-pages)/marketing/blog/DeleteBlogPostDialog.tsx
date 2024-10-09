@@ -53,7 +53,7 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" data-testid="delete-blog-post-dialog-trigger">
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -65,7 +65,7 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.status === 'executing'}>
+          <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.status === 'executing'} data-testid="confirm-delete-button">
             {deleteMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>

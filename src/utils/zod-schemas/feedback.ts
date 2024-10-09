@@ -64,3 +64,45 @@ type AssertPriorityEnumEquivalence = PriorityEnumEquivalence extends true ? true
 
 // Usage: Don't remove this, it's used to ensure that the types are equivalent
 const _assertPriorityEnumEquivalence: AssertPriorityEnumEquivalence = true;
+
+export const feedbackTypeToLabel = (type: MarketingFeedbackTypeEnum) => {
+  switch (type) {
+    case 'bug':
+      return 'Bug Report';
+    case 'feature_request':
+      return 'Feature Request';
+    case 'general':
+      return 'General Feedback';
+  }
+}
+
+export const feedbackPriorityToLabel = (priority: MarketingFeedbackThreadPriorityEnum) => {
+  switch (priority) {
+    case 'low':
+      return 'Low';
+    case 'medium':
+      return 'Medium';
+    case 'high':
+      return 'High';
+  }
+}
+
+export const feedbackStatusToLabel = (status: MarketingFeedbackStatusEnum) => {
+  switch (status) {
+    case 'open':
+      return 'Open';
+    case 'under_review':
+      return 'Under Review';
+    case 'planned':
+      return 'Planned';
+    case 'closed':
+      return 'Closed';
+    case 'in_progress':
+      return 'In Progress';
+    case 'completed':
+      return 'Completed';
+    case 'moderator_hold':
+      return 'Moderator Hold';
+  }
+}
+

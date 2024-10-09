@@ -32,7 +32,7 @@ export function FormTextarea<TFieldValues extends FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel htmlFor={id}>{label}</FormLabel>
           <FormControl>
             <Textarea id={id} placeholder={placeholder} {...field} />
           </FormControl>

@@ -29,13 +29,15 @@ export async function CommentTimeLineItem({
   userId,
   comment,
   postedAt,
+  commentId,
 }: {
   userId: string;
   comment: string;
   postedAt: string;
+  commentId: string;
 }) {
   return (
-    <div>
+    <li data-testid={`comment-timeline-item-${commentId}`} data-comment-id={commentId}>
       <div className="flex space-x-2 items-center">
         <SuspendedUserAvatarWithFullname userId={userId} size={32} />
         <Separator orientation="vertical" className="h-4" />
@@ -43,9 +45,8 @@ export async function CommentTimeLineItem({
           {format(new Date(postedAt), 'do MMMM yyyy')}
         </time>
       </div>
-
       <p className="ml-4 p-6 border-l-2 border-muted">{comment}</p>
-    </div>
+    </li>
   );
 }
 
@@ -57,13 +58,14 @@ export async function LoggedInUserFeedbackComments({
   const feedbackComments = await getInternalFeedbackComments(feedbackId);
 
   return (
-    <ol>
-      {feedbackComments?.map((comment) => (
+    <ol data-testid="logged-in-user-feedback-comments">
+      {feedbackComments.map((comment) => (
         <CommentTimeLineItem
-          key={comment?.id}
-          userId={comment?.user_id}
-          postedAt={comment?.created_at}
-          comment={comment?.content}
+          key={comment.id}
+          userId={comment.user_id}
+          postedAt={comment.created_at}
+          comment={comment.content}
+          commentId={comment.id}
         />
       ))}
     </ol>
@@ -78,13 +80,14 @@ export async function AnonUserFeedbackComments({
   const feedbackComments = await getInternalFeedbackComments(feedbackId);
 
   return (
-    <ol>
-      {feedbackComments?.map((comment) => (
+    <ol data-testid="anon-user-feedback-comments">
+      {feedbackComments.map((comment) => (
         <CommentTimeLineItem
-          key={comment?.id}
-          userId={comment?.user_id}
-          postedAt={comment?.created_at}
-          comment={comment?.content}
+          key={comment.id}
+          userId={comment.user_id}
+          postedAt={comment.created_at}
+          comment={comment.content}
+          commentId={comment.id}
         />
       ))}
     </ol>
@@ -100,13 +103,14 @@ export async function AdminFeedbackComments({
     await appAdminGetInternalFeedbackComments(feedbackId);
 
   return (
-    <ol>
-      {feedbackComments?.map((comment) => (
+    <ol data-testid="admin-user-feedback-comments" >
+      {feedbackComments.map((comment) => (
         <CommentTimeLineItem
-          key={comment?.id}
-          userId={comment?.user_id}
-          postedAt={comment?.created_at}
-          comment={comment?.content}
+          key={comment.id}
+          userId={comment.user_id}
+          postedAt={comment.created_at}
+          comment={comment.content}
+          commentId={comment.id}
         />
       ))}
     </ol>

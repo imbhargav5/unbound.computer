@@ -152,8 +152,8 @@ export function FeedbackActionsDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <DotsVerticalIcon data-testid="feedback-actions-dropdown-button" />
+        <Button variant="ghost" size="icon" data-testid="feedback-actions-dropdown-button">
+          <DotsVerticalIcon />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
@@ -168,8 +168,8 @@ export function FeedbackActionsDropdown({
                   Apply status
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
-                    {NEW_STATUS_OPTIONS?.map((status) => (
+                  <DropdownMenuSubContent data-testid="apply-status-dropdown-menu">
+                    {NEW_STATUS_OPTIONS.map((status) => (
                       <DropdownMenuItem
                         key={status.label}
                         onClick={() => {
@@ -191,7 +191,7 @@ export function FeedbackActionsDropdown({
                   Apply type
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
+                  <DropdownMenuSubContent data-testid="apply-type-dropdown-menu">
                     {NEW_TYPE_OPTIONS?.map((type) => (
                       <DropdownMenuItem
                         key={type.label}
@@ -214,7 +214,7 @@ export function FeedbackActionsDropdown({
                   Apply priority
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
+                  <DropdownMenuSubContent data-testid="apply-priority-dropdown-menu">
                     {NEW_PRIORITY_OPTIONS?.map((priority) => (
                       <DropdownMenuItem
                         key={priority.label}
@@ -294,6 +294,7 @@ export function FeedbackActionsDropdown({
               )}
             </DropdownMenuItem>
             <DropdownMenuItem
+              data-testid="toggle-visibility-dropdown-menu-item"
               onClick={() => {
                 updateVisibility({
                   feedbackId: feedback.id,

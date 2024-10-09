@@ -2,10 +2,12 @@ import { SuspendedUserAvatarWithFullname } from '@/components/UserAvatarForAnonV
 import { T, Typography } from "@/components/ui/Typography";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { adminGetInternalFeedbackById } from '@/data/admin/marketing-feedback';
 import { serverGetUserType } from '@/utils/server/serverGetUserType';
+import { feedbackPriorityToLabel, feedbackStatusToLabel, feedbackTypeToLabel } from '@/utils/zod-schemas/feedback';
 import { format } from 'date-fns';
-import { Calendar, EyeIcon, EyeOffIcon } from 'lucide-react';
+import { Calendar, EyeIcon, EyeOffIcon, Info } from 'lucide-react';
 import { AddComment } from './AddComment';
 import { SuspendedFeedbackComments } from './CommentTimeLine';
 import { FeedbackActionsDropdown } from './FeedbackActionsDropdown';
@@ -30,15 +32,33 @@ async function AdminUserFeedbackdetail({ feedbackId }) {
             </span>
           </div>
         </div>
-        <div className='flex items-center gap-2'>
+        <div data-testid='feedback-visibility' className='flex items-center gap-2'>
           {feedback.is_publicly_visible ? (
-            <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500">
-              <EyeIcon className="w-4 h-4" /> <p>Public</p>
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500">
+                    <EyeIcon className="w-4 h-4" /> <span>Public</span> <Info className="w-4 h-4" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  This feedback is visible to the public
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : (
-            <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center">
-              <EyeOffIcon className="w-4 h-4" /> <p>Hidden</p>
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center">
+                    <EyeOffIcon className="w-4 h-4" /> <span>Private</span> <Info className="w-4 h-4" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  This feedback is only visible to admins and the user who created it.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           <FeedbackActionsDropdown
             feedback={feedback}
@@ -51,13 +71,13 @@ async function AdminUserFeedbackdetail({ feedbackId }) {
         <T.Subtle className="mb-4">{feedback?.content}</T.Subtle>
         <div className="flex gap-4 items-center">
           <Badge variant="outline" className="px-3 py-2 capitalize w-fit">
-            Status: {feedback?.status}
+            Status: {feedbackStatusToLabel(feedback.status)}
           </Badge>
           <Badge variant="outline" className="px-3 py-2 capitalize w-fit">
-            Type: {feedback?.type}
+            Type: {feedbackTypeToLabel(feedback.type)}
           </Badge>
           <Badge variant="outline" className="px-3 py-2 capitalize w-fit">
-            Priority: {feedback?.priority}
+            Priority: {feedbackPriorityToLabel(feedback.priority)}
           </Badge>
         </div>
       </div>

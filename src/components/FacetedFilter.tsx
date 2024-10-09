@@ -26,6 +26,7 @@ export default function FacetedFilter<T extends string>({
   options,
   selectedValues,
   onSelectCb,
+
 }: {
   title: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,10 +34,11 @@ export default function FacetedFilter<T extends string>({
   selectedValues: Set<T>;
   onSelectCb: (values: T[]) => void;
 }) {
+  const lowerCaseTitle = title.toLowerCase();
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 border-dashed text-foreground">
+        <Button variant="outline" size="sm" className="h-8 border-dashed text-foreground" data-testid={`${lowerCaseTitle}-filter-button`} >
           <PlusCircledIcon className="mr-2 h-4 w-4" />
           {title}
           {selectedValues?.size > 0 && (
@@ -75,9 +77,9 @@ export default function FacetedFilter<T extends string>({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">
-        <Command>
+        <Command data-testid={`${lowerCaseTitle}-filter-command`}>
           <CommandInput placeholder={title} />
-          <CommandList>
+          <CommandList data-testid={`${lowerCaseTitle}-filter-command-list`}>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
@@ -123,6 +125,7 @@ export default function FacetedFilter<T extends string>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
+                    data-testid={`${lowerCaseTitle}-filter-command-clear-button`}
                     onSelect={() => {
                       onSelectCb([]);
                     }}
