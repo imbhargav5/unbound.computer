@@ -284,7 +284,7 @@ export const adminToggleFeedbackFromRoadmapAction = adminActionClient
 
     revalidatePath(`/[locale]/feedback`, 'page');
     revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
-
+    revalidatePath(`/[locale]/roadmap`, 'page');
     return updatedFeedbackData;
   });
 
