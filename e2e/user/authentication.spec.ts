@@ -22,7 +22,9 @@ test.describe.serial('Authentication', () => {
     await page.goto('/user/settings/security');
     const email = await page.locator('input[name="email"]').getAttribute('value');
     expect(email).toBeTruthy();
-
+    if (!email) {
+      throw new Error('Email not found');
+    }
     const newPassword = `password-${uniqueId()}`;
     await page.fill('input[name="password"]', newPassword);
     await page.click('button:has-text("Update Password")');
@@ -30,8 +32,8 @@ test.describe.serial('Authentication', () => {
 
     await page.goto('/logout');
     await page.goto('/login');
-    await page.fill('input[data-strategy="email-password"]', email!);
-    await page.fill('input[name="password"]', newPassword);
+    await page.getByLabel("email").fill(email);
+    await page.getByLabel("password").fill(newPassword);
     await page.click('button:text-is("Login")');
     await page.locator('text=Logged in!').waitFor();
   });

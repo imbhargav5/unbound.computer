@@ -1,12 +1,9 @@
 'use client';
 
 import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { Email } from '@/components/Auth/Email';
-import { EmailAndPassword } from '@/components/Auth/EmailAndPassword';
 import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmationPendingCard';
 import { RenderProviders } from '@/components/Auth/RenderProviders';
 import {
@@ -18,22 +15,108 @@ import {
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { signInWithMagicLinkAction, signInWithProviderAction, signUpAction } from '@/data/auth/auth';
+import { FormInput } from '@/components/form-components/FormInput';
+import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
+import { signInWithMagicLinkAction, signInWithProviderAction, signUpWithPasswordAction } from '@/data/auth/auth';
 import type { AuthProvider } from '@/types';
+import { signInWithMagicLinkSchema, signInWithMagicLinkSchemaType, signUpWithPasswordSchema, SignUpWithPasswordSchemaType } from '@/utils/zod-schemas/auth';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
+import Link from 'next/link';
+import { useForm } from 'react-hook-form';
 
 interface SignUpProps {
   next?: string;
   nextActionType?: string;
 }
 
-export function SignUp({ next, nextActionType }: SignUpProps) {
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+function EmailPasswordForm({ next, setSuccessMessage }: { next?: string, setSuccessMessage: (message: string) => void }) {
   const toastRef = useRef<string | number | undefined>(undefined);
-  const router = useRouter();
 
 
+  const signUpWithPasswordMutation = useAction(signUpWithPasswordAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Creating account...');
+    },
+    onSuccess: ({ data }) => {
+      toast.success('Account created!', { id: toastRef.current });
+      toastRef.current = undefined;
+      setSuccessMessage('A confirmation link has been sent to your email!');
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ? String(error.serverError) : 'Failed to create account';
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
+  const { hookFormValidationErrors } = useHookFormActionErrorMapper<
+    typeof signUpWithPasswordSchema
+  >(signUpWithPasswordMutation.result.validationErrors, { joinBy: "\n" });
 
-  const { execute: executeMagicLink, status: magicLinkStatus } = useAction(signInWithMagicLinkAction, {
+  const { execute: executeSignUp, status: signUpStatus } = signUpWithPasswordMutation;
+
+  const form = useForm<SignUpWithPasswordSchemaType>({
+    resolver: zodResolver(signUpWithPasswordSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      next
+    },
+    errors: hookFormValidationErrors,
+  });
+
+  const { handleSubmit, formState: { errors }, control } = form;
+
+  const onSubmit = (data: SignUpWithPasswordSchemaType) => {
+    executeSignUp({ ...data, next });
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <FormInput
+          id="email"
+          label="Email"
+          type="email"
+          control={control}
+          name="email"
+          inputProps={{
+            autoComplete: 'email',
+          }}
+        />
+        <FormInput
+          id="password"
+          label="Password"
+          type="password"
+          control={control}
+          name="password"
+          inputProps={{
+            autoComplete: 'new-password',
+          }}
+        />
+        <Button type="submit" disabled={signUpStatus === 'executing'}>
+          {signUpStatus === 'executing' ? 'Signing up...' : 'Sign up'}
+        </Button>
+        <div className="w-full text-center">
+          <div className="text-sm">
+            <Link
+              href="/login"
+              className="font-medium text-muted-foreground hover:text-foreground"
+            >
+              Already have an account? Log in
+            </Link>
+          </div>
+        </div>
+      </form>
+    </Form>
+  );
+}
+
+function EmailForm({ next, setSuccessMessage }: { next?: string, setSuccessMessage: (message: string) => void }) {
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const signInWithMagicLinkMutation = useAction(signInWithMagicLinkAction, {
     onExecute: () => {
       toastRef.current = toast.loading('Sending magic link...');
     },
@@ -43,27 +126,59 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
       setSuccessMessage('A magic link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to send magic link';
+      const errorMessage = error.serverError ? String(error.serverError) : 'Failed to send magic link';
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
   });
 
-  const { execute: executeSignUp, status: signUpStatus } = useAction(signUpAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Creating account...');
+  const { hookFormValidationErrors } = useHookFormActionErrorMapper<
+    typeof signInWithMagicLinkSchema
+  >(signInWithMagicLinkMutation.result.validationErrors, { joinBy: "\n" });
+
+  const { execute: executeMagicLink, status: magicLinkStatus } = signInWithMagicLinkMutation;
+
+  const form = useForm<signInWithMagicLinkSchemaType>({
+    resolver: zodResolver(signInWithMagicLinkSchema),
+    defaultValues: {
+      email: '',
+      shouldCreateUser: true,
+      next
     },
-    onSuccess: () => {
-      toast.success('Account created!', { id: toastRef.current });
-      toastRef.current = undefined;
-      setSuccessMessage('A confirmation link has been sent to your email!');
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to create account';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
+    errors: hookFormValidationErrors,
   });
+
+  const { handleSubmit, control } = form;
+
+  const onSubmit = (data: signInWithMagicLinkSchemaType) => {
+    executeMagicLink(data);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="magic-link-form">
+        <FormInput
+          id="sign-up-email"
+          label="Email address"
+          type="email"
+          control={control}
+          name="email"
+          inputProps={{
+            placeholder: 'placeholder@email.com',
+            disabled: magicLinkStatus === 'executing',
+            autoComplete: 'email',
+          }}
+        />
+        <Button className="w-full" type="submit" disabled={magicLinkStatus === 'executing'}>
+          {magicLinkStatus === 'executing' ? 'Sending...' : 'Sign up with Magic Link'}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+function ProviderForm({ next }: { next?: string }) {
+  const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute: executeProvider, status: providerStatus } = useAction(signInWithProviderAction, {
     onExecute: () => {
@@ -82,6 +197,16 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
       toastRef.current = undefined;
     },
   });
+  return <RenderProviders
+    providers={['google', 'github', 'twitter']}
+    isLoading={providerStatus === 'executing'}
+    onProviderLoginRequested={(provider: Extract<AuthProvider, 'google' | 'github' | 'twitter'>) => executeProvider({ provider, next })}
+  />
+}
+
+export function SignUp({ next, nextActionType }: SignUpProps) {
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
 
   return (
     <div
@@ -114,13 +239,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
-                  <EmailAndPassword
-                    isLoading={signUpStatus === 'executing'}
-                    onSubmit={(data) => {
-                      executeSignUp({ ...data, next });
-                    }}
-                    view="sign-up"
-                  />
+                  <EmailPasswordForm next={next} setSuccessMessage={setSuccessMessage} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -133,11 +252,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
-                  <Email
-                    onSubmit={(email) => executeMagicLink({ email, next, shouldCreateUser: true })}
-                    isLoading={magicLinkStatus === 'executing'}
-                    view="sign-up"
-                  />
+                  <EmailForm next={next} setSuccessMessage={setSuccessMessage} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -150,11 +265,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 p-0">
-                  <RenderProviders
-                    providers={['google', 'github', 'twitter']}
-                    isLoading={providerStatus === 'executing'}
-                    onProviderLoginRequested={(provider: Extract<AuthProvider, 'google' | 'github' | 'twitter'>) => executeProvider({ provider, next })}
-                  />
+                  <ProviderForm next={next} />
                 </CardContent>
               </Card>
             </TabsContent>

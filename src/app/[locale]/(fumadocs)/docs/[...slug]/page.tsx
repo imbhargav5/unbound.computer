@@ -21,7 +21,7 @@ import { notFound } from 'next/navigation';
 import { cn } from '@/utils/cn';
 import type { HTMLAttributes } from 'react';
 
-export function Wrapper(
+function Wrapper(
   props: HTMLAttributes<HTMLDivElement>,
 ): React.ReactElement {
   return (

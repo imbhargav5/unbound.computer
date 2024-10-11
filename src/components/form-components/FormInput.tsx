@@ -7,16 +7,18 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ComponentPropsWithoutRef } from 'react';
 import { Control, FieldValues, Path } from 'react-hook-form';
 
-interface FormInputProps<TFieldValues extends FieldValues> {
+type FormInputProps<TFieldValues extends FieldValues> = {
   id: string;
   label: string;
   control: Control<TFieldValues>;
   name: Path<TFieldValues>;
   description?: string;
-  inputDataTestId?: string;
-}
+  type?: string;
+  inputProps?: Omit<ComponentPropsWithoutRef<typeof Input>, 'id' | 'name' | 'type'>;
+};
 
 export function FormInput<TFieldValues extends FieldValues>({
   id,
@@ -24,7 +26,8 @@ export function FormInput<TFieldValues extends FieldValues>({
   control,
   name,
   description,
-  inputDataTestId,
+  type,
+  ...inputProps
 }: FormInputProps<TFieldValues>) {
   return (
     <FormField
@@ -34,7 +37,7 @@ export function FormInput<TFieldValues extends FieldValues>({
         <FormItem>
           <FormLabel htmlFor={id}>{label}</FormLabel>
           <FormControl>
-            <Input id={id} {...field} data-testid={inputDataTestId} />
+            <Input id={id} type={type} {...inputProps}  {...field} />
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />
