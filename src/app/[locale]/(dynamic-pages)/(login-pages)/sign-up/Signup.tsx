@@ -1,13 +1,16 @@
 'use client';
 
 import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmationPendingCard';
+import { Link } from '@/components/intl-link';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState } from 'react';
 import { MagicLinkSignupForm } from './MagicLinkSignupForm';
@@ -22,6 +25,7 @@ interface SignUpProps {
 export function SignUp({ next, nextActionType }: SignUpProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+
   return (
     <div
       data-success={successMessage}
@@ -35,55 +39,38 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
           resetSuccessMessage={setSuccessMessage}
         />
       ) : (
-        <div className="space-y-8 bg-background p-6 rounded-lg shadow dark:border">
-          <Tabs defaultValue="password" className="md:min-w-[400px]">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="password">Password</TabsTrigger>
-              <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
-              <TabsTrigger value="social-login">Social Login</TabsTrigger>
-            </TabsList>
+        <Card >
+          <CardHeader>
+            <CardTitle>Create your Nextbase Account</CardTitle>
+            <CardDescription>Choose your preferred signup method</CardDescription>
+          </CardHeader>
+          <CardContent >
+            <Tabs defaultValue="password" >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="password">Password</TabsTrigger>
+                <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="password">
-              <Card className="border-none shadow-none">
-                <CardHeader className="py-6 px-0">
-                  <CardTitle>Register to NextBase</CardTitle>
-                  <CardDescription>
-                    Create an account with your email and password
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 p-0">
-                  <PasswordSignupForm next={next} setSuccessMessage={setSuccessMessage} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="magic-link">
-              <Card className="border-none shadow-none">
-                <CardHeader className="py-6 px-0">
-                  <CardTitle>Register to NextBase</CardTitle>
-                  <CardDescription>
-                    Create an account with magic link we will send to your email
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 p-0">
-                  <MagicLinkSignupForm next={next} setSuccessMessage={setSuccessMessage} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="social-login">
-              <Card className="border-none shadow-none">
-                <CardHeader className="py-6 px-0">
-                  <CardTitle>Register to NextBase</CardTitle>
-                  <CardDescription>
-                    Register with your social account
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 p-0">
-                  <ProviderSignupForm next={next} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+              <TabsContent value="password">
+                <PasswordSignupForm next={next} setSuccessMessage={setSuccessMessage} />
+              </TabsContent>
+              <TabsContent value="magic-link">
+                <MagicLinkSignupForm next={next} setSuccessMessage={setSuccessMessage} />
+
+              </TabsContent>
+
+            </Tabs>
+            <Separator className="my-4" />
+            <ProviderSignupForm next={next} />
+          </CardContent>
+          <CardFooter>
+            <div className="w-full text-center">
+              <div className="text-sm">
+                <Link href="/login" className="font-medium text-muted-foreground hover:text-foreground">Already have an account? Login</Link>
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
       )}
     </div>
   );

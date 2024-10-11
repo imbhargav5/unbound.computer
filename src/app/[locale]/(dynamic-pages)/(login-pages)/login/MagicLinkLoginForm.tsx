@@ -7,7 +7,7 @@ import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { FormInput } from '@/components/form-components/FormInput';
+import { AuthFormInput } from '@/components/auth-form-components/AuthFormInput';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { signInWithMagicLinkAction } from '@/data/auth/auth';
@@ -61,14 +61,13 @@ export function MagicLinkLoginForm({ next, setEmailSentSuccessMessage }: MagicLi
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" data-testid="magic-link-form">
-        <FormInput
+        <AuthFormInput
           id="magic-link-email"
-          label="Email address"
           type="email"
           control={form.control}
           name="email"
+          placeholder='Email'
           inputProps={{
-            placeholder: 'placeholder@email.com',
             disabled: magicLinkStatus === 'executing',
             autoComplete: 'email',
           }}

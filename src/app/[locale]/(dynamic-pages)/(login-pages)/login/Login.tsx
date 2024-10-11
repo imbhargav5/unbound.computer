@@ -3,13 +3,16 @@
 import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmationPendingCard';
 import { RedirectingPleaseWaitCard } from '@/components/Auth/RedirectingPleaseWaitCard';
 import { RenderProviders } from '@/components/Auth/RenderProviders';
+import { Link } from '@/components/intl-link';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { signInWithProviderAction } from '@/data/auth/auth';
 import { useAction } from 'next-safe-action/hooks';
@@ -81,68 +84,51 @@ export function Login({
   }
 
   return (
-    <div className="container text-left max-w-lg mx-auto overflow-auto min-h-[470px]">
-      <div className="space-y-8 bg-background p-6 rounded-lg shadow dark:border">
-        <Tabs defaultValue="password" className="md:min-w-[400px]">
-          <TabsList className="grid w-full grid-cols-3">
+    <Card >
+      <CardHeader>
+        <CardTitle>Login to Your Account</CardTitle>
+        <CardDescription>Choose your preferred login method</CardDescription>
+      </CardHeader>
+      <CardContent >
+        <Tabs defaultValue="password">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="password">Password</TabsTrigger>
             <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
-            <TabsTrigger value="social-login">Social Login</TabsTrigger>
           </TabsList>
           <TabsContent value="password">
-            <Card className="border-none shadow-none">
-              <CardHeader className="py-6 px-0">
-                <CardTitle>Login to NextBase</CardTitle>
-                <CardDescription>
-                  Login with the account you used to signup.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 p-0">
-                <PasswordLoginForm
-                  next={next}
-                  redirectToDashboard={redirectToDashboard}
-                  setRedirectInProgress={setRedirectInProgress}
-                />
-              </CardContent>
-            </Card>
+            <PasswordLoginForm
+              next={next}
+              redirectToDashboard={redirectToDashboard}
+              setRedirectInProgress={setRedirectInProgress}
+            />
           </TabsContent>
 
           <TabsContent value="magic-link">
-            <Card className="border-none shadow-none">
-              <CardHeader className="py-6 px-0">
-                <CardTitle>Login to NextBase</CardTitle>
-                <CardDescription>
-                  Login with magic link we will send to your email.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 p-0">
-                <MagicLinkLoginForm
-                  next={next}
-                  setEmailSentSuccessMessage={setEmailSentSuccessMessage}
-                />
-              </CardContent>
-            </Card>
+            <MagicLinkLoginForm
+              next={next}
+              setEmailSentSuccessMessage={setEmailSentSuccessMessage}
+            />
           </TabsContent>
 
-          <TabsContent value="social-login">
-            <Card className="border-none shadow-none">
-              <CardHeader className="py-6 px-0">
-                <CardTitle>Login to NextBase</CardTitle>
-                <CardDescription>
-                  Login with your social account.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 p-0">
-                <RenderProviders
-                  providers={['google', 'github', 'twitter']}
-                  isLoading={providerStatus === 'executing'}
-                  onProviderLoginRequested={(provider) => executeProvider({ provider, next })}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+
+        </Tabs >
+        <Separator className="my-4" />
+        <RenderProviders
+          providers={['google', 'github', 'twitter']}
+          isLoading={providerStatus === 'executing'}
+          onProviderLoginRequested={(provider) => executeProvider({ provider, next })}
+        />
+
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+          Forgot password?
+        </Link>
+        <Link href="/sign-up" className="text-sm text-blue-600 hover:underline">
+          Sign up instead
+        </Link>
+      </CardFooter>
+
+    </Card>
   );
 }

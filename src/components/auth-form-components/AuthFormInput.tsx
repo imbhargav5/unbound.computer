@@ -3,41 +3,46 @@ import {
   FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ComponentPropsWithoutRef } from 'react';
 import { Control, FieldValues, Path } from 'react-hook-form';
 
-type FormInputProps<TFieldValues extends FieldValues> = {
+type AuthFormInputProps<TFieldValues extends FieldValues> = {
   id: string;
-  label: string;
   control: Control<TFieldValues>;
   name: Path<TFieldValues>;
   description?: string;
   type?: string;
-  inputProps?: Omit<ComponentPropsWithoutRef<typeof Input>, 'id' | 'name' | 'type'>;
+  placeholder?: string;
+  inputProps?: Omit<ComponentPropsWithoutRef<typeof Input>, 'id' | 'name' | 'type' | 'placeholder'>;
 };
 
-export function FormInput<TFieldValues extends FieldValues>({
+export function AuthFormInput<TFieldValues extends FieldValues>({
   id,
-  label,
   control,
   name,
   description,
   type,
+  placeholder,
   inputProps,
-}: FormInputProps<TFieldValues>) {
+  ...restProps
+}: AuthFormInputProps<TFieldValues>) {
   return (
     <FormField
       control={control}
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel htmlFor={id}>{label}</FormLabel>
           <FormControl>
-            <Input id={id} type={type} {...inputProps} {...field} />
+            <Input
+              id={id}
+              type={type}
+              placeholder={placeholder}
+              {...inputProps}
+              {...field}
+            />
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />

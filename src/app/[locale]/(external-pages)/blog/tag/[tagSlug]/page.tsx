@@ -4,7 +4,9 @@ import {
   anonGetPublishedBlogPostsByTagSlug,
   anonGetTagBySlug
 } from '@/data/anon/marketing-blog';
+import { routing } from '@/i18n/routing';
 import { Metadata } from 'next';
+import { unstable_setRequestLocale } from 'next-intl/server';
 import { Suspense } from 'react';
 import { z } from 'zod';
 import { PublicBlogList } from '../../PublicBlogList';
@@ -12,7 +14,15 @@ import { TagsNav } from '../../TagsNav';
 
 const BlogListByTagPageParamsSchema = z.object({
   tagSlug: z.string(),
+  locale: z.string(),
 });
+
+export async function generateStaticParams() {
+  const tags = await anonGetAllBlogTags();
+  return routing.locales.map((locale) =>
+    tags.map((tag) => ({ tagSlug: tag.slug, locale })),
+  );
+}
 
 export async function generateMetadata({
   params,
@@ -44,8 +54,8 @@ export default async function BlogListByTagPage({
 }: {
   params: unknown;
 }) {
-  const { tagSlug } = BlogListByTagPageParamsSchema.parse(params);
-
+  const { tagSlug, locale } = BlogListByTagPageParamsSchema.parse(params);
+  unstable_setRequestLocale(locale);
   const tag = await anonGetTagBySlug(tagSlug);
 
   return (

@@ -7,22 +7,28 @@ import { Link } from '@/components/intl-link';
 import { TiptapJSONContentToHTML } from "@/components/TiptapJSONContentToHTML";
 import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/ui/Typography";
+import { routing } from '@/i18n/routing';
 import type { Metadata } from "next";
+import { unstable_setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import AuthorCard from "../AuthorCard";
 
 const paramsSchema = z.object({
   slug: z.string(),
+  locale: z.string(),
 });
 
 // Return a list of `params` to populate the [slug] dynamic segment
 export async function generateStaticParams() {
   const posts = await anonGetPublishedBlogPosts();
 
-  return posts.map((post) => ({
-    slug: post.slug,
-  }));
+  return routing.locales.map((locale) =>
+    posts.map((post) => ({
+      slug: post.slug,
+      locale,
+    })),
+  );
 }
 
 export async function generateMetadata({
@@ -53,7 +59,8 @@ export async function generateMetadata({
 }
 export default async function BlogPostPage({ params }: { params: unknown }) {
   try {
-    const { slug } = paramsSchema.parse(params);
+    const { slug, locale } = paramsSchema.parse(params);
+    unstable_setRequestLocale(locale);
     const post = await anonGetPublishedBlogPostBySlug(slug);
     const tags = post?.marketing_blog_post_tags_relationship.map((tag) => tag.marketing_tags);
     const validTags = tags.filter((tag) => tag !== null);

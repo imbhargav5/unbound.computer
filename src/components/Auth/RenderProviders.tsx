@@ -19,7 +19,7 @@ export const RenderProviders = ({
   isLoading: boolean;
 }) => {
   return (
-    <div className="space-y-2.5 flex flex-col">
+    <div className="flex justify-between">
       {providers.map((provider) => {
         const AuthIcon = SocialIcons[provider];
 

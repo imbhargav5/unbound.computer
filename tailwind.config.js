@@ -4,7 +4,7 @@ import defaultTheme from 'tailwindcss/defaultTheme';
 /** @type {import('tailwindcss').Config} */
 export default {
   presets: [createPreset()],
-  darkMode: ['class'],
+  darkMode: ['selector', '[data-mode="dark"]'],
   content: [
     './node_modules/fumadocs-ui/dist/**/*.js',
     './src/app/**/*.tsx',

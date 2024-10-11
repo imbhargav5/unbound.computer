@@ -18,6 +18,7 @@ import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
 
+import { routing } from '@/i18n/routing';
 import { cn } from '@/utils/cn';
 import type { HTMLAttributes } from 'react';
 
@@ -90,9 +91,12 @@ export default async function Page({
 }
 
 export async function generateStaticParams() {
-  return getPages().map((page) => ({
-    slug: page.slugs,
-  }));
+  return routing.locales.map((locale) =>
+    getPages().map((page) => ({
+      slug: page.slugs,
+      locale,
+    })),
+  );
 }
 
 export function generateMetadata({ params }: { params: { slug?: string[] } }) {

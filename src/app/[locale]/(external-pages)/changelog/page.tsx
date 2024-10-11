@@ -1,10 +1,16 @@
 import { PageHeading } from '@/components/PageHeading';
 import { anonGetAllChangelogItems } from '@/data/anon/marketing-changelog';
+import { unstable_setRequestLocale } from 'next-intl/server';
 import { Suspense } from 'react';
 import { ChangelogPosts } from './AppAdminChangelog';
 import { ChangelogListSkeletonFallBack } from './_components/ChangelogSkeletonFallBack';
 
-export default async function Page() {
+export default async function Page({
+  params: { locale },
+}: {
+  params: { locale: string };
+}) {
+  unstable_setRequestLocale(locale);
   const changelogs = await anonGetAllChangelogItems();
 
   return (

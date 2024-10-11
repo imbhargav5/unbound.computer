@@ -3,6 +3,7 @@ import {
   anonGetAllBlogTags,
   anonGetPublishedBlogPosts,
 } from '@/data/anon/marketing-blog';
+import { unstable_setRequestLocale } from 'next-intl/server';
 import { Suspense } from 'react';
 import { PublicBlogList } from '../PublicBlogList';
 import { TagsNav } from '../TagsNav';
@@ -27,7 +28,12 @@ async function BlogList() {
 
 
 
-export default async function BlogListPage() {
+export default async function BlogListPage({
+  params: { locale },
+}: {
+  params: { locale: string };
+}) {
+  unstable_setRequestLocale(locale);
   return (
     <div className="space-y-8 w-full">
       <div className="flex items-center flex-col space-y-4">

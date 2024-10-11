@@ -1,10 +1,16 @@
 import { T } from '@/components/ui/Typography';
 import { anonGetAllAuthors } from '@/data/anon/marketing-blog';
+import { unstable_setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import AuthorCard from '../AuthorCard';
 
-export default async function BlogPostPage({ params }: { params: unknown }) {
+export default async function BlogPostPage({
+  params: { locale },
+}: {
+  params: { locale: string };
+}) {
+  unstable_setRequestLocale(locale);
   const authors = await anonGetAllAuthors();
   try {
     return (

@@ -8,7 +8,7 @@ import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { FormInput } from '@/components/form-components/FormInput';
+import { AuthFormInput } from '@/components/auth-form-components/AuthFormInput';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { signUpWithPasswordAction } from '@/data/auth/auth';
@@ -64,9 +64,9 @@ export function PasswordSignupForm({ next, setSuccessMessage }: PasswordSignupFo
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <FormInput
+        <AuthFormInput
           id="email"
-          label="Email"
+          placeholder="Email"
           type="email"
           control={control}
           name="email"
@@ -74,9 +74,9 @@ export function PasswordSignupForm({ next, setSuccessMessage }: PasswordSignupFo
             autoComplete: 'email',
           }}
         />
-        <FormInput
+        <AuthFormInput
           id="password"
-          label="Password"
+          placeholder="Password"
           type="password"
           control={control}
           name="password"
