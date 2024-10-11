@@ -25,11 +25,10 @@ export const signInWithProviderSchema = z.object({
 export type SignInWithProviderSchemaType = z.infer<typeof signInWithProviderSchema>;
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email('Invalid email address'),
 });
 
 export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>;
-
 
 export const signInWithPasswordSchema = z.object({
   email: z.string().email(),

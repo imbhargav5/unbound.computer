@@ -5,7 +5,6 @@ import { handleSupabaseAuthMagicLinkErrors, handleSupabaseAuthPasswordSignUpErro
 import { toSiteURL } from '@/utils/helpers';
 import { resetPasswordSchema, signInWithMagicLinkSchema, signInWithPasswordSchema, signInWithProviderSchema, signUpWithPasswordSchema } from '@/utils/zod-schemas/auth';
 import { returnValidationErrors } from "next-safe-action";
-import { z } from 'zod';
 
 /**
  * Signs up a new user with email and password.
@@ -57,11 +56,6 @@ export const signUpWithPasswordAction = actionClient
     return data;
   });
 
-const signInSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-});
-
 /**
  * Signs in a user with email and password.
  * @param {Object} params - The parameters for sign in.
@@ -80,7 +74,6 @@ export const signInWithPasswordAction = actionClient
     });
 
     if (error) {
-      console.log(error);
       const errorDetails = handleSupabaseAuthSignInErrors(error);
       if (errorDetails.field === 'email') {
         returnValidationErrors(signInWithPasswordSchema, {
@@ -186,14 +179,18 @@ export const resetPasswordAction = actionClient
       redirectTo: redirectToURL.toString(),
     });
 
+
     if (error) {
       const errorDetails = handleSupabaseAuthResetPasswordErrors(error);
-      returnValidationErrors(resetPasswordSchema, {
-        email: {
+      if (errorDetails.field === 'email') {
+        returnValidationErrors(resetPasswordSchema, {
+          email: { _errors: [errorDetails.message] },
+        });
+      } else {
+        returnValidationErrors(resetPasswordSchema, {
           _errors: [errorDetails.message],
-        },
-      });
-      throw new Error(errorDetails.message);
+        });
+      }
     }
 
     // No need to return anything if the operation is successful
