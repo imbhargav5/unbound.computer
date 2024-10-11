@@ -1,39 +1,40 @@
-CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb language plpgsql AS $$
-DECLARE -- Insert variables here
-  claims jsonb;
-nextbase_app_role public.app_role;
-BEGIN -- Insert logic here
--- Check if the user is marked as admin in the profiles table
-SELECT role INTO nextbase_app_role
+-- Create the auth hook function
+CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb language plpgsql immutable AS $$
+DECLARE claims jsonb;
+user_role public.app_role;
+BEGIN -- Check if the user is marked as admin in the profiles table
+SELECT role INTO user_role
 FROM public.user_roles
 WHERE user_id = (event->>'user_id')::uuid;
 
-claims := event->'claims';
--- Ensure app_metadata exists
-IF claims->'app_metadata' IS NULL THEN claims := jsonb_set(claims, '{app_metadata}', '{}');
-END IF;
--- Update the claims with the role
-claims := jsonb_set(
-  claims,
-  '{app_metadata,nextbase_app_role}',
-  to_jsonb(
-    COALESCE(nextbase_app_role::text, 'default_role')
-  )
-);
+    claims := event->'claims';
 
-  -- Update the event with the modified claims
+    IF user_role IS NOT NULL THEN -- Set the claim
+claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));
+ELSE claims := jsonb_set(claims, '{user_role}', 'null');
+END IF;
+
+    -- Update the 'claims' object in the original event
 event := jsonb_set(event, '{claims}', claims);
 
-  -- Log the updated event
-RAISE NOTICE 'Updated event: %',
-event;
-
-  RETURN event;
+    -- Return the modified or original event
+RETURN event;
 END;
 $$;
--- Permissions for the hook
+
+GRANT USAGE ON schema public TO supabase_auth_admin;
+
 GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
+
 REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook
 FROM authenticated,
-  anon,
-  public;
+  anon;
+
+GRANT ALL ON TABLE public.user_roles TO supabase_auth_admin;
+
+REVOKE ALL ON TABLE public.user_roles
+FROM authenticated,
+  anon;
+
+CREATE policy "Allow auth admin to read user roles" ON public.user_roles AS permissive FOR
+SELECT TO supabase_auth_admin USING (TRUE)
