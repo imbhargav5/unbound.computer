@@ -37,7 +37,7 @@ export function FormInput<TFieldValues extends FieldValues>({
         <FormItem>
           <FormLabel htmlFor={id}>{label}</FormLabel>
           <FormControl>
-            <Input id={id} type={type} {...inputProps}  {...field} />
+            <Input  {...inputProps} {...field} id={id} type={type} />
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />

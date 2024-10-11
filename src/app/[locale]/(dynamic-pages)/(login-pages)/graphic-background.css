@@ -1,0 +1,10 @@
+.graphic-background {
+  background-color: #ffffff;
+  opacity: 1;
+  background-image: radial-gradient(#000000 1.05px, transparent 1.05px),
+    radial-gradient(#000000 1.05px, #ffffff 1.05px);
+  background-size: 42px 42px;
+  background-position:
+    0 0,
+    21px 21px;
+}
