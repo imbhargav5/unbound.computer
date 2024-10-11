@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
-import { expect, request } from '@playwright/test';
+import type { Page } from "@playwright/test";
+import { expect, request } from "@playwright/test";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
@@ -9,13 +9,16 @@ const INBUCKET_URL = `http://localhost:54324`;
  * ----------\nMagic Link\n----------\n\nFollow this link to login:\n\nLog In ( http://127.0.0.1:54321/auth/v1/verify?token=pkce_8727a6aad33b430c0a5d01d92e5b2fca0481beda04dfa028a59a50b0&type=magiclink&redirect_to=http://localhost:3000/auth/callback )\n\nAlternatively, enter the code: 122956
  */
 
-const matchers = [{
-  tokenMatcher: /enter the code: ([0-9]+)/,
-  urlMatcher: /Confirm your email address \( (.+) \)/,
-}, {
-  tokenMatcher: /enter the code: ([0-9]+)/,
-  urlMatcher: /Log In \( (.+) \)/,
-}]
+const matchers = [
+  {
+    tokenMatcher: /enter the code: ([0-9]+)/,
+    urlMatcher: /Confirm your email address \( (.+) \)/,
+  },
+  {
+    tokenMatcher: /enter the code: ([0-9]+)/,
+    urlMatcher: /Log In \( (.+) \)/,
+  },
+];
 
 function getTokenAndUrlFromEmailText(text: string) {
   // the first matcher that matches the text is used
@@ -26,7 +29,7 @@ function getTokenAndUrlFromEmailText(text: string) {
       return { token, url };
     }
   }
-  throw new Error('No token and url found in email text');
+  throw new Error("No token and url found in email text");
 }
 
 // eg endpoint: https://api.testmail.app/api/json?apikey=${APIKEY}&namespace=${NAMESPACE}&pretty=true
@@ -63,11 +66,11 @@ async function getConfirmEmail(username: string): Promise<{
     // We've got the latest email. We're going to use regular
     // expressions to match the bits we need.
     const { token, url } = getTokenAndUrlFromEmailText(message.body.text);
-    console.log("url", url)
+    console.log("url", url);
     return { token, url };
   }
 
-  throw new Error('No email received');
+  throw new Error("No email received");
 }
 
 export async function signupUserHelper({
@@ -80,23 +83,23 @@ export async function signupUserHelper({
   identifier: string;
 }) {
   // Perform authentication steps. Replace these actions with your own.
-  await page.goto('/sign-up');
+  await page.goto("/sign-up");
 
   const magicLoginButton = await page.waitForSelector(
     'button:has-text("Magic Link")',
   );
 
   if (!magicLoginButton) {
-    throw new Error('magicLoginButton not found');
+    throw new Error("magicLoginButton not found");
   }
 
   await magicLoginButton.click();
 
-  await page.getByTestId('magic-link-form').locator('input').fill(emailAddress);
+  await page.getByTestId("magic-link-form").locator("input").fill(emailAddress);
   // await page.getByLabel('Password').fill('password');
-  await page.getByRole('button', { name: 'Sign up with Magic Link' }).click();
+  await page.getByRole("button", { name: "Sign up with Magic Link" }).click();
   // check for this text - A magic link has been sent to your email!
-  await page.waitForSelector('text=A magic link has been sent to your email!');
+  await page.getByText("A magic link has been sent to your email!");
   let url;
   await expect
     .poll(
@@ -110,11 +113,11 @@ export async function signupUserHelper({
         }
       },
       {
-        message: 'make sure the email is received',
+        message: "make sure the email is received",
         intervals: [1000, 2000, 5000, 10000, 20000],
       },
     )
-    .toBe('string');
+    .toBe("string");
 
   await page.goto(url);
   await page.waitForURL(/\/[a-z]{2}\/onboarding/);

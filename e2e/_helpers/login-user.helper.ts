@@ -1,4 +1,4 @@
-import { type Page, expect, request } from '@playwright/test';
+import { type Page, expect, request } from "@playwright/test";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
@@ -36,13 +36,13 @@ async function getConfirmEmail(username: string): Promise<{
     const urlMatch = message.body.text.match(/Log In \( (.+) \)/);
 
     if (!tokenMatch || !urlMatch) {
-      throw new Error('Email format unexpected');
+      throw new Error("Email format unexpected");
     }
 
     return { token: tokenMatch[1], url: urlMatch[1] };
   }
 
-  throw new Error('No email received');
+  throw new Error("No email received");
 }
 
 export async function loginUserHelper({
@@ -57,17 +57,17 @@ export async function loginUserHelper({
   const magicLinkButton = page.locator('button:has-text("Magic Link")');
 
   if (!magicLinkButton) {
-    throw new Error('Magic Link button not found');
+    throw new Error("Magic Link button not found");
   }
 
   await magicLinkButton.click();
 
-  await page.getByTestId('magic-link-form').locator('input').fill(emailAddress);
+  await page.getByTestId("magic-link-form").locator("input").fill(emailAddress);
   // await page.getByLabel('Password').fill('password');
-  await page.getByRole('button', { name: 'Login with Magic Link' }).click();
+  await page.getByRole("button", { name: "Send Magic Link" }).click();
   // check for this text - A magic link has been sent to your email!
-  await page.waitForSelector('text=A magic link has been sent to your email!');
-  const identifier = emailAddress.split('@')[0];
+  await page.getByText("Confirmation Link sent");
+  const identifier = emailAddress.split("@")[0];
   let url;
   await expect
     .poll(
@@ -81,12 +81,11 @@ export async function loginUserHelper({
         }
       },
       {
-        message: 'make sure the email is received',
+        message: "make sure the email is received",
         intervals: [1000, 2000, 5000, 10000, 20000],
       },
     )
-    .toBe('string');
+    .toBe("string");
 
   await page.goto(url);
-
 }
