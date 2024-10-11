@@ -83,7 +83,7 @@ export function PasswordLoginForm({ redirectToDashboard, setRedirectInProgress, 
             autoComplete: 'current-password',
           }}
         />
-        <Button type="submit" disabled={passwordStatus === 'executing'}>
+        <Button className="w-full" type="submit" disabled={passwordStatus === 'executing'}>
           {passwordStatus === 'executing' ? 'Logging in...' : 'Log in'}
         </Button>
         <div className="w-full text-center">

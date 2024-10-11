@@ -1,10 +1,10 @@
 
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { type ReactNode } from 'react';
 import FormBackground from './form-background.svg';
 import './graphic-background.css';
+import { StackedCards } from './StackedCards';
 
 
 
@@ -21,7 +21,16 @@ export function ClientLayout({ children }: { children: ReactNode }) {
       <div className="w-1/2 border-l-2 border-black relative flex items-center relative justify-center h-full">
         <div className="absolute inset-0 -z-10 h-full graphic-background">
         </div>
-        <Card className="max-w-xl ">
+        <div className="w-full px-16">
+          <StackedCards
+            images={[
+              '/assets/marketing/landing-1.jpg',
+              '/assets/marketing/dashboard-2.jpg',
+              '/assets/marketing/docs-3.jpg',
+            ]}
+          />
+        </div>
+        {/* <Card className="max-w-xl ">
           <CardHeader>
             <CardTitle className="text-3xl font-bold text-center">Join Our Community</CardTitle>
           </CardHeader>
@@ -31,7 +40,7 @@ export function ClientLayout({ children }: { children: ReactNode }) {
             </p>
             <p className="font-semibold">- Jane Doe, CEO of TechCorp</p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );
