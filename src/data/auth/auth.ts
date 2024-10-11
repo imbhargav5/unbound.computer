@@ -1,7 +1,7 @@
 'use server';
 import { actionClient } from '@/lib/safe-action';
 import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import { handleSupabaseAuthMagicLinkErrors, handleSupabaseAuthResetPasswordErrors, handleSupabaseAuthSignInErrors, handleSupabaseAuthSignUpErrors } from '@/utils/errorMessage';
+import { handleSupabaseAuthMagicLinkErrors, handleSupabaseAuthPasswordSignUpErrors, handleSupabaseAuthResetPasswordErrors, handleSupabaseAuthSignInErrors } from '@/utils/errorMessage';
 import { toSiteURL } from '@/utils/helpers';
 import { resetPasswordSchema, signInWithMagicLinkSchema, signInWithPasswordSchema, signInWithProviderSchema, signUpWithPasswordSchema } from '@/utils/zod-schemas/auth';
 import { returnValidationErrors } from "next-safe-action";
@@ -34,7 +34,7 @@ export const signUpWithPasswordAction = actionClient
 
 
     if (error) {
-      const errorDetails = handleSupabaseAuthSignUpErrors(error);
+      const errorDetails = handleSupabaseAuthPasswordSignUpErrors(error);
       if (errorDetails.field === 'email') {
         returnValidationErrors(signUpWithPasswordSchema, {
           email: {
@@ -47,8 +47,11 @@ export const signUpWithPasswordAction = actionClient
             _errors: [errorDetails.message],
           },
         });
+      } else {
+        returnValidationErrors(signUpWithPasswordSchema, {
+          _errors: [errorDetails.message],
+        });
       }
-      throw new Error(errorDetails.message);
     }
 
     return data;
@@ -71,12 +74,13 @@ export const signInWithPasswordAction = actionClient
   .action(async ({ parsedInput: { email, password } }) => {
     const supabase = createSupabaseUserServerActionClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      console.log(error);
       const errorDetails = handleSupabaseAuthSignInErrors(error);
       if (errorDetails.field === 'email') {
         returnValidationErrors(signInWithPasswordSchema, {
@@ -90,13 +94,15 @@ export const signInWithPasswordAction = actionClient
             _errors: [errorDetails.message],
           },
         });
+      } else {
+        returnValidationErrors(signInWithPasswordSchema, {
+          _errors: [errorDetails.message],
+        });
       }
-      throw new Error(errorDetails.message);
     }
 
-    // No need to return anything if the operation is successful
+    return data;
   });
-
 
 /**
  * Sends a magic link to the user's email for passwordless sign in.
@@ -109,7 +115,6 @@ export const signInWithMagicLinkAction = actionClient
   .schema(signInWithMagicLinkSchema)
   .action(async ({ parsedInput: { email, next, shouldCreateUser } }) => {
     const supabase = createSupabaseUserServerActionClient();
-    console.log(email, next, shouldCreateUser);
     const redirectUrl = new URL(toSiteURL('/auth/callback'));
     if (next) {
       redirectUrl.searchParams.set('next', next);
@@ -133,8 +138,6 @@ export const signInWithMagicLinkAction = actionClient
 
     // No need to return anything if the operation is successful
   });
-
-
 
 /**
  * Initiates OAuth sign in with a specified provider.
@@ -165,7 +168,6 @@ export const signInWithProviderAction = actionClient
 
     return { url: data.url };
   });
-
 
 /**
  * Initiates the password reset process for a user.

@@ -33,7 +33,7 @@ export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>;
 
 export const signInWithPasswordSchema = z.object({
   email: z.string().email(),
-  password: z.string(),
+  password: z.string().min(8),
   next: z.string().nullish().optional(),
 });
 

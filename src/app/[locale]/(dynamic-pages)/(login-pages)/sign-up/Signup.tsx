@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { signInWithMagicLinkAction, signInWithProviderAction, signUpWithPasswordAction } from '@/data/auth/auth';
 import type { AuthProvider } from '@/types';
+import { getSafeActionErrorMessage } from '@/utils/errorMessage';
 import { signInWithMagicLinkSchema, signInWithMagicLinkSchemaType, signUpWithPasswordSchema, SignUpWithPasswordSchemaType } from '@/utils/zod-schemas/auth';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
@@ -45,7 +46,7 @@ function EmailPasswordForm({ next, setSuccessMessage }: { next?: string, setSucc
       setSuccessMessage('A confirmation link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ? String(error.serverError) : 'Failed to create account';
+      const errorMessage = getSafeActionErrorMessage(error, 'Failed to create account');
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -126,7 +127,7 @@ function EmailForm({ next, setSuccessMessage }: { next?: string, setSuccessMessa
       setSuccessMessage('A magic link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ? String(error.serverError) : 'Failed to send magic link';
+      const errorMessage = getSafeActionErrorMessage(error, 'Failed to send magic link');
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -192,7 +193,7 @@ function ProviderForm({ next }: { next?: string }) {
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to login';
+      const errorMessage = getSafeActionErrorMessage(error, 'Failed to login');
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },

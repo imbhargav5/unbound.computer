@@ -9,6 +9,7 @@ import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmatio
 import { T } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/card';
 import { resetPasswordAction } from '@/data/auth/auth';
+import { getSafeActionErrorMessage } from '@/utils/errorMessage';
 
 type ResetPasswordActionResult = Awaited<ReturnType<typeof resetPasswordAction>>;
 
@@ -28,7 +29,7 @@ export function ForgotPassword(): JSX.Element {
       setSuccessMessage('A password reset link has been sent to your email!');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to send password reset link';
+      const errorMessage = getSafeActionErrorMessage(error, 'Failed to send password reset link');
       toast.error(errorMessage, {
         id: toastRef.current,
       });

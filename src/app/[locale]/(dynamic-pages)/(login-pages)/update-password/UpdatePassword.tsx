@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { updatePasswordAction } from '@/data/user/security';
+import { getSafeActionErrorMessage } from '@/utils/errorMessage';
 
 export function UpdatePassword() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export function UpdatePassword() {
       router.push('/auth/callback');
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update password';
+      const errorMessage = getSafeActionErrorMessage(error, 'Failed to update password');
       toast.error(errorMessage, {
         id: toastRef.current,
       });
