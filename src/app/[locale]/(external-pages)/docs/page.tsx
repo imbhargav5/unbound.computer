@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import { Link } from "@/components/intl-link";
-import { motion } from "framer-motion";
-import { unstable_setRequestLocale } from "next-intl/server";
+import { Link } from '@/components/intl-link';
+import { motion } from 'framer-motion';
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -10,12 +9,7 @@ const fadeIn = {
   transition: { duration: 0.5 },
 };
 
-export default function DocsPage({
-  params: { locale },
-}: {
-  params: { locale: string };
-}) {
-  unstable_setRequestLocale(locale);
+export default function DocsPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <motion.h1 className="text-4xl font-bold mb-6" {...fadeIn}>
