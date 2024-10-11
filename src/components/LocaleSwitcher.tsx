@@ -11,7 +11,6 @@ export default function LocaleSwitcher() {
     label: localeLabels(cur),
   }));
   const defaultLocale = isValidLocale(locale) ? locale : DEFAULT_LOCALE;
-  console.log({ defaultLocale });
 
   return (
     <LocaleSwitcherSelect

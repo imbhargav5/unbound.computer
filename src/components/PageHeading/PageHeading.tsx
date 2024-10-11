@@ -23,6 +23,7 @@ export function PageHeading({
 }: PageHeadingProps) {
   const titleElement = (
     <T.H2
+      data-testid="page-heading-title"
       className={cn(
         "",
         titleClassName,

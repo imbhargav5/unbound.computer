@@ -41,7 +41,9 @@ test("Anon users can see roadmap page", async ({ page }) => {
 test("Anon users can see changelog page", async ({ page }) => {
   // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
   await page.goto("/en/changelog");
-  await expect(page.getByText("Changelog")).toBeVisible();
+  await expect(page.getByTestId("page-heading-title")).toContainText(
+    "Changelog",
+  );
 });
 
 test("Anon users can see terms page", async ({ page }) => {
