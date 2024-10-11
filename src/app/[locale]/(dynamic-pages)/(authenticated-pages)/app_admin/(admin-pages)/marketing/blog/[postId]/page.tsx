@@ -1,11 +1,15 @@
 // @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/[postId]/page.tsx
-import { getAllAuthorProfiles } from '@/data/admin/marketing-authors';
-import { getBlogPostById } from '@/data/admin/marketing-blog';
-import { getAllTags } from '@/data/admin/marketing-tags';
-import { notFound } from 'next/navigation';
-import { EditBlogPostLayout } from './EditBlogPostLayout';
+import { getAllAuthorProfiles } from "@/data/admin/marketing-authors";
+import { getBlogPostById } from "@/data/admin/marketing-blog";
+import { getAllTags } from "@/data/admin/marketing-tags";
+import { notFound } from "next/navigation";
+import { EditBlogPostLayout } from "./EditBlogPostLayout";
 
-export default async function EditBlogPostPage({ params }: { params: { postId: string } }) {
+export default async function EditBlogPostPage({
+  params,
+}: {
+  params: { postId: string };
+}) {
   const post = await getBlogPostById(params.postId);
 
   if (!post) {

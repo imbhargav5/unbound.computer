@@ -1,1 +1,1 @@
-export * from './ApplicationLayoutShell';
+export * from "./ApplicationLayoutShell";

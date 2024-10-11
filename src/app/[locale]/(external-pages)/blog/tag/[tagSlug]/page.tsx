@@ -1,16 +1,16 @@
-import { T } from '@/components/ui/Typography';
+import { T } from "@/components/ui/Typography";
 import {
   anonGetAllBlogTags,
   anonGetPublishedBlogPostsByTagSlug,
-  anonGetTagBySlug
-} from '@/data/anon/marketing-blog';
-import { routing } from '@/i18n/routing';
-import { Metadata } from 'next';
-import { unstable_setRequestLocale } from 'next-intl/server';
-import { Suspense } from 'react';
-import { z } from 'zod';
-import { PublicBlogList } from '../../PublicBlogList';
-import { TagsNav } from '../../TagsNav';
+  anonGetTagBySlug,
+} from "@/data/anon/marketing-blog";
+import { routing } from "@/i18n/routing";
+import { Metadata } from "next";
+import { unstable_setRequestLocale } from "next-intl/server";
+import { Suspense } from "react";
+import { z } from "zod";
+import { PublicBlogList } from "../../PublicBlogList";
+import { TagsNav } from "../../TagsNav";
 
 const BlogListByTagPageParamsSchema = z.object({
   tagSlug: z.string(),

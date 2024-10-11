@@ -31,29 +31,26 @@ export const DeleteWorkspace = ({
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
-  const { execute, isPending } = useAction(
-    deleteWorkspaceAction,
-    {
-      onExecute: () => {
-        toastRef.current = toast.loading('Deleting workspace...');
-      },
-      onSuccess: () => {
-        toast.success('Workspace deleted', {
-          id: toastRef.current,
-        });
-        toastRef.current = undefined;
-        setOpen(false);
-        router.push('/dashboard');
-      },
-      onError: ({ error }) => {
-        const errorMessage = error.serverError ?? 'Failed to delete workspace';
-        toast.error(errorMessage, {
-          id: toastRef.current,
-        });
-        toastRef.current = undefined;
-      },
+  const { execute, isPending } = useAction(deleteWorkspaceAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading('Deleting workspace...');
     },
-  );
+    onSuccess: () => {
+      toast.success('Workspace deleted', {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+      setOpen(false);
+      router.push('/dashboard');
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? 'Failed to delete workspace';
+      toast.error(errorMessage, {
+        id: toastRef.current,
+      });
+      toastRef.current = undefined;
+    },
+  });
 
   type inputs = {
     workspaceName: string;
@@ -100,7 +97,8 @@ export const DeleteWorkspace = ({
           <DialogHeader>
             <DialogTitle>Delete Organization</DialogTitle>
             <DialogDescription>
-              Type <strong> "delete {workspaceName}" </strong>to confirm.
+              Type <strong> &quot;delete {workspaceName}&quot; </strong>to
+              confirm.
             </DialogDescription>
           </DialogHeader>
           <form

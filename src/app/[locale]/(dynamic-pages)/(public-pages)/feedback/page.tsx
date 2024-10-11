@@ -1,14 +1,14 @@
-import { PageHeading } from '@/components/PageHeading';
-import { GiveFeedbackAnonUser } from '@/components/give-feedback-anon-use';
-import { Button } from '@/components/ui/button';
-import { serverGetUserType } from '@/utils/server/serverGetUserType';
-import { userRoles } from '@/utils/userTypes';
-import { Fragment, Suspense } from 'react';
-import { AdminFeedbackList } from './[feedbackId]/AdminFeedbackList';
-import { AnonFeedbackList } from './[feedbackId]/AnonFeedbackList';
-import { GiveFeedbackDialog } from './[feedbackId]/GiveFeedbackDialog';
-import { LoggedInUserFeedbackList } from './[feedbackId]/LoggedInUserFeedbackList';
-import { filtersSchema } from './[feedbackId]/schema';
+import { PageHeading } from "@/components/PageHeading";
+import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
+import { Button } from "@/components/ui/button";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import { userRoles } from "@/utils/userTypes";
+import { Fragment, Suspense } from "react";
+import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
+import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
+import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
+import { LoggedInUserFeedbackList } from "./[feedbackId]/LoggedInUserFeedbackList";
+import { filtersSchema } from "./[feedbackId]/schema";
 
 async function FeedbackPage({
   params,
@@ -30,38 +30,30 @@ async function FeedbackPage({
         />
 
         {userRoleType === userRoles.ANON ? (
-          <GiveFeedbackAnonUser className='w-fit'>
+          <GiveFeedbackAnonUser className="w-fit">
             <Button variant="secondary">Create Feedback</Button>
           </GiveFeedbackAnonUser>
         ) : (
-          <GiveFeedbackDialog className='w-fit'>
+          <GiveFeedbackDialog className="w-fit">
             <Button variant="default">Create Feedback</Button>
           </GiveFeedbackDialog>
         )}
       </div>
 
       <div className="w-full h-full max-h-[88vh]">
-
         <Suspense key={suspenseKey} fallback={<div>Loading...</div>}>
           {userRoleType === userRoles.ANON && (
             <>
-              <AnonFeedbackList
-                filters={validatedSearchParams}
-              />
+              <AnonFeedbackList filters={validatedSearchParams} />
             </>
           )}
 
-
           {userRoleType === userRoles.USER && (
-            <LoggedInUserFeedbackList
-              filters={validatedSearchParams}
-            />
+            <LoggedInUserFeedbackList filters={validatedSearchParams} />
           )}
 
           {userRoleType === userRoles.ADMIN && (
-            <AdminFeedbackList
-              filters={validatedSearchParams}
-            />
+            <AdminFeedbackList filters={validatedSearchParams} />
           )}
         </Suspense>
       </div>

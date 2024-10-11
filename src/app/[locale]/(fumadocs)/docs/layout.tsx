@@ -1,26 +1,27 @@
-import { pageTree } from '@/app/[locale]/source';
-import { RootToggle } from 'fumadocs-ui/components/layout/root-toggle';
-import { DocsLayout } from 'fumadocs-ui/layout';
-import { Home } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { pageTree } from "@/app/[locale]/source";
+import { RootToggle } from "fumadocs-ui/components/layout/root-toggle";
+import { DocsLayout } from "fumadocs-ui/layout";
+import { Home } from "lucide-react";
+import type { ReactNode } from "react";
 
 export default function RootDocsLayout({ children }: { children: ReactNode }) {
   return (
-    <DocsLayout tree={pageTree}
+    <DocsLayout
+      tree={pageTree}
       sidebar={{
         banner: (
           <RootToggle
             options={[
               {
-                title: 'Page Tree 1',
-                description: 'Pages in page tree 1',
-                url: '/docs/page-tree-1',
+                title: "Page Tree 1",
+                description: "Pages in page tree 1",
+                url: "/docs/page-tree-1",
                 icon: <Home />,
               },
               {
-                title: 'Page Tree 2',
-                description: 'Pages in page tree 2',
-                url: '/docs/page-tree-2',
+                title: "Page Tree 2",
+                description: "Pages in page tree 2",
+                url: "/docs/page-tree-2",
                 icon: <Home />,
               },
             ]}
@@ -29,19 +30,20 @@ export default function RootDocsLayout({ children }: { children: ReactNode }) {
       }}
       links={[
         {
-          text: 'Home',
-          url: '/',
+          text: "Home",
+          url: "/",
         },
         {
-          text: 'Blog',
-          url: '/blog',
-          active: 'none',
+          text: "Blog",
+          url: "/blog",
+          active: "none",
         },
       ]}
       nav={{
-        title: 'Nextbase Docs',
-        url: '/docs',
-      }}>
+        title: "Nextbase Docs",
+        url: "/docs",
+      }}
+    >
       {children}
     </DocsLayout>
   );

@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
-import { toast } from 'sonner';
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef } from "react";
+import { toast } from "sonner";
 
-import { Password } from '@/components/Auth/Password';
+import { Password } from "@/components/Auth/Password";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { updatePasswordAction } from '@/data/user/security';
-import { getSafeActionErrorMessage } from '@/utils/errorMessage';
+} from "@/components/ui/card";
+import { updatePasswordAction } from "@/data/user/security";
+import { getSafeActionErrorMessage } from "@/utils/errorMessage";
 
 export function UpdatePassword() {
   const router = useRouter();
@@ -22,17 +22,20 @@ export function UpdatePassword() {
 
   const { execute, status } = useAction(updatePasswordAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Updating password...');
+      toastRef.current = toast.loading("Updating password...");
     },
     onSuccess: () => {
-      toast.success('Password updated!', {
+      toast.success("Password updated!", {
         id: toastRef.current,
       });
       toastRef.current = undefined;
-      router.push('/auth/callback');
+      router.push("/auth/callback");
     },
     onError: ({ error }) => {
-      const errorMessage = getSafeActionErrorMessage(error, 'Failed to update password');
+      const errorMessage = getSafeActionErrorMessage(
+        error,
+        "Failed to update password",
+      );
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -52,7 +55,7 @@ export function UpdatePassword() {
           </CardHeader>
           <CardContent>
             <Password
-              isLoading={status === 'executing'}
+              isLoading={status === "executing"}
               onSubmit={(password: string) => execute({ password })}
               label="Create your new Password"
               buttonLabel="Confirm Password"

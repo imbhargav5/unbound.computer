@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { SwitcherAndToggle } from '@/components/SidebarComponents/SwitcherAndToggle';
-import { SidebarLink } from '@/components/SidebarLink';
-import { cn } from '@/utils/cn';
-import { motion } from 'framer-motion';
-import { Code, FileQuestion, Home, Mail, Settings, Shield } from 'lucide-react';
+import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
+import { SidebarLink } from "@/components/SidebarLink";
+import { cn } from "@/utils/cn";
+import { motion } from "framer-motion";
+import { Code, FileQuestion, Home, Mail, Settings, Shield } from "lucide-react";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -23,28 +23,52 @@ const itemVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: 'spring',
+      type: "spring",
       stiffness: 300,
       damping: 24,
-    }
+    },
   },
 };
 
 const sidebarLinks = [
-  { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
-  { label: "Account Settings", href: "/user/settings", icon: <Settings className="h-5 w-5" /> },
-  { label: "Security Settings", href: "/user/settings/security", icon: <Shield className="h-5 w-5" /> },
-  { label: "Developer Settings", href: "/user/settings/developer", icon: <Code className="h-5 w-5" /> },
-  { label: "Invitations", href: "/user/invitations", icon: <Mail className="h-5 w-5" /> },
-  { label: "My Feedback", href: "/feedback", icon: <FileQuestion className="h-5 w-5" /> },
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: <Home className="h-5 w-5" />,
+  },
+  {
+    label: "Account Settings",
+    href: "/user/settings",
+    icon: <Settings className="h-5 w-5" />,
+  },
+  {
+    label: "Security Settings",
+    href: "/user/settings/security",
+    icon: <Shield className="h-5 w-5" />,
+  },
+  {
+    label: "Developer Settings",
+    href: "/user/settings/developer",
+    icon: <Code className="h-5 w-5" />,
+  },
+  {
+    label: "Invitations",
+    href: "/user/invitations",
+    icon: <Mail className="h-5 w-5" />,
+  },
+  {
+    label: "My Feedback",
+    href: "/feedback",
+    icon: <FileQuestion className="h-5 w-5" />,
+  },
 ];
 
 export function UserSidebar() {
   return (
     <motion.div
       className={cn(
-        'flex flex-col justify-between h-full',
-        'lg:px-3 lg:py-4 lg:pt-2.5',
+        "flex flex-col justify-between h-full",
+        "lg:px-3 lg:py-4 lg:pt-2.5",
       )}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}

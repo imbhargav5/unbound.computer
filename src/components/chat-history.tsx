@@ -1,5 +1,4 @@
-
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 
 import { buttonVariants } from "@/components/ui/button";
 
@@ -8,7 +7,7 @@ import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { PlusIcon } from "@radix-ui/react-icons";
 
 import { getChats, getChatsHistory } from "@/data/user/chats";
-import { getCachedProjectBySlug } from '@/rsc-data/user/projects';
+import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
 import type { Message } from "ai";
 import { formatRelative, subDays } from "date-fns";
 import { HomeIcon } from "lucide-react";
@@ -21,8 +20,8 @@ async function ChatList({ userId }: { userId: string }) {
         const { payload } = chat;
         const messages =
           typeof payload === "object" &&
-            payload !== null &&
-            "messages" in payload
+          payload !== null &&
+          "messages" in payload
             ? payload.messages
             : [];
         const assertedMessages = messages as unknown as Message[];
@@ -50,9 +49,9 @@ async function ChatList({ userId }: { userId: string }) {
 
 export async function ChatHistory({ projectId }: { projectId: string }) {
   const user = await serverGetLoggedInUser();
-  const project = await getCachedProjectBySlug(projectId)
+  const project = await getCachedProjectBySlug(projectId);
   const userId = user.id;
-  const chatsHistory = await getChatsHistory(projectId, userId)
+  const chatsHistory = await getChatsHistory(projectId, userId);
   return (
     <div className="flex flex-col h-full">
       <div className="px-2 my-4">
@@ -87,11 +86,11 @@ export async function ChatHistory({ projectId }: { projectId: string }) {
             href={`/project/${project.slug}/chats/${chat.id}`}
             className="p-2 w-1/3 bg-background rounded-lg hover:bg-backgrou/60"
           >
-            Chat {chat.id} - {formatRelative(subDays(new Date(), 3), new Date(chat.created_at))}
+            Chat {chat.id} -{" "}
+            {formatRelative(subDays(new Date(), 3), new Date(chat.created_at))}
           </Link>
         ))}
       </div>
-
     </div>
   );
 }

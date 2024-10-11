@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,11 +8,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { revokeInvitationAction } from '@/data/user/invitation';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { revokeInvitationAction } from "@/data/user/invitation";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 type Props = {
   invitationId: string;
@@ -21,25 +21,28 @@ type Props = {
 export const RevokeInvitationDialog = ({ invitationId }: Props) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number | undefined>(undefined);
-  const { execute: revokeInvitation, isPending: isRevoking } = useAction(revokeInvitationAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Revoking Invitation...');
+  const { execute: revokeInvitation, isPending: isRevoking } = useAction(
+    revokeInvitationAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Revoking Invitation...");
+      },
+      onSuccess: () => {
+        toast.success("Invitation revoked!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        setOpen(false);
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to revoke invitation";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success('Invitation revoked!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      setOpen(false);
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to revoke invitation';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -67,7 +70,7 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
               type="submit"
               aria-disabled={isRevoking}
             >
-              {isRevoking ? 'Revoking Invitation...' : 'Yes, revoke'}
+              {isRevoking ? "Revoking Invitation..." : "Yes, revoke"}
             </Button>
             <Button
               type="button"

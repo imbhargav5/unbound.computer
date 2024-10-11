@@ -1,15 +1,18 @@
-import { getAllAuthorProfiles } from '@/data/admin/marketing-authors';
-import { getChangelogById } from '@/data/admin/marketing-changelog';
-import { notFound } from 'next/navigation';
-import { z } from 'zod';
-import { EditChangelogForm } from './EditChangelogForm';
-
+import { getAllAuthorProfiles } from "@/data/admin/marketing-authors";
+import { getChangelogById } from "@/data/admin/marketing-changelog";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+import { EditChangelogForm } from "./EditChangelogForm";
 
 const editChangelogPageSchema = z.object({
   changelogId: z.string().uuid(),
 });
 
-export default async function EditChangelogPage({ params }: { params: unknown }) {
+export default async function EditChangelogPage({
+  params,
+}: {
+  params: unknown;
+}) {
   const { changelogId } = editChangelogPageSchema.parse(params);
   const changelog = await getChangelogById(changelogId);
   const authors = await getAllAuthorProfiles();

@@ -9,9 +9,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { getPendingInvitationsInWorkspace, getWorkspaceTeamMembers } from "@/data/user/workspaces";
-import { getCachedLoggedInUserWorkspaceRole, getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
-import type { TeamMembersTableProps, WorkspaceWithMembershipType } from "@/types";
+import {
+  getPendingInvitationsInWorkspace,
+  getWorkspaceTeamMembers,
+} from "@/data/user/workspaces";
+import {
+  getCachedLoggedInUserWorkspaceRole,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
+import type {
+  TeamMembersTableProps,
+  WorkspaceWithMembershipType,
+} from "@/types";
 import moment from "moment";
 import type { Metadata } from "next";
 import { Suspense } from "react";
@@ -23,10 +32,13 @@ export const metadata: Metadata = {
   description: "You can edit your workspace's members here.",
 };
 
-async function TeamMembers({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+async function TeamMembers({
+  workspace,
+}: {
+  workspace: WorkspaceWithMembershipType;
+}) {
   const members = await getWorkspaceTeamMembers(workspace.id);
-  const workspaceRole =
-    await getCachedLoggedInUserWorkspaceRole(workspace.id);
+  const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
   const isWorkspaceAdmin =
     workspaceRole === "admin" || workspaceRole === "owner";
   const normalizedMembers: TeamMembersTableProps["members"] = members.map(
@@ -51,9 +63,7 @@ async function TeamMembers({ workspace }: { workspace: WorkspaceWithMembershipTy
     <div className="space-y-4 max-w-4xl">
       <div className="flex justify-between items-center">
         <T.H3 className="mt-0">Team Members</T.H3>
-        {isWorkspaceAdmin ? (
-          <InviteUser workspace={workspace} />
-        ) : null}
+        {isWorkspaceAdmin ? <InviteUser workspace={workspace} /> : null}
       </div>
 
       <Card>
@@ -88,7 +98,11 @@ async function TeamMembers({ workspace }: { workspace: WorkspaceWithMembershipTy
   );
 }
 
-async function TeamInvitations({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+async function TeamInvitations({
+  workspace,
+}: {
+  workspace: WorkspaceWithMembershipType;
+}) {
   const [invitations, workspaceRole] = await Promise.all([
     getPendingInvitationsInWorkspace(workspace.id),
     getCachedLoggedInUserWorkspaceRole(workspace.id),
@@ -142,8 +156,7 @@ async function TeamInvitations({ workspace }: { workspace: WorkspaceWithMembersh
                         : invitation.status}
                     </span>
                   </TableCell>
-                  {workspaceRole === "admin" ||
-                    workspaceRole === "owner" ? (
+                  {workspaceRole === "admin" || workspaceRole === "owner" ? (
                     <TableCell>
                       <RevokeInvitationDialog invitationId={invitation.id} />
                     </TableCell>

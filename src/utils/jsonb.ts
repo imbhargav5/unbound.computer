@@ -1,27 +1,24 @@
-
 type PlainObject = {
-  [key: string]: unknown
-}
+  [key: string]: unknown;
+};
 
 function isJson(input: unknown): input is PlainObject {
-  return typeof input === 'object' && input !== null
+  return typeof input === "object" && input !== null;
 }
 
-
 export function toSafeJSONB(input: unknown): PlainObject {
-  if (typeof input === 'string') {
+  if (typeof input === "string") {
     try {
-      const parsed = JSON.parse(input)
+      const parsed = JSON.parse(input);
       if (isJson(parsed)) {
-        return parsed
+        return parsed;
       }
-      return {} as PlainObject
+      return {} as PlainObject;
     } catch (error) {
-      return {} as PlainObject
+      return {} as PlainObject;
     }
+  } else if (isJson(input)) {
+    return input;
   }
-  else if (isJson(input)) {
-    return input
-  }
-  return {} as PlainObject
+  return {} as PlainObject;
 }

@@ -1,33 +1,37 @@
 // https://github.com/vercel/next.js/issues/58272
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getCachedWorkspaceBySlug } from '@/rsc-data/user/workspaces';
-import { WorkspaceWithMembershipType } from '@/types';
-import { getWorkspaceSubPath } from '@/utils/workspaces';
-import { workspaceSlugParamSchema } from '@/utils/zod-schemas/params';
-import { UsersRound } from 'lucide-react';
-import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import { WorkspaceWithMembershipType } from "@/types";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
+import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
+import { UsersRound } from "lucide-react";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 export async function generateMetadata({ params }: { params: unknown }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-    const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
+    const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
     return {
       title: `${workspace.name} | Workspace | Nextbase Ultimate`,
-      description: 'Organization title',
+      description: "Organization title",
     };
   } catch (error) {
     return {
-      title: 'Not found',
+      title: "Not found",
     };
   }
 }
 
-async function Title({ workspace }: { workspace: WorkspaceWithMembershipType }) {
+async function Title({
+  workspace,
+}: {
+  workspace: WorkspaceWithMembershipType;
+}) {
   return (
     <div className="flex items-center gap-2">
       <UsersRound className="w-4 h-4" />
@@ -39,17 +43,13 @@ async function Title({ workspace }: { workspace: WorkspaceWithMembershipType }) 
   );
 }
 
-export async function WorkspaceNavbar({
-  params,
-}: {
-  params: unknown;
-}) {
+export async function WorkspaceNavbar({ params }: { params: unknown }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-    const workspace = await getCachedWorkspaceBySlug(workspaceSlug)
+    const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
     return (
       <div className="flex items-center">
-        <Link href={getWorkspaceSubPath(workspace, '/home')}>
+        <Link href={getWorkspaceSubPath(workspace, "/home")}>
           <span className="flex items-center space-x-2">
             <Suspense fallback={<Skeleton className="w-16 h-6" />}>
               <Title workspace={workspace} />
@@ -59,6 +59,6 @@ export async function WorkspaceNavbar({
       </div>
     );
   } catch (error) {
-    return notFound()
+    return notFound();
   }
 }

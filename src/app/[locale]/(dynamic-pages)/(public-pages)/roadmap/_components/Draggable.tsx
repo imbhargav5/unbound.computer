@@ -1,4 +1,4 @@
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable } from "@dnd-kit/core";
 
 type Props = { children: React.ReactNode; id: string };
 
@@ -8,8 +8,8 @@ export function Draggable({ children, id }: Props) {
   });
   const style = transform
     ? {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    }
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      }
     : undefined;
 
   return (

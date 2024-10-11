@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,12 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { declineInvitationAction } from '@/data/user/invitation';
-import { X } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { declineInvitationAction } from "@/data/user/invitation";
+import { X } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 export const ConfirmDeclineInvitationDialog = ({
   invitationId,
@@ -23,25 +23,29 @@ export const ConfirmDeclineInvitationDialog = ({
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: declineInvitation, isPending: isDeclining } = useAction(declineInvitationAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Declining invitation...');
+  const { execute: declineInvitation, isPending: isDeclining } = useAction(
+    declineInvitationAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Declining invitation...");
+      },
+      onSuccess: () => {
+        toast.success("Invitation declined!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        setOpen(false);
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to decline invitation";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success('Invitation declined!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      setOpen(false);
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to decline invitation';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -84,7 +88,7 @@ export const ConfirmDeclineInvitationDialog = ({
               setOpen(false);
             }}
           >
-            {isDeclining ? 'Declining...' : 'Decline'}
+            {isDeclining ? "Declining..." : "Decline"}
           </Button>
         </DialogFooter>
       </DialogContent>

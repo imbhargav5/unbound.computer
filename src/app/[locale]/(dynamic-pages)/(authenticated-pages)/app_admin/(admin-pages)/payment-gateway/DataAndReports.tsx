@@ -1,34 +1,43 @@
-"use client"
+"use client";
 
-import { Link } from '@/components/intl-link'
-import { Typography } from '@/components/ui/Typography'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { adminSyncProductsAction } from '@/data/admin/billing'
-import { ArrowUpRight, RotateCcw } from "lucide-react"
-import { useAction } from 'next-safe-action/hooks'
-import { useRef } from "react"
-import { toast } from 'sonner'
+import { Link } from "@/components/intl-link";
+import { Typography } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { adminSyncProductsAction } from "@/data/admin/billing";
+import { ArrowUpRight, RotateCcw } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef } from "react";
+import { toast } from "sonner";
 
 export function DataAndReports() {
   const toastRef = useRef<string | number | undefined>(undefined);
-  const { execute: syncProducts, status: syncProductsStatus } = useAction(adminSyncProductsAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Syncing Stripe products...")
+  const { execute: syncProducts, status: syncProductsStatus } = useAction(
+    adminSyncProductsAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Syncing Stripe products...");
+      },
+      onSuccess: () => {
+        toast.success("Stripe products synced successfully", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        toast.error(error.serverError || "Failed to sync Stripe products", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success("Stripe products synced successfully", {
-        id: toastRef.current,
-      })
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      toast.error(error.serverError || "Failed to sync Stripe products", {
-        id: toastRef.current,
-      })
-      toastRef.current = undefined;
-    },
-  })
+  );
 
   return (
     <div className="space-y-4">
@@ -40,15 +49,30 @@ export function DataAndReports() {
             <CardDescription>Sync your Stripe data</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => syncProducts({})} disabled={syncProductsStatus === 'executing'}>
-              {syncProductsStatus === 'executing' ? <RotateCcw className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-              {syncProductsStatus === 'executing' ? "Syncing..." : "Sync Stripe Products"}
+            <Button
+              onClick={() => syncProducts({})}
+              disabled={syncProductsStatus === "executing"}
+            >
+              {syncProductsStatus === "executing" ? (
+                <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4 mr-2" />
+              )}
+              {syncProductsStatus === "executing"
+                ? "Syncing..."
+                : "Sync Stripe Products"}
             </Button>
             <Typography.Subtle>
-              This will sync all the products and prices from Stripe to the database. This is useful to fetch new products and prices you may have added in Stripe and to update the prices if they have changed. These new prices will be immediately available in the app and visible to your users if they are active and marked as visible in the UI.
+              This will sync all the products and prices from Stripe to the
+              database. This is useful to fetch new products and prices you may
+              have added in Stripe and to update the prices if they have
+              changed. These new prices will be immediately available in the app
+              and visible to your users if they are active and marked as visible
+              in the UI.
             </Typography.Subtle>
             <Typography.Small>
-              Note: If you have made any changes to the products or prices in the database, this will overwrite them.
+              Note: If you have made any changes to the products or prices in
+              the database, this will overwrite them.
             </Typography.Small>
           </CardContent>
         </Card>
@@ -68,7 +92,10 @@ export function DataAndReports() {
                 View All Invoices <ArrowUpRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/app_admin/payment-gateway/subscriptions" className="block">
+            <Link
+              href="/app_admin/payment-gateway/subscriptions"
+              className="block"
+            >
               <Button className="w-full justify-between">
                 View All Subscriptions <ArrowUpRight className="h-4 w-4" />
               </Button>
@@ -94,5 +121,5 @@ export function DataAndReports() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

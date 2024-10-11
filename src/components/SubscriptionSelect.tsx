@@ -12,10 +12,15 @@ interface SubscriptionSelectProps {
   isOneTimePurchase?: boolean;
 }
 
-export function SubscriptionSelect({ workspaceId, priceId, isOneTimePurchase = false }: SubscriptionSelectProps): JSX.Element {
+export function SubscriptionSelect({
+  workspaceId,
+  priceId,
+  isOneTimePurchase = false,
+}: SubscriptionSelectProps): JSX.Element {
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: createCheckoutSession } = useAction(createWorkspaceCheckoutSession,
+  const { execute: createCheckoutSession } = useAction(
+    createWorkspaceCheckoutSession,
     {
       onExecute: () => {
         toastRef.current = toast.loading("Redirecting to checkout...");
@@ -24,16 +29,16 @@ export function SubscriptionSelect({ workspaceId, priceId, isOneTimePurchase = f
         if (data) {
           window.location.href = data.url;
         }
-
       },
       onError: ({ error }) => {
-        const errorMessage = error.serverError ?? "Failed to create checkout session";
+        const errorMessage =
+          error.serverError ?? "Failed to create checkout session";
         toast.error(errorMessage, {
           id: toastRef.current,
         });
         toastRef.current = undefined;
       },
-    }
+    },
   );
 
   return (
@@ -41,7 +46,7 @@ export function SubscriptionSelect({ workspaceId, priceId, isOneTimePurchase = f
       className="w-full"
       onClick={() => createCheckoutSession({ workspaceId, priceId })}
     >
-      {isOneTimePurchase ? 'Purchase' : 'Select Plan'}
+      {isOneTimePurchase ? "Purchase" : "Select Plan"}
     </Button>
   );
 }

@@ -1,6 +1,6 @@
-import { LandingPage } from '@/components/LandingPage';
-import { unstable_setRequestLocale } from 'next-intl/server';
-import 'server-only';
+import { LandingPage } from "@/components/LandingPage";
+import { unstable_setRequestLocale } from "next-intl/server";
+import "server-only";
 
 export default function Page({
   params: { locale },
@@ -9,7 +9,9 @@ export default function Page({
 }) {
   unstable_setRequestLocale(locale);
 
-  return <main>
-    <LandingPage />
-  </main>
+  return (
+    <main>
+      <LandingPage />
+    </main>
+  );
 }

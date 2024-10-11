@@ -33,43 +33,51 @@ export function ApprovalControlActions({
 }: ApprovalControlActionsProps): JSX.Element {
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: submitProjectForApproval } = useAction(submitProjectForApprovalAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Submitting project for approval...");
+  const { execute: submitProjectForApproval } = useAction(
+    submitProjectForApprovalAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Submitting project for approval...");
+      },
+      onSuccess: () => {
+        toast.success("Project submitted for approval!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to submit project for approval";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success("Project submitted for approval!", {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? "Failed to submit project for approval";
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: markProjectAsCompleted } = useAction(markProjectAsCompletedAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Marking project as complete...");
+  const { execute: markProjectAsCompleted } = useAction(
+    markProjectAsCompletedAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Marking project as complete...");
+      },
+      onSuccess: () => {
+        toast.success("Project marked as complete!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to mark project as complete";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success("Project marked as complete!", {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? "Failed to mark project as complete";
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   const { execute: approveProject } = useAction(approveProjectAction, {
     onExecute: () => {
@@ -127,8 +135,12 @@ export function ApprovalControlActions({
       ) : null}
       {canManage && projectStatus === "pending_approval" && (
         <>
-          <ConfirmApproveProjectDialog onConfirm={() => approveProject({ projectId })} />
-          <ConfirmRejectProjectDialog onConfirm={() => rejectProject({ projectId })} />
+          <ConfirmApproveProjectDialog
+            onConfirm={() => approveProject({ projectId })}
+          />
+          <ConfirmRejectProjectDialog
+            onConfirm={() => rejectProject({ projectId })}
+          />
         </>
       )}
       {projectStatus === "approved" && canManage ? (

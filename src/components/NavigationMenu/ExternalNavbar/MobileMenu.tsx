@@ -1,9 +1,9 @@
-'use client';
-import { Link } from '@/components/intl-link';
-import { useContext } from 'react';
-import { LoginCTAButton } from './LoginCTAButton';
-import { MobileMenuContext } from './MobileMenuContext';
-import { navbarLinks } from './constants';
+"use client";
+import { Link } from "@/components/intl-link";
+import { useContext } from "react";
+import { LoginCTAButton } from "./LoginCTAButton";
+import { MobileMenuContext } from "./MobileMenuContext";
+import { navbarLinks } from "./constants";
 
 export function MobileMenu() {
   const { setMobileMenuOpen, mobileMenuOpen } = useContext(MobileMenuContext);

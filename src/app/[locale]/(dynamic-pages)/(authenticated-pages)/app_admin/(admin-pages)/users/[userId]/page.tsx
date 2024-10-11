@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -6,18 +6,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Typography } from '@/components/ui/Typography';
-import { getSlimWorkspacesOfUserAction } from '@/data/admin/workspaces';
-import { Suspense } from 'react';
-import { z } from 'zod';
+} from "@/components/ui/table";
+import { Typography } from "@/components/ui/Typography";
+import { getSlimWorkspacesOfUserAction } from "@/data/admin/workspaces";
+import { Suspense } from "react";
+import { z } from "zod";
 
 const paramsSchema = z.object({
   userId: z.string(),
 });
 
 async function WorkspacesTable({ userId }: { userId: string }) {
-  const workspacesActionResult = await getSlimWorkspacesOfUserAction({ userId });
+  const workspacesActionResult = await getSlimWorkspacesOfUserAction({
+    userId,
+  });
 
   if (workspacesActionResult?.data) {
     const workspaces = workspacesActionResult.data;
@@ -36,9 +38,9 @@ async function WorkspacesTable({ userId }: { userId: string }) {
             <TableBody>
               {workspaces.map((workspace) => (
                 <TableRow key={workspace.id}>
-                  <TableCell>{workspace.name ?? '-'}</TableCell>
-                  <TableCell>{workspace.slug ?? '-'}</TableCell>
-                  <TableCell>{workspace.membershipType ?? '-'}</TableCell>
+                  <TableCell>{workspace.name ?? "-"}</TableCell>
+                  <TableCell>{workspace.slug ?? "-"}</TableCell>
+                  <TableCell>{workspace.membershipType ?? "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -50,10 +52,10 @@ async function WorkspacesTable({ userId }: { userId: string }) {
     if (workspacesActionResult?.serverError) {
       console.log("***************");
       console.log(workspacesActionResult.serverError);
-      return <div>{workspacesActionResult.serverError}</div>
+      return <div>{workspacesActionResult.serverError}</div>;
     } else {
       console.error(workspacesActionResult);
-      return <div>Failed to load workspaces for user</div>
+      return <div>Failed to load workspaces for user</div>;
     }
   }
 }

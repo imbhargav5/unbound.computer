@@ -5,5 +5,5 @@
  */
 
 module.exports = {
-  singleQuote: true,
+  singleQuote: false,
 };

@@ -1,6 +1,6 @@
-import { Button } from '@/components/ui/button';
-import { Sailboat } from 'lucide-react';
-import TitleBlock from '../title-block';
+import { Button } from "@/components/ui/button";
+import { Sailboat } from "lucide-react";
+import TitleBlock from "../title-block";
 
 export default function CTA() {
   return (

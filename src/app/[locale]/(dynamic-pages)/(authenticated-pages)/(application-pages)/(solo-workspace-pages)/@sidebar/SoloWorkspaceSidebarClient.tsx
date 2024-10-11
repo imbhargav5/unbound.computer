@@ -1,16 +1,21 @@
-'use client';
+"use client";
 
-import { ProFeatureGateDialog } from '@/components/ProFeatureGateDialog';
-import { SwitcherAndToggle } from '@/components/SidebarComponents/SwitcherAndToggle';
-import { SidebarLink } from '@/components/SidebarLink';
-import { SlimWorkspace, SlimWorkspaces } from '@/types';
-import { cn } from '@/utils/cn';
-import { getWorkspaceSubPath } from '@/utils/workspaces';
-import { motion } from 'framer-motion';
-import { DollarSign, FileBox, Home, Layers, Settings, UserRound } from 'lucide-react';
-import { ReactNode } from 'react';
-
-
+import { ProFeatureGateDialog } from "@/components/ProFeatureGateDialog";
+import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
+import { SidebarLink } from "@/components/SidebarLink";
+import { SlimWorkspace, SlimWorkspaces } from "@/types";
+import { cn } from "@/utils/cn";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
+import { motion } from "framer-motion";
+import {
+  DollarSign,
+  FileBox,
+  Home,
+  Layers,
+  Settings,
+  UserRound,
+} from "lucide-react";
+import { ReactNode } from "react";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -29,10 +34,10 @@ const itemVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: 'spring',
+      type: "spring",
       stiffness: 300,
       damping: 24,
-    }
+    },
   },
 };
 
@@ -40,8 +45,8 @@ interface WorkspaceSidebarClientProps {
   workspaceId: string;
   workspaceSlug: string;
   slimWorkspaces: SlimWorkspaces;
-  subscription: ReactNode
-  workspace: SlimWorkspace
+  subscription: ReactNode;
+  workspace: SlimWorkspace;
 }
 
 export default function SoloWorkspaceSidebarClient({
@@ -49,27 +54,57 @@ export default function SoloWorkspaceSidebarClient({
   workspaceSlug,
   slimWorkspaces,
   subscription,
-  workspace
+  workspace,
 }: WorkspaceSidebarClientProps) {
-
-  const sidebarLinks = workspace.membershipType === 'solo' ? [
-    { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
-    { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
-    { label: "Projects", href: "/projects", icon: <Layers className="h-5 w-5" /> },
-    { label: "Billing", href: "/settings/billing", icon: <DollarSign className="h-5 w-5" /> },
-  ] : [
-    { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
-    { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
-    { label: "Projects", href: "/projects", icon: <Layers className="h-5 w-5" /> },
-    { label: "Members", href: "/settings/members", icon: <UserRound className="h-5 w-5" /> },
-    { label: "Billing", href: "/settings/billing", icon: <DollarSign className="h-5 w-5" /> },
-  ];
+  const sidebarLinks =
+    workspace.membershipType === "solo"
+      ? [
+          { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
+          {
+            label: "Settings",
+            href: "/settings",
+            icon: <Settings className="h-5 w-5" />,
+          },
+          {
+            label: "Projects",
+            href: "/projects",
+            icon: <Layers className="h-5 w-5" />,
+          },
+          {
+            label: "Billing",
+            href: "/settings/billing",
+            icon: <DollarSign className="h-5 w-5" />,
+          },
+        ]
+      : [
+          { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
+          {
+            label: "Settings",
+            href: "/settings",
+            icon: <Settings className="h-5 w-5" />,
+          },
+          {
+            label: "Projects",
+            href: "/projects",
+            icon: <Layers className="h-5 w-5" />,
+          },
+          {
+            label: "Members",
+            href: "/settings/members",
+            icon: <UserRound className="h-5 w-5" />,
+          },
+          {
+            label: "Billing",
+            href: "/settings/billing",
+            icon: <DollarSign className="h-5 w-5" />,
+          },
+        ];
 
   return (
     <motion.div
       className={cn(
-        'flex flex-col justify-between h-full',
-        'lg:px-3 lg:py-4 lg:pt-2.5 ',
+        "flex flex-col justify-between h-full",
+        "lg:px-3 lg:py-4 lg:pt-2.5 ",
       )}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -77,7 +112,10 @@ export default function SoloWorkspaceSidebarClient({
     >
       <div>
         <div className="flex justify-between items-center">
-          <SwitcherAndToggle workspaceId={workspaceId} slimWorkspaces={slimWorkspaces} />
+          <SwitcherAndToggle
+            workspaceId={workspaceId}
+            slimWorkspaces={slimWorkspaces}
+          />
         </div>
         <motion.nav
           className="flex flex-col gap-2 mt-6"

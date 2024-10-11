@@ -1,8 +1,8 @@
 // UserNavDropdown.tsx
-'use client';
+"use client";
 
-import { GiveFeedbackDialog } from '@/app/[locale]/(dynamic-pages)/(public-pages)/feedback/[feedbackId]/GiveFeedbackDialog';
-import { Link } from '@/components/intl-link';
+import { GiveFeedbackDialog } from "@/app/[locale]/(dynamic-pages)/(public-pages)/feedback/[feedbackId]/GiveFeedbackDialog";
+import { Link } from "@/components/intl-link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
-import { Computer, Lock, LogOut, Mail, Server, User } from 'lucide-react';
-import { FeatureViewModal } from './FeatureViewModal';
+import { Computer, Lock, LogOut, Mail, Server, User } from "lucide-react";
+import { FeatureViewModal } from "./FeatureViewModal";
 
 const MotionDiv = motion.div;
 
@@ -29,8 +29,8 @@ const menuItemAnimation = {
       type: "spring",
       stiffness: 400,
       damping: 30,
-    }
-  }
+    },
+  },
 };
 
 const containerAnimation = {
@@ -40,8 +40,8 @@ const containerAnimation = {
     transition: {
       staggerChildren: 0.05,
       delayChildren: 0.1,
-    }
-  }
+    },
+  },
 };
 
 export const UserNavDropdown = ({
@@ -60,7 +60,11 @@ export const UserNavDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button data-testid="user-nav-avatar" variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button
+          data-testid="user-nav-avatar"
+          variant="ghost"
+          className="relative h-8 w-8 rounded-full"
+        >
           <Avatar className="h-8 w-8">
             <AvatarImage src={avatarUrl} alt={userFullname} />
             <AvatarFallback>{userFullname.charAt(0)}</AvatarFallback>
@@ -76,28 +80,39 @@ export const UserNavDropdown = ({
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{userFullname}</p>
-              <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+              <p className="text-xs leading-none text-muted-foreground">
+                {userEmail}
+              </p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/user/settings" className="flex items-center w-full">
+                <Link
+                  href="/user/settings"
+                  className="flex items-center w-full"
+                >
                   <User className="mr-2 h-4 w-4" /> Account settings
                 </Link>
               </DropdownMenuItem>
             </MotionDiv>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/user/settings/developer" className="flex items-center w-full">
+                <Link
+                  href="/user/settings/developer"
+                  className="flex items-center w-full"
+                >
                   <Computer className="mr-2 h-4 w-4" /> Developer Settings
                 </Link>
               </DropdownMenuItem>
             </MotionDiv>
             <MotionDiv variants={menuItemAnimation}>
               <DropdownMenuItem>
-                <Link href="/user/settings/security" className="flex items-center w-full">
+                <Link
+                  href="/user/settings/security"
+                  className="flex items-center w-full"
+                >
                   <Lock className="mr-2 h-4 w-4" /> Security Settings
                 </Link>
               </DropdownMenuItem>
@@ -121,7 +136,10 @@ export const UserNavDropdown = ({
           <MotionDiv variants={menuItemAnimation}>
             <DropdownMenuItem asChild>
               <GiveFeedbackDialog>
-                <div data-testid="feedback-link" className="flex items-center w-full">
+                <div
+                  data-testid="feedback-link"
+                  className="flex items-center w-full"
+                >
                   <Mail className="mr-2 h-4 w-4" /> Feedback
                 </div>
               </GiveFeedbackDialog>
@@ -130,7 +148,11 @@ export const UserNavDropdown = ({
           <DropdownMenuSeparator />
           <MotionDiv variants={menuItemAnimation}>
             <DropdownMenuItem>
-              <Link href="/logout" prefetch={false} className="flex items-center w-full text-red-500 hover:text-red-600">
+              <Link
+                href="/logout"
+                prefetch={false}
+                className="flex items-center w-full text-red-500 hover:text-red-600"
+              >
                 <LogOut className="mr-2 h-4 w-4" /> Log out
               </Link>
             </DropdownMenuItem>

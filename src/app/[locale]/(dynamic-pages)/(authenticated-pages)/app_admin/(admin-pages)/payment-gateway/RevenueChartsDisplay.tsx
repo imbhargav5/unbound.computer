@@ -1,17 +1,30 @@
-"use client"
+"use client";
 
-import { Typography } from '@/components/ui/Typography'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-
+import { Typography } from "@/components/ui/Typography";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 export function RevenueChartsDisplay({
   revenueData,
   mrrData,
 }: {
-  revenueData: { name: string; value: number }[]
-  mrrData: { name: string; value: number }[]
+  revenueData: { name: string; value: number }[];
+  mrrData: { name: string; value: number }[];
 }) {
   return (
     <div className="space-y-4">
@@ -25,7 +38,9 @@ export function RevenueChartsDisplay({
           <Card>
             <CardHeader>
               <CardTitle>Revenue Overview</CardTitle>
-              <CardDescription>Monthly revenue for the past 6 months</CardDescription>
+              <CardDescription>
+                Monthly revenue for the past 6 months
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -44,7 +59,9 @@ export function RevenueChartsDisplay({
           <Card>
             <CardHeader>
               <CardTitle>Subscriber Count</CardTitle>
-              <CardDescription>Monthly subscriber count for the past 6 months</CardDescription>
+              <CardDescription>
+                Monthly subscriber count for the past 6 months
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -61,5 +78,5 @@ export function RevenueChartsDisplay({
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

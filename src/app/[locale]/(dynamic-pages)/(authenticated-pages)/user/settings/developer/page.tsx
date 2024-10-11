@@ -1,11 +1,11 @@
-import { PageHeading } from '@/components/PageHeading';
-import { T } from '@/components/ui/Typography';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getActiveDeveloperKeyCount } from '@/data/user/unkey';
-import { Suspense } from 'react';
-import { ActiveApiKeyList } from './ActiveApiKeyList';
-import { GenerateApiKey } from './GenerateApiKey';
-import { RevokedApiKeyList } from './RevokedApiKeyList';
+import { PageHeading } from "@/components/PageHeading";
+import { T } from "@/components/ui/Typography";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getActiveDeveloperKeyCount } from "@/data/user/unkey";
+import { Suspense } from "react";
+import { ActiveApiKeyList } from "./ActiveApiKeyList";
+import { GenerateApiKey } from "./GenerateApiKey";
+import { RevokedApiKeyList } from "./RevokedApiKeyList";
 
 export default async function DeveloperSettings() {
   const activeDeveloperKeyCount = await getActiveDeveloperKeyCount();

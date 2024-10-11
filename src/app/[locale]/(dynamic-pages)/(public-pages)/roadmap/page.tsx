@@ -1,9 +1,9 @@
-import { PageHeading } from '@/components/PageHeading';
-import { getRoadmap } from '@/data/admin/marketing-roadmap';
-import { serverGetUserType } from '@/utils/server/serverGetUserType';
-import { userRoles } from '@/utils/userTypes';
-import { AppAdminRoadmap } from './AppAdminRoadmap';
-import { Roadmap } from './Roadmap';
+import { PageHeading } from "@/components/PageHeading";
+import { getRoadmap } from "@/data/admin/marketing-roadmap";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import { userRoles } from "@/utils/userTypes";
+import { AppAdminRoadmap } from "./AppAdminRoadmap";
+import { Roadmap } from "./Roadmap";
 
 export default async function Page() {
   const roadmapData = await getRoadmap();
@@ -18,10 +18,8 @@ export default async function Page() {
 
       {userRoleType === userRoles.ADMIN ? (
         <AppAdminRoadmap roadmapData={roadmapData} />
-
       ) : (
         <Roadmap roadmapData={roadmapData} />
-
       )}
     </div>
   );

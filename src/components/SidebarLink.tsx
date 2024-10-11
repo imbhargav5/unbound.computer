@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { MOBILE_MEDIA_QUERY_MATCHER } from '@/constants';
-import { SidebarVisibilityContext } from '@/contexts/SidebarVisibilityContext';
-import useMatchMedia from '@/hooks/useMatchMedia';
-import { motion } from 'framer-motion';
-import React, { useContext } from 'react';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { MOBILE_MEDIA_QUERY_MATCHER } from "@/constants";
+import { SidebarVisibilityContext } from "@/contexts/SidebarVisibilityContext";
+import useMatchMedia from "@/hooks/useMatchMedia";
+import { motion } from "framer-motion";
+import React, { useContext } from "react";
 
 type SidebarLinkProps = {
   label: string;
@@ -20,19 +20,19 @@ const linkVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: 'spring',
+      type: "spring",
       stiffness: 300,
       damping: 24,
-    }
+    },
   },
   hover: {
     scale: 1.05,
     transition: {
-      type: 'spring',
+      type: "spring",
       stiffness: 400,
-      damping: 10
-    }
-  }
+      damping: 10,
+    },
+  },
 };
 
 export function SidebarLink({ label, href, icon }: SidebarLinkProps) {
@@ -85,4 +85,4 @@ export const SidebarItem = React.forwardRef<HTMLDivElement, SidebarItemProps>(
   },
 );
 
-SidebarItem.displayName = 'SidebarItem';
+SidebarItem.displayName = "SidebarItem";

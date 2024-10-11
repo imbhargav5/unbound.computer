@@ -1,9 +1,13 @@
-'use server'
+"use server";
 
-import { adminActionClient } from '@/lib/safe-action';
-import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { createMarketingTagSchema, deleteMarketingTagSchema, updateMarketingTagSchema } from '@/utils/zod-schemas/marketingTags';
-import { revalidatePath } from 'next/cache';
+import { adminActionClient } from "@/lib/safe-action";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
+import {
+  createMarketingTagSchema,
+  deleteMarketingTagSchema,
+  updateMarketingTagSchema,
+} from "@/utils/zod-schemas/marketingTags";
+import { revalidatePath } from "next/cache";
 
 /**
  * Creates a new marketing tag.
@@ -12,14 +16,14 @@ export const createTagAction = adminActionClient
   .schema(createMarketingTagSchema)
   .action(async ({ parsedInput }) => {
     const { data, error } = await supabaseAdminClient
-      .from('marketing_tags')
+      .from("marketing_tags")
       .insert(parsedInput)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
+    revalidatePath("/", "layout");
     return data;
   });
 
@@ -32,15 +36,15 @@ export const updateTagAction = adminActionClient
     const { id, ...updateData } = parsedInput;
 
     const { data, error } = await supabaseAdminClient
-      .from('marketing_tags')
+      .from("marketing_tags")
       .update(updateData)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
+    revalidatePath("/", "layout");
     return data;
   });
 
@@ -51,14 +55,14 @@ export const deleteTagAction = adminActionClient
   .schema(deleteMarketingTagSchema)
   .action(async ({ parsedInput: { id } }) => {
     const { error } = await supabaseAdminClient
-      .from('marketing_tags')
+      .from("marketing_tags")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
-    return { message: 'Tag deleted successfully' };
+    revalidatePath("/", "layout");
+    return { message: "Tag deleted successfully" };
   });
 
 /**
@@ -66,9 +70,9 @@ export const deleteTagAction = adminActionClient
  */
 export async function getAllTags() {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_tags')
-    .select('*')
-    .order('name', { ascending: true });
+    .from("marketing_tags")
+    .select("*")
+    .order("name", { ascending: true });
 
   if (error) throw new Error(error.message);
 
@@ -80,9 +84,9 @@ export async function getAllTags() {
  */
 export async function getTagById(id: string) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_tags')
-    .select('*')
-    .eq('id', id)
+    .from("marketing_tags")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);

@@ -19,4 +19,4 @@ export async function StripeProductManager() {
       </div>
     </div>
   );
-};
+}

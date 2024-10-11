@@ -1,36 +1,38 @@
-'use client';
+"use client";
 
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { Button } from '@/components/ui/button';
-import { generateUnkeyTokenAction } from '@/data/user/unkey';
-import { ViewApiKeyDialog } from './ViewApiKeyDialog';
+import { Button } from "@/components/ui/button";
+import { generateUnkeyTokenAction } from "@/data/user/unkey";
+import { ViewApiKeyDialog } from "./ViewApiKeyDialog";
 
-type GenerateUnkeyTokenActionResult = Awaited<ReturnType<typeof generateUnkeyTokenAction>>;
+type GenerateUnkeyTokenActionResult = Awaited<
+  ReturnType<typeof generateUnkeyTokenAction>
+>;
 
 export function GenerateApiKey(): JSX.Element {
   const router = useRouter();
-  const [step, setStep] = useState<'form' | 'copy_modal' | 'complete'>('form');
+  const [step, setStep] = useState<"form" | "copy_modal" | "complete">("form");
   const [keyPreview, setKeyPreview] = useState<string | null>(null);
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute, isPending } = useAction(generateUnkeyTokenAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Generating new API Key...');
+      toastRef.current = toast.loading("Generating new API Key...");
     },
     onSuccess: ({ data }) => {
-      toast.success('API Key generated successfully', { id: toastRef.current });
+      toast.success("API Key generated successfully", { id: toastRef.current });
       toastRef.current = undefined;
       if (data) {
-        setStep('copy_modal');
+        setStep("copy_modal");
         setKeyPreview(data.key);
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to generate API Key';
+      const errorMessage = error.serverError ?? "Failed to generate API Key";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -51,15 +53,15 @@ export function GenerateApiKey(): JSX.Element {
             className="block w-full"
             disabled={isPending}
           >
-            {isPending ? 'Generating new API Key...' : 'Generate API Key'}
+            {isPending ? "Generating new API Key..." : "Generate API Key"}
           </Button>
         </div>
       </form>
 
-      {step === 'copy_modal' && keyPreview && (
+      {step === "copy_modal" && keyPreview && (
         <ViewApiKeyDialog
           onCompleted={() => {
-            setStep('complete');
+            setStep("complete");
             router.refresh();
           }}
           apiKey={keyPreview}

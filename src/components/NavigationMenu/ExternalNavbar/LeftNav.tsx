@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from '@/components/ui/select';
-import { cn } from '@/utils/cn';
-import acmeLightLogo from '@public/logos/acme-logo-dark.png';
-import acmeDarkLogo from '@public/logos/acme-logo-light.png';
-import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { DocsMobileNavigation } from './DocsMobileNavigation';
-import { navbarLinks } from './constants';
+} from "@/components/ui/select";
+import { cn } from "@/utils/cn";
+import acmeLightLogo from "@public/logos/acme-logo-dark.png";
+import acmeDarkLogo from "@public/logos/acme-logo-light.png";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { DocsMobileNavigation } from "./DocsMobileNavigation";
+import { navbarLinks } from "./constants";
 const versions = [
-  { label: 'Landing page 1', url: '/' },
-  { label: 'Landing page 2', url: '/version2' },
+  { label: "Landing page 1", url: "/" },
+  { label: "Landing page 2", url: "/version2" },
 ];
 
 export function VersionSwitcher({
@@ -40,7 +40,7 @@ export function VersionSwitcher({
       <Select onValueChange={handleSelect}>
         <SelectTrigger className="mt-0.5 sm:w-[96px] md:w-[200px]">
           {versions.find((version) => version.url === selectedVersion)?.label ||
-            'Select Landing Page'}
+            "Select Landing Page"}
         </SelectTrigger>
 
         <SelectContent className="sm:w-[80px] md:w-[200px]">
@@ -62,10 +62,10 @@ export function LeftNav() {
     versions[0].url;
   const [selectedVersion, setSelectedVersion] = useState(initialVersion);
   const isALandingPage = pathname
-    ? pathname.startsWith('/version') || pathname === '/'
+    ? pathname.startsWith("/version") || pathname === "/"
     : false;
-  const isBlogPage = pathname?.startsWith('/blog');
-  const isDocsPage = pathname?.startsWith('/docs');
+  const isBlogPage = pathname?.startsWith("/blog");
+  const isDocsPage = pathname?.startsWith("/docs");
 
   useEffect(() => {
     const newSelectedVersion =
@@ -77,7 +77,7 @@ export function LeftNav() {
     <>
       <DocsMobileNavigation />
       <div className="flex space-x-8">
-        <Link href="/" className={cn('font-bold text-xl ')}>
+        <Link href="/" className={cn("font-bold text-xl ")}>
           <div className="relative flex space-x-2 h-10 md:w-fit items-center justify-center text-black dark:text-white dark:-ml-4 -ml-2">
             <Image
               src={acmeLightLogo}

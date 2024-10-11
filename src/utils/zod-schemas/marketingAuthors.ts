@@ -15,9 +15,10 @@ export const createMarketingAuthorProfileSchema = z.object({
 });
 
 // Schema for updating an existing author profile
-export const updateMarketingAuthorProfileSchema = createMarketingAuthorProfileSchema.partial().extend({
-  id: z.string().uuid(),
-});
+export const updateMarketingAuthorProfileSchema =
+  createMarketingAuthorProfileSchema.partial().extend({
+    id: z.string().uuid(),
+  });
 
 // Schema for deleting an author profile
 export const deleteMarketingAuthorProfileSchema = z.object({

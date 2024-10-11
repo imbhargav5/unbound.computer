@@ -3,13 +3,14 @@ import { WorkspaceDashboard } from "@/components/workspaces/WorkspaceDashboard";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import {
   projectsfilterSchema,
-  workspaceSlugParamSchema
+  workspaceSlugParamSchema,
 } from "@/utils/zod-schemas/params";
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 import { Suspense } from "react";
 
-
-export async function generateMetadata({ params }: {
+export async function generateMetadata({
+  params,
+}: {
   params: unknown;
 }): Promise<Metadata> {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
@@ -21,7 +22,10 @@ export async function generateMetadata({ params }: {
   };
 }
 
-export default async function WorkspaceDashboardPage({ params, searchParams }: {
+export default async function WorkspaceDashboardPage({
+  params,
+  searchParams,
+}: {
   params: unknown;
   searchParams: unknown;
 }) {
@@ -30,7 +34,10 @@ export default async function WorkspaceDashboardPage({ params, searchParams }: {
 
   return (
     <Suspense fallback={<DashboardLoadingFallback />}>
-      <WorkspaceDashboard workspaceSlug={workspaceSlug} projectFilters={projectFilters} />
+      <WorkspaceDashboard
+        workspaceSlug={workspaceSlug}
+        projectFilters={projectFilters}
+      />
     </Suspense>
   );
 }

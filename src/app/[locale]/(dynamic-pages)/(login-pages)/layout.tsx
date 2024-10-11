@@ -1,4 +1,4 @@
-import { ClientLayout } from './ClientLayout';
+import { ClientLayout } from "./ClientLayout";
 
 export default function AuthLayout({
   children,

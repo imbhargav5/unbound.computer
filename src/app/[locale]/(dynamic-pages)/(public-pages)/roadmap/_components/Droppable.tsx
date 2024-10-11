@@ -4,10 +4,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { useDroppable } from '@dnd-kit/core';
+} from "@/components/ui/card";
+import { useDroppable } from "@dnd-kit/core";
 
-import type React from 'react';
+import type React from "react";
 
 type Props = {
   id: string;
@@ -25,7 +25,7 @@ export function Droppable({ id, children, status }: Props) {
     <div ref={setNodeRef}>
       <Card
         data-isOver={isOver}
-        key={status ?? 'default-key'}
+        key={status ?? "default-key"}
         className="data-[isOver=true]:border-foreground transition-all duration-300 ease-in-out"
       >
         <CardHeader>

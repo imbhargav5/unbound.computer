@@ -15,10 +15,10 @@ export const actionClient = createSafeActionClient({
     // if(process.env.NODE_ENV !== 'development') {
     //   return "Oh no, something went wrong!";
     // }
-    return e.message
+    return e.message;
   },
 }).use(async ({ next, clientInput, metadata }) => {
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === "development") {
     console.log("LOGGING MIDDLEWARE");
 
     const startTime = performance.now();
@@ -40,28 +40,26 @@ export const actionClient = createSafeActionClient({
   }
 });
 
-export const authActionClient = actionClient.use(
-  async ({ next }) => {
-    const supabase = createSupabaseUserServerActionClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-    if (userError) {
-      console.log("User error", { cause: userError });
-      throw new Error("User error", { cause: userError });
-    }
-    if (!user) {
-      console.log("User not logged in");
-      throw new Error("User not logged in");
-    }
-    return await next({
-      ctx: {
-        userId: user.id,
-      }
-    });
-  },
-);
+export const authActionClient = actionClient.use(async ({ next }) => {
+  const supabase = createSupabaseUserServerActionClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) {
+    console.log("User error", { cause: userError });
+    throw new Error("User error", { cause: userError });
+  }
+  if (!user) {
+    console.log("User not logged in");
+    throw new Error("User not logged in");
+  }
+  return await next({
+    ctx: {
+      userId: user.id,
+    },
+  });
+});
 
 export const adminActionClient = authActionClient.use(async ({ next }) => {
   const userType = await serverGetUserType();

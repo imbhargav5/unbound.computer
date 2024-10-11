@@ -1,8 +1,6 @@
-import { T } from '@/components/ui/Typography';
-import { getSlimProjectBySlug } from '@/data/user/projects';
-import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
-
-
+import { T } from "@/components/ui/Typography";
+import { getSlimProjectBySlug } from "@/data/user/projects";
+import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
 
 export default async function ProjectSettings({ params }: { params: unknown }) {
   const { projectSlug } = projectSlugParamSchema.parse(params);

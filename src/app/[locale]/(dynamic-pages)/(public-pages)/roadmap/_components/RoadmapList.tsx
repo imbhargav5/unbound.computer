@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import InternalRoadmapCard from '@/components/InternalRoadmapCard';
-import type { roadmapDataType } from '@/data/admin/marketing-roadmap';
-import { Draggable } from './Draggable';
+import InternalRoadmapCard from "@/components/InternalRoadmapCard";
+import type { roadmapDataType } from "@/data/admin/marketing-roadmap";
+import { Draggable } from "./Draggable";
 
 export const RoadmapList = ({
   cards,

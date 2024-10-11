@@ -1,5 +1,5 @@
-import { createSupabaseUnkeyClient } from '@/supabase-clients/unkey/createSupabaseUnkeyClient';
-import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseUnkeyClient } from "@/supabase-clients/unkey/createSupabaseUnkeyClient";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,13 +13,13 @@ export async function GET(req: NextRequest) {
     const { user } = data;
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const responseHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     };
 
     return NextResponse.json(user, {

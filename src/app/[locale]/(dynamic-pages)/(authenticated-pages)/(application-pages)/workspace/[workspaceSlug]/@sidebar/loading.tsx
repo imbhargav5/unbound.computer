@@ -1,11 +1,12 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LoadingSidebarRoot() {
-  return <div className="space-y-4 p-4">
-    <Skeleton className="w-full h-12" />
-    <Skeleton className="w-full h-12" />
-    <Skeleton className="w-full h-12" />
-    <Skeleton className="w-full h-12" />
-  </div>
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="w-full h-12" />
+      <Skeleton className="w-full h-12" />
+      <Skeleton className="w-full h-12" />
+      <Skeleton className="w-full h-12" />
+    </div>
+  );
 }
-

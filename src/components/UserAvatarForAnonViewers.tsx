@@ -1,14 +1,13 @@
-'use server';
-import { getPublicUserAvatarUrl } from '@/utils/helpers';
+"use server";
+import { getPublicUserAvatarUrl } from "@/utils/helpers";
 
-import { Skeleton } from '@/components/ui/skeleton';
-import { anonGetUserProfile } from '@/data/user/elevatedQueries';
-import Image from 'next/image';
-import { Suspense } from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
+import { anonGetUserProfile } from "@/data/user/elevatedQueries";
+import Image from "next/image";
+import { Suspense } from "react";
 
 const blurFallback =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=';
-
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=";
 
 async function UserAvatarWithFullname({
   userId,
@@ -17,10 +16,7 @@ async function UserAvatarWithFullname({
   userId: string;
   size: number;
 }) {
-  const {
-    avatarUrl,
-    fullName,
-  } = await anonGetUserProfile(userId);
+  const { avatarUrl, fullName } = await anonGetUserProfile(userId);
 
   const userAvatarUrl = getPublicUserAvatarUrl(avatarUrl);
   const userFullName = fullName ?? `User ${userId}`;
@@ -35,7 +31,7 @@ async function UserAvatarWithFullname({
             data-testid="anon-user-avatar"
             data-user-id={userId}
             alt={`${userFullName} avatar`}
-            src={userAvatarUrl || ''}
+            src={userAvatarUrl || ""}
             width={size}
             style={{
               width: size,
@@ -46,7 +42,7 @@ async function UserAvatarWithFullname({
         ) : (
           <div
             className={
-              'rounded-full select-none relative border bg-inherit shadow-sm text-sm'
+              "rounded-full select-none relative border bg-inherit shadow-sm text-sm"
             }
             style={{
               width: size,
@@ -66,7 +62,7 @@ async function UserAvatarWithFullname({
 function UserAvatarWithFullnameFallback({ size }: { size: number }) {
   return (
     <div className="flex items-center space-x-4">
-      <Skeleton style={{ width: size, height: size, borderRadius: '100%' }} />
+      <Skeleton style={{ width: size, height: size, borderRadius: "100%" }} />
       <Skeleton style={{ width: 80, height: size - 10 }} />
     </div>
   );

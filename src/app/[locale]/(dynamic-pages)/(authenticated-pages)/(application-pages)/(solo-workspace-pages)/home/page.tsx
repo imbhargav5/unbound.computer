@@ -1,12 +1,9 @@
 import { DashboardLoadingFallback } from "@/components/workspaces/DashboardLoadingFallback";
 import { WorkspaceDashboard } from "@/components/workspaces/WorkspaceDashboard";
 import { getCachedSoloWorkspace } from "@/rsc-data/user/workspaces";
-import {
-  projectsfilterSchema
-} from "@/utils/zod-schemas/params";
-import type { Metadata } from 'next';
+import { projectsfilterSchema } from "@/utils/zod-schemas/params";
+import type { Metadata } from "next";
 import { Suspense } from "react";
-
 
 export async function generateMetadata(): Promise<Metadata> {
   const workspace = await getCachedSoloWorkspace();
@@ -17,14 +14,19 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function WorkspaceDashboardPage({ searchParams }: {
+export default async function WorkspaceDashboardPage({
+  searchParams,
+}: {
   searchParams: unknown;
 }) {
   const projectFilters = projectsfilterSchema.parse(searchParams);
   const workspace = await getCachedSoloWorkspace();
   return (
     <Suspense fallback={<DashboardLoadingFallback />}>
-      <WorkspaceDashboard workspaceSlug={workspace.slug} projectFilters={projectFilters} />
+      <WorkspaceDashboard
+        workspaceSlug={workspace.slug}
+        projectFilters={projectFilters}
+      />
     </Suspense>
   );
 }

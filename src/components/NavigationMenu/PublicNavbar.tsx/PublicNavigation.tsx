@@ -1,11 +1,10 @@
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Suspense } from 'react';
-import { LeftNav } from '../ExternalNavbar/LeftNav';
-import { LoginCTAButton } from '../ExternalNavbar/LoginCTAButton';
-import { MobileMenu } from '../ExternalNavbar/MobileMenu';
-import { MobileMenuProvider } from '../ExternalNavbar/MobileMenuContext';
-import { MobileMenuOpen } from '../ExternalNavbar/MobileMenuOpen';
-
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Suspense } from "react";
+import { LeftNav } from "../ExternalNavbar/LeftNav";
+import { LoginCTAButton } from "../ExternalNavbar/LoginCTAButton";
+import { MobileMenu } from "../ExternalNavbar/MobileMenu";
+import { MobileMenuProvider } from "../ExternalNavbar/MobileMenuContext";
+import { MobileMenuOpen } from "../ExternalNavbar/MobileMenuOpen";
 
 export function PublicNavigation() {
   return (

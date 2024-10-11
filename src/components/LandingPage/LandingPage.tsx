@@ -9,7 +9,6 @@ import Pricing from "./pricing";
 import Quotetion from "./quotetion";
 import Testimonials from "./testimonials";
 
-
 export const LandingPage = () => {
   return (
     <main>

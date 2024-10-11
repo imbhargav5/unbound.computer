@@ -12,7 +12,11 @@ import TeamInvitationEmail from "emails/TeamInvitation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { acceptWorkspaceInvitation, declineWorkspaceInvitation, getInvitationWorkspaceDetails } from "./elevatedQueries";
+import {
+  acceptWorkspaceInvitation,
+  declineWorkspaceInvitation,
+  getInvitationWorkspaceDetails,
+} from "./elevatedQueries";
 import {
   createAcceptedWorkspaceInvitationNotification,
   createNotification,
@@ -26,9 +30,9 @@ const appAdminGetUserIdByEmail = async (
   email: string,
 ): Promise<string | null> => {
   const { data, error } = await supabaseAdminClient
-    .from('user_application_settings')
-    .select('*')
-    .eq('email_readonly', email)
+    .from("user_application_settings")
+    .select("*")
+    .eq("email_readonly", email);
 
   if (error) {
     throw error;
@@ -48,7 +52,7 @@ async function setupInviteeUserDetails(email: string): Promise<{
   const inviteeUserId = await appAdminGetUserIdByEmail(email);
   /**
    * User does not exist in auth.users table, create a new user
-  */
+   */
   if (!inviteeUserId) {
     const { data, error } = await supabaseAdminClient.auth.admin.createUser({
       email: email,
@@ -69,7 +73,6 @@ async function setupInviteeUserDetails(email: string): Promise<{
 }
 
 async function getMagicLink(email: string): Promise<string> {
-
   const response = await supabaseAdminClient.auth.admin.generateLink({
     email,
     type: "magiclink",
@@ -127,120 +130,123 @@ async function getViewInvitationUrl(
 const createInvitationSchema = z.object({
   workspaceId: z.string().uuid(),
   email: z.string().email(),
-  role: z.enum(["admin", "member", "readonly"]) // Assuming these are the possible roles
+  role: z.enum(["admin", "member", "readonly"]), // Assuming these are the possible roles
 });
 
 export const createInvitationAction = authActionClient
   .schema(createInvitationSchema)
-  .action(async ({ parsedInput: { workspaceId, email, role }, ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+  .action(
+    async ({ parsedInput: { workspaceId, email, role }, ctx: { userId } }) => {
+      const supabaseClient = createSupabaseUserServerActionClient();
 
-    // Check if organization exists
-    const { data: workspace, error: workspaceError } = await supabaseClient
-      .from("workspaces")
-      .select("*")
-      .eq("id", workspaceId)
-      .single();
+      // Check if organization exists
+      const { data: workspace, error: workspaceError } = await supabaseClient
+        .from("workspaces")
+        .select("*")
+        .eq("id", workspaceId)
+        .single();
 
-    if (workspaceError) {
-      throw new Error(workspaceError.message);
-    }
+      if (workspaceError) {
+        throw new Error(workspaceError.message);
+      }
 
-    const inviteeUserDetails = await setupInviteeUserDetails(email);
+      const inviteeUserDetails = await setupInviteeUserDetails(email);
 
-    // Check if already invited
-    const { data: existingInvitations, error: existingInvitationError } = await supabaseClient
-      .from("workspace_invitations")
-      .select("*")
-      .eq("invitee_user_id", inviteeUserDetails.userId)
-      .eq("inviter_user_id", userId)
-      .eq("status", "active")
-      .eq("workspace_id", workspaceId);
+      // Check if already invited
+      const { data: existingInvitations, error: existingInvitationError } =
+        await supabaseClient
+          .from("workspace_invitations")
+          .select("*")
+          .eq("invitee_user_id", inviteeUserDetails.userId)
+          .eq("inviter_user_id", userId)
+          .eq("status", "active")
+          .eq("workspace_id", workspaceId);
 
-    if (existingInvitationError) {
-      throw new Error(existingInvitationError.message);
-    }
+      if (existingInvitationError) {
+        throw new Error(existingInvitationError.message);
+      }
 
-    if (existingInvitations.length > 0) {
-      throw new Error('User already invited');
-    }
+      if (existingInvitations.length > 0) {
+        throw new Error("User already invited");
+      }
 
-    // Create invitation
-    const { data: invitation, error: invitationError } = await supabaseClient
-      .from("workspace_invitations")
-      .insert({
-        invitee_user_email: email,
-        invitee_user_id: inviteeUserDetails.userId,
-        inviter_user_id: userId,
-        status: "active",
-        workspace_id: workspaceId,
-        invitee_user_role: role,
-      })
-      .select("*")
-      .single();
+      // Create invitation
+      const { data: invitation, error: invitationError } = await supabaseClient
+        .from("workspace_invitations")
+        .insert({
+          invitee_user_email: email,
+          invitee_user_id: inviteeUserDetails.userId,
+          inviter_user_id: userId,
+          status: "active",
+          workspace_id: workspaceId,
+          invitee_user_role: role,
+        })
+        .select("*")
+        .single();
 
-    if (invitationError) {
-      throw new Error(invitationError.message);
-    }
+      if (invitationError) {
+        throw new Error(invitationError.message);
+      }
 
-    const viewInvitationUrl = await getViewInvitationUrl(
-      invitation.id,
-      inviteeUserDetails,
-      email,
-    );
+      const viewInvitationUrl = await getViewInvitationUrl(
+        invitation.id,
+        inviteeUserDetails,
+        email,
+      );
 
-    const { data: userProfile, error: userProfileError } = await supabaseClient
-      .from("user_profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+      const { data: userProfile, error: userProfileError } =
+        await supabaseClient
+          .from("user_profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
 
-    if (userProfileError) {
-      throw new Error(userProfileError.message);
-    }
+      if (userProfileError) {
+        throw new Error(userProfileError.message);
+      }
 
-    const inviterName = userProfile?.full_name || `User [${userProfile?.id}]`;
+      const inviterName = userProfile?.full_name || `User [${userProfile?.id}]`;
 
-    // Send email
-    const invitationEmailHTML = await renderAsync(
-      <TeamInvitationEmail
-        viewInvitationUrl={viewInvitationUrl}
-        inviterName={inviterName}
-        isNewUser={inviteeUserDetails.type === "USER_CREATED"}
-        workspaceName={workspace.name}
-      />
-    );
+      // Send email
+      const invitationEmailHTML = await renderAsync(
+        <TeamInvitationEmail
+          viewInvitationUrl={viewInvitationUrl}
+          inviterName={inviterName}
+          isNewUser={inviteeUserDetails.type === "USER_CREATED"}
+          workspaceName={workspace.name}
+        />,
+      );
 
-    await sendEmail({
-      to: email,
-      subject: `Invitation to join ${workspace.name}`,
-      html: invitationEmailHTML,
-      from: process.env.ADMIN_EMAIL,
-    });
+      await sendEmail({
+        to: email,
+        subject: `Invitation to join ${workspace.name}`,
+        html: invitationEmailHTML,
+        from: process.env.ADMIN_EMAIL,
+      });
 
-    // Create notification
-    await createNotification(inviteeUserDetails.userId, {
-      type: 'invitedToWorkspace',
-      inviterFullName: inviterName,
-      workspaceId: workspaceId,
-      workspaceName: workspace.name,
-      invitationId: invitation.id,
-    });
-    revalidatePath("/user/invitations");
-    return invitation;
-  });
+      // Create notification
+      await createNotification(inviteeUserDetails.userId, {
+        type: "invitedToWorkspace",
+        inviterFullName: inviterName,
+        workspaceId: workspaceId,
+        workspaceName: workspace.name,
+        invitationId: invitation.id,
+      });
+      revalidatePath("/user/invitations");
+      return invitation;
+    },
+  );
 
 const acceptInvitationSchema = z.object({
-  invitationId: z.string()
+  invitationId: z.string(),
 });
 
 export const acceptInvitationAction = authActionClient
   .schema(acceptInvitationSchema)
   .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
-
     const invitation = await acceptWorkspaceInvitation({
       invitationId,
-      userId
+      userId,
     });
 
     const userProfile = await getUserProfile(userId);
@@ -260,16 +266,15 @@ export const acceptInvitationAction = authActionClient
   });
 
 const declineInvitationSchema = z.object({
-  invitationId: z.string()
+  invitationId: z.string(),
 });
 
 export const declineInvitationAction = authActionClient
   .schema(declineInvitationSchema)
   .action(async ({ parsedInput: { invitationId }, ctx: { userId } }) => {
-
     await declineWorkspaceInvitation({
       invitationId,
-      userId
+      userId,
     });
 
     revalidatePath("/user/invitations");
@@ -277,7 +282,6 @@ export const declineInvitationAction = authActionClient
     revalidatePath("/workspace/[workspaceSlug]", "layout");
     redirect("/dashboard");
   });
-
 
 export async function getPendingInvitationsOfUser() {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -357,7 +361,7 @@ export async function getPendingInvitationCountOfUser() {
 }
 
 const revokeInvitationSchema = z.object({
-  invitationId: z.string().uuid()
+  invitationId: z.string().uuid(),
 });
 
 export const revokeInvitationAction = authActionClient

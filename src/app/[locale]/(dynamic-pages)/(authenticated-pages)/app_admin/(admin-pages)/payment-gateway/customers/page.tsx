@@ -1,5 +1,5 @@
-import { StripePaymentGateway } from '@/payments/StripePaymentGateway';
-import { CustomersTable } from './CustomersTable';
+import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
+import { CustomersTable } from "./CustomersTable";
 
 export default async function CustomersPage() {
   const stripeGateway = new StripePaymentGateway();

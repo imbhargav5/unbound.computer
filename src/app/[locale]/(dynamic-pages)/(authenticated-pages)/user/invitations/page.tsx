@@ -1,7 +1,7 @@
-import { PageHeading } from '@/components/PageHeading';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Suspense } from 'react';
-import { PendingInvitationsList } from './PendingInvitationsList';
+import { PageHeading } from "@/components/PageHeading";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Suspense } from "react";
+import { PendingInvitationsList } from "./PendingInvitationsList";
 
 export default async function DashboardPage() {
   return (

@@ -1,11 +1,11 @@
-'use client';
-import { SidebarVisibilityContext } from '@/contexts/SidebarVisibilityContext';
-import { setSidebarVisibility } from '@/data/user/ui';
-import { cn } from '@/utils/cn';
-import { useMutation } from '@tanstack/react-query';
-import { PanelLeftClose } from 'lucide-react';
-import { useContext } from 'react';
-import { toast } from 'sonner';
+"use client";
+import { SidebarVisibilityContext } from "@/contexts/SidebarVisibilityContext";
+import { setSidebarVisibility } from "@/data/user/ui";
+import { cn } from "@/utils/cn";
+import { useMutation } from "@tanstack/react-query";
+import { PanelLeftClose } from "lucide-react";
+import { useContext } from "react";
+import { toast } from "sonner";
 
 export function SidebarClose() {
   const { setVisibility: setVisibilityContextValue } = useContext(
@@ -14,7 +14,7 @@ export function SidebarClose() {
   const { mutate } = useMutation(setSidebarVisibility, {
     onError: (error) => {
       console.log(error);
-      toast.error('An error occurred.');
+      toast.error("An error occurred.");
     },
   });
   function closeSidebar() {
@@ -24,8 +24,8 @@ export function SidebarClose() {
   return (
     <div
       className={cn(
-        'group cursor-pointer flex items-center px-1 py-2 hover:bg-neutral-50 dark:hover:bg-white/5 rounded-md',
-        'hidden lg:block',
+        "group cursor-pointer flex items-center px-1 py-2 hover:bg-neutral-50 dark:hover:bg-white/5 rounded-md",
+        "hidden lg:block",
       )}
       onClick={closeSidebar}
       data-testid="sidebar-close-trigger"

@@ -22,14 +22,19 @@ type DeleteChangelogDialogProps = {
   changelogTitle: string;
 };
 
-export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ changelogId, changelogTitle }) => {
+export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({
+  changelogId,
+  changelogTitle,
+}) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number>();
   const router = useRouter();
 
   const deleteChangelogMutation = useAction(deleteChangelogAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting changelog...', { description: 'Please wait while we delete the changelog.' });
+      toastRef.current = toast.loading('Deleting changelog...', {
+        description: 'Please wait while we delete the changelog.',
+      });
     },
     onSuccess: () => {
       toast.success('Changelog deleted successfully', { id: toastRef.current });
@@ -38,7 +43,10 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ ch
       router.refresh();
     },
     onError: ({ error }) => {
-      toast.error(`Failed to delete changelog: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(
+        `Failed to delete changelog: ${error.serverError || 'Unknown error'}`,
+        { id: toastRef.current },
+      );
       toastRef.current = undefined;
     },
     onSettled: () => {
@@ -53,7 +61,11 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ ch
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button data-testid="delete-changelog-dialog-trigger" variant="outline" size="sm">
+        <Button
+          data-testid="delete-changelog-dialog-trigger"
+          variant="outline"
+          size="sm"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -61,12 +73,20 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({ ch
         <DialogHeader>
           <DialogTitle>Delete Changelog</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete the changelog "{changelogTitle}"? This action cannot be undone.
+            Are you sure you want to delete the changelog &quot;
+            {changelogTitle}&quot;? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button data-testid="confirm-delete-button" variant="destructive" onClick={handleDelete} disabled={deleteChangelogMutation.status === 'executing'}>
-            {deleteChangelogMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
+          <Button
+            data-testid="confirm-delete-button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteChangelogMutation.status === 'executing'}
+          >
+            {deleteChangelogMutation.status === 'executing'
+              ? 'Deleting...'
+              : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

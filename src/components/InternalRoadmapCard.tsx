@@ -1,28 +1,28 @@
-import { Link } from '@/components/intl-link';
-import { Button } from '@/components/ui/button';
-import type { Enum } from '@/types';
-import { formatFieldValue } from '@/utils/feedback';
-import { Bug, Calendar, Command, EyeIcon, Info, Pencil } from 'lucide-react';
-import type { HtmlHTMLAttributes } from 'react';
-import { Badge, type BadgeProps } from './ui/badge';
+import { Link } from "@/components/intl-link";
+import { Button } from "@/components/ui/button";
+import type { Enum } from "@/types";
+import { formatFieldValue } from "@/utils/feedback";
+import { Bug, Calendar, Command, EyeIcon, Info, Pencil } from "lucide-react";
+import type { HtmlHTMLAttributes } from "react";
+import { Badge, type BadgeProps } from "./ui/badge";
 
 type InternalRoadmapCardProps = {
   title: string;
   description: string;
-  tag: Enum<'marketing_feedback_thread_type'>;
+  tag: Enum<"marketing_feedback_thread_type">;
   date: string;
-  priority: Enum<'marketing_feedback_thread_priority'>;
+  priority: Enum<"marketing_feedback_thread_priority">;
   feedbackItemId: string;
   isAdmin?: boolean;
 };
 
-const getIconVariantForTag = (tag: Enum<'marketing_feedback_thread_type'>) => {
+const getIconVariantForTag = (tag: Enum<"marketing_feedback_thread_type">) => {
   switch (tag) {
-    case 'bug':
+    case "bug":
       return <Bug className="mr-2 h-4 w-4" />;
-    case 'general':
+    case "general":
       return <Info className="mr-2 h-4 w-4" />;
-    case 'feature_request':
+    case "feature_request":
       return <Command className="mr-2 h-4 w-4" />;
     default:
       return null;
@@ -30,17 +30,17 @@ const getIconVariantForTag = (tag: Enum<'marketing_feedback_thread_type'>) => {
 };
 
 const getPriorityVariant = (
-  priority: Enum<'marketing_feedback_thread_priority'>,
-): BadgeProps['variant'] => {
+  priority: Enum<"marketing_feedback_thread_priority">,
+): BadgeProps["variant"] => {
   switch (priority) {
-    case 'high':
-      return 'destructive';
-    case 'medium':
-      return 'default';
-    case 'low':
-      return 'outline';
+    case "high":
+      return "destructive";
+    case "medium":
+      return "default";
+    case "low":
+      return "outline";
     default:
-      return 'default';
+      return "default";
   }
 };
 
@@ -71,7 +71,7 @@ export default function InternalRoadmapCard({
               {getIconVariantForTag(tag)}
               {formatFieldValue(tag)}
             </Badge>
-            <Badge size="sm" variant={'outline'}>
+            <Badge size="sm" variant={"outline"}>
               {formatFieldValue(priority)}
             </Badge>
           </div>
@@ -84,7 +84,7 @@ export default function InternalRoadmapCard({
       </div>
 
       <Link href={`/feedback/${feedbackItemId}`} className="mt-1">
-        <Button variant={'ghost'} size="icon">
+        <Button variant={"ghost"} size="icon">
           {isAdmin ? (
             <Pencil className="h-4 w-4" />
           ) : (

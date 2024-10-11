@@ -1,22 +1,25 @@
-'use client';
+"use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
-import { EmailConfirmationPendingCard } from '@/components/Auth/EmailConfirmationPendingCard';
-import { FormInput } from '@/components/form-components/FormInput';
-import { T } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Form } from '@/components/ui/form';
-import { resetPasswordAction } from '@/data/auth/auth';
-import { getSafeActionErrorMessage } from '@/utils/errorMessage';
-import { resetPasswordSchema, ResetPasswordSchemaType } from '@/utils/zod-schemas/auth';
-import Link from 'next/link';
+import { EmailConfirmationPendingCard } from "@/components/Auth/EmailConfirmationPendingCard";
+import { FormInput } from "@/components/form-components/FormInput";
+import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Form } from "@/components/ui/form";
+import { resetPasswordAction } from "@/data/auth/auth";
+import { getSafeActionErrorMessage } from "@/utils/errorMessage";
+import {
+  resetPasswordSchema,
+  ResetPasswordSchemaType,
+} from "@/utils/zod-schemas/auth";
+import Link from "next/link";
 
 export function ForgotPassword(): JSX.Element {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -24,17 +27,20 @@ export function ForgotPassword(): JSX.Element {
 
   const resetPasswordMutation = useAction(resetPasswordAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Sending password reset link...');
+      toastRef.current = toast.loading("Sending password reset link...");
     },
     onSuccess: () => {
-      toast.success('Password reset link sent!', {
+      toast.success("Password reset link sent!", {
         id: toastRef.current,
       });
       toastRef.current = undefined;
-      setSuccessMessage('A password reset link has been sent to your email!');
+      setSuccessMessage("A password reset link has been sent to your email!");
     },
     onError: ({ error }) => {
-      const errorMessage = getSafeActionErrorMessage(error, 'Failed to send password reset link');
+      const errorMessage = getSafeActionErrorMessage(
+        error,
+        "Failed to send password reset link",
+      );
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -51,7 +57,7 @@ export function ForgotPassword(): JSX.Element {
   const form = useForm<ResetPasswordSchemaType>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      email: '',
+      email: "",
     },
     errors: hookFormValidationErrors,
   });
@@ -79,7 +85,10 @@ export function ForgotPassword(): JSX.Element {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormInput
                   id="forgot-password-email"
                   label="Email address"
@@ -87,17 +96,17 @@ export function ForgotPassword(): JSX.Element {
                   control={form.control}
                   name="email"
                   inputProps={{
-                    placeholder: 'placeholder@email.com',
-                    disabled: status === 'executing',
-                    autoComplete: 'email',
+                    placeholder: "placeholder@email.com",
+                    disabled: status === "executing",
+                    autoComplete: "email",
                   }}
                 />
                 <Button
                   className="w-full"
                   type="submit"
-                  disabled={status === 'executing'}
+                  disabled={status === "executing"}
                 >
-                  {status === 'executing' ? 'Sending...' : 'Reset password'}
+                  {status === "executing" ? "Sending..." : "Reset password"}
                 </Button>
                 <div className="text-sm text-center">
                   <Link

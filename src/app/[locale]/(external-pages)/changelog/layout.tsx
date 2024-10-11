@@ -1,7 +1,7 @@
-import { unstable_setRequestLocale } from 'next-intl/server';
-import type React from 'react';
+import { unstable_setRequestLocale } from "next-intl/server";
+import type React from "react";
 
-type Props = { children: React.ReactNode, params: { locale: string } };
+type Props = { children: React.ReactNode; params: { locale: string } };
 
 export default function layout({ children, params: { locale } }: Props) {
   unstable_setRequestLocale(locale);

@@ -1,70 +1,77 @@
-'use client';
-import { PageHeading } from '@/components/PageHeading';
-import { UpdateAvatarAndNameBody } from '@/components/UpdateAvatarAndName';
+"use client";
+import { PageHeading } from "@/components/PageHeading";
+import { UpdateAvatarAndNameBody } from "@/components/UpdateAvatarAndName";
 import {
   updateUserProfileNameAndAvatarAction,
   uploadPublicUserAvatarAction,
-} from '@/data/user/user';
-import type { DBTable } from '@/types';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { ConfirmDeleteAccountDialog } from './ConfirmDeleteAccountDialog';
+} from "@/data/user/user";
+import type { DBTable } from "@/types";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDeleteAccountDialog } from "./ConfirmDeleteAccountDialog";
 
 export function AccountSettings({
   userProfile,
-  userEmail
+  userEmail,
 }: {
-  userProfile: DBTable<'user_profiles'>;
+  userProfile: DBTable<"user_profiles">;
   userEmail: string | undefined;
 }) {
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: updateUserProfile, isPending: isUpdatingProfile } = useAction(updateUserProfileNameAndAvatarAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Updating profile...');
-    },
-    onSuccess: () => {
-      toast.success('Profile updated!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update profile';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  const { execute: updateUserProfile, isPending: isUpdatingProfile } =
+    useAction(updateUserProfileNameAndAvatarAction, {
+      onExecute: () => {
+        toastRef.current = toast.loading("Updating profile...");
+      },
+      onSuccess: () => {
+        toast.success("Profile updated!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update profile";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+    });
 
-  const [isNewAvatarImageLoading, setIsNewAvatarImageLoading] = useState<boolean>(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userProfile.avatar_url ?? undefined);
+  const [isNewAvatarImageLoading, setIsNewAvatarImageLoading] =
+    useState<boolean>(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(
+    userProfile.avatar_url ?? undefined,
+  );
 
-  const { execute: uploadAvatar, isPending: isUploadingAvatar } = useAction(uploadPublicUserAvatarAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Uploading avatar...');
+  const { execute: uploadAvatar, isPending: isUploadingAvatar } = useAction(
+    uploadPublicUserAvatarAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Uploading avatar...");
+      },
+      onSuccess: ({ data }) => {
+        router.refresh();
+        setIsNewAvatarImageLoading(true);
+        setAvatarUrl(data);
+        toast.success("Avatar uploaded!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to upload avatar";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data }) => {
-      router.refresh();
-      setIsNewAvatarImageLoading(true);
-      setAvatarUrl(data);
-      toast.success('Avatar uploaded!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to upload avatar';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <div className="max-w-sm">
@@ -75,9 +82,11 @@ export function AccountSettings({
           }}
           onFileUpload={(file: File) => {
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append("file", file);
             uploadAvatar({
-              formData, fileName: file.name, fileOptions: { upsert: true }
+              formData,
+              fileName: file.name,
+              fileOptions: { upsert: true },
             });
           }}
           userId={userProfile.id}

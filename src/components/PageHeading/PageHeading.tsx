@@ -1,6 +1,6 @@
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { cn } from '@/utils/cn';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { cn } from "@/utils/cn";
 
 type PageHeadingProps = {
   title: string;
@@ -24,9 +24,9 @@ export function PageHeading({
   const titleElement = (
     <T.H2
       className={cn(
-        '',
+        "",
         titleClassName,
-        isLoading ? 'text-neutral-100 dark:text-neutral-800 text-4xl' : '',
+        isLoading ? "text-neutral-100 dark:text-neutral-800 text-4xl" : "",
       )}
     >
       {title}
@@ -35,7 +35,7 @@ export function PageHeading({
   const subTitleElement = (
     <T.P
       className={cn(
-        'text-muted-foreground text-lg leading-6',
+        "text-muted-foreground text-lg leading-6",
         subTitleClassName,
       )}
     >
@@ -53,8 +53,8 @@ export function PageHeading({
   return (
     <div
       className={cn(
-        'md:flex md:items-start md:justify-between',
-        isLoading ? 'animate-pulse pointer-events-none' : '',
+        "md:flex md:items-start md:justify-between",
+        isLoading ? "animate-pulse pointer-events-none" : "",
       )}
     >
       <div className="min-w-0 flex-1">{wrappedTitleElement}</div>

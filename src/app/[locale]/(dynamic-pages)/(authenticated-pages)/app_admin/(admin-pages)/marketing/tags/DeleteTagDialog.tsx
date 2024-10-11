@@ -22,14 +22,19 @@ type DeleteTagDialogProps = {
   tagName: string;
 };
 
-export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({ tagId, tagName }) => {
+export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({
+  tagId,
+  tagName,
+}) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number>();
   const router = useRouter();
 
   const deleteTagMutation = useAction(deleteTagAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting tag...', { description: 'Please wait while we delete the tag.' });
+      toastRef.current = toast.loading('Deleting tag...', {
+        description: 'Please wait while we delete the tag.',
+      });
     },
     onSuccess: () => {
       toast.success('Tag deleted successfully', { id: toastRef.current });
@@ -38,7 +43,10 @@ export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({ tagId, tagName
       router.refresh();
     },
     onError: ({ error }) => {
-      toast.error(`Failed to delete tag: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(
+        `Failed to delete tag: ${error.serverError || 'Unknown error'}`,
+        { id: toastRef.current },
+      );
       toastRef.current = undefined;
     },
     onSettled: () => {
@@ -61,12 +69,19 @@ export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({ tagId, tagName
         <DialogHeader>
           <DialogTitle>Delete Tag</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete the tag "{tagName}"? This action cannot be undone.
+            Are you sure you want to delete the tag &quot;{tagName}?&quot; This
+            action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleteTagMutation.status === 'executing'}>
-            {deleteTagMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteTagMutation.status === 'executing'}
+          >
+            {deleteTagMutation.status === 'executing'
+              ? 'Deleting...'
+              : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

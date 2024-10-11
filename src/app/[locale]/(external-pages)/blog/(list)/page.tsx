@@ -1,18 +1,18 @@
-import { T } from '@/components/ui/Typography';
+import { T } from "@/components/ui/Typography";
 import {
   anonGetAllBlogTags,
   anonGetPublishedBlogPosts,
-} from '@/data/anon/marketing-blog';
-import { unstable_setRequestLocale } from 'next-intl/server';
-import { Suspense } from 'react';
-import { PublicBlogList } from '../PublicBlogList';
-import { TagsNav } from '../TagsNav';
+} from "@/data/anon/marketing-blog";
+import { unstable_setRequestLocale } from "next-intl/server";
+import { Suspense } from "react";
+import { PublicBlogList } from "../PublicBlogList";
+import { TagsNav } from "../TagsNav";
 
 export const metadata = {
-  title: 'Blog List | Nextbase',
-  description: 'Collection of the latest blog posts from the team at Nextbase',
+  title: "Blog List | Nextbase",
+  description: "Collection of the latest blog posts from the team at Nextbase",
   icons: {
-    icon: '/images/logo-black-main.ico',
+    icon: "/images/logo-black-main.ico",
   },
 };
 
@@ -25,8 +25,6 @@ async function BlogList() {
   const blogPosts = await anonGetPublishedBlogPosts();
   return <PublicBlogList blogPosts={blogPosts} />;
 }
-
-
 
 export default async function BlogListPage({
   params: { locale },

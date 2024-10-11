@@ -1,7 +1,7 @@
-'use server';
+"use server";
 
-import { SIDEBAR_VISIBILITY_COOKIE_KEY } from '@/constants';
-import { cookies } from 'next/headers';
+import { SIDEBAR_VISIBILITY_COOKIE_KEY } from "@/constants";
+import { cookies } from "next/headers";
 
 export async function setSidebarVisibility(isVisible: boolean) {
   const cookieStore = cookies();

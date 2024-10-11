@@ -1,58 +1,72 @@
-'use client';
+"use client";
 
-import { FormInput } from '@/components/form-components/FormInput';
-import { FormSelect } from '@/components/form-components/FormSelect';
+import { FormInput } from "@/components/form-components/FormInput";
+import { FormSelect } from "@/components/form-components/FormSelect";
 import { Tiptap } from "@/components/TipTap";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Button } from '@/components/ui/button';
-import { Form } from '@/components/ui/form';
-import { Label } from '@/components/ui/label';
-import { updateChangelogAction, uploadChangelogCoverImageAction } from '@/data/admin/marketing-changelog';
-import { DBTable } from '@/types';
-import { toSafeJSONB } from '@/utils/jsonb';
-import { updateMarketingChangelogSchema } from '@/utils/zod-schemas/marketingChangelog';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
+import {
+  updateChangelogAction,
+  uploadChangelogCoverImageAction,
+} from "@/data/admin/marketing-changelog";
+import { DBTable } from "@/types";
+import { toSafeJSONB } from "@/utils/jsonb";
+import { updateMarketingChangelogSchema } from "@/utils/zod-schemas/marketingChangelog";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
-import { useAction } from 'next-safe-action/hooks';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import React, { useRef, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
+import { useAction } from "next-safe-action/hooks";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import React, { useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { AuthorsSelect } from "./AuthorsSelect";
 
 type FormData = z.infer<typeof updateMarketingChangelogSchema>;
 
 type EditChangelogFormProps = {
-  changelog: DBTable<'marketing_changelog'> & {
+  changelog: DBTable<"marketing_changelog"> & {
     marketing_changelog_author_relationship: { author_id: string }[];
   };
-  authors: DBTable<'marketing_author_profiles'>[];
+  authors: DBTable<"marketing_author_profiles">[];
 };
 
-export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog, authors }) => {
+export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({
+  changelog,
+  authors,
+}) => {
   const router = useRouter();
   const toastRef = useRef<string | number>();
-  const [coverImageUrl, setCoverImageUrl] = useState(changelog.cover_image || '');
+  const [coverImageUrl, setCoverImageUrl] = useState(
+    changelog.cover_image || "",
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateMutation = useAction(updateChangelogAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Updating changelog...', { description: 'Please wait while we update the changelog.' });
+      toastRef.current = toast.loading("Updating changelog...", {
+        description: "Please wait while we update the changelog.",
+      });
     },
     onSuccess: () => {
-      toast.success('Changelog updated successfully', {
+      toast.success("Changelog updated successfully", {
         id: toastRef.current,
-        description: 'Your changes have been saved.'
+        description: "Your changes have been saved.",
       });
       router.refresh();
     },
     onError: ({ error }) => {
-      toast.error(`Failed to update changelog: ${error.serverError || 'Unknown error'}`, {
-        id: toastRef.current,
-        description: 'There was an issue saving your changes. Please try again.'
-      });
+      toast.error(
+        `Failed to update changelog: ${error.serverError || "Unknown error"}`,
+        {
+          id: toastRef.current,
+          description:
+            "There was an issue saving your changes. Please try again.",
+        },
+      );
     },
     onSettled: () => {
       toastRef.current = undefined;
@@ -78,23 +92,29 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
 
   const uploadImageMutation = useAction(uploadChangelogCoverImageAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Uploading cover image...', { description: 'Please wait while we upload the image.' });
+      toastRef.current = toast.loading("Uploading cover image...", {
+        description: "Please wait while we upload the image.",
+      });
     },
     onSuccess: ({ data }) => {
-      toast.success('Cover image uploaded successfully', {
+      toast.success("Cover image uploaded successfully", {
         id: toastRef.current,
-        description: 'Your new cover image has been successfully uploaded.'
+        description: "Your new cover image has been successfully uploaded.",
       });
       if (data) {
         setCoverImageUrl(data);
-        setValue('cover_image', data);
+        setValue("cover_image", data);
       }
     },
     onError: ({ error }) => {
-      toast.error(`Failed to upload cover image: ${error.serverError || 'Unknown error'}`, {
-        id: toastRef.current,
-        description: 'There was an issue uploading your cover image. Please try again.'
-      });
+      toast.error(
+        `Failed to upload cover image: ${error.serverError || "Unknown error"}`,
+        {
+          id: toastRef.current,
+          description:
+            "There was an issue uploading your cover image. Please try again.",
+        },
+      );
     },
     onSettled: () => {
       toastRef.current = undefined;
@@ -108,11 +128,13 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
     });
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
       uploadImageMutation.execute({ formData });
     }
   };
@@ -139,7 +161,9 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-gray-100">
-                        <span className="text-gray-400">Click to upload image</span>
+                        <span className="text-gray-400">
+                          Click to upload image
+                        </span>
                       </div>
                     )}
                   </AspectRatio>
@@ -185,24 +209,26 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({ changelog,
             control={control}
             name="status"
             options={[
-              { label: 'Draft', value: 'draft' },
-              { label: 'Published', value: 'published' },
+              { label: "Draft", value: "draft" },
+              { label: "Published", value: "published" },
             ]}
             placeholder="Select status"
             description="Select the status of the changelog"
           />
 
-          <Button type="submit" disabled={updateMutation.status === 'executing'}>
-            {updateMutation.status === 'executing' ? 'Updating...' : 'Update Changelog'}
+          <Button
+            type="submit"
+            disabled={updateMutation.status === "executing"}
+          >
+            {updateMutation.status === "executing"
+              ? "Updating..."
+              : "Update Changelog"}
           </Button>
         </form>
       </Form>
 
       <div className="w-96 space-y-6 flex-shrink-0">
-        <AuthorsSelect
-          changelog={changelog}
-          authors={authors}
-        />
+        <AuthorsSelect changelog={changelog} authors={authors} />
       </div>
     </div>
   );

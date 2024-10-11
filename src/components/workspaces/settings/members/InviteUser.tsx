@@ -2,32 +2,38 @@
 
 import { createInvitationAction } from "@/data/user/invitation";
 import type { Enum, WorkspaceWithMembershipType } from "@/types";
-import { useAction } from 'next-safe-action/hooks';
+import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
-import { useRef } from 'react';
-import { toast } from 'sonner';
+import { useRef } from "react";
+import { toast } from "sonner";
 import { InviteWorkspaceMemberDialog } from "./InviteWorkspaceMemberDialog";
 
-
-export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipType }): JSX.Element {
+export function InviteUser({
+  workspace,
+}: {
+  workspace: WorkspaceWithMembershipType;
+}): JSX.Element {
   const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
   const { execute, status } = useAction(createInvitationAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Inviting user...');
+      toastRef.current = toast.loading("Inviting user...");
     },
     onSuccess: () => {
-      toast.success('User invited!', { id: toastRef.current });
+      toast.success("User invited!", { id: toastRef.current });
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError || 'Failed to invite user';
+      const errorMessage = error.serverError || "Failed to invite user";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
   });
 
-  const handleInvite = (email: string, role: Exclude<Enum<"workspace_member_role_type">, "owner">) => {
+  const handleInvite = (
+    email: string,
+    role: Exclude<Enum<"workspace_member_role_type">, "owner">,
+  ) => {
     execute({
       email,
       workspaceId: workspace.id,
@@ -38,7 +44,7 @@ export function InviteUser({ workspace }: { workspace: WorkspaceWithMembershipTy
   return (
     <InviteWorkspaceMemberDialog
       onInvite={handleInvite}
-      isLoading={status === 'executing'}
+      isLoading={status === "executing"}
     />
   );
 }

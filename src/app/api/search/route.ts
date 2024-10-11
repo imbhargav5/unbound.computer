@@ -1,5 +1,5 @@
-import { getPages } from '@/app/[locale]/source';
-import { createSearchAPI } from 'fumadocs-core/search/server';
+import { getPages } from "@/app/[locale]/source";
+import { createSearchAPI } from "fumadocs-core/search/server";
 
 /**
  * Creates and exports a search API endpoint using the 'advanced' search mode.
@@ -10,7 +10,7 @@ import { createSearchAPI } from 'fumadocs-core/search/server';
  *
  * @returns An object with a GET method that handles search requests.
  */
-export const { GET } = createSearchAPI('advanced', {
+export const { GET } = createSearchAPI("advanced", {
   indexes: getPages().map((page) => ({
     /** The title of the page */
     title: page.data.title,

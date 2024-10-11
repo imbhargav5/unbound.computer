@@ -1,8 +1,7 @@
+import { logos } from "@/data/anon/logos";
 
-import { logos } from '@/data/anon/logos';
-
-import Image from 'next/image';
-import Marquee from '../magicui/marquee';
+import Image from "next/image";
+import Marquee from "../magicui/marquee";
 
 export default function LogoCloud() {
   return (
@@ -17,7 +16,7 @@ export default function LogoCloud() {
               className="group relative mt-6 flex gap-6 overflow-hidden p-2"
               style={{
                 maskImage:
-                  'linear-gradient(to left, transparent 0%, black 20%, black 80%, transparent 95%)',
+                  "linear-gradient(to left, transparent 0%, black 20%, black 80%, transparent 95%)",
               }}
             >
               <Marquee pauseOnHover>

@@ -1,17 +1,21 @@
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 // const matchAppAdmin = match('/app_admin_preview/(.*)?');
-import { User } from '@supabase/supabase-js';
-import createMiddleware from 'next-intl/middleware';
-import { match } from 'path-to-regexp';
-import urlJoin from 'url-join';
-import { DEFAULT_LOCALE, LOCALES, LOCALE_GLOB_PATTERN, isValidLocale } from './constants';
-import { updateSession } from './supabase-clients/middleware';
-import { createSupabaseMiddlewareClient } from './supabase-clients/user/createSupabaseMiddlewareClient';
-import { toSiteURL } from './utils/helpers';
-import { isSupabaseUserAppAdmin } from './utils/isSupabaseUserAppAdmin';
-import { authUserMetadataSchema } from './utils/zod-schemas/authUserMetadata';
-
+import { User } from "@supabase/supabase-js";
+import createMiddleware from "next-intl/middleware";
+import { match } from "path-to-regexp";
+import urlJoin from "url-join";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  LOCALE_GLOB_PATTERN,
+  isValidLocale,
+} from "./constants";
+import { updateSession } from "./supabase-clients/middleware";
+import { createSupabaseMiddlewareClient } from "./supabase-clients/user/createSupabaseMiddlewareClient";
+import { toSiteURL } from "./utils/helpers";
+import { isSupabaseUserAppAdmin } from "./utils/isSupabaseUserAppAdmin";
+import { authUserMetadataSchema } from "./utils/zod-schemas/authUserMetadata";
 
 const onboardingPaths = [`/onboarding/(.*)?`];
 const appAdminPaths = [`/app_admin/(.*)?`];
@@ -55,21 +59,37 @@ const protectedPagePrefixes = [
   `/user/(.*)?`,
 ];
 
-const rootPaths = ['/']
+const rootPaths = ["/"];
 
-const allSubPathsWithoutLocale = [...unprotectedPagePrefixes, ...protectedPagePrefixes, ...onboardingPaths, ...appAdminPaths];
+const allSubPathsWithoutLocale = [
+  ...unprotectedPagePrefixes,
+  ...protectedPagePrefixes,
+  ...onboardingPaths,
+  ...appAdminPaths,
+];
 
-
-const unprotectedPagesWithLocale = unprotectedPagePrefixes.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
-const protectedPagesWithLocale = protectedPagePrefixes.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
-const onboardingPathsWithLocale = onboardingPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
-const appAdminPathsWithLocale = appAdminPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
-const rootPathsWithLocale = rootPaths.map(path => urlJoin('/', `(${LOCALE_GLOB_PATTERN})`, path));
-const allSubPathsWithLocale = [...rootPathsWithLocale, ...unprotectedPagesWithLocale, ...protectedPagesWithLocale, ...onboardingPathsWithLocale, ...appAdminPathsWithLocale];
-
-
-
-
+const unprotectedPagesWithLocale = unprotectedPagePrefixes.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+const protectedPagesWithLocale = protectedPagePrefixes.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+const onboardingPathsWithLocale = onboardingPaths.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+const appAdminPathsWithLocale = appAdminPaths.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+const rootPathsWithLocale = rootPaths.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+const allSubPathsWithLocale = [
+  ...rootPathsWithLocale,
+  ...unprotectedPagesWithLocale,
+  ...protectedPagesWithLocale,
+  ...onboardingPathsWithLocale,
+  ...appAdminPathsWithLocale,
+];
 
 function isUnprotectedPage(pathname: string) {
   return unprotectedPagePrefixes.some((prefix) => {
@@ -78,43 +98,53 @@ function isUnprotectedPage(pathname: string) {
   });
 }
 
-type MiddlewareFunction = (request: NextRequest) => Promise<NextResponse>
+type MiddlewareFunction = (request: NextRequest) => Promise<NextResponse>;
 
 interface MiddlewareConfig {
-  matcher: string | string[]
-  middleware: MiddlewareFunction
+  matcher: string | string[];
+  middleware: MiddlewareFunction;
 }
 
 const middlewares: MiddlewareConfig[] = [
   {
-    matcher: ['/', ...allSubPathsWithoutLocale],
+    matcher: ["/", ...allSubPathsWithoutLocale],
     middleware: async (request) => {
-      console.log('middleware without locale paths', request.nextUrl.pathname)
+      console.log("middleware without locale paths", request.nextUrl.pathname);
       // redirect to /en if the locale is not /en or /
-      const currentLocale = request.cookies.get('NEXT_LOCALE')?.value;
+      const currentLocale = request.cookies.get("NEXT_LOCALE")?.value;
       const searchParams = request.nextUrl.searchParams;
       const pathname = request.nextUrl.pathname;
       if (currentLocale) {
         const parsedLocale = isValidLocale(currentLocale);
         if (parsedLocale) {
           return NextResponse.redirect(
-            urlJoin(request.nextUrl.origin, currentLocale, pathname, `?${searchParams.toString()}`)
+            urlJoin(
+              request.nextUrl.origin,
+              currentLocale,
+              pathname,
+              `?${searchParams.toString()}`,
+            ),
           );
         }
       }
       const response = NextResponse.redirect(
-        urlJoin(request.nextUrl.origin, DEFAULT_LOCALE, pathname, `?${searchParams.toString()}`)
+        urlJoin(
+          request.nextUrl.origin,
+          DEFAULT_LOCALE,
+          pathname,
+          `?${searchParams.toString()}`,
+        ),
       );
-      response.cookies.set('NEXT_LOCALE', DEFAULT_LOCALE);
+      response.cookies.set("NEXT_LOCALE", DEFAULT_LOCALE);
       return response;
-    }
+    },
   },
 
   {
     matcher: allSubPathsWithLocale,
     middleware: async (request) => {
-      console.log('all i18n paths', request.nextUrl.pathname)
-      const localeFromPath = request.nextUrl.pathname.split('/')[1];
+      console.log("all i18n paths", request.nextUrl.pathname);
+      const localeFromPath = request.nextUrl.pathname.split("/")[1];
 
       // Step 2: Create and call the next-intl middleware (example)
       const handleI18nRouting = createMiddleware({
@@ -125,67 +155,70 @@ const middlewares: MiddlewareConfig[] = [
       console.log(localeFromPath);
       if (isValidLocale(localeFromPath)) {
         // save cookie
-        response.cookies.set('NEXT_LOCALE', localeFromPath);
+        response.cookies.set("NEXT_LOCALE", localeFromPath);
       } else {
-        response.cookies.delete('NEXT_LOCALE');
+        response.cookies.delete("NEXT_LOCALE");
       }
       return response;
-    }
+    },
   },
   {
     // protected routes
     matcher: [...onboardingPathsWithLocale, ...protectedPagesWithLocale],
     middleware: async (req) => {
-      console.log('middleware protected paths with locale', req.nextUrl.pathname)
+      console.log(
+        "middleware protected paths with locale",
+        req.nextUrl.pathname,
+      );
       const res = NextResponse.next();
       await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
       if (!maybeUser) {
-        return NextResponse.redirect(toSiteURL('/login'));
+        return NextResponse.redirect(toSiteURL("/login"));
       }
       return res;
-    }
+    },
   },
   {
     matcher: protectedPagesWithLocale,
     middleware: async (req) => {
-      console.log('middleware protected paths with locale protected pages', req.nextUrl.pathname)
+      console.log(
+        "middleware protected paths with locale protected pages",
+        req.nextUrl.pathname,
+      );
       const res = NextResponse.next();
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
       if (shouldOnboardUser(req.nextUrl.pathname, maybeUser)) {
-        return NextResponse.redirect(toSiteURL('/onboarding'));
+        return NextResponse.redirect(toSiteURL("/onboarding"));
       }
       return res;
-    }
+    },
   },
 
   {
     // match /app_admin and /app_admin/ and all subpaths
     matcher: appAdminPathsWithLocale,
     middleware: async (req) => {
-      console.log('middleware app admin paths with locale', req.nextUrl.pathname)
+      console.log(
+        "middleware app admin paths with locale",
+        req.nextUrl.pathname,
+      );
       const res = NextResponse.next();
       await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
-      if (
-        !(
-          maybeUser &&
-          isSupabaseUserAppAdmin(maybeUser)
-        )
-      ) {
-        return NextResponse.redirect(toSiteURL('/dashboard'));
+      if (!(maybeUser && isSupabaseUserAppAdmin(maybeUser))) {
+        return NextResponse.redirect(toSiteURL("/dashboard"));
       }
       return res;
-    }
+    },
   },
-
-]
+];
 
 function shouldOnboardUser(pathname: string, user: User | undefined) {
   const matchOnboarding = match(onboardingPathsWithLocale);
@@ -208,34 +241,32 @@ function shouldOnboardUser(pathname: string, user: User | undefined) {
   return false;
 }
 
-
-
-
 function matchesPath(matcher: string | string[], pathname: string): boolean {
-  const matchers = Array.isArray(matcher) ? matcher : [matcher]
-  return matchers.some(m => {
-    const matchFn = match(m, { decode: decodeURIComponent })
-    return matchFn(pathname) !== false
-  })
+  const matchers = Array.isArray(matcher) ? matcher : [matcher];
+  return matchers.some((m) => {
+    const matchFn = match(m, { decode: decodeURIComponent });
+    return matchFn(pathname) !== false;
+  });
 }
 
-
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
 
-  const applicableMiddlewares = middlewares.filter(m => matchesPath(m.matcher, pathname))
+  const applicableMiddlewares = middlewares.filter((m) =>
+    matchesPath(m.matcher, pathname),
+  );
 
-  let response: NextResponse | undefined
+  let response: NextResponse | undefined;
 
   for (const { middleware } of applicableMiddlewares) {
-    const result = await middleware(request)
+    const result = await middleware(request);
 
     if (result.status >= 300) {
-      return result
+      return result;
     }
   }
 
-  return response || NextResponse.next()
+  return response || NextResponse.next();
 }
 
 export const config = {
@@ -248,6 +279,6 @@ export const config = {
      * - api (API routes)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

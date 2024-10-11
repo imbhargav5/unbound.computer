@@ -6,17 +6,21 @@ export default function TeamWorkspaceLayout({
   children,
   navbar,
   sidebar,
-  params
+  params,
 }: {
   children: ReactNode;
   navbar: ReactNode;
   sidebar: ReactNode;
-  params: unknown
+  params: unknown;
 }) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
 
   return (
-    <WorkspaceLayout workspaceSlug={workspaceSlug} navbar={navbar} sidebar={sidebar}>
+    <WorkspaceLayout
+      workspaceSlug={workspaceSlug}
+      navbar={navbar}
+      sidebar={sidebar}
+    >
       {children}
     </WorkspaceLayout>
   );

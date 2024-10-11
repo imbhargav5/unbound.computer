@@ -1,7 +1,7 @@
 // @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/BlogList.tsx
-import { Link } from '@/components/intl-link';
-import { Typography } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/button';
+import { Link } from "@/components/intl-link";
+import { Typography } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,15 +9,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { DBTable } from '@/types';
-import { format } from 'date-fns';
-import { Edit } from 'lucide-react';
-import React from 'react';
-import { CreateBlogPostButton } from './CreateBlogPostButton';
-import { DeleteBlogPostDialog } from './DeleteBlogPostDialog';
-
-
+} from "@/components/ui/table";
+import { DBTable } from "@/types";
+import { format } from "date-fns";
+import { Edit } from "lucide-react";
+import React from "react";
+import { CreateBlogPostButton } from "./CreateBlogPostButton";
+import { DeleteBlogPostDialog } from "./DeleteBlogPostDialog";
 
 type BlogListProps = {
   posts: DBTable<"marketing_blog_posts">[];
@@ -46,7 +44,9 @@ export const BlogList: React.FC<BlogListProps> = ({ posts }) => {
               <TableCell>{post.title}</TableCell>
               <TableCell>{post.slug}</TableCell>
               <TableCell>{post.status}</TableCell>
-              <TableCell>{format(new Date(post.created_at), 'MMM dd, yyyy')}</TableCell>
+              <TableCell>
+                {format(new Date(post.created_at), "MMM dd, yyyy")}
+              </TableCell>
               <TableCell>
                 <div className="flex space-x-2">
                   <Link href={`/app_admin/marketing/blog/${post.id}`}>
@@ -54,7 +54,10 @@ export const BlogList: React.FC<BlogListProps> = ({ posts }) => {
                       <Edit className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <DeleteBlogPostDialog postId={post.id} postTitle={post.title} />
+                  <DeleteBlogPostDialog
+                    postId={post.id}
+                    postTitle={post.title}
+                  />
                 </div>
               </TableCell>
             </TableRow>

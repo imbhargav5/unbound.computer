@@ -1,28 +1,28 @@
-import { Check, ChevronsUpDown } from 'lucide-react';
-import { useState } from 'react';
-import { Control, FieldValues, Path } from 'react-hook-form';
+import { Check, ChevronsUpDown } from "lucide-react";
+import { useState } from "react";
+import { Control, FieldValues, Path } from "react-hook-form";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-} from '@/components/ui/command';
+} from "@/components/ui/command";
 import {
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface FormComboboxProps<TFieldValues extends FieldValues> {
   id: string;
@@ -64,7 +64,7 @@ export function FormCombobox<TFieldValues extends FieldValues>({
                 >
                   {field.value
                     ? options.find((option) => option.value === field.value)
-                      ?.label
+                        ?.label
                     : placeholder}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -81,17 +81,17 @@ export function FormCombobox<TFieldValues extends FieldValues>({
                       value={option.value}
                       onSelect={() => {
                         field.onChange(
-                          option.value === field.value ? '' : option.value,
+                          option.value === field.value ? "" : option.value,
                         );
                         setOpen(false);
                       }}
                     >
                       <Check
                         className={cn(
-                          'mr-2 h-4 w-4',
+                          "mr-2 h-4 w-4",
                           field.value === option.value
-                            ? 'opacity-100'
-                            : 'opacity-0',
+                            ? "opacity-100"
+                            : "opacity-0",
                         )}
                       />
                       {option.label}

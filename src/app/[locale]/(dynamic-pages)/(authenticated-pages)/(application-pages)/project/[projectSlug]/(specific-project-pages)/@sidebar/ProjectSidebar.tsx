@@ -1,9 +1,9 @@
-import { DesktopSidebarFallback } from '@/components/SidebarComponents/SidebarFallback';
-import { getProjectBySlug, getSlimProjectBySlug } from '@/data/user/projects';
-import { fetchSlimWorkspaces, getWorkspaceById } from '@/data/user/workspaces';
-import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
-import { Suspense } from 'react';
-import { ProjectSidebarClient } from './ProjectSidebarClient';
+import { DesktopSidebarFallback } from "@/components/SidebarComponents/SidebarFallback";
+import { getProjectBySlug, getSlimProjectBySlug } from "@/data/user/projects";
+import { fetchSlimWorkspaces, getWorkspaceById } from "@/data/user/workspaces";
+import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
+import { Suspense } from "react";
+import { ProjectSidebarClient } from "./ProjectSidebarClient";
 
 export async function ProjectSidebar({ params }: { params: unknown }) {
   const { projectSlug } = projectSlugParamSchema.parse(params);

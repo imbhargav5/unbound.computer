@@ -1,20 +1,33 @@
-import { SuspendedUserAvatarWithFullname } from '@/components/UserAvatarForAnonViewers';
+import { SuspendedUserAvatarWithFullname } from "@/components/UserAvatarForAnonViewers";
 import { T, Typography } from "@/components/ui/Typography";
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getLoggedInUserFeedbackById } from '@/data/user/marketing-feedback';
-import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import { serverGetUserType } from '@/utils/server/serverGetUserType';
-import { feedbackPriorityToLabel, feedbackStatusToLabel, feedbackTypeToLabel } from '@/utils/zod-schemas/feedback';
-import { format } from 'date-fns';
-import { Calendar, EyeIcon, EyeOffIcon, Info } from 'lucide-react';
-import { notFound } from 'next/navigation';
-import { AddComment } from './AddComment';
-import { SuspendedFeedbackComments } from './CommentTimeLine';
-import { FeedbackActionsDropdown } from './FeedbackActionsDropdown';
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getLoggedInUserFeedbackById } from "@/data/user/marketing-feedback";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import {
+  feedbackPriorityToLabel,
+  feedbackStatusToLabel,
+  feedbackTypeToLabel,
+} from "@/utils/zod-schemas/feedback";
+import { format } from "date-fns";
+import { Calendar, EyeIcon, EyeOffIcon, Info } from "lucide-react";
+import { notFound } from "next/navigation";
+import { AddComment } from "./AddComment";
+import { SuspendedFeedbackComments } from "./CommentTimeLine";
+import { FeedbackActionsDropdown } from "./FeedbackActionsDropdown";
 
-async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }) {
+async function LoggedInUserFeedbackDetail({
+  feedbackId,
+}: {
+  feedbackId: string;
+}) {
   const userRoleType = await serverGetUserType();
   const user = await serverGetLoggedInUser();
   const feedback = await getLoggedInUserFeedbackById(feedbackId);
@@ -31,21 +44,28 @@ async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }
             userId={feedback.user_id}
             size={32}
           />
-          <Separator className='h-6 hidden lg:block' orientation='vertical' />
-          <div className='flex gap-2 items-center ml-2'>
+          <Separator className="h-6 hidden lg:block" orientation="vertical" />
+          <div className="flex gap-2 items-center ml-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-muted-foreground text-sm lg:text-base">
-              {format(new Date(feedback.created_at), 'do MMMM yyyy')}
+              {format(new Date(feedback.created_at), "do MMMM yyyy")}
             </span>
           </div>
         </div>
-        <div data-testid='feedback-visibility' className='flex items-center gap-2'>
+        <div
+          data-testid="feedback-visibility"
+          className="flex items-center gap-2"
+        >
           {feedback.is_publicly_visible ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500">
-                    <EyeIcon className="w-4 h-4" /> <span>Public</span> <Info className="w-4 h-4" />
+                  <Badge
+                    variant="outline"
+                    className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500"
+                  >
+                    <EyeIcon className="w-4 h-4" /> <span>Public</span>{" "}
+                    <Info className="w-4 h-4" />
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -57,12 +77,17 @@ async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center">
-                    <EyeOffIcon className="w-4 h-4" /> <span>Private</span> <Info className="w-4 h-4" />
+                  <Badge
+                    variant="outline"
+                    className="px-2 rounded-full flex gap-2 items-center"
+                  >
+                    <EyeOffIcon className="w-4 h-4" /> <span>Private</span>{" "}
+                    <Info className="w-4 h-4" />
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  This feedback is only visible to admins and the user who created it.
+                  This feedback is only visible to admins and the user who
+                  created it.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -72,10 +97,7 @@ async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }
             userRole={userRoleType}
           />
         </div>
-        <FeedbackActionsDropdown
-          feedback={feedback}
-          userRole={userRoleType}
-        />
+        <FeedbackActionsDropdown feedback={feedback} userRole={userRoleType} />
       </div>
       <div className="p-4">
         <h2 className="text-2xl font-medium my-4">{feedback.title}</h2>
@@ -93,10 +115,11 @@ async function LoggedInUserFeedbackDetail({ feedbackId }: { feedbackId: string }
         </div>
       </div>
       <div className="border-t p-4 mt-4 gap-2">
-        <Typography.H4 className='!mt-0 mb-4'>Comments</Typography.H4>
+        <Typography.H4 className="!mt-0 mb-4">Comments</Typography.H4>
         <SuspendedFeedbackComments feedbackId={feedback?.id} />
       </div>
-      {(feedback.open_for_public_discussion || feedback.user_id === user.id) && (
+      {(feedback.open_for_public_discussion ||
+        feedback.user_id === user.id) && (
         <div className="border-t p-4 mt-4 align-bottom">
           <AddComment feedbackId={feedback?.id} />
         </div>

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,9 +7,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Trash } from 'lucide-react';
-import { useState } from 'react';
+} from "@/components/ui/dialog";
+import { Trash } from "lucide-react";
+import { useState } from "react";
 
 type Props = {
   onConfirm: () => void;

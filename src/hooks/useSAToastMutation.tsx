@@ -41,8 +41,15 @@ export function useSAToastMutation<
   TVariables = void,
 >(
   mutationFn: MutationFn<SAPayload<TData>, TVariables>,
-  options?: Omit<ToastMutationOptions<SAPayload<TData>, TError, TVariables>, 'onSuccess' | 'onError'> & {
-    onSuccess?: (data: SASuccessPayload<TData>, variables: TVariables, context: unknown) => void;
+  options?: Omit<
+    ToastMutationOptions<SAPayload<TData>, TError, TVariables>,
+    "onSuccess" | "onError"
+  > & {
+    onSuccess?: (
+      data: SASuccessPayload<TData>,
+      variables: TVariables,
+      context: unknown,
+    ) => void;
     onError?: (error: Error, variables: TVariables, context: unknown) => void;
     dismissOnSuccess?: boolean;
     dismissOnError?: boolean;
@@ -79,7 +86,6 @@ export function useSAToastMutation<
       }
       if (options?.dismissOnSuccess && toastIdRef.current) {
         toast.dismiss(toastIdRef.current);
-
       } else {
         // success scenario
         const successMessage = options?.successMessage

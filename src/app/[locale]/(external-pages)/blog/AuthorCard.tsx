@@ -1,15 +1,15 @@
-import { Link } from '@/components/intl-link';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Link } from "@/components/intl-link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { DBTable } from '@/types';
+} from "@/components/ui/card";
+import { DBTable } from "@/types";
 
 type Props = {
-  author: DBTable<'marketing_author_profiles'>;
+  author: DBTable<"marketing_author_profiles">;
   trimSummary?: boolean;
 };
 
@@ -30,7 +30,7 @@ const AuthorCard = ({ author, trimSummary = true }: Props) => {
               <CardDescription className="mt-2">
                 {trimSummary
                   ? author.bio.length > 120
-                    ? author.bio.slice(0, 120) + '...'
+                    ? author.bio.slice(0, 120) + "..."
                     : author.bio.length
                   : author.bio}
               </CardDescription>
@@ -46,10 +46,10 @@ export default AuthorCard;
 
 function generateInitials(name: string) {
   // Split the name into individual words
-  const words = name.split(' ');
+  const words = name.split(" ");
 
   // Initialize an empty string to store initials
-  let initials = '';
+  let initials = "";
 
   // Iterate through each word
   for (let i = 0; i < words.length; i++) {

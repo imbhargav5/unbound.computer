@@ -1,10 +1,10 @@
-import { createSupabaseUserRouteHandlerClient } from '@/supabase-clients/user/createSupabaseUserRouteHandlerClient';
-import { NextResponse } from 'next/server';
+import { createSupabaseUserRouteHandlerClient } from "@/supabase-clients/user/createSupabaseUserRouteHandlerClient";
+import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get('code');
-  const next = requestUrl.searchParams.get('next');
+  const code = requestUrl.searchParams.get("code");
+  const next = requestUrl.searchParams.get("next");
 
   if (code) {
     const supabase = createSupabaseUserRouteHandlerClient();
@@ -13,13 +13,13 @@ export async function GET(request: Request) {
       await supabase.auth.exchangeCodeForSession(code);
     } catch (error) {
       // Handle error
-      console.error('Failed to exchange code for session: ', error);
+      console.error("Failed to exchange code for session: ", error);
       // Potentially return an error response here
     }
   }
   // revalidatePath('/', 'layout');
 
-  let redirectTo = new URL('/dashboard', requestUrl.origin);
+  let redirectTo = new URL("/dashboard", requestUrl.origin);
 
   if (next) {
     // decode next param

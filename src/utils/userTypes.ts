@@ -1,7 +1,7 @@
-import { UserRoles } from '@/types/userTypes';
+import { UserRoles } from "@/types/userTypes";
 
 export const userRoles: UserRoles = {
-  ANON: 'anon',
-  ADMIN: 'admin',
-  USER: 'user',
+  ANON: "anon",
+  ADMIN: "admin",
+  USER: "user",
 };

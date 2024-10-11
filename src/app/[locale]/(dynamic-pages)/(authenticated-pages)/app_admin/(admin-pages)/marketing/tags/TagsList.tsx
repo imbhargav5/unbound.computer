@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Link } from '@/components/intl-link';
-import { Button } from '@/components/ui/button';
+import { Link } from "@/components/intl-link";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,14 +9,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { DBTable } from '@/types';
-import { Edit } from 'lucide-react';
-import React from 'react';
-import { DeleteTagDialog } from './DeleteTagDialog';
+} from "@/components/ui/table";
+import { DBTable } from "@/types";
+import { Edit } from "lucide-react";
+import React from "react";
+import { DeleteTagDialog } from "./DeleteTagDialog";
 
 type TagsListProps = {
-  tags: DBTable<'marketing_tags'>[];
+  tags: DBTable<"marketing_tags">[];
 };
 
 export const TagsList: React.FC<TagsListProps> = ({ tags }) => {

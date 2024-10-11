@@ -1,23 +1,22 @@
 // src/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/authors/CreateMarketingAuthorProfileButton.tsx
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
-import { createAuthorProfileAction } from '@/data/admin/marketing-authors';
-import Chance from 'chance';
-import { Plus } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import React, { useRef } from 'react';
-import slugify from 'slugify';
-import { toast } from 'sonner';
-
+import { Button } from "@/components/ui/button";
+import { createAuthorProfileAction } from "@/data/admin/marketing-authors";
+import Chance from "chance";
+import { Plus } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import React, { useRef } from "react";
+import slugify from "slugify";
+import { toast } from "sonner";
 
 const avatars = [
-  '/assets/cute-avatars/bear.jpg',
-  '/assets/cute-avatars/deer.jpg',
-  '/assets/cute-avatars/gs.jpg',
-  '/assets/cute-avatars/fire-dragon.jpg',
-  '/assets/cute-avatars/simba.png',
+  "/assets/cute-avatars/bear.jpg",
+  "/assets/cute-avatars/deer.jpg",
+  "/assets/cute-avatars/gs.jpg",
+  "/assets/cute-avatars/fire-dragon.jpg",
+  "/assets/cute-avatars/simba.png",
 ];
 
 export const CreateMarketingAuthorProfileButton: React.FC = () => {
@@ -26,10 +25,12 @@ export const CreateMarketingAuthorProfileButton: React.FC = () => {
 
   const createProfileMutation = useAction(createAuthorProfileAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Creating profile...', { description: 'Please wait while we create the profile.' });
+      toastRef.current = toast.loading("Creating profile...", {
+        description: "Please wait while we create the profile.",
+      });
     },
     onSuccess: ({ data }) => {
-      toast.success('Profile created!', { id: toastRef.current });
+      toast.success("Profile created!", { id: toastRef.current });
       toastRef.current = undefined;
       console.log(data);
       if (data) {
@@ -37,7 +38,10 @@ export const CreateMarketingAuthorProfileButton: React.FC = () => {
       }
     },
     onError: ({ error }) => {
-      toast.error(`Failed to create profile: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(
+        `Failed to create profile: ${error.serverError || "Unknown error"}`,
+        { id: toastRef.current },
+      );
       toastRef.current = undefined;
     },
   });
@@ -48,8 +52,8 @@ export const CreateMarketingAuthorProfileButton: React.FC = () => {
     const slug = slugify(displayName, {
       lower: true,
       strict: true,
-      replacement: '-',
-    })
+      replacement: "-",
+    });
     const randomProfile = {
       display_name: displayName,
       slug: slug,
@@ -62,7 +66,10 @@ export const CreateMarketingAuthorProfileButton: React.FC = () => {
   };
 
   return (
-    <Button onClick={handleCreateProfile} disabled={createProfileMutation.status === 'executing'}>
+    <Button
+      onClick={handleCreateProfile}
+      disabled={createProfileMutation.status === "executing"}
+    >
       <Plus className="mr-2 h-4 w-4" />
       Create Author Profile
     </Button>

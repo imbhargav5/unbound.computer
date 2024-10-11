@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { SubscriptionSelect } from "@/components/SubscriptionSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,16 +6,17 @@ import { T } from "@/components/ui/Typography";
 import { ProductAndPrice } from "@/payments/AbstractPaymentGateway";
 import { normalizePriceAndCurrency } from "@/utils/currency";
 import { formatGatewayPrice } from "@/utils/formatGatewayPrice";
-import { ShoppingBag } from 'lucide-react';
-
-
+import { ShoppingBag } from "lucide-react";
 
 interface OneTimeProductsClientProps {
   products: ProductAndPrice[];
   workspaceId: string;
 }
 
-export function OneTimeProductsClient({ products, workspaceId }: OneTimeProductsClientProps) {
+export function OneTimeProductsClient({
+  products,
+  workspaceId,
+}: OneTimeProductsClientProps) {
   if (products.length === 0) {
     return (
       <Card>
@@ -43,24 +44,36 @@ export function OneTimeProductsClient({ products, workspaceId }: OneTimeProducts
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p) => {
-            const price = p.price
+            const price = p.price;
             return (
               <Card key={p.price.gateway_price_id}>
                 <CardHeader>
                   <CardTitle>{p.product.name}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
-                  <T.H4 className="mb-2 text-primary">{formatGatewayPrice({
-                    amount: normalizePriceAndCurrency(p.price.amount, p.price.currency),
-                    currency: p.price.currency,
-                    recurring_interval: p.price.recurring_interval,
-                    recurring_interval_count: p.price.recurring_interval_count
-                  })}</T.H4>
-                  <SubscriptionSelect isOneTimePurchase priceId={p.price.gateway_price_id} workspaceId={workspaceId} />
+                  <T.P className="text-gray-600 mb-4">
+                    {p.product.description}
+                  </T.P>
+                  <T.H4 className="mb-2 text-primary">
+                    {formatGatewayPrice({
+                      amount: normalizePriceAndCurrency(
+                        p.price.amount,
+                        p.price.currency,
+                      ),
+                      currency: p.price.currency,
+                      recurring_interval: p.price.recurring_interval,
+                      recurring_interval_count:
+                        p.price.recurring_interval_count,
+                    })}
+                  </T.H4>
+                  <SubscriptionSelect
+                    isOneTimePurchase
+                    priceId={p.price.gateway_price_id}
+                    workspaceId={workspaceId}
+                  />
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       </CardContent>

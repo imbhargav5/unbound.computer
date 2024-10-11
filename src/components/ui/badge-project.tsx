@@ -12,10 +12,8 @@ const badgeVariants = cva(
       variant: {
         draft:
           "border-muted bg-transparent text-muted-foreground hover:bg-muted/80 border-2",
-        pending_approval:
-          "text-purple-500 border-purple-500 border-2",
-        approved:
-          "text-blue-500 border-blue-500 border-2",
+        pending_approval: "text-purple-500 border-purple-500 border-2",
+        approved: "text-blue-500 border-blue-500 border-2",
         completed: "text-green-500 border-green-500 border-2",
       },
       size: {
@@ -33,10 +31,17 @@ const badgeVariants = cva(
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
-  VariantProps<typeof badgeVariants> { }
+    VariantProps<typeof badgeVariants> {}
 
 function ProjectBadge({ className, variant, ...props }: BadgeProps) {
-  const badgeVariant = variant === 'approved' ? 'secondary' : variant === 'pending_approval' ? 'outline' : variant === 'completed' ? 'default' : 'outline';
+  const badgeVariant =
+    variant === "approved"
+      ? "secondary"
+      : variant === "pending_approval"
+        ? "outline"
+        : variant === "completed"
+          ? "default"
+          : "outline";
   return (
     <Badge variant={badgeVariant} className={cn(className, "capitalize")}>
       {props.children}

@@ -1,53 +1,53 @@
-'use server';
-import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import type { Enum } from '@/types';
-import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import { revalidatePath } from 'next/cache';
-import { adminToggleFeedbackOpenForCommentsAction } from '../feedback';
+"use server";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
+import type { Enum } from "@/types";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { revalidatePath } from "next/cache";
+import { adminToggleFeedbackOpenForCommentsAction } from "../feedback";
 
 export const getPaginatedInternalFeedbackList = async ({
-  query = '',
+  query = "",
   types = [],
   statuses = [],
   priorities = [],
   page = 1,
   limit = 10,
-  sort = 'desc',
+  sort = "desc",
 }: {
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'marketing_feedback_thread_type'>>;
-  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
-  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
-  sort?: 'asc' | 'desc';
+  types?: Array<Enum<"marketing_feedback_thread_type">>;
+  statuses?: Array<Enum<"marketing_feedback_thread_status">>;
+  priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
+  sort?: "asc" | "desc";
 }) => {
   const zeroIndexedPage = page - 1;
   let supabaseQuery = supabaseAdminClient
-    .from('marketing_feedback_threads')
-    .select('*')
+    .from("marketing_feedback_threads")
+    .select("*")
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
-    supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
   }
 
   if (types.length > 0) {
-    supabaseQuery = supabaseQuery.in('type', types);
+    supabaseQuery = supabaseQuery.in("type", types);
   }
 
   if (statuses.length > 0) {
-    supabaseQuery = supabaseQuery.in('status', statuses);
+    supabaseQuery = supabaseQuery.in("status", statuses);
   }
 
   if (priorities.length > 0) {
-    supabaseQuery = supabaseQuery.in('priority', priorities);
+    supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === 'asc') {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: true });
+  if (sort === "asc") {
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: true });
   } else {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
   }
 
   const { data, count, error } = await supabaseQuery;
@@ -58,56 +58,56 @@ export const getPaginatedInternalFeedbackList = async ({
 
   return {
     data,
-    count
+    count,
   };
 };
 
 export async function getInternalFeedbackTotalPages({
-  query = '',
+  query = "",
   types = [],
   statuses = [],
   priorities = [],
   page = 1,
   limit = 10,
-  sort = 'desc',
+  sort = "desc",
 }: {
   page?: number;
   limit?: number;
   query?: string;
-  types?: Array<Enum<'marketing_feedback_thread_type'>>;
-  statuses?: Array<Enum<'marketing_feedback_thread_status'>>;
-  priorities?: Array<Enum<'marketing_feedback_thread_priority'>>;
-  sort?: 'asc' | 'desc';
+  types?: Array<Enum<"marketing_feedback_thread_type">>;
+  statuses?: Array<Enum<"marketing_feedback_thread_status">>;
+  priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
+  sort?: "asc" | "desc";
 }) {
   const zeroIndexedPage = page - 1;
   let supabaseQuery = supabaseAdminClient
-    .from('marketing_feedback_threads')
-    .select('id', {
-      count: 'exact',
+    .from("marketing_feedback_threads")
+    .select("id", {
+      count: "exact",
       head: true,
     })
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
-    supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
   }
 
   if (types.length > 0) {
-    supabaseQuery = supabaseQuery.in('type', types);
+    supabaseQuery = supabaseQuery.in("type", types);
   }
 
   if (statuses.length > 0) {
-    supabaseQuery = supabaseQuery.in('status', statuses);
+    supabaseQuery = supabaseQuery.in("status", statuses);
   }
 
   if (priorities.length > 0) {
-    supabaseQuery = supabaseQuery.in('priority', priorities);
+    supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === 'asc') {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: true });
+  if (sort === "asc") {
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: true });
   } else {
-    supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
   }
 
   const { count, error } = await supabaseQuery;
@@ -124,12 +124,12 @@ export async function getInternalFeedbackTotalPages({
 
 export async function updateInternalFeedbackStatus(
   feedbackId: string,
-  status: Enum<'marketing_feedback_thread_status'>,
+  status: Enum<"marketing_feedback_thread_status">,
 ) {
   const { error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ status })
-    .eq('id', feedbackId);
+    .eq("id", feedbackId);
 
   if (error) {
     throw error;
@@ -138,12 +138,12 @@ export async function updateInternalFeedbackStatus(
 
 export async function updateInternalFeedbackPriority(
   feedbackId: string,
-  priority: Enum<'marketing_feedback_thread_priority'>,
+  priority: Enum<"marketing_feedback_thread_priority">,
 ) {
   const { error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ priority })
-    .eq('id', feedbackId);
+    .eq("id", feedbackId);
 
   if (error) {
     throw error;
@@ -152,12 +152,12 @@ export async function updateInternalFeedbackPriority(
 
 export const updateInternalFeedbackType = async (
   feedbackId: string,
-  type: Enum<'marketing_feedback_thread_type'>,
+  type: Enum<"marketing_feedback_thread_type">,
 ) => {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ type })
-    .eq('id', feedbackId);
+    .eq("id", feedbackId);
 
   if (error) {
     throw error;
@@ -171,18 +171,18 @@ export async function createInternalFeedback(
   payload: {
     title: string;
     content: string;
-    type: Enum<'marketing_feedback_thread_type'>;
+    type: Enum<"marketing_feedback_thread_type">;
   },
 ) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .insert({
       title: payload.title,
       content: payload.content,
       type: payload.type,
       user_id: userId,
     })
-    .select('*');
+    .select("*");
 
   if (error) {
     throw error;
@@ -197,9 +197,9 @@ export async function createInternalFeedbackComment(
   content: string,
 ) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_comments')
+    .from("marketing_feedback_comments")
     .insert({ thread_id: feedbackId, user_id: userId, content })
-    .select('*');
+    .select("*");
 
   if (error) {
     throw error;
@@ -213,10 +213,10 @@ export async function toggleFeedbackThreadVisibility(
   isVisible: boolean,
 ) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ added_to_roadmap: isVisible })
-    .eq('id', threadId)
-    .select('*');
+    .eq("id", threadId)
+    .select("*");
 
   if (error) {
     throw error;
@@ -233,10 +233,10 @@ export async function toggleFeedbackThreadDiscussion(
   isOpen: boolean,
 ) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ open_for_public_discussion: isOpen })
-    .eq('id', threadId)
-    .select('*');
+    .eq("id", threadId)
+    .select("*");
 
   if (error) {
     throw error;
@@ -247,9 +247,9 @@ export async function toggleFeedbackThreadDiscussion(
 
 export const appAdminGetSlimInternalFeedback = async (feedbackId: string) => {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
-    .select('title,content,status')
-    .eq('id', feedbackId)
+    .from("marketing_feedback_threads")
+    .select("title,content,status")
+    .eq("id", feedbackId)
     .single();
 
   if (error) {
@@ -265,16 +265,16 @@ export const appAdminAddCommentToInternalFeedbackThread = async (
 ) => {
   const user = await serverGetLoggedInUser();
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_comments')
+    .from("marketing_feedback_comments")
     .insert({ thread_id: feedbackId, user_id: user.id, content })
-    .select('*');
+    .select("*");
 
   if (error) {
     throw error;
   }
 
-  revalidatePath(`/feedback`, 'layout');
-  revalidatePath('/app_admin', 'layout');
+  revalidatePath(`/feedback`, "layout");
+  revalidatePath("/app_admin", "layout");
 
   return data;
 };
@@ -283,9 +283,9 @@ export const appAdminGetInternalFeedbackComments = async (
   feedbackId: string,
 ) => {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_comments')
-    .select('*')
-    .eq('thread_id', feedbackId);
+    .from("marketing_feedback_comments")
+    .select("*")
+    .eq("thread_id", feedbackId);
 
   if (error) {
     throw error;
@@ -299,20 +299,20 @@ export async function adminUpdateInternalFeedbackType({
   type,
 }: {
   feedbackId: string;
-  type: Enum<'marketing_feedback_thread_type'>;
+  type: Enum<"marketing_feedback_thread_type">;
 }) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ type })
-    .eq('id', feedbackId)
-    .select('*')
+    .eq("id", feedbackId)
+    .select("*")
     .single();
 
   if (error) {
     throw error;
   }
-  revalidatePath('/feedback');
-  revalidatePath('/feedback');
+  revalidatePath("/feedback");
+  revalidatePath("/feedback");
   return data;
 }
 
@@ -321,20 +321,20 @@ export async function adminUpdateInternalFeedbackStatus({
   status,
 }: {
   feedbackId: string;
-  status: Enum<'marketing_feedback_thread_status'>;
+  status: Enum<"marketing_feedback_thread_status">;
 }) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ status })
-    .eq('id', feedbackId)
-    .select('*')
+    .eq("id", feedbackId)
+    .select("*")
     .single();
 
   if (error) {
     throw error;
   }
-  revalidatePath('/feedback');
-  revalidatePath('/feedback');
+  revalidatePath("/feedback");
+  revalidatePath("/feedback");
   return data;
 }
 
@@ -343,19 +343,19 @@ export async function adminUpdateInternalFeedbackPriority({
   priority,
 }: {
   feedbackId: string;
-  priority: Enum<'marketing_feedback_thread_priority'>;
+  priority: Enum<"marketing_feedback_thread_priority">;
 }) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ priority })
-    .eq('id', feedbackId)
-    .select('*')
+    .eq("id", feedbackId)
+    .select("*")
     .single();
 
   if (error) {
     throw error;
   }
-  revalidatePath('/feedback', 'layout');
+  revalidatePath("/feedback", "layout");
   return data;
 }
 
@@ -367,16 +367,16 @@ export const adminUpdateInternalFeedbackAddedToRoadmap = async ({
   isAddedToRoadmap: boolean;
 }) => {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ added_to_roadmap: isAddedToRoadmap })
-    .eq('id', feedbackId)
-    .select('*');
+    .eq("id", feedbackId)
+    .select("*");
 
   if (error) {
     throw error;
   }
 
-  revalidatePath('/feedback', 'layout');
+  revalidatePath("/feedback", "layout");
   return data;
 };
 
@@ -388,24 +388,24 @@ export const adminUpdateInternalFeedbackVisibility = async ({
   isOpenToDiscussion: boolean;
 }) => {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
+    .from("marketing_feedback_threads")
     .update({ open_for_public_discussion: isOpenToDiscussion })
-    .eq('id', feedbackId)
-    .select('*');
+    .eq("id", feedbackId)
+    .select("*");
 
   if (error) {
     throw error;
   }
 
-  revalidatePath('/feedback', 'layout');
+  revalidatePath("/feedback", "layout");
   return data;
 };
 
 export async function adminGetInternalFeedbackById(feedbackId: string) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_feedback_threads')
-    .select('*')
-    .eq('id', feedbackId);
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("id", feedbackId);
 
   if (error) {
     throw error;

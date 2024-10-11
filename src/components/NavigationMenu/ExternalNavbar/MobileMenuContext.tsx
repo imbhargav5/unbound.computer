@@ -1,5 +1,5 @@
-'use client';
-import { Dispatch, SetStateAction, createContext, useState } from 'react';
+"use client";
+import { Dispatch, SetStateAction, createContext, useState } from "react";
 
 type MobileMenuContextType = {
   mobileMenuOpen: boolean;

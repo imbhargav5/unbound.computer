@@ -1,13 +1,16 @@
-import { Json } from '@/lib/database.types';
-import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import { UserNotificationPayloadType } from '@/utils/zod-schemas/notifications';
-import { getFeedbackStakeholdersExceptMentionedUser } from '../feedback';
-import { createAdminNotification } from './elevatedQueries';
+import { Json } from "@/lib/database.types";
+import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
+import { UserNotificationPayloadType } from "@/utils/zod-schemas/notifications";
+import { getFeedbackStakeholdersExceptMentionedUser } from "../feedback";
+import { createAdminNotification } from "./elevatedQueries";
 
-export const createNotification = async (userId: string, payload: UserNotificationPayloadType) => {
+export const createNotification = async (
+  userId: string,
+  payload: UserNotificationPayloadType,
+) => {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data: notification, error } = await supabaseClient
-    .from('user_notifications')
+    .from("user_notifications")
     .insert({
       user_id: userId,
       payload,
@@ -16,18 +19,22 @@ export const createNotification = async (userId: string, payload: UserNotificati
   return notification;
 };
 
-export async function createMultipleNotifications(notifications: Array<{ userId: string; payload: Json }>) {
+export async function createMultipleNotifications(
+  notifications: Array<{ userId: string; payload: Json }>,
+) {
   const supabaseClient = createSupabaseUserServerActionClient();
   const { data: notificationsData, error } = await supabaseClient
-    .from('user_notifications')
-    .insert(notifications.map(({ userId, payload }) => ({
-      user_id: userId,
-      payload,
-    })));
+    .from("user_notifications")
+    .insert(
+      notifications.map(({ userId, payload }) => ({
+        user_id: userId,
+        payload,
+      })),
+    );
 
   if (error) throw error;
   return notificationsData;
-};
+}
 
 export const createAcceptedWorkspaceInvitationNotification = async (
   userId: string,
@@ -44,11 +51,11 @@ export const createAcceptedWorkspaceInvitationNotification = async (
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'acceptedWorkspaceInvitation';
+      type: "acceptedWorkspaceInvitation";
     }
   > = {
     workspaceId,
-    type: 'acceptedWorkspaceInvitation',
+    type: "acceptedWorkspaceInvitation",
     userFullName: inviteeFullName,
     workspaceSlug,
   };
@@ -73,14 +80,14 @@ export const createWorkspaceInvitationNotification = async (
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'invitedToWorkspace';
+      type: "invitedToWorkspace";
     }
   > = {
     workspaceId,
     workspaceName,
     inviterFullName,
     invitationId,
-    type: 'invitedToWorkspace',
+    type: "invitedToWorkspace",
   };
 
   return await createNotification(userId, payload);
@@ -90,7 +97,7 @@ export const createReceivedFeedbackNotification = async ({
   feedbackId,
   feedbackTitle,
   feedbackCreatorFullName,
-  feedbackCreatorId
+  feedbackCreatorId,
 }: {
   feedbackId: string;
   feedbackTitle: string;
@@ -100,18 +107,20 @@ export const createReceivedFeedbackNotification = async ({
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'receivedFeedback';
+      type: "receivedFeedback";
     }
   > = {
-    type: 'receivedFeedback',
+    type: "receivedFeedback",
     feedbackId,
     feedbackTitle,
     feedbackCreatorFullName,
   };
 
-  return await createAdminNotification({ payload, excludedAdminUserId: feedbackCreatorId });
+  return await createAdminNotification({
+    payload,
+    excludedAdminUserId: feedbackCreatorId,
+  });
 };
-
 
 export const createFeedbackReceivedCommentNotification = async ({
   feedbackId,
@@ -129,26 +138,31 @@ export const createFeedbackReceivedCommentNotification = async ({
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackReceivedComment';
+      type: "feedbackReceivedComment";
     }
   > = {
-    type: 'feedbackReceivedComment',
+    type: "feedbackReceivedComment",
     feedbackId,
     feedbackTitle,
     comment,
-    commenterName
+    commenterName,
   };
-  const feedbackStakeholders = await getFeedbackStakeholdersExceptMentionedUser({ feedbackId, excludedUserId: commenterId });
+  const feedbackStakeholders = await getFeedbackStakeholdersExceptMentionedUser(
+    { feedbackId, excludedUserId: commenterId },
+  );
 
-  const [adminNotificaitonData, stakeholdersNotificationData] = await Promise.all([
-    createMultipleNotifications(feedbackStakeholders?.map((userId) => ({ userId, payload }))),
-    createAdminNotification({ payload, excludedAdminUserId: commenterId })
-  ])
+  const [adminNotificaitonData, stakeholdersNotificationData] =
+    await Promise.all([
+      createMultipleNotifications(
+        feedbackStakeholders?.map((userId) => ({ userId, payload })),
+      ),
+      createAdminNotification({ payload, excludedAdminUserId: commenterId }),
+    ]);
 
   return {
     adminNotificaitonData,
-    stakeholdersNotificationData
-  }
+    stakeholdersNotificationData,
+  };
 };
 
 export const createFeedbackStatusChangedNotification = async ({
@@ -167,32 +181,38 @@ export const createFeedbackStatusChangedNotification = async ({
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackStatusChanged';
+      type: "feedbackStatusChanged";
     }
   > = {
-    type: 'feedbackStatusChanged',
+    type: "feedbackStatusChanged",
     feedbackId,
     newStatus,
-    oldStatus
+    oldStatus,
   };
 
   if (feedbackOwnerId === statusUpdaterId) {
     //owner == admin, in which case notify all other admins
-    return await createAdminNotification({ payload, excludedAdminUserId: feedbackOwnerId })
+    return await createAdminNotification({
+      payload,
+      excludedAdminUserId: feedbackOwnerId,
+    });
   } else {
     // if owner is not admin then notify all the other admins and the owner
-    const [adminNotificaitonData, stakeholdersNotificationData] = await Promise.all([
-      createNotification(feedbackOwnerId, payload),
-      createAdminNotification({ payload, excludedAdminUserId: statusUpdaterId })
-    ])
+    const [adminNotificaitonData, stakeholdersNotificationData] =
+      await Promise.all([
+        createNotification(feedbackOwnerId, payload),
+        createAdminNotification({
+          payload,
+          excludedAdminUserId: statusUpdaterId,
+        }),
+      ]);
 
     return {
       adminNotificaitonData,
-      stakeholdersNotificationData
-    }
+      stakeholdersNotificationData,
+    };
   }
 };
-
 
 export const createFeedbackPriorityChangedNotification = async ({
   feedbackId,
@@ -210,29 +230,36 @@ export const createFeedbackPriorityChangedNotification = async ({
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackPriorityChanged';
+      type: "feedbackPriorityChanged";
     }
   > = {
-    type: 'feedbackPriorityChanged',
+    type: "feedbackPriorityChanged",
     feedbackId,
     oldPriority,
-    newPriority
+    newPriority,
   };
 
   if (feedbackOwnerId === priorityUpdaterId) {
     //owner == admin, in which case notify all other admins
-    return await createAdminNotification({ payload, excludedAdminUserId: feedbackOwnerId })
+    return await createAdminNotification({
+      payload,
+      excludedAdminUserId: feedbackOwnerId,
+    });
   } else {
     // if owner is not admin then notify all the other admins and the owner
-    const [adminNotificaitonData, stakeholdersNotificationData] = await Promise.all([
-      createNotification(feedbackOwnerId, payload),
-      createAdminNotification({ payload, excludedAdminUserId: priorityUpdaterId })
-    ])
+    const [adminNotificaitonData, stakeholdersNotificationData] =
+      await Promise.all([
+        createNotification(feedbackOwnerId, payload),
+        createAdminNotification({
+          payload,
+          excludedAdminUserId: priorityUpdaterId,
+        }),
+      ]);
 
     return {
       adminNotificaitonData,
-      stakeholdersNotificationData
-    }
+      stakeholdersNotificationData,
+    };
   }
 };
 
@@ -252,77 +279,116 @@ export const createFeedbackTypeUpdatedNotification = async ({
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackTypeUpdated';
+      type: "feedbackTypeUpdated";
     }
   > = {
-    type: 'feedbackTypeUpdated',
+    type: "feedbackTypeUpdated",
     feedbackId,
     oldType,
-    newType
+    newType,
   };
 
   if (feedbackOwnerId === typeUpdaterId) {
     //owner == admin, in which case notify all other admins
-    return await createAdminNotification({ payload, excludedAdminUserId: feedbackOwnerId })
+    return await createAdminNotification({
+      payload,
+      excludedAdminUserId: feedbackOwnerId,
+    });
   } else {
     // if owner is not admin then notify all the other admins and the owner
-    const [adminNotificaitonData, stakeholdersNotificationData] = await Promise.all([
-      createNotification(feedbackOwnerId, payload),
-      createAdminNotification({ payload, excludedAdminUserId: typeUpdaterId })
-    ])
+    const [adminNotificaitonData, stakeholdersNotificationData] =
+      await Promise.all([
+        createNotification(feedbackOwnerId, payload),
+        createAdminNotification({
+          payload,
+          excludedAdminUserId: typeUpdaterId,
+        }),
+      ]);
 
     return {
       adminNotificaitonData,
-      stakeholdersNotificationData
-    }
+      stakeholdersNotificationData,
+    };
   }
 };
 
-
-export const createFeedbackAddedToRoadmapUpdatedNotification = async ({ feedbackId, isInRoadmap, updaterId }: { feedbackId: string; isInRoadmap: boolean; updaterId: string; }) => {
+export const createFeedbackAddedToRoadmapUpdatedNotification = async ({
+  feedbackId,
+  isInRoadmap,
+  updaterId,
+}: {
+  feedbackId: string;
+  isInRoadmap: boolean;
+  updaterId: string;
+}) => {
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackIsInRoadmapUpdated';
+      type: "feedbackIsInRoadmapUpdated";
     }
   > = {
-    type: 'feedbackIsInRoadmapUpdated',
+    type: "feedbackIsInRoadmapUpdated",
     feedbackId,
-    isInRoadmap
+    isInRoadmap,
   };
 
   // notify all the app admins except the updater
-  return await createAdminNotification({ payload, excludedAdminUserId: updaterId })
-}
+  return await createAdminNotification({
+    payload,
+    excludedAdminUserId: updaterId,
+  });
+};
 
-export const createUpdateFeedbackOpenForCommentsNotification = async ({ feedbackId, isOpenForComments, updaterId }: { feedbackId: string; isOpenForComments: boolean; updaterId: string }) => {
+export const createUpdateFeedbackOpenForCommentsNotification = async ({
+  feedbackId,
+  isOpenForComments,
+  updaterId,
+}: {
+  feedbackId: string;
+  isOpenForComments: boolean;
+  updaterId: string;
+}) => {
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackFeedbackOpenForCommentUpdated';
+      type: "feedbackFeedbackOpenForCommentUpdated";
     }
   > = {
-    type: 'feedbackFeedbackOpenForCommentUpdated',
+    type: "feedbackFeedbackOpenForCommentUpdated",
     feedbackId,
-    isOpenForComments
+    isOpenForComments,
   };
 
   // notify all the app admins except the updater
-  return await createAdminNotification({ payload, excludedAdminUserId: updaterId })
-}
+  return await createAdminNotification({
+    payload,
+    excludedAdminUserId: updaterId,
+  });
+};
 
-export const createFeedbackVisibilityUpdatedNotification = async ({ feedbackId, isPubliclyVisible, updaterId }: { feedbackId: string; isPubliclyVisible: boolean; updaterId: string }) => {
+export const createFeedbackVisibilityUpdatedNotification = async ({
+  feedbackId,
+  isPubliclyVisible,
+  updaterId,
+}: {
+  feedbackId: string;
+  isPubliclyVisible: boolean;
+  updaterId: string;
+}) => {
   const payload: Extract<
     UserNotificationPayloadType,
     {
-      type: 'feedbackVisibilityUpdated';
+      type: "feedbackVisibilityUpdated";
     }
   > = {
-    type: 'feedbackVisibilityUpdated',
+    type: "feedbackVisibilityUpdated",
     feedbackId,
-    isPubliclyVisible
+    isPubliclyVisible,
   };
 
   // notify all the app admins except the updater
-  return await createAdminNotification({ payload, excludedAdminUserId: updaterId })
-}
+  return await createAdminNotification({
+    payload,
+    excludedAdminUserId: updaterId,
+  });
+};

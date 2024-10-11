@@ -35,7 +35,9 @@ interface CreateProjectDialogProps {
   workspaceId: string;
 }
 
-export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps): JSX.Element {
+export function CreateProjectDialog({
+  workspaceId,
+}: CreateProjectDialogProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
@@ -48,24 +50,27 @@ export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps): 
     },
   });
 
-  const { execute: executeCreateProject, status } = useAction(createProjectAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Creating project...");
+  const { execute: executeCreateProject, status } = useAction(
+    createProjectAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Creating project...");
+      },
+      onSuccess: ({ data }) => {
+        toast.success("Project created!", { id: toastRef.current });
+        toastRef.current = undefined;
+        setOpen(false);
+        if (data) {
+          router.push(`/project/${data.slug}`);
+        }
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to create project";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data }) => {
-      toast.success("Project created!", { id: toastRef.current });
-      toastRef.current = undefined;
-      setOpen(false);
-      if (data) {
-        router.push(`/project/${data.slug}`);
-      }
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? "Failed to create project";
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   const onSubmit: SubmitHandler<CreateProjectFormData> = (data) => {
     executeCreateProject({ workspaceId, name: data.name, slug: data.slug });
@@ -139,7 +144,9 @@ export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps): 
               className="w-full"
               disabled={status === "executing"}
             >
-              {status === "executing" ? "Creating project..." : "Create Project"}
+              {status === "executing"
+                ? "Creating project..."
+                : "Create Project"}
             </Button>
           </DialogFooter>
         </form>

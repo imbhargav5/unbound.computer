@@ -1,11 +1,11 @@
-'use server';
+"use server";
 
 import {
   getLoggedInUserWorkspaceRole,
   getSlimWorkspaceById,
-} from '@/data/user/workspaces';
-import { getCachedProjectBySlug } from '@/rsc-data/user/projects';
-import { ApprovalControlActions } from './ApprovalControlActions';
+} from "@/data/user/workspaces";
+import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
+import { ApprovalControlActions } from "./ApprovalControlActions";
 
 async function fetchData(projectSlug: string) {
   const projectByIdData = await getCachedProjectBySlug(projectSlug);
@@ -21,13 +21,17 @@ async function fetchData(projectSlug: string) {
   };
 }
 
-export async function ApprovalControls({ projectSlug }: { projectSlug: string }) {
+export async function ApprovalControls({
+  projectSlug,
+}: {
+  projectSlug: string;
+}) {
   const data = await fetchData(projectSlug);
   const isOrganizationManager =
-    data.workspaceRole === 'admin' || data.workspaceRole === 'owner';
+    data.workspaceRole === "admin" || data.workspaceRole === "owner";
   const canManage = isOrganizationManager;
 
-  const canOnlyEdit = data.workspaceRole === 'member';
+  const canOnlyEdit = data.workspaceRole === "member";
   const projectId = data.projectByIdData.id;
   return (
     <ApprovalControlActions

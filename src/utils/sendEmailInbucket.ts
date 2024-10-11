@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 type EmailOptions = {
   to: string;
@@ -15,7 +15,7 @@ export async function sendEmailInbucket({
 }: EmailOptions) {
   try {
     const transporter = nodemailer.createTransport({
-      host: 'localhost', // replace with your Inbucket server address
+      host: "localhost", // replace with your Inbucket server address
       port: 54325, // within docker port is 2500, but it exposed as 54325 on localhost
     });
 

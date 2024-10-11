@@ -1,6 +1,6 @@
 "use client";
 
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -67,23 +67,54 @@ export const ProjectsCardList = ({
             transition={{ duration: 0.3, delay: index * 0.1 }}
           >
             <Link href={`/project/${project.slug}`} className="block p-4">
-              <MotionCardContent className="p-0 space-y-3" variants={contentVariants} initial="hidden" animate="visible">
-                <motion.div className="flex justify-between items-center" variants={itemVariants}>
+              <MotionCardContent
+                className="p-0 space-y-3"
+                variants={contentVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.div
+                  className="flex justify-between items-center"
+                  variants={itemVariants}
+                >
                   <Badge variant="secondary" className="text-xs font-normal">
-                    {statusEmojis[project.project_status]} {capitalizeFirstLetter(project.project_status)}
+                    {statusEmojis[project.project_status]}{" "}
+                    {capitalizeFirstLetter(project.project_status)}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">ID: {project.id.slice(0, 7)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ID: {project.id.slice(0, 7)}
+                  </span>
                 </motion.div>
-                <motion.h2 className="text-lg font-semibold" variants={itemVariants}>{project.name}</motion.h2>
-                <motion.div className="flex items-center text-xs text-muted-foreground" variants={itemVariants}>
+                <motion.h2
+                  className="text-lg font-semibold"
+                  variants={itemVariants}
+                >
+                  {project.name}
+                </motion.h2>
+                <motion.div
+                  className="flex items-center text-xs text-muted-foreground"
+                  variants={itemVariants}
+                >
                   <CalendarDays className="mr-1 h-3 w-3" />
-                  <span>Created: {format(new Date(project.created_at), "dd MMM yyyy")}</span>
+                  <span>
+                    Created:{" "}
+                    {format(new Date(project.created_at), "dd MMM yyyy")}
+                  </span>
                 </motion.div>
-                <motion.div className="flex items-center text-xs text-muted-foreground" variants={itemVariants}>
+                <motion.div
+                  className="flex items-center text-xs text-muted-foreground"
+                  variants={itemVariants}
+                >
                   <Clock className="mr-1 h-3 w-3" />
-                  <span>Updated: {format(new Date(project.updated_at), "dd MMM yyyy")}</span>
+                  <span>
+                    Updated:{" "}
+                    {format(new Date(project.updated_at), "dd MMM yyyy")}
+                  </span>
                 </motion.div>
-                <motion.div className="text-xs text-muted-foreground flex items-center" variants={itemVariants}>
+                <motion.div
+                  className="text-xs text-muted-foreground flex items-center"
+                  variants={itemVariants}
+                >
                   <LinkIcon className="mr-1 h-3 w-3" />
                   <span className="truncate">/{project.slug}</span>
                 </motion.div>

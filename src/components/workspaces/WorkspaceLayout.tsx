@@ -1,19 +1,31 @@
 import { ApplicationLayoutShell } from "@/components/ApplicationLayoutShell/ApplicationLayoutShell";
 import { InternalNavbar } from "@/components/NavigationMenu/InternalNavbar";
-import { getCachedSoloWorkspace, getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import {
+  getCachedSoloWorkspace,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
 import { Suspense, type ReactNode } from "react";
 
-
-async function WorkspaceTestIds({ workspaceSlug }: { workspaceSlug: string | undefined }) {
+async function WorkspaceTestIds({
+  workspaceSlug,
+}: {
+  workspaceSlug: string | undefined;
+}) {
   const workspace = workspaceSlug
     ? await getCachedWorkspaceBySlug(workspaceSlug)
     : await getCachedSoloWorkspace();
 
   return (
     <>
-      <span className="hidden" data-testid="workspaceId">{workspace.id}</span>
-      <span className="hidden" data-testid="workspaceSlug">{workspace.slug}</span>
-      <span className="hidden" data-testid="isSoloWorkspace">{workspace.membershipType}</span>
+      <span className="hidden" data-testid="workspaceId">
+        {workspace.id}
+      </span>
+      <span className="hidden" data-testid="workspaceSlug">
+        {workspace.slug}
+      </span>
+      <span className="hidden" data-testid="isSoloWorkspace">
+        {workspace.membershipType}
+      </span>
     </>
   );
 }
@@ -22,7 +34,7 @@ export async function WorkspaceLayout({
   children,
   navbar,
   sidebar,
-  workspaceSlug
+  workspaceSlug,
 }: {
   children: ReactNode;
   navbar: ReactNode;

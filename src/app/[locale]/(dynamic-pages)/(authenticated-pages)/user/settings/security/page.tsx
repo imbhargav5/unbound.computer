@@ -1,7 +1,7 @@
-import { PageHeading } from '@/components/PageHeading';
-import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import { UpdateEmail } from './UpdateEmail';
-import { UpdatePassword } from './UpdatePassword';
+import { PageHeading } from "@/components/PageHeading";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { UpdateEmail } from "./UpdateEmail";
+import { UpdatePassword } from "./UpdatePassword";
 
 export default async function SecuritySettings() {
   const user = await serverGetLoggedInUser();

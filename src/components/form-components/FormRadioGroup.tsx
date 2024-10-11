@@ -4,9 +4,9 @@ import {
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Control, FieldValues, Path } from 'react-hook-form';
+} from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Control, FieldValues, Path } from "react-hook-form";
 
 interface FormRadioGroupProps<TFieldValues extends FieldValues> {
   id: string;

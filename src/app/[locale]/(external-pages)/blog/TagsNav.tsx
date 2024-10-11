@@ -1,12 +1,8 @@
-import { Link } from '@/components/intl-link';
-import { Button } from '@/components/ui/button';
-import { DBTable } from '@/types';
+import { Link } from "@/components/intl-link";
+import { Button } from "@/components/ui/button";
+import { DBTable } from "@/types";
 
-export function TagsNav({
-  tags,
-}: {
-  tags: DBTable<'marketing_tags'>[];
-}) {
+export function TagsNav({ tags }: { tags: DBTable<"marketing_tags">[] }) {
   return (
     <div className="space-x-2 flex px-4 sm:px-0 flex-wrap justify-center">
       <Link href="/blog">

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { T } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/button';
+import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,35 +10,41 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { requestAccountDeletionAction } from '@/data/user/user';
-import { Trash } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { ConfirmDeletionViaEmailDialog } from './ConfirmDeletionViaEmailDialog';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { requestAccountDeletionAction } from "@/data/user/user";
+import { Trash } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDeletionViaEmailDialog } from "./ConfirmDeletionViaEmailDialog";
 
 export const ConfirmDeleteAccountDialog = () => {
   const [open, setOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
-  const [confirmText, setConfirmText] = useState('');
-  const isDisabled = confirmText !== 'delete';
+  const [confirmText, setConfirmText] = useState("");
+  const isDisabled = confirmText !== "delete";
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: requestAccountDeletion, isPending: isRequestingAccountDeletion } = useAction(requestAccountDeletionAction, {
+  const {
+    execute: requestAccountDeletion,
+    isPending: isRequestingAccountDeletion,
+  } = useAction(requestAccountDeletionAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Creating deletion request...');
+      toastRef.current = toast.loading("Creating deletion request...");
     },
     onSuccess: () => {
-      toast.success('Account deletion request created. Please check your email.', {
-        id: toastRef.current,
-      });
+      toast.success(
+        "Account deletion request created. Please check your email.",
+        {
+          id: toastRef.current,
+        },
+      );
       toastRef.current = undefined;
       setIsSuccessDialogOpen(true);
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed!';
+      const errorMessage = error.serverError ?? "Failed!";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -84,7 +90,7 @@ export const ConfirmDeleteAccountDialog = () => {
                 setOpen(false);
               }}
             >
-              {isRequestingAccountDeletion ? 'Deleting...' : 'Delete'} Account
+              {isRequestingAccountDeletion ? "Deleting..." : "Delete"} Account
             </Button>
           </DialogFooter>
         </DialogContent>

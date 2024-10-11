@@ -1,20 +1,23 @@
 "use client";
-import { QueryClient, QueryClientProvider, isServer } from "@tanstack/react-query";
-import { RootProvider } from 'fumadocs-ui/provider';
-import { NextIntlClientProvider } from 'next-intl';
+import {
+  QueryClient,
+  QueryClientProvider,
+  isServer,
+} from "@tanstack/react-query";
+import { RootProvider } from "fumadocs-ui/provider";
+import { NextIntlClientProvider } from "next-intl";
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
 import { useTheme } from "next-themes";
 import type React from "react";
 import { Suspense } from "react";
 import { Toaster as SonnerToaster } from "sonner";
-import type { AbstractIntlMessages } from 'use-intl';
+import type { AbstractIntlMessages } from "use-intl";
 import { useMyReportWebVitals } from "./reportWebVitals";
 
 function CustomerToaster() {
   const theme = useTheme();
-  const currentTheme = theme.theme === 'light' ? 'light' : 'dark';
-  return <SonnerToaster richColors theme={currentTheme} />
-
+  const currentTheme = theme.theme === "light" ? "light" : "dark";
+  return <SonnerToaster richColors theme={currentTheme} />;
 }
 
 function makeQueryClient() {
@@ -26,22 +29,22 @@ function makeQueryClient() {
         staleTime: 60 * 1000,
       },
     },
-  })
+  });
 }
 
-let browserQueryClient: QueryClient | undefined = undefined
+let browserQueryClient: QueryClient | undefined = undefined;
 
 function getQueryClient() {
   if (isServer) {
     // Server: always make a new query client
-    return makeQueryClient()
+    return makeQueryClient();
   } else {
     // Browser: make a new query client if we don't already have one
     // This is very important, so we don't re-make a new client if React
     // suspends during the initial render. This may not be needed if we
     // have a suspense boundary BELOW the creation of the query client
-    if (!browserQueryClient) browserQueryClient = makeQueryClient()
-    return browserQueryClient
+    if (!browserQueryClient) browserQueryClient = makeQueryClient();
+    return browserQueryClient;
   }
 }
 
@@ -66,14 +69,15 @@ export function AppProviders({
   //       have a suspense boundary between this and the code that may
   //       suspend because React will throw away the client on the initial
   //       render if it suspends and there is no boundary
-  const queryClient = getQueryClient()
+  const queryClient = getQueryClient();
 
   useMyReportWebVitals();
   return (
     <>
-      <RootProvider theme={{
-        enabled: true,
-      }}
+      <RootProvider
+        theme={{
+          enabled: true,
+        }}
         search={{
           enabled: true,
         }}

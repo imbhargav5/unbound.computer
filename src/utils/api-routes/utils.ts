@@ -1,7 +1,7 @@
 // import sendgrid from '@sendgrid/mail';
-import { Resend } from 'resend';
-import { errors } from '../errors';
-import { sendEmailInbucket } from '../sendEmailInbucket';
+import { Resend } from "resend";
+import { errors } from "../errors";
+import { sendEmailInbucket } from "../sendEmailInbucket";
 
 type EmailOptions = {
   to: string;
@@ -11,7 +11,7 @@ type EmailOptions = {
 };
 
 const isDevOrTestEnvironment =
-  process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+  process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
 
 export async function sendEmail(options: EmailOptions) {
   if (isDevOrTestEnvironment) {

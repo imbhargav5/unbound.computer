@@ -4,9 +4,9 @@ import {
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
-import { Switch } from '@/components/ui/switch';
-import { Control, FieldValues, Path } from 'react-hook-form';
+} from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
+import { Control, FieldValues, Path } from "react-hook-form";
 
 interface FormSwitchProps<TFieldValues extends FieldValues> {
   id: string;

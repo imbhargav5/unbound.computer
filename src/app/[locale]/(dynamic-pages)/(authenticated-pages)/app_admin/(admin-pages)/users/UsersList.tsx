@@ -1,7 +1,7 @@
-'use server';
+"use server";
 
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -9,14 +9,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getPaginatedUserListAction } from '@/data/admin/user';
-import { format } from 'date-fns';
-import { Check, Mail, X } from 'lucide-react';
-import { Suspense } from 'react';
-import { ConfirmSendLoginLinkDialog } from './ConfirmSendLoginLinkDialog';
-import { GetLoginLinkDialog } from './GetLoginLinkDialog';
-import { AppAdminUserFiltersSchema } from './schema';
+} from "@/components/ui/table";
+import { getPaginatedUserListAction } from "@/data/admin/user";
+import { format } from "date-fns";
+import { Check, Mail, X } from "lucide-react";
+import { Suspense } from "react";
+import { ConfirmSendLoginLinkDialog } from "./ConfirmSendLoginLinkDialog";
+import { GetLoginLinkDialog } from "./GetLoginLinkDialog";
+import { AppAdminUserFiltersSchema } from "./schema";
 
 export async function UserList({
   filters,
@@ -42,12 +42,15 @@ export async function UserList({
           </TableHeader>
           <TableBody>
             {users.map((user) => {
-              const isAppAdmin = user.user_roles.some((role) => role.role === 'admin');
-              const email = user.user_application_settings?.email_readonly ?? '-';
+              const isAppAdmin = user.user_roles.some(
+                (role) => role.role === "admin",
+              );
+              const email =
+                user.user_application_settings?.email_readonly ?? "-";
 
               return (
                 <TableRow key={user.id}>
-                  <TableCell> {user.full_name ?? '-'} </TableCell>
+                  <TableCell> {user.full_name ?? "-"} </TableCell>
                   <TableCell>
                     <Link href={`/app_admin/users/${user.id}`}>{email}</Link>
                   </TableCell>
@@ -58,7 +61,9 @@ export async function UserList({
                       <X className="text-red-500 dark:text-red-400" />
                     )}
                   </TableCell>
-                  <TableCell>{format(new Date(user.created_at), 'PPpp')}</TableCell>
+                  <TableCell>
+                    {format(new Date(user.created_at), "PPpp")}
+                  </TableCell>
 
                   <TableCell>
                     <span className="flex items-center space-x-4">
@@ -69,7 +74,7 @@ export async function UserList({
                         target="_blank"
                         rel="noreferrer"
                       >
-                        <Mail className="h-5 w-5 mr-2 " />{' '}
+                        <Mail className="h-5 w-5 mr-2 " />{" "}
                         <T.Small className=" font-medium underline underline-offset-4 ">
                           Contact User by email
                         </T.Small>
@@ -88,7 +93,7 @@ export async function UserList({
                     </Suspense>
                   </TableCell>
                 </TableRow>
-              )
+              );
             })}
           </TableBody>
         </ShadcnTable>
@@ -98,11 +103,10 @@ export async function UserList({
     if (usersActionResult?.serverError) {
       console.log("***************");
       console.log(usersActionResult.serverError);
-      return <div>{usersActionResult.serverError}</div>
+      return <div>{usersActionResult.serverError}</div>;
     } else {
       console.error(usersActionResult);
-      return <div>Failed to load users</div>
+      return <div>Failed to load users</div>;
     }
   }
-
 }

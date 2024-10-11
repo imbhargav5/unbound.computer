@@ -1,4 +1,4 @@
-import { Typography as T } from 'src/components/ui/Typography';
+import { Typography as T } from "src/components/ui/Typography";
 
 export default function AuthErrorPage() {
   return (

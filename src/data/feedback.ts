@@ -1,20 +1,32 @@
-'use server';
+"use server";
 
-import { adminActionClient, authActionClient } from '@/lib/safe-action';
-import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { supabaseClientBasedOnUserRole } from '@/supabase-clients/user-role-client';
-import { serverGetUserType } from '@/utils/server/serverGetUserType';
-import { userRoles } from '@/utils/userTypes';
-import { marketingFeedbackStatusEnum, marketingFeedbackThreadPriorityEnum, marketingFeedbackTypeEnum } from '@/utils/zod-schemas/feedback';
-import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
-import { createFeedbackAddedToRoadmapUpdatedNotification, createFeedbackPriorityChangedNotification, createFeedbackReceivedCommentNotification, createFeedbackStatusChangedNotification, createFeedbackTypeUpdatedNotification, createFeedbackVisibilityUpdatedNotification, createUpdateFeedbackOpenForCommentsNotification } from './user/notifications';
-import { getUserFullName } from './user/user';
+import { adminActionClient, authActionClient } from "@/lib/safe-action";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
+import { supabaseClientBasedOnUserRole } from "@/supabase-clients/user-role-client";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import { userRoles } from "@/utils/userTypes";
+import {
+  marketingFeedbackStatusEnum,
+  marketingFeedbackThreadPriorityEnum,
+  marketingFeedbackTypeEnum,
+} from "@/utils/zod-schemas/feedback";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import {
+  createFeedbackAddedToRoadmapUpdatedNotification,
+  createFeedbackPriorityChangedNotification,
+  createFeedbackReceivedCommentNotification,
+  createFeedbackStatusChangedNotification,
+  createFeedbackTypeUpdatedNotification,
+  createFeedbackVisibilityUpdatedNotification,
+  createUpdateFeedbackOpenForCommentsNotification,
+} from "./user/notifications";
+import { getUserFullName } from "./user/user";
 
 const addCommentToInternalFeedbackThreadSchema = z.object({
   feedbackId: z.string(),
   content: z.string(),
-})
+});
 
 export const addCommentToInternalFeedbackThreadAction = authActionClient
   .schema(addCommentToInternalFeedbackThreadSchema)
@@ -24,88 +36,97 @@ export const addCommentToInternalFeedbackThreadAction = authActionClient
 
     const { data: feedbackThread, error: feedbackThreadError } =
       await supabaseAdminClient
-        .from('marketing_feedback_threads')
-        .select('*')
-        .eq('id', feedbackId)
+        .from("marketing_feedback_threads")
+        .select("*")
+        .eq("id", feedbackId)
         .maybeSingle();
 
     if (feedbackThreadError) {
-      throw feedbackThreadError
+      throw feedbackThreadError;
     }
 
     /**
      * App admins can comment on all the feedbacks
      * normal user can comment on their own feedback and the one's with open for public
      */
-    if (!(feedbackThread?.open_for_public_discussion || feedbackThread?.user_id == userId || userRoleType == userRoles.ADMIN)) {
-      throw new Error('This feedback thread is not open for public discussion')
+    if (
+      !(
+        feedbackThread?.open_for_public_discussion ||
+        feedbackThread?.user_id == userId ||
+        userRoleType == userRoles.ADMIN
+      )
+    ) {
+      throw new Error("This feedback thread is not open for public discussion");
     }
 
     const { data, error } = await supabaseClient
-      .from('marketing_feedback_comments')
+      .from("marketing_feedback_comments")
       .insert({ thread_id: feedbackId, user_id: userId, content })
-      .select('*');
+      .select("*");
 
     if (error) {
       return {
-        status: 'error',
+        status: "error",
         message: error.message,
       };
     }
 
-    const userFullName = await getUserFullName(userId)
+    const userFullName = await getUserFullName(userId);
 
     await createFeedbackReceivedCommentNotification({
       feedbackId,
-      feedbackTitle: feedbackThread?.title || '',
+      feedbackTitle: feedbackThread?.title || "",
       comment: content,
       commenterId: userId,
-      commenterName: userFullName ?? 'User',
-    })
+      commenterName: userFullName ?? "User",
+    });
 
-    revalidatePath('/[locale]/feedback', 'layout');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'layout');
-    return data
-  })
-
+    revalidatePath("/[locale]/feedback", "layout");
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, "layout");
+    return data;
+  });
 
 const updateMarketingFeedbackCommentSchema = z.object({
   feedbackId: z.string(),
   commentId: z.string(),
   feedbackCommentOwnerId: z.string(),
   content: z.string(),
-})
+});
 
 export const ownerUpdateMarketingFeedbackCommentAction = authActionClient
   .schema(updateMarketingFeedbackCommentSchema)
-  .action(async ({ parsedInput: { feedbackId, commentId, feedbackCommentOwnerId, content }, ctx: { userId } }) => {
-    if (feedbackCommentOwnerId !== userId) {
-      return {
-        status: 'error',
-        message: 'You are unathorized to perform this action',
-      };
-    }
+  .action(
+    async ({
+      parsedInput: { feedbackId, commentId, feedbackCommentOwnerId, content },
+      ctx: { userId },
+    }) => {
+      if (feedbackCommentOwnerId !== userId) {
+        return {
+          status: "error",
+          message: "You are unathorized to perform this action",
+        };
+      }
 
-    const supabaseClient = await supabaseClientBasedOnUserRole();
+      const supabaseClient = await supabaseClientBasedOnUserRole();
 
-    const { data, error } = await supabaseClient
-      .from('marketing_feedback_comments')
-      .update({ content })
-      .eq('id', commentId)
-      .eq('thread_id', feedbackId)
-      .eq('user_id', feedbackCommentOwnerId);
+      const { data, error } = await supabaseClient
+        .from("marketing_feedback_comments")
+        .update({ content })
+        .eq("id", commentId)
+        .eq("thread_id", feedbackId)
+        .eq("user_id", feedbackCommentOwnerId);
 
-    if (error) {
-      return {
-        status: 'error',
-        message: error.message,
-      };
-    }
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
-    return data;
-  })
-
+      if (error) {
+        return {
+          status: "error",
+          message: error.message,
+        };
+      }
+      revalidatePath(`/[locale]/feedback`, "page");
+      revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
+      return data;
+    },
+  );
 
 export async function muteFeedbackThread({
   feedbackId,
@@ -135,20 +156,21 @@ const updateFeedbackStatusSchema = z.object({
 export const adminUpdateFeedbackStatusAction = adminActionClient
   .schema(updateFeedbackStatusSchema)
   .action(async ({ parsedInput: { feedbackId, status }, ctx: { userId } }) => {
-    const { data: feedbackThread, error: feedbackThreadError } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .select('user_id, status')
-      .eq('id', feedbackId)
-      .single();
+    const { data: feedbackThread, error: feedbackThreadError } =
+      await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .select("user_id, status")
+        .eq("id", feedbackId)
+        .single();
 
     if (feedbackThreadError) {
       throw new Error(feedbackThreadError.message);
     }
 
     const { error } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
+      .from("marketing_feedback_threads")
       .update({ status })
-      .eq('id', feedbackId);
+      .eq("id", feedbackId);
 
     if (error) {
       throw new Error(error.message);
@@ -162,12 +184,11 @@ export const adminUpdateFeedbackStatusAction = adminActionClient
       statusUpdaterId: userId,
     });
 
-    revalidatePath('/[locale]/roadmap', 'layout');
-    revalidatePath(`/[locale]/feedback`, 'layout');
+    revalidatePath("/[locale]/roadmap", "layout");
+    revalidatePath(`/[locale]/feedback`, "layout");
 
     return { status };
   });
-
 
 const updateFeedbackTypeSchema = z.object({
   feedbackId: z.string(),
@@ -177,20 +198,21 @@ const updateFeedbackTypeSchema = z.object({
 export const adminUpdateFeedbackTypeAction = adminActionClient
   .schema(updateFeedbackTypeSchema)
   .action(async ({ parsedInput: { feedbackId, type }, ctx: { userId } }) => {
-    const { data: feedbackThread, error: feedbackThreadError } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .select('user_id, type')
-      .eq('id', feedbackId)
-      .single();
+    const { data: feedbackThread, error: feedbackThreadError } =
+      await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .select("user_id, type")
+        .eq("id", feedbackId)
+        .single();
 
     if (feedbackThreadError) {
       throw new Error(feedbackThreadError.message);
     }
 
     const { error } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
+      .from("marketing_feedback_threads")
       .update({ type })
-      .eq('id', feedbackId);
+      .eq("id", feedbackId);
 
     if (error) {
       throw new Error(error.message);
@@ -204,8 +226,8 @@ export const adminUpdateFeedbackTypeAction = adminActionClient
       typeUpdaterId: userId,
     });
 
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
+    revalidatePath(`/[locale]/feedback`, "page");
+    revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
 
     return { type };
   });
@@ -217,39 +239,42 @@ const updateFeedbackPrioritySchema = z.object({
 
 export const adminUpdateFeedbackPriorityAction = adminActionClient
   .schema(updateFeedbackPrioritySchema)
-  .action(async ({ parsedInput: { feedbackId, priority }, ctx: { userId } }) => {
-    const { data: feedbackThread, error: feedbackThreadError } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .select('user_id, priority')
-      .eq('id', feedbackId)
-      .single();
+  .action(
+    async ({ parsedInput: { feedbackId, priority }, ctx: { userId } }) => {
+      const { data: feedbackThread, error: feedbackThreadError } =
+        await supabaseAdminClient
+          .from("marketing_feedback_threads")
+          .select("user_id, priority")
+          .eq("id", feedbackId)
+          .single();
 
-    if (feedbackThreadError) {
-      throw new Error(feedbackThreadError.message);
-    }
+      if (feedbackThreadError) {
+        throw new Error(feedbackThreadError.message);
+      }
 
-    const { error } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .update({ priority })
-      .eq('id', feedbackId);
+      const { error } = await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .update({ priority })
+        .eq("id", feedbackId);
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    await createFeedbackPriorityChangedNotification({
-      feedbackId,
-      newPriority: priority,
-      oldPriority: feedbackThread.priority,
-      feedbackOwnerId: feedbackThread.user_id,
-      priorityUpdaterId: userId,
-    });
+      await createFeedbackPriorityChangedNotification({
+        feedbackId,
+        newPriority: priority,
+        oldPriority: feedbackThread.priority,
+        feedbackOwnerId: feedbackThread.user_id,
+        priorityUpdaterId: userId,
+      });
 
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
+      revalidatePath(`/[locale]/feedback`, "page");
+      revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
 
-    return { priority };
-  });
+      return { priority };
+    },
+  );
 
 const toggleFeedbackRoadmapSchema = z.object({
   feedbackId: z.string(),
@@ -258,35 +283,37 @@ const toggleFeedbackRoadmapSchema = z.object({
 
 export const adminToggleFeedbackFromRoadmapAction = adminActionClient
   .schema(toggleFeedbackRoadmapSchema)
-  .action(async ({ parsedInput: { feedbackId, isInRoadmap }, ctx: { userId } }) => {
-    const { error, data: updatedFeedbackData } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .update({ added_to_roadmap: isInRoadmap })
-      .eq('id', feedbackId)
-      .single();
+  .action(
+    async ({ parsedInput: { feedbackId, isInRoadmap }, ctx: { userId } }) => {
+      const { error, data: updatedFeedbackData } = await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .update({ added_to_roadmap: isInRoadmap })
+        .eq("id", feedbackId)
+        .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    if (isInRoadmap) {
-      await adminToggleFeedbackVisibilityAction({
+      if (isInRoadmap) {
+        await adminToggleFeedbackVisibilityAction({
+          feedbackId,
+          isPubliclyVisible: true,
+        });
+      }
+
+      await createFeedbackAddedToRoadmapUpdatedNotification({
         feedbackId,
-        isPubliclyVisible: true,
+        isInRoadmap,
+        updaterId: userId,
       });
-    }
 
-    await createFeedbackAddedToRoadmapUpdatedNotification({
-      feedbackId,
-      isInRoadmap,
-      updaterId: userId
-    });
-
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
-    revalidatePath(`/[locale]/roadmap`, 'page');
-    return updatedFeedbackData;
-  });
+      revalidatePath(`/[locale]/feedback`, "page");
+      revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
+      revalidatePath(`/[locale]/roadmap`, "page");
+      return updatedFeedbackData;
+    },
+  );
 
 const toggleFeedbackOpenForCommentsSchema = z.object({
   feedbackId: z.string(),
@@ -295,34 +322,39 @@ const toggleFeedbackOpenForCommentsSchema = z.object({
 
 export const adminToggleFeedbackOpenForCommentsAction = adminActionClient
   .schema(toggleFeedbackOpenForCommentsSchema)
-  .action(async ({ parsedInput: { feedbackId, isOpenForComments }, ctx: { userId } }) => {
-    const { error } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .update({ open_for_public_discussion: isOpenForComments })
-      .eq('id', feedbackId);
+  .action(
+    async ({
+      parsedInput: { feedbackId, isOpenForComments },
+      ctx: { userId },
+    }) => {
+      const { error } = await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .update({ open_for_public_discussion: isOpenForComments })
+        .eq("id", feedbackId);
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    if (isOpenForComments) {
-      await adminToggleFeedbackVisibilityAction({
+      if (isOpenForComments) {
+        await adminToggleFeedbackVisibilityAction({
+          feedbackId,
+          isPubliclyVisible: isOpenForComments,
+        });
+      }
+
+      await createUpdateFeedbackOpenForCommentsNotification({
         feedbackId,
-        isPubliclyVisible: isOpenForComments,
+        isOpenForComments,
+        updaterId: userId,
       });
-    }
 
-    await createUpdateFeedbackOpenForCommentsNotification({
-      feedbackId,
-      isOpenForComments,
-      updaterId: userId
-    });
+      revalidatePath(`/[locale]/feedback`, "page");
+      revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
 
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
-
-    return { isOpenForComments };
-  });
+      return { isOpenForComments };
+    },
+  );
 
 const toggleFeedbackVisibilitySchema = z.object({
   feedbackId: z.string(),
@@ -331,50 +363,61 @@ const toggleFeedbackVisibilitySchema = z.object({
 
 export const adminToggleFeedbackVisibilityAction = adminActionClient
   .schema(toggleFeedbackVisibilitySchema)
-  .action(async ({ parsedInput: { feedbackId, isPubliclyVisible }, ctx: { userId } }) => {
-    const { error } = await supabaseAdminClient
-      .from('marketing_feedback_threads')
-      .update({ is_publicly_visible: isPubliclyVisible })
-      .eq('id', feedbackId);
+  .action(
+    async ({
+      parsedInput: { feedbackId, isPubliclyVisible },
+      ctx: { userId },
+    }) => {
+      const { error } = await supabaseAdminClient
+        .from("marketing_feedback_threads")
+        .update({ is_publicly_visible: isPubliclyVisible })
+        .eq("id", feedbackId);
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    await createFeedbackVisibilityUpdatedNotification({
-      feedbackId,
-      isPubliclyVisible,
-      updaterId: userId
-    });
+      await createFeedbackVisibilityUpdatedNotification({
+        feedbackId,
+        isPubliclyVisible,
+        updaterId: userId,
+      });
 
-    revalidatePath(`/[locale]/feedback`, 'page');
-    revalidatePath(`/[locale]/feedback/${feedbackId}`, 'page');
+      revalidatePath(`/[locale]/feedback`, "page");
+      revalidatePath(`/[locale]/feedback/${feedbackId}`, "page");
 
-    return { isPubliclyVisible };
-  });
+      return { isPubliclyVisible };
+    },
+  );
 
-export async function getFeedbackStakeholdersExceptMentionedUser({ feedbackId, excludedUserId }: { feedbackId: string, excludedUserId?: string }): Promise<string[]> {
+export async function getFeedbackStakeholdersExceptMentionedUser({
+  feedbackId,
+  excludedUserId,
+}: {
+  feedbackId: string;
+  excludedUserId?: string;
+}): Promise<string[]> {
   // return all the user ids that are concerned with the feedback conversation including owner
   // except the one mentioned, the mentioned user could be owner of the feedback thread or the commentator or logged in user
   try {
     const supabaseClient = await supabaseClientBasedOnUserRole();
 
     const feedbackOwnerQuery = supabaseClient
-      .from('marketing_feedback_threads')
-      .select('user_id')
-      .eq('id', feedbackId);
+      .from("marketing_feedback_threads")
+      .select("user_id")
+      .eq("id", feedbackId);
     const feedbackCommentatorsQuery = supabaseClient
-      .from('marketing_feedback_comments')
-      .select('user_id')
-      .eq('thread_id', feedbackId)
+      .from("marketing_feedback_comments")
+      .select("user_id")
+      .eq("thread_id", feedbackId);
 
-    const [feedbackOwnerResult, feedbackCommentatorsResult] = await Promise.all([
-      feedbackOwnerQuery,
-      feedbackCommentatorsQuery
-    ]);
+    const [feedbackOwnerResult, feedbackCommentatorsResult] = await Promise.all(
+      [feedbackOwnerQuery, feedbackCommentatorsQuery],
+    );
 
     if (feedbackOwnerResult.error) throw feedbackOwnerResult.error;
-    if (feedbackCommentatorsResult.error) throw feedbackCommentatorsResult.error;
+    if (feedbackCommentatorsResult.error)
+      throw feedbackCommentatorsResult.error;
 
     const stakeholders = new Set<string>();
 
@@ -382,7 +425,7 @@ export async function getFeedbackStakeholdersExceptMentionedUser({ feedbackId, e
       stakeholders.add(feedbackOwnerResult.data[0].user_id);
     }
 
-    feedbackCommentatorsResult.data.forEach(comment => {
+    feedbackCommentatorsResult.data.forEach((comment) => {
       stakeholders.add(comment.user_id);
     });
 

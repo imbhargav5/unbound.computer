@@ -1,9 +1,12 @@
-import { Database } from '@/lib/database.types';
-import { z } from 'zod';
+import { Database } from "@/lib/database.types";
+import { z } from "zod";
 
-type MarketingFeedbackThreadStatus = Database['public']['Enums']['marketing_feedback_thread_status'];
-type MarketingFeedbackThreadType = Database['public']['Enums']['marketing_feedback_thread_type'];
-type MarketingFeedbackThreadPriority = Database['public']['Enums']['marketing_feedback_thread_priority'];
+type MarketingFeedbackThreadStatus =
+  Database["public"]["Enums"]["marketing_feedback_thread_status"];
+type MarketingFeedbackThreadType =
+  Database["public"]["Enums"]["marketing_feedback_thread_type"];
+type MarketingFeedbackThreadPriority =
+  Database["public"]["Enums"]["marketing_feedback_thread_priority"];
 
 const singleOrArray = <T extends z.ZodType>(schema: T) => {
   return z.preprocess((obj) => {
@@ -11,23 +14,36 @@ const singleOrArray = <T extends z.ZodType>(schema: T) => {
       return obj;
     }
 
-    if (typeof obj === 'string') {
-      return obj.split(',');
+    if (typeof obj === "string") {
+      return obj.split(",");
     }
     return [];
   }, z.array(schema));
 };
 
 export const feedbackStatusesSchema = singleOrArray(
-  z.enum(['open', 'in_progress', 'closed', 'planned', 'under_review', 'completed'] as [MarketingFeedbackThreadStatus, ...MarketingFeedbackThreadStatus[]]),
+  z.enum([
+    "open",
+    "in_progress",
+    "closed",
+    "planned",
+    "under_review",
+    "completed",
+  ] as [MarketingFeedbackThreadStatus, ...MarketingFeedbackThreadStatus[]]),
 );
 
 export const feedbackTypesSchema = singleOrArray(
-  z.enum(['bug', 'feature_request', 'general'] as [MarketingFeedbackThreadType, ...MarketingFeedbackThreadType[]]),
+  z.enum(["bug", "feature_request", "general"] as [
+    MarketingFeedbackThreadType,
+    ...MarketingFeedbackThreadType[],
+  ]),
 );
 
 export const feedbackPrioritiesSchema = singleOrArray(
-  z.enum(['low', 'medium', 'high'] as [MarketingFeedbackThreadPriority, ...MarketingFeedbackThreadPriority[]]),
+  z.enum(["low", "medium", "high"] as [
+    MarketingFeedbackThreadPriority,
+    ...MarketingFeedbackThreadPriority[],
+  ]),
 );
 
 export const dropdownFiltersSchema = z.object({
@@ -36,7 +52,7 @@ export const dropdownFiltersSchema = z.object({
   priorities: feedbackPrioritiesSchema.optional(),
 });
 
-export const sortSchema = z.enum(['asc', 'desc']).optional();
+export const sortSchema = z.enum(["asc", "desc"]).optional();
 
 export type FeedbackSortSchema = z.infer<typeof sortSchema>;
 

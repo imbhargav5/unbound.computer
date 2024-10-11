@@ -1,12 +1,8 @@
+"use client";
 
-'use client';
-
-import { type ReactNode } from 'react';
-import './graphic-background.css';
-import { StackedCards } from './StackedCards';
-
-
-
+import { type ReactNode } from "react";
+import "./graphic-background.css";
+import { StackedCards } from "./StackedCards";
 
 export function ClientLayout({ children }: { children: ReactNode }) {
   return (
@@ -15,13 +11,12 @@ export function ClientLayout({ children }: { children: ReactNode }) {
         <div className="max-w-xl md:min-w-[450px]">{children}</div>
       </div>
       <div className="hidden lg:flex w-1/2 border-l-2 items-center relative justify-center h-full">
-
         <div className="w-full px-8">
           <StackedCards
             images={[
-              '/assets/marketing/landing-1.jpg',
-              '/assets/marketing/dashboard-2.jpg',
-              '/assets/marketing/docs-3.jpg',
+              "/assets/marketing/landing-1.jpg",
+              "/assets/marketing/dashboard-2.jpg",
+              "/assets/marketing/docs-3.jpg",
             ]}
           />
         </div>

@@ -1,16 +1,19 @@
 // OrganizationSidebar.tsx (Server Component)
-import { DesktopSidebarFallback } from '@/components/SidebarComponents/SidebarFallback';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getCachedSlimWorkspaces, getCachedSoloWorkspace } from '@/rsc-data/user/workspaces';
-import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
-import SoloWorkspaceSidebarClient from './SoloWorkspaceSidebarClient';
+import { DesktopSidebarFallback } from "@/components/SidebarComponents/SidebarFallback";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  getCachedSlimWorkspaces,
+  getCachedSoloWorkspace,
+} from "@/rsc-data/user/workspaces";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import SoloWorkspaceSidebarClient from "./SoloWorkspaceSidebarClient";
 
 export async function SoloWorkspaceSidebar() {
   try {
     const [workspace, slimWorkspaces] = await Promise.all([
       getCachedSoloWorkspace(),
-      getCachedSlimWorkspaces()
+      getCachedSlimWorkspaces(),
     ]);
     return (
       <Suspense fallback={<DesktopSidebarFallback />}>
@@ -19,11 +22,13 @@ export async function SoloWorkspaceSidebar() {
           workspaceSlug={workspace.slug}
           workspace={workspace}
           slimWorkspaces={slimWorkspaces}
-          subscription={<Suspense fallback={<Skeleton className="h-2 w-full" />}>
-            <div>
-              {/* <SubscriptionCardSmall organizationSlug={organizationSlug} organizationId={organizationId} /> */}
-            </div>
-          </Suspense>}
+          subscription={
+            <Suspense fallback={<Skeleton className="h-2 w-full" />}>
+              <div>
+                {/* <SubscriptionCardSmall organizationSlug={organizationSlug} organizationId={organizationId} /> */}
+              </div>
+            </Suspense>
+          }
         />
       </Suspense>
     );
@@ -31,4 +36,3 @@ export async function SoloWorkspaceSidebar() {
     return notFound();
   }
 }
-

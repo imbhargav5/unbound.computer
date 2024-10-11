@@ -1,6 +1,6 @@
-'use server';
+"use server";
 
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -8,10 +8,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getPaginatedWorkspaceListAction } from '@/data/admin/workspaces';
-import { format } from 'date-fns';
-import { AppAdminWorkspacesFiltersSchema } from './schema';
+} from "@/components/ui/table";
+import { getPaginatedWorkspaceListAction } from "@/data/admin/workspaces";
+import { format } from "date-fns";
+import { AppAdminWorkspacesFiltersSchema } from "./schema";
 
 export async function WorkspaceList({
   filters,
@@ -39,12 +39,12 @@ export async function WorkspaceList({
               <TableRow key={workspace.id}>
                 <TableCell>
                   <Link href={`/app_admin/workspaces/${workspace.id}`}>
-                    {workspace.name ?? '-'}
+                    {workspace.name ?? "-"}
                   </Link>
                 </TableCell>
-                <TableCell>{workspace.slug ?? '-'}</TableCell>
+                <TableCell>{workspace.slug ?? "-"}</TableCell>
                 <TableCell>
-                  {format(new Date(workspace.created_at), 'PPpp')}
+                  {format(new Date(workspace.created_at), "PPpp")}
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center space-x-2">
@@ -61,10 +61,10 @@ export async function WorkspaceList({
     if (workspacesActionResult?.serverError) {
       console.log("***************");
       console.log(workspacesActionResult.serverError);
-      return <div>{workspacesActionResult.serverError}</div>
+      return <div>{workspacesActionResult.serverError}</div>;
     } else {
       console.error(workspacesActionResult);
-      return <div>Failed to load workspaces</div>
+      return <div>Failed to load workspaces</div>;
     }
   }
 }

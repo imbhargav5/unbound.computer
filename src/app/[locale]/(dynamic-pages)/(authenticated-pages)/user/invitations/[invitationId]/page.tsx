@@ -1,12 +1,12 @@
-import { T } from '@/components/ui/Typography';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getInvitationById } from '@/data/user/invitation';
-import type { DBTable } from '@/types';
-import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
-import { z } from 'zod';
-import { ConfirmAcceptInvitationDialog } from './ConfirmAcceptInvitationDialog';
-import { ConfirmDeclineInvitationDialog } from './ConfirmDeclineInvitationDialog';
+import { T } from "@/components/ui/Typography";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getInvitationById } from "@/data/user/invitation";
+import type { DBTable } from "@/types";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { z } from "zod";
+import { ConfirmAcceptInvitationDialog } from "./ConfirmAcceptInvitationDialog";
+import { ConfirmDeclineInvitationDialog } from "./ConfirmDeclineInvitationDialog";
 
 const paramsSchema = z.object({
   invitationId: z.string(),
@@ -20,10 +20,10 @@ async function Invitation({ invitationId }: { invitationId: string }) {
       ? invitation.inviter[0]
       : invitation.inviter;
     const workspace = Array.isArray(invitation.workspace)
-      ? (invitation.workspace[0] as DBTable<'workspaces'> | null)
+      ? (invitation.workspace[0] as DBTable<"workspaces"> | null)
       : invitation.workspace;
     if (!workspace || !inviter) {
-      throw new Error('Workspace or Inviter not found');
+      throw new Error("Workspace or Inviter not found");
     }
 
     return (
@@ -31,8 +31,8 @@ async function Invitation({ invitationId }: { invitationId: string }) {
         <T.H2>Invitation from {inviter.full_name}</T.H2>
         <div className="space-y-2">
           <T.P>
-            You have been invited to join <strong>{workspace.name}</strong>{' '}
-            as a <strong>{invitation.invitee_user_role}</strong>.
+            You have been invited to join <strong>{workspace.name}</strong> as a{" "}
+            <strong>{invitation.invitee_user_role}</strong>.
           </T.P>
           <div className="space-x-2">
             <ConfirmAcceptInvitationDialog invitationId={invitation.id} />

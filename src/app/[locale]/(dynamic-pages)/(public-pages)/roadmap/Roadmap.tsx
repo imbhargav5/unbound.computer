@@ -28,7 +28,7 @@ export function Roadmap({
     <div className="space-y-10">
       <div className="grid grid-cols-3 gap-10">
         {Object.keys(roadmapData).map((cardListName) => (
-          <Card>
+          <Card key={cardListName}>
             <div key={cardListName} className="drop-area">
               <CardHeader>
                 <CardTitle>{Statuses[cardListName]}</CardTitle>

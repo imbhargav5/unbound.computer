@@ -15,20 +15,17 @@ export default function NotFound() {
       <body className="bg-background">
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-background to-secondary/20">
           <div className="flex flex-col space-y-4 items-center text-center">
-            <Typography.H1>
-              404.
-            </Typography.H1>
+            <Typography.H1>404.</Typography.H1>
             <Typography.P>
-              The page you're looking for doesn't exist or has been moved.
+              The page you&apos;re looking for doesn&apos;t exist or has been
+              moved.
             </Typography.P>
             <Button asChild size="lg" className="font-semibold">
-              <Link href="/">
-                Return to Home
-              </Link>
+              <Link href="/">Return to Home</Link>
             </Button>
           </div>
         </div>
       </body>
     </html>
-  )
+  );
 }

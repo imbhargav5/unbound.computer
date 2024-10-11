@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Cross2Icon } from '@radix-ui/react-icons';
+import { Cross2Icon } from "@radix-ui/react-icons";
 
-import FacetedFilter from '@/components/FacetedFilter';
-import { Button } from '@/components/ui/button';
+import FacetedFilter from "@/components/FacetedFilter";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 
-import { Toggle } from '@/components/ui/toggle';
+import { Toggle } from "@/components/ui/toggle";
 import {
   NEW_PRIORITY_OPTIONS,
   NEW_STATUS_OPTIONS,
   NEW_TYPE_OPTIONS,
-} from '@/utils/feedback';
-import { CircleUser } from 'lucide-react';
+} from "@/utils/feedback";
+import { CircleUser } from "lucide-react";
 import {
   feedbackPrioritiesSchema,
   feedbackStatusesSchema,
@@ -28,7 +28,7 @@ import {
   sortSchema,
   type FeedbackDropdownFiltersSchema,
   type FeedbackSortSchema,
-} from './schema';
+} from "./schema";
 
 export function FeedbackFacetedFilters() {
   const searchParams = useSearchParams();
@@ -37,21 +37,21 @@ export function FeedbackFacetedFilters() {
 
   const filters: FeedbackDropdownFiltersSchema = {
     statuses: feedbackStatusesSchema.parse(
-      searchParams?.get('statuses')?.split(',') || [],
+      searchParams?.get("statuses")?.split(",") || [],
     ),
     types: feedbackTypesSchema.parse(
-      searchParams?.get('types')?.split(',') || [],
+      searchParams?.get("types")?.split(",") || [],
     ),
     priorities: feedbackPrioritiesSchema.parse(
-      searchParams?.get('priorities')?.split(',') || [],
+      searchParams?.get("priorities")?.split(",") || [],
     ),
-    myFeedbacks: Boolean(searchParams?.get('myFeedbacks')) || false,
+    myFeedbacks: Boolean(searchParams?.get("myFeedbacks")) || false,
   };
 
   const setFilters = (newFilters: FeedbackDropdownFiltersSchema) => {
     const params = new URLSearchParams(searchParams ?? undefined);
     for (const [key, value] of Object.entries(newFilters)) {
-      if (key === 'myFeedbacks') {
+      if (key === "myFeedbacks") {
         if (newFilters.myFeedbacks) {
           params.set(key, newFilters.myFeedbacks.toString());
         } else {
@@ -60,24 +60,24 @@ export function FeedbackFacetedFilters() {
         continue;
       }
       if (Array.isArray(value) && value.length) {
-        params.set(key, value.join(','));
+        params.set(key, value.join(","));
       } else {
         params.delete(key);
       }
     }
-    params.set('page', '1');
+    params.set("page", "1");
     replace(`${pathname}?${params.toString()}`);
   };
 
   const setSort = (newSort: FeedbackSortSchema) => {
     const params = new URLSearchParams(searchParams ?? undefined);
     if (newSort) {
-      params.set('sort', newSort);
+      params.set("sort", newSort);
     } else {
-      params.delete('sort');
+      params.delete("sort");
     }
 
-    params.set('page', '1');
+    params.set("page", "1");
     replace(`${pathname}?${params.toString()}`);
   };
 
@@ -132,7 +132,7 @@ export function FeedbackFacetedFilters() {
         }}
       />
       <Toggle
-        variant={'outline'}
+        variant={"outline"}
         className="h-8 px-2 flex gap-2 lg:px-3 rounded-md"
         defaultPressed={filters.myFeedbacks}
         onClick={() => {
@@ -148,22 +148,22 @@ export function FeedbackFacetedFilters() {
       {(Boolean(filters.statuses?.length) ||
         Boolean(filters.types?.length) ||
         Boolean(filters.priorities?.length)) && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setFilters({
-                statuses: [],
-                types: [],
-                priorities: [],
-                myFeedbacks: false,
-              });
-            }}
-            className="h-8 px-2 lg:px-3"
-          >
-            Reset
-            <Cross2Icon className="ml-2 h-4 w-4" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setFilters({
+              statuses: [],
+              types: [],
+              priorities: [],
+              myFeedbacks: false,
+            });
+          }}
+          className="h-8 px-2 lg:px-3"
+        >
+          Reset
+          <Cross2Icon className="ml-2 h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

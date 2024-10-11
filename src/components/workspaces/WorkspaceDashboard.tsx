@@ -1,17 +1,15 @@
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { ProjectsCardList } from "@/components/Projects/ProjectsCardList";
 import { Search } from "@/components/Search";
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getProjects } from "@/data/user/projects";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
-import {
-  ProjectsFilter
-} from "@/utils/zod-schemas/params";
+import { ProjectsFilter } from "@/utils/zod-schemas/params";
 import { Layers } from "lucide-react";
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DashboardClientWrapper } from "./DashboardClientWrapper";
 import { ProjectsLoadingFallback } from "./ProjectsLoadingFallback";
@@ -36,21 +34,31 @@ export type DashboardProps = {
   projectFilters: ProjectsFilter;
 };
 
-export async function WorkspaceDashboard({ workspaceSlug, projectFilters }: DashboardProps) {
+export async function WorkspaceDashboard({
+  workspaceSlug,
+  projectFilters,
+}: DashboardProps) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return (
-    <DashboardClientWrapper >
+    <DashboardClientWrapper>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-          <CardTitle data-testid="dashboard-title" className="text-3xl font-bold tracking-tight">Dashboard</CardTitle>
+          <CardTitle
+            data-testid="dashboard-title"
+            className="text-3xl font-bold tracking-tight"
+          >
+            Dashboard
+          </CardTitle>
           <div className="flex space-x-4">
             <CreateProjectDialog workspaceId={workspace.id} />
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold tracking-tight">Recent Projects</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Recent Projects
+            </h2>
             <div className="flex items-center space-x-4">
               <Search className="w-[200px]" placeholder="Search projects" />
               <Button variant="secondary" size="sm" asChild>
@@ -80,7 +88,9 @@ export async function WorkspaceDashboard({ workspaceSlug, projectFilters }: Dash
   );
 }
 
-export async function generateMetadata({ workspaceSlug }: DashboardProps): Promise<Metadata> {
+export async function generateMetadata({
+  workspaceSlug,
+}: DashboardProps): Promise<Metadata> {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return {

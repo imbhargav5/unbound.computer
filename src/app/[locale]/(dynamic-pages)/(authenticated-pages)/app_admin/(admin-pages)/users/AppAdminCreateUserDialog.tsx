@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,45 +8,48 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { createUserAction } from '@/data/admin/user';
-import { getErrorMessage } from '@/utils/getErrorMessage';
-import { Plus } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { useInput } from 'rooks';
-import { toast } from 'sonner';
-import { z } from 'zod';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { createUserAction } from "@/data/admin/user";
+import { getErrorMessage } from "@/utils/getErrorMessage";
+import { Plus } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { useInput } from "rooks";
+import { toast } from "sonner";
+import { z } from "zod";
 
 export const AppAdminCreateUserDialog = () => {
-  const emailInput = useInput('');
+  const emailInput = useInput("");
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: createUser, isPending: isCreatingUser } = useAction(createUserAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Creating user...');
+  const { execute: createUser, isPending: isCreatingUser } = useAction(
+    createUserAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Creating user...");
+      },
+      onSuccess: () => {
+        toast.success("User created!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        setOpen(false);
+        router.refresh();
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to create user";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success('User created!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      setOpen(false);
-      router.refresh();
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to create user';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -88,7 +91,7 @@ export const AppAdminCreateUserDialog = () => {
             type="button"
             className="w-full"
           >
-            {isCreatingUser ? 'Loading...' : 'Create User'}
+            {isCreatingUser ? "Loading..." : "Create User"}
           </Button>
         </DialogFooter>
       </DialogContent>

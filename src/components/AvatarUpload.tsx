@@ -1,10 +1,13 @@
-'use client';
-import { Button } from '@/components/ui/button';
-import { Camera } from 'lucide-react';
-import Image from 'next/image';
-import { useRef, useState } from 'react';
+"use client";
+import { Button } from "@/components/ui/button";
+import { Camera } from "lucide-react";
+import Image from "next/image";
+import { useRef, useState } from "react";
 
-export function AvatarUpload({ avatarUrl, onFileChange }: {
+export function AvatarUpload({
+  avatarUrl,
+  onFileChange,
+}: {
   avatarUrl: string;
   onFileChange: (file: File) => void;
 }) {
@@ -58,4 +61,3 @@ export function AvatarUpload({ avatarUrl, onFileChange }: {
     </div>
   );
 }
-

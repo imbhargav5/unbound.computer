@@ -1,9 +1,7 @@
-
-
-import { featuresData } from '@/data/anon/features-data';
-import { Sparkles } from 'lucide-react';
-import { BentoCard, BentoGrid } from '../magicui/bento-grid';
-import TitleBlock from '../title-block';
+import { featuresData } from "@/data/anon/features-data";
+import { Sparkles } from "lucide-react";
+import { BentoCard, BentoGrid } from "../magicui/bento-grid";
+import TitleBlock from "../title-block";
 
 export default function Features() {
   return (

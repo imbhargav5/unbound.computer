@@ -8,10 +8,14 @@ export default async function MarketingChangelogPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <Typography.H1 className="text-3xl font-bold tracking-tight">Marketing Changelogs</Typography.H1>
+        <Typography.H1 className="text-3xl font-bold tracking-tight">
+          Marketing Changelogs
+        </Typography.H1>
         <CreateChangelogButton />
       </div>
-      <Typography.P className="text-muted-foreground">Manage and view all marketing changelogs.</Typography.P>
+      <Typography.P className="text-muted-foreground">
+        Manage and view all marketing changelogs.
+      </Typography.P>
       <ChangelogList changelogs={changelogs} />
     </div>
   );

@@ -10,14 +10,14 @@ type NormalizedNotification = {
   image: string;
   type: UserNotificationPayloadType["type"] | "unknown";
 } & (
-    | {
+  | {
       actionType: "link";
       href: string;
     }
-    | {
+  | {
       actionType: "button";
     }
-  );
+);
 
 export const parseNotification = (
   notificationPayload: unknown,
@@ -66,8 +66,9 @@ export const parseNotification = (
       case "feedbackReceivedComment":
         return {
           title: `New comment on ${notification.feedbackTitle}`,
-          description: `${notification.commenterName} says: ${notification.comment.slice(0, 50) + "..."
-            }`,
+          description: `${notification.commenterName} says: ${
+            notification.comment.slice(0, 50) + "..."
+          }`,
           image: "/logos/logo-black.png",
           actionType: "link",
           href: `/feedback/${notification.feedbackId}`,
@@ -103,8 +104,9 @@ export const parseNotification = (
       case "feedbackIsInRoadmapUpdated":
         return {
           title: `Your feedback was updated.`,
-          description: `Your feedback is now ${notification.isInRoadmap ? "added to" : "removed from"
-            } roadmap.`,
+          description: `Your feedback is now ${
+            notification.isInRoadmap ? "added to" : "removed from"
+          } roadmap.`,
           image: "/logos/logo-black.png",
           actionType: "link",
           href: `/feedback/${notification.feedbackId}`,
@@ -113,8 +115,9 @@ export const parseNotification = (
       case "feedbackVisibilityUpdated":
         return {
           title: `Your feedback was updated.`,
-          description: `Your feedback is now ${notification.isPubliclyVisible ? "visible to" : "hidden from"
-            } public.`,
+          description: `Your feedback is now ${
+            notification.isPubliclyVisible ? "visible to" : "hidden from"
+          } public.`,
           image: "/logos/logo-black.png",
           actionType: "link",
           href: `/feedback/${notification.feedbackId}`,
@@ -123,8 +126,9 @@ export const parseNotification = (
       case "feedbackFeedbackOpenForCommentUpdated":
         return {
           title: `Your feedback was updated.`,
-          description: `Your feedback is now ${notification.isOpenForComments ? "open" : "closed to"
-            } comments.`,
+          description: `Your feedback is now ${
+            notification.isOpenForComments ? "open" : "closed to"
+          } comments.`,
           image: "/logos/logo-black.png",
           actionType: "link",
           href: `/feedback/${notification.feedbackId}`,

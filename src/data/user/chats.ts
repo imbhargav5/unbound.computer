@@ -44,7 +44,9 @@ export const insertChatAction = async (
   };
 };
 
-export const getChatById = async (chatId: string): Promise<DBTable<'chats'>> => {
+export const getChatById = async (
+  chatId: string,
+): Promise<DBTable<'chats'>> => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from('chats')
@@ -55,8 +57,6 @@ export const getChatById = async (chatId: string): Promise<DBTable<'chats'>> => 
   if (error) {
     throw error;
   }
-
-  console.log;
 
   return data;
 };
@@ -103,7 +103,9 @@ export const getChatsHistory = async (
   return data;
 };
 
-export const convertAndUploadOpenAiImageAction = async (b64_json: string): Promise<SAPayload<string>> => {
+export const convertAndUploadOpenAiImageAction = async (
+  b64_json: string,
+): Promise<SAPayload<string>> => {
   const byteCharacters = atob(b64_json);
   const byteNumbers = new Array(byteCharacters.length);
   for (let i = 0; i < byteCharacters.length; i++) {
@@ -126,17 +128,16 @@ export const convertAndUploadOpenAiImageAction = async (b64_json: string): Promi
     };
   }
 
-
-  if (response.status === "success") {
+  if (response.status === 'success') {
     return {
-      status: "success",
+      status: 'success',
       data: response.data,
     };
   }
 
   return {
-    status: "error",
-    message: "Unknown error",
+    status: 'error',
+    message: 'Unknown error',
   };
 };
 
@@ -145,18 +146,18 @@ export const uploadOpenAiImageAction = async (
   fileName: string,
   fileOptions?: SupabaseFileUploadOptions | undefined,
 ): Promise<SAPayload<string>> => {
-  "use server";
-  const file = formData.get("file");
+  'use server';
+  const file = formData.get('file');
   if (!file) {
     return {
-      status: "error",
-      message: "File is empty",
+      status: 'error',
+      message: 'File is empty',
     };
   }
   const slugifiedFilename = slugify(fileName, {
     lower: true,
     strict: true,
-    replacement: "-",
+    replacement: '-',
   });
 
   const user = await serverGetLoggedInUser();
@@ -164,27 +165,27 @@ export const uploadOpenAiImageAction = async (
   const userImagesPath = `${userId}/images/${slugifiedFilename}`;
 
   const { data, error } = await supabaseAdminClient.storage
-    .from("openai-images")
+    .from('openai-images')
     .upload(userImagesPath, file, fileOptions);
 
   if (error) {
     return {
-      status: "error",
+      status: 'error',
       message: error.message,
     };
   }
 
   const { path } = data;
 
-  const filePath = path.split(",")[0];
+  const filePath = path.split(',')[0];
   const supabaseFileUrl = urlJoin(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    "/storage/v1/object/public/openai-images",
+    '/storage/v1/object/public/openai-images',
     filePath,
   );
 
   return {
-    status: "success",
+    status: 'success',
     data: supabaseFileUrl,
   };
 };

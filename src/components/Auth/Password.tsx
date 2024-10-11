@@ -1,18 +1,18 @@
-'use client';
-import { Button } from '@/components/Button';
-import { T } from '@/components/ui/Typography';
-import { Label } from '@/components/ui/label';
-import { classNames } from '@/utils/classNames';
-import { CSSProperties, useState } from 'react';
+"use client";
+import { Button } from "@/components/Button";
+import { T } from "@/components/ui/Typography";
+import { Label } from "@/components/ui/label";
+import { classNames } from "@/utils/classNames";
+import { CSSProperties, useState } from "react";
 
 export const Password = ({
   onSubmit,
   isLoading,
   successMessage,
-  label = 'Password',
-  buttonLabel = 'Update',
+  label = "Password",
+  buttonLabel = "Update",
   className,
-  style
+  style,
 }: {
   onSubmit: (password: string) => void;
   isLoading: boolean;
@@ -20,9 +20,9 @@ export const Password = ({
   label?: string;
   buttonLabel?: string;
   className?: string;
-  style?: CSSProperties
+  style?: CSSProperties;
 }) => {
-  const [password, setPassword] = useState<string>('');
+  const [password, setPassword] = useState<string>("");
 
   return (
     <form
@@ -58,10 +58,10 @@ export const Password = ({
               disabled
               type="submit"
               className={classNames(
-                'flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+                "flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2",
                 isLoading
-                  ? 'bg-yellow-300 dark:bg-yellow-700 '
-                  : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ',
+                  ? "bg-yellow-300 dark:bg-yellow-700 "
+                  : "bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ",
               )}
             >
               Loading...
@@ -70,10 +70,10 @@ export const Password = ({
             <Button
               type="submit"
               className={classNames(
-                'flex w-full justify-center rounded-lg border border-transparent py-2 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+                "flex w-full justify-center rounded-lg border border-transparent py-2 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2",
                 isLoading
-                  ? 'bg-yellow-300 dark:bg-yellow-700 '
-                  : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ',
+                  ? "bg-yellow-300 dark:bg-yellow-700 "
+                  : "bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ",
               )}
             >
               {buttonLabel}

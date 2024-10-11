@@ -1,8 +1,7 @@
-import { ApplicationLayoutShell } from '@/components/ApplicationLayoutShell';
-import { InternalNavbar } from '@/components/NavigationMenu/InternalNavbar';
-import { Alert } from '@/components/ui/alert';
-import { Suspense } from 'react';
-
+import { ApplicationLayoutShell } from "@/components/ApplicationLayoutShell";
+import { InternalNavbar } from "@/components/NavigationMenu/InternalNavbar";
+import { Alert } from "@/components/ui/alert";
+import { Suspense } from "react";
 
 export default async function Layout({
   children,
@@ -15,7 +14,10 @@ export default async function Layout({
     <ApplicationLayoutShell sidebar={<Suspense>{sidebar}</Suspense>}>
       <div className="h-full overflow-y-auto" data-testid="admin-panel-layout">
         <InternalNavbar>
-          <div data-testid="admin-panel-title" className="flex items-center justify-start w-full">
+          <div
+            data-testid="admin-panel-title"
+            className="flex items-center justify-start w-full"
+          >
             Admin panel
           </div>
         </InternalNavbar>

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,13 +8,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useCreateWorkspaceDialog } from '@/contexts/CreateWorkspaceDialogContext';
-import { SlimWorkspaces } from '@/types';
-import { getWorkspaceSubPath } from '@/utils/workspaces';
-import { motion } from 'framer-motion';
-import { Check, ChevronsUpDown, UsersRound } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+} from "@/components/ui/dropdown-menu";
+import { useCreateWorkspaceDialog } from "@/contexts/CreateWorkspaceDialogContext";
+import { SlimWorkspaces } from "@/types";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
+import { motion } from "framer-motion";
+import { Check, ChevronsUpDown, UsersRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function WorkspaceSwitcher({
   slimWorkspaces,
@@ -44,7 +44,7 @@ export function WorkspaceSwitcher({
           >
             <UsersRound className="h-4 w-4 shrink-0" />
             <span className="text-sm text-muted-foreground truncate flex-grow">
-              {currentWorkspace?.name ?? 'Select Workspace'}
+              {currentWorkspace?.name ?? "Select Workspace"}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-50 ml-2 transition-opacity" />
           </motion.div>
@@ -57,7 +57,7 @@ export function WorkspaceSwitcher({
           <DropdownMenuItem
             key={workspace.id}
             onSelect={() => {
-              router.push(getWorkspaceSubPath(workspace, '/home'));
+              router.push(getWorkspaceSubPath(workspace, "/home"));
             }}
           >
             <motion.div

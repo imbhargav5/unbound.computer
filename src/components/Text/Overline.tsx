@@ -5,12 +5,12 @@ export default function Overline({
   children: React.ReactNode;
   className?: string;
 }) {
-  const classes = ['text-xs tracking-wider uppercase font-semibold'];
+  const classes = ["text-xs tracking-wider uppercase font-semibold"];
   if (className) {
     classes.push(className);
   } else {
-    classes.push('text-black');
+    classes.push("text-black");
   }
 
-  return <p className={classes.join(' ')}>{children}</p>;
+  return <p className={classes.join(" ")}>{children}</p>;
 }

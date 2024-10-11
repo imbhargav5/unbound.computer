@@ -1,9 +1,13 @@
 // src/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/authors/[authorId]/page.tsx
-import { getAuthorProfileById } from '@/data/admin/marketing-authors';
-import { notFound } from 'next/navigation';
-import { UpdateMarketingAuthorProfileForm } from './UpdateMarketingAuthorProfileForm';
+import { getAuthorProfileById } from "@/data/admin/marketing-authors";
+import { notFound } from "next/navigation";
+import { UpdateMarketingAuthorProfileForm } from "./UpdateMarketingAuthorProfileForm";
 
-export default async function UpdateMarketingAuthorPage({ params }: { params: { authorId: string } }) {
+export default async function UpdateMarketingAuthorPage({
+  params,
+}: {
+  params: { authorId: string };
+}) {
   const author = await getAuthorProfileById(params.authorId);
 
   if (!author) {

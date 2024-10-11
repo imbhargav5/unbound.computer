@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,11 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { revokeUnkeyTokenAction } from '@/data/user/unkey';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { revokeUnkeyTokenAction } from "@/data/user/unkey";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 type Props = {
   keyId: string;
@@ -25,16 +25,16 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props): JSX.Element => {
 
   const { execute, status } = useAction(revokeUnkeyTokenAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Revoking API Key...');
+      toastRef.current = toast.loading("Revoking API Key...");
     },
     onSuccess: () => {
-      toast.success('API Key revoked!', { id: toastRef.current });
+      toast.success("API Key revoked!", { id: toastRef.current });
       toastRef.current = undefined;
       setOpen(false);
     },
     onError: ({ error }) => {
       console.log(error);
-      const errorMessage = error.serverError ?? 'Failed to revoke API Key';
+      const errorMessage = error.serverError ?? "Failed to revoke API Key";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -64,9 +64,9 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props): JSX.Element => {
             <Button
               variant="destructive"
               type="submit"
-              disabled={status === 'executing'}
+              disabled={status === "executing"}
             >
-              {status === 'executing' ? 'Revoking API Key...' : 'Yes, revoke'}
+              {status === "executing" ? "Revoking API Key..." : "Yes, revoke"}
             </Button>
             <Button
               type="button"

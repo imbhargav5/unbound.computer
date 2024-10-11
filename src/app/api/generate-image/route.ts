@@ -9,12 +9,12 @@ const openai = new OpenAIApi(config);
 export async function POST(req: Request) {
   const { prompt, userId, size, quantity } = await req.json();
 
-  if(!config.apiKey) {
-    return new Response('OPENAI_API_KEY is not set', { status: 500 });
+  if (!config.apiKey) {
+    return new Response("OPENAI_API_KEY is not set", { status: 500 });
   }
 
-  if(!prompt) {
-    return new Response('prompt and size are required', { status: 400 });
+  if (!prompt) {
+    return new Response("prompt and size are required", { status: 400 });
   }
 
   try {
@@ -28,7 +28,6 @@ export async function POST(req: Request) {
 
     return new Response(response.body, { status: 200 });
   } catch (error) {
-    return new Response('Internal Server Error', { status: 500 });
+    return new Response("Internal Server Error", { status: 500 });
   }
 }
-

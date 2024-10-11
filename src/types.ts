@@ -66,8 +66,6 @@ export type CommentWithUser = DBTable<"project_comments"> & {
   user_profile: DBTable<"user_profiles">;
 };
 
-
-
 export type TeamMemberRowProps = {
   name?: string;
   role: string;
@@ -94,13 +92,21 @@ export type SAErrorPayload = {
 /**
  * Server Action Payload
  */
-export type SAPayload<TData = undefined> = SASuccessPayload<TData> | SAErrorPayload;
-
+export type SAPayload<TData = undefined> =
+  | SASuccessPayload<TData>
+  | SAErrorPayload;
 
 export type Message = CoreMessage & {
   id: string;
 };
 
-export type SlimWorkspace = { id: string, name: string, slug: string, membershipType: Enum<'workspace_membership_type'> }
-export type SlimWorkspaces = Array<SlimWorkspace>
-export type WorkspaceWithMembershipType = DBTable<"workspaces"> & { membershipType: Enum<'workspace_membership_type'> }
+export type SlimWorkspace = {
+  id: string;
+  name: string;
+  slug: string;
+  membershipType: Enum<"workspace_membership_type">;
+};
+export type SlimWorkspaces = Array<SlimWorkspace>;
+export type WorkspaceWithMembershipType = DBTable<"workspaces"> & {
+  membershipType: Enum<"workspace_membership_type">;
+};

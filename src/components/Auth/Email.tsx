@@ -1,23 +1,23 @@
-'use client';
-import { Button } from '@/components/Button';
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useMemo, useState } from 'react';
+"use client";
+import { Button } from "@/components/Button";
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useMemo, useState } from "react";
 
 export const Email = ({
   onSubmit,
   view,
   isLoading,
   successMessage,
-  label = 'Email address',
+  label = "Email address",
   defaultValue,
   className,
-  style
+  style,
 }: {
   onSubmit: (email: string) => void;
-  view: 'sign-in' | 'sign-up' | 'update-email' | 'forgot-password';
+  view: "sign-in" | "sign-up" | "update-email" | "forgot-password";
   isLoading: boolean;
   successMessage?: string | null | undefined;
   label?: string;
@@ -25,18 +25,18 @@ export const Email = ({
   className?: string;
   style?: React.CSSProperties;
 }) => {
-  const [email, setEmail] = useState<string>(defaultValue ?? '');
+  const [email, setEmail] = useState<string>(defaultValue ?? "");
 
   const buttonLabelText = useMemo(() => {
     switch (view) {
-      case 'sign-in':
-        return 'Login with Magic Link';
-      case 'sign-up':
-        return 'Sign up with Magic Link';
-      case 'update-email':
-        return 'Update Email';
-      case 'forgot-password':
-        return 'Reset password';
+      case "sign-in":
+        return "Login with Magic Link";
+      case "sign-up":
+        return "Sign up with Magic Link";
+      case "update-email":
+        return "Update Email";
+      case "forgot-password":
+        return "Reset password";
     }
   }, [view]);
 
@@ -63,14 +63,14 @@ export const Email = ({
               value={email}
               disabled={isLoading}
               onChange={(event) => setEmail(event.target.value)}
-              autoComplete={'email'}
+              autoComplete={"email"}
               placeholder="placeholder@email.com"
               required
             />
           </div>
         </div>
         <div className="flex items-center justify-between">
-          {view === 'forgot-password' ? (
+          {view === "forgot-password" ? (
             <div className="text-sm">
               <Link
                 href="/login"

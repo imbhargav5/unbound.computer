@@ -5,9 +5,7 @@ import { Search } from "@/components/Search";
 import { T } from "@/components/ui/Typography";
 import { getProjects, getProjectsTotalCount } from "@/data/user/projects";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
-import {
-  ProjectsFilter
-} from "@/utils/zod-schemas/params";
+import { ProjectsFilter } from "@/utils/zod-schemas/params";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import type { DashboardProps } from "../WorkspaceDashboard";
@@ -16,7 +14,10 @@ import { WorkspaceProjectsTable } from "./WorkspaceProjectsTable";
 async function ProjectsTableWithPagination({
   workspaceId,
   projectFilters,
-}: { workspaceId: string; projectFilters: ProjectsFilter }) {
+}: {
+  workspaceId: string;
+  projectFilters: ProjectsFilter;
+}) {
   const [projects, totalPages] = await Promise.all([
     getProjects({ ...projectFilters, workspaceId }),
     getProjectsTotalCount({ ...projectFilters, workspaceId }),
@@ -32,7 +33,8 @@ async function ProjectsTableWithPagination({
 
 export const metadata: Metadata = {
   title: "Projects",
-  description: "You can create projects within teams, or within your organization.",
+  description:
+    "You can create projects within teams, or within your organization.",
 };
 
 export async function WorkspaceProjects({
@@ -52,7 +54,8 @@ export async function WorkspaceProjects({
           <Search placeholder="Search projects" />
           {projectFilters.query && (
             <p className="text-sm ml-2 mt-4">
-              Searching for <span className="font-bold">{projectFilters.query}</span>
+              Searching for{" "}
+              <span className="font-bold">{projectFilters.query}</span>
             </p>
           )}
         </div>

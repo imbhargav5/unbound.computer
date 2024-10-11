@@ -1,7 +1,22 @@
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { Typography } from "@/components/ui/Typography";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Book, Briefcase, CreditCard, HelpCircle, Map, PenTool, Settings, Users } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Book,
+  Briefcase,
+  CreditCard,
+  HelpCircle,
+  Map,
+  PenTool,
+  Settings,
+  Users,
+} from "lucide-react";
 
 const adminLinks = [
   {
@@ -58,9 +73,12 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Typography.H1 className="text-3xl font-bold tracking-tight">Admin Dashboard</Typography.H1>
+        <Typography.H1 className="text-3xl font-bold tracking-tight">
+          Admin Dashboard
+        </Typography.H1>
         <Typography.P className="text-muted-foreground">
-          Welcome to the admin dashboard. Manage various aspects of your application from here.
+          Welcome to the admin dashboard. Manage various aspects of your
+          application from here.
         </Typography.P>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -68,7 +86,9 @@ export default function AdminDashboard() {
           <Link href={link.href} key={link.href} className="block">
             <Card className="h-full transition-shadow hover:shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">{link.title}</CardTitle>
+                <CardTitle className="text-lg font-medium">
+                  {link.title}
+                </CardTitle>
                 {link.icon}
               </CardHeader>
               <CardContent>

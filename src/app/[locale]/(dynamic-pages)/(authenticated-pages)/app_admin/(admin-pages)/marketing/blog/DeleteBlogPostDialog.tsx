@@ -22,14 +22,19 @@ type DeleteBlogPostDialogProps = {
   postTitle: string;
 };
 
-export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ postId, postTitle }) => {
+export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({
+  postId,
+  postTitle,
+}) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number>();
   const router = useRouter();
 
   const deleteMutation = useAction(deleteBlogPostAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting blog post...', { description: 'Please wait while we delete the post.' });
+      toastRef.current = toast.loading('Deleting blog post...', {
+        description: 'Please wait while we delete the post.',
+      });
     },
     onSuccess: () => {
       toast.success('Blog post deleted successfully', { id: toastRef.current });
@@ -38,7 +43,10 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
       router.refresh();
     },
     onError: ({ error }) => {
-      toast.error(`Failed to delete blog post: ${error.serverError || 'Unknown error'}`, { id: toastRef.current });
+      toast.error(
+        `Failed to delete blog post: ${error.serverError || 'Unknown error'}`,
+        { id: toastRef.current },
+      );
       toastRef.current = undefined;
     },
     onSettled: () => {
@@ -53,7 +61,11 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" data-testid="delete-blog-post-dialog-trigger">
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="delete-blog-post-dialog-trigger"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -61,11 +73,17 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({ post
         <DialogHeader>
           <DialogTitle>Delete Blog Post</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete the blog post "{postTitle}"? This action cannot be undone.
+            Are you sure you want to delete the blog post &quot;
+            {postTitle}&quot;? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.status === 'executing'} data-testid="confirm-delete-button">
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteMutation.status === 'executing'}
+            data-testid="confirm-delete-button"
+          >
             {deleteMutation.status === 'executing' ? 'Deleting...' : 'Delete'}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>

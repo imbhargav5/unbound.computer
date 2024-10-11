@@ -1,6 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton"
-
-
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const SettingsFormSkeleton = () => {
   return (
@@ -27,6 +25,5 @@ export const SettingsFormSkeleton = () => {
         <Skeleton className="h-10 w-32" />
       </div>
     </div>
-  )
-}
-
+  );
+};

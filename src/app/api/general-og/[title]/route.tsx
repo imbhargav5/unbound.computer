@@ -1,26 +1,26 @@
-import { ImageResponse } from 'next/og';
-import { z } from 'zod';
+import { ImageResponse } from "next/og";
+import { z } from "zod";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 export type Props = {
   title?: string;
 };
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
-  let binary = '';
+  let binary = "";
   const bytes = [].slice.call(new Uint8Array(buffer));
   bytes.forEach((b) => (binary += String.fromCharCode(b)));
   // convert to buffer
 
-  const myBuffer = Buffer.from(binary, 'binary');
-  return myBuffer.toString('base64');
+  const myBuffer = Buffer.from(binary, "binary");
+  return myBuffer.toString("base64");
 }
 async function getImageSrcFromPath(url: URL) {
   const image = await fetch(url).then((res) => res.arrayBuffer());
   // get image src from arraybuffer
   // https://stackoverflow.com/a/18650249/3015595
-  const base64Flag = 'data:image/png;base64,';
+  const base64Flag = "data:image/png;base64,";
   const imageStr = arrayBufferToBase64(image);
   return base64Flag + imageStr;
 }
@@ -35,26 +35,26 @@ export async function GET(
 ): Promise<ImageResponse> {
   const { title } = paramsSchema.parse(params);
   if (!title) {
-    throw new Error('title is required');
+    throw new Error("title is required");
   }
   const [blogImageSrc] = await Promise.all([
-    getImageSrcFromPath(new URL('./og-base.png', import.meta.url)),
+    getImageSrcFromPath(new URL("./og-base.png", import.meta.url)),
   ]);
   const interSemiBold = fetch(
-    new URL('@/fonts/inter/Inter-SemiBold.ttf', import.meta.url),
+    new URL("@/fonts/inter/Inter-SemiBold.ttf", import.meta.url),
   ).then((res) => res.arrayBuffer());
 
-  const titleClassName = title.length > 30 ? 'text-6xl' : 'text-8xl';
+  const titleClassName = title.length > 30 ? "text-6xl" : "text-8xl";
 
   return new ImageResponse(
     (
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          width: '100%',
-          height: '100%',
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          width: "100%",
+          height: "100%",
         }}
       >
         <div tw="relative w-full flex justify-between flex-row">
@@ -70,9 +70,9 @@ export async function GET(
       height: 882,
       fonts: [
         {
-          name: 'Inter',
+          name: "Inter",
           data: await interSemiBold,
-          style: 'normal',
+          style: "normal",
           weight: 400,
         },
       ],

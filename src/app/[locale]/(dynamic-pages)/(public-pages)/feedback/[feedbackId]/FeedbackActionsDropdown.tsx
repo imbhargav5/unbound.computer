@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,14 +13,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import type { UserRole } from '@/types/userTypes';
+} from "@/components/ui/dropdown-menu";
+import type { UserRole } from "@/types/userTypes";
 import {
   NEW_PRIORITY_OPTIONS,
   NEW_STATUS_OPTIONS,
   NEW_TYPE_OPTIONS,
-} from '@/utils/feedback';
-import { DotsVerticalIcon } from '@radix-ui/react-icons';
+} from "@/utils/feedback";
+import { DotsVerticalIcon } from "@radix-ui/react-icons";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -30,10 +30,10 @@ import {
   MessageSquareOff,
   Tags,
   VolumeX,
-} from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef } from 'react';
-import { toast } from 'sonner';
+} from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef } from "react";
+import { toast } from "sonner";
 
 import {
   adminToggleFeedbackFromRoadmapAction,
@@ -42,108 +42,163 @@ import {
   adminUpdateFeedbackPriorityAction,
   adminUpdateFeedbackStatusAction,
   adminUpdateFeedbackTypeAction,
-} from '@/data/feedback';
-import type { DBTable } from '@/types';
-import { userRoles } from '@/utils/userTypes';
+} from "@/data/feedback";
+import type { DBTable } from "@/types";
+import { userRoles } from "@/utils/userTypes";
 
 export function FeedbackActionsDropdown({
   feedback,
   userRole,
 }: {
-  feedback: DBTable<'marketing_feedback_threads'>;
+  feedback: DBTable<"marketing_feedback_threads">;
   userRole: UserRole;
 }) {
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: updateFeedbackStatus } = useAction(adminUpdateFeedbackStatusAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(`Updating status to ${input.status}...`);
+  const { execute: updateFeedbackStatus } = useAction(
+    adminUpdateFeedbackStatusAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(
+          `Updating status to ${input.status}...`,
+        );
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(`Status has been updated to ${input.status}`, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update status";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(`Status has been updated to ${input.status}`, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update status';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: updateFeedbackType } = useAction(adminUpdateFeedbackTypeAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(`Updating type to ${input.type}...`);
+  const { execute: updateFeedbackType } = useAction(
+    adminUpdateFeedbackTypeAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(`Updating type to ${input.type}...`);
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(`Type has been updated to ${input.type}`, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update type";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(`Type has been updated to ${input.type}`, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update type';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: updateFeedbackPriority } = useAction(adminUpdateFeedbackPriorityAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(`Updating priority to ${input.priority}...`);
+  const { execute: updateFeedbackPriority } = useAction(
+    adminUpdateFeedbackPriorityAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(
+          `Updating priority to ${input.priority}...`,
+        );
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(`Priority has been updated to ${input.priority}`, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update priority";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(`Priority has been updated to ${input.priority}`, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update priority';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: updateRoadmap } = useAction(adminToggleFeedbackFromRoadmapAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(input.isInRoadmap ? 'Adding to roadmap...' : 'Removing from roadmap...');
+  const { execute: updateRoadmap } = useAction(
+    adminToggleFeedbackFromRoadmapAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(
+          input.isInRoadmap
+            ? "Adding to roadmap..."
+            : "Removing from roadmap...",
+        );
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(
+          input.isInRoadmap ? "Added to roadmap" : "Removed from roadmap",
+          { id: toastRef.current },
+        );
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to update roadmap status";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(input.isInRoadmap ? 'Added to roadmap' : 'Removed from roadmap', { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update roadmap status';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: updateOpenForComments } = useAction(adminToggleFeedbackOpenForCommentsAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(input.isOpenForComments ? 'Opening thread for comments...' : 'Closing thread for comments...');
+  const { execute: updateOpenForComments } = useAction(
+    adminToggleFeedbackOpenForCommentsAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(
+          input.isOpenForComments
+            ? "Opening thread for comments..."
+            : "Closing thread for comments...",
+        );
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(
+          input.isOpenForComments
+            ? "Thread is now open for comments"
+            : "Thread is now closed for comments",
+          { id: toastRef.current },
+        );
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to update open for comments status";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(input.isOpenForComments ? 'Thread is now open for comments' : 'Thread is now closed for comments', { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update open for comments status';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
-  const { execute: updateVisibility } = useAction(adminToggleFeedbackVisibilityAction, {
-    onExecute: ({ input }) => {
-      toastRef.current = toast.loading(input.isPubliclyVisible ? 'Showing thread to public...' : 'Hiding thread from public...');
+  const { execute: updateVisibility } = useAction(
+    adminToggleFeedbackVisibilityAction,
+    {
+      onExecute: ({ input }) => {
+        toastRef.current = toast.loading(
+          input.isPubliclyVisible
+            ? "Showing thread to public..."
+            : "Hiding thread from public...",
+        );
+      },
+      onSuccess: ({ data, input }) => {
+        toast.success(
+          input.isPubliclyVisible
+            ? "Thread is now publicly visible"
+            : "Thread is now hidden from public",
+          { id: toastRef.current },
+        );
+        toastRef.current = undefined;
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update visibility";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: ({ data, input }) => {
-      toast.success(input.isPubliclyVisible ? 'Thread is now publicly visible' : 'Thread is now hidden from public', { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update visibility';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   if (userRole === userRoles.ANON) {
     return null;
@@ -152,7 +207,11 @@ export function FeedbackActionsDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" data-testid="feedback-actions-dropdown-button">
+        <Button
+          variant="ghost"
+          size="icon"
+          data-testid="feedback-actions-dropdown-button"
+        >
           <DotsVerticalIcon />
         </Button>
       </DropdownMenuTrigger>
@@ -312,7 +371,7 @@ export function FeedbackActionsDropdown({
                   <EyeIcon
                     className="h-4 w-4 mr-2"
                     data-testid="show-thread-button"
-                  />{' '}
+                  />{" "}
                   Make this thread public
                 </>
               )}
@@ -323,4 +382,3 @@ export function FeedbackActionsDropdown({
     </DropdownMenu>
   );
 }
-

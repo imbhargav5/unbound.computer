@@ -4,9 +4,11 @@ import { getSlimProjectBySlug } from "@/data/user/projects";
 
 import { nanoid, type Message } from "ai";
 
-
-
-export default async function ChatPage({ params }: { params: { chatId: string; projectSlug: string } }) {
+export default async function ChatPage({
+  params,
+}: {
+  params: { chatId: string; projectSlug: string };
+}) {
   const { chatId, projectSlug } = params;
   const project = await getSlimProjectBySlug(projectSlug);
 

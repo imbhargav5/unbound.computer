@@ -1,9 +1,8 @@
-
-import { reviews } from '@/data/anon/reviews';
-import { cn } from '@/utils/cn';
-import Image from 'next/image';
-import Marquee from '../magicui/marquee';
-import TitleBlock from '../title-block';
+import { reviews } from "@/data/anon/reviews";
+import { cn } from "@/utils/cn";
+import Image from "next/image";
+import Marquee from "../magicui/marquee";
+import TitleBlock from "../title-block";
 
 export default function Testimonials() {
   const firstRow = reviews.slice(0, 3);
@@ -49,8 +48,8 @@ const ReviewCard = ({
   return (
     <figure
       className={cn(
-        'relative w-64 cursor-pointer overflow-hidden rounded-xl border p-4',
-        'border-border bg-background hover:bg-accent-foreground hover:text-background',
+        "relative w-64 cursor-pointer overflow-hidden rounded-xl border p-4",
+        "border-border bg-background hover:bg-accent-foreground hover:text-background",
       )}
     >
       <div className="flex flex-row items-center gap-2">

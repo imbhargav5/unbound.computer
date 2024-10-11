@@ -1,7 +1,7 @@
 import { T } from '@/components/ui/Typography';
 import {
   anonGetBlogPostsByAuthorId,
-  anonGetOneAuthorBySlug
+  anonGetOneAuthorBySlug,
 } from '@/data/anon/marketing-blog';
 import moment from 'moment';
 import { notFound } from 'next/navigation';
@@ -22,7 +22,7 @@ export default async function AuthorPage({ params }: { params: unknown }) {
     return (
       <div className="space-y-8 w-full">
         <div className="flex items-center flex-col space-y-4">
-          <T.H1>{author.display_name}'s profile</T.H1>
+          <T.H1>{author.display_name}&apos;s profile</T.H1>
           <AuthorCard author={author} trimSummary={false} />
         </div>
         <div className="flex items-center flex-col space-y-4">
@@ -42,10 +42,7 @@ export default async function AuthorPage({ params }: { params: unknown }) {
                 >
                   <div className="relative w-full">
                     <img
-                      src={
-                        post.cover_image ??
-                        '/images/nextbase-logo.png'
-                      }
+                      src={post.cover_image ?? '/images/nextbase-logo.png'}
                       alt={post.title}
                       className="aspect-[16/9] w-full rounded-2xl bg-gray-100  object-cover sm:aspect-[2/1] lg:aspect-[3/2]"
                     />

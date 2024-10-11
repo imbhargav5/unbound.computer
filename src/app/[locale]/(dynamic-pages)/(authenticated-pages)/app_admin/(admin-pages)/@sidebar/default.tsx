@@ -1,3 +1,3 @@
-import { ApplicationAdminSidebar } from './ApplicationAdminSidebar';
+import { ApplicationAdminSidebar } from "./ApplicationAdminSidebar";
 
 export default ApplicationAdminSidebar;

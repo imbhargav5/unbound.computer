@@ -1,8 +1,8 @@
-import { createSupabaseUserRouteHandlerClient } from '@/supabase-clients/user/createSupabaseUserRouteHandlerClient';
-import { toSiteURL } from '@/utils/helpers';
-import { redirect } from 'next/navigation';
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { createSupabaseUserRouteHandlerClient } from "@/supabase-clients/user/createSupabaseUserRouteHandlerClient";
+import { toSiteURL } from "@/utils/helpers";
+import { redirect } from "next/navigation";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 const paramsSchema = z.object({
   invitationId: z.coerce.string(),
@@ -19,7 +19,7 @@ export async function GET(
   const { success } = paramsSchema.safeParse(params);
   if (!success) {
     return NextResponse.json({
-      error: 'Invalid invitation ID',
+      error: "Invalid invitation ID",
     });
   }
   const { invitationId } = paramsSchema.parse(params);
@@ -32,20 +32,20 @@ export async function GET(
   const user = data?.session?.user;
 
   if (!user) {
-    const url = new URL(toSiteURL('/login'));
+    const url = new URL(toSiteURL("/login"));
     url.searchParams.append(
-      'next',
+      "next",
       `/user/invitations/${encodeURIComponent(invitationId)}`,
     );
-    url.searchParams.append('nextActionType', 'invitationPending');
+    url.searchParams.append("nextActionType", "invitationPending");
     return redirect(url.toString());
   }
 
-  if (typeof invitationId === 'string') {
+  if (typeof invitationId === "string") {
     redirect(`/user/invitations/${invitationId}`);
   } else {
     return NextResponse.json({
-      error: 'Invalid invitation ID',
+      error: "Invalid invitation ID",
     });
   }
 }

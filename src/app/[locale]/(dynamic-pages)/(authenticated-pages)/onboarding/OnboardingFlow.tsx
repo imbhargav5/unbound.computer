@@ -27,12 +27,14 @@ const MotionCard = motion(Card);
 function OnboardingComplete() {
   const router = useRouter();
   useEffect(() => {
-    console.log('pushing to dashboard');
+    console.log("pushing to dashboard");
     router.push("/dashboard");
   }, [router]);
-  return <div data-testid="onboarding-complete">
-    <Skeleton className="w-full max-w-md" />
-  </div>;
+  return (
+    <div data-testid="onboarding-complete">
+      <Skeleton className="w-full max-w-md" />
+    </div>
+  );
 }
 
 export function UserOnboardingFlow({
@@ -40,9 +42,12 @@ export function UserOnboardingFlow({
   onboardingStatus,
   userEmail,
 }: UserOnboardingFlowProps) {
-  const flowStates = useMemo(() => getAllFlowStates(onboardingStatus), [onboardingStatus]);
+  const flowStates = useMemo(
+    () => getAllFlowStates(onboardingStatus),
+    [onboardingStatus],
+  );
   const [currentStep, setCurrentStep] = useState<FLOW_STATE>(
-    getInitialFlowState(flowStates, onboardingStatus)
+    getInitialFlowState(flowStates, onboardingStatus),
   );
 
   const nextStep = useCallback(() => {
@@ -55,8 +60,7 @@ export function UserOnboardingFlow({
     });
   }, [currentStep, flowStates]);
 
-  console.log('currentStep', currentStep);
-
+  console.log("currentStep", currentStep);
 
   const cardVariants = {
     hidden: { opacity: 0, y: 50 },
@@ -116,7 +120,7 @@ function getAllFlowStates(onboardingStatus: AuthUserMetadata): FLOW_STATE[] {
 
 function getInitialFlowState(
   flowStates: FLOW_STATE[],
-  onboardingStatus: AuthUserMetadata
+  onboardingStatus: AuthUserMetadata,
 ): FLOW_STATE {
   const {
     onboardingHasAcceptedTerms,
@@ -132,10 +136,7 @@ function getInitialFlowState(
     return "PROFILE";
   }
 
-  if (
-    !onboardingHasCreatedWorkspace &&
-    flowStates.includes("WORKSPACE")
-  ) {
+  if (!onboardingHasCreatedWorkspace && flowStates.includes("WORKSPACE")) {
     return "WORKSPACE";
   }
 

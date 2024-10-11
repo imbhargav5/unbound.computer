@@ -1,36 +1,36 @@
-'use client';
+"use client";
 
-import { NotificationItem } from '@/components/NavigationMenu/NotificationItem';
-import { T } from '@/components/ui/Typography';
+import { NotificationItem } from "@/components/NavigationMenu/NotificationItem";
+import { T } from "@/components/ui/Typography";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { useSAToastMutation } from '@/hooks/useSAToastMutation';
-import { supabaseUserClientComponent } from '@/supabase-clients/user/supabaseUserClientComponent';
-import type { DBTable } from '@/types';
-import { parseNotification } from '@/utils/parseNotification';
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Check } from 'lucide-react';
-import moment from 'moment';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
-import { useDidMount } from 'rooks';
-import { toast } from 'sonner';
-import { Skeleton } from '../ui/skeleton';
+} from "@/components/ui/popover";
+import { useSAToastMutation } from "@/hooks/useSAToastMutation";
+import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
+import type { DBTable } from "@/types";
+import { parseNotification } from "@/utils/parseNotification";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { Bell, Check } from "lucide-react";
+import moment from "moment";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect } from "react";
+import { useDidMount } from "rooks";
+import { toast } from "sonner";
+import { Skeleton } from "../ui/skeleton";
 import {
   getPaginatedNotifications,
   getUnseenNotificationIds,
   readAllNotifications,
-  seeNotification
-} from './fetchClientNotifications';
+  seeNotification,
+} from "./fetchClientNotifications";
 
 const NOTIFICATIONS_PAGE_SIZE = 10;
 const useUnseenNotificationIds = (userId: string) => {
   const { data, refetch } = useQuery(
-    ['unseen-notification-ids', userId],
+    ["unseen-notification-ids", userId],
     async () => {
       return getUnseenNotificationIds(userId);
     },
@@ -44,24 +44,24 @@ const useUnseenNotificationIds = (userId: string) => {
     const channel = supabaseUserClientComponent
       .channel(channelId)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'user_notifications',
-          filter: 'user_id=eq.' + userId,
+          event: "INSERT",
+          schema: "public",
+          table: "user_notifications",
+          filter: "user_id=eq." + userId,
         },
         () => {
           refetch();
         },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_notifications',
-          filter: 'user_id=eq.' + userId,
+          event: "UPDATE",
+          schema: "public",
+          table: "user_notifications",
+          filter: "user_id=eq." + userId,
         },
         (payload) => {
           refetch();
@@ -78,32 +78,38 @@ const useUnseenNotificationIds = (userId: string) => {
 };
 
 export const useNotifications = (userId: string) => {
-  const { data, isFetchingNextPage, isLoading, fetchNextPage, hasNextPage, refetch } =
-    useInfiniteQuery(
-      ['paginatedNotifications', userId],
-      async ({ pageParam }) => {
-        return getPaginatedNotifications(
-          userId,
-          pageParam ?? 0,
-          NOTIFICATIONS_PAGE_SIZE,
-        );
-      },
-      {
-        getNextPageParam: (lastPage, _pages) => {
-          const pageNumber = lastPage[0];
-          const rows = lastPage[1];
+  const {
+    data,
+    isFetchingNextPage,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery(
+    ["paginatedNotifications", userId],
+    async ({ pageParam }) => {
+      return getPaginatedNotifications(
+        userId,
+        pageParam ?? 0,
+        NOTIFICATIONS_PAGE_SIZE,
+      );
+    },
+    {
+      getNextPageParam: (lastPage, _pages) => {
+        const pageNumber = lastPage[0];
+        const rows = lastPage[1];
 
-          if (rows.length < NOTIFICATIONS_PAGE_SIZE) return undefined;
-          return pageNumber + 1;
-        },
-        initialData: {
-          pageParams: [0],
-          pages: [[0, []]],
-        },
-        // You can disable it here
-        refetchOnWindowFocus: false,
+        if (rows.length < NOTIFICATIONS_PAGE_SIZE) return undefined;
+        return pageNumber + 1;
       },
-    );
+      initialData: {
+        pageParams: [0],
+        pages: [[0, []]],
+      },
+      // You can disable it here
+      refetchOnWindowFocus: false,
+    },
+  );
 
   const notifications = data?.pages.flatMap((page) => page[1]) ?? [];
   return {
@@ -130,8 +136,8 @@ export const useReadAllNotifications = (userId: string) => {
       return readAllNotifications(userId);
     },
     {
-      loadingMessage: 'Marking all notifications as read...',
-      successMessage: 'All notifications marked as read',
+      loadingMessage: "Marking all notifications as read...",
+      successMessage: "All notifications marked as read",
       errorMessage(error) {
         try {
           if (error instanceof Error) {
@@ -140,7 +146,7 @@ export const useReadAllNotifications = (userId: string) => {
           return `Failed to mark all notifications as read ${String(error)}`;
         } catch (_err) {
           console.warn(_err);
-          return 'Failed to mark all notifications as read';
+          return "Failed to mark all notifications as read";
         }
       },
       onSuccess: () => {
@@ -150,18 +156,16 @@ export const useReadAllNotifications = (userId: string) => {
   );
 };
 
-
-
 function Notification({
   notification,
 }: {
-  notification: DBTable<'user_notifications'>;
+  notification: DBTable<"user_notifications">;
 }) {
   const router = useRouter();
   const notificationPayload = parseNotification(notification.payload);
   const handleNotificationClick = useCallback(() => {
-    if (notificationPayload.type === 'welcome') {
-      toast('Welcome to Nextbase');
+    if (notificationPayload.type === "welcome") {
+      toast("Welcome to Nextbase");
     }
   }, [notificationPayload]);
 
@@ -169,7 +173,7 @@ function Notification({
     async () => await seeNotification(notification.id),
     {
       onSuccess: () => router.refresh(),
-    }
+    },
   );
 
   return (
@@ -185,12 +189,12 @@ function Notification({
         description={notificationPayload.description}
         createdAt={moment(notification.created_at).fromNow()}
         href={
-          notificationPayload.actionType === 'link'
+          notificationPayload.actionType === "link"
             ? notificationPayload.href
             : undefined
         }
         onClick={
-          notificationPayload.actionType === 'button'
+          notificationPayload.actionType === "button"
             ? handleNotificationClick
             : undefined
         }
@@ -245,9 +249,14 @@ export const Notifications = ({ userId }: { userId: string }) => {
       </PopoverTrigger>
       <PopoverContent className="w-[560px] p-0 rounded-xl overflow-hidden mr-12">
         <div className="bg-background shadow-lg">
-          <div className="px-6 py-3 border-b"> {/* Reduced padding here */}
+          <div className="px-6 py-3 border-b">
+            {" "}
+            {/* Reduced padding here */}
             <div className="flex justify-between items-center">
-              <T.H3 className="text-foreground text-lg !mt-0"> {/* Reduced text size */}Notifications</T.H3>
+              <T.H3 className="text-foreground text-lg !mt-0">
+                {" "}
+                {/* Reduced text size */}Notifications
+              </T.H3>
               {unseenNotificationIds?.length > 0 && (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -276,7 +285,10 @@ export const Notifications = ({ userId }: { userId: string }) => {
                 </motion.div>
               ) : notifications?.length > 0 ? (
                 notifications.map((notification) => (
-                  <Notification key={notification.id} notification={notification} />
+                  <Notification
+                    key={notification.id}
+                    notification={notification}
+                  />
                 ))
               ) : (
                 <motion.div

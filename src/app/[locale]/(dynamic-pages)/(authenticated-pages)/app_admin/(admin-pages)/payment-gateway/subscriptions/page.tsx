@@ -1,9 +1,10 @@
-import { StripePaymentGateway } from '@/payments/StripePaymentGateway';
-import { SubscriptionsTable } from './SubscriptionsTable';
+import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
+import { SubscriptionsTable } from "./SubscriptionsTable";
 
 export default async function SubscriptionsPage() {
   const stripeGateway = new StripePaymentGateway();
-  const subscriptions = await stripeGateway.superAdminScope.listCurrentMonthSubscriptions();
+  const subscriptions =
+    await stripeGateway.superAdminScope.listCurrentMonthSubscriptions();
 
   return (
     <div className="container mx-auto py-10">

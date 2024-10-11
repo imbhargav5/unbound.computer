@@ -1,8 +1,12 @@
-import { getTagById } from '@/data/admin/marketing-tags';
-import { notFound } from 'next/navigation';
-import { EditTagForm } from './EditTagForm';
+import { getTagById } from "@/data/admin/marketing-tags";
+import { notFound } from "next/navigation";
+import { EditTagForm } from "./EditTagForm";
 
-export default async function EditTagPage({ params }: { params: { tag_id: string } }) {
+export default async function EditTagPage({
+  params,
+}: {
+  params: { tag_id: string };
+}) {
   const tag = await getTagById(params.tag_id);
 
   if (!tag) {

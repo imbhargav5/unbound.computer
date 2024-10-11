@@ -17,17 +17,18 @@ import { UserPlus } from "lucide-react";
 import { useState } from "react";
 
 type Props = {
-  onInvite: (email: string, role: Exclude<Enum<"workspace_member_role_type">, "owner">) => void;
+  onInvite: (
+    email: string,
+    role: Exclude<Enum<"workspace_member_role_type">, "owner">,
+  ) => void;
   isLoading: boolean;
 };
 
-export const InviteWorkspaceMemberDialog = ({
-  onInvite,
-  isLoading,
-}: Props) => {
+export const InviteWorkspaceMemberDialog = ({ onInvite, isLoading }: Props) => {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Exclude<Enum<"workspace_member_role_type">, "owner">>("member");
+  const [role, setRole] =
+    useState<Exclude<Enum<"workspace_member_role_type">, "owner">>("member");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

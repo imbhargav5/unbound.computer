@@ -8,37 +8,37 @@ type FooterItem = {
 
 export const footerItems: FooterItem[] = [
   {
-    title: 'Resources',
+    title: "Resources",
     items: [
       {
-        name: 'NextBase',
-        url: '#',
+        name: "NextBase",
+        url: "#",
       },
     ],
   },
   {
-    title: 'Follow Us',
+    title: "Follow Us",
     items: [
       {
-        name: 'Github',
-        url: '#',
+        name: "Github",
+        url: "#",
       },
       {
-        name: 'Twitter',
-        url: '#',
+        name: "Twitter",
+        url: "#",
       },
     ],
   },
   {
-    title: 'Legal',
+    title: "Legal",
     items: [
       {
-        name: 'Privacy Policy',
-        url: '#',
+        name: "Privacy Policy",
+        url: "#",
       },
       {
-        name: 'Terms & Conditions',
-        url: '#',
+        name: "Terms & Conditions",
+        url: "#",
       },
     ],
   },
@@ -46,8 +46,8 @@ export const footerItems: FooterItem[] = [
 
 export const footerSocialItems = [
   {
-    name: 'Facebook',
-    url: '#',
+    name: "Facebook",
+    url: "#",
     icon: () => (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -64,8 +64,8 @@ export const footerSocialItems = [
     ),
   },
   {
-    name: 'Instagram',
-    url: '#',
+    name: "Instagram",
+    url: "#",
     icon: () => (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -80,8 +80,8 @@ export const footerSocialItems = [
     ),
   },
   {
-    name: 'Twitter',
-    url: '#',
+    name: "Twitter",
+    url: "#",
     icon: () => (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -95,8 +95,8 @@ export const footerSocialItems = [
     ),
   },
   {
-    name: 'GitHub',
-    url: '#',
+    name: "GitHub",
+    url: "#",
     icon: () => (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -110,8 +110,8 @@ export const footerSocialItems = [
     ),
   },
   {
-    name: 'Dribbble',
-    url: '#',
+    name: "Dribbble",
+    url: "#",
     icon: () => (
       <svg
         xmlns="http://www.w3.org/2000/svg"

@@ -1,9 +1,9 @@
 // https://github.com/vercel/next.js/issues/58272
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { getCachedProjectBySlug } from '@/rsc-data/user/projects';
-import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
-import { Layers } from 'lucide-react';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
+import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
+import { Layers } from "lucide-react";
 
 async function Title({ title }: { title: string }) {
   return (

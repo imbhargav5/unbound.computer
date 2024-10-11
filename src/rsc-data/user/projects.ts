@@ -1,4 +1,4 @@
-'use server'
+"use server";
 
 import {
   getProjectById,
@@ -12,7 +12,7 @@ import {
   getSlimProjectById,
   getSlimProjectByIdForWorkspace,
   getSlimProjectBySlug,
-  getSlimProjectBySlugForWorkspace
+  getSlimProjectBySlugForWorkspace,
 } from "@/data/user/projects";
 import { cache } from "react";
 
@@ -24,8 +24,13 @@ export const getCachedProjectTitleById = cache(getProjectTitleById);
 export const getCachedProjectComments = cache(getProjectComments);
 export const getCachedProjects = cache(getProjects);
 export const getCachedProjectsTotalCount = cache(getProjectsTotalCount);
-export const getCachedSlimProjectByIdForWorkspace = cache(getSlimProjectByIdForWorkspace);
-export const getCachedSlimProjectBySlugForWorkspace = cache(getSlimProjectBySlugForWorkspace);
+export const getCachedSlimProjectByIdForWorkspace = cache(
+  getSlimProjectByIdForWorkspace,
+);
+export const getCachedSlimProjectBySlugForWorkspace = cache(
+  getSlimProjectBySlugForWorkspace,
+);
 export const getCachedProjectsForWorkspace = cache(getProjectsForWorkspace);
-export const getCachedProjectsTotalCountForWorkspace = cache(getProjectsTotalCountForWorkspace);
-
+export const getCachedProjectsTotalCountForWorkspace = cache(
+  getProjectsTotalCountForWorkspace,
+);

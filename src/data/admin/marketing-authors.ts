@@ -1,16 +1,17 @@
 // src/data/admin/marketing-authors.ts
-'use server'
-import { adminActionClient } from '@/lib/safe-action';
-import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { createMarketingAuthorProfileSchema, deleteMarketingAuthorProfileSchema, updateMarketingAuthorProfileSchema } from '@/utils/zod-schemas/marketingAuthors';
-import { revalidatePath } from 'next/cache';
-import urlJoin from 'url-join';
-import { v4 as uuidv4 } from 'uuid';
-import { z } from 'zod';
+"use server";
+import { adminActionClient } from "@/lib/safe-action";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
+import {
+  createMarketingAuthorProfileSchema,
+  deleteMarketingAuthorProfileSchema,
+  updateMarketingAuthorProfileSchema,
+} from "@/utils/zod-schemas/marketingAuthors";
+import { revalidatePath } from "next/cache";
+import urlJoin from "url-join";
+import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { zfd } from "zod-form-data";
-
-
-
 
 /**
  * Creates a new marketing author profile.
@@ -25,14 +26,14 @@ export const createAuthorProfileAction = adminActionClient
   .schema(createMarketingAuthorProfileSchema)
   .action(async ({ parsedInput }) => {
     const { data, error } = await supabaseAdminClient
-      .from('marketing_author_profiles')
+      .from("marketing_author_profiles")
       .insert(parsedInput)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
+    revalidatePath("/", "layout");
     return data;
   });
 
@@ -51,15 +52,15 @@ export const updateAuthorProfileAction = adminActionClient
     const { id, ...updateData } = parsedInput;
 
     const { data, error } = await supabaseAdminClient
-      .from('marketing_author_profiles')
+      .from("marketing_author_profiles")
       .update(updateData)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
+    revalidatePath("/", "layout");
     return data;
   });
 
@@ -76,14 +77,14 @@ export const deleteAuthorProfileAction = adminActionClient
   .schema(deleteMarketingAuthorProfileSchema)
   .action(async ({ parsedInput: { id } }) => {
     const { error } = await supabaseAdminClient
-      .from('marketing_author_profiles')
+      .from("marketing_author_profiles")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/', 'layout');
-    return { message: 'Author profile deleted successfully' };
+    revalidatePath("/", "layout");
+    return { message: "Author profile deleted successfully" };
   });
 
 /**
@@ -96,9 +97,9 @@ export const deleteAuthorProfileAction = adminActionClient
  */
 export async function getAllAuthorProfiles() {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_author_profiles')
-    .select('*')
-    .order('display_name', { ascending: true });
+    .from("marketing_author_profiles")
+    .select("*")
+    .order("display_name", { ascending: true });
 
   if (error) throw new Error(error.message);
 
@@ -116,17 +117,15 @@ export async function getAllAuthorProfiles() {
  */
 export async function getAuthorProfileById(id: string) {
   const { data, error } = await supabaseAdminClient
-    .from('marketing_author_profiles')
-    .select('*')
-    .eq('id', id)
+    .from("marketing_author_profiles")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error) throw new Error(error.message);
 
   return data;
 }
-
-
 
 const formDataSchema = zfd.formData({
   file: zfd.file(),
@@ -140,7 +139,7 @@ export const uploadMarketingAuthorImageAction = adminActionClient
   .action(async ({ parsedInput: { formData } }) => {
     const { file } = formData;
 
-    const fileExtension = file.name.split('.').pop();
+    const fileExtension = file.name.split(".").pop();
     const uniqueFilename = `${uuidv4()}.${fileExtension}`;
     const userImagesPath = `marketing/author-images/${uniqueFilename}`;
 

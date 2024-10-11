@@ -1,9 +1,9 @@
-'use server';
+"use server";
 
-import { Link } from '@/components/intl-link';
-import { Badge } from '@/components/ui/badge';
-import { getPendingInvitationCountOfUser } from '@/data/user/invitation';
-import { Mail } from 'lucide-react';
+import { Link } from "@/components/intl-link";
+import { Badge } from "@/components/ui/badge";
+import { getPendingInvitationCountOfUser } from "@/data/user/invitation";
+import { Mail } from "lucide-react";
 
 export async function PendingInvitationCounter() {
   const count = await getPendingInvitationCountOfUser();
@@ -11,7 +11,6 @@ export async function PendingInvitationCounter() {
     return (
       <Link href="/user/invitations">
         <Badge
-
           size="lg"
           className="px-3 w-max h-fit rounded-md py-2"
           variant="secondary"

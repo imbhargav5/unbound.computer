@@ -21,7 +21,7 @@ const featureList = [
         that your next SAAS project will allow your customers to manage
         organisations right off the bat. NextBase comes with Supabase configured
         with all the necessary tables to manage members of an organization.
-        Every organization also has it's own Stripe plan.
+        Every organization also has it&apos;s own Stripe plan.
       </p>
     ),
     image: '/assets/login-asset-dashboard.png',
@@ -30,10 +30,10 @@ const featureList = [
     title: 'User Authentication built in',
     description: (
       <p>
-        Start building your app with NextBase and you'll get a full-featured
-        authentication system, out of the box. More than 15 authentication
-        providers such as Google, GitHub, Twitter, Facebook, Apple, Discord etc
-        are supported.
+        Start building your app with NextBase and you&apos;ll get a
+        full-featured authentication system, out of the box. More than 15
+        authentication providers such as Google, GitHub, Twitter, Facebook,
+        Apple, Discord etc are supported.
       </p>
     ),
     image: '/assets/onboardingFeatures/authentication.png',
@@ -75,7 +75,6 @@ const featureList = [
     image: '/assets/onboardingFeatures/layout.png',
   },
 ];
-
 
 // ... (featureList remains the same)
 
@@ -137,7 +136,11 @@ export function FeatureViewModal() {
           </motion.div>
         </AnimatePresence>
         <DialogFooter className="mt-6">
-          <Button variant="outline" onClick={handlePrevious} disabled={currentFeatureIndex === 0}>
+          <Button
+            variant="outline"
+            onClick={handlePrevious}
+            disabled={currentFeatureIndex === 0}
+          >
             Previous
           </Button>
           {currentFeatureIndex < featureList.length - 1 ? (

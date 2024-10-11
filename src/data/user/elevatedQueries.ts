@@ -6,11 +6,11 @@
  * queries slower to run. So, we have to be careful about the trade-offs.
  * Use this sparingly and only when necessary and in exceptional scenarios.
  * */
-'use server';
+"use server";
 
-import { Json } from '@/lib/database.types';
-import { supabaseAdminClient } from '@/supabase-clients/admin/supabaseAdminClient';
-import { UserAppMetadata } from '@supabase/supabase-js';
+import { Json } from "@/lib/database.types";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
+import { UserAppMetadata } from "@supabase/supabase-js";
 
 /**
  * [Elevated Query]
@@ -23,9 +23,9 @@ import { UserAppMetadata } from '@supabase/supabase-js';
  */
 export async function getInvitationWorkspaceDetails(workspaceId: string) {
   const { data, error } = await supabaseAdminClient
-    .from('workspaces')
-    .select('id, name')
-    .eq('id', workspaceId)
+    .from("workspaces")
+    .select("id, name")
+    .eq("id", workspaceId)
     .single();
 
   if (error) {
@@ -50,12 +50,18 @@ export async function getInvitationWorkspaceDetails(workspaceId: string) {
  * @param excludedAdminUserId - (Optional) ID of the admin user to exclude from receiving the notification.
  * @returns Returns a Promise resolving to the notification data.
  */
-export const createAdminNotification = async ({ payload, excludedAdminUserId }: { payload: Json, excludedAdminUserId?: string }) => {
+export const createAdminNotification = async ({
+  payload,
+  excludedAdminUserId,
+}: {
+  payload: Json;
+  excludedAdminUserId?: string;
+}) => {
   async function getAllAdminUserIds() {
     const { data, error } = await supabaseAdminClient
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
 
     if (error) {
       throw error;
@@ -65,17 +71,22 @@ export const createAdminNotification = async ({ payload, excludedAdminUserId }: 
   }
   let adminUserIdsToNotify = await getAllAdminUserIds();
 
-  if (excludedAdminUserId && adminUserIdsToNotify.includes(excludedAdminUserId)) {
-    adminUserIdsToNotify = adminUserIdsToNotify?.filter((userId) => userId != excludedAdminUserId);
+  if (
+    excludedAdminUserId &&
+    adminUserIdsToNotify.includes(excludedAdminUserId)
+  ) {
+    adminUserIdsToNotify = adminUserIdsToNotify?.filter(
+      (userId) => userId != excludedAdminUserId,
+    );
   }
 
   const { data: notification, error } = await supabaseAdminClient
-    .from('user_notifications')
+    .from("user_notifications")
     .insert(
       adminUserIdsToNotify.map((userId) => ({
         user_id: userId,
         payload,
-      }))
+      })),
     );
   if (error) throw error;
   return notification;
@@ -117,12 +128,9 @@ export const anonGetUserProfile = async (userId: string) => {
     return data.avatar_url;
   };
 
-  const [
-    fullName,
-    avatarUrl
-  ] = await Promise.all([
+  const [fullName, avatarUrl] = await Promise.all([
     getUserFullName(userId),
-    getUserAvatarUrl(userId)
+    getUserAvatarUrl(userId),
   ]);
 
   return { fullName, avatarUrl };
@@ -143,11 +151,11 @@ export const addUserAsWorkspaceOwner = async ({
   userId: string;
 }) => {
   const { data, error } = await supabaseAdminClient
-    .from('workspace_members')
+    .from("workspace_members")
     .insert({
       workspace_id: workspaceId,
       workspace_member_id: userId,
-      workspace_member_role: 'owner'
+      workspace_member_role: "owner",
     });
 
   if (error) {
@@ -167,17 +175,17 @@ export const addUserAsWorkspaceOwner = async ({
  */
 export const updateWorkspaceMembershipType = async ({
   workspaceId,
-  workspaceMembershipType
+  workspaceMembershipType,
 }: {
   workspaceId: string;
-  workspaceMembershipType: 'solo' | 'team';
+  workspaceMembershipType: "solo" | "team";
 }) => {
   const { data, error } = await supabaseAdminClient
-    .from('workspace_application_settings')
+    .from("workspace_application_settings")
     .update({
-      membership_type: workspaceMembershipType
+      membership_type: workspaceMembershipType,
     })
-    .eq('workspace_id', workspaceId);
+    .eq("workspace_id", workspaceId);
 
   if (error) {
     throw error;
@@ -193,18 +201,20 @@ export const updateWorkspaceMembershipType = async ({
  */
 export const updateUserAppMetadata = async ({
   userId,
-  appMetadata
+  appMetadata,
 }: {
   userId: string;
   appMetadata: UserAppMetadata;
 }) => {
-  const { data, error } = await supabaseAdminClient.auth.admin.updateUserById(userId, { user_metadata: appMetadata });
+  const { data, error } = await supabaseAdminClient.auth.admin.updateUserById(
+    userId,
+    { user_metadata: appMetadata },
+  );
   if (error) {
     throw error;
   }
   return data;
 };
-
 
 /**
  * [Elevated Query]
@@ -214,7 +224,7 @@ export const updateUserAppMetadata = async ({
  */
 export const acceptWorkspaceInvitation = async ({
   invitationId,
-  userId
+  userId,
 }: {
   invitationId: string;
   userId: string;
@@ -237,7 +247,7 @@ export const acceptWorkspaceInvitation = async ({
 
 export const declineWorkspaceInvitation = async ({
   invitationId,
-  userId
+  userId,
 }: {
   invitationId: string;
   userId: string;

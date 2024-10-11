@@ -1,13 +1,13 @@
-import { useRef, useState } from 'react';
+import { useRef, useState } from "react";
 
-import { T } from '@/components/ui/Typography';
-import { Label } from '@/components/ui/label';
-import { getUserAvatarUrl } from '@/utils/helpers';
-import { motion } from 'framer-motion';
-import { Camera } from 'lucide-react';
-import Image from 'next/image';
-import { Button } from '../Button';
-import { PageHeading } from '../PageHeading';
+import { T } from "@/components/ui/Typography";
+import { Label } from "@/components/ui/label";
+import { getUserAvatarUrl } from "@/utils/helpers";
+import { motion } from "framer-motion";
+import { Camera } from "lucide-react";
+import Image from "next/image";
+import { Button } from "../Button";
+import { PageHeading } from "../PageHeading";
 const MotionImage = motion(Image);
 
 export function UpdateAvatarAndNameBody({
@@ -20,7 +20,7 @@ export function UpdateAvatarAndNameBody({
   isNewAvatarImageLoading,
   setIsNewAvatarImageLoading,
   userEmail,
-  userId
+  userId,
 }: {
   profileAvatarUrl: string | undefined;
   isUploading: boolean;
@@ -34,7 +34,9 @@ export function UpdateAvatarAndNameBody({
   userId: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [fullName, setFullName] = useState(profileFullname ?? userEmail ?? `User ${userId}`);
+  const [fullName, setFullName] = useState(
+    profileFullname ?? userEmail ?? `User ${userId}`,
+  );
   const avatarURL = getUserAvatarUrl({
     profileAvatarUrl,
     email: userEmail,
@@ -130,11 +132,11 @@ export function UpdateAvatarAndNameBody({
           <div className="flex justify-start space-x-2">
             <Button
               className="w-full"
-              variant={'default'}
+              variant={"default"}
               type="submit"
               disabled={isLoading}
             >
-              {isLoading ? 'Updating...' : 'Update'}
+              {isLoading ? "Updating..." : "Update"}
             </Button>
           </div>
         </div>

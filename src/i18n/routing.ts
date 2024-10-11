@@ -1,12 +1,12 @@
-import { LOCALES } from '@/constants';
-import { createSharedPathnamesNavigation, } from 'next-intl/navigation';
-import { defineRouting, } from 'next-intl/routing';
+import { LOCALES } from "@/constants";
+import { createSharedPathnamesNavigation } from "next-intl/navigation";
+import { defineRouting } from "next-intl/routing";
 
 export const routing = defineRouting({
   // A list of all locales that are supported
   locales: LOCALES,
   // Used when no locale matches
-  defaultLocale: 'en'
+  defaultLocale: "en",
 });
 export type Locale = (typeof routing.locales)[number];
 

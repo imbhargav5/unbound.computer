@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Menu } from 'lucide-react';
-import { useContext } from 'react';
-import { MobileMenuContext } from './MobileMenuContext';
+import { Menu } from "lucide-react";
+import { useContext } from "react";
+import { MobileMenuContext } from "./MobileMenuContext";
 
 export function MobileMenuOpen() {
   const { setMobileMenuOpen } = useContext(MobileMenuContext);

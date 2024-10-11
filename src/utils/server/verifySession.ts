@@ -1,7 +1,7 @@
-'use server';
-import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import { redirect } from 'next/navigation';
-import { cache } from 'react';
+"use server";
+import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
+import { redirect } from "next/navigation";
+import { cache } from "react";
 
 export const getSession = cache(async () => {
   const supabase = createSupabaseUserServerComponentClient();
@@ -27,11 +27,9 @@ export const verifySession = cache(async () => {
     }
 
     if (!session?.user) {
-      redirect('/login');
+      redirect("/login");
     }
-
   } catch (error) {
-    redirect('/login');
+    redirect("/login");
   }
 });
-

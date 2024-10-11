@@ -1,7 +1,5 @@
-import MD5 from 'crypto-js/md5';
-import urlJoin from 'url-join';
-
-
+import MD5 from "crypto-js/md5";
+import urlJoin from "url-join";
 
 export const getURL = () => {
   let url =
@@ -9,9 +7,9 @@ export const getURL = () => {
     process.env.NEXT_PUBLIC_VERCEL_URL ?? // Automatically set by Vercel.
     `http://localhost:3000/`;
   // Make sure to include `https://` when not localhost.
-  url = url.startsWith('http') ? url : `https://${url}`;
+  url = url.startsWith("http") ? url : `https://${url}`;
   // Make sure to including trailing `/`.
-  url = url.charAt(url.length - 1) === '/' ? url : `${url}/`;
+  url = url.charAt(url.length - 1) === "/" ? url : `${url}/`;
   return url;
 };
 
@@ -21,7 +19,7 @@ export const toSiteURL = (path: string) => {
 };
 
 export const toDateTime = (secs: number) => {
-  const t = new Date('1970-01-01T00:30:00Z'); // Unix epoch start.
+  const t = new Date("1970-01-01T00:30:00Z"); // Unix epoch start.
   t.setSeconds(secs);
   return t;
 };
@@ -42,7 +40,7 @@ export const getUserAvatarUrl = ({
     profileAvatarUrl && profileAvatarUrl.length > 0;
   return isProfileAvatarUrlValid
     ? profileAvatarUrl
-    : fallbackAvatarUrl ?? placeholderAvatarUrl;
+    : (fallbackAvatarUrl ?? placeholderAvatarUrl);
 };
 
 export const getPublicUserAvatarUrl = (

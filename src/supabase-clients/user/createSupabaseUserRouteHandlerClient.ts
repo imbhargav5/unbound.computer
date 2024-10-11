@@ -1,11 +1,11 @@
-import { Database } from '@/lib/database.types';
-import { createServerClient } from '@supabase/ssr';
+import { Database } from "@/lib/database.types";
+import { createServerClient } from "@supabase/ssr";
 
-import { cookies } from 'next/headers';
+import { cookies } from "next/headers";
 // Outstanding bug
 //https://github.com/vercel/next.js/issues/45371
 export const createSupabaseUserRouteHandlerClient = () => {
-  const cookieStore = cookies()
+  const cookieStore = cookies();
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,13 +13,13 @@ export const createSupabaseUserRouteHandlerClient = () => {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
+              cookieStore.set(name, value, options),
+            );
           } catch {
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
@@ -27,5 +27,6 @@ export const createSupabaseUserRouteHandlerClient = () => {
           }
         },
       },
-    });
-}
+    },
+  );
+};

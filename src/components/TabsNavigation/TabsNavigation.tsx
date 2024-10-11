@@ -1,5 +1,5 @@
-import { Tab } from './Tab';
-import { TabsNavigationProps } from './types';
+import { Tab } from "./Tab";
+import { TabsNavigationProps } from "./types";
 
 export const TabsNavigation = ({ tabs }: TabsNavigationProps) => {
   return (

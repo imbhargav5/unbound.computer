@@ -1,7 +1,6 @@
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import type { UseChatHelpers } from "ai/react";
 import * as React from "react";
-
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -19,7 +18,7 @@ export interface PromptProps
   extends Pick<UseChatHelpers, "input" | "setInput"> {
   onSubmit: (value: string) => Promise<void>;
   isLoading: boolean;
-  projectSlug
+  projectSlug;
 }
 
 export function PromptForm({

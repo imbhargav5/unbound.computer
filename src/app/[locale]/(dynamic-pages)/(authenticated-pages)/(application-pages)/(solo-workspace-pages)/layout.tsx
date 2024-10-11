@@ -10,9 +10,12 @@ export default async function SoloWorkspaceLayout({
   navbar: ReactNode;
   sidebar: ReactNode;
 }) {
-
   return (
-    <WorkspaceLayout navbar={navbar} sidebar={sidebar} workspaceSlug={undefined}>
+    <WorkspaceLayout
+      navbar={navbar}
+      sidebar={sidebar}
+      workspaceSlug={undefined}
+    >
       {children}
     </WorkspaceLayout>
   );

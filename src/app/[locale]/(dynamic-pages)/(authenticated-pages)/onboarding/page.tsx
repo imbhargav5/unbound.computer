@@ -1,9 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserProfile } from "@/data/user/user";
-import { fetchSlimWorkspaces, getMaybeDefaultWorkspace, setDefaultWorkspaceAction } from "@/data/user/workspaces";
+import {
+  fetchSlimWorkspaces,
+  getMaybeDefaultWorkspace,
+  setDefaultWorkspaceAction,
+} from "@/data/user/workspaces";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { authUserMetadataSchema } from "@/utils/zod-schemas/authUserMetadata";
-import { Suspense } from 'react';
+import { Suspense } from "react";
 import { UserOnboardingFlow } from "./OnboardingFlow";
 
 async function getDefaultOrganizationOrSet(): Promise<string | null> {

@@ -1,4 +1,4 @@
-import { PageHeading } from '@/components/PageHeading';
+import { PageHeading } from "@/components/PageHeading";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -6,9 +6,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getRevokedApiKeyList } from '@/data/user/unkey';
-import { format } from 'date-fns';
+} from "@/components/ui/table";
+import { getRevokedApiKeyList } from "@/data/user/unkey";
+import { format } from "date-fns";
 
 export async function RevokedApiKeyList() {
   const revokedApiKeyList = await getRevokedApiKeyList();
@@ -45,7 +45,7 @@ export async function RevokedApiKeyList() {
                     {apiKey.masked_key}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(apiKey.created_at), 'PPP')}
+                    {format(new Date(apiKey.created_at), "PPP")}
                   </TableCell>
                   <TableCell>Revoked</TableCell>
                 </TableRow>

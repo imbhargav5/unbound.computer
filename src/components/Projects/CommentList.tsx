@@ -1,9 +1,9 @@
-import { CommentWithUser } from '@/types';
-import { T } from '@/components/ui/Typography';
-import { FallbackImage, UserAvatar } from '@/components/UserAvatar';
-import { UserFullName } from '@/components/UserFullName';
-import { format } from 'date-fns';
-import { Suspense } from 'react';
+import { CommentWithUser } from "@/types";
+import { T } from "@/components/ui/Typography";
+import { FallbackImage, UserAvatar } from "@/components/UserAvatar";
+import { UserFullName } from "@/components/UserFullName";
+import { format } from "date-fns";
+import { Suspense } from "react";
 
 export async function CommentList({
   comments,
@@ -25,7 +25,7 @@ export async function CommentList({
         <T.Small className="m-0">{comment.text}</T.Small>
         {comment.created_at ? (
           <T.Subtle className="text-xs text-muted-foreground">
-            {format(new Date(comment.created_at), 'PPpp')}
+            {format(new Date(comment.created_at), "PPpp")}
           </T.Subtle>
         ) : null}
       </div>

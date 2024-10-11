@@ -1,12 +1,11 @@
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
 import { anonGetMarketingAuthorById } from "@/data/anon/marketing-authors";
-import { DBTable } from '@/types';
+import { DBTable } from "@/types";
 import { CalendarDays } from "lucide-react";
-import moment from 'moment';
+import moment from "moment";
 import Image from "next/image";
-import { Fragment } from 'react';
-
+import { Fragment } from "react";
 
 async function AuthorProfile({ authorId }: { authorId: string }) {
   if (authorId) {
@@ -27,13 +26,16 @@ async function AuthorProfile({ authorId }: { authorId: string }) {
   return null;
 }
 
-
 export function PublicBlogList({
   blogPosts,
 }: {
-  blogPosts: Array<DBTable<'marketing_blog_posts'> & {
-    marketing_blog_author_posts: Array<DBTable<'marketing_blog_author_posts'>>;
-  }>;
+  blogPosts: Array<
+    DBTable<"marketing_blog_posts"> & {
+      marketing_blog_author_posts: Array<
+        DBTable<"marketing_blog_author_posts">
+      >;
+    }
+  >;
 }) {
   return (
     <Fragment>
@@ -42,10 +44,17 @@ export function PublicBlogList({
           {blogPosts.map((post) => {
             const authorId = post.marketing_blog_author_posts[0]?.author_id;
             return (
-              <Link href={`/blog/${post.slug}`} key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <Link
+                href={`/blog/${post.slug}`}
+                key={post.id}
+                className="bg-white rounded-lg shadow-md overflow-hidden"
+              >
+                <div
+                  key={post.id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden"
+                >
                   <Image
-                    src={post.cover_image ?? '/images/nextbase-logo.png'}
+                    src={post.cover_image ?? "/images/nextbase-logo.png"}
                     alt={post.title}
                     width={600}
                     height={400}
@@ -56,7 +65,9 @@ export function PublicBlogList({
                     <p className="text-gray-600 mb-4">{post.summary}</p>
                     <div className="flex items-center text-sm text-gray-500 mb-2">
                       <CalendarDays className="w-4 h-4 mr-2" />
-                      <span>{moment(post.created_at).format('MMM D, YYYY')}</span>
+                      <span>
+                        {moment(post.created_at).format("MMM D, YYYY")}
+                      </span>
                     </div>
                     <AuthorProfile authorId={authorId} />
                   </div>

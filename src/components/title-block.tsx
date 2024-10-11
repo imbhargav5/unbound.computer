@@ -1,5 +1,5 @@
-import { Link } from '@/components/intl-link';
-import { ArrowRight } from 'lucide-react';
+import { Link } from "@/components/intl-link";
+import { ArrowRight } from "lucide-react";
 
 type TitleBlockProps = {
   title: string;
@@ -14,7 +14,7 @@ export default function TitleBlock({
   subtitle,
   icon,
   section,
-  href = '#',
+  href = "#",
 }: TitleBlockProps) {
   return (
     <div className="space-y-4 flex flex-col  md:items-center md:text-center flex-1">

@@ -1,16 +1,16 @@
 // UserNav.tsx
-import { Notifications } from '@/components/NavigationMenu/Notifications';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { getIsAppAdmin, getUserProfile } from '@/data/user/user';
-import { getUserAvatarUrl } from '@/utils/helpers';
-import { serverGetLoggedInUser } from '@/utils/server/serverGetLoggedInUser';
-import { UserNavDropdown } from './UserNavDropdown';
+import { Notifications } from "@/components/NavigationMenu/Notifications";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { getIsAppAdmin, getUserProfile } from "@/data/user/user";
+import { getUserAvatarUrl } from "@/utils/helpers";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { UserNavDropdown } from "./UserNavDropdown";
 
 export async function UserNav() {
   const user = await serverGetLoggedInUser();
   const { email } = user;
   if (!email) {
-    throw new Error('User email not found');
+    throw new Error("User email not found");
   }
 
   const userProfile = await getUserProfile(user.id);

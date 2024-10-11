@@ -7,7 +7,9 @@ export const signUpWithPasswordSchema = z.object({
   next: z.string().nullish().optional(),
 });
 
-export type SignUpWithPasswordSchemaType = z.infer<typeof signUpWithPasswordSchema>;
+export type SignUpWithPasswordSchemaType = z.infer<
+  typeof signUpWithPasswordSchema
+>;
 
 export const signInWithMagicLinkSchema = z.object({
   email: z.string().email(),
@@ -15,17 +17,21 @@ export const signInWithMagicLinkSchema = z.object({
   shouldCreateUser: z.boolean().optional().default(false),
 });
 
-export type signInWithMagicLinkSchemaType = z.infer<typeof signInWithMagicLinkSchema>;
+export type signInWithMagicLinkSchemaType = z.infer<
+  typeof signInWithMagicLinkSchema
+>;
 
 export const signInWithProviderSchema = z.object({
   provider: socialProviders,
   next: z.string().nullish().optional(),
 });
 
-export type SignInWithProviderSchemaType = z.infer<typeof signInWithProviderSchema>;
+export type SignInWithProviderSchemaType = z.infer<
+  typeof signInWithProviderSchema
+>;
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email("Invalid email address"),
 });
 
 export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>;
@@ -36,4 +42,6 @@ export const signInWithPasswordSchema = z.object({
   next: z.string().nullish().optional(),
 });
 
-export type SignInWithPasswordSchemaType = z.infer<typeof signInWithPasswordSchema>;
+export type SignInWithPasswordSchemaType = z.infer<
+  typeof signInWithPasswordSchema
+>;

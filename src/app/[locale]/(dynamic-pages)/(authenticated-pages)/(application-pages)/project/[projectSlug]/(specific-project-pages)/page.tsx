@@ -20,7 +20,6 @@ export async function generateMetadata({
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
 
-
   return {
     title: `Project | ${project.name}`,
     description: `View and manage your project ${project.name}`,
@@ -35,13 +34,10 @@ export default async function ProjectPage({ params }: { params: unknown }) {
   return (
     <div className="space-y-6">
       <div className="mb-10">
-        <div
-          className="border dotted-bg dark:dotted-bg-dark border-gray-400/50 dark:border-gray-600/50 rounded-xl bg-gray-200/20 dark:bg-slate-950/40 flex justify-center items-center h-full"
-        >
+        <div className="border dotted-bg dark:dotted-bg-dark border-gray-400/50 dark:border-gray-600/50 rounded-xl bg-gray-200/20 dark:bg-slate-950/40 flex justify-center items-center h-full">
           <div className="h-[800px] w-full relative">
             <ChatContainer id={newChatId} project={project} />
           </div>
-
         </div>
         <div className="space-y-4 max-w-md">
           <T.H4>Comments</T.H4>

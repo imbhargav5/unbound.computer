@@ -1,8 +1,8 @@
 import { Link } from '@/components/intl-link';
-import { RecentPublicFeedback } from "@/components/RecentPublicFeedback";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Info } from "lucide-react";
+import { RecentPublicFeedback } from '@/components/RecentPublicFeedback';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowLeft, Info } from 'lucide-react';
 import { Suspense } from 'react';
 
 function RecentFeedbackSkeleton() {
@@ -31,9 +31,7 @@ export default function FeedbackDetailLayout({
         </Button>
       </div>
       <div className="flex flex-grow">
-        <div className="flex-grow border rounded-md pt-4">
-          {children}
-        </div>
+        <div className="flex-grow border rounded-md pt-4">{children}</div>
         <aside className="w-64 ml-4 p-4 border rounded-md bg-secondary flex-shrink-0 space-y-6">
           <div>
             <div className="flex items-center mb-2 text-primary">
@@ -41,7 +39,9 @@ export default function FeedbackDetailLayout({
               <h3 className="font-semibold">Community Guidelines</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Please remember that this is a public forum. We kindly ask all users to conduct themselves in a civil and respectful manner. Let's foster a positive environment for everyone.
+              Please remember that this is a public forum. We kindly ask all
+              users to conduct themselves in a civil and respectful manner.
+              Let&apos;s foster a positive environment for everyone.
             </p>
           </div>
           <div>

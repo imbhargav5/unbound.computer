@@ -1,21 +1,25 @@
-'use server';
+"use server";
 
-import { Database } from '@/lib/database.types';
-import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
+import { Database } from "@/lib/database.types";
+import { supabaseAnonClient } from "@/supabase-clients/anon/supabaseAnonClient";
 
-type MarketingFeedbackThread = Database['public']['Tables']['marketing_feedback_threads']['Row'];
-type MarketingFeedbackThreadType = Database['public']['Enums']['marketing_feedback_thread_type'];
-type MarketingFeedbackThreadStatus = Database['public']['Enums']['marketing_feedback_thread_status'];
-type MarketingFeedbackThreadPriority = Database['public']['Enums']['marketing_feedback_thread_priority'];
+type MarketingFeedbackThread =
+  Database["public"]["Tables"]["marketing_feedback_threads"]["Row"];
+type MarketingFeedbackThreadType =
+  Database["public"]["Enums"]["marketing_feedback_thread_type"];
+type MarketingFeedbackThreadStatus =
+  Database["public"]["Enums"]["marketing_feedback_thread_status"];
+type MarketingFeedbackThreadPriority =
+  Database["public"]["Enums"]["marketing_feedback_thread_priority"];
 
 export async function getAnonUserFeedbackList({
-  query = '',
+  query = "",
   types = [],
   statuses = [],
   priorities = [],
   page = 1,
   limit = 10,
-  sort = 'desc',
+  sort = "desc",
 }: {
   page?: number;
   limit?: number;
@@ -23,36 +27,38 @@ export async function getAnonUserFeedbackList({
   types?: MarketingFeedbackThreadType[];
   statuses?: MarketingFeedbackThreadStatus[];
   priorities?: MarketingFeedbackThreadPriority[];
-  sort?: 'asc' | 'desc';
+  sort?: "asc" | "desc";
 }) {
   const zeroIndexedPage = page - 1;
 
   let supabaseQuery = supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*')
+    .from("marketing_feedback_threads")
+    .select("*")
     .or(
-      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is('moderator_hold_category', null)
+    .is("moderator_hold_category", null)
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
-    supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
   }
 
   if (types.length > 0) {
-    supabaseQuery = supabaseQuery.in('type', types);
+    supabaseQuery = supabaseQuery.in("type", types);
   }
 
   if (statuses.length > 0) {
-    supabaseQuery = supabaseQuery.in('status', statuses);
+    supabaseQuery = supabaseQuery.in("status", statuses);
   }
 
   if (priorities.length > 0) {
-    supabaseQuery = supabaseQuery.in('priority', priorities);
+    supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  supabaseQuery = supabaseQuery.order('created_at', { ascending: sort === 'asc' });
+  supabaseQuery = supabaseQuery.order("created_at", {
+    ascending: sort === "asc",
+  });
 
   const { data, count, error } = await supabaseQuery;
   if (error) {
@@ -66,7 +72,7 @@ export async function getAnonUserFeedbackList({
 }
 
 export async function getAnonUserFeedbackTotalPages({
-  query = '',
+  query = "",
   types = [],
   statuses = [],
   priorities = [],
@@ -79,27 +85,27 @@ export async function getAnonUserFeedbackTotalPages({
   limit?: number;
 }): Promise<number> {
   let supabaseQuery = supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*', { count: 'exact', head: true })
+    .from("marketing_feedback_threads")
+    .select("*", { count: "exact", head: true })
     .or(
-      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is('moderator_hold_category', null);
+    .is("moderator_hold_category", null);
 
   if (query) {
-    supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
   }
 
   if (types.length > 0) {
-    supabaseQuery = supabaseQuery.in('type', types);
+    supabaseQuery = supabaseQuery.in("type", types);
   }
 
   if (statuses.length > 0) {
-    supabaseQuery = supabaseQuery.in('status', statuses);
+    supabaseQuery = supabaseQuery.in("status", statuses);
   }
 
   if (priorities.length > 0) {
-    supabaseQuery = supabaseQuery.in('priority', priorities);
+    supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
   const { count, error } = await supabaseQuery;
@@ -114,12 +120,14 @@ export async function getAnonUserFeedbackTotalPages({
   return Math.ceil(count / limit);
 }
 
-export async function anonGetRoadmapFeedbackList(): Promise<MarketingFeedbackThread[]> {
+export async function anonGetRoadmapFeedbackList(): Promise<
+  MarketingFeedbackThread[]
+> {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*')
-    .eq('added_to_roadmap', true)
-    .is('moderator_hold_category', null);
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("added_to_roadmap", true)
+    .is("moderator_hold_category", null);
 
   if (error) {
     throw error;
@@ -129,14 +137,14 @@ export async function anonGetRoadmapFeedbackList(): Promise<MarketingFeedbackThr
 }
 
 async function getRoadmapFeedbackByStatus(
-  status: MarketingFeedbackThreadStatus
+  status: MarketingFeedbackThreadStatus,
 ): Promise<MarketingFeedbackThread[]> {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*')
-    .eq('added_to_roadmap', true)
-    .eq('status', status)
-    .is('moderator_hold_category', null);
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("added_to_roadmap", true)
+    .eq("status", status)
+    .is("moderator_hold_category", null);
 
   if (error) {
     throw error;
@@ -146,26 +154,28 @@ async function getRoadmapFeedbackByStatus(
 }
 
 export const anonGetPlannedRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus('planned');
+  getRoadmapFeedbackByStatus("planned");
 export const anonGetInProgressRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus('in_progress');
+  getRoadmapFeedbackByStatus("in_progress");
 export const anonGetCompletedRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus('completed');
+  getRoadmapFeedbackByStatus("completed");
 
 // Add this new function
-export async function getAnonUserFeedbackById(feedbackId: string): Promise<MarketingFeedbackThread | null> {
+export async function getAnonUserFeedbackById(
+  feedbackId: string,
+): Promise<MarketingFeedbackThread | null> {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('*')
-    .eq('id', feedbackId)
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("id", feedbackId)
     .or(
-      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is('moderator_hold_category', null)
+    .is("moderator_hold_category", null)
     .single();
 
   if (error) {
-    console.error('Error fetching feedback:', error);
+    console.error("Error fetching feedback:", error);
     return null;
   }
 
@@ -174,17 +184,17 @@ export async function getAnonUserFeedbackById(feedbackId: string): Promise<Marke
 
 export async function getRecentPublicFeedback() {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_feedback_threads')
-    .select('id, title, created_at')
+    .from("marketing_feedback_threads")
+    .select("id, title, created_at")
     .or(
-      'added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true',
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is('moderator_hold_category', null)
-    .order('created_at', { ascending: false })
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: false })
     .limit(3);
 
   if (error) {
-    console.error('Error fetching recent feedback:', error);
+    console.error("Error fetching recent feedback:", error);
     return [];
   }
 

@@ -8,8 +8,12 @@ export default async function MarketingAuthorsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Typography.H1 className="text-3xl font-bold tracking-tight">Marketing Authors</Typography.H1>
-        <Typography.P className="text-muted-foreground">Manage and view all marketing author profiles.</Typography.P>
+        <Typography.H1 className="text-3xl font-bold tracking-tight">
+          Marketing Authors
+        </Typography.H1>
+        <Typography.P className="text-muted-foreground">
+          Manage and view all marketing author profiles.
+        </Typography.P>
       </div>
       <AuthorsList authors={authors} />
     </div>

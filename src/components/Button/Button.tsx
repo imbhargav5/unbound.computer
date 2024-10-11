@@ -1,8 +1,8 @@
-'use client';
+"use client";
 import {
   Button as TailwindButton,
   ButtonProps as TailwindButtonProps,
-} from '@/components/ui/button';
+} from "@/components/ui/button";
 
 export function Button({
   className: classNameProp,

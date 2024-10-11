@@ -1,10 +1,9 @@
-
-import type { DBTable } from '@/types';
-import { Color } from '@tiptap/extension-color';
-import ListItem from '@tiptap/extension-list-item';
-import TextStyle from '@tiptap/extension-text-style';
-import { generateHTML } from '@tiptap/html';
-import StarterKit from '@tiptap/starter-kit';
+import type { DBTable } from "@/types";
+import { Color } from "@tiptap/extension-color";
+import ListItem from "@tiptap/extension-list-item";
+import TextStyle from "@tiptap/extension-text-style";
+import { generateHTML } from "@tiptap/html";
+import StarterKit from "@tiptap/starter-kit";
 
 const extensions = [
   Color.configure({ types: [TextStyle.name, ListItem.name] }),
@@ -19,18 +18,18 @@ const extensions = [
       keepAttributes: false,
     },
   }),
-]
+];
 
 export function TiptapJSONContentToHTML({
   jsonContent,
 }: {
-  jsonContent: DBTable<'marketing_blog_posts'>['json_content'];
+  jsonContent: DBTable<"marketing_blog_posts">["json_content"];
 }) {
-  console.log('jsonContent', jsonContent);
+  console.log("jsonContent", jsonContent);
   const validContent =
-    typeof jsonContent === 'string'
+    typeof jsonContent === "string"
       ? JSON.parse(jsonContent)
-      : typeof jsonContent === 'object' && jsonContent !== null
+      : typeof jsonContent === "object" && jsonContent !== null
         ? jsonContent
         : {};
   if (Object.keys(validContent).length === 0) {
@@ -39,10 +38,7 @@ export function TiptapJSONContentToHTML({
   return (
     <div
       dangerouslySetInnerHTML={{
-        __html: generateHTML(
-          validContent,
-          extensions,
-        ),
+        __html: generateHTML(validContent, extensions),
       }}
     />
   );

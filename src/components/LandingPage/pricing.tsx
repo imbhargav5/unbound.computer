@@ -1,17 +1,17 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { pricing } from '@/data/anon/pricing';
-import { cn } from '@/lib/utils';
-import { CheckCircle2Icon, DollarSign } from 'lucide-react';
-import TitleBlock from '../title-block';
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { pricing } from "@/data/anon/pricing";
+import { cn } from "@/lib/utils";
+import { CheckCircle2Icon, DollarSign } from "lucide-react";
+import TitleBlock from "../title-block";
 
 const Pricing = () => {
   return (
@@ -69,7 +69,7 @@ const PricingCard = ({
 }) => {
   return (
     <Card
-      className={cn(`${isHighlighted ? 'bg-secondary' : ''} ,
+      className={cn(`${isHighlighted ? "bg-secondary" : ""} ,
      h-fit
     `)}
     >

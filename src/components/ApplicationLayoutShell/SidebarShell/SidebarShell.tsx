@@ -1,9 +1,9 @@
-'use client';
-import { SidebarVisibilityContext } from '@/contexts/SidebarVisibilityContext';
-import dynamic from 'next/dynamic';
-import { useContext } from 'react';
+"use client";
+import { SidebarVisibilityContext } from "@/contexts/SidebarVisibilityContext";
+import dynamic from "next/dynamic";
+import { useContext } from "react";
 const MobileSidebarShell = dynamic(
-  () => import('./MobileSidebarShell').then((m) => m.MobileSidebarShell),
+  () => import("./MobileSidebarShell").then((m) => m.MobileSidebarShell),
   { ssr: false },
 );
 function DesktopShell({ children }: { children: React.ReactNode }) {

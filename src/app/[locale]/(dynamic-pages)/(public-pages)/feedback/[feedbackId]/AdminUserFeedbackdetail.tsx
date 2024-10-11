@@ -1,16 +1,25 @@
-import { SuspendedUserAvatarWithFullname } from '@/components/UserAvatarForAnonViewers';
+import { SuspendedUserAvatarWithFullname } from "@/components/UserAvatarForAnonViewers";
 import { T, Typography } from "@/components/ui/Typography";
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { adminGetInternalFeedbackById } from '@/data/admin/marketing-feedback';
-import { serverGetUserType } from '@/utils/server/serverGetUserType';
-import { feedbackPriorityToLabel, feedbackStatusToLabel, feedbackTypeToLabel } from '@/utils/zod-schemas/feedback';
-import { format } from 'date-fns';
-import { Calendar, EyeIcon, EyeOffIcon, Info } from 'lucide-react';
-import { AddComment } from './AddComment';
-import { SuspendedFeedbackComments } from './CommentTimeLine';
-import { FeedbackActionsDropdown } from './FeedbackActionsDropdown';
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { adminGetInternalFeedbackById } from "@/data/admin/marketing-feedback";
+import { serverGetUserType } from "@/utils/server/serverGetUserType";
+import {
+  feedbackPriorityToLabel,
+  feedbackStatusToLabel,
+  feedbackTypeToLabel,
+} from "@/utils/zod-schemas/feedback";
+import { format } from "date-fns";
+import { Calendar, EyeIcon, EyeOffIcon, Info } from "lucide-react";
+import { AddComment } from "./AddComment";
+import { SuspendedFeedbackComments } from "./CommentTimeLine";
+import { FeedbackActionsDropdown } from "./FeedbackActionsDropdown";
 
 async function AdminUserFeedbackdetail({ feedbackId }) {
   const userRoleType = await serverGetUserType();
@@ -24,21 +33,28 @@ async function AdminUserFeedbackdetail({ feedbackId }) {
             userId={feedback?.user_id}
             size={32}
           />
-          <Separator className='h-6 hidden lg:block' orientation='vertical' />
-          <div className='flex gap-2 items-center ml-2'>
+          <Separator className="h-6 hidden lg:block" orientation="vertical" />
+          <div className="flex gap-2 items-center ml-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-muted-foreground text-sm lg:text-base">
-              {format(new Date(feedback?.created_at), 'do MMMM yyyy')}
+              {format(new Date(feedback?.created_at), "do MMMM yyyy")}
             </span>
           </div>
         </div>
-        <div data-testid='feedback-visibility' className='flex items-center gap-2'>
+        <div
+          data-testid="feedback-visibility"
+          className="flex items-center gap-2"
+        >
           {feedback.is_publicly_visible ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500">
-                    <EyeIcon className="w-4 h-4" /> <span>Public</span> <Info className="w-4 h-4" />
+                  <Badge
+                    variant="outline"
+                    className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500"
+                  >
+                    <EyeIcon className="w-4 h-4" /> <span>Public</span>{" "}
+                    <Info className="w-4 h-4" />
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -50,12 +66,17 @@ async function AdminUserFeedbackdetail({ feedbackId }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center">
-                    <EyeOffIcon className="w-4 h-4" /> <span>Private</span> <Info className="w-4 h-4" />
+                  <Badge
+                    variant="outline"
+                    className="px-2 rounded-full flex gap-2 items-center"
+                  >
+                    <EyeOffIcon className="w-4 h-4" /> <span>Private</span>{" "}
+                    <Info className="w-4 h-4" />
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  This feedback is only visible to admins and the user who created it.
+                  This feedback is only visible to admins and the user who
+                  created it.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -82,7 +103,7 @@ async function AdminUserFeedbackdetail({ feedbackId }) {
         </div>
       </div>
       <div className="border-t p-4 mt-4 gap-2 flex-1">
-        <Typography.H4 className='!mt-0 mb-4'>Comments</Typography.H4>
+        <Typography.H4 className="!mt-0 mb-4">Comments</Typography.H4>
         <SuspendedFeedbackComments feedbackId={feedback?.id} />
       </div>
       <div className="border-t p-4 mt-4">

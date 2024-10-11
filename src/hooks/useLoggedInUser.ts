@@ -1,6 +1,6 @@
-import { LoggedInUserContext } from '@/contexts/LoggedInUserContext';
-import { User } from '@supabase/supabase-js';
-import { useContext } from 'react';
+import { LoggedInUserContext } from "@/contexts/LoggedInUserContext";
+import { User } from "@supabase/supabase-js";
+import { useContext } from "react";
 
 /**
  * This is useful for pages that require the user to be logged in.
@@ -8,6 +8,6 @@ import { useContext } from 'react';
  */
 export const useLoggedInUser = (): User => {
   const { user } = useContext(LoggedInUserContext);
-  if (!user) throw new Error('User is not logged in');
+  if (!user) throw new Error("User is not logged in");
   return user;
 };

@@ -1,5 +1,5 @@
 "use server";
-import { adminActionClient } from '@/lib/safe-action';
+import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
@@ -7,7 +7,7 @@ import { renderAsync } from "@react-email/render";
 import SignInEmail from "emails/SignInEmail";
 import slugify from "slugify";
 import urlJoin from "url-join";
-import { z } from 'zod';
+import { z } from "zod";
 import { zfd } from "zod-form-data";
 import { ensureAppAdmin } from "./security";
 
@@ -40,7 +40,7 @@ const uploadImageSchema = z.object({
 export const uploadImageAction = adminActionClient
   .schema(uploadImageSchema)
   .action(async ({ parsedInput: { formData, fileName, fileOptions } }) => {
-    const file = formData.file
+    const file = formData.file;
     if (!file) {
       return { status: "error", message: "File is empty" };
     }
@@ -208,13 +208,12 @@ export const sendLoginLinkAction = adminActionClient
         url.pathname = `/auth/confirm`;
         url.search = searchParams.toString();
 
-        const {
-          data: userProfile,
-          error: userProfileError,
-        } = await supabaseAdminClient.from('user_profiles')
-          .select('id,full_name, user_application_settings(*)')
-          .eq('user_application_settings.email_readonly', email)
-          .single();
+        const { data: userProfile, error: userProfileError } =
+          await supabaseAdminClient
+            .from("user_profiles")
+            .select("id,full_name, user_application_settings(*)")
+            .eq("user_application_settings.email_readonly", email)
+            .single();
 
         if (userProfileError) {
           throw userProfileError;
@@ -227,13 +226,18 @@ export const sendLoginLinkAction = adminActionClient
           throw new Error("User email not found");
         }
 
-
-
         // send email
         const signInEmailHTML = await renderAsync(
-          <SignInEmail signInUrl={url.toString()} companyName="Nextbase"
+          <SignInEmail
+            signInUrl={url.toString()}
+            companyName="Nextbase"
             userName={userName ?? "User"}
-            logoUrl={urlJoin(process.env.NEXT_PUBLIC_SUPABASE_URL, "/storage/v1/object/public/marketing-assets", "nextbase-logo.png")} />,
+            logoUrl={urlJoin(
+              process.env.NEXT_PUBLIC_SUPABASE_URL,
+              "/storage/v1/object/public/marketing-assets",
+              "nextbase-logo.png",
+            )}
+          />,
         );
 
         if (process.env.NODE_ENV === "development") {
@@ -274,17 +278,16 @@ export const getPaginatedUserListAction = adminActionClient
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     let supabaseQuery = supabaseAdminClient
-      .from('user_profiles')
-      .select('*, user_application_settings(*), user_roles(*)')
+      .from("user_profiles")
+      .select("*, user_application_settings(*), user_roles(*)");
     console.log(query);
     if (query) {
-      supabaseQuery = supabaseQuery
-        .ilike('full_name', `%${query}%`)
+      supabaseQuery = supabaseQuery.ilike("full_name", `%${query}%`);
     }
     console.log(startIndex, endIndex);
     const { data, error } = await supabaseQuery
       .limit(limit)
-      .range(startIndex, endIndex)
+      .range(startIndex, endIndex);
 
     if (error) {
       throw error;
@@ -303,17 +306,15 @@ export const getUsersTotalPagesAction = adminActionClient
   .action(async ({ parsedInput: { query = "", limit = 10 } }) => {
     console.log("query", query);
     let supabaseQuery = supabaseAdminClient
-      .from('user_profiles')
-      .select('*, user_application_settings(*), user_roles(*)', {
-        count: 'exact',
+      .from("user_profiles")
+      .select("*, user_application_settings(*), user_roles(*)", {
+        count: "exact",
         head: true,
-      })
+      });
     if (query) {
-      supabaseQuery = supabaseQuery
-        .ilike('full_name', `%${query}%`)
-
+      supabaseQuery = supabaseQuery.ilike("full_name", `%${query}%`);
     }
-    const { count, error } = await supabaseQuery
+    const { count, error } = await supabaseQuery;
 
     if (error) {
       console.log("supabase***************");
@@ -369,5 +370,3 @@ export const uploadBlogImageAction = adminActionClient
 
     return { status: "success", data: supabaseFileUrl };
   });
-
-

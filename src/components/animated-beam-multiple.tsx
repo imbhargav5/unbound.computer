@@ -1,6 +1,5 @@
 'use client';
 
-
 import { cn } from '@/lib/utils';
 import React, { forwardRef, useRef } from 'react';
 import { AnimatedBeam } from './magicui/animated-beam';
@@ -21,6 +20,8 @@ const Circle = forwardRef<
     </div>
   );
 });
+
+Circle.displayName = 'Circle';
 
 export function AnimatedBeamMultiple({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);

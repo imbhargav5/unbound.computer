@@ -3,10 +3,10 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { faq } from '@/data/anon/faq';
-import Icons from '../icons';
-import TitleBlock from '../title-block';
+} from "@/components/ui/accordion";
+import { faq } from "@/data/anon/faq";
+import Icons from "../icons";
+import TitleBlock from "../title-block";
 
 export default function FAQ() {
   return (

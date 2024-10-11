@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/Button';
+import { Button } from "@/components/Button";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { ownerUpdateMarketingFeedbackCommentAction } from '@/data/feedback';
-import { PenLine, Send } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { ownerUpdateMarketingFeedbackCommentAction } from "@/data/feedback";
+import { PenLine, Send } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface EditCommentProps {
   feedbackId: string;
@@ -28,28 +28,33 @@ function EditComment({
   feedbackId,
   commentId,
   userId,
-  defaultValue = '',
+  defaultValue = "",
 }: EditCommentProps): JSX.Element {
   const [open, setOpen] = useState<boolean>(false);
   const [comment, setComment] = useState<string>(defaultValue);
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute, isPending } = useAction(ownerUpdateMarketingFeedbackCommentAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Updating comment...');
+  const { execute, isPending } = useAction(
+    ownerUpdateMarketingFeedbackCommentAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Updating comment...");
+      },
+      onSuccess: () => {
+        toast.success("Successfully updated your comment", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        setComment("");
+        setOpen(false);
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to update comment";
+        toast.error(errorMessage, { id: toastRef.current });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success('Successfully updated your comment', { id: toastRef.current });
-      toastRef.current = undefined;
-      setComment('');
-      setOpen(false);
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update comment';
-      toast.error(errorMessage, { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   const handleUpdateComment = () => {
     if (comment.length > 0) {

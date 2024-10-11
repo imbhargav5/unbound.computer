@@ -1,15 +1,15 @@
-import { PageHeading } from '@/components/PageHeading';
-import { Pagination } from '@/components/Pagination';
-import { Search } from '@/components/Search';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getUsersTotalPagesAction } from '@/data/admin/user';
-import { Suspense } from 'react';
-import { AppAdminCreateUserDialog } from './AppAdminCreateUserDialog';
-import { UserList } from './UsersList';
-import { appAdminUserFiltersSchema } from './schema';
+import { PageHeading } from "@/components/PageHeading";
+import { Pagination } from "@/components/Pagination";
+import { Search } from "@/components/Search";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getUsersTotalPagesAction } from "@/data/admin/user";
+import { Suspense } from "react";
+import { AppAdminCreateUserDialog } from "./AppAdminCreateUserDialog";
+import { UserList } from "./UsersList";
+import { appAdminUserFiltersSchema } from "./schema";
 
 export const metadata = {
-  title: 'User List | Admin Panel | Nextbase',
+  title: "User List | Admin Panel | Nextbase",
 };
 
 export default async function AdminUsersListPage({
@@ -19,8 +19,10 @@ export default async function AdminUsersListPage({
 }) {
   const validatedSearchParams = appAdminUserFiltersSchema.parse(searchParams);
   const suspenseKey = JSON.stringify(validatedSearchParams);
-  const totalPagesActionResult = await getUsersTotalPagesAction(validatedSearchParams);
-  if (typeof totalPagesActionResult?.data !== 'undefined') {
+  const totalPagesActionResult = await getUsersTotalPagesAction(
+    validatedSearchParams,
+  );
+  if (typeof totalPagesActionResult?.data !== "undefined") {
     const totalPages = totalPagesActionResult.data;
     return (
       <div className="space-y-4 max-w-[1296px]">
@@ -32,7 +34,10 @@ export default async function AdminUsersListPage({
           <Search placeholder="Search Users... " />
           <AppAdminCreateUserDialog />
         </div>
-        <Suspense key={suspenseKey} fallback={<Skeleton className="w-full h-6" />}>
+        <Suspense
+          key={suspenseKey}
+          fallback={<Skeleton className="w-full h-6" />}
+        >
           <UserList filters={validatedSearchParams} />
         </Suspense>
         <Pagination totalPages={totalPages} />
@@ -41,15 +46,14 @@ export default async function AdminUsersListPage({
   } else {
     if (totalPagesActionResult?.serverError) {
       console.error(totalPagesActionResult.serverError);
-      return <div>{totalPagesActionResult.serverError}</div>
+      return <div>{totalPagesActionResult.serverError}</div>;
     } else {
       console.log("***************");
       console.log(totalPagesActionResult?.serverError);
       console.log(totalPagesActionResult?.bindArgsValidationErrors);
       console.log(totalPagesActionResult?.validationErrors);
 
-      return <div>Failed to load total pages</div>
+      return <div>Failed to load total pages</div>;
     }
   }
-
 }

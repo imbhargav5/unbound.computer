@@ -5,10 +5,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { ComponentPropsWithoutRef } from 'react';
-import { Control, FieldValues, Path } from 'react-hook-form';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { ComponentPropsWithoutRef } from "react";
+import { Control, FieldValues, Path } from "react-hook-form";
 
 type FormInputProps<TFieldValues extends FieldValues> = {
   id: string;
@@ -17,7 +17,10 @@ type FormInputProps<TFieldValues extends FieldValues> = {
   name: Path<TFieldValues>;
   description?: string;
   type?: string;
-  inputProps?: Omit<ComponentPropsWithoutRef<typeof Input>, 'id' | 'name' | 'type'>;
+  inputProps?: Omit<
+    ComponentPropsWithoutRef<typeof Input>,
+    "id" | "name" | "type"
+  >;
 };
 
 export function FormInput<TFieldValues extends FieldValues>({

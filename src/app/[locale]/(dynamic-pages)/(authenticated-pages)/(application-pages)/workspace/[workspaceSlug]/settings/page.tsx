@@ -2,8 +2,6 @@ import { WorkspaceSettings } from "@/components/workspaces/settings/WorkspaceSet
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import type { Metadata } from "next";
 
-
-
 export const metadata: Metadata = {
   title: "Settings",
   description: "You can edit your organization's settings here.",
@@ -16,9 +14,5 @@ export default async function EditOrganizationPage({
 }) {
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
 
-  return (
-    <WorkspaceSettings
-      workspaceSlug={workspaceSlug}
-    />
-  );
+  return <WorkspaceSettings workspaceSlug={workspaceSlug} />;
 }

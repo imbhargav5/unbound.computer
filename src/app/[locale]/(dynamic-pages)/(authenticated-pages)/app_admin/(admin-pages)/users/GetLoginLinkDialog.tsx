@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,40 +8,44 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { appAdminGetUserImpersonationUrlAction } from '@/data/admin/user';
-import { Link } from 'lucide-react';
+} from "@/components/ui/dialog";
+import { appAdminGetUserImpersonationUrlAction } from "@/data/admin/user";
+import { Link } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
-import { useRef, useState } from 'react';
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 export const GetLoginLinkDialog = ({ userId }: { userId: string }) => {
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: getLoginLink, isPending } = useAction(appAdminGetUserImpersonationUrlAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Generating login link...");
-    },
-    onSuccess: ({ data }) => {
-      if (data) {
-        navigator.clipboard.writeText(data);
-        toast.success("Login link copied to clipboard!", {
+  const { execute: getLoginLink, isPending } = useAction(
+    appAdminGetUserImpersonationUrlAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Generating login link...");
+      },
+      onSuccess: ({ data }) => {
+        if (data) {
+          navigator.clipboard.writeText(data);
+          toast.success("Login link copied to clipboard!", {
+            id: toastRef.current,
+          });
+          toastRef.current = undefined;
+        } else {
+          throw new Error("Failed to generate login link");
+        }
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to generate login link";
+        toast.error(errorMessage, {
           id: toastRef.current,
         });
         toastRef.current = undefined;
-      } else {
-        throw new Error("Failed to generate login link");
-      }
+      },
     },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? "Failed to generate login link";
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   const handleGetLoginLink = () => {
     getLoginLink({ userId });

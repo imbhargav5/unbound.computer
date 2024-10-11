@@ -1,10 +1,10 @@
-import { createMDXSource } from '@fumadocs/content-collections';
-import { allDocs, allMetas } from 'content-collections';
-import { loader } from 'fumadocs-core/source';
-import { icons, } from 'lucide-react';
-import { createElement } from 'react';
+import { createMDXSource } from "@fumadocs/content-collections";
+import { allDocs, allMetas } from "content-collections";
+import { loader } from "fumadocs-core/source";
+import { icons } from "lucide-react";
+import { createElement } from "react";
 export const { getPage, getPages, pageTree, getLanguages } = loader({
-  baseUrl: '/docs',
+  baseUrl: "/docs",
   source: createMDXSource(allDocs, allMetas),
 
   icon(icon) {
@@ -14,5 +14,4 @@ export const { getPage, getPages, pageTree, getLanguages } = loader({
 
     if (icon in icons) return createElement(icons[icon as keyof typeof icons]);
   },
-
 });

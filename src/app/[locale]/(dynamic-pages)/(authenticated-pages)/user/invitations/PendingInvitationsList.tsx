@@ -1,6 +1,6 @@
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/button';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -8,9 +8,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getPendingInvitationsOfUser } from '@/data/user/invitation';
-import type { Enum } from '@/types';
+} from "@/components/ui/table";
+import { getPendingInvitationsOfUser } from "@/data/user/invitation";
+import type { Enum } from "@/types";
 
 const PendingInvitationsTable = ({
   pendingInvitationsList,
@@ -19,8 +19,8 @@ const PendingInvitationsTable = ({
     id: string;
     inviterUserFullName: string;
     organizationTitle: string;
-    status: Enum<'workspace_invitation_link_status'>;
-    role: Enum<'workspace_member_role_type'>;
+    status: Enum<"workspace_invitation_link_status">;
+    role: Enum<"workspace_member_role_type">;
     organizationId: string;
   }>;
 }) => {
@@ -81,7 +81,7 @@ export const PendingInvitationsList = async () => {
         ? invitation.workspace[0]
         : invitation.workspace;
       if (!workspace || !inviter) {
-        throw new Error('Organization or Inviter not found');
+        throw new Error("Organization or Inviter not found");
       }
 
       return {

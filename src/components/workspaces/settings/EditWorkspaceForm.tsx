@@ -14,25 +14,27 @@ import { updateWorkspaceInfoAction } from "@/data/user/workspaces"; // Assuming 
 import { generateWorkspaceSlug } from "@/lib/utils";
 import type { WorkspaceWithMembershipType } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
-import { CreateWorkspaceSchema, createWorkspaceSchema } from "@/utils/zod-schemas/workspaces";
+import {
+  CreateWorkspaceSchema,
+  createWorkspaceSchema,
+} from "@/utils/zod-schemas/workspaces";
 
 type EditFormProps = {
-  workspace: WorkspaceWithMembershipType
+  workspace: WorkspaceWithMembershipType;
 };
 
-export function EditWorkspaceForm({
-  workspace,
-}: EditFormProps): JSX.Element {
+export function EditWorkspaceForm({ workspace }: EditFormProps): JSX.Element {
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { register, handleSubmit, formState, setValue } = useForm<CreateWorkspaceSchema>({
-    resolver: zodResolver(createWorkspaceSchema),
-    defaultValues: {
-      name: workspace.name,
-      slug: workspace.slug,
-    },
-  });
+  const { register, handleSubmit, formState, setValue } =
+    useForm<CreateWorkspaceSchema>({
+      resolver: zodResolver(createWorkspaceSchema),
+      defaultValues: {
+        name: workspace.name,
+        slug: workspace.slug,
+      },
+    });
 
   const { execute, status } = useAction(updateWorkspaceInfoAction, {
     onExecute: () => {
@@ -42,11 +44,12 @@ export function EditWorkspaceForm({
       toast.success("Workspace information updated!", { id: toastRef.current });
       toastRef.current = undefined;
       if (data?.slug) {
-        router.push(getWorkspaceSubPath(workspace, '/home'))
+        router.push(getWorkspaceSubPath(workspace, "/home"));
       }
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? "Failed to update workspace information";
+      const errorMessage =
+        error.serverError ?? "Failed to update workspace information";
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
     },
@@ -81,7 +84,9 @@ export function EditWorkspaceForm({
           {...register("name")}
           onChange={(e) => {
             setValue("name", e.target.value, { shouldValidate: true });
-            setValue("slug", generateWorkspaceSlug(e.target.value), { shouldValidate: true });
+            setValue("slug", generateWorkspaceSlug(e.target.value), {
+              shouldValidate: true,
+            });
           }}
         />
         <div className="space-y-2">

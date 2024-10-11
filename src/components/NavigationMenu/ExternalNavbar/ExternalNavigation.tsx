@@ -1,11 +1,11 @@
-import LocaleSwitcher from '@/components/LocaleSwitcher';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Suspense } from 'react';
-import { LeftNav } from './LeftNav';
-import { LoginCTAButton } from './LoginCTAButton';
-import { MobileMenu } from './MobileMenu';
-import { MobileMenuProvider } from './MobileMenuContext';
-import { MobileMenuOpen } from './MobileMenuOpen';
+import LocaleSwitcher from "@/components/LocaleSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Suspense } from "react";
+import { LeftNav } from "./LeftNav";
+import { LoginCTAButton } from "./LoginCTAButton";
+import { MobileMenu } from "./MobileMenu";
+import { MobileMenuProvider } from "./MobileMenuContext";
+import { MobileMenuOpen } from "./MobileMenuOpen";
 
 export function ExternalNavigation() {
   return (

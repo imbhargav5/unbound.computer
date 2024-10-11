@@ -1,11 +1,11 @@
-'use server';
-import { getUserAvatarUrl } from '@/data/user/user';
-import { getPublicUserAvatarUrl } from '@/utils/helpers';
+"use server";
+import { getUserAvatarUrl } from "@/data/user/user";
+import { getPublicUserAvatarUrl } from "@/utils/helpers";
 
-import Image from 'next/image';
+import Image from "next/image";
 
 const blurFallback =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=';
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=";
 
 const fallbackSource = `https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp`;
 
@@ -56,4 +56,3 @@ export async function FallbackImage({ size }: { size: number }) {
     />
   );
 }
-

@@ -1,6 +1,6 @@
-'use client';
-import { Dispatch, SetStateAction, createContext, useState } from 'react';
-import { useKey } from 'rooks';
+"use client";
+import { Dispatch, SetStateAction, createContext, useState } from "react";
+import { useKey } from "rooks";
 
 type SidebarVisibilityContextType = {
   isVisible: boolean;
@@ -25,15 +25,15 @@ export const SidebarVisibilityProvider = ({
     setIsVisible(!isVisible);
   };
 
-  useKey('/', (event) => {
-    const isMetaKeyPressed = (navigator.userAgent.toLowerCase().includes('mac') ? event.metaKey : event.ctrlKey)
+  useKey("/", (event) => {
+    const isMetaKeyPressed = navigator.userAgent.toLowerCase().includes("mac")
+      ? event.metaKey
+      : event.ctrlKey;
     if (isMetaKeyPressed) {
       event.preventDefault();
       toggleVisibility();
     }
   });
-
-
 
   return (
     <SidebarVisibilityContext.Provider

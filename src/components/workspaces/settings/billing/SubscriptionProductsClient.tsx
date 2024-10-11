@@ -1,15 +1,13 @@
-'use client';
+"use client";
 
 import { SubscriptionSelect } from "@/components/SubscriptionSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { T } from "@/components/ui/Typography";
 import { ProductAndPrice } from "@/payments/AbstractPaymentGateway";
 import { normalizePriceAndCurrency } from "@/utils/currency";
 import { formatGatewayPrice } from "@/utils/formatGatewayPrice";
-import { Package } from 'lucide-react';
-
-
+import { Package } from "lucide-react";
 
 interface SubscriptionProductsClientProps {
   monthlyProducts: ProductAndPrice[];
@@ -17,7 +15,11 @@ interface SubscriptionProductsClientProps {
   workspaceId: string;
 }
 
-export function SubscriptionProductsClient({ monthlyProducts, yearlyProducts, workspaceId }: SubscriptionProductsClientProps) {
+export function SubscriptionProductsClient({
+  monthlyProducts,
+  yearlyProducts,
+  workspaceId,
+}: SubscriptionProductsClientProps) {
   if (monthlyProducts.length === 0 && yearlyProducts.length === 0) {
     return (
       <Card>
@@ -56,15 +58,26 @@ export function SubscriptionProductsClient({ monthlyProducts, yearlyProducts, wo
                     <CardTitle>{p.product.name}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
-                    <T.H4 className="mb-2 text-primary">{formatGatewayPrice({
-                      amount: normalizePriceAndCurrency(p.price.amount, p.price.currency),
-                      currency: p.price.currency,
-                      recurring_interval: p.price.recurring_interval,
-                      recurring_interval_count: p.price.recurring_interval_count
-                    })}</T.H4>
+                    <T.P className="text-gray-600 mb-4">
+                      {p.product.description}
+                    </T.P>
+                    <T.H4 className="mb-2 text-primary">
+                      {formatGatewayPrice({
+                        amount: normalizePriceAndCurrency(
+                          p.price.amount,
+                          p.price.currency,
+                        ),
+                        currency: p.price.currency,
+                        recurring_interval: p.price.recurring_interval,
+                        recurring_interval_count:
+                          p.price.recurring_interval_count,
+                      })}
+                    </T.H4>
                     <ul className="list-disc list-inside mb-4">Features</ul>
-                    <SubscriptionSelect priceId={p.price.gateway_price_id} workspaceId={workspaceId} />
+                    <SubscriptionSelect
+                      priceId={p.price.gateway_price_id}
+                      workspaceId={workspaceId}
+                    />
                   </CardContent>
                 </Card>
               ))}
@@ -78,15 +91,26 @@ export function SubscriptionProductsClient({ monthlyProducts, yearlyProducts, wo
                     <CardTitle>{p.product.name}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <T.P className="text-gray-600 mb-4">{p.product.description}</T.P>
-                    <T.H4 className="mb-2 text-primary">{formatGatewayPrice({
-                      amount: normalizePriceAndCurrency(p.price.amount, p.price.currency),
-                      currency: p.price.currency,
-                      recurring_interval: p.price.recurring_interval,
-                      recurring_interval_count: p.price.recurring_interval_count
-                    })}</T.H4>
+                    <T.P className="text-gray-600 mb-4">
+                      {p.product.description}
+                    </T.P>
+                    <T.H4 className="mb-2 text-primary">
+                      {formatGatewayPrice({
+                        amount: normalizePriceAndCurrency(
+                          p.price.amount,
+                          p.price.currency,
+                        ),
+                        currency: p.price.currency,
+                        recurring_interval: p.price.recurring_interval,
+                        recurring_interval_count:
+                          p.price.recurring_interval_count,
+                      })}
+                    </T.H4>
                     <ul className="list-disc list-inside mb-4">Features</ul>
-                    <SubscriptionSelect priceId={p.price.gateway_price_id} workspaceId={workspaceId} />
+                    <SubscriptionSelect
+                      priceId={p.price.gateway_price_id}
+                      workspaceId={workspaceId}
+                    />
                   </CardContent>
                 </Card>
               ))}

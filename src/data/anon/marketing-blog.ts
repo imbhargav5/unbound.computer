@@ -1,14 +1,14 @@
-'use server';
-import { supabaseAnonClient } from '@/supabase-clients/anon/supabaseAnonClient';
-import type { AppSupabaseClient } from '@/types';
+"use server";
+import { supabaseAnonClient } from "@/supabase-clients/anon/supabaseAnonClient";
+import type { AppSupabaseClient } from "@/types";
 
 export const anonGetBlogPostById = async (postId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
+    .from("marketing_blog_posts")
     .select(
-      '*, marketing_blog_author_posts(*, marketing_blog_author_profiles(*))',
+      "*, marketing_blog_author_posts(*, marketing_blog_author_profiles(*))",
     )
-    .eq('id', postId)
+    .eq("id", postId)
     .single();
 
   if (error) {
@@ -20,11 +20,9 @@ export const anonGetBlogPostById = async (postId: string) => {
 
 export const anonGetBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
-    .select(
-      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
-    )
-    .eq('slug', slug)
+    .from("marketing_blog_posts")
+    .select("*, marketing_blog_author_posts(*, marketing_author_profiles(*))")
+    .eq("slug", slug)
     .single();
 
   if (error) {
@@ -36,12 +34,12 @@ export const anonGetBlogPostBySlug = async (slug: string) => {
 
 export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
+    .from("marketing_blog_posts")
     .select(
-      '*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))',
+      "*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))",
     )
-    .eq('slug', slug)
-    .eq('status', 'published')
+    .eq("slug", slug)
+    .eq("status", "published")
     .single();
 
   if (error) {
@@ -53,11 +51,9 @@ export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
 
 export const anonGetPublishedBlogPosts = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
-    .select(
-      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
-    )
-    .eq('status', 'published');
+    .from("marketing_blog_posts")
+    .select("*, marketing_blog_author_posts(*, marketing_author_profiles(*))")
+    .eq("status", "published");
 
   if (error) {
     throw error;
@@ -68,9 +64,9 @@ export const anonGetPublishedBlogPosts = async () => {
 
 export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
   const { data: tag, error: tagError } = await supabaseAnonClient
-    .from('marketing_tags')
-    .select('*')
-    .eq('slug', tagSlug)
+    .from("marketing_tags")
+    .select("*")
+    .eq("slug", tagSlug)
     .single();
 
   if (tagError) {
@@ -81,9 +77,9 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
     data: blogPostTagRelationships,
     error: blogPostTagRelationshipsError,
   } = await supabaseAnonClient
-    .from('marketing_blog_post_tags_relationship')
-    .select('*')
-    .eq('tag_id', tag.id);
+    .from("marketing_blog_post_tags_relationship")
+    .select("*")
+    .eq("tag_id", tag.id);
 
   if (blogPostTagRelationshipsError) {
     throw blogPostTagRelationshipsError;
@@ -94,12 +90,10 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
   );
 
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
-    .select(
-      '*, marketing_blog_author_posts(*, marketing_author_profiles(*))',
-    )
-    .in('id', postIds)
-    .eq('status', 'published');
+    .from("marketing_blog_posts")
+    .select("*, marketing_blog_author_posts(*, marketing_author_profiles(*))")
+    .in("id", postIds)
+    .eq("status", "published");
 
   if (error) {
     throw error;
@@ -110,9 +104,9 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
 
 export const anonGetBlogPostsByAuthorId = async (authorId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_author_posts')
-    .select('*, marketing_blog_posts(*)')
-    .eq('author_id', authorId);
+    .from("marketing_blog_author_posts")
+    .select("*, marketing_blog_posts(*)")
+    .eq("author_id", authorId);
 
   if (error) {
     throw error;
@@ -121,13 +115,12 @@ export const anonGetBlogPostsByAuthorId = async (authorId: string) => {
   return data;
 };
 
-
 export const anonGetAllBlogPosts = async (
   supabaseClient: AppSupabaseClient,
 ) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_blog_posts')
-    .select('*');
+    .from("marketing_blog_posts")
+    .select("*");
 
   if (error) {
     throw error;
@@ -138,8 +131,8 @@ export const anonGetAllBlogPosts = async (
 
 export const anonGetAllAuthors = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_author_profiles')
-    .select('*');
+    .from("marketing_author_profiles")
+    .select("*");
 
   if (error) {
     throw error;
@@ -150,9 +143,9 @@ export const anonGetAllAuthors = async () => {
 
 export const anonGetOneAuthor = async (userId: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_author_profiles')
-    .select('*')
-    .eq('id', userId);
+    .from("marketing_author_profiles")
+    .select("*")
+    .eq("id", userId);
 
   if (error) {
     throw error;
@@ -163,9 +156,9 @@ export const anonGetOneAuthor = async (userId: string) => {
 
 export const anonGetOneAuthorBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_author_profiles')
-    .select('*')
-    .eq('slug', slug)
+    .from("marketing_author_profiles")
+    .select("*")
+    .eq("slug", slug)
     .single();
 
   if (error) {
@@ -177,9 +170,9 @@ export const anonGetOneAuthorBySlug = async (slug: string) => {
 
 export const anonGetTagBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_tags')
-    .select('*')
-    .eq('slug', slug)
+    .from("marketing_tags")
+    .select("*")
+    .eq("slug", slug)
     .single();
 
   if (error) {
@@ -191,8 +184,8 @@ export const anonGetTagBySlug = async (slug: string) => {
 
 export const anonGetAllBlogTags = async () => {
   const { data, error } = await supabaseAnonClient
-    .from('marketing_tags')
-    .select('*');
+    .from("marketing_tags")
+    .select("*");
 
   if (error) {
     throw error;

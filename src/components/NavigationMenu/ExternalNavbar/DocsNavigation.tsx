@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Link } from '@/components/intl-link';
-import clsx from 'clsx';
-import { usePathname } from 'next/navigation';
-import { navigation } from './docslinks';
+import { Link } from "@/components/intl-link";
+import clsx from "clsx";
+import { usePathname } from "next/navigation";
+import { navigation } from "./docslinks";
 
 type NavigationProps = {
   className?: string;
@@ -19,7 +19,7 @@ export function DocsNavigation({ className, setIsOpen }: NavigationProps) {
   };
 
   return (
-    <nav className={clsx('text-base lg:text-sm', className)}>
+    <nav className={clsx("text-base lg:text-sm", className)}>
       <ul role="list" className="space-y-9">
         {navigation.map((section) => (
           <li key={section.title} onClick={handleClick}>
@@ -32,10 +32,10 @@ export function DocsNavigation({ className, setIsOpen }: NavigationProps) {
                   <Link
                     href={link.href}
                     className={clsx(
-                      'block w-full',
+                      "block w-full",
                       link.href === pathname
-                        ? 'font-semibold text-primary dark:text-white dark:underline before:bg-neutral-500 dark:before:bg-neutral-400'
-                        : 'text-neutral-600 before:hidden before:bg-neutral-300 hover:text-neutral-600 hover:before:block dark:text-neutral-300 dark:before:bg-neutral-700 dark:hover:text-neutral-300',
+                        ? "font-semibold text-primary dark:text-white dark:underline before:bg-neutral-500 dark:before:bg-neutral-400"
+                        : "text-neutral-600 before:hidden before:bg-neutral-300 hover:text-neutral-600 hover:before:block dark:text-neutral-300 dark:before:bg-neutral-700 dark:hover:text-neutral-300",
                     )}
                   >
                     {link.title}

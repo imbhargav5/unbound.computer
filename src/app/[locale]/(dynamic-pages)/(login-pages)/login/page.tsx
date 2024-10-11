@@ -1,6 +1,6 @@
-import { Metadata } from 'next';
-import { z } from 'zod';
-import { Login } from './Login';
+import { Metadata } from "next";
+import { z } from "zod";
+import { Login } from "./Login";
 
 const SearchParamsSchema = z.object({
   next: z.string().optional(),
@@ -8,8 +8,8 @@ const SearchParamsSchema = z.object({
 });
 
 export const metadata: Metadata = {
-  title: 'Login | Nextbase Starter Kits Demo',
-  description: 'Login to your Nextbase Starter Kits Demo account',
+  title: "Login | Nextbase Starter Kits Demo",
+  description: "Login to your Nextbase Starter Kits Demo account",
 };
 
 export default function LoginPage({ searchParams }: { searchParams: unknown }) {

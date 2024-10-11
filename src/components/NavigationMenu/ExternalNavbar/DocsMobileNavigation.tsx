@@ -1,16 +1,16 @@
-'use client';
-import { Link } from '@/components/intl-link';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import lightLogo from '@public/logos/acme-logo-dark.png';
-import darkLogo from '@public/logos/acme-logo-light.png';
-import { PanelLeft } from 'lucide-react';
-import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { ComponentProps, useState } from 'react';
-import { DocsNavigation } from './DocsNavigation';
+"use client";
+import { Link } from "@/components/intl-link";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import lightLogo from "@public/logos/acme-logo-dark.png";
+import darkLogo from "@public/logos/acme-logo-light.png";
+import { PanelLeft } from "lucide-react";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { ComponentProps, useState } from "react";
+import { DocsNavigation } from "./DocsNavigation";
 
-function MenuIcon(props: ComponentProps<'svg'>) {
+function MenuIcon(props: ComponentProps<"svg">) {
   return (
     <svg
       aria-hidden="true"
@@ -25,7 +25,7 @@ function MenuIcon(props: ComponentProps<'svg'>) {
   );
 }
 
-function CloseIcon(props: ComponentProps<'svg'>) {
+function CloseIcon(props: ComponentProps<"svg">) {
   return (
     <svg
       aria-hidden="true"
@@ -44,7 +44,7 @@ export function DocsMobileNavigation() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
-  const isDocs = pathname ? pathname.startsWith('/docs') : false;
+  const isDocs = pathname ? pathname.startsWith("/docs") : false;
 
   if (!isDocs) {
     return null;
@@ -67,7 +67,7 @@ export function DocsMobileNavigation() {
         className="min-h-full w-full max-w-xs bg-white px-6 pb-12 pt-5 dark:bg-gray-900 sm:px-6"
       >
         <div className="flex items-center">
-          <Link href={'/'} className="font-bold text-xl">
+          <Link href={"/"} className="font-bold text-xl">
             <div className="relative flex space-x-2 items-center text-black dark:text-white dark:-ml-4">
               <Image
                 src={lightLogo}

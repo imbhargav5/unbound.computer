@@ -1,6 +1,6 @@
-'use server';
-import { cache } from 'react';
-import { getSession, getUser } from './verifySession';
+"use server";
+import { cache } from "react";
+import { getSession, getUser } from "./verifySession";
 
 /**
  * This only checks the cookie for the session.
@@ -11,14 +11,14 @@ export const serverGetLoggedInUser = cache(async () => {
   const {
     data: { session },
     error: sessionError,
-  } = await getSession()
+  } = await getSession();
 
   if (sessionError) {
     throw sessionError;
   }
 
   if (!session?.user) {
-    throw new Error('serverGetLoggedInUser: Not logged in');
+    throw new Error("serverGetLoggedInUser: Not logged in");
   }
 
   return session.user;
@@ -32,14 +32,14 @@ export const serverGetLoggedInUserVerified = cache(async () => {
   const {
     data: { user },
     error: userError,
-  } = await getUser()
+  } = await getUser();
 
   if (userError) {
     throw userError;
   }
 
   if (!user) {
-    throw new Error('serverGetLoggedInUser: Not logged in');
+    throw new Error("serverGetLoggedInUser: Not logged in");
   }
 
   return user;

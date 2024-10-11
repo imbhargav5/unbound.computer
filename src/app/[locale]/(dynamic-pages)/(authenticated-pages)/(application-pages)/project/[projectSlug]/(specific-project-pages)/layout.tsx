@@ -1,13 +1,18 @@
-import { ApplicationLayoutShell } from '@/components/ApplicationLayoutShell';
-import { InternalNavbar } from '@/components/NavigationMenu/InternalNavbar';
-import { PageHeading } from '@/components/PageHeading';
-import { getCachedProjectBySlug } from '@/rsc-data/user/projects';
-import { projectSlugParamSchema } from '@/utils/zod-schemas/params';
-import { Suspense, type ReactNode } from 'react';
-import { ApprovalControls } from './ApprovalControls';
+import { ApplicationLayoutShell } from "@/components/ApplicationLayoutShell";
+import { InternalNavbar } from "@/components/NavigationMenu/InternalNavbar";
+import { PageHeading } from "@/components/PageHeading";
+import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
+import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
+import { Suspense, type ReactNode } from "react";
+import { ApprovalControls } from "./ApprovalControls";
 
-
-async function ProjectPageHeading({ projectSlug, title }: { projectSlug: string, title: string }) {
+async function ProjectPageHeading({
+  projectSlug,
+  title,
+}: {
+  projectSlug: string;
+  title: string;
+}) {
   return (
     <PageHeading
       title={title}
@@ -45,7 +50,10 @@ export default async function ProjectLayout({
         <div className="space-y-8 m-6">
           <div className="space-y-0">
             <Suspense>
-              <ProjectPageHeading projectSlug={projectSlug} title={project.name} />
+              <ProjectPageHeading
+                projectSlug={projectSlug}
+                title={project.name}
+              />
             </Suspense>
           </div>
           {children}

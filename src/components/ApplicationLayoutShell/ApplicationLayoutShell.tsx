@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { ClientShell } from './ClientShell';
+import { ReactNode } from "react";
+import { ClientShell } from "./ClientShell";
 
 export async function ApplicationLayoutShell({
   children,

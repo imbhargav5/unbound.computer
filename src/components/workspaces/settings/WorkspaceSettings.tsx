@@ -1,26 +1,21 @@
-import { getCachedLoggedInUserWorkspaceRole, getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import {
+  getCachedLoggedInUserWorkspaceRole,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EditWorkspaceForm } from "./EditWorkspaceForm";
 import { SetDefaultWorkspacePreference } from "./SetDefaultWorkspacePreference";
 import { SettingsFormSkeleton } from "./SettingsSkeletons";
 
-async function EditWorkspace({
-  workspaceSlug,
-}: {
-  workspaceSlug: string;
-}) {
+async function EditWorkspace({ workspaceSlug }: { workspaceSlug: string }) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
-  return (
-    <EditWorkspaceForm
-      workspace={workspace}
-    />
-  );
+  return <EditWorkspaceForm workspace={workspace} />;
 }
 
 async function AdminDeleteWorkspace({
   workspaceId,
-  workspaceName
+  workspaceName,
 }: {
   workspaceId: string;
   workspaceName: string;
@@ -59,13 +54,14 @@ export async function WorkspaceSettings({
       <Suspense fallback={<SettingsFormSkeleton />}>
         <SetDefaultWorkspacePreference workspaceSlug={workspaceSlug} />
       </Suspense>
-      {
-        workspace.membershipType === 'team' ?
-          <Suspense fallback={<SettingsFormSkeleton />}>
-            <AdminDeleteWorkspace workspaceId={workspace.id} workspaceName={workspace.name} />
-          </Suspense>
-          : null
-      }
+      {workspace.membershipType === "team" ? (
+        <Suspense fallback={<SettingsFormSkeleton />}>
+          <AdminDeleteWorkspace
+            workspaceId={workspace.id}
+            workspaceName={workspace.name}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

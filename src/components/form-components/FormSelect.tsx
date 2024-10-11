@@ -4,15 +4,15 @@ import {
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Control, FieldValues, Path } from 'react-hook-form';
+} from "@/components/ui/select";
+import { Control, FieldValues, Path } from "react-hook-form";
 
 interface FormSelectProps<TFieldValues extends FieldValues> {
   id: string;

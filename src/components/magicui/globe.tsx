@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { cn } from '@/lib/utils';
-import createGlobe, { COBEOptions } from 'cobe';
-import { useCallback, useEffect, useRef } from 'react';
-import { useSpring } from 'react-spring';
+import { cn } from "@/lib/utils";
+import createGlobe, { COBEOptions } from "cobe";
+import { useCallback, useEffect, useRef } from "react";
+import { useSpring } from "react-spring";
 
 const GLOBE_CONFIG: COBEOptions = {
   width: 800,
   height: 800,
-  onRender: () => { },
+  onRender: () => {},
   devicePixelRatio: 2,
   phi: 0,
   theta: 0.3,
@@ -58,7 +58,7 @@ export default function Globe({
   const updatePointerInteraction = (value: number | null) => {
     pointerInteracting.current = value;
     if (canvasRef.current) {
-      canvasRef.current.style.cursor = value ? 'grabbing' : 'grab';
+      canvasRef.current.style.cursor = value ? "grabbing" : "grab";
     }
   };
 
@@ -87,7 +87,7 @@ export default function Globe({
   };
 
   useEffect(() => {
-    window.addEventListener('resize', onResize);
+    window.addEventListener("resize", onResize);
     onResize();
 
     const canvas = canvasRef.current;
@@ -101,7 +101,7 @@ export default function Globe({
 
       setTimeout(() => {
         if (canvasRef.current) {
-          canvasRef.current.style.opacity = '1';
+          canvasRef.current.style.opacity = "1";
         }
       });
 
@@ -112,13 +112,13 @@ export default function Globe({
   return (
     <div
       className={cn(
-        'absolute inset-0  mx-auto aspect-[1/1]  h-full overflow-hidden',
+        "absolute inset-0  mx-auto aspect-[1/1]  h-full overflow-hidden",
         className,
       )}
     >
       <canvas
         className={cn(
-          'h-full w-full  opacity-0  transition-opacity duration-500 [contain:layout_paint_size]',
+          "h-full w-full  opacity-0  transition-opacity duration-500 [contain:layout_paint_size]",
         )}
         ref={canvasRef}
         onPointerDown={(e) =>

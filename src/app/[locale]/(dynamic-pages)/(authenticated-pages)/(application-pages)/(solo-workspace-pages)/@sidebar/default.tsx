@@ -1,3 +1,3 @@
-import { SoloWorkspaceSidebar } from './SoloWorkspaceSidebar';
+import { SoloWorkspaceSidebar } from "./SoloWorkspaceSidebar";
 
 export default SoloWorkspaceSidebar;

@@ -1,8 +1,8 @@
-import { Link } from '@/components/intl-link';
-import darkLogo from '@public/logos/acme-logo-dark.png';
-import lightLogo from '@public/logos/acme-logo-light.png';
-import Image from 'next/image';
-import { footerItems, footerSocialItems } from './footer-items';
+import { Link } from "@/components/intl-link";
+import darkLogo from "@public/logos/acme-logo-dark.png";
+import lightLogo from "@public/logos/acme-logo-light.png";
+import Image from "next/image";
+import { footerItems, footerSocialItems } from "./footer-items";
 
 export function Footer() {
   return (
@@ -65,7 +65,7 @@ export function Footer() {
             <div className="flex  lg:justify-end  gap-6 w-full">
               {footerSocialItems.map((item) => (
                 <Link key={item.name} href={item.url}>
-                  <item.icon />{' '}
+                  <item.icon />{" "}
                   {/* Using External Icon since brand icons are deprecated in Lucide Icons */}
                 </Link>
               ))}

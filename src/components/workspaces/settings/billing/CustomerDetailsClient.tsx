@@ -1,32 +1,49 @@
-'use client';
+"use client";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { T } from "@/components/ui/Typography";
-import { InvoiceData, OneTimePaymentData, SubscriptionData } from '@/payments/AbstractPaymentGateway';
+import {
+  InvoiceData,
+  OneTimePaymentData,
+  SubscriptionData,
+} from "@/payments/AbstractPaymentGateway";
 import { formatCurrency, normalizePriceAndCurrency } from "@/utils/currency";
-import { motion } from 'framer-motion';
-import { CreditCard, FileText, ShoppingBag } from 'lucide-react';
-import { SubscriptionCard } from './SubscriptionCard';
+import { motion } from "framer-motion";
+import { CreditCard, FileText, ShoppingBag } from "lucide-react";
+import { SubscriptionCard } from "./SubscriptionCard";
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 };
 
-const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+const getStatusVariant = (
+  status: string,
+): "default" | "secondary" | "destructive" | "outline" => {
   switch (status.toLowerCase()) {
-    case 'paid': return 'default';
-    case 'open': return 'secondary';
-    case 'void':
-    case 'uncollectible': return 'destructive';
-    default: return 'outline';
+    case "paid":
+      return "default";
+    case "open":
+      return "secondary";
+    case "void":
+    case "uncollectible":
+      return "destructive";
+    default:
+      return "outline";
   }
 };
 
@@ -46,16 +63,33 @@ const InvoicesTable = ({ invoices }: { invoices: InvoiceData[] }) => (
       {invoices.map((invoice, index) => (
         <TableRow key={invoice.gateway_invoice_id}>
           <TableCell className="font-medium">{index + 1}</TableCell>
-          <TableCell>{invoice.billing_products?.name || 'N/A'}</TableCell>
-          <TableCell>{invoice.paid_date ? formatDate(invoice.paid_date) : invoice.due_date ? formatDate(invoice.due_date) : 'N/A'}</TableCell>
-          <TableCell>{formatCurrency(normalizePriceAndCurrency(invoice.amount, invoice.currency), invoice.currency)}</TableCell>
+          <TableCell>{invoice.billing_products?.name || "N/A"}</TableCell>
           <TableCell>
-            <Badge variant={getStatusVariant(invoice.status)}>{invoice.status}</Badge>
+            {invoice.paid_date
+              ? formatDate(invoice.paid_date)
+              : invoice.due_date
+                ? formatDate(invoice.due_date)
+                : "N/A"}
+          </TableCell>
+          <TableCell>
+            {formatCurrency(
+              normalizePriceAndCurrency(invoice.amount, invoice.currency),
+              invoice.currency,
+            )}
+          </TableCell>
+          <TableCell>
+            <Badge variant={getStatusVariant(invoice.status)}>
+              {invoice.status}
+            </Badge>
           </TableCell>
           <TableCell>
             {invoice.hosted_invoice_url && (
               <Button variant="outline" size="sm" asChild>
-                <a href={invoice.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={invoice.hosted_invoice_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   View Invoice
                 </a>
               </Button>
@@ -67,7 +101,11 @@ const InvoicesTable = ({ invoices }: { invoices: InvoiceData[] }) => (
   </Table>
 );
 
-const OneTimePurchasesTable = ({ purchases }: { purchases: OneTimePaymentData[] }) => (
+const OneTimePurchasesTable = ({
+  purchases,
+}: {
+  purchases: OneTimePaymentData[];
+}) => (
   <Table>
     <TableHeader>
       <TableRow>
@@ -83,16 +121,27 @@ const OneTimePurchasesTable = ({ purchases }: { purchases: OneTimePaymentData[] 
       {purchases.map((purchase, index) => (
         <TableRow key={purchase.gateway_charge_id}>
           <TableCell className="font-medium">{index + 1}</TableCell>
-          <TableCell>{purchase.billing_products?.name || 'N/A'}</TableCell>
+          <TableCell>{purchase.billing_products?.name || "N/A"}</TableCell>
           <TableCell>{formatDate(purchase.charge_date)}</TableCell>
-          <TableCell>{formatCurrency(normalizePriceAndCurrency(purchase.amount, purchase.currency), purchase.currency)}</TableCell>
           <TableCell>
-            <Badge variant={getStatusVariant(purchase.status)}>{purchase.status}</Badge>
+            {formatCurrency(
+              normalizePriceAndCurrency(purchase.amount, purchase.currency),
+              purchase.currency,
+            )}
+          </TableCell>
+          <TableCell>
+            <Badge variant={getStatusVariant(purchase.status)}>
+              {purchase.status}
+            </Badge>
           </TableCell>
           <TableCell>
             {purchase.billing_invoices?.hosted_invoice_url && (
               <Button variant="outline" size="sm" asChild>
-                <a href={purchase.billing_invoices.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={purchase.billing_invoices.hosted_invoice_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   View Invoice
                 </a>
               </Button>
@@ -112,7 +161,11 @@ interface CustomerDetailsClientProps {
   subscriptions?: SubscriptionData[];
 }
 
-export function CustomerDetailsClient({ invoices, oneTimePurchases, subscriptions }: CustomerDetailsClientProps) {
+export function CustomerDetailsClient({
+  invoices,
+  oneTimePurchases,
+  subscriptions,
+}: CustomerDetailsClientProps) {
   return (
     <div className="space-y-8">
       {subscriptions && subscriptions.length > 0 && (
@@ -185,7 +238,9 @@ export function CustomerDetailsClient({ invoices, oneTimePurchases, subscription
             transition={{ duration: 0.3 }}
           >
             <CardContent>
-              <T.P className="text-center py-4">No billing information available.</T.P>
+              <T.P className="text-center py-4">
+                No billing information available.
+              </T.P>
             </CardContent>
           </MotionCard>
         )}

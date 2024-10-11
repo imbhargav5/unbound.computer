@@ -1,9 +1,20 @@
-'use server';
-import { actionClient } from '@/lib/safe-action';
-import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import { handleSupabaseAuthMagicLinkErrors, handleSupabaseAuthPasswordSignUpErrors, handleSupabaseAuthResetPasswordErrors, handleSupabaseAuthSignInErrors } from '@/utils/errorMessage';
-import { toSiteURL } from '@/utils/helpers';
-import { resetPasswordSchema, signInWithMagicLinkSchema, signInWithPasswordSchema, signInWithProviderSchema, signUpWithPasswordSchema } from '@/utils/zod-schemas/auth';
+"use server";
+import { actionClient } from "@/lib/safe-action";
+import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
+import {
+  handleSupabaseAuthMagicLinkErrors,
+  handleSupabaseAuthPasswordSignUpErrors,
+  handleSupabaseAuthResetPasswordErrors,
+  handleSupabaseAuthSignInErrors,
+} from "@/utils/errorMessage";
+import { toSiteURL } from "@/utils/helpers";
+import {
+  resetPasswordSchema,
+  signInWithMagicLinkSchema,
+  signInWithPasswordSchema,
+  signInWithProviderSchema,
+  signUpWithPasswordSchema,
+} from "@/utils/zod-schemas/auth";
 import { returnValidationErrors } from "next-safe-action";
 
 /**
@@ -19,9 +30,9 @@ export const signUpWithPasswordAction = actionClient
 
   .action(async ({ parsedInput: { email, password, next } }) => {
     const supabase = createSupabaseUserServerActionClient();
-    let emailRedirectTo = new URL(toSiteURL('/auth/callback'));
+    const emailRedirectTo = new URL(toSiteURL("/auth/callback"));
     if (next) {
-      emailRedirectTo.searchParams.set('next', next);
+      emailRedirectTo.searchParams.set("next", next);
     }
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -31,16 +42,15 @@ export const signUpWithPasswordAction = actionClient
       },
     });
 
-
     if (error) {
       const errorDetails = handleSupabaseAuthPasswordSignUpErrors(error);
-      if (errorDetails.field === 'email') {
+      if (errorDetails.field === "email") {
         returnValidationErrors(signUpWithPasswordSchema, {
           email: {
             _errors: [errorDetails.message],
           },
         });
-      } else if (errorDetails.field === 'password') {
+      } else if (errorDetails.field === "password") {
         returnValidationErrors(signUpWithPasswordSchema, {
           password: {
             _errors: [errorDetails.message],
@@ -75,13 +85,13 @@ export const signInWithPasswordAction = actionClient
 
     if (error) {
       const errorDetails = handleSupabaseAuthSignInErrors(error);
-      if (errorDetails.field === 'email') {
+      if (errorDetails.field === "email") {
         returnValidationErrors(signInWithPasswordSchema, {
           email: {
             _errors: [errorDetails.message],
           },
         });
-      } else if (errorDetails.field === 'password') {
+      } else if (errorDetails.field === "password") {
         returnValidationErrors(signInWithPasswordSchema, {
           password: {
             _errors: [errorDetails.message],
@@ -108,9 +118,9 @@ export const signInWithMagicLinkAction = actionClient
   .schema(signInWithMagicLinkSchema)
   .action(async ({ parsedInput: { email, next, shouldCreateUser } }) => {
     const supabase = createSupabaseUserServerActionClient();
-    const redirectUrl = new URL(toSiteURL('/auth/callback'));
+    const redirectUrl = new URL(toSiteURL("/auth/callback"));
     if (next) {
-      redirectUrl.searchParams.set('next', next);
+      redirectUrl.searchParams.set("next", next);
     }
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -144,9 +154,9 @@ export const signInWithProviderAction = actionClient
   .schema(signInWithProviderSchema)
   .action(async ({ parsedInput: { provider, next } }) => {
     const supabase = createSupabaseUserServerActionClient();
-    const redirectToURL = new URL(toSiteURL('/auth/callback'));
+    const redirectToURL = new URL(toSiteURL("/auth/callback"));
     if (next) {
-      redirectToURL.searchParams.set('next', next);
+      redirectToURL.searchParams.set("next", next);
     }
     const { error, data } = await supabase.auth.signInWithOAuth({
       provider,
@@ -172,17 +182,16 @@ export const resetPasswordAction = actionClient
   .schema(resetPasswordSchema)
   .action(async ({ parsedInput: { email } }) => {
     const supabase = createSupabaseUserServerActionClient();
-    const redirectToURL = new URL(toSiteURL('/auth/callback'));
-    redirectToURL.searchParams.set('next', '/update-password');
+    const redirectToURL = new URL(toSiteURL("/auth/callback"));
+    redirectToURL.searchParams.set("next", "/update-password");
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectToURL.toString(),
     });
 
-
     if (error) {
       const errorDetails = handleSupabaseAuthResetPasswordErrors(error);
-      if (errorDetails.field === 'email') {
+      if (errorDetails.field === "email") {
         returnValidationErrors(resetPasswordSchema, {
           email: { _errors: [errorDetails.message] },
         });

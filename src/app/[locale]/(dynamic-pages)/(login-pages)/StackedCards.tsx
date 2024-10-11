@@ -1,9 +1,9 @@
-'use client'
+"use client";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Card } from "@/components/ui/card";
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 
 const CARD_COLORS = ["#266678", "#cb7c7a", "#36a18b", "#cda35f", "#747474"];
 const CARD_OFFSET = 5;
@@ -19,11 +19,14 @@ function withRandomKey(imageUrl: string, index: number) {
   return `${imageUrl}?r=${random}`;
 }
 
-export const StackedCards: React.FC<CardStackProps> = ({ images, interval = 6000 }) => {
+export const StackedCards: React.FC<CardStackProps> = ({
+  images,
+  interval = 6000,
+}) => {
   const [cards, setCards] = useState<string[]>(() => images.map(withRandomKey));
 
   const moveToEnd = () => {
-    setCards(prevCards => {
+    setCards((prevCards) => {
       const [firstCard, ...rest] = prevCards;
       return [...rest, firstCard];
     });
@@ -50,7 +53,10 @@ export const StackedCards: React.FC<CardStackProps> = ({ images, interval = 6000
                 <motion.li
                   key={imageUrl}
                   className="absolute inset-0 rounded-lg select-none pointer-events-none border-2 border-foreground list-none origin-top-center"
-                  style={{ backgroundColor: color, cursor: canDrag ? 'grab' : 'auto' }}
+                  style={{
+                    backgroundColor: color,
+                    cursor: canDrag ? "grab" : "auto",
+                  }}
                   initial={{ opacity: 0, scale: 0.8, rotate: 0 }}
                   animate={{
                     opacity: 1,
@@ -61,10 +67,9 @@ export const StackedCards: React.FC<CardStackProps> = ({ images, interval = 6000
                   exit={{
                     opacity: 0,
                     scale: 0.8,
-                    transition: { duration: 0.2 }
+                    transition: { duration: 0.2 },
                   }}
                   transition={{ duration: 0.2 }}
-
                 >
                   <Card className="w-full h-full bg-transparent">
                     <Image

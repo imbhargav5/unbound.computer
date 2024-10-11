@@ -1,7 +1,7 @@
-'use server';
-import { authActionClient } from '@/lib/safe-action';
-import { createSupabaseUserServerActionClient } from '@/supabase-clients/user/createSupabaseUserServerActionClient';
-import { z } from 'zod';
+"use server";
+import { authActionClient } from "@/lib/safe-action";
+import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
+import { z } from "zod";
 
 const updatePasswordSchema = z.object({
   password: z.string().min(4),
@@ -18,9 +18,7 @@ export const updatePasswordAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
-
   });
-
 
 const updateEmailSchema = z.object({
   email: z.string().email(),

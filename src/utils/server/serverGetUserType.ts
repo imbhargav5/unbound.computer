@@ -1,8 +1,8 @@
-'use server';
-import { createSupabaseUserServerComponentClient } from '@/supabase-clients/user/createSupabaseUserServerComponentClient';
-import { userRoles } from '@/utils/userTypes';
-import { cache } from 'react';
-import { isSupabaseUserAppAdmin } from '../isSupabaseUserAppAdmin';
+"use server";
+import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
+import { userRoles } from "@/utils/userTypes";
+import { cache } from "react";
+import { isSupabaseUserAppAdmin } from "../isSupabaseUserAppAdmin";
 
 // make sure to return one of UserRoles
 export const serverGetUserType = cache(async () => {
@@ -20,12 +20,9 @@ export const serverGetUserType = cache(async () => {
     return userRoles.ANON;
   }
 
-  if (
-    isSupabaseUserAppAdmin(session.user)
-  ) {
+  if (isSupabaseUserAppAdmin(session.user)) {
     return userRoles.ADMIN;
   }
 
   return userRoles.USER;
-}
-)
+});

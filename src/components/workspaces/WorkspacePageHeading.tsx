@@ -1,4 +1,4 @@
-import { PageHeading } from '@/components/PageHeading';
+import { PageHeading } from "@/components/PageHeading";
 
 export async function WorkspacePageHeading({
   workspaceName,
@@ -7,10 +7,5 @@ export async function WorkspacePageHeading({
   workspaceName: string;
   workspaceSlug: string;
 }) {
-  return (
-    <PageHeading
-      title={workspaceName}
-      titleHref={`/${workspaceSlug}`}
-    />
-  );
+  return <PageHeading title={workspaceName} titleHref={`/${workspaceSlug}`} />;
 }

@@ -5,9 +5,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Textarea } from '@/components/ui/textarea';
-import { Control, FieldValues, Path } from 'react-hook-form';
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Control, FieldValues, Path } from "react-hook-form";
 
 interface FormTextareaProps<TFieldValues extends FieldValues> {
   id: string;

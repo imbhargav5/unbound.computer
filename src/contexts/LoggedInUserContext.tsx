@@ -1,6 +1,6 @@
-'use client';
-import { User } from '@supabase/supabase-js';
-import { createContext } from 'react';
+"use client";
+import { User } from "@supabase/supabase-js";
+import { createContext } from "react";
 
 type LoggedInUserContextType = {
   user: User;

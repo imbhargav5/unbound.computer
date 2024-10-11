@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,12 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { sendLoginLinkAction } from '@/data/admin/user';
-import { Send } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { sendLoginLinkAction } from "@/data/admin/user";
+import { Send } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 export const ConfirmSendLoginLinkDialog = ({
   userEmail,
@@ -23,30 +23,33 @@ export const ConfirmSendLoginLinkDialog = ({
   const [open, setOpen] = useState(false);
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: sendLoginLink, isPending: isSending } = useAction(sendLoginLinkAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Sending login link...');
+  const { execute: sendLoginLink, isPending: isSending } = useAction(
+    sendLoginLinkAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Sending login link...");
+      },
+      onSuccess: () => {
+        toast.success("Login link sent!", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        setOpen(false);
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to send login link";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
     },
-    onSuccess: () => {
-      toast.success('Login link sent!', {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-      setOpen(false);
-    },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to send login link';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={'ghost'} aria-disabled={isSending}>
+        <Button variant={"ghost"} aria-disabled={isSending}>
           Send login link
         </Button>
       </DialogTrigger>

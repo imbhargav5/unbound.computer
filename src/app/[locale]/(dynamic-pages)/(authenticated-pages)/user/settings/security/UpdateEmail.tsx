@@ -1,35 +1,35 @@
 // src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/UpdateEmail.tsx
 
-'use client';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { updateEmailAction } from '@/data/user/security';
-import { classNames } from '@/utils/classNames';
-import { useAction } from 'next-safe-action/hooks';
-import { useRef } from 'react';
-import { useInput } from 'rooks';
-import { toast } from 'sonner';
+"use client";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { updateEmailAction } from "@/data/user/security";
+import { classNames } from "@/utils/classNames";
+import { useAction } from "next-safe-action/hooks";
+import { useRef } from "react";
+import { useInput } from "rooks";
+import { toast } from "sonner";
 
 export const UpdateEmail = ({
   initialEmail,
 }: {
   initialEmail?: string | undefined;
 }) => {
-  const emailInput = useInput(initialEmail ?? '');
+  const emailInput = useInput(initialEmail ?? "");
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute: updateEmail, isPending } = useAction(updateEmailAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Updating email...');
+      toastRef.current = toast.loading("Updating email...");
     },
     onSuccess: () => {
-      toast.success('Email updated!', {
+      toast.success("Email updated!", {
         id: toastRef.current,
       });
       toastRef.current = undefined;
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to update email';
+      const errorMessage = error.serverError ?? "Failed to update email";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -61,13 +61,13 @@ export const UpdateEmail = ({
             updateEmail({ email: emailInput.value });
           }}
           className={classNames(
-            'flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+            "flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2",
             isPending
-              ? 'bg-yellow-300 dark:bg-yellow-700'
-              : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100',
+              ? "bg-yellow-300 dark:bg-yellow-700"
+              : "bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100",
           )}
         >
-          {isPending ? 'Updating...' : 'Update Email'}
+          {isPending ? "Updating..." : "Update Email"}
         </Button>
       </div>
     </div>

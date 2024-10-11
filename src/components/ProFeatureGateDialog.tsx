@@ -1,6 +1,6 @@
 "use client";
 
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { SlimWorkspace } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { motion } from "framer-motion";
@@ -82,7 +82,7 @@ export function ProFeatureGateDialog({
           workspace and more.
         </Typography.P>
         <Link
-          href={getWorkspaceSubPath(workspace, '/settings/billing')}
+          href={getWorkspaceSubPath(workspace, "/settings/billing")}
           className="w-full"
           onClick={() => setIsDialogOpen(false)}
         >

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { SwitcherAndToggle } from '@/components/SidebarComponents/SwitcherAndToggle';
-import { SidebarLink } from '@/components/SidebarLink';
-import { DBTable, SlimWorkspaces, WorkspaceWithMembershipType } from '@/types';
-import { cn } from '@/utils/cn';
-import { getWorkspaceSubPath } from '@/utils/workspaces';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Bird, History, Layers, Settings } from 'lucide-react';
+import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
+import { SidebarLink } from "@/components/SidebarLink";
+import { DBTable, SlimWorkspaces, WorkspaceWithMembershipType } from "@/types";
+import { cn } from "@/utils/cn";
+import { getWorkspaceSubPath } from "@/utils/workspaces";
+import { motion } from "framer-motion";
+import { ArrowLeft, Bird, History, Layers, Settings } from "lucide-react";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -25,37 +25,39 @@ const itemVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: 'spring',
+      type: "spring",
       stiffness: 300,
       damping: 24,
-    }
+    },
   },
 };
 
 interface ProjectSidebarClientProps {
-
   workspace: WorkspaceWithMembershipType; // Replace with the correct type
-  project: DBTable<'projects'>; // Replace with the correct type
+  project: DBTable<"projects">; // Replace with the correct type
   slimWorkspaces: SlimWorkspaces; // Replace with the correct type
 }
 
 export function ProjectSidebarClient({
   project,
   workspace,
-  slimWorkspaces
+  slimWorkspaces,
 }: ProjectSidebarClientProps) {
   return (
     <motion.div
       className={cn(
-        'flex flex-col justify-between h-full',
-        'lg:px-3 lg:py-4 lg:pt-2.5 ',
+        "flex flex-col justify-between h-full",
+        "lg:px-3 lg:py-4 lg:pt-2.5 ",
       )}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
       <div>
-        <SwitcherAndToggle workspaceId={workspace.id} slimWorkspaces={slimWorkspaces} />
+        <SwitcherAndToggle
+          workspaceId={workspace.id}
+          slimWorkspaces={slimWorkspaces}
+        />
         <motion.div
           className="flex flex-col"
           variants={containerVariants}
@@ -107,7 +109,6 @@ export function ProjectSidebarClient({
           </motion.div>
         </motion.div>
       </div>
-
     </motion.div>
   );
 }

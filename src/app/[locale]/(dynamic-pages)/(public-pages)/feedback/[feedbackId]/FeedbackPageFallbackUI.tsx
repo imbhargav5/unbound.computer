@@ -1,6 +1,6 @@
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { clsx } from 'clsx';
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { clsx } from "clsx";
 
 export function FeedbackDetailFallback() {
   return (
@@ -27,8 +27,8 @@ function FeedbackPageFallbackUI({ feedbackId }: { feedbackId: string }) {
     <div className="h-full flex md:gap-2">
       <div
         className={clsx(
-          feedbackId && 'hidden',
-          'md:flex flex-col flex-1 h-full',
+          feedbackId && "hidden",
+          "md:flex flex-col flex-1 h-full",
         )}
       >
         <div className="flex flex-col gap-2 mb-4">
@@ -54,7 +54,7 @@ function FeedbackPageFallbackUI({ feedbackId }: { feedbackId: string }) {
       </div>
       <Separator orientation="vertical" className="hidden md:block" />
       <div
-        className={clsx(!feedbackId && 'hidden', 'md:block flex-1 relative')}
+        className={clsx(!feedbackId && "hidden", "md:block flex-1 relative")}
       >
         <FeedbackDetailFallback />
       </div>

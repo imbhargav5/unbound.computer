@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,10 +7,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Copy, CopyCheck } from 'lucide-react';
-import { useState } from 'react';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
+} from "@/components/ui/dialog";
+import { Copy, CopyCheck } from "lucide-react";
+import { useState } from "react";
+import { CopyToClipboard } from "react-copy-to-clipboard";
 
 type Props = {
   apiKey: string;

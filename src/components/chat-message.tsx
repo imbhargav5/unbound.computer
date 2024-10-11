@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
 import { CodeBlock } from "./ui/codeblock";
 
-
 export interface ChatMessageProps {
   message: Message;
 }
@@ -52,7 +51,7 @@ export function ChatMessage({ message, ...props }: ChatMessageProps) {
               return (
                 <CodeBlock
                   key={Math.random()}
-                  language={(match?.[1]) || ""}
+                  language={match?.[1] || ""}
                   value={String(children).replace(/\n$/, "")}
                   {...props}
                 />

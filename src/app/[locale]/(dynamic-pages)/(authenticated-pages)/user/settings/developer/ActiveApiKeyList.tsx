@@ -1,5 +1,5 @@
-import { PageHeading } from '@/components/PageHeading';
-import { T } from '@/components/ui/Typography';
+import { PageHeading } from "@/components/PageHeading";
+import { T } from "@/components/ui/Typography";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -7,11 +7,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getActiveDeveloperKeys } from '@/data/user/unkey';
-import { format } from 'date-fns';
-import moment from 'moment';
-import { ConfirmRevokeTokenDialog } from './ConfirmRevokeTokenDialog';
+} from "@/components/ui/table";
+import { getActiveDeveloperKeys } from "@/data/user/unkey";
+import { format } from "date-fns";
+import moment from "moment";
+import { ConfirmRevokeTokenDialog } from "./ConfirmRevokeTokenDialog";
 
 export async function ActiveApiKeyList() {
   const activeDeveloperKeys = await getActiveDeveloperKeys();
@@ -44,13 +44,13 @@ export async function ActiveApiKeyList() {
                     {apiKey.masked_key}
                   </TableCell>
                   <TableCell className="font-medium">
-                    {format(new Date(apiKey.created_at), 'PPP')}
+                    {format(new Date(apiKey.created_at), "PPP")}
                   </TableCell>
 
                   <TableCell>
                     {apiKey.expires_at
-                      ? moment(apiKey.expires_at).format('LL')
-                      : 'No expiry'}
+                      ? moment(apiKey.expires_at).format("LL")
+                      : "No expiry"}
                   </TableCell>
                   <TableCell>
                     <ConfirmRevokeTokenDialog keyId={apiKey.key_id} />

@@ -117,7 +117,7 @@ export const EmailAndPassword = ({
                   href="/sign-up"
                   className="font-medium text-muted-foreground hover:text-foreground"
                 >
-                  Don't have an account? Sign up
+                  Don&apos;t have an account? Sign up
                 </Link>
               </div>
             ) : (

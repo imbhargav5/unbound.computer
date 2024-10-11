@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 const searchParamsSchema = z.object({
-  path: z.string().default('/'),
-  type: z.enum(['layout', 'page']).optional(),
+  path: z.string().default("/"),
+  type: z.enum(["layout", "page"]).optional(),
 });
 
 export async function GET(request: NextRequest) {

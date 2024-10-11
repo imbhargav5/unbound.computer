@@ -1,10 +1,10 @@
-import { Link } from '@/components/intl-link';
-import { T } from '@/components/ui/Typography';
-import { cn } from '@/utils/cn';
-import { useMutation } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { readNotification } from './fetchClientNotifications';
+import { Link } from "@/components/intl-link";
+import { T } from "@/components/ui/Typography";
+import { cn } from "@/utils/cn";
+import { useMutation } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { readNotification } from "./fetchClientNotifications";
 
 type NotificationItemProps = {
   title: string;
@@ -36,7 +36,7 @@ export function NotificationItem({
     async () => await readNotification(notificationId),
     {
       onSuccess: () => router.refresh(),
-    }
+    },
   );
 
   const content = (
@@ -47,9 +47,9 @@ export function NotificationItem({
       transition={{ duration: 0.3 }}
       onMouseOver={onHover}
       className={cn(
-        'flex items-center w-full px-4 py-3 border-b',
-        isRead ? 'bg-accent/50' : 'bg-background',
-        'hover:bg-accent/25 transition-colors duration-200'
+        "flex items-center w-full px-4 py-3 border-b",
+        isRead ? "bg-accent/50" : "bg-background",
+        "hover:bg-accent/25 transition-colors duration-200",
       )}
     >
       <motion.img
@@ -63,7 +63,9 @@ export function NotificationItem({
       <div className="flex-grow">
         <T.P className="font-semibold text-foreground !leading-5">{title}</T.P>
         <T.Small className="text-muted-foreground">{description}</T.Small>
-        <T.Subtle className="text-xs text-muted-foreground/75">{createdAt}</T.Subtle>
+        <T.Subtle className="text-xs text-muted-foreground/75">
+          {createdAt}
+        </T.Subtle>
       </div>
       {isNew && (
         <motion.div
@@ -77,7 +79,11 @@ export function NotificationItem({
 
   if (href) {
     return (
-      <Link href={href} onClick={() => mutateReadMutation()} className="block w-full">
+      <Link
+        href={href}
+        onClick={() => mutateReadMutation()}
+        className="block w-full"
+      >
         {content}
       </Link>
     );

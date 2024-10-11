@@ -1,12 +1,11 @@
+import { GitForkIcon } from "lucide-react";
 
-import { GitForkIcon } from 'lucide-react';
-
-import darkLogo from '@public/logos/nextbase-dark-logo.png';
-import lightLogo from '@public/logos/nextbase-light-logo.png';
-import Image from 'next/image';
-import Icons from '../icons';
-import OrbitingCircles from '../magicui/orbiting-circles';
-import TitleBlock from '../title-block';
+import darkLogo from "@public/logos/nextbase-dark-logo.png";
+import lightLogo from "@public/logos/nextbase-light-logo.png";
+import Image from "next/image";
+import Icons from "../icons";
+import OrbitingCircles from "../magicui/orbiting-circles";
+import TitleBlock from "../title-block";
 
 export default function Integration() {
   return (

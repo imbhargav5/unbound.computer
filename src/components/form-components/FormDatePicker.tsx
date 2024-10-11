@@ -1,22 +1,22 @@
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { Control, FieldValues, Path } from 'react-hook-form';
+import { format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { Control, FieldValues, Path } from "react-hook-form";
 
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface FormDatePickerProps<TFieldValues extends FieldValues> {
   id: string;
@@ -45,14 +45,14 @@ export function FormDatePicker<TFieldValues extends FieldValues>({
               <FormControl>
                 <Button
                   id={id}
-                  variant={'outline'}
+                  variant={"outline"}
                   className={cn(
-                    'w-[240px] pl-3 text-left font-normal',
-                    !field.value && 'text-muted-foreground',
+                    "w-[240px] pl-3 text-left font-normal",
+                    !field.value && "text-muted-foreground",
                   )}
                 >
                   {field.value ? (
-                    format(field.value, 'PPP')
+                    format(field.value, "PPP")
                   ) : (
                     <span>Pick a date</span>
                   )}
@@ -66,7 +66,7 @@ export function FormDatePicker<TFieldValues extends FieldValues>({
                 selected={field.value}
                 onSelect={field.onChange}
                 disabled={(date) =>
-                  date > new Date() || date < new Date('1900-01-01')
+                  date > new Date() || date < new Date("1900-01-01")
                 }
                 initialFocus
               />

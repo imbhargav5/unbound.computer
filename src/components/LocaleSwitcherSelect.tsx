@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -7,38 +7,43 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Locale, usePathname, useRouter } from '@/i18n/routing';
+import { Locale, usePathname, useRouter } from "@/i18n/routing";
 import { Check, ChevronDown } from "lucide-react";
-import { useParams } from 'next/navigation';
-import { useTransition } from 'react';
+import { useParams } from "next/navigation";
+import { useTransition } from "react";
 
 interface LocaleSwitcherSelectProps {
   defaultLocale: Locale;
   options: { value: Locale; label: string }[];
 }
 
-export function LocaleSwitcherSelect({ defaultLocale, options }: LocaleSwitcherSelectProps) {
+export function LocaleSwitcherSelect({
+  defaultLocale,
+  options,
+}: LocaleSwitcherSelectProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const pathname = usePathname();
-  const params =
-    useParams();
+  const params = useParams();
 
   function onLocaleSelect(nextLocale: Locale) {
     startTransition(() => {
-      router.push(
-        pathname,
-        { locale: nextLocale }
-      );
+      router.push(pathname, { locale: nextLocale });
     });
   }
 
-  const currentLocaleLabel = options.find(locale => locale.value === defaultLocale)?.label;
+  const currentLocaleLabel = options.find(
+    (locale) => locale.value === defaultLocale,
+  )?.label;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="w-[180px] justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-[180px] justify-between"
+        >
           {currentLocaleLabel}
           <ChevronDown className="h-4 w-4 opacity-50" />
         </Button>
@@ -51,9 +56,7 @@ export function LocaleSwitcherSelect({ defaultLocale, options }: LocaleSwitcherS
             className="justify-between"
           >
             {locale.label}
-            {locale.value === defaultLocale && (
-              <Check className="h-4 w-4" />
-            )}
+            {locale.value === defaultLocale && <Check className="h-4 w-4" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

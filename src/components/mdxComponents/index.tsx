@@ -1,8 +1,8 @@
-import { Link } from '@/components/intl-link';
-import { cn } from '@/utils/cn';
-import type { MDXComponents } from 'mdx/types';
-import React, { HTMLAttributes } from 'react';
-import { HashLink } from './/HashLink';
+import { Link } from "@/components/intl-link";
+import { cn } from "@/utils/cn";
+import type { MDXComponents } from "mdx/types";
+import React, { HTMLAttributes } from "react";
+import { HashLink } from ".//HashLink";
 
 type TocNavProps = HTMLAttributes<HTMLElement>;
 
@@ -11,7 +11,7 @@ export const TocNav: React.FC<TocNavProps> = ({ children, ...props }) => {
     <nav
       aria-labelledby="on-this-page-title"
       {...props}
-      className={cn('docs-toc-nav text-blue-500', 'w-56')}
+      className={cn("docs-toc-nav text-blue-500", "w-56")}
     >
       <h2
         id="on-this-page-title"
@@ -38,7 +38,7 @@ export const customMDXComponents: MDXComponents = {
         </a>
       );
     }
-    const isTocLink = href.startsWith('#');
+    const isTocLink = href.startsWith("#");
     if (isTocLink) {
       return (
         <HashLink href={href} {...props}>
@@ -53,24 +53,24 @@ export const customMDXComponents: MDXComponents = {
     );
   },
   TocNav,
-  prose: ({ as: Component = 'div', className, ...props }) => {
+  prose: ({ as: Component = "div", className, ...props }) => {
     return (
       <Component
         className={cn(
           className,
-          'prose prose-neutral max-w-none dark:prose-invert',
+          "prose prose-neutral max-w-none dark:prose-invert",
           // headings
-          'prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem]',
+          "prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem]",
           // lead
-          'prose-lead:text-neutral-500 dark:prose-lead:text-neutral-400',
+          "prose-lead:text-neutral-500 dark:prose-lead:text-neutral-400",
           // links
-          'prose-a:font-semibold dark:prose-a:text-blue-400',
+          "prose-a:font-semibold dark:prose-a:text-blue-400",
           // link underline
-          'prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.blue.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.neutral.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.blue.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px]',
+          "prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.blue.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.neutral.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.blue.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px]",
           // pre
-          'prose-pre:rounded-xl prose-pre:bg-neutral-900 prose-pre:shadow-lg dark:prose-pre:bg-neutral-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-neutral-300/10',
+          "prose-pre:rounded-xl prose-pre:bg-neutral-900 prose-pre:shadow-lg dark:prose-pre:bg-neutral-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-neutral-300/10",
           // hr
-          'dark:prose-hr:border-neutral-800',
+          "dark:prose-hr:border-neutral-800",
         )}
         {...props}
       />
@@ -82,7 +82,7 @@ export const customMDXComponents: MDXComponents = {
         <table
           className={cn(
             className,
-            'table-auto w-full border-collapse border-gray-200 dark:border-gray-700',
+            "table-auto w-full border-collapse border-gray-200 dark:border-gray-700",
           )}
           {...props}
         />
@@ -94,9 +94,9 @@ export const customMDXComponents: MDXComponents = {
       <th
         className={cn(
           className,
-          'px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider',
+          "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider",
         )}
-        style={{ wordWrap: 'break-word' }} // Add this line
+        style={{ wordWrap: "break-word" }} // Add this line
         {...props}
       />
     );
@@ -106,9 +106,9 @@ export const customMDXComponents: MDXComponents = {
       <td
         className={cn(
           className,
-          'px-6 py-4 text-sm text-gray-900 dark:text-gray-100',
+          "px-6 py-4 text-sm text-gray-900 dark:text-gray-100",
         )}
-        style={{ wordWrap: 'break-word' }} // Add this line
+        style={{ wordWrap: "break-word" }} // Add this line
         {...props}
       />
     );
@@ -118,7 +118,7 @@ export const customMDXComponents: MDXComponents = {
       <tr
         className={cn(
           className,
-          'border-t border-gray-200 dark:border-gray-700',
+          "border-t border-gray-200 dark:border-gray-700",
         )}
         {...props}
       />
@@ -126,17 +126,17 @@ export const customMDXComponents: MDXComponents = {
   },
   code: ({ className, ...props }) => {
     const languageClassExist = className
-      ?.split(' ')
-      ?.find((className) => className.indexOf('language') !== -1);
+      ?.split(" ")
+      ?.find((className) => className.indexOf("language") !== -1);
     // check if data-language prop exists
-    const languageProp = Boolean(props['data-language']) || languageClassExist;
+    const languageProp = Boolean(props["data-language"]) || languageClassExist;
     return (
       <code
         className={cn(
           className,
           languageProp
-            ? ''
-            : 'p-1 border border-gray-700 dark:border-purple-600 dark:bg-transparent bg-purple-100',
+            ? ""
+            : "p-1 border border-gray-700 dark:border-purple-600 dark:bg-transparent bg-purple-100",
         )}
         {...props}
       />

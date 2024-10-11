@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,13 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { acceptInvitationAction } from '@/data/user/invitation';
-import { Check } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { acceptInvitationAction } from "@/data/user/invitation";
+import { Check } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 export const ConfirmAcceptInvitationDialog = ({
   invitationId,
@@ -25,27 +25,30 @@ export const ConfirmAcceptInvitationDialog = ({
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
 
-  const { execute: acceptInvitation, isPending: isAccepting } = useAction(acceptInvitationAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Accepting invitation...');
-    },
-    onSuccess: ({ data }) => {
-      if (data) {
-        toast.success('Invitation accepted!', {
+  const { execute: acceptInvitation, isPending: isAccepting } = useAction(
+    acceptInvitationAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Accepting invitation...");
+      },
+      onSuccess: ({ data }) => {
+        if (data) {
+          toast.success("Invitation accepted!", {
+            id: toastRef.current,
+          });
+          toastRef.current = undefined;
+          router.push(data);
+        }
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Failed to accept invitation";
+        toast.error(errorMessage, {
           id: toastRef.current,
         });
         toastRef.current = undefined;
-        router.push(data);
-      }
+      },
     },
-    onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to accept invitation';
-      toast.error(errorMessage, {
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -97,7 +100,7 @@ export const ConfirmAcceptInvitationDialog = ({
               setOpen(false);
             }}
           >
-            {isAccepting ? 'Accepting...' : 'Accept'}
+            {isAccepting ? "Accepting..." : "Accept"}
           </Button>
         </DialogFooter>
       </DialogContent>

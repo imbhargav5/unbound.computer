@@ -1,15 +1,15 @@
 export const navbarLinks = [
-  { name: 'Docs', href: '/docs' },
+  { name: "Docs", href: "/docs" },
   {
-    name: 'Blog',
-    href: '/blog',
+    name: "Blog",
+    href: "/blog",
   },
   {
-    name: 'Changelog',
-    href: '/changelog',
+    name: "Changelog",
+    href: "/changelog",
   },
   {
-    name: 'Roadmap',
-    href: '/roadmap',
+    name: "Roadmap",
+    href: "/roadmap",
   },
 ];

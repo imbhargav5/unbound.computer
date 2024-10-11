@@ -31,11 +31,11 @@ export const getSlimProjectBySlug = async (projectSlug: string) => {
     .eq("slug", projectSlug)
     .single();
   if (error) {
-    console.log('getslimprojectbyslug', error)
+    console.log("getslimprojectbyslug", error);
     throw error;
   }
   return data;
-}
+};
 
 export async function getProjectById(projectId: string) {
   const supabaseClient = createSupabaseUserServerComponentClient();
@@ -75,8 +75,6 @@ export async function getProjectTitleById(projectId: string) {
   }
   return data.name;
 }
-
-
 
 export const getProjectComments = async (
   projectId: string,
@@ -126,7 +124,7 @@ export const createProjectCommentAction = authActionClient
   });
 
 const approveProjectSchema = z.object({
-  projectId: z.string().uuid()
+  projectId: z.string().uuid(),
 });
 
 export const approveProjectAction = authActionClient
@@ -149,9 +147,8 @@ export const approveProjectAction = authActionClient
     return data;
   });
 
-
 const rejectProjectSchema = z.object({
-  projectId: z.string().uuid()
+  projectId: z.string().uuid(),
 });
 
 export const rejectProjectAction = authActionClient
@@ -174,7 +171,7 @@ export const rejectProjectAction = authActionClient
     return data;
   });
 const submitProjectForApprovalSchema = z.object({
-  projectId: z.string().uuid()
+  projectId: z.string().uuid(),
 });
 
 export const submitProjectForApprovalAction = authActionClient
@@ -198,7 +195,7 @@ export const submitProjectForApprovalAction = authActionClient
   });
 
 const markProjectAsCompletedSchema = z.object({
-  projectId: z.string().uuid()
+  projectId: z.string().uuid(),
 });
 
 export const markProjectAsCompletedAction = authActionClient
@@ -319,7 +316,7 @@ export const getSlimProjectBySlugForWorkspace = async (projectSlug: string) => {
     throw error;
   }
   return data;
-}
+};
 
 const createProjectSchema = z.object({
   workspaceId: z.string().uuid(),

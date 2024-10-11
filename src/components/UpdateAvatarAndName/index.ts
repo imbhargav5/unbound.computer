@@ -1,1 +1,1 @@
-export * from './UpdateAvatarAndName';
+export * from "./UpdateAvatarAndName";

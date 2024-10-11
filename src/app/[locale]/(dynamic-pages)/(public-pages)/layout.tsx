@@ -1,5 +1,4 @@
-import { PublicNavigation } from '@/components/NavigationMenu/PublicNavbar.tsx/PublicNavigation';
-
+import { PublicNavigation } from "@/components/NavigationMenu/PublicNavbar.tsx/PublicNavigation";
 
 export default function PublicLayout({ children }) {
   return (

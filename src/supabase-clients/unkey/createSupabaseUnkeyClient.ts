@@ -1,19 +1,19 @@
-'use server';
+"use server";
 
-import { Database } from '@/lib/database.types';
-import { createClient } from '@supabase/supabase-js';
-import { verifyKey } from '@unkey/api';
-import jwt from 'jsonwebtoken';
-import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { Database } from "@/lib/database.types";
+import { createClient } from "@supabase/supabase-js";
+import { verifyKey } from "@unkey/api";
+import jwt from "jsonwebtoken";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 
 function createJWT(userId: string) {
   const payload = {
     sub: userId,
     exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiry
-    role: 'authenticated',
-    aud: 'authenticated',
-    iss: 'https://ultimate-demo.usenextbase.com',
+    role: "authenticated",
+    aud: "authenticated",
+    iss: "https://ultimate-demo.usenextbase.com",
     iat: Math.floor(Date.now() / 1000) - 60,
   };
 
@@ -28,13 +28,13 @@ const resultSchema = z.object({
 });
 
 export async function createSupabaseUnkeyClient(req: NextRequest) {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = req.headers.get("Authorization");
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing or invalid Authorization header');
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Missing or invalid Authorization header");
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split(" ")[1];
 
   const { result, error } = await verifyKey(token);
   if (error) {
@@ -50,7 +50,7 @@ export async function createSupabaseUnkeyClient(req: NextRequest) {
     {
       global: {
         headers: {
-          Authorization: 'Bearer ' + jwt,
+          Authorization: "Bearer " + jwt,
         },
       },
     },

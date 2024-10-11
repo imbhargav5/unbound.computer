@@ -1,15 +1,24 @@
-import { T, Typography } from "@/components/ui/Typography"
-import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { getAnonUserFeedbackById } from '@/data/anon/marketing-feedback'
-import { feedbackPriorityToLabel, feedbackStatusToLabel, feedbackTypeToLabel } from "@/utils/zod-schemas/feedback"
-import { format } from 'date-fns'
-import { Calendar, EyeIcon, Info } from 'lucide-react'
-import { notFound } from "next/navigation"
-import { SuspendedFeedbackComments } from './CommentTimeLine'
+import { T, Typography } from "@/components/ui/Typography";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getAnonUserFeedbackById } from "@/data/anon/marketing-feedback";
+import {
+  feedbackPriorityToLabel,
+  feedbackStatusToLabel,
+  feedbackTypeToLabel,
+} from "@/utils/zod-schemas/feedback";
+import { format } from "date-fns";
+import { Calendar, EyeIcon, Info } from "lucide-react";
+import { notFound } from "next/navigation";
+import { SuspendedFeedbackComments } from "./CommentTimeLine";
 
 async function AnonUserFeedbackDetail({ feedbackId }: { feedbackId: string }) {
-  const feedback = await getAnonUserFeedbackById(feedbackId)
+  const feedback = await getAnonUserFeedbackById(feedbackId);
 
   if (!feedback) {
     return notFound();
@@ -21,15 +30,22 @@ async function AnonUserFeedbackDetail({ feedbackId }: { feedbackId: string }) {
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <span className="text-muted-foreground text-sm lg:text-base">
-            {format(new Date(feedback.created_at), 'do MMMM yyyy')}
+            {format(new Date(feedback.created_at), "do MMMM yyyy")}
           </span>
         </div>
-        <div data-testid='feedback-visibility' className='flex items-center gap-2'>
+        <div
+          data-testid="feedback-visibility"
+          className="flex items-center gap-2"
+        >
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <Badge variant="outline" className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500">
-                  <EyeIcon className="w-4 h-4" /> <span>Public</span> <Info className="w-4 h-4" />
+                <Badge
+                  variant="outline"
+                  className="px-2 rounded-full flex gap-2 items-center border-green-300 text-green-500"
+                >
+                  <EyeIcon className="w-4 h-4" /> <span>Public</span>{" "}
+                  <Info className="w-4 h-4" />
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
@@ -55,11 +71,11 @@ async function AnonUserFeedbackDetail({ feedbackId }: { feedbackId: string }) {
         </div>
       </div>
       <div className="border-t p-4 mt-4 gap-2">
-        <Typography.H4 className='!mt-0 mb-4'>Comments</Typography.H4>
+        <Typography.H4 className="!mt-0 mb-4">Comments</Typography.H4>
         <SuspendedFeedbackComments feedbackId={feedback?.id} />
       </div>
     </>
-  )
+  );
 }
 
-export default AnonUserFeedbackDetail
+export default AnonUserFeedbackDetail;

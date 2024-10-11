@@ -1,30 +1,23 @@
-'use client';
+"use client";
 
-import PostHogProvider from '@/contexts/PostHogProvider';
-import dynamic from 'next/dynamic';
+import PostHogProvider from "@/contexts/PostHogProvider";
+import dynamic from "next/dynamic";
 
-import { useState } from 'react';
-import { useWindowSize } from 'rooks';
-
+import { useState } from "react";
+import { useWindowSize } from "rooks";
 
 const Confetti = dynamic(
-  () => import('react-confetti').then((mod) => mod.default),
+  () => import("react-confetti").then((mod) => mod.default),
   { ssr: false },
 );
 
-export function ClientLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function ClientLayout({ children }: { children: React.ReactNode }) {
   const { innerHeight: _innerHeight, innerWidth: _innerWidth } =
     useWindowSize();
   const innerHeight = _innerHeight ?? 0;
   const innerWidth = _innerWidth ?? 0;
 
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
-
-
 
   return (
     <PostHogProvider>
@@ -51,7 +44,7 @@ export function ClientLayout({
               width={innerWidth}
               height={innerHeight}
             />
-          ) : null}{' '}
+          ) : null}{" "}
         </div>
       </div>
     </PostHogProvider>

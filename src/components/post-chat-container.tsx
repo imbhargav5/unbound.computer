@@ -1,5 +1,5 @@
 "use client";
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { useChat } from "ai/react";
 import { Bot, CircleUser, Share } from "lucide-react";
 import type { FormEvent } from "react";
@@ -27,11 +27,7 @@ type PostGenerateFormInput = {
 };
 
 export const PostChatContainer = () => {
-  const {
-    register,
-    handleSubmit,
-    control,
-  } = useForm<PostGenerateFormInput>({
+  const { register, handleSubmit, control } = useForm<PostGenerateFormInput>({
     defaultValues: {
       prompt: "",
       hashtags: false,
@@ -45,8 +41,8 @@ export const PostChatContainer = () => {
     data: PostGenerateFormInput,
     e: FormEvent<HTMLFormElement>,
   ) => {
-
-    const promptBase = "Create a detailed post for twitter/X with the following content:";
+    const promptBase =
+      "Create a detailed post for twitter/X with the following content:";
     const prompt = `${promptBase} ${data.prompt} ${data.hashtags ? ", add hashtags related to the content " : "do not insert hashtags"} ${!data.premium ? "maximun characters 250 " : "250 characters or more, focus on content and mininum of hashtags"}`;
 
     append({
@@ -54,7 +50,7 @@ export const PostChatContainer = () => {
       content: prompt,
     });
 
-    handleSubmitOpenAi(e)
+    handleSubmitOpenAi(e);
   };
 
   return (
@@ -67,12 +63,17 @@ export const PostChatContainer = () => {
         <CardContent>
           <ScrollArea className="h-[500px]">
             {messages.map((message) => (
-              <div className="flex flex-row items-start justify-start gap-2 mt-4" key={message.id}>
+              <div
+                className="flex flex-row items-start justify-start gap-2 mt-4"
+                key={message.id}
+              >
                 {message.role === "user" && (
                   <>
                     <CircleUser className="size-6" />
                     <div className="flex flex-col items-start gap-2 max-w-3xl">
-                      <p className="text-md text-muted-foreground">{message.content}</p>
+                      <p className="text-md text-muted-foreground">
+                        {message.content}
+                      </p>
                     </div>
                   </>
                 )}
@@ -81,19 +82,23 @@ export const PostChatContainer = () => {
                     <Bot className="size-6 text-purple-400" />
                     <div className="flex flex-col items-start gap-2">
                       <PostTweetWrapper>
-                        <p className="text-md text-muted-foreground">{message.content}</p>
+                        <p className="text-md text-muted-foreground">
+                          {message.content}
+                        </p>
                       </PostTweetWrapper>
                       <Link href={"https://x.com/compose/post"} target="_blank">
-                        <Button className="flex items-center gap-2" onClick={() => {
-                          navigator.clipboard.writeText(message.content)
-                          toast.success("Copied to clipboard")
-                        }}>
+                        <Button
+                          className="flex items-center gap-2"
+                          onClick={() => {
+                            navigator.clipboard.writeText(message.content);
+                            toast.success("Copied to clipboard");
+                          }}
+                        >
                           <Share className="size-4" /> Copy and create a post!
                         </Button>
                       </Link>
                     </div>
                   </>
-
                 )}
               </div>
             ))}
@@ -111,7 +116,9 @@ export const PostChatContainer = () => {
                   className="resize-none border-none focus-within:outline-none focus:outline-none focus-visible:ring-0 focus-within:border-none focus:ring-0 focus-visible:ring-offset-0"
                   placeholder="What's the subject of your post?"
                 />
-                <Button className="self-end" type="submit">Generate Post</Button>
+                <Button className="self-end" type="submit">
+                  Generate Post
+                </Button>
               </Card>
               <div className="flex gap-2 items-center">
                 <Controller
@@ -153,7 +160,6 @@ export const PostChatContainer = () => {
                   name="premium"
                 />
               </div>
-
             </div>
           </form>
         </CardFooter>

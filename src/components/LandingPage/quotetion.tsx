@@ -1,5 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import Icons from '../icons';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Icons from "../icons";
 
 export default function Quotetion() {
   return (

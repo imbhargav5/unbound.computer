@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import { motion } from "framer-motion";
 import { AreaChartInteractiveLarge } from "./AreaChartInteractive";
 import { BarChartActive } from "./BarChartActive";
@@ -11,9 +11,9 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1
-    }
-  }
+      staggerChildren: 0.1,
+    },
+  },
 };
 
 const itemVariants = {
@@ -23,9 +23,9 @@ const itemVariants = {
     opacity: 1,
     transition: {
       type: "spring",
-      stiffness: 100
-    }
-  }
+      stiffness: 100,
+    },
+  },
 };
 
 export function WorkspaceGraphs() {

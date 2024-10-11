@@ -1,9 +1,9 @@
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Suspense } from 'react';
-import { LeftNav } from './LeftNav';
-import { MobileMenu } from './MobileMenu';
-import { MobileMenuProvider } from './MobileMenuContext';
-import { MobileMenuOpen } from './MobileMenuOpen';
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Suspense } from "react";
+import { LeftNav } from "./LeftNav";
+import { MobileMenu } from "./MobileMenu";
+import { MobileMenuProvider } from "./MobileMenuContext";
+import { MobileMenuOpen } from "./MobileMenuOpen";
 
 export function WaitlistNavbar() {
   return (

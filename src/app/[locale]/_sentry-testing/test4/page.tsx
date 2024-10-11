@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 const Test4 = () => {
   useEffect(function () {
     async function doTest() {
-      const doAsyncWork = () => Promise.reject(new Error('Client Test 4'));
+      const doAsyncWork = () => Promise.reject(new Error("Client Test 4"));
       await doAsyncWork();
     }
     doTest();

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { ExternalNavigationCTAButton } from '@/components/NavigationMenu/ExternalNavbar/ExternalNavigationCTAButton';
-import { supabaseUserClientComponent } from '@/supabase-clients/user/supabaseUserClientComponent';
-import { useQuery } from '@tanstack/react-query';
+import { ExternalNavigationCTAButton } from "@/components/NavigationMenu/ExternalNavbar/ExternalNavigationCTAButton";
+import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
+import { useQuery } from "@tanstack/react-query";
 
 export function LoginCTAButton() {
   const { data: isLoggedIn, isFetching } = useQuery(
-    ['isLoggedInHome'],
+    ["isLoggedInHome"],
     async () => {
       const response = await supabaseUserClientComponent.auth.getUser();
       return Boolean(response.data.user?.id);

@@ -3,11 +3,11 @@ import {
   anonGetPublishedBlogPosts,
 } from "@/data/anon/marketing-blog";
 
-import { Link } from '@/components/intl-link';
+import { Link } from "@/components/intl-link";
 import { TiptapJSONContentToHTML } from "@/components/TiptapJSONContentToHTML";
 import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/ui/Typography";
-import { routing } from '@/i18n/routing';
+import { routing } from "@/i18n/routing";
 import type { Metadata } from "next";
 import { unstable_setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -62,7 +62,9 @@ export default async function BlogPostPage({ params }: { params: unknown }) {
     const { slug, locale } = paramsSchema.parse(params);
     unstable_setRequestLocale(locale);
     const post = await anonGetPublishedBlogPostBySlug(slug);
-    const tags = post?.marketing_blog_post_tags_relationship.map((tag) => tag.marketing_tags);
+    const tags = post?.marketing_blog_post_tags_relationship.map(
+      (tag) => tag.marketing_tags,
+    );
     const validTags = tags.filter((tag) => tag !== null);
     return (
       <div className="relative w-full space-y-8 px-4 md:px-0 max-w-4xl mx-auto">
