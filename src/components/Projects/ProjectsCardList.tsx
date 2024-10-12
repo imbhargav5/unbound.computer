@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { DBTable } from "@/types";
+import { cn } from "@/utils/cn";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { CalendarDays, Clock, Link as LinkIcon } from "lucide-react";
@@ -56,11 +57,21 @@ export const ProjectsCardList = ({
 
   return (
     <ScrollArea className="w-full">
-      <div className="flex space-x-4 pb-4">
+      <div
+        className={cn(
+          "flex pb-4", // Common styles
+          "flex-col space-y-4", // Mobile styles
+          "sm:flex-row sm:space-x-4 sm:space-y-0", // sm and above styles
+        )}
+      >
         {projects.slice(0, 5).map((project, index) => (
           <MotionCard
             key={project.id}
-            className="w-[300px] shadow-sm"
+            className={cn(
+              "shadow-sm", // Common styles
+              "w-full", // Mobile styles
+              "sm:w-[300px]", // sm and above styles
+            )}
             variants={cardVariants}
             initial="hidden"
             animate="visible"

@@ -1,8 +1,8 @@
 "use client";
 import { motion } from "framer-motion";
-import { AreaChartInteractiveLarge } from "./AreaChartInteractive";
 import { BarChartActive } from "./BarChartActive";
 import { BarChartInteractive } from "./BarChartInteractive";
+import { LineChartInteractive } from "./LineChartInteractive";
 import { RadarChartGridCircleFilled } from "./RadarChartGridCircleFilled";
 import { RadialChartGrid } from "./RadialChartGrid";
 
@@ -40,7 +40,7 @@ export function WorkspaceGraphs() {
         <BarChartInteractive />
       </motion.div>
       <motion.div variants={itemVariants}>
-        <AreaChartInteractiveLarge />
+        <LineChartInteractive />
       </motion.div>
       <motion.div
         className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-row auto-rows-max gap-6"

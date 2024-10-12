@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getProjects } from "@/data/user/projects";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
+import { cn } from "@/utils/cn";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { ProjectsFilter } from "@/utils/zod-schemas/params";
 import { Layers } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Typography } from "../ui/Typography";
 import { DashboardClientWrapper } from "./DashboardClientWrapper";
 import { ProjectsLoadingFallback } from "./ProjectsLoadingFallback";
 import { WorkspaceGraphs } from "./graphs/WorkspaceGraphs";
@@ -55,10 +57,14 @@ export async function WorkspaceDashboard({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Recent Projects
-            </h2>
+          <div
+            className={cn(
+              "flex mb-6", // Common styles
+              "flex-col space-y-2", // Mobile styles
+              "md:flex-row md:items-center md:justify-between md:space-y-0", // md styles
+            )}
+          >
+            <Typography.H4 className="my-0">Recent Projects</Typography.H4>
             <div className="flex items-center space-x-4">
               <Search className="w-[200px]" placeholder="Search projects" />
               <Button variant="secondary" size="sm" asChild>
