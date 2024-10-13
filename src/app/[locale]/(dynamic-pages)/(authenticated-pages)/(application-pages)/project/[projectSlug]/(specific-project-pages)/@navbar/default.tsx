@@ -6,7 +6,7 @@ import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
 
 async function Title({ title }: { title: string }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 capitalize">
       <T.P>{title} Project</T.P>
     </div>
   );
