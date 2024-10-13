@@ -4,6 +4,7 @@ import {
 } from "@/rsc-data/user/workspaces";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { DeleteWorkspace } from "./DeleteWorkspace";
 import { EditWorkspaceForm } from "./EditWorkspaceForm";
 import { SetDefaultWorkspacePreference } from "./SetDefaultWorkspacePreference";
 import { SettingsFormSkeleton } from "./SettingsSkeletons";
@@ -27,10 +28,7 @@ async function AdminDeleteWorkspace({
     return null;
   }
   return (
-    <AdminDeleteWorkspace
-      workspaceId={workspaceId}
-      workspaceName={workspaceName}
-    />
+    <DeleteWorkspace workspaceId={workspaceId} workspaceName={workspaceName} />
   );
 }
 
@@ -55,7 +53,7 @@ export async function WorkspaceSettings({
         <SetDefaultWorkspacePreference workspaceSlug={workspaceSlug} />
       </Suspense>
       {workspace.membershipType === "team" ? (
-        <Suspense fallback={<SettingsFormSkeleton />}>
+        <Suspense>
           <AdminDeleteWorkspace
             workspaceId={workspace.id}
             workspaceName={workspace.name}
