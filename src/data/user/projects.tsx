@@ -58,6 +58,7 @@ export async function getProjectBySlug(projectSlug: string) {
     .eq("slug", projectSlug)
     .single();
   if (error) {
+    console.log("getprojectbyslug", error, projectSlug);
     throw error;
   }
   return data;

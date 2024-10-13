@@ -5,6 +5,7 @@ import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
 import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
 import { Suspense, type ReactNode } from "react";
 import { ApprovalControls } from "./ApprovalControls";
+import { CommentsSheet } from "./CommentsSheet";
 
 async function ProjectPageHeading({
   projectSlug,
@@ -13,12 +14,16 @@ async function ProjectPageHeading({
   projectSlug: string;
   title: string;
 }) {
+  const project = await getCachedProjectBySlug(projectSlug);
   return (
     <PageHeading
       title={title}
       actions={
         <Suspense>
-          <ApprovalControls projectSlug={projectSlug} />
+          <div className="flex space-x-2">
+            <ApprovalControls projectSlug={projectSlug} />
+            <CommentsSheet projectId={project.id} />
+          </div>
         </Suspense>
       }
     />
@@ -47,8 +52,8 @@ export default async function ProjectLayout({
             <Suspense>{navbar}</Suspense>
           </div>
         </InternalNavbar>
-        <div className="space-y-8 m-6">
-          <div className="space-y-0">
+        <div className="space-y-8 m-6 container w-full mx-auto">
+          <div className="space-y-0 ">
             <Suspense>
               <ProjectPageHeading
                 projectSlug={projectSlug}

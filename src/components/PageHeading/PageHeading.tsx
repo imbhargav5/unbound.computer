@@ -46,7 +46,7 @@ export function PageHeading({
   const wrappedTitleElement = titleHref ? (
     <Link href={titleHref}>{titleElement}</Link>
   ) : (
-    <div className="md:max-w-[480px] lg:max-w-[640px] w-full">
+    <div className="max-w-4xl w-full">
       {titleElement}
       {subTitleElement}
     </div>

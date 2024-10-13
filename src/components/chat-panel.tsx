@@ -1,9 +1,8 @@
-import type { UseChatHelpers } from "ai/react";
-
-import { PromptForm } from "@/components/prompt-form";
 import { Button } from "@/components/ui/button";
-import { RefreshCwIcon, StopCircle } from "lucide-react";
-import { ButtonScrollToBottom } from "./button-scroll-to-bottom";
+import { Input } from "@/components/ui/input";
+import type { UseChatHelpers } from "ai/react";
+import { RefreshCw, Send, StopCircle } from "lucide-react";
+import React from "react";
 
 export interface ChatPanelProps
   extends Pick<
@@ -31,49 +30,46 @@ export function ChatPanel({
   messages,
   projectSlug,
 }: ChatPanelProps) {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (input.trim()) {
+      await append({
+        id,
+        content: input,
+        role: "user",
+      });
+      setInput("");
+    }
+  };
+
   return (
-    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-b from-muted/10 from-10% to-muted/30 to-50%">
-      <ButtonScrollToBottom />
-      <div className="mx-auto sm:px-4">
-        <div className="flex h-10 items-center justify-center">
-          {isLoading ? (
-            <Button
-              variant="outline"
-              onClick={() => stop()}
-              className="bg-background"
-            >
-              <StopCircle className="mr-2" />
-              Stop generating
-            </Button>
-          ) : (
-            messages?.length > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => reload()}
-                className="bg-background"
-              >
-                <RefreshCwIcon className="mr-2" />
-                Regenerate response
-              </Button>
-            )
-          )}
-        </div>
-        <div className="space-y-4 border-t bg-background px-4 py-2 shadow-lg sm:rounded-t-xl sm:border md:py-4">
-          <PromptForm
-            projectSlug={projectSlug}
-            onSubmit={async (value) => {
-              await append({
-                id,
-                content: value,
-                role: "user",
-              });
-            }}
-            input={input}
-            setInput={setInput}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
+    <div className="border-t pt-4 mt-4 w-full">
+      <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type your message..."
+          className="flex-grow"
+        />
+        <Button type="submit" disabled={isLoading || !input.trim()}>
+          <Send className="w-4 h-4 mr-2" />
+          Send
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => reload()}
+          disabled={isLoading || messages.length === 0}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          <span className="hidden md:inline">Regenerate</span>
+        </Button>
+        {isLoading && (
+          <Button variant="destructive" onClick={() => stop()}>
+            <StopCircle className="w-4 h-4 mr-2" />
+            <span className="hidden md:inline">Stop</span>
+          </Button>
+        )}
+      </form>
     </div>
   );
 }

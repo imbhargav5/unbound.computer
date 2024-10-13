@@ -1,11 +1,16 @@
 "use client";
 
-import type { Message } from "ai";
-
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { cn } from "@/lib/utils";
-import { Check, Copy } from "lucide-react";
+import type { Message } from "ai";
+import { Check, Copy, MoreVertical } from "lucide-react";
 
 interface ChatMessageActionsProps extends React.ComponentProps<"div"> {
   message: Message;
@@ -26,15 +31,30 @@ export function ChatMessageActions({
   return (
     <div
       className={cn(
-        "flex items-center justify-end transition-opacity group-hover:opacity-100 md:absolute md:-right-10 md:-top-2 md:opacity-0",
+        "flex items-center justify-end transition-opacity group-hover:opacity-100 ",
         className,
       )}
       {...props}
     >
-      <Button variant="ghost" size="icon" onClick={onCopy}>
-        {isCopied ? <Check /> : <Copy />}
-        <span className="sr-only">Copy message</span>
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onCopy}>
+            {isCopied ? (
+              <Check className="mr-2 h-4 w-4" />
+            ) : (
+              <Copy className="mr-2 h-4 w-4" />
+            )}
+            {isCopied ? "Copied" : "Copy message"}
+          </DropdownMenuItem>
+          {/* Add more menu items here as needed */}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

@@ -21,8 +21,9 @@ export const ConfirmMarkProjectAsCompleteDialog = ({ onConfirm }: Props) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" size="default">
-          <Check className="mr-2 w-5 h-5" /> Mark as Complete
+        <Button variant="default" size="default" className="gap-2">
+          <Check className=" w-5 h-5" />
+          <span className="hidden sm:inline">Mark as Complete</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

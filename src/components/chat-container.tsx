@@ -1,16 +1,17 @@
 "use client";
 
 import { useChat, type Message } from "ai/react";
+import { nanoid } from "nanoid";
+import { usePathname } from "next/navigation";
+import React, { Fragment } from "react";
+import { toast } from "sonner";
 
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { insertChatAction } from "@/data/user/chats";
 import { useSAToastMutation } from "@/hooks/useSAToastMutation";
 import { cn } from "@/lib/utils";
-import { nanoid } from "nanoid";
-import { usePathname } from "next/navigation";
-import { toast } from "sonner";
 import { ChatList } from "./chat-list";
 import { ChatPanel } from "./chat-panel";
-import { ChatScrollAnchor } from "./chat-scroll-anchor";
 import { EmptyScreen } from "./empty-screen";
 
 export interface ChatProps extends React.ComponentProps<"div"> {
@@ -39,15 +40,7 @@ export function ChatContainer({
     },
     {
       errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to delete organization ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return "Failed to delete organization";
-        }
+        return `Failed to save chat: ${String(error)}`;
       },
     },
   );
@@ -58,9 +51,7 @@ export function ChatContainer({
     useChat({
       initialMessages,
       id,
-      body: {
-        id,
-      },
+      body: { id },
       onFinish({ content }) {
         messages.push(
           {
@@ -93,28 +84,34 @@ export function ChatContainer({
     });
 
   return (
-    <>
-      <div className={cn("pb-[200px] pt-4 md:pt-10", className)}>
+    <Card
+      className={cn(
+        "flex flex-col h-[calc(100svh-240px)] md:h-[calc(100svh-200px)]",
+        className,
+      )}
+    >
+      <CardContent className="flex-grow p-4 overflow-hidden relative h-[calc(100%-250px)]">
         {messages.length ? (
-          <>
-            <ChatList messages={messages} />
-            <ChatScrollAnchor trackVisibility={isLoading} />
-          </>
+          <Fragment>
+            <ChatList isLoading={isLoading} messages={messages} />
+          </Fragment>
         ) : (
           <EmptyScreen setInput={setInput} />
         )}
-      </div>
-      <ChatPanel
-        id={id}
-        isLoading={isLoading}
-        stop={stop}
-        append={append}
-        projectSlug={project.slug}
-        reload={reload}
-        messages={messages}
-        input={input}
-        setInput={setInput}
-      />
-    </>
+      </CardContent>
+      <CardFooter className="w-full">
+        <ChatPanel
+          id={id}
+          isLoading={isLoading}
+          stop={stop}
+          append={append}
+          projectSlug={project.slug}
+          reload={reload}
+          messages={messages}
+          input={input}
+          setInput={setInput}
+        />
+      </CardFooter>
+    </Card>
   );
 }

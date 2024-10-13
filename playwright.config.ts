@@ -40,18 +40,17 @@ const config: PlaywrightTestConfig = {
 
     actionTimeout: 60 * 1000,
 
-
     // All available context options: https://playwright.dev/docs/api/class-browser#browser-new-context
     // contextOptions: {
     //   ignoreHTTPSErrors: true,
     // },
   },
+  fullyParallel: true,
 
   projects: [
     {
       name: "with-auth",
       testMatch: "_setups/user.setup.ts",
-
     },
     {
       name: "with-app-admin",
@@ -76,7 +75,6 @@ const config: PlaywrightTestConfig = {
       testMatch: "user/**/*.spec.ts",
       retries: 0,
       dependencies: ["with-auth"],
-
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/user.json",
@@ -98,7 +96,6 @@ const config: PlaywrightTestConfig = {
         ...devices["Desktop Chrome"],
       },
     },
-
   ],
   globalSetup: "./playwright/global-setup.ts",
 };

@@ -4,6 +4,8 @@ import remarkMath from "remark-math";
 
 import { ChatMessageActions } from "@/components/chat-message-actions";
 import { MemoizedReactMarkdown } from "@/components/markdown";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
 import { CodeBlock } from "./ui/codeblock";
@@ -15,52 +17,62 @@ export interface ChatMessageProps {
 export function ChatMessage({ message, ...props }: ChatMessageProps) {
   return (
     <div
-      className={cn("group relative mb-4 flex items-start md:-ml-12")}
+      className={cn(
+        "flex items-end",
+        message.role === "user" ? "justify-end" : "justify-start",
+      )}
       {...props}
     >
-      <div
+      {message.role !== "user" && (
+        <Avatar className="w-8 h-8 mr-2">
+          <AvatarFallback>
+            <Bot className="h-4 w-4" />
+          </AvatarFallback>
+          <AvatarImage src="/assistant-avatar.png" />
+        </Avatar>
+      )}
+      <Card
         className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border shadow",
-          message.role === "user"
-            ? "bg-background"
-            : "bg-primary text-primary-foreground",
+          "max-w-[80%] overflow-hidden",
+          message.role === "user" ? "" : "bg-muted",
         )}
       >
-        {message.role === "user" ? <User /> : <Bot />}
-      </div>
-      <div className="ml-4 flex-1 space-y-2 overflow-hidden px-1">
-        <MemoizedReactMarkdown
-          className="prose break-words dark:prose-invert prose-p:leading-relaxed prose-pre:p-0"
-          remarkPlugins={[remarkGfm, remarkMath]}
-          components={{
-            p({ children }) {
-              return <p className="mb-2 last:mb-0">{children}</p>;
-            },
-            // @ts-expect-error - `node` is not used
-            code({ node, inline, className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
+        <CardContent className="p-3">
+          <div className="prose dark:prose-invert">
+            <MemoizedReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              components={{
+                p({ children }) {
+                  return <p className="mb-2 last:mb-0">{children}</p>;
+                },
+                code({ node, className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
 
-              if (inline) {
-                return (
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                );
-              }
-
-              return (
-                <CodeBlock
-                  key={Math.random()}
-                  language={match?.[1] || ""}
-                  value={String(children).replace(/\n$/, "")}
-                  {...props}
-                />
-              );
-            },
-          }}
-        >
-          {message.content}
-        </MemoizedReactMarkdown>
+                  return (
+                    <CodeBlock
+                      key={Math.random()}
+                      language={match?.[1] || ""}
+                      value={String(children).replace(/\n$/, "")}
+                      {...props}
+                    />
+                  );
+                },
+              }}
+            >
+              {message.content}
+            </MemoizedReactMarkdown>
+          </div>
+        </CardContent>
+      </Card>
+      {message.role === "user" && (
+        <Avatar className="w-8 h-8 ml-2">
+          <AvatarFallback>
+            <User className="h-4 w-4" />
+          </AvatarFallback>
+          <AvatarImage src="/user-avatar.png" />
+        </Avatar>
+      )}
+      <div className="relative">
         <ChatMessageActions message={message} />
       </div>
     </div>

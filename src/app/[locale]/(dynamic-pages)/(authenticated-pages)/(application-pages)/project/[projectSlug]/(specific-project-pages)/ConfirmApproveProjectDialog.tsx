@@ -21,8 +21,9 @@ export const ConfirmApproveProjectDialog = ({ onConfirm }: Props) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" size="default">
-          <Check className="mr-2 h-5 w-5" /> Approve Project
+        <Button variant="default" size="default" className="gap-2">
+          <Check className=" h-5 w-5" />
+          <span className="hidden sm:inline">Approve Project</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

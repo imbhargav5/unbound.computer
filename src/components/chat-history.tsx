@@ -1,96 +1,85 @@
-import { Link } from "@/components/intl-link";
+import { formatRelative } from "date-fns";
+import { MessageCircleIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-import { cn } from "@/lib/utils";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
-import { PlusIcon } from "@radix-ui/react-icons";
-
-import { getChats, getChatsHistory } from "@/data/user/chats";
+import { getChatsHistory } from "@/data/user/chats";
 import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
-import type { Message } from "ai";
-import { formatRelative, subDays } from "date-fns";
-import { HomeIcon } from "lucide-react";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 
-async function ChatList({ userId }: { userId: string }) {
-  const chats = await getChats(userId);
-  return (
-    <div className="flex flex-col flex-1 px-4 space-y-4 overflow-auto">
-      {chats.map((chat) => {
-        const { payload } = chat;
-        const messages =
-          typeof payload === "object" &&
-          payload !== null &&
-          "messages" in payload
-            ? payload.messages
-            : [];
-        const assertedMessages = messages as unknown as Message[];
-        const title =
-          assertedMessages.length > 0
-            ? assertedMessages[0].content
-            : "No title";
+const truncateId = (id: string) => {
+  if (id.length > 8) {
+    return `${id.slice(0, 4)}...${id.slice(-4)}`;
+  }
+  return id;
+};
 
-        return (
-          <Link
-            key={chat.id}
-            href={`/chats/${chat.id}`}
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "h-10 truncate text-ellipsis overflow-hidden block w-full justify-start bg-zinc-50 px-4 shadow-none transition-colors hover:bg-zinc-200/40 dark:bg-zinc-900 dark:hover:bg-zinc-300/10",
-            )}
-          >
-            {title}
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
-export async function ChatHistory({ projectId }: { projectId: string }) {
+export async function ChatHistory({ projectSlug }: { projectSlug: string }) {
   const user = await serverGetLoggedInUser();
-  const project = await getCachedProjectBySlug(projectId);
+  const project = await getCachedProjectBySlug(projectSlug);
   const userId = user.id;
-  const chatsHistory = await getChatsHistory(projectId, userId);
-  return (
-    <div className="flex flex-col h-full">
-      <div className="px-2 my-4">
-        <Link
-          href="/dashboard"
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-10 w-full justify-start bg-zinc-50 px-4 shadow-none transition-colors hover:bg-zinc-200/40 dark:bg-zinc-900 dark:hover:bg-zinc-300/10",
-          )}
-        >
-          <HomeIcon className="-translate-x-2 stroke-2" />
-          Home
-        </Link>
-      </div>
-      <div className="px-2 my-4">
-        <Link
-          href={`/project/${project.slug}`}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-10 w-full justify-start bg-zinc-50 px-4 shadow-none transition-colors hover:bg-zinc-200/40 dark:bg-zinc-900 dark:hover:bg-zinc-300/10",
-          )}
-        >
-          <PlusIcon className="-translate-x-2 stroke-2" />
-          New Chat
-        </Link>
-      </div>
+  const chatsHistory = await getChatsHistory(project.id, userId);
 
-      <div className="flex flex-col gap-2">
-        {chatsHistory.map((chat, i) => (
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle>Chat History</CardTitle>
+        <Button variant="default" size="sm" asChild>
           <Link
-            key={chat.id}
-            href={`/project/${project.slug}/chats/${chat.id}`}
-            className="p-2 w-1/3 bg-background rounded-lg hover:bg-backgrou/60"
+            href={`/project/${project.slug}/chats/new`}
+            className="flex items-center gap-2"
           >
-            Chat {chat.id} -{" "}
-            {formatRelative(subDays(new Date(), 3), new Date(chat.created_at))}
+            <PlusIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">New Chat</span>
           </Link>
-        ))}
-      </div>
-    </div>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>Chat</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {chatsHistory.map((chat, index) => (
+              <TableRow key={chat.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link href={`/project/${project.slug}/chats/${chat.id}`}>
+                      <MessageCircleIcon className="mr-2 h-4 w-4" />
+                      <span className="md:hidden">
+                        Chat {truncateId(chat.id)}
+                      </span>
+                      <span className="hidden md:inline">Chat {chat.id}</span>
+                    </Link>
+                  </Button>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatRelative(new Date(chat.created_at), new Date())}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
