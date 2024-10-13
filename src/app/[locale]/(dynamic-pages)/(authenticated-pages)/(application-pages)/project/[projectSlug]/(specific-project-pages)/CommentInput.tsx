@@ -24,14 +24,12 @@ type InFlightComment = {
   id: string | number;
 };
 
-type CreateProjectCommentActionResult = Awaited<
-  ReturnType<typeof createProjectCommentAction>
->;
-
 export const CommentInput = ({
   projectId,
+  projectSlug,
 }: {
   projectId: string;
+  projectSlug: string;
 }): JSX.Element => {
   const [commentsInFlight, addCommentToFlight] = useOptimistic<
     InFlightComment[],
@@ -77,7 +75,7 @@ export const CommentInput = ({
     <>
       <form
         onSubmit={handleSubmit((data) => {
-          addComment({ projectId, text: data.text });
+          addComment({ projectId, projectSlug, text: data.text });
           setValue("text", "");
         })}
       >

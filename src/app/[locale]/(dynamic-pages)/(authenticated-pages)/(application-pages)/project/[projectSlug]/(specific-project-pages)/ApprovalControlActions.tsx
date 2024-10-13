@@ -20,6 +20,7 @@ type ProjectStatus = Enum<"project_status">;
 
 interface ApprovalControlActionsProps {
   projectId: string;
+  projectSlug: string;
   canManage: boolean;
   canOnlyEdit: boolean;
   projectStatus: ProjectStatus;
@@ -27,6 +28,7 @@ interface ApprovalControlActionsProps {
 
 export function ApprovalControlActions({
   projectId,
+  projectSlug,
   canManage,
   canOnlyEdit,
   projectStatus,
@@ -122,11 +124,13 @@ export function ApprovalControlActions({
       {projectStatus === "draft" ? (
         canManage ? (
           <ConfirmMarkProjectAsCompleteDialog
-            onConfirm={() => markProjectAsCompleted({ projectId })}
+            onConfirm={() => markProjectAsCompleted({ projectId, projectSlug })}
           />
         ) : canOnlyEdit ? (
           <SubmitProjectForApprovalDialog
-            onSubmit={() => submitProjectForApproval({ projectId })}
+            onSubmit={() =>
+              submitProjectForApproval({ projectId, projectSlug })
+            }
           />
         ) : null
       ) : null}
@@ -136,16 +140,16 @@ export function ApprovalControlActions({
       {canManage && projectStatus === "pending_approval" && (
         <>
           <ConfirmApproveProjectDialog
-            onConfirm={() => approveProject({ projectId })}
+            onConfirm={() => approveProject({ projectId, projectSlug })}
           />
           <ConfirmRejectProjectDialog
-            onConfirm={() => rejectProject({ projectId })}
+            onConfirm={() => rejectProject({ projectId, projectSlug })}
           />
         </>
       )}
       {projectStatus === "approved" && canManage ? (
         <ConfirmMarkProjectAsCompleteDialog
-          onConfirm={() => markProjectAsCompleted({ projectId })}
+          onConfirm={() => markProjectAsCompleted({ projectId, projectSlug })}
         />
       ) : null}
     </>

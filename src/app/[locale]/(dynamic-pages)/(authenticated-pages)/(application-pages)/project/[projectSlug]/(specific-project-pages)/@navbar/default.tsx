@@ -22,7 +22,7 @@ export default async function ProjectNavbar({ params }: { params: unknown }) {
   const project = await getCachedProjectBySlug(projectSlug);
   return (
     <div className="flex items-center">
-      <Link href={`/project/${project.id}`}>
+      <Link href={`/project/${project.slug}`}>
         <span className="flex items-center space-x-2">
           <Title title={project.name} />
         </span>

@@ -22,7 +22,7 @@ async function ProjectPageHeading({
         <Suspense>
           <div className="flex space-x-2">
             <ApprovalControls projectSlug={projectSlug} />
-            <CommentsSheet projectId={project.id} />
+            <CommentsSheet projectId={project.id} projectSlug={projectSlug} />
           </div>
         </Suspense>
       }

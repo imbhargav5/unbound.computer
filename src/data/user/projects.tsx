@@ -94,43 +94,50 @@ export const getProjectComments = async (
 };
 const createProjectCommentSchema = z.object({
   projectId: z.string(),
+  projectSlug: z.string(),
   text: z.string(),
 });
 
 export const createProjectCommentAction = authActionClient
   .schema(createProjectCommentSchema)
-  .action(async ({ parsedInput: { projectId, text }, ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+  .action(
+    async ({
+      parsedInput: { projectId, projectSlug, text },
+      ctx: { userId },
+    }) => {
+      const supabaseClient = createSupabaseUserServerActionClient();
 
-    const { data, error } = await supabaseClient
-      .from("project_comments")
-      .insert({ project_id: projectId, text, user_id: userId })
-      .select("*, user_profiles(*)")
-      .single();
+      const { data, error } = await supabaseClient
+        .from("project_comments")
+        .insert({ project_id: projectId, text, user_id: userId })
+        .select("*, user_profiles(*)")
+        .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    revalidatePath(`/project/${projectId}`, "page");
+      revalidatePath(`/project/${projectSlug}`, "page");
 
-    return {
-      id: data.id,
-      commentList: (
-        <Suspense>
-          <CommentList comments={[normalizeComment(data)]} />
-        </Suspense>
-      ),
-    };
-  });
+      return {
+        id: data.id,
+        commentList: (
+          <Suspense>
+            <CommentList comments={[normalizeComment(data)]} />
+          </Suspense>
+        ),
+      };
+    },
+  );
 
 const approveProjectSchema = z.object({
   projectId: z.string().uuid(),
+  projectSlug: z.string(),
 });
 
 export const approveProjectAction = authActionClient
   .schema(approveProjectSchema)
-  .action(async ({ parsedInput: { projectId } }) => {
+  .action(async ({ parsedInput: { projectId, projectSlug } }) => {
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
@@ -144,17 +151,18 @@ export const approveProjectAction = authActionClient
       throw new Error(error.message);
     }
 
-    revalidatePath(`/project/${projectId}`, "layout");
+    revalidatePath(`/project/${projectSlug}`, "layout");
     return data;
   });
 
 const rejectProjectSchema = z.object({
   projectId: z.string().uuid(),
+  projectSlug: z.string(),
 });
 
 export const rejectProjectAction = authActionClient
   .schema(rejectProjectSchema)
-  .action(async ({ parsedInput: { projectId } }) => {
+  .action(async ({ parsedInput: { projectId, projectSlug } }) => {
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
@@ -168,16 +176,17 @@ export const rejectProjectAction = authActionClient
       throw new Error(error.message);
     }
 
-    revalidatePath(`/project/${projectId}`, "layout");
+    revalidatePath(`/project/${projectSlug}`, "layout");
     return data;
   });
 const submitProjectForApprovalSchema = z.object({
   projectId: z.string().uuid(),
+  projectSlug: z.string(),
 });
 
 export const submitProjectForApprovalAction = authActionClient
   .schema(submitProjectForApprovalSchema)
-  .action(async ({ parsedInput: { projectId } }) => {
+  .action(async ({ parsedInput: { projectId, projectSlug } }) => {
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
@@ -191,17 +200,18 @@ export const submitProjectForApprovalAction = authActionClient
       throw new Error(error.message);
     }
 
-    revalidatePath(`/project/${projectId}`, "layout");
+    revalidatePath(`/project/${projectSlug}`, "layout");
     return data;
   });
 
 const markProjectAsCompletedSchema = z.object({
   projectId: z.string().uuid(),
+  projectSlug: z.string(),
 });
 
 export const markProjectAsCompletedAction = authActionClient
   .schema(markProjectAsCompletedSchema)
-  .action(async ({ parsedInput: { projectId } }) => {
+  .action(async ({ parsedInput: { projectId, projectSlug } }) => {
     const supabaseClient = createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
@@ -215,7 +225,7 @@ export const markProjectAsCompletedAction = authActionClient
       throw new Error(error.message);
     }
 
-    revalidatePath(`/project/${projectId}`, "layout");
+    revalidatePath(`/project/${projectSlug}`, "layout");
     return data;
   });
 export const getProjects = async ({

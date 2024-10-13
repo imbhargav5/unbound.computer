@@ -1,17 +1,17 @@
 "use server";
 
 import {
-  getLoggedInUserWorkspaceRole,
-  getSlimWorkspaceById,
+  getSlimWorkspaceById
 } from "@/data/user/workspaces";
 import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
+import { getCachedLoggedInUserWorkspaceRole } from "@/rsc-data/user/workspaces";
 import { ApprovalControlActions } from "./ApprovalControlActions";
 
 async function fetchData(projectSlug: string) {
   const projectByIdData = await getCachedProjectBySlug(projectSlug);
   const [workspaceData, workspaceRole] = await Promise.all([
     getSlimWorkspaceById(projectByIdData.workspace_id),
-    getLoggedInUserWorkspaceRole(projectByIdData.workspace_id),
+    getCachedLoggedInUserWorkspaceRole(projectByIdData.workspace_id),
   ]);
 
   return {
@@ -36,6 +36,7 @@ export async function ApprovalControls({
   return (
     <ApprovalControlActions
       projectId={projectId}
+      projectSlug={projectSlug}
       canManage={canManage}
       canOnlyEdit={canOnlyEdit}
       projectStatus={data.projectByIdData.project_status}
