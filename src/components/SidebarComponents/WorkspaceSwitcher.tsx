@@ -15,6 +15,7 @@ import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { motion } from "framer-motion";
 import { Check, ChevronsUpDown, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export function WorkspaceSwitcher({
   slimWorkspaces,
@@ -43,7 +44,7 @@ export function WorkspaceSwitcher({
             whileTap={{ scale: 0.98 }}
           >
             <UsersRound className="h-4 w-4 shrink-0" />
-            <span className="text-sm text-muted-foreground truncate flex-grow">
+            <span className="text-sm text-muted-foreground truncate flex-grow capitalize">
               {currentWorkspace?.name ?? "Select Workspace"}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-50 ml-2 transition-opacity" />
@@ -57,11 +58,17 @@ export function WorkspaceSwitcher({
           <DropdownMenuItem
             key={workspace.id}
             onSelect={() => {
-              router.push(getWorkspaceSubPath(workspace, "/home"));
+              if (workspace.id !== currentWorkspaceId) {
+                toast.success(`Navigating to ${workspace.name} workspace.`, {
+                  duration: 1000,
+                  position: "top-center",
+                });
+                router.push(getWorkspaceSubPath(workspace, "/home"));
+              }
             }}
           >
             <motion.div
-              className="flex items-center justify-between w-full"
+              className="flex items-center justify-between w-full capitalize"
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.15 }}

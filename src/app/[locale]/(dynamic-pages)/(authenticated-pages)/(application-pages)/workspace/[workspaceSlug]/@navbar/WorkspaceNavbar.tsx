@@ -1,13 +1,11 @@
 // https://github.com/vercel/next.js/issues/58272
 import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { WorkspaceWithMembershipType } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
-import { UsersRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
@@ -33,12 +31,8 @@ async function Title({
   workspace: WorkspaceWithMembershipType;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <UsersRound className="w-4 h-4" />
-      <T.P>{workspace.name}</T.P>
-      <Badge variant="outline" className="lg:inline-flex hidden">
-        Organization
-      </Badge>
+    <div className="capitalize flex items-center gap-2">
+      <T.P> {workspace.name} Workspace</T.P>
     </div>
   );
 }
