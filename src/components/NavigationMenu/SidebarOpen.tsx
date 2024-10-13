@@ -61,7 +61,7 @@ export function SidebarOpen() {
       </div>
       {/* xs to md */}
       <div className="flex lg:hidden items-center w-fit">
-        <div className="flex items-center gap-2 w-20">
+        <div className="flex items-center gap-2 ">
           <div
             className="group cursor-pointer border flex items-center p-1.5 h-[30px] hover:bg-neutral-100 rounded-md"
             onClick={openSidebar}

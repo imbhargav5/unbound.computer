@@ -49,7 +49,7 @@ export async function WorkspaceLayout({
           <WorkspaceTestIds workspaceSlug={workspaceSlug} />
         </Suspense>
         <InternalNavbar>
-          <div className="hidden lg:flex w-full justify-between items-center">
+          <div className="lg:flex w-full justify-between items-center">
             {navbar}
           </div>
         </InternalNavbar>

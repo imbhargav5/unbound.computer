@@ -46,7 +46,7 @@ export default async function ProjectLayout({
 
   return (
     <ApplicationLayoutShell sidebar={sidebar}>
-      <div className="">
+      <div>
         <InternalNavbar>
           <div className="flex w-full justify-between items-center">
             <Suspense>{navbar}</Suspense>
