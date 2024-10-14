@@ -1,15 +1,13 @@
 "use client";
-import { convertAndUploadOpenAiImageAction } from "@/data/user/chats";
+import { generateImageAction } from "@/data/user/dalle";
 import { updateUserProfilePictureAction } from "@/data/user/user";
-import type { SAPayload } from "@/types";
+import { GenerateImageSchemaType } from "@/utils/zod-schemas/dalle";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
 import { CircleUserRound, Copy, Loader } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import Image from "next/image";
 import { useRef, useState } from "react";
-import { Controller, useForm, type SubmitHandler } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "./ui/button";
@@ -23,8 +21,6 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Skeleton } from "./ui/skeleton";
-
-type OpenAIImageList = { created: string; data: { b64_json: string }[] };
 
 const generateImageSchema = z.object({
   prompt: z.string().min(1, { message: "Prompt is required" }),
@@ -56,59 +52,37 @@ export const DallE = () => {
       },
     });
 
-  const { mutate: generateImageMutation, isLoading } = useMutation(
-    async (data: {
-      prompt: string;
-      size: string;
-    }): Promise<SAPayload<OpenAIImageList>> => {
-      try {
-        const { data: response } = await axios.post("/api/generate-image", {
-          prompt: data.prompt,
-          size: data.size,
-        });
-        return {
-          status: "success",
-          data: response as unknown as OpenAIImageList,
-        };
-      } catch (error) {
-        return {
-          status: "error",
-          message: error.message,
-        };
-      }
-    },
+  const { execute: generateImage, status: generateImageStatus } = useAction(
+    generateImageAction,
     {
-      onSuccess: async (response) => {
-        if (response.status === "success") {
-          const openAIResponse = response.data as unknown as OpenAIImageList;
-          const b64Data = openAIResponse.data[0].b64_json;
-
-          try {
-            const image = await convertAndUploadOpenAiImageAction(b64Data);
-            if (image.status === "success" && image.data) {
-              setImages([image.data]);
-            }
-          } catch (error) {
-            console.error("Error uploading image:", error);
-          }
+      onExecute: () => {
+        toastRef.current = toast.loading("Generating image...");
+      },
+      onSuccess: async ({ data }) => {
+        toast.success("Image generated successfully", {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+        if (data) {
+          setImages((images) => [...images, ...data]);
         }
+      },
+      onError: ({ error }) => {
+        const errorMessage = error.serverError ?? "Error generating image";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
       },
     },
   );
-
-  const onSubmit: SubmitHandler<{
-    prompt: string;
-    size: string;
-  }> = (data) => {
-    generateImageMutation(data);
-  };
 
   const {
     register,
     handleSubmit,
     control,
     formState: { errors },
-  } = useForm({
+  } = useForm<GenerateImageSchemaType>({
     defaultValues: {
       prompt: "",
       size: "512x512",
@@ -122,7 +96,7 @@ export const DallE = () => {
         <div className="text-red-500">{errors.prompt.message}</div>
       )}
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(generateImage)}
         className="grid grid-cols-8 gap-4 max-w-2xl items-end"
       >
         <div className="col-span-4">
@@ -158,7 +132,7 @@ export const DallE = () => {
         </Button>
       </form>
       {!images.length && <div>Your images will be rendered here!</div>}
-      {!isLoading ? (
+      {generateImageStatus !== "executing" ? (
         <div className="flex flex-row gap-4">
           {images.map((image) => (
             <div key={image} className="flex flex-col gap-4">

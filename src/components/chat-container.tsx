@@ -2,13 +2,13 @@
 
 import { useChat, type Message } from "ai/react";
 import { nanoid } from "nanoid";
+import { useAction } from "next-safe-action/hooks";
 import { usePathname } from "next/navigation";
 import React, { Fragment } from "react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { insertChatAction } from "@/data/user/chats";
-import { useSAToastMutation } from "@/hooks/useSAToastMutation";
+import { upsertChatAction } from "@/data/user/chats";
 import { cn } from "@/lib/utils";
 import { ChatList } from "./chat-list";
 import { ChatPanel } from "./chat-panel";
@@ -26,26 +26,23 @@ export function ChatContainer({
   className,
   project,
 }: ChatProps) {
-  const { mutate } = useSAToastMutation(
-    async ({
-      chatId,
-      projectId,
-      content,
-    }: {
-      chatId: string;
-      projectId: string;
-      content: Message[];
-    }) => {
-      return await insertChatAction(projectId, content, chatId);
-    },
-    {
-      errorMessage(error) {
-        return `Failed to save chat: ${String(error)}`;
-      },
-    },
-  );
-
   const pathname = usePathname();
+  const toastRef = React.useRef<string | number | undefined>(undefined);
+
+  const { execute: saveChat } = useAction(upsertChatAction, {
+    onExecute: () => {
+      toastRef.current = toast.loading("Saving chat...");
+    },
+    onSuccess: () => {
+      toast.success("Chat saved successfully", { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+    onError: ({ error }) => {
+      const errorMessage = error.serverError ?? "Failed to save chat";
+      toast.error(errorMessage, { id: toastRef.current });
+      toastRef.current = undefined;
+    },
+  });
 
   const { messages, append, reload, stop, isLoading, input, setInput } =
     useChat({
@@ -70,10 +67,11 @@ export function ChatContainer({
           const chatPath = `/project/${project.slug}/chats/${id}`;
           window.history.replaceState(null, "", chatPath);
         }
-        mutate({
+
+        saveChat({
           chatId: id ?? nanoid(),
           projectId: project.id,
-          content: messages,
+          payload: messages,
         });
       },
       onResponse(response) {

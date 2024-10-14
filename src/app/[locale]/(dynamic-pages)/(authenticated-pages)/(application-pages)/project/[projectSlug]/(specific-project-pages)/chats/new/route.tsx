@@ -1,4 +1,4 @@
-import { insertChat } from "@/data/user/chats";
+import { insertChatAction } from "@/data/user/chats";
 import { getSlimProjectBySlug } from "@/data/user/projects";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { nanoid } from "nanoid";
@@ -12,7 +12,7 @@ export async function GET(
   const project = await getSlimProjectBySlug(projectSlug);
   const user = await serverGetLoggedInUser();
   const newChatId = nanoid();
-  await insertChat({
+  await insertChatAction({
     id: newChatId,
     projectId: project.id,
     userId: user.id,
