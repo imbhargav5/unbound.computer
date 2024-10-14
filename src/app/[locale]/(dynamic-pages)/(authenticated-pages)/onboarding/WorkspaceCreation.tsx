@@ -82,7 +82,6 @@ export function WorkspaceCreation({ onSuccess }: WorkspaceCreationProps) {
             {...register("name")}
             placeholder="Enter workspace name"
             onChange={(e) => {
-              setValue("name", e.target.value, { shouldValidate: true });
               setValue("slug", generateWorkspaceSlug(e.target.value), {
                 shouldValidate: true,
               });
