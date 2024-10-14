@@ -233,7 +233,7 @@ export const updateUserProfilePictureAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
-
+    revalidatePath("/", "layout");
     return data;
   });
 
