@@ -15,6 +15,7 @@ import { updateSession } from "./supabase-clients/middleware";
 import { createSupabaseMiddlewareClient } from "./supabase-clients/user/createSupabaseMiddlewareClient";
 import { toSiteURL } from "./utils/helpers";
 import { isSupabaseUserAppAdmin } from "./utils/isSupabaseUserAppAdmin";
+import { middlewareLogger } from "./utils/logger";
 import { authUserMetadataSchema } from "./utils/zod-schemas/authUserMetadata";
 
 const onboardingPaths = [`/onboarding/(.*)?`];
@@ -109,7 +110,10 @@ const middlewares: MiddlewareConfig[] = [
   {
     matcher: ["/", ...allSubPathsWithoutLocale],
     middleware: async (request) => {
-      console.log("middleware without locale paths", request.nextUrl.pathname);
+      middlewareLogger.log(
+        "middleware without locale paths",
+        request.nextUrl.pathname,
+      );
       // redirect to /en if the locale is not /en or /
       const currentLocale = request.cookies.get("NEXT_LOCALE")?.value;
       const searchParams = request.nextUrl.searchParams;
@@ -143,7 +147,7 @@ const middlewares: MiddlewareConfig[] = [
   {
     matcher: allSubPathsWithLocale,
     middleware: async (request) => {
-      console.log("all i18n paths", request.nextUrl.pathname);
+      middlewareLogger.log("all i18n paths", request.nextUrl.pathname);
       const localeFromPath = request.nextUrl.pathname.split("/")[1];
 
       // Step 2: Create and call the next-intl middleware (example)
@@ -152,7 +156,7 @@ const middlewares: MiddlewareConfig[] = [
         defaultLocale: DEFAULT_LOCALE,
       });
       const response = handleI18nRouting(request);
-      console.log(localeFromPath);
+      middlewareLogger.log("Locale from path:", localeFromPath);
       if (isValidLocale(localeFromPath)) {
         // save cookie
         response.cookies.set("NEXT_LOCALE", localeFromPath);
@@ -166,7 +170,7 @@ const middlewares: MiddlewareConfig[] = [
     // protected routes
     matcher: [...onboardingPathsWithLocale, ...protectedPagesWithLocale],
     middleware: async (req) => {
-      console.log(
+      middlewareLogger.log(
         "middleware protected paths with locale",
         req.nextUrl.pathname,
       );
@@ -184,7 +188,7 @@ const middlewares: MiddlewareConfig[] = [
   {
     matcher: protectedPagesWithLocale,
     middleware: async (req) => {
-      console.log(
+      middlewareLogger.log(
         "middleware protected paths with locale protected pages",
         req.nextUrl.pathname,
       );
@@ -203,7 +207,7 @@ const middlewares: MiddlewareConfig[] = [
     // match /app_admin and /app_admin/ and all subpaths
     matcher: appAdminPathsWithLocale,
     middleware: async (req) => {
-      console.log(
+      middlewareLogger.log(
         "middleware app admin paths with locale",
         req.nextUrl.pathname,
       );

@@ -101,8 +101,6 @@ export async function UserList({
     );
   } else {
     if (usersActionResult?.serverError) {
-      console.log("***************");
-      console.log(usersActionResult.serverError);
       return <div>{usersActionResult.serverError}</div>;
     } else {
       console.error(usersActionResult);

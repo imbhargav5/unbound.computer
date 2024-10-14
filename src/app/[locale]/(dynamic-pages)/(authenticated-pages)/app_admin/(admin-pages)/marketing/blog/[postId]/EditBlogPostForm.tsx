@@ -136,7 +136,6 @@ export function EditBlogPostForm({ post }: EditBlogPostFormProps) {
   });
 
   const onSubmit = async ({ json_content, seo_data, ...data }: FormData) => {
-    console.log("json_content", json_content);
     await updateMutation.execute({
       ...data,
       stringified_json_content: JSON.stringify(json_content ?? {}),

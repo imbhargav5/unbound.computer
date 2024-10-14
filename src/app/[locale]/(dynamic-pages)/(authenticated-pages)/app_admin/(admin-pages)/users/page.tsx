@@ -45,14 +45,8 @@ export default async function AdminUsersListPage({
     );
   } else {
     if (totalPagesActionResult?.serverError) {
-      console.error(totalPagesActionResult.serverError);
       return <div>{totalPagesActionResult.serverError}</div>;
     } else {
-      console.log("***************");
-      console.log(totalPagesActionResult?.serverError);
-      console.log(totalPagesActionResult?.bindArgsValidationErrors);
-      console.log(totalPagesActionResult?.validationErrors);
-
       return <div>Failed to load total pages</div>;
     }
   }

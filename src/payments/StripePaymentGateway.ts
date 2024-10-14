@@ -528,7 +528,7 @@ export class StripePaymentGateway implements PaymentGateway {
       typeof subscription.customer === "string"
         ? subscription.customer
         : typeof subscription.customer === "object" &&
-            "id" in subscription.customer
+          "id" in subscription.customer
           ? subscription.customer.id
           : null;
     if (!stripeCustomerId) {
@@ -546,7 +546,7 @@ export class StripePaymentGateway implements PaymentGateway {
         typeof subscription.customer === "string"
           ? subscription.customer
           : typeof subscription.customer === "object" &&
-              "email" in subscription.customer
+            "email" in subscription.customer
             ? subscription.customer.email
             : null;
       if (!billingEmail) {
@@ -929,12 +929,9 @@ export class StripePaymentGateway implements PaymentGateway {
       options?: CheckoutSessionOptions;
     }): Promise<CheckoutSessionData> => {
       let customer = await this.util.getCustomerByWorkspaceId(workspaceId);
-      console.log("already existing customer", customer);
       if (!customer) {
         customer = await this.util.createCustomerForWorkspace(workspaceId);
       }
-
-      console.log(customer);
 
       const { freeTrialDays } = options ?? {};
       const price = await this.db.getPrice(priceId);

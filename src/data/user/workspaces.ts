@@ -194,8 +194,6 @@ export const createWorkspaceAction = authActionClient
           throw new Error(projectError.message);
         }
 
-        console.log("Creating default workspace for user", userId);
-
         // Set default workspace for the user
         const { error: updateError } = await supabaseClient
           .from("user_settings")
