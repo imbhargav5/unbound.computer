@@ -2,6 +2,7 @@
 import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { generateImageSchema } from "@/utils/zod-schemas/dalle";
+import { partition } from "lodash";
 import { nanoid } from "nanoid";
 import OpenAI from "openai";
 import slugify from "slugify";
@@ -44,11 +45,19 @@ export const generateImageAction = authActionClient
         ),
       );
 
-      return (await uploadActionResults)
-        .filter((result) => result.status === "fulfilled")
-        .map((result) => result.value);
+      const [successfulUploads, failedUploads] = partition(
+        await uploadActionResults,
+        (result) => result.status === "fulfilled",
+      );
+
+      if (failedUploads.length > 0) {
+        throw new Error("failed to upload images");
+      }
+
+      return successfulUploads.map((result) => result.value);
     } catch (error) {
       if (error instanceof Error) {
+        console.log(error);
         throw new Error(`Failed to generate image: ${error.message}`);
       }
       throw new Error("An unknown error occurred while generating the image");
@@ -82,6 +91,8 @@ export const convertAndUploadOpenAiImageAction = authActionClient
     if (uploadResponse && "data" in uploadResponse) {
       return uploadResponse.data;
     }
+
+    console.log(uploadResponse);
 
     throw new Error("upload images failed");
   });
@@ -117,7 +128,7 @@ export const uploadOpenAiImageAction = authActionClient
       const userImagesPath = `${userId}/images/${slugifiedFilename}`;
 
       const { data, error } = await supabaseAdminClient.storage
-        .from("user-images")
+        .from("public-user-assets")
         .upload(userImagesPath, file, fileOptions);
 
       if (error) {
@@ -129,7 +140,7 @@ export const uploadOpenAiImageAction = authActionClient
       const filePath = path.split(",")[0];
       const supabaseFileUrl = urlJoin(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
-        "/storage/v1/object/public/user-images",
+        "/storage/v1/object/public/public-user-assets",
         filePath,
       );
 
