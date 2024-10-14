@@ -109,7 +109,10 @@ export const DallE = () => {
               label="Image Prompt"
               control={control}
               name="prompt"
-              placeholder="E.g., A serene landscape with mountains and a lake at sunset"
+              inputProps={{
+                placeholder:
+                  "E.g., A serene landscape with mountains and a lake at sunset",
+              }}
             />
 
             <FormSelect
