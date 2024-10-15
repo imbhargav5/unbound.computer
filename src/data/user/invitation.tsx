@@ -3,6 +3,7 @@ import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
+import { WorkspaceInvitation } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
@@ -283,13 +284,15 @@ export const declineInvitationAction = authActionClient
     redirect("/dashboard");
   });
 
-export async function getPendingInvitationsOfUser() {
+export async function getPendingInvitationsOfUser(): Promise<
+  WorkspaceInvitation[]
+> {
   const supabaseClient = createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUser();
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
     .select(
-      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*), workspace:workspaces(*)",
+      "*, inviter:user_profiles!inviter_user_id(*), invitee:user_profiles!invitee_user_id(*)",
     )
     .eq("invitee_user_id", user.id)
     .eq("status", "active");
@@ -302,9 +305,22 @@ export async function getPendingInvitationsOfUser() {
     const workspace = await getInvitationWorkspaceDetails(
       invitation.workspace_id,
     );
+    const inviter = Array.isArray(invitation.inviter)
+      ? invitation.inviter[0]
+      : invitation.inviter;
+
+    const invitee = Array.isArray(invitation.invitee)
+      ? invitation.invitee[0]
+      : invitation.invitee;
+
+    if (!workspace || !inviter || !invitee) {
+      throw new Error("Organization or Inviter or Invitee not found");
+    }
     return {
       ...invitation,
       workspace,
+      inviter,
+      invitee,
     };
   });
 
@@ -382,4 +398,38 @@ export const revokeInvitationAction = authActionClient
 
     revalidatePath("/user/invitations");
     return data;
+  });
+
+const bulkSettleInvitationsSchema = z.object({
+  invitationActions: z.array(
+    z.object({
+      invitationId: z.string().uuid(),
+      action: z.enum(["accept", "decline"]),
+    }),
+  ),
+});
+
+export const bulkSettleInvitationsAction = authActionClient
+  .schema(bulkSettleInvitationsSchema)
+  .action(async ({ parsedInput: { invitationActions }, ctx: { userId } }) => {
+    const results = await Promise.all(
+      invitationActions.map(async ({ invitationId, action }) => {
+        try {
+          if (action === "accept") {
+            await acceptWorkspaceInvitation({ invitationId, userId });
+          } else {
+            await declineWorkspaceInvitation({ invitationId, userId });
+          }
+          return { invitationId, success: true };
+        } catch (error) {
+          return { invitationId, success: false, error };
+        }
+      }),
+    );
+
+    revalidatePath("/user/invitations");
+    revalidatePath("/home");
+    revalidatePath("/workspace/[workspaceSlug]", "layout");
+
+    return results;
   });

@@ -91,8 +91,8 @@ CREATE INDEX idx_workspace_credits_workspace_id ON public.workspace_credits(work
 -- Create workspace_credits_logs table
 CREATE TABLE IF NOT EXISTS public.workspace_credits_logs (
   id UUID PRIMARY KEY DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-  workspace_credits_id UUID NOT NULL REFERENCES public.workspace_credits (id),
-  workspace_id UUID NOT NULL REFERENCES public.workspaces (id),
+  workspace_credits_id UUID NOT NULL REFERENCES public.workspace_credits (id) ON DELETE CASCADE,
+  workspace_id UUID NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
   change_type TEXT NOT NULL,
   changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
   old_credits INT,

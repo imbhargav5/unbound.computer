@@ -308,3 +308,45 @@ export const requestAccountDeletionAction = authActionClient.action(
     return data;
   },
 );
+
+const updateUserFullNameSchema = z.object({
+  fullName: z.string().min(1, "Full name is required"),
+  isOnboardingFlow: z.boolean().optional().default(false),
+});
+
+export const updateUserFullNameAction = authActionClient
+  .schema(updateUserFullNameSchema)
+  .action(async ({ parsedInput: { fullName, isOnboardingFlow } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUser();
+
+    const { data, error } = await supabaseClient
+      .from("user_profiles")
+      .update({ full_name: fullName })
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update full name: ${error.message}`);
+    }
+
+    if (isOnboardingFlow) {
+      const updateUserMetadataPayload: Partial<AuthUserMetadata> = {
+        onboardingHasCompletedProfile: true,
+      };
+
+      const updateUserMetadataResponse = await supabaseClient.auth.updateUser({
+        data: updateUserMetadataPayload,
+      });
+
+      if (updateUserMetadataResponse.error) {
+        throw new Error(updateUserMetadataResponse.error.message);
+      }
+
+      await refreshSessionAction();
+    }
+
+    revalidatePath("/", "layout");
+    return data;
+  });

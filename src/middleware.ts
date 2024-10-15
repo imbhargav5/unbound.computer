@@ -18,16 +18,20 @@ import { isSupabaseUserAppAdmin } from "./utils/isSupabaseUserAppAdmin";
 import { middlewareLogger } from "./utils/logger";
 import { authUserMetadataSchema } from "./utils/zod-schemas/authUserMetadata";
 
-const onboardingPaths = [`/onboarding/(.*)?`];
-const appAdminPaths = [`/app_admin/(.*)?`];
-// Using a middleware to protect pages from unauthorized access
-// may seem repetitive however it massively increases the security
-// and performance of your application. This is because the middleware
-// runs first on the server and can bail out early before the
-// server component is even rendered. This means no database queries
-// or other expensive operations are run if the user is not authorized.
+/**
+ * Using a middleware to protect pages from unauthorized access
+ * may seem repetitive however it massively increases the security
+ * and performance of your application. This is because the middleware
+ * runs first on the server and can bail out early before the
+ * server component is even rendered. This means no database queries
+ * or other expensive operations are run if the user is not authorized.
+ */
 
-const unprotectedPagePrefixes = [
+/**
+ * Public paths are paths that are accessible to everyone.
+ * They don't require the user to be logged in.
+ */
+const publicPaths = [
   `/`,
   `/changelog`,
   `/feedback(/.*)?`,
@@ -38,7 +42,7 @@ const unprotectedPagePrefixes = [
   `/login(/.*)?`,
   `/sign-up(/.*)?`,
   `/update-password(/.*)?`,
-  `/roadmap/`,
+  `/roadmap`,
   `/version2`,
   `/blog(/.*)?`,
   `/docs(/.*)?`,
@@ -47,57 +51,75 @@ const unprotectedPagePrefixes = [
   `/500(/.*)?`,
 ];
 
-const protectedPagePrefixes = [
-  `/app_admin/(.*)?`,
-  `/dashboard/(.*)?`,
-  `/settings/(.*)?`,
-  `/profile/(.*)?`,
-  `/workspace/(.*)?`,
-  `/project/(.*)?`,
-  `/onboarding/(.*)?`,
-  `/home/(.*)?`,
-  `/settings/(.*)?`,
-  `/user/(.*)?`,
+/**
+ * Dashboard routes are paths that are accessible to logged in users.
+ * They require the user to be logged in.
+ */
+const dashboardRoutes = [
+  `/dashboard(/.*)?`,
+  `/settings(/.*)?`,
+  `/profile(/.*)?`,
+  `/workspace(/.*)?`,
+  `/project(/.*)?`,
+  `/home(/.*)?`,
+  `/settings(/.*)?`,
+  `/user(/.*)?`,
 ];
 
-const rootPaths = ["/"];
+/**
+ * Onboarding paths are paths that are accessible to users who are not onboarded.
+ * They require the user to be logged in.
+ * However, if the user is not onboard, the dashboard routes are not accessible.
+ */
+const onboardingPaths = [`/onboarding(/.*)?`];
 
-const allSubPathsWithoutLocale = [
-  ...unprotectedPagePrefixes,
-  ...protectedPagePrefixes,
+/**
+ * App admin paths are paths that are accessible to app admins.
+ * They require the user to be logged in.
+ */
+const appAdminPaths = [`/app_admin(/.*)?`];
+
+/**
+ * All routes which require login including dashboard, onboarding and app admin.
+ */
+const protectedPaths = [
+  ...dashboardRoutes,
   ...onboardingPaths,
   ...appAdminPaths,
 ];
 
-const unprotectedPagesWithLocale = unprotectedPagePrefixes.map((path) =>
+const rootPaths = ["/"];
+
+const allPaths = [...publicPaths, ...protectedPaths];
+
+const publicPathsWithLocale = publicPaths.map((path) =>
   urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
 );
-const protectedPagesWithLocale = protectedPagePrefixes.map((path) =>
+const dashboardRoutesWithLocale = dashboardRoutes.map((path) =>
   urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
 );
+
 const onboardingPathsWithLocale = onboardingPaths.map((path) =>
   urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
 );
 const appAdminPathsWithLocale = appAdminPaths.map((path) =>
   urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
 );
-const rootPathsWithLocale = rootPaths.map((path) =>
-  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
-);
-const allSubPathsWithLocale = [
-  ...rootPathsWithLocale,
-  ...unprotectedPagesWithLocale,
-  ...protectedPagesWithLocale,
+const protectedPathsWithLocale = [
+  ...dashboardRoutesWithLocale,
   ...onboardingPathsWithLocale,
   ...appAdminPathsWithLocale,
 ];
 
-function isUnprotectedPage(pathname: string) {
-  return unprotectedPagePrefixes.some((prefix) => {
-    const matchPath = match(prefix);
-    return matchPath(pathname);
-  });
-}
+const rootPathsWithLocale = rootPaths.map((path) =>
+  urlJoin("/", `(${LOCALE_GLOB_PATTERN})`, path),
+);
+
+const allSubPathsWithLocale = [
+  ...rootPathsWithLocale,
+  ...publicPathsWithLocale,
+  ...protectedPathsWithLocale,
+];
 
 type MiddlewareFunction = (request: NextRequest) => Promise<NextResponse>;
 
@@ -106,9 +128,18 @@ interface MiddlewareConfig {
   middleware: MiddlewareFunction;
 }
 
+function withMaybeLocale(request: NextRequest, subPath: string) {
+  const currentLocale = request.cookies.get("NEXT_LOCALE")?.value;
+  if (currentLocale) {
+    return urlJoin(currentLocale, subPath);
+  }
+  return subPath;
+}
+
 const middlewares: MiddlewareConfig[] = [
+  // if locale doesn't exist on a valid path, redirect to the default locale
   {
-    matcher: ["/", ...allSubPathsWithoutLocale],
+    matcher: ["/", ...allPaths],
     middleware: async (request) => {
       middlewareLogger.log(
         "middleware without locale paths",
@@ -158,9 +189,23 @@ const middlewares: MiddlewareConfig[] = [
       const response = handleI18nRouting(request);
       middlewareLogger.log("Locale from path:", localeFromPath);
       if (isValidLocale(localeFromPath)) {
-        // save cookie
-        response.cookies.set("NEXT_LOCALE", localeFromPath);
+        // save cookie if needed
+        const currentLocale = request.cookies.get("NEXT_LOCALE")?.value;
+        if (currentLocale !== localeFromPath) {
+          middlewareLogger.log(
+            `Saving locale to cookie: ${localeFromPath}`,
+            `Previous locale: ${currentLocale}`,
+          );
+          response.cookies.set("NEXT_LOCALE", localeFromPath);
+        } else {
+          middlewareLogger.log(
+            `Locale already saved to cookie: ${localeFromPath}. Nothing to do.`,
+          );
+        }
       } else {
+        middlewareLogger.log(
+          `Invalid locale: ${localeFromPath}. Deleting cookie.`,
+        );
         response.cookies.delete("NEXT_LOCALE");
       }
       return response;
@@ -168,41 +213,95 @@ const middlewares: MiddlewareConfig[] = [
   },
   {
     // protected routes
-    matcher: [...onboardingPathsWithLocale, ...protectedPagesWithLocale],
+    matcher: protectedPathsWithLocale,
     middleware: async (req) => {
       middlewareLogger.log(
         "middleware protected paths with locale",
         req.nextUrl.pathname,
       );
       const res = NextResponse.next();
+      // since all the middlewares are executed in order, we can update the session here once
+      // for all the protected routes
       await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
       if (!maybeUser) {
-        return NextResponse.redirect(toSiteURL("/login"));
+        middlewareLogger.log(
+          "User is not logged in. Redirecting to login.",
+          req.nextUrl.pathname,
+        );
+        return NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/login")));
       }
+      middlewareLogger.log(
+        "User is logged in. Continuing.",
+        req.nextUrl.pathname,
+      );
       return res;
     },
   },
   {
-    matcher: protectedPagesWithLocale,
+    matcher: dashboardRoutesWithLocale,
     middleware: async (req) => {
       middlewareLogger.log(
-        "middleware protected paths with locale protected pages",
+        "middleware dashboard paths with locale",
         req.nextUrl.pathname,
       );
       const res = NextResponse.next();
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
-      if (shouldOnboardUser(req.nextUrl.pathname, maybeUser)) {
-        return NextResponse.redirect(toSiteURL("/onboarding"));
+      if (!maybeUser) {
+        throw new Error("User is not logged in");
       }
+      if (shouldOnboardUser(maybeUser)) {
+        middlewareLogger.log(
+          "User should onboard. Redirecting to onboarding.",
+          req.nextUrl.pathname,
+        );
+        return NextResponse.redirect(
+          toSiteURL(withMaybeLocale(req, "/onboarding")),
+        );
+      }
+      middlewareLogger.log(
+        "User should not onboard. Continuing.",
+        req.nextUrl.pathname,
+      );
       return res;
     },
   },
-
+  {
+    matcher: onboardingPathsWithLocale,
+    middleware: async (req) => {
+      middlewareLogger.log(
+        "middleware onboarding paths with locale",
+        req.nextUrl.pathname,
+      );
+      const res = NextResponse.next();
+      const supabase = createSupabaseMiddlewareClient(req);
+      const sessionResponse = await supabase.auth.getSession();
+      const maybeUser = sessionResponse?.data.session?.user;
+      // if onboarding is required, continue
+      // else redirect to dashboard
+      if (!maybeUser) {
+        throw new Error("User is not logged in");
+      }
+      if (!shouldOnboardUser(maybeUser)) {
+        middlewareLogger.log(
+          "User should not onboard. Redirecting to dashboard.",
+          req.nextUrl.pathname,
+        );
+        return NextResponse.redirect(
+          toSiteURL(withMaybeLocale(req, "/dashboard")),
+        );
+      }
+      middlewareLogger.log(
+        "User should onboard. Continuing.",
+        req.nextUrl.pathname,
+      );
+      return res;
+    },
+  },
   {
     // match /app_admin and /app_admin/ and all subpaths
     matcher: appAdminPathsWithLocale,
@@ -212,36 +311,42 @@ const middlewares: MiddlewareConfig[] = [
         req.nextUrl.pathname,
       );
       const res = NextResponse.next();
-      await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
       if (!(maybeUser && isSupabaseUserAppAdmin(maybeUser))) {
-        return NextResponse.redirect(toSiteURL("/dashboard"));
+        middlewareLogger.log(
+          "User is not an app admin. Redirecting to dashboard.",
+          req.nextUrl.pathname,
+        );
+        return NextResponse.redirect(
+          toSiteURL(withMaybeLocale(req, "/dashboard")),
+        );
       }
+      middlewareLogger.log(
+        "User is an app admin. Continuing.",
+        req.nextUrl.pathname,
+      );
       return res;
     },
   },
 ];
 
-function shouldOnboardUser(pathname: string, user: User | undefined) {
-  const matchOnboarding = match(onboardingPathsWithLocale);
-  const isOnboardingRoute = matchOnboarding(pathname);
-  if (!isUnprotectedPage(pathname) && user && !isOnboardingRoute) {
-    const userMetadata = authUserMetadataSchema.parse(user.user_metadata);
-    const {
-      onboardingHasAcceptedTerms,
-      onboardingHasCompletedProfile,
-      onboardingHasCreatedWorkspace,
-    } = userMetadata;
-    if (
-      !onboardingHasAcceptedTerms ||
-      !onboardingHasCompletedProfile ||
-      !onboardingHasCreatedWorkspace
-    ) {
-      return true;
-    }
+function shouldOnboardUser(user: User) {
+  const userMetadata = authUserMetadataSchema.parse(user.user_metadata);
+  const {
+    onboardingHasAcceptedTerms,
+    onboardingHasCompletedProfile,
+    onboardingHasCreatedWorkspace,
+  } = userMetadata;
+  if (
+    !onboardingHasAcceptedTerms ||
+    !onboardingHasCompletedProfile ||
+    !onboardingHasCreatedWorkspace
+  ) {
+    return true;
   }
+
   return false;
 }
 

@@ -110,3 +110,9 @@ export type SlimWorkspaces = Array<SlimWorkspace>;
 export type WorkspaceWithMembershipType = DBTable<"workspaces"> & {
   membershipType: Enum<"workspace_membership_type">;
 };
+
+export type WorkspaceInvitation = DBTable<"workspace_invitations"> & {
+  workspace: Pick<DBTable<"workspaces">, "id" | "name">;
+  inviter: DBTable<"user_profiles">;
+  invitee: DBTable<"user_profiles">;
+};

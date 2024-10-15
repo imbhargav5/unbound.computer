@@ -1,0 +1,77 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useState } from "react";
+import { useOnboarding } from "./OnboardingContext";
+
+interface PendingInvitationsManagerProps {
+  onSkip: () => void;
+}
+
+export function PendingInvitationsManager({
+  onSkip,
+}: PendingInvitationsManagerProps) {
+  const { pendingInvitations, bulkSettleInvitationsActionState } =
+    useOnboarding();
+  const [invitationActions, setInvitationActions] = useState(
+    pendingInvitations.map((invitation) => ({
+      invitationId: invitation.id,
+      action: "decline" as "accept" | "decline",
+    })),
+  );
+
+  const handleToggle = (invitationId: string) => {
+    setInvitationActions((prev) =>
+      prev.map((item) =>
+        item.invitationId === invitationId
+          ? { ...item, action: item.action === "accept" ? "decline" : "accept" }
+          : item,
+      ),
+    );
+  };
+
+  const handleConfirm = () => {
+    bulkSettleInvitationsActionState.execute({ invitationActions });
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold">Pending Invitations</h2>
+      <p className="text-sm text-gray-500">
+        You have pending workspace invitations. Accept or decline them below.
+      </p>
+      <div className="space-y-4">
+        {pendingInvitations.map((invitation) => (
+          <div
+            key={invitation.id}
+            className="flex items-center justify-between"
+          >
+            <span>{invitation.workspace.name}</span>
+            <Switch
+              checked={
+                invitationActions.find(
+                  (item) => item.invitationId === invitation.id,
+                )?.action === "accept"
+              }
+              onCheckedChange={() => handleToggle(invitation.id)}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button variant="outline" onClick={onSkip}>
+          Skip
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          disabled={bulkSettleInvitationsActionState.status === "executing"}
+        >
+          {bulkSettleInvitationsActionState.status === "executing"
+            ? "Processing..."
+            : "Confirm"}
+        </Button>
+      </div>
+    </div>
+  );
+}

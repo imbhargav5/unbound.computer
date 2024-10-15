@@ -1,90 +1,58 @@
-'use client';
-import { Button } from '@/components/ui/button';
+"use client";
+import { FormInput } from "@/components/form-components/FormInput";
+import { Button } from "@/components/ui/button";
 import {
   CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  updateUserProfileNameAndAvatarAction,
-  uploadPublicUserAvatarAction,
-} from '@/data/user/user';
-import type { DBTable } from '@/types';
-import { getUserAvatarUrl } from '@/utils/helpers';
-import { useAction } from 'next-safe-action/hooks';
-import Image from 'next/image';
-import { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/card";
+import { Form } from "@/components/ui/form";
+import { getUserAvatarUrl } from "@/utils/helpers";
+import { profileUpdateFormSchema } from "@/utils/zod-schemas/profile";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
+import Image from "next/image";
+import { useRef } from "react";
+import { useForm } from "react-hook-form";
+import { useOnboarding } from "./OnboardingContext";
 
-type ProfileUpdateProps = {
-  userProfile: DBTable<'user_profiles'>;
-  onSuccess: () => void;
-  userEmail: string | undefined;
-};
+export function ProfileUpdate() {
+  const {
+    userProfile,
+    userEmail,
+    profileUpdateActionState,
+    uploadAvatarMutation,
+    avatarUrl,
+  } = useOnboarding();
 
-export function ProfileUpdate({
-  userProfile,
-  onSuccess,
-  userEmail,
-}: ProfileUpdateProps) {
-  const [fullName, setFullName] = useState(userProfile.full_name ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(
-    userProfile.avatar_url ?? undefined,
-  );
-  const toastRef = useRef<string | number | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const avatarUrlWithFallback = getUserAvatarUrl({
     profileAvatarUrl: avatarUrl ?? userProfile.avatar_url,
     email: userEmail,
   });
 
-  const updateProfileMutation = useAction(
-    updateUserProfileNameAndAvatarAction,
-    {
-      onExecute: () => {
-        toastRef.current = toast.loading('Updating profile...', {
-          description: 'Please wait while we update your profile.',
-        });
-      },
-      onSuccess: () => {
-        toast.success('Profile updated!', { id: toastRef.current });
-        onSuccess();
-      },
-      onError: () => {
-        toast.error('Failed to update profile', { id: toastRef.current });
-      },
-    },
-  );
+  const { hookFormValidationErrors } = useHookFormActionErrorMapper<
+    typeof profileUpdateFormSchema
+  >(profileUpdateActionState.result.validationErrors, { joinBy: "\n" });
 
-  const uploadAvatarMutation = useAction(uploadPublicUserAvatarAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading('Uploading avatar...', {
-        description: 'Please wait while we upload your avatar.',
-      });
+  const form = useForm({
+    resolver: zodResolver(profileUpdateFormSchema),
+    defaultValues: {
+      fullName: userProfile.full_name ?? "",
     },
-    onSuccess: (response) => {
-      setAvatarUrl(response.data);
-      toast.success('Avatar uploaded!', {
-        description: 'Your avatar has been successfully uploaded.',
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: () => {
-      toast.error('Error uploading avatar', { id: toastRef.current });
-      toastRef.current = undefined;
-    },
+    errors: hookFormValidationErrors,
   });
+
+  const { handleSubmit, control } = form;
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
       uploadAvatarMutation.execute({
         formData,
         fileName: file.name,
@@ -95,73 +63,81 @@ export function ProfileUpdate({
     }
   };
 
+  const handleAvatarButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        updateProfileMutation.execute({
-          fullName,
-          avatarUrl,
-          isOnboardingFlow: true,
-        });
-      }}
-    >
-      <CardHeader>
-        <CardTitle>Create Your Profile</CardTitle>
-        <CardDescription>
-          Let&apos;s set up your personal details.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="avatar">Avatar</Label>
-          <div className="flex items-center space-x-4">
-            <Image
-              width={48}
-              height={48}
-              className="rounded-full"
-              src={avatarUrlWithFallback}
-              alt="User avatar"
-            />
-            <Label htmlFor="avatar-upload" className="cursor-pointer">
-              <Input
+    <Form {...form}>
+      <form
+        onSubmit={handleSubmit((data) =>
+          profileUpdateActionState.execute({
+            ...data,
+            isOnboardingFlow: true,
+          }),
+        )}
+      >
+        <CardHeader>
+          <CardTitle>Create Your Profile</CardTitle>
+          <CardDescription>
+            Let&apos;s set up your personal details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="avatar" className="text-sm font-medium">
+              Avatar
+            </label>
+            <div className="flex items-center space-x-4">
+              <div className="relative w-12 h-12 flex-shrink-0">
+                <Image
+                  fill
+                  className="rounded-full object-cover"
+                  src={avatarUrlWithFallback}
+                  alt="User avatar"
+                />
+              </div>
+              <input
+                ref={fileInputRef}
                 id="avatar-upload"
                 type="file"
                 className="hidden"
                 onChange={handleFileChange}
                 accept="image/*"
-                disabled={uploadAvatarMutation.isPending}
+                disabled={uploadAvatarMutation.status === "executing"}
               />
-              <Button type="button" variant="outline" size="sm">
-                {uploadAvatarMutation.isPending
-                  ? 'Uploading...'
-                  : 'Change Avatar'}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAvatarButtonClick}
+                disabled={uploadAvatarMutation.status === "executing"}
+              >
+                {uploadAvatarMutation.status === "executing"
+                  ? "Uploading..."
+                  : "Change Avatar"}
               </Button>
-            </Label>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="full-name">Full Name</Label>
-          <Input
+          <FormInput
             id="full-name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Your full name"
-            disabled={updateProfileMutation.isPending}
+            label="Full Name"
+            control={control}
+            name="fullName"
           />
-        </div>
-      </CardContent>
-      <CardFooter>
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={
-            updateProfileMutation.isPending || uploadAvatarMutation.isPending
-          }
-        >
-          {updateProfileMutation.isPending ? 'Saving...' : 'Save Profile'}
-        </Button>
-      </CardFooter>
-    </form>
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={profileUpdateActionState.status === "executing"}
+          >
+            {profileUpdateActionState.status === "executing"
+              ? "Saving..."
+              : "Save Profile"}
+          </Button>
+        </CardFooter>
+      </form>
+    </Form>
   );
 }

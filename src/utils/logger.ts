@@ -13,12 +13,12 @@ function createLogger(scope: string): Logger {
   const logger = debug(`app:${scope}`);
 
   return {
-    log: (...args: (string | number | boolean | object)[]) => {
+    log: (...args: Parameters<typeof logger>) => {
       if (isDevEnvironment) {
         logger(...args);
       }
     },
-    error: (...args: (string | number | boolean | object)[]) => {
+    error: (...args: Parameters<typeof logger>) => {
       if (isDevEnvironment) {
         logger.extend("error")(...args);
       }

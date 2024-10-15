@@ -66,8 +66,8 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
@@ -145,7 +145,7 @@
 .tiptap pre {
   @apply bg-muted text-muted-foreground;
   border-radius: 0.5rem;
-  font-family: 'JetBrainsMono', monospace;
+  font-family: "JetBrainsMono", monospace;
   margin: 1.5rem 0;
   padding: 0.75rem 1rem;
 }
@@ -216,4 +216,59 @@
 
 .floating-menu button.is-active:hover {
   @apply text-primary/90;
+}
+
+/* onboarding page */
+.onboarding-page {
+  background: radial-gradient(
+      circle at 50% 100%,
+      #eef2f680 5%,
+      #eef2f6 5% 10%,
+      #eef2f680 10% 15%,
+      #eef2f6 15% 20%,
+      #eef2f680 20% 25%,
+      #eef2f6 25% 30%,
+      #eef2f680 30% 35%,
+      #eef2f6 35% 40%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 100% 50%,
+      #eef2f680 5%,
+      #eef2f6 5% 10%,
+      #eef2f680 10% 15%,
+      #eef2f6 15% 20%,
+      #eef2f680 20% 25%,
+      #eef2f6 25% 30%,
+      #eef2f680 30% 35%,
+      #eef2f6 35% 40%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 50% 0%,
+      #eef2f680 5%,
+      #eef2f6 5% 10%,
+      #eef2f680 10% 15%,
+      #eef2f6 15% 20%,
+      #eef2f680 20% 25%,
+      #eef2f6 25% 30%,
+      #eef2f680 30% 35%,
+      #eef2f6 35% 40%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 0 50%,
+      #eef2f680 5%,
+      #eef2f6 5% 10%,
+      #eef2f680 10% 15%,
+      #eef2f6 15% 20%,
+      #eef2f680 20% 25%,
+      #eef2f6 25% 30%,
+      #eef2f680 30% 35%,
+      #eef2f6 35% 40%,
+      transparent 40%
+    );
+  background-size: 2em 2em;
+  background-color: #ffffff;
+  opacity: 1;
 }

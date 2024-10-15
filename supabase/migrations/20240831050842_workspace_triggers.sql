@@ -149,6 +149,5 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER "workspace_credits_changes_trigger"
 AFTER
 INSERT
-  OR DELETE
   OR
 UPDATE ON "public"."workspace_credits" FOR EACH ROW EXECUTE FUNCTION "public"."log_workspace_credits_changes"();

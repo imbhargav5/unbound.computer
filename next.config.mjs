@@ -13,11 +13,6 @@ const withBundleAnalyzer = createWithBundleAnalyzer({
 });
 
 const nextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "10mb",
-    },
-  },
   pageExtensions: ["js", "jsx", "ts", "tsx", "md", "mdx"],
   images: {
     remotePatterns: [

@@ -74,12 +74,10 @@ export const PendingInvitationsList = async () => {
 
   const pendingInvitationsList = pendingInvitations
     .map((invitation) => {
-      const inviter = Array.isArray(invitation.inviter)
+      const inviter = invitation.inviter
         ? invitation.inviter[0]
         : invitation.inviter;
-      const workspace = Array.isArray(invitation.workspace)
-        ? invitation.workspace[0]
-        : invitation.workspace;
+      const workspace = invitation.workspace;
       if (!workspace || !inviter) {
         throw new Error("Organization or Inviter not found");
       }
