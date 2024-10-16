@@ -15,7 +15,10 @@ export function TermsAcceptance() {
   return (
     <>
       <CardHeader>
-        <CardTitle className="text-2xl font-bold mb-2">
+        <CardTitle
+          data-testid="terms-acceptance-title"
+          className="text-2xl font-bold mb-2"
+        >
           Welcome to Nextbase Ultimate Demo
         </CardTitle>
         <CardDescription>

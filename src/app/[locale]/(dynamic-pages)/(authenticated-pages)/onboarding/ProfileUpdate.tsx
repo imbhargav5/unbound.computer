@@ -24,13 +24,13 @@ export function ProfileUpdate() {
     userEmail,
     profileUpdateActionState,
     uploadAvatarMutation,
-    avatarUrl,
+    avatarURLState,
   } = useOnboarding();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const avatarUrlWithFallback = getUserAvatarUrl({
-    profileAvatarUrl: avatarUrl ?? userProfile.avatar_url,
+    profileAvatarUrl: avatarURLState ?? userProfile.avatar_url,
     email: userEmail,
   });
 
@@ -78,7 +78,9 @@ export function ProfileUpdate() {
         )}
       >
         <CardHeader>
-          <CardTitle>Create Your Profile</CardTitle>
+          <CardTitle data-testid="profile-update-title">
+            Create Your Profile
+          </CardTitle>
           <CardDescription>
             Let&apos;s set up your personal details.
           </CardDescription>
@@ -109,6 +111,7 @@ export function ProfileUpdate() {
               <Button
                 type="button"
                 variant="outline"
+                data-testid="change-avatar-button"
                 size="sm"
                 onClick={handleAvatarButtonClick}
                 disabled={uploadAvatarMutation.status === "executing"}
@@ -124,6 +127,7 @@ export function ProfileUpdate() {
             label="Full Name"
             control={control}
             name="fullName"
+            data-testid="full-name-input"
           />
         </CardContent>
         <CardFooter>
@@ -131,6 +135,7 @@ export function ProfileUpdate() {
             type="submit"
             className="w-full"
             disabled={profileUpdateActionState.status === "executing"}
+            data-testid="save-profile-button"
           >
             {profileUpdateActionState.status === "executing"
               ? "Saving..."

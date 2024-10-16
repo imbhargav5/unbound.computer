@@ -158,9 +158,47 @@ export const uploadPublicUserAvatarAction = authActionClient
     async ({
       parsedInput: { formData, fileName, fileOptions },
     }): Promise<string> => {
-      return await uploadPublicUserAvatar(formData, fileName, fileOptions);
+      const profilePictureURL = await uploadPublicUserAvatar(
+        formData,
+        fileName,
+        fileOptions,
+      );
+
+      const actionResponse = await updateProfilePictureUrlAction({
+        profilePictureUrl: profilePictureURL,
+      });
+
+      if (actionResponse?.data) {
+        return actionResponse.data;
+      }
+
+      console.log("actionResponse", actionResponse);
+      throw new Error("Updating profile picture url failed");
     },
   );
+
+const updateProfilePictureUrlSchema = z.object({
+  profilePictureUrl: z.string(),
+});
+
+export const updateProfilePictureUrlAction = authActionClient
+  .schema(updateProfilePictureUrlSchema)
+  .action(async ({ parsedInput: { profilePictureUrl } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUser();
+    const { error } = await supabaseClient
+      .from("user_profiles")
+      .update({
+        avatar_url: profilePictureUrl,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return profilePictureUrl;
+  });
 
 const updateUserProfileNameAndAvatarSchema = z.object({
   fullName: z.string(),

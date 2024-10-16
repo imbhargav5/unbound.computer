@@ -37,7 +37,12 @@ export function PendingInvitationsManager({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Pending Invitations</h2>
+      <h2
+        className="text-lg font-semibold"
+        data-testid="pending-invitations-title"
+      >
+        Pending Invitations
+      </h2>
       <p className="text-sm text-gray-500">
         You have pending workspace invitations. Accept or decline them below.
       </p>
@@ -45,10 +50,12 @@ export function PendingInvitationsManager({
         {pendingInvitations.map((invitation) => (
           <div
             key={invitation.id}
+            data-testid={`invitation-${invitation.id}`}
             className="flex items-center justify-between"
           >
             <span>{invitation.workspace.name}</span>
             <Switch
+              data-testid="invitation-switch"
               checked={
                 invitationActions.find(
                   (item) => item.invitationId === invitation.id,

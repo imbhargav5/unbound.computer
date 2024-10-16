@@ -3,22 +3,23 @@
 import { bulkSettleInvitationsAction } from "@/data/user/invitation";
 import {
   acceptTermsOfServiceAction,
+  updateProfilePictureUrlAction,
   updateUserFullNameAction,
   uploadPublicUserAvatarAction,
 } from "@/data/user/user";
 import { createWorkspaceAction } from "@/data/user/workspaces";
 import type { DBTable, WorkspaceInvitation } from "@/types";
+import { getRandomCuteAvatar } from "@/utils/cute-avatars";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
 import {
-  InferUseActionHookReturn,
   InferUseOptimisticActionHookReturn,
-  useAction,
   useOptimisticAction,
 } from "next-safe-action/hooks";
 import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -55,11 +56,10 @@ interface OnboardingContextType {
   createWorkspaceActionState: InferUseOptimisticActionHookReturn<
     typeof createWorkspaceAction
   >;
-  uploadAvatarMutation: InferUseActionHookReturn<
+  uploadAvatarMutation: InferUseOptimisticActionHookReturn<
     typeof uploadPublicUserAvatarAction
   >;
-  avatarUrl: string | undefined;
-  setAvatarUrl: React.Dispatch<React.SetStateAction<string | undefined>>;
+  avatarURLState: string | undefined;
   flowStates: FLOW_STATE[];
   pendingInvitations: WorkspaceInvitation[];
   bulkSettleInvitationsActionState: InferUseOptimisticActionHookReturn<
@@ -215,26 +215,59 @@ export function OnboardingProvider({
     },
   );
 
-  const uploadAvatarMutation = useAction(uploadPublicUserAvatarAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Uploading avatar...", {
-        description: "Please wait while we upload your avatar.",
-      });
+  const updateProfilePictureUrlActionState = useOptimisticAction(
+    updateProfilePictureUrlAction,
+    {
+      currentState: avatarUrl,
+      updateFn: (profilePictureUrl) => {
+        return profilePictureUrl;
+      },
     },
-    onSuccess: (response) => {
-      setAvatarUrl(response.data);
-      toast.success("Avatar uploaded!", {
-        description: "Your avatar has been successfully uploaded.",
-        id: toastRef.current,
-      });
-      toastRef.current = undefined;
-    },
-    onError: () => {
-      toast.error("Error uploading avatar", { id: toastRef.current });
-      toastRef.current = undefined;
-    },
-  });
+  );
 
+  /**
+   * This action uploads a file and updates the user's avatar url
+   */
+  const uploadAvatarMutation = useOptimisticAction(
+    uploadPublicUserAvatarAction,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Uploading avatar...", {
+          description: "Please wait while we upload your avatar.",
+        });
+      },
+      currentState: avatarUrl,
+      updateFn: (profilePictureUrl, { formData }) => {
+        // conver file to data url
+        try {
+          const file = formData.get("file");
+          if (file instanceof File) {
+            const fileUrl = URL.createObjectURL(file);
+            return fileUrl;
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        return profilePictureUrl;
+      },
+      onSuccess: (response) => {
+        setAvatarUrl(response.data);
+        toast.success("Avatar uploaded!", {
+          description: "Your avatar has been successfully uploaded.",
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+      onError: () => {
+        toast.error("Error uploading avatar", { id: toastRef.current });
+        toastRef.current = undefined;
+      },
+    },
+  );
+
+  /**
+   * This action settles all pending invitations for the user
+   */
   const bulkSettleInvitationsActionState = useOptimisticAction(
     bulkSettleInvitationsAction,
     {
@@ -249,6 +282,33 @@ export function OnboardingProvider({
     },
   );
 
+  useEffect(() => {
+    // only run this on mount
+    if (!userProfile.avatar_url) {
+      const avatarUrl = getRandomCuteAvatar();
+      updateProfilePictureUrlActionState.execute({
+        profilePictureUrl: avatarUrl,
+      });
+    }
+  }, []);
+
+  // if the update profile picture action is executing, return the optimistic state
+  // otherwise return the avatar url
+  const avatarURLState = useMemo(() => {
+    if (uploadAvatarMutation.status === "executing") {
+      return uploadAvatarMutation.optimisticState;
+    }
+    return updateProfilePictureUrlActionState.status === "executing"
+      ? updateProfilePictureUrlActionState.optimisticState
+      : avatarUrl;
+  }, [
+    updateProfilePictureUrlActionState.optimisticState,
+    avatarUrl,
+    updateProfilePictureUrlActionState.status,
+    uploadAvatarMutation.status,
+    uploadAvatarMutation.optimisticState,
+  ]);
+
   const value: OnboardingContextType = useMemo(
     () => ({
       currentStep,
@@ -261,8 +321,7 @@ export function OnboardingProvider({
       flowStates,
       setCurrentStep,
       uploadAvatarMutation,
-      avatarUrl,
-      setAvatarUrl,
+      avatarURLState,
       onboardingStatus,
       pendingInvitations,
       bulkSettleInvitationsActionState,
@@ -278,8 +337,7 @@ export function OnboardingProvider({
       flowStates,
       setCurrentStep,
       uploadAvatarMutation,
-      avatarUrl,
-      setAvatarUrl,
+      avatarURLState,
       onboardingStatus,
       pendingInvitations,
       bulkSettleInvitationsActionState,

@@ -74,21 +74,14 @@ export const PendingInvitationsList = async () => {
 
   const pendingInvitationsList = pendingInvitations
     .map((invitation) => {
-      const inviter = invitation.inviter
-        ? invitation.inviter[0]
-        : invitation.inviter;
-      const workspace = invitation.workspace;
-      if (!workspace || !inviter) {
-        throw new Error("Organization or Inviter not found");
-      }
-
       return {
         id: invitation.id,
-        inviterUserFullName: inviter.full_name ?? invitation.invitee_user_email,
-        organizationTitle: workspace.name,
+        inviterUserFullName:
+          invitation.inviter.full_name ?? invitation.invitee_user_email,
+        organizationTitle: invitation.workspace.name,
         status: invitation.status,
         role: invitation.invitee_user_role,
-        organizationId: workspace.id,
+        organizationId: invitation.workspace.id,
       };
     })
     .filter(Boolean);

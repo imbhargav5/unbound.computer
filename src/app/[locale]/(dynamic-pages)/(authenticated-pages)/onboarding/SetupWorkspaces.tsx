@@ -54,7 +54,9 @@ export function SetupWorkspaces() {
   return (
     <>
       <CardHeader>
-        <CardTitle>Setting Up Your Workspaces</CardTitle>
+        <CardTitle data-testid="setup-workspaces-title">
+          Setting Up Your Workspaces
+        </CardTitle>
         <CardDescription>
           Let&apos;s set up your workspace environment.
         </CardDescription>
