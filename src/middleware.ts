@@ -64,6 +64,7 @@ const dashboardRoutes = [
   `/home(/.*)?`,
   `/settings(/.*)?`,
   `/user(/.*)?`,
+  `/logout`,
 ];
 
 /**
