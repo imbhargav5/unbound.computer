@@ -219,7 +219,7 @@
 }
 
 /* onboarding page */
-.onboarding-page {
+.light .onboarding-page {
   background: radial-gradient(
       circle at 50% 100%,
       #eef2f680 5%,
