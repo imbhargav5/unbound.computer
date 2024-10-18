@@ -8,7 +8,7 @@ tsconfig.tsbuildinfo
 ./supabase/.DS_Store
 ./analyze
 .vercel
-playwright/.auth/user.json
+playwright/.auth
 ./test-results/
 supabase/.temp
 /test-results/*

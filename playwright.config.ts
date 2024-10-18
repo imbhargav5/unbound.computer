@@ -45,7 +45,6 @@ const config: PlaywrightTestConfig = {
     //   ignoreHTTPSErrors: true,
     // },
   },
-  fullyParallel: true,
 
   projects: [
     {
@@ -67,7 +66,7 @@ const config: PlaywrightTestConfig = {
       dependencies: ["with-auth", "with-second-user", "with-app-admin"],
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/admin.json",
+        storageState: "playwright/.auth/app_admin.json",
       },
     },
     {
@@ -77,7 +76,7 @@ const config: PlaywrightTestConfig = {
       dependencies: ["with-auth"],
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/user.json",
+        storageState: "playwright/.auth/user_1.json",
       },
     },
     {
@@ -86,7 +85,7 @@ const config: PlaywrightTestConfig = {
       dependencies: ["with-auth", "with-second-user", "with-app-admin"],
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/user.json",
+        storageState: "playwright/.auth/user_1.json",
       },
     },
     {

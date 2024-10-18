@@ -3,7 +3,7 @@ import { test } from '@playwright/test';
 test.describe.parallel('admin panel', () => {
   test('go to admin panel', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto('/app_admin');

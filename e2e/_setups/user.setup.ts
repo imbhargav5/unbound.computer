@@ -6,7 +6,7 @@ function getIdentifier(): string {
   return `peterparker` + Date.now().toString().slice(-4);
 }
 
-const authFile = "playwright/.auth/user.json";
+const authFile = "playwright/.auth/user_1.json";
 
 setup("create account", async ({ page }) => {
   const identifier = getIdentifier();

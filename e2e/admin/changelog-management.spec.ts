@@ -6,7 +6,7 @@ test.describe.serial('Changelog Management', () => {
 
   test('Admin creates a new changelog', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -43,7 +43,7 @@ test.describe.serial('Changelog Management', () => {
 
   test('Admin can edit the changelog', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -76,7 +76,7 @@ test.describe.serial('Changelog Management', () => {
 
   test('Admin can change changelog status', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -106,7 +106,7 @@ test.describe.serial('Changelog Management', () => {
 
   test('Admin can delete the changelog', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 

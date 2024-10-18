@@ -6,7 +6,7 @@ test.describe.serial('Blog Post Management', () => {
 
   test('Admin creates a new blog post', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -48,7 +48,7 @@ test.describe.serial('Blog Post Management', () => {
 
   test('Admin can edit the blog post', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -84,7 +84,7 @@ test.describe.serial('Blog Post Management', () => {
 
   test('Admin can change blog post status', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 
@@ -110,7 +110,7 @@ test.describe.serial('Blog Post Management', () => {
 
   test('Admin can delete the blog post', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
 

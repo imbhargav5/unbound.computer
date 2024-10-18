@@ -11,7 +11,7 @@ function getIdentifier(): string {
   return `adminjoe` + Date.now().toString().slice(-4);
 }
 
-const adminAuthFile = "playwright/.auth/admin.json";
+const adminAuthFile = "playwright/.auth/app_admin.json";
 
 setup("check current database user and set admin role", async ({ page }) => {
   const identifier = getIdentifier();

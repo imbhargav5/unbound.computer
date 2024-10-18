@@ -30,7 +30,7 @@ export function EmailConfirmationPendingCard({
 }: IConfirmationPendingCardProps) {
   const router = useRouter();
   return (
-    <div>
+    <div data-testid="email-confirmation-pending-card">
       <Card className="w-full md:min-w-[440px] mx-auto mt-10 items-center">
         <CardHeader>
           {type === "reset-password" ? (

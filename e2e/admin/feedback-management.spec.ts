@@ -32,7 +32,7 @@ test.describe.serial('Admin Feedback Management', () => {
   test('Admin can view and update feedback', async ({ browser, page }) => {
 
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`/en/feedback/${feedbackId}`);
@@ -81,7 +81,7 @@ test.describe.serial('Admin Feedback Management', () => {
 
   test('Admin can add a comment', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`/en/feedback/${feedbackId}`);
@@ -97,7 +97,7 @@ test.describe.serial('Admin Feedback Management', () => {
 
   test('Admin can filter feedback', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto('/en/feedback');
@@ -128,7 +128,7 @@ test.describe.serial('Admin Feedback Management', () => {
 
   test('Admin can toggle feedback visibility', async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/admin.json',
+      storageState: 'playwright/.auth/app_admin.json',
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`/en/feedback/${feedbackId}`);

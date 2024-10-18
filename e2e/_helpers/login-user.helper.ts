@@ -61,12 +61,13 @@ export async function loginUserHelper({
   }
 
   await magicLinkButton.click();
-
-  await page.getByTestId("magic-link-form").locator("input").fill(emailAddress);
+  const magicLinkForm = page.getByTestId("magic-link-form");
+  await magicLinkForm.waitFor();
+  await magicLinkForm.locator("input").fill(emailAddress);
   // await page.getByLabel('Password').fill('password');
-  await page.getByRole("button", { name: "Send Magic Link" }).click();
+  await magicLinkForm.locator("button").click();
   // check for this text - A magic link has been sent to your email!
-  await page.getByText("Confirmation Link sent");
+  await page.getByTestId("email-confirmation-pending-card").waitFor();
   const identifier = emailAddress.split("@")[0];
   let url;
   await expect

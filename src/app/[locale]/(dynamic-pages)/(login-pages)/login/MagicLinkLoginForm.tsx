@@ -76,6 +76,7 @@ export function MagicLinkLoginForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
         data-testid="magic-link-form"
+        data-status={magicLinkStatus}
       >
         <AuthFormInput
           id="magic-link-email"
