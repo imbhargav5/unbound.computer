@@ -1,42 +1,51 @@
 // OrganizationSidebar.tsx (Server Component)
-import { DesktopSidebarFallback } from "@/components/SidebarComponents/SidebarFallback";
-import { Skeleton } from "@/components/ui/skeleton";
+
+import { SidebarAdminPanelNav } from "@/components/sidebar-admin-panel-nav";
+import { SidebarFooterUserNav } from "@/components/sidebar-footer-user-nav";
+import { SidebarPlatformNav } from "@/components/sidebar-platform-nav";
+import { SidebarTipsNav } from "@/components/sidebar-tips-nav";
+import { SidebarWorkspaceNav } from "@/components/sidebar-workspace-nav";
+import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
 import {
-  fetchSlimWorkspaces,
-  getWorkspaceIdBySlug,
-} from "@/data/user/workspaces";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from "@/components/ui/sidebar";
+import {
+  getCachedSlimWorkspaces,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
-import TeamWorkspaceSidebarClient from "./TeamWorkspaceSidebarClient";
 
 export async function TeamWorkspaceSidebar({ params }: { params: unknown }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-    const workspaceId = await getWorkspaceIdBySlug(workspaceSlug);
-    const slimWorkspaces = await fetchSlimWorkspaces();
-    const workspace = slimWorkspaces.find(
-      (workspace) => workspace.id === workspaceId,
-    );
-    if (!workspace) {
-      return notFound();
-    }
+    const [workspace, slimWorkspaces] = await Promise.all([
+      getCachedWorkspaceBySlug(workspaceSlug),
+      getCachedSlimWorkspaces(),
+    ]);
     return (
-      <Suspense fallback={<DesktopSidebarFallback />}>
-        <TeamWorkspaceSidebarClient
-          workspaceId={workspaceId}
-          workspaceSlug={workspaceSlug}
-          workspace={workspace}
-          slimWorkspaces={slimWorkspaces}
-          subscription={
-            <Suspense fallback={<Skeleton className="h-2 w-full" />}>
-              <div>
-                {/* <SubscriptionCardSmall organizationSlug={organizationSlug} organizationId={organizationId} /> */}
-              </div>
-            </Suspense>
-          }
-        />
-      </Suspense>
+      <Sidebar variant="inset" collapsible="icon">
+        <SidebarHeader>
+          <SwitcherAndToggle
+            workspaceId={workspace.id}
+            slimWorkspaces={slimWorkspaces}
+          />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarWorkspaceNav workspace={workspace} />
+          <SidebarAdminPanelNav />
+          <SidebarPlatformNav />
+          <SidebarTipsNav workspace={workspace} />
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarFooterUserNav />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
     );
   } catch (e) {
     return notFound();
