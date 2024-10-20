@@ -1,4 +1,4 @@
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense } from "react";
 import { LeftNav } from "../ExternalNavbar/LeftNav";
 import { LoginCTAButton } from "../ExternalNavbar/LoginCTAButton";

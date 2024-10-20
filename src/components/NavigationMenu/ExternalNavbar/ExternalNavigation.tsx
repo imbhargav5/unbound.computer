@@ -1,5 +1,5 @@
 import LocaleSwitcher from "@/components/LocaleSwitcher";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense } from "react";
 import { LeftNav } from "./LeftNav";
 import { LoginCTAButton } from "./LoginCTAButton";

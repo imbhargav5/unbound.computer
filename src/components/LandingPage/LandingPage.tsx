@@ -11,7 +11,7 @@ import Testimonials from "./testimonials";
 
 export const LandingPage = () => {
   return (
-    <main>
+    <div>
       <HeroSection />
       <LogoCloud />
       <Features />
@@ -22,6 +22,6 @@ export const LandingPage = () => {
       <FAQ />
       <CTA />
       <Footer />
-    </main>
+    </div>
   );
 };

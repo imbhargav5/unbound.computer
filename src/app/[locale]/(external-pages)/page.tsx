@@ -10,8 +10,8 @@ export default function Page({
   unstable_setRequestLocale(locale);
 
   return (
-    <main>
+    <div>
       <LandingPage />
-    </main>
+    </div>
   );
 }

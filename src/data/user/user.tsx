@@ -36,6 +36,7 @@ export const getUserProfile = async (userId: string) => {
 
   return data;
 };
+
 export const getUserFullName = async (userId: string) => {
   const supabase = createSupabaseUserServerComponentClient();
   const { data, error } = await supabase

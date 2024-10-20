@@ -27,6 +27,7 @@ export function CreateWorkspaceDialogProvider({
   useSafeShortcut("w", (event) => {
     console.log(event.target);
     event.preventDefault();
+    event.stopPropagation();
     toggleDialog();
   });
 

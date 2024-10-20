@@ -4,8 +4,8 @@ import { SlimWorkspaces } from "@/types";
 import Image from "next/image";
 import darkLogo from "public/logos/nextbase-dark-logo.png";
 import lightLogo from "public/logos/nextbase-light-logo.png";
+import { Fragment } from "react";
 import { T } from "../ui/Typography";
-import { SidebarClose } from "./SidebarClose";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 type Props = {
   workspaceId?: string;
@@ -14,7 +14,7 @@ type Props = {
 
 export function SwitcherAndToggle({ workspaceId, slimWorkspaces }: Props) {
   return (
-    <div className="flex items-center w-full gap-1 justify-between">
+    <Fragment>
       {workspaceId && slimWorkspaces ? (
         <WorkspaceSwitcher
           currentWorkspaceId={workspaceId}
@@ -48,7 +48,6 @@ export function SwitcherAndToggle({ workspaceId, slimWorkspaces }: Props) {
           </T.P>
         </Link>
       )}
-      <SidebarClose />
-    </div>
+    </Fragment>
   );
 }

@@ -1,6 +1,5 @@
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ReactNode } from "react";
-import { ClientShell } from "./ClientShell";
-
 export async function ApplicationLayoutShell({
   children,
   sidebar,
@@ -8,5 +7,12 @@ export async function ApplicationLayoutShell({
   children: ReactNode;
   sidebar: ReactNode;
 }) {
-  return <ClientShell sidebar={sidebar}>{children}</ClientShell>;
+  return (
+    <SidebarProvider>
+      {sidebar}
+      <SidebarInset>
+        <main>{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }

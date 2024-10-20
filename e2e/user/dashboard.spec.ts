@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { goToWorkspaceArea, matchPathAndExtractWorkspaceInfo } from "../_helpers/workspace.helper";
+import {
+  goToWorkspaceArea,
+  matchPathAndExtractWorkspaceInfo,
+} from "../_helpers/workspace.helper";
 
 test.describe("Workspace", () => {
   let workspaceSlug: string;
@@ -17,31 +20,35 @@ test.describe("Workspace", () => {
   test("should navigate to workspace settings", async ({ page }) => {
     await goToWorkspaceArea({
       page,
-      area: 'settings',
+      area: "settings",
       workspaceSlug,
       isSoloWorkspace,
-    })
-    await expect(page.getByRole("heading", { name: "Edit Workspace Title" })).toBeVisible();
+    });
+    await expect(
+      page.getByRole("heading", { name: "Edit Workspace Title" }),
+    ).toBeVisible();
   });
 
   test("should list team members", async ({ page }) => {
     await goToWorkspaceArea({
       page,
-      area: 'settings/members',
+      area: "settings/members",
       workspaceSlug,
       isSoloWorkspace,
-    })
-    await expect(page.getByRole("heading", { name: "Team Members" })).toBeVisible();
+    });
+    await expect(
+      page.getByRole("heading", { name: "Team Members" }),
+    ).toBeVisible();
     await expect(page.getByTestId("members-table")).toBeVisible();
   });
 
   test.skip("should update workspace title and slug", async ({ page }) => {
     await goToWorkspaceArea({
       page,
-      area: 'settings',
+      area: "settings",
       workspaceSlug,
       isSoloWorkspace,
-    })
+    });
 
     const newTitle = "Workspace Name Updated";
     const titleInput = page.getByTestId("edit-workspace-title-input");
@@ -51,7 +58,9 @@ test.describe("Workspace", () => {
     await page.waitForTimeout(500);
 
     await page.getByRole("button", { name: "Update" }).click();
-    await expect(page.getByText("Workspace information updated!")).toBeVisible();
+    await expect(
+      page.getByText("Workspace information updated!"),
+    ).toBeVisible();
 
     const titleInput2 = page.getByTestId("edit-workspace-title-input");
     await expect(titleInput2).toHaveValue(newTitle);

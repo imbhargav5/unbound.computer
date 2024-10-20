@@ -7,9 +7,10 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { useState, type ReactNode } from "react";
 import { Button } from "./Button";
-import { T, Typography } from "./ui/Typography";
+import { Typography } from "./ui/Typography";
 import { AspectRatio } from "./ui/aspect-ratio";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { SidebarMenuButton } from "./ui/sidebar";
 
 export function ProFeatureGateDialog({
   workspace,
@@ -24,20 +25,13 @@ export function ProFeatureGateDialog({
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild className="w-full mb-0">
-        <Button
-          variant="ghost"
-          className="justify-between items-center px-0 pr-2 -mb-2 hover:bg-accent text-muted-foreground font-normal hover:text-foreground"
-        >
-          <div className="flex gap-2 items-center ">
-            <div className="p-2 group-hover:text-foreground">{icon}</div>
-            <T.P className=" w-full text-sm group-hover:text-foreground ">
-              {label}
-            </T.P>
-          </div>
-          <T.P className="text-xs rounded-md px-2 py-1 uppercase font-medium bg-tremor-brand-subtle text-primary-foreground ">
+        <SidebarMenuButton>
+          {icon}
+          <span>{label}</span>
+          <span className="text-xs rounded-md px-2 py-1 uppercase font-medium bg-tremor-brand-subtle text-primary-foreground ">
             Pro
-          </T.P>
-        </Button>
+          </span>
+        </SidebarMenuButton>
       </DialogTrigger>
       <DialogContent className="flex flex-col gap-2 items-center hide-dialog-close">
         <AspectRatio
@@ -78,8 +72,10 @@ export function ProFeatureGateDialog({
           </span>
         </div>
         <Typography.P className="text-muted-foreground text-center mb-4">
-          Unlock advanced features, unlimited team members, collaborative
-          workspace and more.
+          This is a dummy feature gate dialog. You can show this dialog to
+          describe the advanced features, unlimited team members, collaborative
+          workspace and more and protect access to the feature until the user
+          upgrades to PRO.
         </Typography.P>
         <Link
           href={getWorkspaceSubPath(workspace, "/settings/billing")}
