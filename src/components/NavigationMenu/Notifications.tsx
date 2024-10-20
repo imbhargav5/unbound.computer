@@ -7,161 +7,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useSAToastMutation } from "@/hooks/useSAToastMutation";
-import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
+import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import type { DBTable } from "@/types";
 import { parseNotification } from "@/utils/parseNotification";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Check } from "lucide-react";
 import moment from "moment";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect } from "react";
-import { useDidMount } from "rooks";
 import { toast } from "sonner";
 import { Skeleton } from "../ui/skeleton";
-import {
-  getPaginatedNotifications,
-  getUnseenNotificationIds,
-  readAllNotifications,
-  seeNotification,
-} from "./fetchClientNotifications";
-
-const NOTIFICATIONS_PAGE_SIZE = 10;
-const useUnseenNotificationIds = (userId: string) => {
-  const { data, refetch } = useQuery(
-    ["unseen-notification-ids", userId],
-    async () => {
-      return getUnseenNotificationIds(userId);
-    },
-    {
-      initialData: [],
-      refetchOnWindowFocus: false,
-    },
-  );
-  useEffect(() => {
-    const channelId = `user-notifications:${userId}`;
-    const channel = supabaseUserClientComponent
-      .channel(channelId)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "user_notifications",
-          filter: "user_id=eq." + userId,
-        },
-        () => {
-          refetch();
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "user_notifications",
-          filter: "user_id=eq." + userId,
-        },
-        (payload) => {
-          refetch();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [refetch, userId]);
-
-  return data ?? 0;
-};
-
-export const useNotifications = (userId: string) => {
-  const {
-    data,
-    isFetchingNextPage,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    refetch,
-  } = useInfiniteQuery(
-    ["paginatedNotifications", userId],
-    async ({ pageParam }) => {
-      return getPaginatedNotifications(
-        userId,
-        pageParam ?? 0,
-        NOTIFICATIONS_PAGE_SIZE,
-      );
-    },
-    {
-      getNextPageParam: (lastPage, _pages) => {
-        const pageNumber = lastPage[0];
-        const rows = lastPage[1];
-
-        if (rows.length < NOTIFICATIONS_PAGE_SIZE) return undefined;
-        return pageNumber + 1;
-      },
-      initialData: {
-        pageParams: [0],
-        pages: [[0, []]],
-      },
-      // You can disable it here
-      refetchOnWindowFocus: false,
-    },
-  );
-
-  const notifications = data?.pages.flatMap((page) => page[1]) ?? [];
-  return {
-    notifications,
-    isFetchingNextPage,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    refetch,
-  };
-};
-
-function NextPageLoader({ onMount }: { onMount: () => void }) {
-  useDidMount(() => {
-    onMount();
-  });
-  return <div className="h-4"></div>;
-}
-
-export const useReadAllNotifications = (userId: string) => {
-  const router = useRouter();
-  return useSAToastMutation(
-    async () => {
-      return readAllNotifications(userId);
-    },
-    {
-      loadingMessage: "Marking all notifications as read...",
-      successMessage: "All notifications marked as read",
-      errorMessage(error) {
-        try {
-          if (error instanceof Error) {
-            return String(error.message);
-          }
-          return `Failed to mark all notifications as read ${String(error)}`;
-        } catch (_err) {
-          console.warn(_err);
-          return "Failed to mark all notifications as read";
-        }
-      },
-      onSuccess: () => {
-        router.refresh();
-      },
-    },
-  );
-};
 
 function Notification({
   notification,
 }: {
   notification: DBTable<"user_notifications">;
 }) {
-  const router = useRouter();
   const notificationPayload = parseNotification(notification.payload);
   const handleNotificationClick = useCallback(() => {
     if (notificationPayload.type === "welcome") {
@@ -169,12 +29,7 @@ function Notification({
     }
   }, [notificationPayload]);
 
-  const { mutate: mutateSeeMutation } = useMutation(
-    async () => await seeNotification(notification.id),
-    {
-      onSuccess: () => router.refresh(),
-    },
-  );
+  const { mutateSeeNotification } = useNotificationsContext();
 
   return (
     <motion.div
@@ -204,7 +59,7 @@ function Notification({
         notificationId={notification.id}
         onHover={() => {
           if (!notification.is_seen) {
-            mutateSeeMutation();
+            mutateSeeNotification(notification.id);
           }
         }}
       />
@@ -212,17 +67,18 @@ function Notification({
   );
 }
 
-export const Notifications = ({ userId }: { userId: string }) => {
-  const unseenNotificationIds = useUnseenNotificationIds(userId);
+export const Notifications = () => {
   const {
+    unseenNotificationIds,
+    mutateReadAllNotifications,
+
     notifications,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
     isLoading,
     refetch,
-  } = useNotifications(userId);
-  const { mutate } = useReadAllNotifications(userId);
+  } = useNotificationsContext();
 
   useEffect(() => {
     refetch();
@@ -261,7 +117,7 @@ export const Notifications = ({ userId }: { userId: string }) => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => mutate()}
+                  onClick={() => mutateReadAllNotifications()}
                   className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Check className="w-4 h-4 mr-1" />

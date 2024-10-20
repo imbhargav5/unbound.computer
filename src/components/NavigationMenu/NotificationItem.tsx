@@ -1,10 +1,8 @@
 import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
+import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { cn } from "@/utils/cn";
-import { useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { readNotification } from "./fetchClientNotifications";
 
 type NotificationItemProps = {
   title: string;
@@ -31,13 +29,7 @@ export function NotificationItem({
   notificationId,
   onHover,
 }: NotificationItemProps) {
-  const router = useRouter();
-  const { mutate: mutateReadMutation } = useMutation(
-    async () => await readNotification(notificationId),
-    {
-      onSuccess: () => router.refresh(),
-    },
-  );
+  const { mutateReadNotification } = useNotificationsContext();
 
   const content = (
     <motion.div
@@ -81,7 +73,7 @@ export function NotificationItem({
     return (
       <Link
         href={href}
-        onClick={() => mutateReadMutation()}
+        onClick={() => mutateReadNotification(notificationId)}
         className="block w-full"
       >
         {content}

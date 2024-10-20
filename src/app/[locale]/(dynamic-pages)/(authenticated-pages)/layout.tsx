@@ -2,6 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SIDEBAR_VISIBILITY_COOKIE_KEY } from "@/constants";
 import { CreateWorkspaceDialogProvider } from "@/contexts/CreateWorkspaceDialogContext";
 import { LoggedInUserProvider } from "@/contexts/LoggedInUserContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { SidebarVisibilityProvider } from "@/contexts/SidebarVisibilityContext";
 import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { cookies } from "next/headers";
@@ -26,7 +27,9 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
       <SidebarVisibilityProvider initialValue={sidebarVisibility}>
         <CreateWorkspaceDialogProvider>
           <LoggedInUserProvider user={user}>
-            <ClientLayout>{children}</ClientLayout>
+            <NotificationsProvider>
+              <ClientLayout>{children}</ClientLayout>
+            </NotificationsProvider>
           </LoggedInUserProvider>
         </CreateWorkspaceDialogProvider>
       </SidebarVisibilityProvider>
