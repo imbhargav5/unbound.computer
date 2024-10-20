@@ -15,6 +15,7 @@ type NotificationItemProps = {
   isNew: boolean;
   notificationId: string;
   onHover: () => void;
+  icon?: React.ReactNode;
 };
 
 export function NotificationItem({
@@ -28,6 +29,7 @@ export function NotificationItem({
   createdAt,
   notificationId,
   onHover,
+  icon,
 }: NotificationItemProps) {
   const { mutateReadNotification } = useNotificationsContext();
 
@@ -39,19 +41,23 @@ export function NotificationItem({
       transition={{ duration: 0.3 }}
       onMouseOver={onHover}
       className={cn(
-        "flex items-center w-full px-4 py-3 border-b",
+        "flex items-start w-full px-4 py-3 border-b gap-4",
         isRead ? "bg-accent/50" : "bg-background",
         "hover:bg-accent/25 transition-colors duration-200",
       )}
     >
-      <motion.img
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 0.2 }}
-        src={image}
-        alt={title}
-        className="h-12 w-12 rounded-full object-cover mr-4"
-      />
+      {icon ? (
+        <div className="w-12 h-12 flex items-center justify-center">{icon}</div>
+      ) : (
+        <motion.img
+          initial={{ scale: 0.8 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.2 }}
+          src={image}
+          alt={title}
+          className="h-12 w-12 rounded-full object-cover "
+        />
+      )}
       <div className="flex-grow">
         <T.P className="font-semibold text-foreground !leading-5">{title}</T.P>
         <T.Small className="text-muted-foreground">{description}</T.Small>

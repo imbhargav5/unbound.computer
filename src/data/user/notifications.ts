@@ -159,6 +159,12 @@ export const createFeedbackReceivedCommentNotification = async ({
       createAdminNotification({ payload, excludedAdminUserId: commenterId }),
     ]);
 
+  console.log("createFeedbackReceivedCommentNotification", {
+    commenterId,
+    adminNotificaitonData,
+    stakeholdersNotificationData,
+  });
+
   return {
     adminNotificaitonData,
     stakeholdersNotificationData,

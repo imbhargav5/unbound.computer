@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useEffect } from "react";
+import {
+  createContext,
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   getPaginatedNotifications,
@@ -151,6 +160,9 @@ type NotificationsContextType = {
   mutateReadAllNotifications: () => void;
   mutateSeeNotification: (notificationId: string) => void;
   mutateReadNotification: (notificationId: string) => void;
+  unseenNotificationCount: number;
+  isDialogOpen: boolean;
+  setIsDialogOpen: Dispatch<SetStateAction<boolean>>;
 };
 
 const NotificationsContext = createContext<NotificationsContextType>(
@@ -162,6 +174,7 @@ export const NotificationsProvider = ({
 }: {
   children: ReactNode;
 }) => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const user = useLoggedInUser();
   const userId = user.id;
   const unseenNotificationIds = useUnseenNotificationIds(userId);
@@ -193,22 +206,43 @@ export const NotificationsProvider = ({
   useEffect(() => {
     refetch();
   }, [unseenNotificationIds, refetch]);
+  const unseenNotificationCount = unseenNotificationIds.length;
+
+  const memoizedContextValue = useMemo(
+    () => ({
+      unseenNotificationIds,
+      notifications,
+      hasNextPage,
+      fetchNextPage,
+      isFetchingNextPage,
+      isLoading,
+      refetch,
+      mutateReadAllNotifications,
+      mutateSeeNotification,
+      mutateReadNotification,
+      unseenNotificationCount,
+      isDialogOpen,
+      setIsDialogOpen,
+    }),
+    [
+      unseenNotificationIds,
+      notifications,
+      hasNextPage,
+      fetchNextPage,
+      isFetchingNextPage,
+      isLoading,
+      refetch,
+      mutateReadAllNotifications,
+      mutateSeeNotification,
+      mutateReadNotification,
+      unseenNotificationCount,
+      isDialogOpen,
+      setIsDialogOpen,
+    ],
+  );
 
   return (
-    <NotificationsContext.Provider
-      value={{
-        unseenNotificationIds,
-        notifications,
-        hasNextPage,
-        fetchNextPage,
-        isFetchingNextPage,
-        isLoading,
-        refetch,
-        mutateReadAllNotifications,
-        mutateSeeNotification,
-        mutateReadNotification,
-      }}
-    >
+    <NotificationsContext.Provider value={memoizedContextValue}>
       {children}
     </NotificationsContext.Provider>
   );

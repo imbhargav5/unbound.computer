@@ -1,5 +1,4 @@
 // UserNav.tsx
-import { Notifications } from "@/components/NavigationMenu/Notifications";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 
 export async function UserNav() {
@@ -9,9 +8,5 @@ export async function UserNav() {
     throw new Error("User email not found");
   }
 
-  return (
-    <div className="flex items-center space-x-4">
-      <Notifications />
-    </div>
-  );
+  return <div className="flex items-center space-x-4"></div>;
 }

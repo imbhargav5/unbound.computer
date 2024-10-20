@@ -3,19 +3,18 @@ import { getUserAvatarUrl } from "@/utils/helpers";
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import {
   BadgeCheck,
-  Bell,
   ChevronsUpDown,
   Code,
   FileQuestion,
   History,
   LogOut,
-  Shield,
+  Shield
 } from "lucide-react";
 import { Suspense } from "react";
 import { Link } from "./intl-link";
+import { NotificationsDropdownMenuTrigger } from "./notifications-dropdown-menu-trigger";
 import { ThemeToggle } from "./theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Badge } from "./ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +26,7 @@ import {
 } from "./ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar";
 import { Skeleton } from "./ui/skeleton";
+import { UnseenNotificationCounterBadge } from "./unseen-notification-counter-badge";
 async function SidebarFooterUserMenu() {
   const [data, user] = await Promise.all([
     getCachedUserProfile(),
@@ -58,7 +58,7 @@ async function SidebarFooterUserMenu() {
                 </span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
-              <Badge variant="destructive">1</Badge>
+              <UnseenNotificationCounterBadge />
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -87,10 +87,7 @@ async function SidebarFooterUserMenu() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Bell />
-                Notifications
-              </DropdownMenuItem>
+              <NotificationsDropdownMenuTrigger />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>

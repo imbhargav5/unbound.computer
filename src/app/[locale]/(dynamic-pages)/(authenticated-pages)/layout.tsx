@@ -1,3 +1,4 @@
+import { NotificationsDialog } from "@/components/notifications-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SIDEBAR_VISIBILITY_COOKIE_KEY } from "@/constants";
 import { CreateWorkspaceDialogProvider } from "@/contexts/CreateWorkspaceDialogContext";
@@ -29,6 +30,7 @@ async function AuthenticatedLayout({ children }: { children: ReactNode }) {
           <LoggedInUserProvider user={user}>
             <NotificationsProvider>
               <ClientLayout>{children}</ClientLayout>
+              <NotificationsDialog />
             </NotificationsProvider>
           </LoggedInUserProvider>
         </CreateWorkspaceDialogProvider>

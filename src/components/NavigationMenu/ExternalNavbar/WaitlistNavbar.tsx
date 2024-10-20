@@ -1,4 +1,3 @@
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense } from "react";
 import { LeftNav } from "./LeftNav";
 import { MobileMenu } from "./MobileMenu";
@@ -21,7 +20,7 @@ export function WaitlistNavbar() {
               }
             >
               <div className="flex space-x-10 items-center lg:-mr-2">
-                <ThemeToggle />
+                {/* <ThemeToggle /> */}
                 <div />
               </div>
             </Suspense>

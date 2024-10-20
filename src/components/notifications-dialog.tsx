@@ -1,21 +1,17 @@
 "use client";
 
-import { NotificationItem } from "@/components/NavigationMenu/NotificationItem";
 import { T } from "@/components/ui/Typography";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import type { DBTable } from "@/types";
 import { parseNotification } from "@/utils/parseNotification";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import moment from "moment";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "../ui/skeleton";
+import { NotificationItem } from "./notification-item";
+import { Dialog, DialogContent } from "./ui/dialog";
 
 function Notification({
   notification,
@@ -54,6 +50,7 @@ function Notification({
             : undefined
         }
         image={notificationPayload.image}
+        icon={notificationPayload.icon}
         isRead={notification.is_read}
         isNew={!notification.is_seen}
         notificationId={notification.id}
@@ -67,7 +64,7 @@ function Notification({
   );
 }
 
-export const Notifications = () => {
+export const NotificationsDialog = () => {
   const {
     unseenNotificationIds,
     mutateReadAllNotifications,
@@ -78,6 +75,8 @@ export const Notifications = () => {
     isFetchingNextPage,
     isLoading,
     refetch,
+    isDialogOpen,
+    setIsDialogOpen,
   } = useNotificationsContext();
 
   useEffect(() => {
@@ -85,25 +84,8 @@ export const Notifications = () => {
   }, [unseenNotificationIds, refetch]);
 
   return (
-    <Popover>
-      <PopoverTrigger className="relative focus:outline-none">
-        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-          <Bell className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
-          <AnimatePresence>
-            {unseenNotificationIds?.length > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="absolute -top-1.5 -right-2 bg-red-500 px-1.5 rounded-full font-bold text-white text-xs"
-              >
-                {unseenNotificationIds.length}
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </PopoverTrigger>
-      <PopoverContent className="w-[560px] p-0 rounded-xl overflow-hidden mr-12">
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogContent className="md:w-[560px] w-full p-0 rounded-xl overflow-hidden mr-12">
         <div className="bg-background shadow-lg">
           <div className="px-6 py-3 border-b">
             {" "}
@@ -178,7 +160,7 @@ export const Notifications = () => {
             )}
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 };

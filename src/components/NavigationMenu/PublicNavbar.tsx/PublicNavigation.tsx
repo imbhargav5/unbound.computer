@@ -1,4 +1,3 @@
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense } from "react";
 import { LeftNav } from "../ExternalNavbar/LeftNav";
 import { LoginCTAButton } from "../ExternalNavbar/LoginCTAButton";
@@ -22,7 +21,7 @@ export function PublicNavigation() {
               }
             >
               <div className="flex space-x-10 items-center lg:-mr-2">
-                <ThemeToggle />
+                {/* <ThemeToggle /> */}
                 <div className="ml-6 hidden lg:block" suppressHydrationWarning>
                   <LoginCTAButton />
                 </div>
