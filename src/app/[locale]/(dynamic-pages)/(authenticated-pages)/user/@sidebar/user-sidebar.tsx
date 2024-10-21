@@ -4,7 +4,6 @@ import { SidebarAdminPanelNav } from "@/components/sidebar-admin-panel-nav";
 import { SidebarFooterUserNav } from "@/components/sidebar-footer-user-nav";
 import { SidebarPlatformNav } from "@/components/sidebar-platform-nav";
 import { SidebarTipsNav } from "@/components/sidebar-tips-nav";
-import { SidebarWorkspaceNav } from "@/components/sidebar-workspace-nav";
 import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
 import {
   Sidebar,
@@ -19,7 +18,7 @@ import {
 } from "@/rsc-data/user/workspaces";
 import { notFound } from "next/navigation";
 
-export async function SoloWorkspaceSidebar() {
+export async function UserSidebar() {
   try {
     const [workspace, slimWorkspaces] = await Promise.all([
       getCachedSoloWorkspace(),
@@ -28,13 +27,9 @@ export async function SoloWorkspaceSidebar() {
     return (
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>
-          <SwitcherAndToggle
-            workspaceId={workspace.id}
-            slimWorkspaces={slimWorkspaces}
-          />
+          <SwitcherAndToggle slimWorkspaces={slimWorkspaces} />
         </SidebarHeader>
         <SidebarContent>
-          <SidebarWorkspaceNav workspace={workspace} />
           <SidebarAdminPanelNav />
           <SidebarPlatformNav />
           <SidebarTipsNav workspace={workspace} />
