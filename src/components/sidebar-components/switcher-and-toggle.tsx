@@ -3,7 +3,7 @@ import { Home } from "lucide-react";
 import { Fragment } from "react";
 import { Link } from "../intl-link";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 type Props = {
   workspaceId?: string;
   slimWorkspaces?: SlimWorkspaces;

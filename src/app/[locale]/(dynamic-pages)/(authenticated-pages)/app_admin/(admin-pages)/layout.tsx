@@ -1,7 +1,6 @@
 import { ApplicationLayoutShell } from "@/components/ApplicationLayoutShell";
 import { InternalNavbar } from "@/components/NavigationMenu/InternalNavbar";
 import { Alert } from "@/components/ui/alert";
-import { Suspense } from "react";
 
 export default async function Layout({
   children,
@@ -11,7 +10,7 @@ export default async function Layout({
   sidebar: React.ReactNode;
 }) {
   return (
-    <ApplicationLayoutShell sidebar={<Suspense>{sidebar}</Suspense>}>
+    <ApplicationLayoutShell sidebar={sidebar}>
       <div className="h-full overflow-y-auto" data-testid="admin-panel-layout">
         <InternalNavbar>
           <div

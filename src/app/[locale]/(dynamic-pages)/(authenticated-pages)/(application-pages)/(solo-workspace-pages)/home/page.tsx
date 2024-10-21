@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const workspace = await getCachedSoloWorkspace();
 
   return {
-    title: `Dashboard | ${workspace.name}`,
+    title: `${workspace.name} | Workspace Dashboard`,
     description: `View your projects and team members for ${workspace.name}`,
   };
 }

@@ -83,7 +83,9 @@ async function AdminPanelSidebar() {
   if (!isAdmin) return null;
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Admin Panel</SidebarGroupLabel>
+      <SidebarGroupLabel data-testid="admin-panel-label">
+        Admin Panel
+      </SidebarGroupLabel>
       <SidebarMenu>
         {adminLinks.map((link) => (
           <SidebarMenuItem key={link.href}>
