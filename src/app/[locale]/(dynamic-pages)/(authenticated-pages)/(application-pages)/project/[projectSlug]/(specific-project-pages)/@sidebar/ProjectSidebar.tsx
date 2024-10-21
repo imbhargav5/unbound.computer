@@ -1,29 +1,57 @@
-import { DesktopSidebarFallback } from "@/components/SidebarComponents/SidebarFallback";
+import { SidebarAdminPanelNav } from "@/components/sidebar-admin-panel-nav";
+import { SidebarFooterUserNav } from "@/components/sidebar-footer-user-nav";
+import { SidebarPlatformNav } from "@/components/sidebar-platform-nav";
+import { SidebarTipsNav } from "@/components/sidebar-tips-nav";
+import { SidebarWorkspaceNav } from "@/components/sidebar-workspace-nav";
+import { SwitcherAndToggle } from "@/components/SidebarComponents/SwitcherAndToggle";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from "@/components/ui/sidebar";
 import { getSlimProjectBySlug } from "@/data/user/projects";
 import { getWorkspaceById } from "@/data/user/workspaces";
 import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
 import { getCachedSlimWorkspaces } from "@/rsc-data/user/workspaces";
 import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
-import { Suspense } from "react";
-import { ProjectSidebarClient } from "./ProjectSidebarClient";
+import { notFound } from "next/navigation";
+import { ProjectSidebarGroup } from "./ProjectSidebarGroup";
 
 export async function ProjectSidebar({ params }: { params: unknown }) {
-  const { projectSlug } = projectSlugParamSchema.parse(params);
-  const project = await getSlimProjectBySlug(projectSlug);
-  const [slimWorkspaces, fullProject] = await Promise.all([
-    getCachedSlimWorkspaces(),
-    getCachedProjectBySlug(project.slug),
-  ]);
-  const workspaceId = fullProject.workspace_id;
-  const workspace = await getWorkspaceById(workspaceId);
+  try {
+    const { projectSlug } = projectSlugParamSchema.parse(params);
+    const project = await getSlimProjectBySlug(projectSlug);
+    const [slimWorkspaces, fullProject] = await Promise.all([
+      getCachedSlimWorkspaces(),
+      getCachedProjectBySlug(project.slug),
+    ]);
+    const workspaceId = fullProject.workspace_id;
+    const workspace = await getWorkspaceById(workspaceId);
 
-  return (
-    <Suspense fallback={<DesktopSidebarFallback />}>
-      <ProjectSidebarClient
-        workspace={workspace}
-        project={fullProject}
-        slimWorkspaces={slimWorkspaces}
-      />
-    </Suspense>
-  );
+    return (
+      <Sidebar variant="inset" collapsible="icon">
+        <SidebarHeader>
+          <SwitcherAndToggle
+            workspaceId={workspace.id}
+            slimWorkspaces={slimWorkspaces}
+          />
+        </SidebarHeader>
+        <SidebarContent>
+          <ProjectSidebarGroup project={fullProject} workspace={workspace} />
+          <SidebarWorkspaceNav workspace={workspace} withLinkLabelPrefix />
+          <SidebarAdminPanelNav />
+          <SidebarPlatformNav />
+          <SidebarTipsNav workspace={workspace} />
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarFooterUserNav />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+    );
+  } catch (e) {
+    return notFound();
+  }
 }

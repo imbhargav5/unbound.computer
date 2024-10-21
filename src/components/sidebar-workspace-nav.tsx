@@ -1,5 +1,3 @@
-"use client";
-
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -17,50 +15,55 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useMemo } from "react";
 import { ProFeatureGateDialog } from "./ProFeatureGateDialog";
 import { Link } from "./intl-link";
 
 export function SidebarWorkspaceNav({
   workspace,
+  withLinkLabelPrefix = false,
 }: {
   workspace: SlimWorkspace;
+  withLinkLabelPrefix?: boolean;
 }) {
-  const sidebarLinks = useMemo(() => {
-    const links = [
-      { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
+  let sidebarLinks = [
+    { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
 
-      {
-        label: "Projects",
-        href: "/projects",
-        icon: <Layers className="h-5 w-5" />,
-      },
-      {
-        label: "Settings",
-        href: "/settings",
-        icon: <Settings className="h-5 w-5" />,
-      },
-      {
-        label: "Billing",
-        href: "/settings/billing",
-        icon: <DollarSign className="h-5 w-5" />,
-      },
-    ];
+    {
+      label: "Projects",
+      href: "/projects",
+      icon: <Layers className="h-5 w-5" />,
+    },
+    {
+      label: "Settings",
+      href: "/settings",
+      icon: <Settings className="h-5 w-5" />,
+    },
+    {
+      label: "Billing",
+      href: "/settings/billing",
+      icon: <DollarSign className="h-5 w-5" />,
+    },
+  ];
 
-    if (workspace.membershipType === "team") {
-      // pop the last item
-      const lastItem = links.pop();
-      links.push({
-        label: "Members",
-        href: "/settings/members",
-        icon: <Users className="h-5 w-5" />,
-      });
-      if (lastItem) {
-        links.push(lastItem);
-      }
+  if (workspace.membershipType === "team") {
+    // pop the last item
+    const lastItem = sidebarLinks.pop();
+    sidebarLinks.push({
+      label: "Members",
+      href: "/settings/members",
+      icon: <Users className="h-5 w-5" />,
+    });
+    if (lastItem) {
+      sidebarLinks.push(lastItem);
     }
-    return links;
-  }, [workspace]);
+  }
+
+  if (withLinkLabelPrefix) {
+    sidebarLinks = sidebarLinks.map((link) => ({
+      ...link,
+      label: `Workspace ${link.label}`,
+    }));
+  }
 
   return (
     <SidebarGroup>
