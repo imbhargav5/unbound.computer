@@ -1,4 +1,5 @@
 "use client";
+import { PHProvider } from "@/contexts/PostHogProvider";
 import {
   QueryClient,
   QueryClientProvider,
@@ -8,11 +9,16 @@ import { RootProvider } from "fumadocs-ui/provider";
 import { NextIntlClientProvider } from "next-intl";
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
 import { useTheme } from "next-themes";
+import dynamic from "next/dynamic";
 import type React from "react";
 import { Suspense } from "react";
 import { Toaster as SonnerToaster } from "sonner";
 import type { AbstractIntlMessages } from "use-intl";
 import { useMyReportWebVitals } from "./reportWebVitals";
+
+const PostHogPageView = dynamic(() => import("./PostHogPageView"), {
+  ssr: false,
+});
 
 function CustomerToaster() {
   const theme = useTheme();
@@ -73,7 +79,7 @@ export function AppProviders({
 
   useMyReportWebVitals();
   return (
-    <>
+    <PHProvider>
       <RootProvider
         theme={{
           enabled: true,
@@ -94,9 +100,10 @@ export function AppProviders({
               shallowRouting
             />
             <CustomerToaster />
+            <PostHogPageView />
           </Suspense>
         </QueryClientProvider>
       </RootProvider>
-    </>
+    </PHProvider>
   );
 }

@@ -5,7 +5,7 @@ import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { redirect } from "next/navigation";
 import { type ReactNode } from "react";
-import { ClientLayout } from "./ClientLayout";
+import PosthogIdentify from "./PosthogIdentify";
 
 export default async function Layout({ children }: { children: ReactNode }) {
   try {
@@ -14,8 +14,9 @@ export default async function Layout({ children }: { children: ReactNode }) {
       <CreateWorkspaceDialogProvider>
         <LoggedInUserProvider user={user}>
           <NotificationsProvider>
-            <ClientLayout>{children}</ClientLayout>
+            {children}
             <NotificationsDialog />
+            <PosthogIdentify />
           </NotificationsProvider>
         </LoggedInUserProvider>
       </CreateWorkspaceDialogProvider>
