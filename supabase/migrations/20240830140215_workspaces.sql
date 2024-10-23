@@ -310,6 +310,13 @@ CREATE POLICY "Workspace admins can manage team members" ON "public"."workspace_
   )
 );
 
+-- workspace members can delete themselves
+CREATE POLICY "Workspace members can delete themselves" ON "public"."workspace_members" FOR DELETE TO authenticated USING (
+  workspace_member_id = (
+    SELECT auth.uid()
+  )
+);
+
 
 
 -- Workspace credits policies

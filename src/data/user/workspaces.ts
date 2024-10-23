@@ -11,7 +11,10 @@ import type {
 import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
-import { createWorkspaceSchema } from "@/utils/zod-schemas/workspaces";
+import {
+  createWorkspaceSchema,
+  workspaceMemberRoleEnum,
+} from "@/utils/zod-schemas/workspaces";
 import { revalidatePath } from "next/cache";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -610,3 +613,73 @@ export const getPendingInvitationsInWorkspace = async (workspaceId: string) => {
 
   return data || [];
 };
+
+const updateWorkspaceMemberRoleSchema = z.object({
+  workspaceId: z.string().uuid(),
+  memberId: z.string().uuid(),
+  role: workspaceMemberRoleEnum,
+});
+
+export const updateWorkspaceMemberRoleAction = authActionClient
+  .schema(updateWorkspaceMemberRoleSchema)
+  .action(async ({ parsedInput: { workspaceId, memberId, role } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { error } = await supabaseClient
+      .from("workspace_members")
+      .update({ workspace_member_role: role })
+      .eq("workspace_id", workspaceId)
+      .eq("workspace_member_id", memberId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath(`/workspace/${workspaceId}/settings/members`, "page");
+  });
+
+const removeWorkspaceMemberSchema = z.object({
+  workspaceId: z.string().uuid(),
+  memberId: z.string().uuid(),
+});
+
+export const removeWorkspaceMemberAction = authActionClient
+  .schema(removeWorkspaceMemberSchema)
+  .action(async ({ parsedInput: { workspaceId, memberId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { error } = await supabaseClient
+      .from("workspace_members")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("workspace_member_id", memberId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath(`/workspace/${workspaceId}/settings/members`, "page");
+  });
+
+const leaveWorkspaceSchema = z.object({
+  workspaceId: z.string().uuid(),
+  memberId: z.string().uuid(),
+});
+
+export const leaveWorkspaceAction = authActionClient
+  .schema(leaveWorkspaceSchema)
+  .action(async ({ parsedInput: { workspaceId, memberId } }) => {
+    const supabaseClient = createSupabaseUserServerActionClient();
+
+    const { error } = await supabaseClient
+      .from("workspace_members")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("workspace_member_id", memberId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/", "layout");
+  });

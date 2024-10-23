@@ -54,7 +54,7 @@ export function WorkspaceMemberRoleSelect({
       </SelectTrigger>
       <SelectContent className="w-[180px] text-muted-foreground">
         <SelectGroup>
-          <SelectLabel>Organization Roles</SelectLabel>
+          <SelectLabel>Workspace Roles</SelectLabel>
           <SelectItem value="admin">Admin</SelectItem>
           <SelectItem value="member">Member</SelectItem>
           <SelectItem value="readonly">Read Only Member</SelectItem>

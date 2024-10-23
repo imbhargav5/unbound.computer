@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { revokeInvitationAction } from "@/data/user/invitation";
+import { Trash } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -47,7 +48,9 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Revoke</Button>
+        <Button variant="outline" size="icon">
+          <Trash className="size-4" />
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] [&>.dialog-close]:hidden">
         <form

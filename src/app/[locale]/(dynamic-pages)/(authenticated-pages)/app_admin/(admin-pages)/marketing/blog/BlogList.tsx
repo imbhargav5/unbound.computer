@@ -1,6 +1,7 @@
 // @/app/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/marketing/blog/BlogList.tsx
 import { Link } from "@/components/intl-link";
 import { Typography } from "@/components/ui/Typography";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -43,7 +44,16 @@ export const BlogList: React.FC<BlogListProps> = ({ posts }) => {
             <TableRow key={post.id}>
               <TableCell>{post.title}</TableCell>
               <TableCell>{post.slug}</TableCell>
-              <TableCell>{post.status}</TableCell>
+              <TableCell>
+                <Badge
+                  variant={
+                    post.status === "published" ? "default" : "secondary"
+                  }
+                  className="capitalize"
+                >
+                  {post.status}
+                </Badge>
+              </TableCell>
               <TableCell>
                 {format(new Date(post.created_at), "MMM dd, yyyy")}
               </TableCell>

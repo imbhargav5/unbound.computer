@@ -68,7 +68,7 @@ export type CommentWithUser = DBTable<"project_comments"> & {
 
 export type TeamMemberRowProps = {
   name?: string;
-  role: string;
+  role: Enum<"workspace_member_role_type">;
   avatar_url?: string;
   id: string;
   index: number;

@@ -8,7 +8,7 @@ import {
   FileQuestion,
   History,
   LogOut,
-  Shield
+  Shield,
 } from "lucide-react";
 import { Suspense } from "react";
 import { Link } from "./intl-link";

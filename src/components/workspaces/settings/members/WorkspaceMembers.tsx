@@ -9,6 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   getPendingInvitationsInWorkspace,
   getWorkspaceTeamMembers,
@@ -21,10 +28,18 @@ import type {
   TeamMembersTableProps,
   WorkspaceWithMembershipType,
 } from "@/types";
+import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { MoreHorizontal } from "lucide-react";
 import moment from "moment";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { EditMemberRoleDialog } from "./EditMemberRoleDialog";
 import { InviteUser } from "./InviteUser";
+import {
+  LeaveWorkspaceConditions,
+  LeaveWorkspaceDialog,
+} from "./LeaveWorkspaceDialog";
+import { RemoveMemberDialog } from "./RemoveMemberDialog";
 import { RevokeInvitationDialog } from "./RevokeInvitationDialog";
 
 export const metadata: Metadata = {
@@ -38,6 +53,7 @@ async function TeamMembers({
   workspace: WorkspaceWithMembershipType;
 }) {
   const members = await getWorkspaceTeamMembers(workspace.id);
+  const user = await serverGetLoggedInUser();
   const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
   const isWorkspaceAdmin =
     workspaceRole === "admin" || workspaceRole === "owner";
@@ -62,7 +78,7 @@ async function TeamMembers({
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex justify-between items-center">
-        <T.H3 className="mt-0">Team Members</T.H3>
+        <T.H3>Team Members</T.H3>
         {isWorkspaceAdmin ? <InviteUser workspace={workspace} /> : null}
       </div>
 
@@ -74,10 +90,29 @@ async function TeamMembers({
               <TableHead>Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Joined On</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {normalizedMembers.map((member, index) => {
+              const isMemberCurrentUser = member.id === user.id;
+              // If the user is a workspace admin, then they can perform a few actions.
+              // If ther user is not a workspace admin, they only have actions on themselves.
+              const shouldShowActions = isWorkspaceAdmin || isMemberCurrentUser;
+
+              const isLastAdmin =
+                isWorkspaceAdmin &&
+                normalizedMembers.filter(
+                  (m) => m.role === "admin" || m.role === "owner",
+                ).length === 1;
+
+              // if you are not a workspace admin, you can leave anytime.
+              // if you are a workspace admin, you can leave if you are not the last admin.
+              const leaveConditions: LeaveWorkspaceConditions =
+                isWorkspaceAdmin && isLastAdmin
+                  ? "DISABLED_IS_LAST_ADMIN"
+                  : "ENABLED";
+
               return (
                 <TableRow data-user-id={member.id} key={member.id}>
                   <TableCell>{index + 1}</TableCell>
@@ -88,6 +123,43 @@ async function TeamMembers({
                     {member.role}
                   </TableCell>
                   <TableCell>{member.created_at}</TableCell>
+                  <TableCell>
+                    {shouldShowActions ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {isWorkspaceAdmin && member.id !== user.id && (
+                            <>
+                              <EditMemberRoleDialog
+                                workspaceId={workspace.id}
+                                memberId={member.id}
+                                currentRole={member.role}
+                              />
+                              <RemoveMemberDialog
+                                workspaceId={workspace.id}
+                                memberId={member.id}
+                                memberName={
+                                  member.name ?? `Member ${member.id}`
+                                }
+                              />
+                            </>
+                          )}
+                          {member.id === user.id && (
+                            <LeaveWorkspaceDialog
+                              workspaceId={workspace.id}
+                              memberId={member.id}
+                              leaveConditions={leaveConditions}
+                            />
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -150,11 +222,15 @@ async function TeamInvitations({
                   <TableCell>{invitation.email}</TableCell>
                   <TableCell>{invitation.created_at}</TableCell>
                   <TableCell className="uppercase">
-                    <span>
+                    <Badge
+                      variant={
+                        invitation.status === "active" ? "secondary" : "default"
+                      }
+                    >
                       {invitation.status === "active"
                         ? "pending"
                         : invitation.status}
-                    </span>
+                    </Badge>
                   </TableCell>
                   {workspaceRole === "admin" || workspaceRole === "owner" ? (
                     <TableCell>
