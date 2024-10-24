@@ -48,7 +48,9 @@ export function UpdatePassword() {
       <div className="space-y-8 ">
         <Card>
           <CardHeader>
-            <CardTitle>Reset Password</CardTitle>
+            <CardTitle data-testid="update-password-title">
+              Reset Password
+            </CardTitle>
             <CardDescription>
               Enter your email to receive a Magic Link to reset your password.
             </CardDescription>

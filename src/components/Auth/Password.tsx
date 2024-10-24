@@ -26,6 +26,7 @@ export const Password = ({
 
   return (
     <form
+      data-testid="password-form"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit(password);

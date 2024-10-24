@@ -48,7 +48,7 @@ setup("check current database user and set admin role", async ({ page }) => {
     await page.goto(`/logout`);
     await loginUserHelper({ page, emailAddress });
 
-    await page.getByTestId("admin-panel-link").waitFor();
+    await page.getByTestId("admin-panel-label").waitFor();
 
     await page.context().storageState({ path: adminAuthFile });
   } catch (error) {

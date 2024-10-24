@@ -1,12 +1,12 @@
-import { test } from '@playwright/test';
+import { test } from "@playwright/test";
 
-test.describe.parallel('admin panel', () => {
-  test('go to admin panel', async ({ browser }) => {
+test.describe.parallel("admin panel", () => {
+  test("go to admin panel", async ({ browser }) => {
     const adminContext = await browser.newContext({
-      storageState: 'playwright/.auth/app_admin.json',
+      storageState: "playwright/.auth/app_admin.json",
     });
     const adminPage = await adminContext.newPage();
-    await adminPage.goto('/app_admin');
-    await adminPage.getByTestId('admin-panel-layout').waitFor()
+    await adminPage.goto("/app_admin");
+    await adminPage.getByTestId("admin-panel-layout").waitFor();
   });
 });

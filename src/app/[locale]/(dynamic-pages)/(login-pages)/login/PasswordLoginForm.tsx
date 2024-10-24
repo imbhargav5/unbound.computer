@@ -96,6 +96,7 @@ export function PasswordLoginForm({
           className="w-full"
           type="submit"
           disabled={passwordStatus === "executing"}
+          data-testid="password-login-button"
         >
           {passwordStatus === "executing" ? "Logging in..." : "Log in"}
         </Button>

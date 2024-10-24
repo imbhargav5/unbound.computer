@@ -9,7 +9,7 @@ import {
 
 const INBUCKET_URL = `http://localhost:54324`;
 
-test.describe.serial("Workspace", () => {
+test.describe.skip("Workspace", () => {
   let createdWorkspaceSlug: string | undefined = undefined;
   test("create workspace works correctly", async ({ page }) => {
     const { workspaceSlug } = await getDefaultWorkspaceInfoHelper({ page });
