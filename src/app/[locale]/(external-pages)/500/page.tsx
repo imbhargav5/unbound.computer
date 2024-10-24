@@ -1,12 +1,12 @@
-import { Button } from '@/components/ui/button';
-import { Typography } from '@/components/ui/Typography';
+import { Button } from "@/components/ui/button";
+import { Typography } from "@/components/ui/Typography";
 
-import { Metadata } from 'next';
-import Link from 'next/link';
+import { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: '500 - Internal Server Error',
-  description: 'An unexpected error occurred on our server.',
+  title: "500 - Internal Server Error",
+  description: "An unexpected error occurred on our server.",
 };
 
 export default function InternalServerError() {

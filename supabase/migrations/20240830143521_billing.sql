@@ -201,7 +201,8 @@ ALTER TABLE public.billing_subscriptions ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE public.billing_credit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_usage_logs ENABLE ROW LEVEL SECURITY;
-
+ALTER TABLE public.billing_one_time_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.billing_payment_methods ENABLE ROW LEVEL SECURITY;
 
 
 -- Add RLS policies (these are basic examples and should be adjusted based on your specific requirements)
