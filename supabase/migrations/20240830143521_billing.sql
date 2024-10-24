@@ -204,17 +204,6 @@ ALTER TABLE public.billing_usage_logs ENABLE ROW LEVEL SECURITY;
 
 
 
--- -- Drop the existing customers and subscriptions tables if they exist
--- DROP TABLE IF EXISTS public.customers CASCADE;
--- DROP TABLE IF EXISTS public.subscriptions CASCADE;
-DROP TABLE IF EXISTS public.subscriptions CASCADE;
-DROP TABLE IF EXISTS public.products CASCADE;
-DROP TABLE IF EXISTS public.prices CASCADE;
-DROP TABLE IF EXISTS public.customers CASCADE;
-
-
-
-
 -- Add RLS policies (these are basic examples and should be adjusted based on your specific requirements)
 CREATE POLICY "Everyone can view plans" ON public.billing_products FOR
 SELECT USING (TRUE);
