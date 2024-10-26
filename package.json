@@ -2,7 +2,6 @@
   "name": "nextbase",
   "version": "3.0.0",
   "main": "index.js",
-  "license": "MIT",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -263,7 +262,9 @@
     "vitest": "^1.6.0"
   },
   "resolutions": {
-    "@react-email/render": "^0.0.12"
+    "@react-email/render": "^0.0.12",
+    "typescript": "^5.6.2",
+    "next": "^14.2.16"
   },
   "overrides": {
     "eslint": "$eslint"
