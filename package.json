@@ -186,7 +186,7 @@
   },
   "scripts": {
     "dev": "NODE_OPTIONS='--no-warnings' concurrently \"content-collections watch\" \"next dev --turbo \"",
-    "dev:debug": "NODE_OPTIONS='--inspect' next dev",
+    "dev:debug": "NODE_OPTIONS='--inspect' next dev --turbo",
     "email:dev": "email dev",
     "start": "next start",
     "generate:types": "supabase gen types typescript --linked --schema public > src/lib/database.types.ts",

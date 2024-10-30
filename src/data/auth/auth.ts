@@ -27,7 +27,6 @@ import { returnValidationErrors } from "next-safe-action";
  */
 export const signUpWithPasswordAction = actionClient
   .schema(signUpWithPasswordSchema)
-
   .action(async ({ parsedInput: { email, password, next } }) => {
     const supabase = createSupabaseUserServerActionClient();
     const emailRedirectTo = new URL(toSiteURL("/auth/callback"));
@@ -44,15 +43,9 @@ export const signUpWithPasswordAction = actionClient
 
     if (error) {
       const errorDetails = handleSupabaseAuthPasswordSignUpErrors(error);
-      if (errorDetails.field === "email") {
+      if (errorDetails.field) {
         returnValidationErrors(signUpWithPasswordSchema, {
-          email: {
-            _errors: [errorDetails.message],
-          },
-        });
-      } else if (errorDetails.field === "password") {
-        returnValidationErrors(signUpWithPasswordSchema, {
-          password: {
+          [email]: {
             _errors: [errorDetails.message],
           },
         });
