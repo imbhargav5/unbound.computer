@@ -26,7 +26,7 @@ jobs:
       - name: Copy env file
         run: cp .env.local.example .env.local
       - name: Start Supabase
-        run: supabase db start
+        run: supabase start
 
       - name: Install playwright browsers
         run: pnpm exec playwright install --with-deps
