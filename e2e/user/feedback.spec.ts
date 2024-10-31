@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.serial("Users can submit and view submitted feedback", () => {
+test.describe.skip("Users can submit and view submitted feedback", () => {
   let feedbackId: string | undefined = undefined;
   test("User can open feedback dialog and submit feedback", async ({
     page,

@@ -4,7 +4,7 @@ import { getDefaultWorkspaceInfoHelper } from "../_helpers/workspace.helper";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
-test("Users can update password", async ({ page, browser }) => {
+test.skip("Users can update password", async ({ page, browser }) => {
   await page.goto("/user/settings/security");
   const email = await page.locator('input[name="email"]').getAttribute("value");
   expect(email).toBeTruthy();

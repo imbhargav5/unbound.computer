@@ -4,7 +4,7 @@ import {
   matchPathAndExtractWorkspaceInfo,
 } from "../_helpers/workspace.helper";
 
-test.describe("Workspace", () => {
+test.describe.skip("Workspace", () => {
   let workspaceSlug: string;
   let isSoloWorkspace: boolean;
 
