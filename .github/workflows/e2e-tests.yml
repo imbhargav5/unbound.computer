@@ -23,7 +23,10 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase db start
+      - name: Copy env file
+        run: cp .env.local.example .env.local
+      - name: Start Supabase
+        run: supabase db start
 
       - name: Install playwright browsers
         run: pnpm exec playwright install --with-deps
