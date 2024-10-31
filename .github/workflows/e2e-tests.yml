@@ -23,7 +23,6 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
-          run: supabase start
 
       - name: Install playwright browsers
         run: pnpm exec playwright install --with-deps
