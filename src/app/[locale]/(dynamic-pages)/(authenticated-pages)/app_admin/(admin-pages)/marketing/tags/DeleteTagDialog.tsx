@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { deleteTagAction } from '@/data/admin/marketing-tags';
-import { Trash2 } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import React, { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { deleteTagAction } from "@/data/admin/marketing-tags";
+import { Trash2 } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import React, { useRef, useState } from "react";
+import { toast } from "sonner";
 
 type DeleteTagDialogProps = {
   tagId: string;
@@ -32,19 +32,19 @@ export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({
 
   const deleteTagMutation = useAction(deleteTagAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting tag...', {
-        description: 'Please wait while we delete the tag.',
+      toastRef.current = toast.loading("Deleting tag...", {
+        description: "Please wait while we delete the tag.",
       });
     },
     onSuccess: () => {
-      toast.success('Tag deleted successfully', { id: toastRef.current });
+      toast.success("Tag deleted successfully", { id: toastRef.current });
       toastRef.current = undefined;
       setOpen(false);
       router.refresh();
     },
     onError: ({ error }) => {
       toast.error(
-        `Failed to delete tag: ${error.serverError || 'Unknown error'}`,
+        `Failed to delete tag: ${error.serverError || "Unknown error"}`,
         { id: toastRef.current },
       );
       toastRef.current = undefined;
@@ -77,11 +77,11 @@ export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={deleteTagMutation.status === 'executing'}
+            disabled={deleteTagMutation.status === "executing"}
           >
-            {deleteTagMutation.status === 'executing'
-              ? 'Deleting...'
-              : 'Delete'}
+            {deleteTagMutation.status === "executing"
+              ? "Deleting..."
+              : "Delete"}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

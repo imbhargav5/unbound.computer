@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { deleteChangelogAction } from '@/data/admin/marketing-changelog';
-import { Trash2 } from 'lucide-react';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import React, { useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { deleteChangelogAction } from "@/data/admin/marketing-changelog";
+import { Trash2 } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import React, { useRef, useState } from "react";
+import { toast } from "sonner";
 
 type DeleteChangelogDialogProps = {
   changelogId: string;
@@ -32,19 +32,19 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({
 
   const deleteChangelogMutation = useAction(deleteChangelogAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting changelog...', {
-        description: 'Please wait while we delete the changelog.',
+      toastRef.current = toast.loading("Deleting changelog...", {
+        description: "Please wait while we delete the changelog.",
       });
     },
     onSuccess: () => {
-      toast.success('Changelog deleted successfully', { id: toastRef.current });
+      toast.success("Changelog deleted successfully", { id: toastRef.current });
       toastRef.current = undefined;
       setOpen(false);
       router.refresh();
     },
     onError: ({ error }) => {
       toast.error(
-        `Failed to delete changelog: ${error.serverError || 'Unknown error'}`,
+        `Failed to delete changelog: ${error.serverError || "Unknown error"}`,
         { id: toastRef.current },
       );
       toastRef.current = undefined;
@@ -82,11 +82,11 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({
             data-testid="confirm-delete-button"
             variant="destructive"
             onClick={handleDelete}
-            disabled={deleteChangelogMutation.status === 'executing'}
+            disabled={deleteChangelogMutation.status === "executing"}
           >
-            {deleteChangelogMutation.status === 'executing'
-              ? 'Deleting...'
-              : 'Delete'}
+            {deleteChangelogMutation.status === "executing"
+              ? "Deleting..."
+              : "Delete"}
           </Button>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

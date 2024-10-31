@@ -25,7 +25,7 @@ export function Stepper({ steps, onStepChangeRequest }: StepperProps) {
                 ? "text-primary"
                 : "text-muted-foreground opacity-50",
               onStepChangeRequest &&
-              "cursor-pointer hover:text-primary transition-colors duration-200",
+                "cursor-pointer hover:text-primary transition-colors duration-200",
             )}
             onClick={() => onStepChangeRequest && onStepChangeRequest(index)}
           >

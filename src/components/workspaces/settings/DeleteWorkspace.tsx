@@ -1,6 +1,6 @@
-'use client';
-import { T } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/button';
+"use client";
+import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,16 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { deleteWorkspaceAction } from '@/data/user/workspaces';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useAction } from 'next-safe-action/hooks';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { deleteWorkspaceAction } from "@/data/user/workspaces";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 type DeleteWorkspaceProps = {
   workspaceName: string;
@@ -33,18 +33,18 @@ export const DeleteWorkspace = ({
   const toastRef = useRef<string | number | undefined>(undefined);
   const { execute, isPending } = useAction(deleteWorkspaceAction, {
     onExecute: () => {
-      toastRef.current = toast.loading('Deleting workspace...');
+      toastRef.current = toast.loading("Deleting workspace...");
     },
     onSuccess: () => {
-      toast.success('Workspace deleted', {
+      toast.success("Workspace deleted", {
         id: toastRef.current,
       });
       toastRef.current = undefined;
       setOpen(false);
-      router.push('/dashboard');
+      router.push("/dashboard");
     },
     onError: ({ error }) => {
-      const errorMessage = error.serverError ?? 'Failed to delete workspace';
+      const errorMessage = error.serverError ?? "Failed to delete workspace";
       toast.error(errorMessage, {
         id: toastRef.current,
       });
@@ -90,7 +90,7 @@ export const DeleteWorkspace = ({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant={'destructive'}>Delete Organization</Button>
+          <Button variant={"destructive"}>Delete Organization</Button>
         </DialogTrigger>
 
         <DialogContent>
@@ -105,7 +105,7 @@ export const DeleteWorkspace = ({
             className="flex flex-col gap-4"
             onSubmit={handleSubmit(onSubmit)}
           >
-            <Input type="text" {...register('workspaceName')} />
+            <Input type="text" {...register("workspaceName")} />
             {errors.workspaceName && (
               <p className="text-red-400 text-sm font-bold">
                 {errors.workspaceName.message}
@@ -118,7 +118,7 @@ export const DeleteWorkspace = ({
               variant="destructive"
               className="w-fit self-end"
             >
-              {isPending ? 'Deleting...' : 'Delete'} Organization
+              {isPending ? "Deleting..." : "Delete"} Organization
             </Button>
           </form>
         </DialogContent>

@@ -1,8 +1,6 @@
 "use server";
 
-import {
-  getSlimWorkspaceById
-} from "@/data/user/workspaces";
+import { getSlimWorkspaceById } from "@/data/user/workspaces";
 import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
 import { getCachedLoggedInUserWorkspaceRole } from "@/rsc-data/user/workspaces";
 import { ApprovalControlActions } from "./ApprovalControlActions";

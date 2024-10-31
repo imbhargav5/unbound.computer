@@ -1,20 +1,19 @@
 ---
-title: 'Hello world'
-summary: 'This is my first post!'
+title: "Hello world"
+summary: "This is my first post!"
 ---
 
 export const metadata = {
   openGraph: {
     images: [
       {
-        url: 'https://nextjs.org/og.png', // Must be an absolute URL
+        url: "https://nextjs.org/og.png", // Must be an absolute URL
         width: 800,
         height: 600,
       },
     ],
   },
 };
-
 
 ## Components
 
@@ -75,12 +74,12 @@ npm install next -D
 
 ```js title="config.js"
 const number = 1;
-const string = 'Hello World';
+const string = "Hello World";
 const boolean = true;
 // [!code word:'John']
 const array = [1, 2, 3]; // [!code highlight]
 const object = {
-  name: 'John',
+  name: "John",
   age: 30,
 };
 ```
@@ -91,21 +90,20 @@ Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc euismod nunc.
 
-
 ### Code with tabs
 
 <Tabs items={["Tab 1", "Tab 2"]}>
 
 ```ts tab="Tab 1"
 const number = 1;
-const string = 'Hello World';
+const string = "Hello World";
 const boolean = true;
 ```
 
 ```ts tab="Tab 2"
 const array = [1, 2, 3]; // [!code highlight]
 const object = {
-  name: 'John',
+  name: "John",
   age: 30,
 };
 ```
@@ -116,14 +114,13 @@ Praesent maximus, ex id lacinia ultricies, nunc nunc ultricies nunc, vitae tinci
 
 Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Donec velit neque, auctor sit amet aliquam vel, ullamcorper sit amet ligula. Nulla porttitor accumsan tincidunt. Curabitur aliquet quam id dui posuere blandit. Cras ultricies ligula sed magna dictum porta.
 
-
 ### Callouts
 
 <Callout title="Hello World" />
 
-<Callout title="Hello World"  type="warn"/>
+<Callout title="Hello World" type="warn" />
 
-<Callout title="Hello World"  type="error"/>
+<Callout title="Hello World" type="error" />
 
 ### Accordion
 
@@ -134,12 +131,20 @@ An accordion component is perfect for displaying a list of items that can be exp
     Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas nunc.
   </Accordion>
 
-  <Accordion title="Consectetur adipiscing elit">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas nunc.
-  </Accordion>
+{" "}
+<Accordion title="Consectetur adipiscing elit">
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi
+  vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc
+  euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas
+  nunc.
+</Accordion>
 
-  <Accordion title="Nullam euismod, nisi vel consectetur">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas nunc.
-  </Accordion>
+{" "}
+<Accordion title="Nullam euismod, nisi vel consectetur">
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisi
+  vel consectetur interdum, nisl nunc egestas nunc, vitae tincidunt nisl nunc
+  euismod nunc. Sed euismod, nisi vel consectetur interdum, nisl nunc egestas
+  nunc.
+</Accordion>
 
 </Accordions>

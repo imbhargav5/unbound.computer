@@ -1,12 +1,12 @@
-import { Button } from '@/components/ui/button';
-import { Typography } from '@/components/ui/Typography';
-import { GeistSans } from 'geist/font/sans';
-import { Metadata } from 'next';
-import Link from 'next/link';
+import { Button } from "@/components/ui/button";
+import { Typography } from "@/components/ui/Typography";
+import { GeistSans } from "geist/font/sans";
+import { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: '404 - Not Found',
-  description: 'The page you are looking for does not exist.',
+  title: "404 - Not Found",
+  description: "The page you are looking for does not exist.",
 };
 
 export default function NotFound() {

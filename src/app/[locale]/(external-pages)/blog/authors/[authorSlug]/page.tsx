@@ -1,12 +1,12 @@
-import { T } from '@/components/ui/Typography';
+import { T } from "@/components/ui/Typography";
 import {
   anonGetBlogPostsByAuthorId,
   anonGetOneAuthorBySlug,
-} from '@/data/anon/marketing-blog';
-import moment from 'moment';
-import { notFound } from 'next/navigation';
-import { z } from 'zod';
-import AuthorCard from '../../AuthorCard';
+} from "@/data/anon/marketing-blog";
+import moment from "moment";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+import AuthorCard from "../../AuthorCard";
 
 const paramsSchema = z.object({
   authorSlug: z.string(),
@@ -42,7 +42,7 @@ export default async function AuthorPage({ params }: { params: unknown }) {
                 >
                   <div className="relative w-full">
                     <img
-                      src={post.cover_image ?? '/images/nextbase-logo.png'}
+                      src={post.cover_image ?? "/images/nextbase-logo.png"}
                       alt={post.title}
                       className="aspect-[16/9] w-full rounded-2xl bg-gray-100  object-cover sm:aspect-[2/1] lg:aspect-[3/2]"
                     />
@@ -53,7 +53,7 @@ export default async function AuthorPage({ params }: { params: unknown }) {
                         dateTime={post.created_at}
                         className="text-muted-foreground dark:text-secondary-foreground uppercase"
                       >
-                        {moment(post.created_at).format('MMM D, YYYY')}
+                        {moment(post.created_at).format("MMM D, YYYY")}
                       </time>
                     </div>
                     <div className="group relative">

@@ -33,10 +33,10 @@ type DBWorkspaceMemberRoleEnum = Enum<"workspace_member_role_type">;
 // Check if WorkspaceMemberRoleEnum and DBWorkspaceMemberRoleEnum are equivalent
 type RoleEnumEquivalence =
   WorkspaceMemberRoleEnum extends DBWorkspaceMemberRoleEnum
-  ? DBWorkspaceMemberRoleEnum extends WorkspaceMemberRoleEnum
-  ? true
-  : false
-  : false;
+    ? DBWorkspaceMemberRoleEnum extends WorkspaceMemberRoleEnum
+      ? true
+      : false
+    : false;
 
 // This will cause a type error if the types are not equivalent
 type AssertRoleEnumEquivalence = RoleEnumEquivalence extends true

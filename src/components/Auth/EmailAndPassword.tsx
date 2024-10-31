@@ -1,9 +1,9 @@
-import { Button } from '@/components/Button';
-import { Link } from '@/components/intl-link';
-import { Label } from '@/components/ui/label';
-import { classNames } from '@/utils/classNames';
-import type { PropsOf } from '@headlessui/react/dist/types';
-import { useState } from 'react';
+import { Button } from "@/components/Button";
+import { Link } from "@/components/intl-link";
+import { Label } from "@/components/ui/label";
+import { classNames } from "@/utils/classNames";
+import type { PropsOf } from "@headlessui/react/dist/types";
+import { useState } from "react";
 
 export const EmailAndPassword = ({
   onSubmit,
@@ -11,11 +11,11 @@ export const EmailAndPassword = ({
   isLoading,
 }: {
   onSubmit: (data: { email: string; password: string }) => void;
-  view: 'sign-in' | 'sign-up';
+  view: "sign-in" | "sign-up";
   isLoading: boolean;
 } & PropsOf<typeof Button>) => {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
 
   return (
     <form
@@ -43,7 +43,7 @@ export const EmailAndPassword = ({
               data-strategy="email-password"
               placeholder="placeholder@email.com"
               onChange={(event) => setEmail(event.target.value)}
-              autoComplete={'email'}
+              autoComplete={"email"}
               required
               className="block w-full appearance-none rounded-md border bg-gray-50/10 dark:bg-gray-800/20 h-10 px-3 py-3 placeholder-muted-foreground shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
             />
@@ -63,7 +63,7 @@ export const EmailAndPassword = ({
               placeholder="Type your password"
               onChange={(event) => setPassword(event.target.value)}
               autoComplete={
-                view === 'sign-in' ? 'current-password' : 'new-password'
+                view === "sign-in" ? "current-password" : "new-password"
               }
               required
               className="block w-full appearance-none rounded-md border bg-gray-50/10 dark:bg-gray-800/20 h-10 px-3 py-3 placeholder-muted-foreground shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
@@ -72,7 +72,7 @@ export const EmailAndPassword = ({
         </div>
 
         <div className="flex items-center justify-between">
-          {view === 'sign-in' ? (
+          {view === "sign-in" ? (
             <div className="text-sm">
               <Link
                 href="/forgot-password"
@@ -89,10 +89,10 @@ export const EmailAndPassword = ({
               disabled
               type="submit"
               className={classNames(
-                'flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+                "flex w-full justify-center rounded-lg border border-transparent py-3 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2",
                 isLoading
-                  ? 'bg-yellow-300 dark:bg-yellow-700 '
-                  : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ',
+                  ? "bg-yellow-300 dark:bg-yellow-700 "
+                  : "bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ",
               )}
             >
               Loading...
@@ -101,17 +101,17 @@ export const EmailAndPassword = ({
             <Button
               type="submit"
               className={classNames(
-                'flex w-full justify-center rounded-lg border border-transparent py-2 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+                "flex w-full justify-center rounded-lg border border-transparent py-2 text-white dark:text-black px-4 text-sm font-medium  shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2",
                 isLoading
-                  ? 'bg-yellow-300 dark:bg-yellow-700 '
-                  : 'bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ',
+                  ? "bg-yellow-300 dark:bg-yellow-700 "
+                  : "bg-black dark:bg-white hover:bg-gray-900 dark:hover:bg-gray-100  ",
               )}
             >
-              {view === 'sign-in' ? 'Login' : 'Sign up'}
+              {view === "sign-in" ? "Login" : "Sign up"}
             </Button>
           )}
           <div className="w-full text-center">
-            {view === 'sign-in' ? (
+            {view === "sign-in" ? (
               <div className="text-sm">
                 <Link
                   href="/sign-up"

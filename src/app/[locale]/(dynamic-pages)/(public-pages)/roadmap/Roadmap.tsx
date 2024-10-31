@@ -1,18 +1,18 @@
-'use client';
+"use client";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import type { roadmapDataType } from '@/data/admin/marketing-roadmap';
-import { RoadmapList } from './_components/RoadmapList';
+} from "@/components/ui/card";
+import type { roadmapDataType } from "@/data/admin/marketing-roadmap";
+import { RoadmapList } from "./_components/RoadmapList";
 
 export enum Statuses {
-  plannedCards = 'Planned',
-  inProgress = 'In Progress',
-  completedCards = 'Completed',
+  plannedCards = "Planned",
+  inProgress = "In Progress",
+  completedCards = "Completed",
 }
 
 export function Roadmap({
