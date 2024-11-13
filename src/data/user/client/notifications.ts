@@ -1,3 +1,4 @@
+// @/src/data/user/client/notifications.ts
 "use client";
 import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
 import type { DBTable, SAPayload } from "@/types";

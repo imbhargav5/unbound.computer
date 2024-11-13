@@ -49,6 +49,7 @@ const publicPaths = [
   `/terms`,
   `/waitlist(/.*)?`,
   `/500(/.*)?`,
+  `/404(/.*)?`,
 ];
 
 /**
