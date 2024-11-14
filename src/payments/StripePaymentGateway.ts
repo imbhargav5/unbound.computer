@@ -1084,7 +1084,11 @@ export class StripePaymentGateway implements PaymentGateway {
 
       console.log("productsToUpsert", productsToUpsert);
       console.log("stripePrices", stripePrices);
-
+      const validStripePrices = stripePrices.data.filter((stripePrice) => {
+        return productsToUpsert.some(
+          (product) => product.gateway_product_id === stripePrice.product,
+        );
+      });
       const { error: upsertError } = await supabaseAdminClient
         .from("billing_products")
         .upsert(productsToUpsert, {
@@ -1093,7 +1097,7 @@ export class StripePaymentGateway implements PaymentGateway {
       if (upsertError) throw upsertError;
 
       const pricesToUpsert: DBTableInsertPayload<"billing_prices">[] =
-        stripePrices.data.map((stripePrice) => ({
+        validStripePrices.map((stripePrice) => ({
           gateway_product_id: stripePrice.product as string,
           currency: stripePrice.currency,
           amount: stripePrice.unit_amount ?? 0,
