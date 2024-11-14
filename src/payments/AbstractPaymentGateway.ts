@@ -34,6 +34,11 @@ export type CustomerData = {
   metadata?: { [key: string]: string };
 };
 
+export type GatewaySubscriptionData = {
+  id: string;
+  status: string;
+};
+
 export type SubscriptionData = DBTable<"billing_subscriptions"> & {
   billing_prices: DBTable<"billing_prices"> | null;
   billing_products: DBTable<"billing_products"> | null;

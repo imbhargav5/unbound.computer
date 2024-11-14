@@ -7,13 +7,13 @@ import { DBTable, DBTableInsertPayload } from "@/types";
 import { convertAmountToUSD } from "@/utils/currency";
 import { toSiteURL } from "@/utils/helpers";
 import { Dictionary, groupBy } from "lodash";
-import "server-only";
 import Stripe from "stripe";
 import {
   CheckoutSessionData,
   CheckoutSessionOptions,
   CustomerData,
   CustomerPortalData,
+  GatewaySubscriptionData,
   InvoiceData,
   OneTimePaymentData,
   PaginatedResponse,
@@ -192,9 +192,15 @@ export class StripePaymentGateway implements PaymentGateway {
     getSubscriptionsByWorkspaceId: async (
       workspaceId: string,
     ): Promise<SubscriptionData[]> => {
-      const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      let customer: DBTable<"billing_customers"> | undefined = undefined;
+      try {
+        customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      } catch (error) {
+        console.warn("Customer not found");
+        return [];
+      }
       if (!customer) {
-        throw new Error("Customer not found");
+        return [];
       }
       const { data, error } = await supabaseAdminClient
         .from("billing_subscriptions")
@@ -292,9 +298,24 @@ export class StripePaymentGateway implements PaymentGateway {
       workspaceId: string,
       options?: PaginationOptions,
     ): Promise<PaginatedResponse<InvoiceData>> => {
-      const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      let customer: DBTable<"billing_customers"> | undefined = undefined;
+      try {
+        customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      } catch (error) {
+        console.warn("Customer not found");
+        return {
+          data: [],
+          hasMore: false,
+          totalCount: 0,
+        };
+      }
+
       if (!customer) {
-        throw new Error("Customer not found");
+        return {
+          data: [],
+          hasMore: false,
+          totalCount: 0,
+        };
       }
       return this.db.listInvoicesByCustomerId(
         customer.gateway_customer_id,
@@ -351,9 +372,15 @@ export class StripePaymentGateway implements PaymentGateway {
     getWorkspaceDatabaseOneTimePurchases: async (
       workspaceId: string,
     ): Promise<OneTimePaymentData[]> => {
-      const customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      let customer: DBTable<"billing_customers"> | undefined = undefined;
+      try {
+        customer = await this.db.getCustomerByWorkspaceId(workspaceId);
+      } catch (error) {
+        console.warn("Customer not found", error);
+        return [];
+      }
       if (!customer) {
-        throw new Error("Customer not found");
+        return [];
       }
       return this.db.getOneTimePurchasesByCustomerId(
         customer.gateway_customer_id,
@@ -516,6 +543,16 @@ export class StripePaymentGateway implements PaymentGateway {
         this.util.handleStripeError(error);
       }
     },
+    getSubscription: async (
+      subscriptionId: string,
+    ): Promise<GatewaySubscriptionData> => {
+      const subscription =
+        await this.stripe.subscriptions.retrieve(subscriptionId);
+      return {
+        id: subscription.id,
+        status: subscription.status,
+      };
+    },
   };
 
   private async handleSubscriptionChange(subscription: Stripe.Subscription) {
@@ -528,7 +565,7 @@ export class StripePaymentGateway implements PaymentGateway {
       typeof subscription.customer === "string"
         ? subscription.customer
         : typeof subscription.customer === "object" &&
-            "id" in subscription.customer
+          "id" in subscription.customer
           ? subscription.customer.id
           : null;
     if (!stripeCustomerId) {
@@ -546,7 +583,7 @@ export class StripePaymentGateway implements PaymentGateway {
         typeof subscription.customer === "string"
           ? subscription.customer
           : typeof subscription.customer === "object" &&
-              "email" in subscription.customer
+            "email" in subscription.customer
             ? subscription.customer.email
             : null;
       if (!billingEmail) {
@@ -1082,8 +1119,6 @@ export class StripePaymentGateway implements PaymentGateway {
           };
         });
 
-      console.log("productsToUpsert", productsToUpsert);
-      console.log("stripePrices", stripePrices);
       const validStripePrices = stripePrices.data.filter((stripePrice) => {
         return productsToUpsert.some(
           (product) => product.gateway_product_id === stripePrice.product,
@@ -1111,7 +1146,10 @@ export class StripePaymentGateway implements PaymentGateway {
       const { error: priceUpsertError } = await supabaseAdminClient
         .from("billing_prices")
         .upsert(pricesToUpsert, { onConflict: "gateway_price_id" });
-      if (priceUpsertError) throw priceUpsertError;
+      if (priceUpsertError) {
+        console.log("priceUpsertError", priceUpsertError);
+        throw priceUpsertError;
+      }
     },
 
     toggleProductVisibility: async (
