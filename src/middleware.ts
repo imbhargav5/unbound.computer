@@ -11,7 +11,6 @@ import {
   LOCALE_GLOB_PATTERN,
   isValidLocale,
 } from "./constants";
-import { updateSession } from "./supabase-clients/middleware";
 import { createSupabaseMiddlewareClient } from "./supabase-clients/user/createSupabaseMiddlewareClient";
 import { toSiteURL } from "./utils/helpers";
 import { isSupabaseUserAppAdmin } from "./utils/isSupabaseUserAppAdmin";
@@ -223,9 +222,6 @@ const middlewares: MiddlewareConfig[] = [
         req.nextUrl.pathname,
       );
       const res = NextResponse.next();
-      // since all the middlewares are executed in order, we can update the session here once
-      // for all the protected routes
-      await updateSession(req);
       const supabase = createSupabaseMiddlewareClient(req);
       const sessionResponse = await supabase.auth.getSession();
       const maybeUser = sessionResponse?.data.session?.user;
