@@ -5,6 +5,17 @@ import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { revalidatePath } from "next/cache";
 import { adminToggleFeedbackOpenForCommentsAction } from "../feedback";
 
+/**
+ * Retrieves a paginated list of internal feedback threads based on the provided filters and pagination options.
+ * @param query - Search query to filter feedback threads by title.
+ * @param types - Array of feedback thread types to filter by.
+ * @param statuses - Array of feedback thread statuses to filter by.
+ * @param priorities - Array of feedback thread priorities to filter by.
+ * @param page - The page number for pagination.
+ * @param limit - The number of items per page.
+ * @param sort - Sort order for the feedback threads, either ascending or descending by creation date.
+ * @returns An object containing the data and count of feedback threads.
+ */
 export const getPaginatedInternalFeedbackList = async ({
   query = "",
   types = [],
@@ -22,7 +33,7 @@ export const getPaginatedInternalFeedbackList = async ({
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
   sort?: "asc" | "desc";
 }) => {
-  const zeroIndexedPage = page - 1;
+  const zeroIndexedPage = page - 1; // Convert to zero-indexed page for database query
   let supabaseQuery = supabaseAdminClient
     .from("marketing_feedback_threads")
     .select("*")
@@ -62,6 +73,17 @@ export const getPaginatedInternalFeedbackList = async ({
   };
 };
 
+/**
+ * Calculates the total number of pages for internal feedback threads based on the provided filters and pagination options.
+ * @param query - Search query to filter feedback threads by title.
+ * @param types - Array of feedback thread types to filter by.
+ * @param statuses - Array of feedback thread statuses to filter by.
+ * @param priorities - Array of feedback thread priorities to filter by.
+ * @param page - The page number for pagination.
+ * @param limit - The number of items per page.
+ * @param sort - Sort order for the feedback threads, either ascending or descending by creation date.
+ * @returns The total number of pages.
+ */
 export async function getInternalFeedbackTotalPages({
   query = "",
   types = [],
@@ -79,7 +101,7 @@ export async function getInternalFeedbackTotalPages({
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
   sort?: "asc" | "desc";
 }) {
-  const zeroIndexedPage = page - 1;
+  const zeroIndexedPage = page - 1; // Convert to zero-indexed page for database query
   let supabaseQuery = supabaseAdminClient
     .from("marketing_feedback_threads")
     .select("id", {
@@ -122,6 +144,11 @@ export async function getInternalFeedbackTotalPages({
   return Math.ceil(count / limit) ?? 0;
 }
 
+/**
+ * Updates the status of a specific internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param status - The new status to set for the feedback thread.
+ */
 export async function updateInternalFeedbackStatus(
   feedbackId: string,
   status: Enum<"marketing_feedback_thread_status">,
@@ -136,6 +163,11 @@ export async function updateInternalFeedbackStatus(
   }
 }
 
+/**
+ * Updates the priority of a specific internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param priority - The new priority to set for the feedback thread.
+ */
 export async function updateInternalFeedbackPriority(
   feedbackId: string,
   priority: Enum<"marketing_feedback_thread_priority">,
@@ -150,6 +182,12 @@ export async function updateInternalFeedbackPriority(
   }
 }
 
+/**
+ * Updates the type of a specific internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param type - The new type to set for the feedback thread.
+ * @returns The updated feedback thread data.
+ */
 export const updateInternalFeedbackType = async (
   feedbackId: string,
   type: Enum<"marketing_feedback_thread_type">,
@@ -166,6 +204,12 @@ export const updateInternalFeedbackType = async (
   return data;
 };
 
+/**
+ * Creates a new internal feedback thread.
+ * @param userId - The ID of the user creating the feedback.
+ * @param payload - The feedback details including title, content, and type.
+ * @returns The newly created feedback thread data.
+ */
 export async function createInternalFeedback(
   userId: string,
   payload: {
@@ -191,6 +235,13 @@ export async function createInternalFeedback(
   return data[0];
 }
 
+/**
+ * Adds a comment to an existing internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to comment on.
+ * @param userId - The ID of the user adding the comment.
+ * @param content - The content of the comment.
+ * @returns The newly created comment data.
+ */
 export async function createInternalFeedbackComment(
   feedbackId: string,
   userId: string,
@@ -208,6 +259,11 @@ export async function createInternalFeedbackComment(
   return data[0];
 }
 
+/**
+ * Toggles the visibility of a feedback thread on the roadmap.
+ * @param threadId - The ID of the feedback thread to update.
+ * @param isVisible - Boolean indicating if the thread should be visible on the roadmap.
+ */
 export async function toggleFeedbackThreadVisibility(
   threadId: string,
   isVisible: boolean,
@@ -228,6 +284,12 @@ export async function toggleFeedbackThreadVisibility(
   });
 }
 
+/**
+ * Toggles the public discussion status of a feedback thread.
+ * @param threadId - The ID of the feedback thread to update.
+ * @param isOpen - Boolean indicating if the thread should be open for public discussion.
+ * @returns The updated feedback thread data.
+ */
 export async function toggleFeedbackThreadDiscussion(
   threadId: string,
   isOpen: boolean,
@@ -245,6 +307,11 @@ export async function toggleFeedbackThreadDiscussion(
   return data;
 }
 
+/**
+ * Retrieves a simplified version of an internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to retrieve.
+ * @returns The feedback thread data including title, content, and status.
+ */
 export const appAdminGetSlimInternalFeedback = async (feedbackId: string) => {
   const { data, error } = await supabaseAdminClient
     .from("marketing_feedback_threads")
@@ -259,6 +326,12 @@ export const appAdminGetSlimInternalFeedback = async (feedbackId: string) => {
   return data;
 };
 
+/**
+ * Adds a comment to an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to comment on.
+ * @param content - The content of the comment.
+ * @returns The newly created comment data.
+ */
 export const appAdminAddCommentToInternalFeedbackThread = async (
   feedbackId: string,
   content: string,
@@ -279,6 +352,11 @@ export const appAdminAddCommentToInternalFeedbackThread = async (
   return data;
 };
 
+/**
+ * Retrieves all comments for a specific internal feedback thread.
+ * @param feedbackId - The ID of the feedback thread to retrieve comments for.
+ * @returns An array of comments for the feedback thread.
+ */
 export const appAdminGetInternalFeedbackComments = async (
   feedbackId: string,
 ) => {
@@ -294,6 +372,12 @@ export const appAdminGetInternalFeedbackComments = async (
   return data;
 };
 
+/**
+ * Updates the type of an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param type - The new type to set for the feedback thread.
+ * @returns The updated feedback thread data.
+ */
 export async function adminUpdateInternalFeedbackType({
   feedbackId,
   type,
@@ -316,6 +400,12 @@ export async function adminUpdateInternalFeedbackType({
   return data;
 }
 
+/**
+ * Updates the status of an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param status - The new status to set for the feedback thread.
+ * @returns The updated feedback thread data.
+ */
 export async function adminUpdateInternalFeedbackStatus({
   feedbackId,
   status,
@@ -338,6 +428,12 @@ export async function adminUpdateInternalFeedbackStatus({
   return data;
 }
 
+/**
+ * Updates the priority of an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param priority - The new priority to set for the feedback thread.
+ * @returns The updated feedback thread data.
+ */
 export async function adminUpdateInternalFeedbackPriority({
   feedbackId,
   priority,
@@ -359,6 +455,12 @@ export async function adminUpdateInternalFeedbackPriority({
   return data;
 }
 
+/**
+ * Updates the roadmap visibility of an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param isAddedToRoadmap - Boolean indicating if the thread should be added to the roadmap.
+ * @returns The updated feedback thread data.
+ */
 export const adminUpdateInternalFeedbackAddedToRoadmap = async ({
   feedbackId,
   isAddedToRoadmap,
@@ -380,6 +482,12 @@ export const adminUpdateInternalFeedbackAddedToRoadmap = async ({
   return data;
 };
 
+/**
+ * Updates the public discussion visibility of an internal feedback thread as an admin.
+ * @param feedbackId - The ID of the feedback thread to update.
+ * @param isOpenToDiscussion - Boolean indicating if the thread should be open for public discussion.
+ * @returns The updated feedback thread data.
+ */
 export const adminUpdateInternalFeedbackVisibility = async ({
   feedbackId,
   isOpenToDiscussion,
@@ -401,6 +509,11 @@ export const adminUpdateInternalFeedbackVisibility = async ({
   return data;
 };
 
+/**
+ * Retrieves a specific internal feedback thread by its ID.
+ * @param feedbackId - The ID of the feedback thread to retrieve.
+ * @returns The feedback thread data.
+ */
 export async function adminGetInternalFeedbackById(feedbackId: string) {
   const { data, error } = await supabaseAdminClient
     .from("marketing_feedback_threads")

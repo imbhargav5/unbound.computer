@@ -18,6 +18,8 @@ import { zfd } from "zod-form-data";
 
 /**
  * Creates a new marketing blog post.
+ * Utilizes the admin action client to insert a new post into the database.
+ * Revalidates the cache path to ensure the new post is reflected in the UI.
  */
 export const createBlogPostAction = adminActionClient
   .schema(createMarketingBlogPostActionSchema)
@@ -44,6 +46,8 @@ export const createBlogPostAction = adminActionClient
 
 /**
  * Updates an existing marketing blog post.
+ * Uses the admin action client to update a post in the database by its ID.
+ * Revalidates the cache path to ensure the updated post is reflected in the UI.
  */
 export const updateBlogPostAction = adminActionClient
   .schema(updateMarketingBlogPostActionSchema)
@@ -76,6 +80,8 @@ export const updateBlogPostAction = adminActionClient
 
 /**
  * Deletes a marketing blog post.
+ * Removes a post from the database by its ID using the admin action client.
+ * Revalidates the cache path to ensure the deletion is reflected in the UI.
  */
 export const deleteBlogPostAction = adminActionClient
   .schema(deleteMarketingBlogPostSchema)
@@ -93,6 +99,8 @@ export const deleteBlogPostAction = adminActionClient
 
 /**
  * Updates authors for a blog post.
+ * Deletes existing author relationships and inserts new ones for a given post.
+ * Revalidates the cache path to ensure the author updates are reflected in the UI.
  */
 export const updateBlogPostAuthorsAction = adminActionClient
   .schema(updateBlogPostAuthorsSchema)
@@ -121,6 +129,8 @@ export const updateBlogPostAuthorsAction = adminActionClient
 
 /**
  * Updates tags for a blog post.
+ * Deletes existing tag relationships and inserts new ones for a given post.
+ * Revalidates the cache path to ensure the tag updates are reflected in the UI.
  */
 export const updateBlogPostTagsAction = adminActionClient
   .schema(updateBlogPostTagsSchema)
@@ -149,6 +159,8 @@ export const updateBlogPostTagsAction = adminActionClient
 
 /**
  * Retrieves all marketing blog posts.
+ * Fetches all posts from the database, including their authors and tags.
+ * Orders the posts by creation date in descending order.
  */
 export async function getAllBlogPosts() {
   const { data, error } = await supabaseAdminClient
@@ -169,6 +181,7 @@ export async function getAllBlogPosts() {
 
 /**
  * Retrieves a single marketing blog post by ID.
+ * Fetches a post from the database by its ID, including its authors and tags.
  */
 export async function getBlogPostById(id: string) {
   const { data, error } = await supabaseAdminClient
@@ -188,21 +201,28 @@ export async function getBlogPostById(id: string) {
   return data;
 }
 
+// Schema for form data containing a file, used in uploading blog cover images.
 const formDataSchema = zfd.formData({
   file: zfd.file(),
 });
 
+// Schema for uploading a blog cover image, includes form data schema.
 const uploadBlogCoverImageSchema = z.object({
   formData: formDataSchema,
 });
 
+/**
+ * Uploads a blog cover image.
+ * Generates a unique filename for the image and uploads it to the storage.
+ * Returns the public URL of the uploaded image.
+ */
 export const uploadBlogCoverImageAction = adminActionClient
   .schema(uploadBlogCoverImageSchema)
   .action(async ({ parsedInput: { formData } }) => {
     const { file } = formData;
 
-    const fileExtension = file.name.split(".").pop();
-    const uniqueFilename = `${uuidv4()}.${fileExtension}`;
+    const fileExtension = file.name.split(".").pop(); // Extracts the file extension
+    const uniqueFilename = `${uuidv4()}.${fileExtension}`; // Generates a unique filename
     const blogImagesPath = `marketing/blog-images/${uniqueFilename}`;
 
     const { data, error } = await supabaseAdminClient.storage
@@ -218,7 +238,7 @@ export const uploadBlogCoverImageAction = adminActionClient
 
     const { path } = data;
 
-    const filePath = path.split(",")[0];
+    const filePath = path.split(",")[0]; // Extracts the file path
     const supabaseFileUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       "/storage/v1/object/public/marketing-assets",

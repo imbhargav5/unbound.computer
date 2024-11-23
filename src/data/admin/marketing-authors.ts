@@ -127,18 +127,31 @@ export async function getAuthorProfileById(id: string) {
   return data;
 }
 
+// Schema for handling form data, specifically for file uploads
 const formDataSchema = zfd.formData({
   file: zfd.file(),
 });
+
+// Schema for uploading marketing author images
 const uploadMarketingAuthorImageSchema = z.object({
   formData: formDataSchema,
 });
 
+/**
+ * Uploads a marketing author image.
+ *
+ * This action uploads an image file to the storage and returns the public URL of the uploaded image.
+ * It uses admin privileges to perform the operation.
+ *
+ * @param {Object} input - The form data containing the file to be uploaded.
+ * @returns {Promise<string>} The public URL of the uploaded image.
+ */
 export const uploadMarketingAuthorImageAction = adminActionClient
   .schema(uploadMarketingAuthorImageSchema)
   .action(async ({ parsedInput: { formData } }) => {
     const { file } = formData;
 
+    // Extract file extension and generate a unique filename
     const fileExtension = file.name.split(".").pop();
     const uniqueFilename = `${uuidv4()}.${fileExtension}`;
     const userImagesPath = `marketing/author-images/${uniqueFilename}`;
@@ -156,6 +169,7 @@ export const uploadMarketingAuthorImageAction = adminActionClient
 
     const { path } = data;
 
+    // Construct the public URL for the uploaded file
     const filePath = path.split(",")[0];
     const supabaseFileUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
