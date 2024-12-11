@@ -5,22 +5,19 @@ import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUse
 import { useQuery } from "@tanstack/react-query";
 
 export function LoginCTAButton() {
-  const { data: isLoggedIn, isFetching } = useQuery(
-    ["isLoggedInHome"],
-    async () => {
+  const { data: isLoggedIn, isFetching } = useQuery({
+    queryKey: ["isLoggedInHome"],
+    queryFn: async () => {
       const response = await supabaseUserClientComponent.auth.getUser();
       return Boolean(response.data.user?.id);
     },
-    {
-      initialData: false,
-      refetchOnMount: true,
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      refetchIntervalInBackground: false,
-      cacheTime: 0,
-      staleTime: 0,
-    },
-  );
+    initialData: false,
+    refetchOnMount: true,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
+    staleTime: 0,
+  });
 
   return (
     <ExternalNavigationCTAButton

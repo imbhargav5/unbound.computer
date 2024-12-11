@@ -36,16 +36,14 @@ const NOTIFICATIONS_PAGE_SIZE = 10;
  * @returns The unseen notification IDs.
  */
 const useUnseenNotificationIds = (userId: string) => {
-  const { data, refetch } = useQuery(
-    ["unseen-notification-ids", userId],
-    async () => {
+  const { data, refetch } = useQuery({
+    queryKey: ["unseen-notification-ids", userId],
+    queryFn: async () => {
       return getUnseenNotificationIds(userId);
     },
-    {
-      initialData: [],
-      refetchOnWindowFocus: false,
-    },
-  );
+    initialData: [],
+    refetchOnWindowFocus: false,
+  });
   useEffect(() => {
     const channelId = `user-notifications:${userId}`;
     const channel = supabaseUserClientComponent
@@ -97,31 +95,30 @@ export const useNotifications = (userId: string) => {
     fetchNextPage,
     hasNextPage,
     refetch,
-  } = useInfiniteQuery(
-    ["paginatedNotifications", userId],
-    async ({ pageParam }) => {
+  } = useInfiniteQuery({
+    queryKey: ["paginatedNotifications", userId],
+    queryFn: async ({ pageParam }) => {
       return getPaginatedNotifications(
         userId,
         pageParam ?? 0,
         NOTIFICATIONS_PAGE_SIZE,
       );
     },
-    {
-      getNextPageParam: (lastPage, _pages) => {
-        const pageNumber = lastPage[0];
-        const rows = lastPage[1];
+    getNextPageParam: (lastPage, _pages) => {
+      const pageNumber = lastPage[0];
+      const rows = lastPage[1];
 
-        if (rows.length < NOTIFICATIONS_PAGE_SIZE) return undefined;
-        return pageNumber + 1;
-      },
-      initialData: {
-        pageParams: [0],
-        pages: [[0, []]],
-      },
-      // You can disable it here
-      refetchOnWindowFocus: false,
+      if (rows.length < NOTIFICATIONS_PAGE_SIZE) return undefined;
+      return pageNumber + 1;
     },
-  );
+    initialPageParam: 0,
+    initialData: {
+      pageParams: [0],
+      pages: [[0, []]],
+    },
+    // You can disable it here
+    refetchOnWindowFocus: false,
+  });
 
   const notifications = data?.pages.flatMap((page) => page[1]) ?? [];
   return {
@@ -258,19 +255,19 @@ export const NotificationsProvider = ({
   const { mutate: mutateReadAllNotifications } =
     useReadAllNotifications(userId);
   const router = useRouter();
-  const { mutate: mutateSeeNotification } = useMutation(
-    async (notificationId: string) => await seeNotification(notificationId),
-    {
-      onSuccess: () => router.refresh(),
-    },
-  );
+  const { mutate: mutateSeeNotification } = useMutation({
+    mutationFn: async (notificationId: string) =>
+      await seeNotification(notificationId),
 
-  const { mutate: mutateReadNotification } = useMutation(
-    async (notificationId: string) => await readNotification(notificationId),
-    {
-      onSuccess: () => router.refresh(),
-    },
-  );
+    onSuccess: () => router.refresh(),
+  });
+
+  const { mutate: mutateReadNotification } = useMutation({
+    mutationFn: async (notificationId: string) =>
+      await readNotification(notificationId),
+
+    onSuccess: () => router.refresh(),
+  });
 
   useEffect(() => {
     refetch();

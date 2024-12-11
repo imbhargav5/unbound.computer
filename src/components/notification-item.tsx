@@ -66,7 +66,7 @@ export function NotificationItem({
       onMouseOver={onHover}
       // Dynamically style notification based on read status and hover state
       className={cn(
-        "flex items-start w-full px-4 py-3 border-b gap-4",
+        "flex items-start w-full py-3 gap-4",
         isRead ? "bg-accent/50" : "bg-background",
         "hover:bg-accent/25 transition-colors duration-200",
       )}

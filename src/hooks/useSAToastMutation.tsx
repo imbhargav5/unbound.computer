@@ -63,8 +63,9 @@ export function useSAToastMutation<
     }
   });
 
-  return useMutation<SAPayload<TData>, TError, TVariables>(mutationFn, {
+  return useMutation<SAPayload<TData>, TError, TVariables>({
     ...options,
+    mutationFn,
     onMutate: async (variables) => {
       const loadingMessage = options?.loadingMessage
         ? typeof options.loadingMessage === "function"

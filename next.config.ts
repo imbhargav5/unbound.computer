@@ -1,6 +1,6 @@
 import { withContentCollections } from "@content-collections/next";
 import createWithBundleAnalyzer from "@next/bundle-analyzer";
-import { withSentryConfig } from "@sentry/nextjs";
+// import { withSentryConfig } from "@sentry/nextjs";
 import { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import { PHASE_DEVELOPMENT_SERVER } from "next/dist/shared/lib/constants";
@@ -101,9 +101,10 @@ export default async function config(
     },
   };
   if (phase === PHASE_DEVELOPMENT_SERVER) {
-    nextConfig.sentry = {
-      hideSourceMaps: false,
-    };
+    // If you want to use sentry, uncomment the following line
+    // nextConfig.sentry = {
+    //   hideSourceMaps: false,
+    // };
     nextConfig.logging = {
       fetches: {
         fullUrl: true,
@@ -115,5 +116,7 @@ export default async function config(
     withBundleAnalyzer(withNextIntl(nextConfig)),
   );
 
-  return withSentryConfig(modifiedConfig);
+  // If you want to use sentry, uncomment the following line
+  // return withSentryConfig(modifiedConfig);
+  return modifiedConfig;
 }
