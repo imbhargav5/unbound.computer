@@ -15,7 +15,9 @@ import {
 
 import { getChatsHistory } from "@/data/user/chats";
 import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 
 const truncateId = (id: string) => {
   if (id.length > 8) {
@@ -25,7 +27,7 @@ const truncateId = (id: string) => {
 };
 
 export async function ChatHistory({ projectSlug }: { projectSlug: string }) {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const project = await getCachedProjectBySlug(projectSlug);
   const userId = user.id;
   const chatsHistory = await getChatsHistory(project.id, userId);

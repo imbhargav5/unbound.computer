@@ -11,7 +11,7 @@ import { Suspense } from "react";
 import { z } from "zod";
 
 export async function getSlimProjectById(projectId: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("id,name,project_status,workspace_id,slug")
@@ -24,7 +24,7 @@ export async function getSlimProjectById(projectId: string) {
 }
 
 export const getSlimProjectBySlug = async (projectSlug: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("id, slug, name")
@@ -38,7 +38,7 @@ export const getSlimProjectBySlug = async (projectSlug: string) => {
 };
 
 export async function getProjectById(projectId: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("*")
@@ -51,7 +51,7 @@ export async function getProjectById(projectId: string) {
 }
 
 export async function getProjectBySlug(projectSlug: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("*")
@@ -65,7 +65,7 @@ export async function getProjectBySlug(projectSlug: string) {
 }
 
 export async function getProjectTitleById(projectId: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("name")
@@ -80,7 +80,7 @@ export async function getProjectTitleById(projectId: string) {
 export const getProjectComments = async (
   projectId: string,
 ): Promise<Array<CommentWithUser>> => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("project_comments")
     .select("*, user_profiles(*)")
@@ -105,7 +105,7 @@ export const createProjectCommentAction = authActionClient
       parsedInput: { projectId, projectSlug, text },
       ctx: { userId },
     }) => {
-      const supabaseClient = createSupabaseUserServerActionClient();
+      const supabaseClient = await createSupabaseUserServerActionClient();
 
       const { data, error } = await supabaseClient
         .from("project_comments")
@@ -138,7 +138,7 @@ const approveProjectSchema = z.object({
 export const approveProjectAction = authActionClient
   .schema(approveProjectSchema)
   .action(async ({ parsedInput: { projectId, projectSlug } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("projects")
@@ -163,7 +163,7 @@ const rejectProjectSchema = z.object({
 export const rejectProjectAction = authActionClient
   .schema(rejectProjectSchema)
   .action(async ({ parsedInput: { projectId, projectSlug } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("projects")
@@ -187,7 +187,7 @@ const submitProjectForApprovalSchema = z.object({
 export const submitProjectForApprovalAction = authActionClient
   .schema(submitProjectForApprovalSchema)
   .action(async ({ parsedInput: { projectId, projectSlug } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("projects")
@@ -212,7 +212,7 @@ const markProjectAsCompletedSchema = z.object({
 export const markProjectAsCompletedAction = authActionClient
   .schema(markProjectAsCompletedSchema)
   .action(async ({ parsedInput: { projectId, projectSlug } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("projects")
@@ -240,7 +240,7 @@ export const getProjects = async ({
   limit?: number;
 }) => {
   const zeroIndexedPage = page - 1;
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   let supabaseQuery = supabase
     .from("projects")
     .select("*")
@@ -304,7 +304,7 @@ export const getProjectsTotalCount = async ({
 };
 
 export async function getSlimProjectByIdForWorkspace(projectId: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("id,name,project_status,workspace_id,slug")
@@ -317,7 +317,7 @@ export async function getSlimProjectByIdForWorkspace(projectId: string) {
 }
 
 export const getSlimProjectBySlugForWorkspace = async (projectSlug: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("projects")
     .select("id, slug, name")
@@ -338,7 +338,7 @@ const createProjectSchema = z.object({
 export const createProjectAction = authActionClient
   .schema(createProjectSchema)
   .action(async ({ parsedInput: { workspaceId, name, slug } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data: project, error } = await supabaseClient
       .from("projects")
@@ -370,7 +370,7 @@ export const getProjectsForWorkspace = async ({
   limit?: number;
 }) => {
   const zeroIndexedPage = page - 1;
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   let supabaseQuery = supabase
     .from("projects")
     .select("*")

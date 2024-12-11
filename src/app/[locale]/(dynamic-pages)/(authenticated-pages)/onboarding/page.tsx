@@ -6,7 +6,9 @@ import {
   getMaybeDefaultWorkspace,
   setDefaultWorkspaceAction,
 } from "@/data/user/workspaces";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { authUserMetadataSchema } from "@/utils/zod-schemas/authUserMetadata";
 import { Suspense } from "react";
 import { OnboardingProvider } from "./OnboardingContext";
@@ -50,7 +52,7 @@ async function getOnboardingConditions(userId: string) {
 }
 
 async function OnboardingFlowWrapper() {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const [onboardingConditions, pendingInvitations] = await Promise.all([
     getOnboardingConditions(user.id),
     getPendingInvitationsOfUser(),

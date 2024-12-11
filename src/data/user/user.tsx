@@ -7,7 +7,9 @@ import type { SupabaseFileUploadOptions } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { isSupabaseUserAppAdmin } from "@/utils/isSupabaseUserAppAdmin";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
 import { renderAsync } from "@react-email/render";
 import ConfirmAccountDeletionEmail from "emails/account-deletion-request";
@@ -18,12 +20,12 @@ import { z } from "zod";
 import { refreshSessionAction } from "./session";
 
 export async function getIsAppAdmin(): Promise<boolean> {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   return isSupabaseUserAppAdmin(user);
 }
 
 export const getUserProfile = async (userId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("user_profiles")
     .select("*")
@@ -38,7 +40,7 @@ export const getUserProfile = async (userId: string) => {
 };
 
 export const getUserFullName = async (userId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("user_profiles")
     .select("full_name")
@@ -53,7 +55,7 @@ export const getUserFullName = async (userId: string) => {
 };
 
 export const getUserAvatarUrl = async (userId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("user_profiles")
     .select("avatar_url")
@@ -68,7 +70,7 @@ export const getUserAvatarUrl = async (userId: string) => {
 };
 
 export const getUserPendingInvitationsByEmail = async (userEmail: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
     .select(
@@ -85,7 +87,7 @@ export const getUserPendingInvitationsByEmail = async (userEmail: string) => {
 };
 
 export const getUserPendingInvitationsById = async (userId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
     .select(
@@ -115,8 +117,8 @@ export const uploadPublicUserAvatar = async (
     strict: true,
     replacement: "-",
   });
-  const supabaseClient = createSupabaseUserServerActionClient();
-  const user = await serverGetLoggedInUser();
+  const supabaseClient = await createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUserVerified();
   const userId = user.id;
   const userImagesPath = `${userId}/images/${slugifiedFilename}`;
 
@@ -185,8 +187,8 @@ const updateProfilePictureUrlSchema = z.object({
 export const updateProfilePictureUrlAction = authActionClient
   .schema(updateProfilePictureUrlSchema)
   .action(async ({ parsedInput: { profilePictureUrl } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
-    const user = await serverGetLoggedInUser();
+    const supabaseClient = await createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUserVerified();
     const { error } = await supabaseClient
       .from("user_profiles")
       .update({
@@ -211,8 +213,8 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
   .schema(updateUserProfileNameAndAvatarSchema)
   .action(
     async ({ parsedInput: { fullName, avatarUrl, isOnboardingFlow } }) => {
-      const supabaseClient = createSupabaseUserServerActionClient();
-      const user = await serverGetLoggedInUser();
+      const supabaseClient = await createSupabaseUserServerActionClient();
+      const user = await serverGetLoggedInUserVerified();
       const { data, error } = await supabaseClient
         .from("user_profiles")
         .update({
@@ -258,8 +260,8 @@ const updateUserProfilePictureSchema = z.object({
 export const updateUserProfilePictureAction = authActionClient
   .schema(updateUserProfilePictureSchema)
   .action(async ({ parsedInput: { avatarUrl } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
-    const user = await serverGetLoggedInUser();
+    const supabaseClient = await createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUserVerified();
     const { data, error } = await supabaseClient
       .from("user_profiles")
       .update({
@@ -277,7 +279,7 @@ export const updateUserProfilePictureAction = authActionClient
   });
 
 export async function acceptTermsOfService(): Promise<boolean> {
-  const supabaseClient = createSupabaseUserServerActionClient();
+  const supabaseClient = await createSupabaseUserServerActionClient();
 
   const updateUserMetadataPayload: Partial<AuthUserMetadata> = {
     onboardingHasAcceptedTerms: true,
@@ -305,8 +307,8 @@ export const acceptTermsOfServiceAction = authActionClient.action(
 // Define the action to request account deletion
 export const requestAccountDeletionAction = authActionClient.action(
   async () => {
-    const supabaseClient = createSupabaseUserServerActionClient();
-    const user = await serverGetLoggedInUser();
+    const supabaseClient = await createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUserVerified();
 
     if (!user.email) {
       throw new Error("User email not found");
@@ -356,8 +358,8 @@ const updateUserFullNameSchema = z.object({
 export const updateUserFullNameAction = authActionClient
   .schema(updateUserFullNameSchema)
   .action(async ({ parsedInput: { fullName, isOnboardingFlow } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
-    const user = await serverGetLoggedInUser();
+    const supabaseClient = await createSupabaseUserServerActionClient();
+    const user = await serverGetLoggedInUserVerified();
 
     const { data, error } = await supabaseClient
       .from("user_profiles")

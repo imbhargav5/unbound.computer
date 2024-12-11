@@ -1,12 +1,11 @@
 import { Database } from "@/lib/database.types";
 import { createServerClient } from "@supabase/ssr";
 
-import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
+import { cookies } from "next/headers";
 // Outstanding bug
 //https://github.com/vercel/next.js/issues/45371
-export const createSupabaseUserRouteHandlerClient = () => {
-  const cookieStore = cookies() as unknown as UnsafeUnwrappedCookies;
-
+export const createSupabaseUserRouteHandlerClient = async () => {
+  const cookieStore = await cookies();
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

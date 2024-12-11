@@ -14,7 +14,7 @@ const insertChatSchema = z.object({
 export const insertChatAction = authActionClient
   .schema(insertChatSchema)
   .action(async ({ parsedInput: { id, projectId, userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
     const { data, error } = await supabaseClient
       .from("chats")
       .insert({
@@ -45,7 +45,7 @@ export const upsertChatAction = authActionClient
       parsedInput: { projectId, payload, chatId },
       ctx: { userId },
     }) => {
-      const supabaseClient = createSupabaseUserServerActionClient();
+      const supabaseClient = await createSupabaseUserServerActionClient();
       const { data, error } = await supabaseClient
         .from("chats")
         .upsert(
@@ -69,7 +69,7 @@ export const upsertChatAction = authActionClient
   );
 
 export const getChatById = async (chatId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("chats")
     .select("*")
@@ -90,7 +90,7 @@ const deleteChatSchema = z.object({
 export const deleteChatAction = authActionClient
   .schema(deleteChatSchema)
   .action(async ({ parsedInput: { chatId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
     const { error } = await supabaseClient
       .from("chats")
       .delete()
@@ -102,7 +102,7 @@ export const deleteChatAction = authActionClient
   });
 
 export const getChats = async (userId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("chats")
     .select("*")
@@ -117,7 +117,7 @@ export const getChats = async (userId: string) => {
 };
 
 export const getChatsHistory = async (projectId: string, userId: string) => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
     .from("chats")
     .select("*")

@@ -1,10 +1,12 @@
 import { PageHeading } from "@/components/PageHeading";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { UpdateEmail } from "./UpdateEmail";
 import { UpdatePassword } from "./UpdatePassword";
 
 export default async function SecuritySettings() {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   return (
     <div className="space-y-8 max-w-sm">
       <PageHeading

@@ -8,7 +8,9 @@ import type {
   SlimWorkspaces,
   WorkspaceWithMembershipType,
 } from "@/types";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
 import {
@@ -26,7 +28,7 @@ import {
 import { refreshSessionAction } from "./session";
 
 export const getWorkspaceIdBySlug = async (slug: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspaces")
@@ -44,7 +46,7 @@ export const getWorkspaceIdBySlug = async (slug: string) => {
 export const getWorkspaceBySlug = async (
   slug: string,
 ): Promise<WorkspaceWithMembershipType> => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspaces")
@@ -64,7 +66,7 @@ export const getWorkspaceBySlug = async (
 };
 
 export const getWorkspaceSlugById = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspaces")
@@ -80,7 +82,7 @@ export const getWorkspaceSlugById = async (workspaceId: string) => {
 };
 
 export async function getWorkspaceName(workspaceId: string): Promise<string> {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("workspaces")
     .select("name")
@@ -92,7 +94,7 @@ export async function getWorkspaceName(workspaceId: string): Promise<string> {
 }
 
 export async function getWorkspaces(userId: string) {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_members")
@@ -104,7 +106,7 @@ export async function getWorkspaces(userId: string) {
 }
 
 export const getSlimWorkspaceById = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("workspaces")
     .select("id,name,slug")
@@ -119,7 +121,7 @@ export const getSlimWorkspaceById = async (workspaceId: string) => {
 };
 
 export const getSlimWorkspaceBySlug = async (workspaceSlug: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("workspaces")
     .select("id,name,slug")
@@ -136,8 +138,8 @@ export const getSlimWorkspaceBySlug = async (workspaceSlug: string) => {
 export const getLoggedInUserWorkspaceRole = async (
   workspaceId: string,
 ): Promise<Enum<"workspace_member_role_type">> => {
-  const { id: userId } = await serverGetLoggedInUser();
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const { id: userId } = await serverGetLoggedInUserVerified();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_members")
@@ -163,7 +165,7 @@ export const createWorkspaceAction = authActionClient
       ctx: { userId },
     }) => {
       const workspaceId = uuid();
-      const supabaseClient = createSupabaseUserServerActionClient();
+      const supabaseClient = await createSupabaseUserServerActionClient();
       const { error } = await supabaseClient.from("workspaces").insert({
         id: workspaceId,
         name,
@@ -237,7 +239,7 @@ export const createWorkspaceAction = authActionClient
 export const getWorkspaceById = async (
   workspaceId: string,
 ): Promise<WorkspaceWithMembershipType> => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspaces")
@@ -259,7 +261,7 @@ export const getWorkspaceById = async (
 export const getAllWorkspacesForUser = async (
   userId: string,
 ): Promise<WorkspaceWithMembershipType[]> => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data: workspaceMembers, error: membersError } = await supabaseClient
     .from("workspace_members")
@@ -297,7 +299,7 @@ export const getAllWorkspacesForUser = async (
 };
 
 export const getWorkspaceTeamMembers = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_members")
@@ -312,7 +314,7 @@ export const getWorkspaceTeamMembers = async (workspaceId: string) => {
 };
 
 export const getWorkspaceInvitations = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
@@ -334,7 +336,7 @@ const deleteWorkspaceParamsSchema = z.object({
 export const deleteWorkspaceAction = authActionClient
   .schema(deleteWorkspaceParamsSchema)
   .action(async ({ parsedInput: { workspaceId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient
       .from("workspaces")
@@ -356,7 +358,7 @@ export const deleteWorkspaceAction = authActionClient
 export const getWorkspaceCredits = async (
   workspaceId: string,
 ): Promise<number> => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_credits")
@@ -379,7 +381,7 @@ const updateWorkspaceCreditsSchema = z.object({
 export const updateWorkspaceCreditsAction = authActionClient
   .schema(updateWorkspaceCreditsSchema)
   .action(async ({ parsedInput: { workspaceId, newCredits } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("workspace_credits")
@@ -396,7 +398,7 @@ export const updateWorkspaceCreditsAction = authActionClient
   });
 
 export const getWorkspaceCreditsLogs = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_credits_logs")
@@ -415,8 +417,8 @@ export async function getMaybeDefaultWorkspace(): Promise<{
   workspace: WorkspaceWithMembershipType;
   workspaceMembershipType: Enum<"workspace_membership_type">;
 } | null> {
-  const supabaseClient = createSupabaseUserServerComponentClient();
-  const user = await serverGetLoggedInUser();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
 
   // Check for solo workspace
   const [workspaceListResponse, userSettingsResponse] = await Promise.all([
@@ -477,7 +479,7 @@ export async function getMaybeDefaultWorkspace(): Promise<{
 }
 
 export async function getSoloWorkspace(): Promise<WorkspaceWithMembershipType> {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
 
   const allWorkspaces = await getAllWorkspacesForUser(user.id);
   const soloWorkspace = allWorkspaces.find(
@@ -490,8 +492,8 @@ export async function getSoloWorkspace(): Promise<WorkspaceWithMembershipType> {
 }
 
 export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
-  const currentUser = await serverGetLoggedInUser();
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const currentUser = await serverGetLoggedInUserVerified();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data: workspaceMembers, error: membersError } = await supabaseClient
     .from("workspace_members")
@@ -536,7 +538,7 @@ const setDefaultWorkspaceSchema = z.object({
 export const setDefaultWorkspaceAction = authActionClient
   .schema(setDefaultWorkspaceSchema)
   .action(async ({ parsedInput: { workspaceId }, ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient.from("user_settings").upsert(
       {
@@ -568,7 +570,7 @@ export const updateWorkspaceInfoAction = authActionClient
     async ({
       parsedInput: { workspaceId, title, slug, workspaceMembershipType },
     }) => {
-      const supabase = createSupabaseUserServerActionClient();
+      const supabase = await createSupabaseUserServerActionClient();
       const { data, error } = await supabase
         .from("workspaces")
         .update({
@@ -597,7 +599,7 @@ export const updateWorkspaceInfoAction = authActionClient
   );
 
 export const getPendingInvitationsInWorkspace = async (workspaceId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
@@ -623,7 +625,7 @@ const updateWorkspaceMemberRoleSchema = z.object({
 export const updateWorkspaceMemberRoleAction = authActionClient
   .schema(updateWorkspaceMemberRoleSchema)
   .action(async ({ parsedInput: { workspaceId, memberId, role } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient
       .from("workspace_members")
@@ -646,7 +648,7 @@ const removeWorkspaceMemberSchema = z.object({
 export const removeWorkspaceMemberAction = authActionClient
   .schema(removeWorkspaceMemberSchema)
   .action(async ({ parsedInput: { workspaceId, memberId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient
       .from("workspace_members")
@@ -669,7 +671,7 @@ const leaveWorkspaceSchema = z.object({
 export const leaveWorkspaceAction = authActionClient
   .schema(leaveWorkspaceSchema)
   .action(async ({ parsedInput: { workspaceId, memberId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient
       .from("workspace_members")

@@ -23,12 +23,12 @@ export async function GET(
   }
   const { invitationId } = paramsSchema.parse(params);
 
-  const supabaseClient = createSupabaseUserRouteHandlerClient();
-  const { data, error } = await supabaseClient.auth.getSession();
+  const supabaseClient = await createSupabaseUserRouteHandlerClient();
+  const { data, error } = await supabaseClient.auth.getUser();
   if (error) {
     throw error;
   }
-  const user = data?.session?.user;
+  const user = data?.user;
 
   if (!user) {
     const url = new URL(toSiteURL("/login"));

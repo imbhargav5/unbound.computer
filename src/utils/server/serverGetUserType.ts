@@ -6,21 +6,21 @@ import { isSupabaseUserAppAdmin } from "../isSupabaseUserAppAdmin";
 
 // make sure to return one of UserRoles
 export const serverGetUserType = cache(async () => {
-  const supabase = createSupabaseUserServerComponentClient();
+  const supabase = await createSupabaseUserServerComponentClient();
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError) {
-    throw sessionError;
+  if (userError) {
+    throw userError;
   }
 
-  if (!session?.user) {
+  if (!user) {
     return userRoles.ANON;
   }
 
-  if (isSupabaseUserAppAdmin(session.user)) {
+  if (isSupabaseUserAppAdmin(user)) {
     return userRoles.ADMIN;
   }
 

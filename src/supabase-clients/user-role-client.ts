@@ -12,7 +12,7 @@ export async function supabaseClientBasedOnUserRole() {
   const supabaseClient = {
     [userRoles.ANON]: () => supabaseAnonClient,
     [userRoles.ADMIN]: () => supabaseAdminClient,
-    [userRoles.USER]: () => createSupabaseUserServerActionClient(),
+    [userRoles.USER]: async () => await createSupabaseUserServerActionClient(),
   }[userRoleType]();
 
   return supabaseClient;

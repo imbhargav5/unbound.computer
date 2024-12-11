@@ -10,7 +10,7 @@ const updatePasswordSchema = z.object({
 export const updatePasswordAction = authActionClient
   .schema(updatePasswordSchema)
   .action(async ({ parsedInput: { password } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
     const { error } = await supabaseClient.auth.updateUser({
       password,
     });
@@ -27,7 +27,7 @@ const updateEmailSchema = z.object({
 export const updateEmailAction = authActionClient
   .schema(updateEmailSchema)
   .action(async ({ parsedInput: { email } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
     const { error } = await supabaseClient.auth.updateUser({
       email,
     });

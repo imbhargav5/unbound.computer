@@ -1,7 +1,6 @@
 "use server";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import type { Enum } from "@/types";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
 import { revalidatePath } from "next/cache";
 import { adminToggleFeedbackOpenForCommentsAction } from "../feedback";
 
@@ -322,32 +321,6 @@ export const appAdminGetSlimInternalFeedback = async (feedbackId: string) => {
   if (error) {
     throw error;
   }
-
-  return data;
-};
-
-/**
- * Adds a comment to an internal feedback thread as an admin.
- * @param feedbackId - The ID of the feedback thread to comment on.
- * @param content - The content of the comment.
- * @returns The newly created comment data.
- */
-export const appAdminAddCommentToInternalFeedbackThread = async (
-  feedbackId: string,
-  content: string,
-) => {
-  const user = await serverGetLoggedInUser();
-  const { data, error } = await supabaseAdminClient
-    .from("marketing_feedback_comments")
-    .insert({ thread_id: feedbackId, user_id: user.id, content })
-    .select("*");
-
-  if (error) {
-    throw error;
-  }
-
-  revalidatePath(`/feedback`, "layout");
-  revalidatePath("/app_admin", "layout");
 
   return data;
 };

@@ -4,7 +4,7 @@ import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 
 export const refreshSessionAction = authActionClient.action(async () => {
-  const supabaseClient = createSupabaseUserServerActionClient();
+  const supabaseClient = await createSupabaseUserServerActionClient();
   const { error } = await supabaseClient.auth.refreshSession();
 
   if (error) {

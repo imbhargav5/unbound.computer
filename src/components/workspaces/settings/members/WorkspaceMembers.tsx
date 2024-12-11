@@ -28,7 +28,9 @@ import type {
   TeamMembersTableProps,
   WorkspaceWithMembershipType,
 } from "@/types";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { MoreHorizontal } from "lucide-react";
 import moment from "moment";
 import type { Metadata } from "next";
@@ -53,7 +55,7 @@ async function TeamMembers({
   workspace: WorkspaceWithMembershipType;
 }) {
   const members = await getWorkspaceTeamMembers(workspace.id);
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
   const isWorkspaceAdmin =
     workspaceRole === "admin" || workspaceRole === "owner";

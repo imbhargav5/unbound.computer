@@ -1,8 +1,10 @@
 // UserNav.tsx
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 
 export async function UserNav() {
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const { email } = user;
   if (!email) {
     throw new Error("User email not found");

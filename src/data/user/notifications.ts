@@ -8,7 +8,7 @@ export const createNotification = async (
   userId: string,
   payload: UserNotificationPayloadType,
 ) => {
-  const supabaseClient = createSupabaseUserServerActionClient();
+  const supabaseClient = await createSupabaseUserServerActionClient();
   const { data: notification, error } = await supabaseClient
     .from("user_notifications")
     .insert({
@@ -22,7 +22,7 @@ export const createNotification = async (
 export async function createMultipleNotifications(
   notifications: Array<{ userId: string; payload: Json }>,
 ) {
-  const supabaseClient = createSupabaseUserServerActionClient();
+  const supabaseClient = await createSupabaseUserServerActionClient();
   const { data: notificationsData, error } = await supabaseClient
     .from("user_notifications")
     .insert(

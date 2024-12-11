@@ -1,11 +1,9 @@
-import { createSupabaseClient } from "@/supabase-clients/user/server";
-import { cookies } from "next/headers";
+import { createSupabaseUserRouteHandlerClient } from "@/supabase-clients/user/createSupabaseUserRouteHandlerClient";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const cookieSTore = await cookies();
-  const supabase = createSupabaseClient();
+  const supabase = await createSupabaseUserRouteHandlerClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {

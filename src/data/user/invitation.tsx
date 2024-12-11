@@ -6,7 +6,7 @@ import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user
 import { WorkspaceInvitation } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { renderAsync } from "@react-email/render";
 import TeamInvitationEmail from "emails/TeamInvitation";
@@ -138,7 +138,7 @@ export const createInvitationAction = authActionClient
   .schema(createInvitationSchema)
   .action(
     async ({ parsedInput: { workspaceId, email, role }, ctx: { userId } }) => {
-      const supabaseClient = createSupabaseUserServerActionClient();
+      const supabaseClient = await createSupabaseUserServerActionClient();
 
       // Check if organization exists
       const { data: workspace, error: workspaceError } = await supabaseClient
@@ -287,8 +287,8 @@ export const declineInvitationAction = authActionClient
 export async function getPendingInvitationsOfUser(): Promise<
   WorkspaceInvitation[]
 > {
-  const supabaseClient = createSupabaseUserServerComponentClient();
-  const user = await serverGetLoggedInUser();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
     .select(
@@ -328,7 +328,7 @@ export async function getPendingInvitationsOfUser(): Promise<
 }
 
 export const getInvitationById = async (invitationId: string) => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("workspace_invitations")
@@ -354,8 +354,8 @@ export const getInvitationById = async (invitationId: string) => {
 };
 
 export async function getPendingInvitationCountOfUser() {
-  const supabaseClient = createSupabaseUserServerComponentClient();
-  const user = await serverGetLoggedInUser();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
 
   async function idInvitations(userId: string) {
     const { count, error } = await supabaseClient
@@ -383,7 +383,7 @@ const revokeInvitationSchema = z.object({
 export const revokeInvitationAction = authActionClient
   .schema(revokeInvitationSchema)
   .action(async ({ parsedInput: { invitationId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabaseClient
       .from("workspace_invitations")

@@ -2,14 +2,15 @@
 import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { sendEmail } from "@/utils/api-routes/utils";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { renderAsync } from "@react-email/render";
 import SignInEmail from "emails/SignInEmail";
 import slugify from "slugify";
 import urlJoin from "url-join";
 import { z } from "zod";
 import { zfd } from "zod-form-data";
-import { ensureAppAdmin } from "./security";
 
 const appAdminGetUserProfileSchema = z.object({
   userId: z.string(),
@@ -18,7 +19,6 @@ const appAdminGetUserProfileSchema = z.object({
 export const appAdminGetUserProfileAction = adminActionClient
   .schema(appAdminGetUserProfileSchema)
   .action(async ({ parsedInput: { userId } }) => {
-    ensureAppAdmin();
     const { data, error } = await supabaseAdminClient
       .from("user_profiles")
       .select("*")
@@ -50,7 +50,7 @@ export const uploadImageAction = adminActionClient
       replacement: "-",
     });
 
-    const user = await serverGetLoggedInUser();
+    const user = await serverGetLoggedInUserVerified();
     const userId = user.id;
     const userImagesPath = `${userId}/images/${slugifiedFilename}`;
 

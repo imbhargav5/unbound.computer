@@ -9,7 +9,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getLoggedInUserFeedbackById } from "@/data/user/marketing-feedback";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import {
   feedbackPriorityToLabel,
@@ -29,7 +31,7 @@ async function LoggedInUserFeedbackDetail({
   feedbackId: string;
 }) {
   const userRoleType = await serverGetUserType();
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const feedback = await getLoggedInUserFeedbackById(feedbackId);
 
   if (!feedback) {
@@ -120,10 +122,10 @@ async function LoggedInUserFeedbackDetail({
       </div>
       {(feedback.open_for_public_discussion ||
         feedback.user_id === user.id) && (
-        <div className="border-t p-4 mt-4 align-bottom">
-          <AddComment feedbackId={feedback?.id} />
-        </div>
-      )}
+          <div className="border-t p-4 mt-4 align-bottom">
+            <AddComment feedbackId={feedback?.id} />
+          </div>
+        )}
     </>
   );
 }

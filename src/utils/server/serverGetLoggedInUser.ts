@@ -1,6 +1,6 @@
 "use server";
 import { cache } from "react";
-import { getSession, getUser } from "./verifySession";
+import { getSession, getUser } from "./serverSessionUtils";
 
 /**
  * This only checks the cookie for the session.

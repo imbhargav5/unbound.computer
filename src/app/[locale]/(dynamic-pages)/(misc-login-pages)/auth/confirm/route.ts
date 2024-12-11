@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const token_hash = searchParams.get("token_hash");
   const next = searchParams.get("next") ?? "/dashboard";
   if (token_hash) {
-    const supabase = createSupabaseUserRouteHandlerClient();
+    const supabase = await createSupabaseUserRouteHandlerClient();
     const { error } = await supabase.auth.verifyOtp({
       type: "email",
       token_hash,

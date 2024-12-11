@@ -1,6 +1,8 @@
 import { insertChatAction } from "@/data/user/chats";
 import { getSlimProjectBySlug } from "@/data/user/projects";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
@@ -11,7 +13,7 @@ export async function GET(
   const params = await props.params;
   const { projectSlug } = params;
   const project = await getSlimProjectBySlug(projectSlug);
-  const user = await serverGetLoggedInUser();
+  const user = await serverGetLoggedInUserVerified();
   const newChatId = nanoid();
   await insertChatAction({
     id: newChatId,

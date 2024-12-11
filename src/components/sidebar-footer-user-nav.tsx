@@ -1,6 +1,8 @@
 import { getCachedUserProfile } from "@/rsc-data/user/user";
 import { getUserAvatarUrl } from "@/utils/helpers";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import {
   BadgeCheck,
   ChevronsUpDown,
@@ -30,7 +32,7 @@ import { UnseenNotificationCounterBadge } from "./unseen-notification-counter-ba
 async function SidebarFooterUserMenu() {
   const [data, user] = await Promise.all([
     getCachedUserProfile(),
-    serverGetLoggedInUser(),
+    serverGetLoggedInUserVerified(),
   ]);
   const avatarImage = getUserAvatarUrl({
     email: user.email,

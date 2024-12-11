@@ -2,7 +2,9 @@
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
-import { serverGetLoggedInUser } from "@/utils/server/serverGetLoggedInUser";
+import {
+  serverGetLoggedInUserVerified
+} from "@/utils/server/serverGetLoggedInUser";
 import axios, { AxiosError } from "axios";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -21,7 +23,7 @@ function maskKey(key: string): string {
 
 export const generateUnkeyTokenAction = authActionClient.action(
   async ({ ctx: { userId } }) => {
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
 
     const response = await axios.post(
       "https://api.unkey.dev/v1/keys.createKey",
@@ -91,7 +93,7 @@ export const revokeUnkeyTokenAction = authActionClient
       }
       throw error;
     }
-    const supabaseClient = createSupabaseUserServerActionClient();
+    const supabaseClient = await createSupabaseUserServerActionClient();
     console.log("revoking key", keyId);
     const { error } = await supabaseClient
       .from("user_api_keys")
@@ -111,8 +113,8 @@ export const revokeUnkeyTokenAction = authActionClient
   });
 
 export const getActiveDeveloperKeys = async () => {
-  const user = await serverGetLoggedInUser();
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
     .from("user_api_keys")
@@ -127,8 +129,8 @@ export const getActiveDeveloperKeys = async () => {
 };
 
 export const getActiveDeveloperKeyCount = async () => {
-  const user = await serverGetLoggedInUser();
-  const supabaseClient = createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { count, error } = await supabaseClient
     .from("user_api_keys")
@@ -144,8 +146,8 @@ export const getActiveDeveloperKeyCount = async () => {
 };
 
 export const getRevokedApiKeyList = async () => {
-  const supabaseClient = createSupabaseUserServerComponentClient();
-  const user = await serverGetLoggedInUser();
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
 
   const { data, error } = await supabaseClient
     .from("user_api_keys")

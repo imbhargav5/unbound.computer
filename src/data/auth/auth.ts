@@ -28,7 +28,7 @@ import { returnValidationErrors } from "next-safe-action";
 export const signUpWithPasswordAction = actionClient
   .schema(signUpWithPasswordSchema)
   .action(async ({ parsedInput: { email, password, next } }) => {
-    const supabase = createSupabaseUserServerActionClient();
+    const supabase = await createSupabaseUserServerActionClient();
     const emailRedirectTo = new URL(toSiteURL("/auth/callback"));
     if (next) {
       emailRedirectTo.searchParams.set("next", next);
@@ -69,7 +69,7 @@ export const signUpWithPasswordAction = actionClient
 export const signInWithPasswordAction = actionClient
   .schema(signInWithPasswordSchema)
   .action(async ({ parsedInput: { email, password } }) => {
-    const supabase = createSupabaseUserServerActionClient();
+    const supabase = await createSupabaseUserServerActionClient();
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -110,7 +110,7 @@ export const signInWithPasswordAction = actionClient
 export const signInWithMagicLinkAction = actionClient
   .schema(signInWithMagicLinkSchema)
   .action(async ({ parsedInput: { email, next, shouldCreateUser } }) => {
-    const supabase = createSupabaseUserServerActionClient();
+    const supabase = await createSupabaseUserServerActionClient();
     const redirectUrl = new URL(toSiteURL("/auth/callback"));
     if (next) {
       redirectUrl.searchParams.set("next", next);
@@ -146,7 +146,7 @@ export const signInWithMagicLinkAction = actionClient
 export const signInWithProviderAction = actionClient
   .schema(signInWithProviderSchema)
   .action(async ({ parsedInput: { provider, next } }) => {
-    const supabase = createSupabaseUserServerActionClient();
+    const supabase = await createSupabaseUserServerActionClient();
     const redirectToURL = new URL(toSiteURL("/auth/callback"));
     if (next) {
       redirectToURL.searchParams.set("next", next);
@@ -174,7 +174,7 @@ export const signInWithProviderAction = actionClient
 export const resetPasswordAction = actionClient
   .schema(resetPasswordSchema)
   .action(async ({ parsedInput: { email } }) => {
-    const supabase = createSupabaseUserServerActionClient();
+    const supabase = await createSupabaseUserServerActionClient();
     const redirectToURL = new URL(toSiteURL("/auth/callback"));
     redirectToURL.searchParams.set("next", "/update-password");
 
