@@ -565,7 +565,7 @@ export class StripePaymentGateway implements PaymentGateway {
       typeof subscription.customer === "string"
         ? subscription.customer
         : typeof subscription.customer === "object" &&
-          "id" in subscription.customer
+            "id" in subscription.customer
           ? subscription.customer.id
           : null;
     if (!stripeCustomerId) {
@@ -583,7 +583,7 @@ export class StripePaymentGateway implements PaymentGateway {
         typeof subscription.customer === "string"
           ? subscription.customer
           : typeof subscription.customer === "object" &&
-            "email" in subscription.customer
+              "email" in subscription.customer
             ? subscription.customer.email
             : null;
       if (!billingEmail) {

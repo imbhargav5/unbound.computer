@@ -8,11 +8,10 @@ import {
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: unknown;
+export async function generateMetadata(props: {
+  params: Promise<unknown>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
@@ -22,13 +21,12 @@ export async function generateMetadata({
   };
 }
 
-export default async function WorkspaceDashboardPage({
-  params,
-  searchParams,
-}: {
-  params: unknown;
-  searchParams: unknown;
+export default async function WorkspaceDashboardPage(props: {
+  params: Promise<unknown>;
+  searchParams: Promise<unknown>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
   const projectFilters = projectsfilterSchema.parse(searchParams);
 

@@ -17,13 +17,16 @@ export const metadata: Metadata = {
   ),
 };
 
-export default async function RootLayout({
-  children,
-  params: { locale },
-}: {
+export default async function RootLayout(props: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
+
+  const { locale } = params;
+
+  const { children } = props;
+
   // Providing all messages to the client
   // side is the easiest way to get started
   const messages = await getMessages({

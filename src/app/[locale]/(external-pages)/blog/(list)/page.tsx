@@ -26,11 +26,13 @@ async function BlogList() {
   return <PublicBlogList blogPosts={blogPosts} />;
 }
 
-export default async function BlogListPage({
-  params: { locale },
-}: {
-  params: { locale: string };
+export default async function BlogListPage(props: {
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
+
+  const { locale } = params;
+
   unstable_setRequestLocale(locale);
   return (
     <div className="space-y-8 w-full">

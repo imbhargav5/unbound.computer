@@ -11,11 +11,10 @@ export const metadata = {
   title: "Workspaces List | Admin Panel | Nextbase",
 };
 
-export default async function AdminWorkspacesList({
-  searchParams,
-}: {
-  searchParams: unknown;
+export default async function AdminWorkspacesList(props: {
+  searchParams: Promise<unknown>;
 }) {
+  const searchParams = await props.searchParams;
   const validatedSearchParams =
     appAdminWorkspacesFiltersSchema.parse(searchParams);
   const suspenseKey = JSON.stringify(validatedSearchParams);

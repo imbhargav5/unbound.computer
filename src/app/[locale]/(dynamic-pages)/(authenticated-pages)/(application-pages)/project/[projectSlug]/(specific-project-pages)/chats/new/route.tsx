@@ -6,8 +6,9 @@ import { redirect } from "next/navigation";
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectSlug: string } },
+  props: { params: Promise<{ projectSlug: string }> },
 ) {
+  const params = await props.params;
   const { projectSlug } = params;
   const project = await getSlimProjectBySlug(projectSlug);
   const user = await serverGetLoggedInUser();

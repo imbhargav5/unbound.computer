@@ -6,14 +6,15 @@ import { nanoid } from "nanoid";
 import type { Metadata } from "next";
 
 type ProjectPageProps = {
-  params: {
+  params: Promise<{
     projectSlug: string;
-  };
+  }>;
 };
 
-export async function generateMetadata({
-  params,
-}: ProjectPageProps): Promise<Metadata> {
+export async function generateMetadata(
+  props: ProjectPageProps,
+): Promise<Metadata> {
+  const params = await props.params;
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
 
@@ -23,7 +24,8 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProjectPage({ params }: { params: unknown }) {
+export default async function ProjectPage(props: { params: Promise<unknown> }) {
+  const params = await props.params;
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
 

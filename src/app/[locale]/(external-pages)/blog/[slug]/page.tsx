@@ -31,11 +31,10 @@ export async function generateStaticParams() {
   );
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: unknown;
+export async function generateMetadata(props: {
+  params: Promise<unknown>;
 }): Promise<Metadata> {
+  const params = await props.params;
   // read route params
   const { slug } = paramsSchema.parse(params);
   const post = await anonGetPublishedBlogPostBySlug(slug);
@@ -57,7 +56,10 @@ export async function generateMetadata({
     },
   };
 }
-export default async function BlogPostPage({ params }: { params: unknown }) {
+export default async function BlogPostPage(props: {
+  params: Promise<unknown>;
+}) {
+  const params = await props.params;
   try {
     const { slug, locale } = paramsSchema.parse(params);
     unstable_setRequestLocale(locale);

@@ -4,7 +4,7 @@ import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { cn } from "@/utils/cn";
 import { motion } from "framer-motion";
 
-/** 
+/**
  * Props for the NotificationItem component
  * Defines the structure and optional properties for rendering a notification
  */
@@ -35,7 +35,7 @@ type NotificationItemProps = {
 
 /**
  * Renders an individual notification item with dynamic styling and interactions
- * 
+ *
  * @param props - Configuration properties for the notification
  * @returns A renderable notification component with optional linking and hover effects
  */
@@ -85,7 +85,7 @@ export function NotificationItem({
           className="h-12 w-12 rounded-full object-cover "
         />
       )}
-      
+
       {/* Notification text content with typography variations */}
       <div className="flex-grow">
         <T.P className="font-semibold text-foreground !leading-5">{title}</T.P>
@@ -94,7 +94,7 @@ export function NotificationItem({
           {createdAt}
         </T.Subtle>
       </div>
-      
+
       {/* Render a small indicator for new notifications */}
       {isNew && (
         <motion.div

@@ -5,11 +5,10 @@ import { getAllTags } from "@/data/admin/marketing-tags";
 import { notFound } from "next/navigation";
 import { EditBlogPostLayout } from "./EditBlogPostLayout";
 
-export default async function EditBlogPostPage({
-  params,
-}: {
-  params: { postId: string };
+export default async function EditBlogPostPage(props: {
+  params: Promise<{ postId: string }>;
 }) {
+  const params = await props.params;
   const post = await getBlogPostById(params.postId);
 
   if (!post) {

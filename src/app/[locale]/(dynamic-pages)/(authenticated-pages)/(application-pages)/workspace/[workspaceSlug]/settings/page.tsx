@@ -7,11 +7,10 @@ export const metadata: Metadata = {
   description: "You can edit your organization's settings here.",
 };
 
-export default async function EditOrganizationPage({
-  params,
-}: {
-  params: unknown;
+export default async function EditOrganizationPage(props: {
+  params: Promise<unknown>;
 }) {
+  const params = await props.params;
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
 
   return <WorkspaceSettings workspaceSlug={workspaceSlug} />;

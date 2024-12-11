@@ -175,7 +175,7 @@ type NotificationsContextType = {
    */
   unseenNotificationIds: Array<{
     id: string;
-  }>;  
+  }>;
   /**
    * List of notifications.
    */
@@ -330,4 +330,4 @@ export function useNotificationsContext() {
     );
   }
   return context;
-};
+}

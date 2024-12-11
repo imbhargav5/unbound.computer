@@ -9,11 +9,8 @@ export const metadata: Metadata = {
     "You can create projects within teams, or within your organization.",
 };
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: unknown;
-}) {
+export default async function Page(props: { searchParams: Promise<unknown> }) {
+  const searchParams = await props.searchParams;
   const { slug: workspaceSlug } = await getCachedSoloWorkspace();
   const projectFilters = projectsfilterSchema.parse(searchParams);
   return (

@@ -13,11 +13,10 @@ export const metadata: Metadata = {
     "Create an account to get started with Nextbase Starter Kits Demo",
 };
 
-export default function SignUpPage({
-  searchParams,
-}: {
-  searchParams: unknown;
+export default async function SignUpPage(props: {
+  searchParams: Promise<unknown>;
 }) {
+  const searchParams = await props.searchParams;
   const { next, nextActionType } = SearchParamsSchema.parse(searchParams);
   return <SignUp next={next} nextActionType={nextActionType} />;
 }

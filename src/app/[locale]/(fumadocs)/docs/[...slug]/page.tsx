@@ -40,11 +40,10 @@ const ImageZoom = dynamic(() =>
   import("fumadocs-ui/components/image-zoom").then((m) => m.ImageZoom),
 );
 
-export default async function Page({
-  params,
-}: {
-  params: { slug?: string[] };
+export default async function Page(props0: {
+  params: Promise<{ slug?: string[] }>;
 }) {
+  const params = await props0.params;
   const page = getPage(params.slug);
 
   if (!page) {
@@ -103,7 +102,10 @@ export async function generateStaticParams() {
   );
 }
 
-export function generateMetadata({ params }: { params: { slug?: string[] } }) {
+export async function generateMetadata(props: {
+  params: Promise<{ slug?: string[] }>;
+}) {
+  const params = await props.params;
   const page = getPage(params.slug);
 
   if (!page) notFound();

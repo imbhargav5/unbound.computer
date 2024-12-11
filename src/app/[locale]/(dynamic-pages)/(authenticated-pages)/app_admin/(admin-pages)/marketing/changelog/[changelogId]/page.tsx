@@ -8,11 +8,10 @@ const editChangelogPageSchema = z.object({
   changelogId: z.string().uuid(),
 });
 
-export default async function EditChangelogPage({
-  params,
-}: {
-  params: unknown;
+export default async function EditChangelogPage(props: {
+  params: Promise<unknown>;
 }) {
+  const params = await props.params;
   const { changelogId } = editChangelogPageSchema.parse(params);
   const changelog = await getChangelogById(changelogId);
   const authors = await getAllAuthorProfiles();

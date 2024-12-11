@@ -5,11 +5,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import AuthorCard from "../AuthorCard";
 
-export default async function BlogPostPage({
-  params: { locale },
-}: {
-  params: { locale: string };
+export default async function BlogPostPage(props: {
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
+
+  const { locale } = params;
+
   unstable_setRequestLocale(locale);
   const authors = await anonGetAllAuthors();
   try {

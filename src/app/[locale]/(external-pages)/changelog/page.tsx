@@ -5,11 +5,13 @@ import { Suspense } from "react";
 import { ChangelogPosts } from "./AppAdminChangelog";
 import { ChangelogListSkeletonFallBack } from "./_components/ChangelogSkeletonFallBack";
 
-export default async function Page({
-  params: { locale },
-}: {
-  params: { locale: string };
+export default async function Page(props: {
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
+
+  const { locale } = params;
+
   unstable_setRequestLocale(locale);
   const changelogs = await anonGetAllChangelogItems();
 

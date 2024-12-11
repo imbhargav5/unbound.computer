@@ -6,7 +6,10 @@ import AnonUserFeedbackdetail from "./AnonUserFeedbackdetail";
 import { FeedbackDetailFallback } from "./FeedbackPageFallbackUI";
 import LoggedInUserFeedbackDetail from "./LoggedInUserFeedbackDetail";
 
-async function FeedbackPage({ params }: { params: { feedbackId: string } }) {
+async function FeedbackPage(props: {
+  params: Promise<{ feedbackId: string }>;
+}) {
+  const params = await props.params;
   const userRoleType = await serverGetUserType();
   const feedbackId = params.feedbackId;
 

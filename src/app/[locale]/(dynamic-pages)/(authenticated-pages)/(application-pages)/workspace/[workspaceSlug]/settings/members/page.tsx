@@ -7,11 +7,10 @@ export const metadata: Metadata = {
   description: "You can edit your workspace's members here.",
 };
 
-export default async function WorkspaceTeamPage({
-  params,
-}: {
-  params: unknown;
+export default async function WorkspaceTeamPage(props: {
+  params: Promise<unknown>;
 }) {
+  const params = await props.params;
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
   return <WorkspaceMembers workspaceSlug={workspaceSlug} />;
 }

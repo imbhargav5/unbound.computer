@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const cookieSTore = cookies();
+  const cookieSTore = await cookies();
   const supabase = createSupabaseClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) {

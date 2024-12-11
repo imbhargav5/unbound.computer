@@ -46,7 +46,10 @@ async function Invitation({ invitationId }: { invitationId: string }) {
   }
 }
 
-export default async function InvitationPage({ params }: { params: unknown }) {
+export default async function InvitationPage(props: {
+  params: Promise<unknown>;
+}) {
+  const params = await props.params;
   const { invitationId } = paramsSchema.parse(params);
 
   return (

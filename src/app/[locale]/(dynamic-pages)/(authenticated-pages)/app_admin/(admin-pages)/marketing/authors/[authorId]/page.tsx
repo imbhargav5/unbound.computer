@@ -3,11 +3,10 @@ import { getAuthorProfileById } from "@/data/admin/marketing-authors";
 import { notFound } from "next/navigation";
 import { UpdateMarketingAuthorProfileForm } from "./UpdateMarketingAuthorProfileForm";
 
-export default async function UpdateMarketingAuthorPage({
-  params,
-}: {
-  params: { authorId: string };
+export default async function UpdateMarketingAuthorPage(props: {
+  params: Promise<{ authorId: string }>;
 }) {
+  const params = await props.params;
   const author = await getAuthorProfileById(params.authorId);
 
   if (!author) {

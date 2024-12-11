@@ -60,7 +60,10 @@ async function WorkspacesTable({ userId }: { userId: string }) {
   }
 }
 
-export default async function AdminUserPage({ params }: { params: unknown }) {
+export default async function AdminUserPage(props: {
+  params: Promise<unknown>;
+}) {
+  const params = await props.params;
   const { userId } = paramsSchema.parse(params);
 
   return (

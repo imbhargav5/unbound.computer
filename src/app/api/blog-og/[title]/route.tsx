@@ -31,8 +31,9 @@ const paramsSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: unknown },
+  props: { params: Promise<unknown> },
 ): Promise<ImageResponse> {
+  const params = await props.params;
   const { title } = paramsSchema.parse(params);
   if (!title) {
     throw new Error("title is required");

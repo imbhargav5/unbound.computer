@@ -10,12 +10,11 @@ const paramsSchema = z.object({
 
 export async function GET(
   _req: NextRequest,
-  {
-    params,
-  }: {
-    params: undefined;
+  props: {
+    params: Promise<undefined>;
   },
 ) {
+  const params = await props.params;
   const { success } = paramsSchema.safeParse(params);
   if (!success) {
     return NextResponse.json({

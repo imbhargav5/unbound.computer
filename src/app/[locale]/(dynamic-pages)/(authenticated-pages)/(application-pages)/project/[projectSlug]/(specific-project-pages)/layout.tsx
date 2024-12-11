@@ -30,17 +30,16 @@ async function ProjectPageHeading({
   );
 }
 
-export default async function ProjectLayout({
-  params,
-  children,
-  navbar,
-  sidebar,
-}: {
+export default async function ProjectLayout(props: {
   children: ReactNode;
-  params: unknown;
+  params: Promise<unknown>;
   navbar: ReactNode;
   sidebar: ReactNode;
 }) {
+  const params = await props.params;
+
+  const { children, navbar, sidebar } = props;
+
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getCachedProjectBySlug(projectSlug);
 

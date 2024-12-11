@@ -5,11 +5,10 @@ import { getSlimProjectBySlug } from "@/data/user/projects";
 
 import { type Message } from "ai";
 
-export default async function ChatPage({
-  params,
-}: {
-  params: { chatId: string; projectSlug: string };
+export default async function ChatPage(props: {
+  params: Promise<{ chatId: string; projectSlug: string }>;
 }) {
+  const params = await props.params;
   const { chatId, projectSlug } = params;
   const project = await getSlimProjectBySlug(projectSlug);
 

@@ -12,7 +12,8 @@ const paramsSchema = z.object({
   authorSlug: z.string(),
 });
 
-export default async function AuthorPage({ params }: { params: unknown }) {
+export default async function AuthorPage(props: { params: Promise<unknown> }) {
+  const params = await props.params;
   try {
     const { authorSlug } = paramsSchema.parse(params);
     const author = await anonGetOneAuthorBySlug(authorSlug);

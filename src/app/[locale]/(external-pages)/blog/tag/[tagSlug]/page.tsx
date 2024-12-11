@@ -24,11 +24,10 @@ export async function generateStaticParams() {
   );
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: unknown;
+export async function generateMetadata(props: {
+  params: Promise<unknown>;
 }): Promise<Metadata> {
+  const params = await props.params;
   // read route params
   const { tagSlug } = BlogListByTagPageParamsSchema.parse(params);
   const tag = await anonGetTagBySlug(tagSlug);
@@ -49,11 +48,10 @@ async function BlogList({ tagSlug }: { tagSlug: string }) {
   return <PublicBlogList blogPosts={blogPosts} />;
 }
 
-export default async function BlogListByTagPage({
-  params,
-}: {
-  params: unknown;
+export default async function BlogListByTagPage(props: {
+  params: Promise<unknown>;
 }) {
+  const params = await props.params;
   const { tagSlug, locale } = BlogListByTagPageParamsSchema.parse(params);
   unstable_setRequestLocale(locale);
   const tag = await anonGetTagBySlug(tagSlug);

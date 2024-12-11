@@ -10,13 +10,11 @@ import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
 import { LoggedInUserFeedbackList } from "./[feedbackId]/LoggedInUserFeedbackList";
 import { filtersSchema } from "./[feedbackId]/schema";
 
-async function FeedbackPage({
-  params,
-  searchParams,
-}: {
-  searchParams: unknown;
-  params: { feedbackId: string };
+async function FeedbackPage(props: {
+  searchParams: Promise<unknown>;
+  params: Promise<{ feedbackId: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const validatedSearchParams = filtersSchema.parse(searchParams);
   const userRoleType = await serverGetUserType();
   const suspenseKey = JSON.stringify(validatedSearchParams);

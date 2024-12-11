@@ -1,9 +1,15 @@
 import { unstable_setRequestLocale } from "next-intl/server";
 import type React from "react";
 
-type Props = { children: React.ReactNode; params: { locale: string } };
+type Props = { children: React.ReactNode; params: Promise<{ locale: string }> };
 
-export default function layout({ children, params: { locale } }: Props) {
+export default async function layout(props: Props) {
+  const params = await props.params;
+
+  const { locale } = params;
+
+  const { children } = props;
+
   unstable_setRequestLocale(locale);
   return (
     <section className="w-full px-4 py-6 ">

@@ -12,7 +12,10 @@ async function Title({ title }: { title: string }) {
   );
 }
 
-export default async function ProjectNavbar({ params }: { params: unknown }) {
+export default async function ProjectNavbar(props: {
+  params: Promise<unknown>;
+}) {
+  const params = await props.params;
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getCachedProjectBySlug(projectSlug);
   return (

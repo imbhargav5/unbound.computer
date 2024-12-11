@@ -8,13 +8,16 @@ export const revalidate = 60;
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
-export default function Layout({
-  children,
-  params: { locale },
-}: {
+export default async function Layout(props: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
+
+  const { locale } = params;
+
+  const { children } = props;
+
   unstable_setRequestLocale(locale);
   return (
     <div>

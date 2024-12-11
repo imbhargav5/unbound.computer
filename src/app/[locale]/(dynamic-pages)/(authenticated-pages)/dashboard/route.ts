@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 /**
  * Handles GET request for dashboard routing
  * Attempts to redirect user to their default/initial workspace home page
- * 
+ *
  * @param req - The incoming Next.js server request
  * @returns A redirect response to the user's workspace home or error page
  */

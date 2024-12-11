@@ -14,11 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function WorkspaceDashboardPage({
-  searchParams,
-}: {
-  searchParams: unknown;
+export default async function WorkspaceDashboardPage(props: {
+  searchParams: Promise<unknown>;
 }) {
+  const searchParams = await props.searchParams;
   const projectFilters = projectsfilterSchema.parse(searchParams);
   const workspace = await getCachedSoloWorkspace();
   return (

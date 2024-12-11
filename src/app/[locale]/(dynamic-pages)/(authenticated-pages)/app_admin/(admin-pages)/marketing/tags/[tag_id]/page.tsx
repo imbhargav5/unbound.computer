@@ -2,11 +2,10 @@ import { getTagById } from "@/data/admin/marketing-tags";
 import { notFound } from "next/navigation";
 import { EditTagForm } from "./EditTagForm";
 
-export default async function EditTagPage({
-  params,
-}: {
-  params: { tag_id: string };
+export default async function EditTagPage(props: {
+  params: Promise<{ tag_id: string }>;
 }) {
+  const params = await props.params;
   const tag = await getTagById(params.tag_id);
 
   if (!tag) {

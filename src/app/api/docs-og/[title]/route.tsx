@@ -31,8 +31,9 @@ const paramsSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: unknown },
+  props: { params: Promise<unknown> },
 ): Promise<ImageResponse> {
+  const params = await props.params;
   console.log(params);
   const { title: titleParam } = paramsSchema.parse(params);
   const title = decodeURIComponent(titleParam);

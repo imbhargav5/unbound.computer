@@ -12,11 +12,10 @@ export const metadata = {
   title: "User List | Admin Panel | Nextbase",
 };
 
-export default async function AdminUsersListPage({
-  searchParams,
-}: {
-  searchParams: unknown;
+export default async function AdminUsersListPage(props: {
+  searchParams: Promise<unknown>;
 }) {
+  const searchParams = await props.searchParams;
   const validatedSearchParams = appAdminUserFiltersSchema.parse(searchParams);
   const suspenseKey = JSON.stringify(validatedSearchParams);
   const totalPagesActionResult = await getUsersTotalPagesAction(
