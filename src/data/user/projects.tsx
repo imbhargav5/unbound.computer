@@ -1,5 +1,4 @@
 "use server";
-import { CommentList } from "@/components/Projects/CommentList";
 import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
@@ -7,7 +6,6 @@ import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user
 import type { CommentWithUser } from "@/types";
 import { normalizeComment } from "@/utils/comments";
 import { revalidatePath } from "next/cache";
-import { Suspense } from "react";
 import { z } from "zod";
 
 export async function getSlimProjectById(projectId: string) {
@@ -120,12 +118,7 @@ export const createProjectCommentAction = authActionClient
       revalidatePath(`/project/${projectSlug}`, "page");
 
       return {
-        id: data.id,
-        commentList: (
-          <Suspense>
-            <CommentList comments={[normalizeComment(data)]} />
-          </Suspense>
-        ),
+        comment: normalizeComment(data),
       };
     },
   );

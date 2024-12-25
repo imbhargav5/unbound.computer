@@ -16,7 +16,7 @@ export function SubscriptionSelect({
   workspaceId,
   priceId,
   isOneTimePurchase = false,
-}: SubscriptionSelectProps): JSX.Element {
+}: SubscriptionSelectProps) {
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute: createCheckoutSession } = useAction(

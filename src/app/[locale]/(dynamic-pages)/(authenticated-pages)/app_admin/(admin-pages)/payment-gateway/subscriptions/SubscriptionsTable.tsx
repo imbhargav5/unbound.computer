@@ -37,9 +37,9 @@ export function SubscriptionsTable({ subscriptions }: SubscriptionsTableProps) {
           const formattedPrice =
             amount && currency
               ? formatCurrency(
-                  normalizePriceAndCurrency(amount, currency),
-                  currency,
-                )
+                normalizePriceAndCurrency(amount, currency),
+                currency,
+              )
               : "N/A";
           return (
             <TableRow key={subscription.id}>

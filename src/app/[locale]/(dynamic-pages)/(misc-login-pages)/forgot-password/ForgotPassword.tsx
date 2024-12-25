@@ -21,7 +21,7 @@ import {
 } from "@/utils/zod-schemas/auth";
 import Link from "next/link";
 
-export function ForgotPassword(): JSX.Element {
+export function ForgotPassword() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const toastRef = useRef<string | number | undefined>(undefined);
 

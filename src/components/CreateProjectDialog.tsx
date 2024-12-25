@@ -37,7 +37,7 @@ interface CreateProjectDialogProps {
 
 export function CreateProjectDialog({
   workspaceId,
-}: CreateProjectDialogProps): JSX.Element {
+}: CreateProjectDialogProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);

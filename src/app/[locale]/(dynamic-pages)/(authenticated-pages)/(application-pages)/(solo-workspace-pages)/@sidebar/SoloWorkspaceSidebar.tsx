@@ -13,18 +13,35 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { SubscriptionData } from "@/payments/AbstractPaymentGateway";
+import { StripePaymentGateway } from "@/payments/StripePaymentGateway";
 import {
   getCachedSlimWorkspaces,
   getCachedSoloWorkspace,
 } from "@/rsc-data/user/workspaces";
+import { toLower } from "lodash";
 import { notFound } from "next/navigation";
+
+function getHasProSubscription(subscriptions: SubscriptionData[]) {
+  return subscriptions.some(
+    (subscription) =>
+      toLower(subscription.billing_products?.name).includes("pro") &&
+      subscription.billing_products?.active,
+  );
+}
 
 export async function SoloWorkspaceSidebar() {
   try {
+    const paymentGateway = new StripePaymentGateway();
     const [workspace, slimWorkspaces] = await Promise.all([
       getCachedSoloWorkspace(),
       getCachedSlimWorkspaces(),
     ]);
+    const subscriptions = await paymentGateway.db.getSubscriptionsByWorkspaceId(
+      workspace.id,
+    );
+    const hasProSubscription = getHasProSubscription(subscriptions);
+
     return (
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>

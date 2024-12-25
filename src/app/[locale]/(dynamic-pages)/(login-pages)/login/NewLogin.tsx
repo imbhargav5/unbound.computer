@@ -107,7 +107,7 @@ export function NewLoginPage() {
   );
 }
 
-function ChromeIcon(props) {
+function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -130,7 +130,7 @@ function ChromeIcon(props) {
   );
 }
 
-function GithubIcon(props) {
+function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -150,7 +150,7 @@ function GithubIcon(props) {
   );
 }
 
-function TwitterIcon(props) {
+function TwitterIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -169,7 +169,7 @@ function TwitterIcon(props) {
   );
 }
 
-function XIcon(props) {
+function XIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

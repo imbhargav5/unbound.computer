@@ -1,4 +1,4 @@
-const exchangeRateMap = {
+const exchangeRateMap: Record<string, number> = {
   inr: 0.012,
   usd: 1, // we store cents in the database
   eur: 1.1,

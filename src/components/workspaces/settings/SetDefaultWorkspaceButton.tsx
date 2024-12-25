@@ -12,7 +12,7 @@ interface SetDefaultWorkspaceButtonProps {
 
 export function SetDefaultWorkspaceButton({
   workspaceId,
-}: SetDefaultWorkspaceButtonProps): JSX.Element {
+}: SetDefaultWorkspaceButtonProps) {
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute, status } = useAction(setDefaultWorkspaceAction, {

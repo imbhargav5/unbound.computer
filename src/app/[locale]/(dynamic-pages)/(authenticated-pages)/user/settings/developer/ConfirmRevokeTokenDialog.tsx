@@ -19,7 +19,7 @@ type Props = {
   keyId: string;
 };
 
-export const ConfirmRevokeTokenDialog = ({ keyId }: Props): JSX.Element => {
+export const ConfirmRevokeTokenDialog = ({ keyId }: Props) => {
   const [open, setOpen] = useState<boolean>(false);
   const toastRef = useRef<string | number | undefined>(undefined);
 

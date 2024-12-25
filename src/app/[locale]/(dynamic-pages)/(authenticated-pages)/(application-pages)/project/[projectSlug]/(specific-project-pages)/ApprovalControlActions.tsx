@@ -32,7 +32,7 @@ export function ApprovalControlActions({
   canManage,
   canOnlyEdit,
   projectStatus,
-}: ApprovalControlActionsProps): JSX.Element {
+}: ApprovalControlActionsProps) {
   const toastRef = useRef<string | number | undefined>(undefined);
 
   const { execute: submitProjectForApproval } = useAction(

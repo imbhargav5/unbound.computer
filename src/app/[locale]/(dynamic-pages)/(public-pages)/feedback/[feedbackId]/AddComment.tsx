@@ -17,10 +17,7 @@ type AddCommentActionResult = Awaited<
   ReturnType<typeof addCommentToInternalFeedbackThreadAction>
 >;
 
-function AddComment({
-  feedbackId,
-  defaultValue = "",
-}: AddCommentProps): JSX.Element {
+function AddComment({ feedbackId, defaultValue = "" }: AddCommentProps) {
   const [content, setContent] = useState<string>(defaultValue);
   const toastRef = useRef<string | number | undefined>(undefined);
 

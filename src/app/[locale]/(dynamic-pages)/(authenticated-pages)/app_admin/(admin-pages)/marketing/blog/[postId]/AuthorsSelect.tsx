@@ -74,7 +74,7 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({
         name="authors"
         options={options}
         value={defaultValue}
-        onChange={handleAuthorsChange}
+        onChange={(options) => handleAuthorsChange(options)}
         placeholder="Select authors..."
         classNamePrefix="select"
         styles={reactSelectStyles}

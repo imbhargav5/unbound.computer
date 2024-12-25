@@ -3,6 +3,7 @@ import { getUserAvatarUrl } from "@/data/user/user";
 import { getPublicUserAvatarUrl } from "@/utils/helpers";
 
 import Image from "next/image";
+import { ReactNode } from "react";
 
 const blurFallback =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=";
@@ -15,7 +16,7 @@ export const UserAvatar = async ({
 }: {
   userId: string;
   size: number;
-}) => {
+}): Promise<Awaited<ReactNode>> => {
   const avatarUrl = await getUserAvatarUrl(userId);
   let imageSource = fallbackSource;
   if (avatarUrl) {
@@ -39,7 +40,11 @@ export const UserAvatar = async ({
   );
 };
 
-export async function FallbackImage({ size }: { size: number }) {
+export async function FallbackImage({
+  size,
+}: {
+  size: number;
+}): Promise<Awaited<ReactNode>> {
   return (
     <Image
       className={`rounded-full`}

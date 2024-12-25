@@ -13,7 +13,7 @@ type GenerateUnkeyTokenActionResult = Awaited<
   ReturnType<typeof generateUnkeyTokenAction>
 >;
 
-export function GenerateApiKey(): JSX.Element {
+export function GenerateApiKey() {
   const router = useRouter();
   const [step, setStep] = useState<"form" | "copy_modal" | "complete">("form");
   const [keyPreview, setKeyPreview] = useState<string | null>(null);

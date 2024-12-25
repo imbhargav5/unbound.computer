@@ -21,7 +21,7 @@ import { AddComment } from "./AddComment";
 import { SuspendedFeedbackComments } from "./CommentTimeLine";
 import { FeedbackActionsDropdown } from "./FeedbackActionsDropdown";
 
-async function AdminUserFeedbackdetail({ feedbackId }) {
+async function AdminUserFeedbackdetail({ feedbackId }: { feedbackId: string }) {
   const userRoleType = await serverGetUserType();
   const feedback = await adminGetInternalFeedbackById(feedbackId);
 

@@ -12,7 +12,7 @@ export function InviteUser({
   workspace,
 }: {
   workspace: WorkspaceWithMembershipType;
-}): JSX.Element {
+}) {
   const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
   const { execute, status } = useAction(createInvitationAction, {

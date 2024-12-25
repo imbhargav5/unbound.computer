@@ -23,7 +23,7 @@ type EditFormProps = {
   workspace: WorkspaceWithMembershipType;
 };
 
-export function EditWorkspaceForm({ workspace }: EditFormProps): JSX.Element {
+export function EditWorkspaceForm({ workspace }: EditFormProps) {
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
 

@@ -29,7 +29,7 @@ function EditComment({
   commentId,
   userId,
   defaultValue = "",
-}: EditCommentProps): JSX.Element {
+}: EditCommentProps) {
   const [open, setOpen] = useState<boolean>(false);
   const [comment, setComment] = useState<string>(defaultValue);
   const toastRef = useRef<string | number | undefined>(undefined);
