@@ -95,6 +95,7 @@ export default async function config(
           },
         },
       },
+      authInterrupts: true,
     },
     eslint: {
       ignoreDuringBuilds: true,

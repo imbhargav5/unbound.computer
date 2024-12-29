@@ -5,7 +5,6 @@ import { getCachedProjectBySlug } from "@/rsc-data/user/projects";
 import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
 import { Suspense, type ReactNode } from "react";
 import { ApprovalControls } from "./ApprovalControls";
-import { CommentsSheet } from "./CommentsSheet";
 
 async function ProjectPageHeading({
   projectSlug,
@@ -22,7 +21,6 @@ async function ProjectPageHeading({
         <Suspense>
           <div className="flex space-x-2">
             <ApprovalControls projectSlug={projectSlug} />
-            <CommentsSheet projectId={project.id} projectSlug={projectSlug} />
           </div>
         </Suspense>
       }
@@ -42,7 +40,6 @@ export default async function ProjectLayout(props: {
 
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getCachedProjectBySlug(projectSlug);
-
   return (
     <ApplicationLayoutShell sidebar={sidebar}>
       <div>

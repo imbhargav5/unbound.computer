@@ -2,7 +2,6 @@ import { Typography } from "@/components/ui/Typography";
 import { getSlimProjectBySlug } from "@/data/user/projects";
 import { cn } from "@/lib/utils";
 import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
-import { nanoid } from "nanoid";
 import type { Metadata } from "next";
 
 type ProjectPageProps = {
@@ -28,8 +27,6 @@ export default async function ProjectPage(props: { params: Promise<unknown> }) {
   const params = await props.params;
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
-
-  const newChatId = nanoid();
   return (
     <div className={cn("space-y-6")}>
       <div className={cn("mb-10", "flex flex-col lg:flex-row lg:space-x-6")}>

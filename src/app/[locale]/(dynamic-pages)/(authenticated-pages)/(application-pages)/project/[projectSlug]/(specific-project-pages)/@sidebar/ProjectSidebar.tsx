@@ -52,6 +52,7 @@ export async function ProjectSidebar({ params }: { params: unknown }) {
       </Sidebar>
     );
   } catch (e) {
+    console.log("error in ProjectSidebar", e);
     return notFound();
   }
 }
