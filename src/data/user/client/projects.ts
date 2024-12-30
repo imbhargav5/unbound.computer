@@ -1,19 +1,19 @@
 import type { Tables } from "@/lib/database.types";
 import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
-import type { SortingState } from "@tanstack/react-table";
+import type { ProjectsFilterSchema } from "@/utils/zod-schemas/projects";
 
 export async function getProjectsClient({
   workspaceId,
-  query = "",
-  sorting,
+  filters,
 }: {
   workspaceId: string;
-  query?: string;
-  sorting?: SortingState;
+  filters: ProjectsFilterSchema;
 }) {
+  const { query, sorting } = filters;
+
   let supabaseQuery = supabaseUserClientComponent
     .from("projects")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("workspace_id", workspaceId);
 
   if (query) {
@@ -21,7 +21,7 @@ export async function getProjectsClient({
   }
 
   if (sorting && sorting.length > 0) {
-    const { id, desc } = sorting[0];
+    const { id, desc } = sorting[0] as { id: string; desc: boolean };
     if (id === "name" || id === "project_status") {
       supabaseQuery = supabaseQuery.order(id, { ascending: !desc });
     }
@@ -29,11 +29,14 @@ export async function getProjectsClient({
     supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
   }
 
-  const { data, error } = await supabaseQuery;
+  const { data, error, count } = await supabaseQuery;
 
   if (error) {
     throw error;
   }
 
-  return data as Tables<"projects">[];
+  return {
+    data: data as Tables<"projects">[],
+    count: count ?? 0,
+  };
 }

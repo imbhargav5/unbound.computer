@@ -8,17 +8,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/compact-table";
-import { SmartSheet } from "@/components/smart-sheet";
+import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Typography } from "@/components/ui/Typography";
 import { getProjectsClient } from "@/data/user/client/projects";
-import {
-  deleteProjectsAction,
-  updateProjectAction,
-} from "@/data/user/projects";
 import type { Tables } from "@/lib/database.types";
+import {
+  projectsFilterSchema,
+  type ProjectsFilterSchema,
+} from "@/utils/zod-schemas/projects";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ColumnDef,
   flexRender,
@@ -30,27 +33,11 @@ import {
 } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { CalendarDays, ChevronsUpDown, Clock, Search } from "lucide-react";
-import { useAction } from "next-safe-action/hooks";
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { ConfirmDeleteProjectsDialog } from "./ConfirmDeleteProjectsDialog";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { ProjectForm } from "./ProjectForm";
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 const statusEmojis = {
   draft: "📝",
@@ -64,65 +51,52 @@ interface ProjectsTableProps {
 }
 
 export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
-  const [projects, setProjects] = useState<Tables<"projects">[]>([]);
+  const router = useRouter();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [editingProject, setEditingProject] =
     useState<Tables<"projects"> | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-  const { execute: executeDelete, status: deleteStatus } = useAction(
-    deleteProjectsAction,
-    {
-      onSuccess: () => {
-        toast.success("Projects deleted successfully");
-        setRowSelection({});
-        fetchProjects();
-      },
-      onError: (error) => {
-        toast.error(error.error?.serverError || "Failed to delete projects");
-      },
+  const form = useForm<ProjectsFilterSchema>({
+    resolver: zodResolver(projectsFilterSchema),
+    defaultValues: {
+      query: "",
+      page: 1,
+      perPage: 10,
+      sorting: [],
     },
-  );
+  });
 
-  const { execute: executeUpdate, status: updateStatus } = useAction(
-    updateProjectAction,
-    {
-      onSuccess: () => {
-        toast.success("Project updated successfully");
-        setEditingProject(null);
-        fetchProjects();
-      },
-      onError: (error) => {
-        toast.error(error.error?.serverError || "Failed to update project");
-      },
-    },
-  );
-
-  const fetchProjects = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const data = await getProjectsClient({
-        workspaceId,
-        query: debouncedSearchQuery,
-        sorting,
-      });
-      setProjects(data);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-      toast.error("Failed to fetch projects");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceId, debouncedSearchQuery, sorting]);
+  const { watch, register, setValue } = form;
+  const query = watch("query");
 
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    setValue("sorting", sorting);
+  }, [sorting, setValue]);
+
+  const {
+    data: projectsData,
+    isLoading,
+    refetch: refetchProjects,
+  } = useQuery({
+    queryKey: ["projects", workspaceId, query, sorting],
+    queryFn: () =>
+      getProjectsClient({
+        workspaceId,
+        filters: {
+          query,
+          sorting,
+          page: form.getValues("page"),
+          perPage: form.getValues("perPage"),
+        },
+      }),
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+    retry: 2,
+  });
+
+  const projects = projectsData?.data ?? [];
 
   const columns: ColumnDef<Tables<"projects">>[] = [
     {
@@ -162,7 +136,7 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
             variant="ghost"
             className="p-0 hover:bg-transparent"
             onClick={() => {
-              setEditingProject(row.original);
+              router.push(`/project/${row.original.slug}`);
             }}
           >
             <span className="text-primary hover:underline">
@@ -236,56 +210,39 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
     (idx) => projects[parseInt(idx)].id,
   );
 
-  const handleSubmit = async (values: {
-    name: string;
-    project_status: Tables<"projects">["project_status"];
-  }) => {
-    if (!editingProject) return;
-
-    try {
-      setIsSubmitting(true);
-      await executeUpdate({
-        projectId: editingProject.id,
-        ...values,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
-          />
-        </div>
-        {selectedIds.length > 0 && (
-          <div className="flex items-center space-x-2">
-            <p className="text-sm text-muted-foreground">
-              {selectedIds.length} selected
-            </p>
-            <ConfirmDeleteProjectsDialog
-              selectedCount={selectedIds.length}
-              onConfirm={() => executeDelete({ projectIds: selectedIds })}
-              isDeleting={deleteStatus === "executing"}
+    <div className="">
+      <div className="bg-background p-2">
+        <Typography.H3 className="my-0">Recent Projects</Typography.H3>
+      </div>
+      <div className="p-2 border border-b-0">
+        <div className="flex items-center space-x-2 justify-between">
+          <div className="flex w-[300px] items-center  space-x-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              className="h-8"
+              {...register("query")}
             />
           </div>
-        )}
+          <div className="flex items-center space-x-2">
+            <Link href={`/workspace/${workspaceId}/projects`}>
+              <Button variant="ghost" size="sm">
+                View All
+              </Button>
+            </Link>
+            <CreateProjectDialog workspaceId={workspaceId} />
+          </div>
+        </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="table-container [&>div]:rounded-none [&>div]:border-t-0 [&>div]:border-l-0 [&>div]:border-r-0">
         <Table>
-          <TableHeader>
+          <TableHeader className="!rounded-none border">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="!rounded-none">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className="!rounded-none">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -297,12 +254,12 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody className="!rounded-none">
             {isLoading ? (
-              <TableRow>
+              <TableRow className="!rounded-none">
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 text-center !rounded-none"
                 >
                   Loading...
                 </TableCell>
@@ -312,9 +269,11 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  onDoubleClick={() => setEditingProject(row.original)}
+                  className="cursor-pointer !rounded-none"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="!rounded-none">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
@@ -324,10 +283,10 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
                 </TableRow>
               ))
             ) : (
-              <TableRow>
+              <TableRow className="!rounded-none">
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 text-center !rounded-none"
                 >
                   No projects found.
                 </TableCell>
@@ -337,21 +296,11 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
         </Table>
       </div>
 
-      {editingProject && (
-        <SmartSheet
-          open={!!editingProject}
-          onOpenChange={() => setEditingProject(null)}
-        >
-          <div className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Edit Project</h2>
-            <ProjectForm
-              project={editingProject}
-              onSubmit={handleSubmit}
-              isSubmitting={isSubmitting}
-            />
-          </div>
-        </SmartSheet>
-      )}
+      <ProjectForm
+        project={editingProject}
+        onClose={() => setEditingProject(null)}
+        onSuccess={refetchProjects}
+      />
     </div>
   );
 }
