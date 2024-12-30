@@ -1,23 +1,26 @@
-"use server";
-import { getUserAvatarUrl } from "@/data/user/user";
+"use client";
+import { getUserAvatarUrlClient } from "@/data/user/client/profile";
 import { getPublicUserAvatarUrl } from "@/utils/helpers";
+import { useQuery } from "@tanstack/react-query";
 
 import Image from "next/image";
-import { ReactNode } from "react";
 
 const blurFallback =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAGklEQVR42mNkMGYgCTCOahjVMKphVANtNQAApZ0E4ZNIscsAAAAASUVORK5CYII=";
 
 const fallbackSource = `https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp`;
 
-export const UserAvatar = async ({
+export const UserAvatar = ({
   userId,
   size = 24,
 }: {
   userId: string;
   size: number;
-}): Promise<Awaited<ReactNode>> => {
-  const avatarUrl = await getUserAvatarUrl(userId);
+}) => {
+  const { data: avatarUrl, isLoading } = useQuery({
+    queryKey: ["user-avatar-url", userId],
+    queryFn: () => getUserAvatarUrlClient(userId),
+  });
   let imageSource = fallbackSource;
   if (avatarUrl) {
     imageSource = getPublicUserAvatarUrl(avatarUrl);
@@ -40,11 +43,7 @@ export const UserAvatar = async ({
   );
 };
 
-export async function FallbackImage({
-  size,
-}: {
-  size: number;
-}): Promise<Awaited<ReactNode>> {
+export function FallbackImage({ size }: { size: number }) {
   return (
     <Image
       className={`rounded-full`}

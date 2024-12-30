@@ -28,7 +28,7 @@ export default async function ProjectPage(props: { params: Promise<unknown> }) {
   const { projectSlug } = projectSlugParamSchema.parse(params);
   const project = await getSlimProjectBySlug(projectSlug);
   return (
-    <div className={cn("space-y-6")}>
+    <div className={cn("space-y-6", "container")}>
       <div className={cn("mb-10", "flex flex-col lg:flex-row lg:space-x-6")}>
         <div
           className={cn(
@@ -47,8 +47,6 @@ export default async function ProjectPage(props: { params: Promise<unknown> }) {
             like Product, Category, Order etc. If you are building a blog, you
             can create entities like Post, Comment, Tag etc.
           </Typography.Subtle>
-
-          {/* <ChatContainer id={newChatId} project={project} /> */}
         </div>
       </div>
     </div>

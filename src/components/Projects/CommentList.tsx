@@ -1,19 +1,15 @@
-import { CommentWithUser } from "@/types";
 import { T } from "@/components/ui/Typography";
 import { FallbackImage, UserAvatar } from "@/components/UserAvatar";
 import { UserFullName } from "@/components/UserFullName";
+import { CommentWithUser } from "@/types";
 import { format } from "date-fns";
 import { Suspense } from "react";
 
-export async function CommentList({
-  comments,
-}: {
-  comments: CommentWithUser[];
-}) {
+export function CommentList({ comments }: { comments: CommentWithUser[] }) {
   return comments.map((comment) => (
     <div
       key={comment.id}
-      className="grid grid-cols-[24px,1fr] items-start gap-3 mb-10"
+      className="grid grid-cols-[24px,1fr] items-start gap-3 px-6 py-4"
     >
       <Suspense fallback={<FallbackImage size={24} />}>
         <UserAvatar userId={comment.user_id} size={24} />

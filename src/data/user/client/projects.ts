@@ -1,5 +1,7 @@
 import type { Tables } from "@/lib/database.types";
 import { supabaseUserClientComponent } from "@/supabase-clients/user/supabaseUserClientComponent";
+import { CommentWithUser } from "@/types";
+import { normalizeComment } from "@/utils/comments";
 import type { ProjectsFilterSchema } from "@/utils/zod-schemas/projects";
 
 export async function getProjectsClient({
@@ -60,3 +62,19 @@ export async function getProjectsClient({
     count: count ?? 0,
   };
 }
+
+export const getProjectCommentsClient = async (
+  projectId: string,
+): Promise<Array<CommentWithUser>> => {
+  const { data, error } = await supabaseUserClientComponent
+    .from("project_comments")
+    .select("*, user_profiles(*)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  console.log("comments data", data);
+  if (error) {
+    throw error;
+  }
+
+  return data.map(normalizeComment);
+};

@@ -1,7 +1,11 @@
 import { T } from "@/components/ui/Typography";
-import { getUserFullName } from "@/data/user/user";
+import { getUserFullNameClient } from "@/data/user/client/profile";
+import { useQuery } from "@tanstack/react-query";
 
-export const UserFullName = async ({ userId }: { userId: string }) => {
-  const userFullName = await getUserFullName(userId);
+export const UserFullName = ({ userId }: { userId: string }) => {
+  const { data: userFullName } = useQuery({
+    queryKey: ["user-full-name", userId],
+    queryFn: () => getUserFullNameClient(userId),
+  });
   return <T.Subtle className="text-xs">{userFullName ?? "User"}</T.Subtle>;
 };
