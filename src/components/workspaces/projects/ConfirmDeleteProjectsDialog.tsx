@@ -54,20 +54,20 @@ export function ConfirmDeleteProjectsDialog({
       </Button>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>Confirm Delete Projects</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete{" "}
-            {selectedCount} selected project(s) and all associated data.
+            Are you sure? This action cannot be undone. This will permanently
+            delete {selectedCount} selected project(s) and all associated data.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>No, cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => executeDelete({ projectIds })}
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? "Deleting..." : "Yes, I am sure. Delete them."}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

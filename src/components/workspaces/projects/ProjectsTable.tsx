@@ -11,7 +11,6 @@ import {
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import FacetedFilter from "@/components/FacetedFilter";
 import { ReactTablePagination } from "@/components/react-table-pagination";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Form } from "@/components/ui/form";
@@ -36,11 +35,12 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { CalendarDays, ChevronsUpDown, Clock, Search } from "lucide-react";
+import { CalendarDays, ChevronsUpDown, Clock } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { ConfirmDeleteProjectsDialog } from "./ConfirmDeleteProjectsDialog";
 import { EditProjectForm } from "./EditProjectForm";
 
 const statusEmojis = {
@@ -199,17 +199,31 @@ export function ProjectsTable({
         const status = row.getValue(
           "project_status",
         ) as keyof typeof statusEmojis;
+        const formattedStatus = status
+          .split("_")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+
         return (
-          <Badge variant="secondary" className="text-xs font-normal">
-            {statusEmojis[status]}{" "}
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Badge>
+          <div className="flex items-center space-x-1.5 text-sm">
+            <span>{statusEmojis[status]}</span>
+            <span>{formattedStatus}</span>
+          </div>
         );
       },
     },
     {
       accessorKey: "created_at",
-      header: "Created",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          className="p-0 hover:bg-transparent"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          <span className="font-semibold">Created</span>
+          <ChevronsUpDown className="ml-1 h-4 w-4" />
+        </Button>
+      ),
       cell: ({ row }) => (
         <div className="flex items-center text-xs text-muted-foreground">
           <CalendarDays className="mr-1 h-3 w-3" />
@@ -219,7 +233,16 @@ export function ProjectsTable({
     },
     {
       accessorKey: "updated_at",
-      header: "Updated",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          className="p-0 hover:bg-transparent"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          <span className="font-semibold">Updated</span>
+          <ChevronsUpDown className="ml-1 h-4 w-4" />
+        </Button>
+      ),
       cell: ({ row }) => (
         <div className="flex items-center text-xs text-muted-foreground">
           <Clock className="mr-1 h-3 w-3" />
@@ -251,129 +274,150 @@ export function ProjectsTable({
   });
   return (
     <div className="">
-      <div className="bg-background p-2 flex justify-between items-center">
-        <Typography.H3 className="my-0">Recent Projects</Typography.H3>
+      <div className="bg-background p-2 mb-2 flex justify-between items-end">
+        <div>
+          <Typography.H2 className="my-0">Projects</Typography.H2>
+          <Typography.Subtle>
+            Manage your projects here. You can double click on a project to view
+            and edit it. You can delete projects by selecting them and choosing
+            the delete action(workspace admin only).
+          </Typography.Subtle>
+        </div>
         <Link href={`/workspace/${workspaceId}/projects`}>
           <Button variant="link" size="sm">
             <span className="text-xs underline">View All</span>
           </Button>
         </Link>
       </div>
-      <Form {...form}>
-        <div className="p-2 border border-b-0">
-          <div className="flex items-center space-x-2 justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="flex w-[300px] items-center space-x-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search projects..."
-                  className="h-8"
-                  {...register("query")}
+      <div className="space-y-2">
+        <Form {...form}>
+          <div className="">
+            <div className="flex items-center space-x-2 justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="flex w-[300px] items-center space-x-2">
+                  <Input
+                    className="h-8"
+                    placeholder="Search projects..."
+                    {...register("query")}
+                  />
+                </div>
+                <FacetedFilter
+                  title="Status"
+                  options={STATUS_OPTIONS}
+                  selectedValues={selectedStatuses}
+                  onSelectCb={(values) => {
+                    setSelectedStatuses(new Set(values));
+                  }}
                 />
               </div>
-              <FacetedFilter
-                title="Status"
-                options={STATUS_OPTIONS}
-                selectedValues={selectedStatuses}
-                onSelectCb={(values) => {
-                  setSelectedStatuses(new Set(values));
-                }}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <CreateProjectDialog
-                workspaceId={workspaceId}
-                onSuccess={() => {
-                  queryClient.invalidateQueries({
-                    queryKey: [
-                      "projects",
-                      workspaceId,
-                      query,
-                      sorting,
-                      pageIndex,
-                      pageSize,
-                    ],
-                  });
-                  refetchProjects();
-                }}
-              />
+              <div className="flex items-center space-x-2">
+                {isWorkspaceAdmin && Object.keys(rowSelection).length > 0 && (
+                  <ConfirmDeleteProjectsDialog
+                    selectedCount={Object.keys(rowSelection).length}
+                    projectIds={Object.keys(rowSelection).map(
+                      (index) => projects[parseInt(index)].id,
+                    )}
+                    onSuccess={() => {
+                      setRowSelection({});
+                      refetchProjects();
+                    }}
+                  />
+                )}
+                <CreateProjectDialog
+                  workspaceId={workspaceId}
+                  onSuccess={() => {
+                    queryClient.invalidateQueries({
+                      queryKey: [
+                        "projects",
+                        workspaceId,
+                        query,
+                        sorting,
+                        pageIndex,
+                        pageSize,
+                      ],
+                    });
+                    refetchProjects();
+                  }}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </Form>
-
-      <div className="table-container [&>div]:rounded-none [&>div]:border-t-0 [&>div]:border-l-0 [&>div]:border-r-0">
-        <Table>
-          <TableHeader className="!rounded-none border">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="!rounded-none">
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="!rounded-none">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                  </TableHead>
+        </Form>
+        <div className="overflow-x-auto">
+          <div className="table-container">
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody className="!rounded-none">
-            {isLoading ? (
-              <TableRow className="!rounded-none">
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center !rounded-none"
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  onDoubleClick={() => setEditingProject(row.original)}
-                  className="cursor-pointer !rounded-none"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="!rounded-none">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      Loading...
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow className="!rounded-none">
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center !rounded-none"
-                >
-                  No projects found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  </TableRow>
+                ) : table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      onDoubleClick={() => setEditingProject(row.original)}
+                      className="cursor-pointer !rounded-none"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      No projects found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-      <div className="border-t">
-        <ReactTablePagination
-          page={pageIndex + 1}
-          pageSize={pageSize}
-          totalItems={totalProjects}
-          onPageChange={(page) =>
-            setPagination((prev) => ({ ...prev, pageIndex: page - 1 }))
-          }
-          onPageSizeChange={(size) =>
-            setPagination((prev) => ({ ...prev, pageSize: size }))
-          }
-        />
+          <div className="">
+            <ReactTablePagination
+              page={pageIndex + 1}
+              pageSize={pageSize}
+              totalItems={totalProjects}
+              onPageChange={(page) =>
+                setPagination((prev) => ({ ...prev, pageIndex: page - 1 }))
+              }
+              onPageSizeChange={(size) =>
+                setPagination((prev) => ({ ...prev, pageSize: size }))
+              }
+            />
+          </div>
+        </div>
       </div>
 
       <EditProjectForm
@@ -381,6 +425,7 @@ export function ProjectsTable({
         key={editingProject?.id}
         onClose={() => setEditingProject(null)}
         onSuccess={refetchProjects}
+        isWorkspaceAdmin={isWorkspaceAdmin}
       />
     </div>
   );

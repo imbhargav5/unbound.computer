@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import useMatchMedia from '@/hooks/useMatchMedia';
-import { cn } from '@/lib/utils';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { ReactNode } from 'react';
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import useMatchMedia from "@/hooks/useMatchMedia";
+import { cn } from "@/lib/utils";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { ReactNode } from "react";
 
 type SheetProps = React.ComponentPropsWithoutRef<typeof Sheet>;
 
@@ -14,18 +14,18 @@ interface SmartSheetProps extends SheetProps {
 }
 
 export function SmartSheet({ children, className, ...props }: SmartSheetProps) {
-  const isMobile = useMatchMedia('(max-width: 768px)');
-  const sheetDirection = isMobile ? 'bottom' : 'right';
+  const isMobile = useMatchMedia("(max-width: 768px)");
+  const sheetDirection = isMobile ? "bottom" : "right";
 
   return (
     <Sheet {...props}>
       <SheetContent
         className={cn(
-          isMobile ? 'max-h-100svh' : '',
+          isMobile ? "max-h-100svh" : "",
           !isMobile
-            ? 'w-[400px] sm:w-[540px] md:w-[640px] lg:w-[800px] xl:w-[1000px] !max-w-none'
-            : '',
-          'bg-muted',
+            ? "w-[400px] sm:w-[540px] md:w-[640px] lg:w-[800px] xl:w-[1000px] !max-w-none"
+            : "",
+          "bg-muted",
           className,
         )}
         side={sheetDirection}
@@ -35,11 +35,11 @@ export function SmartSheet({ children, className, ...props }: SmartSheetProps) {
         </VisuallyHidden>
         <div
           className={cn(
-            isMobile ? 'overflow-y-auto pb-20' : '',
-            !isMobile ? 'max-h-full overflow-y-auto pb-20' : '',
+            isMobile ? "overflow-y-auto pb-20" : "",
+            !isMobile ? "max-h-full overflow-y-auto pb-20" : "",
           )}
           style={{
-            maxHeight: isMobile ? 'calc(100svh - 100px)' : undefined,
+            maxHeight: isMobile ? "calc(100svh - 100px)" : undefined,
           }}
         >
           {children}

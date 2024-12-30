@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Typography } from "@/components/ui/Typography";
 import { updateProjectAction } from "@/data/user/projects";
 import type { Tables } from "@/lib/database.types";
 import { projectStatusEnum } from "@/utils/zod-schemas/enums/projectStatusEnum";
@@ -46,12 +48,14 @@ interface ProjectFormProps {
   project: Tables<"projects"> | null;
   onClose: () => void;
   onSuccess?: () => void;
+  isWorkspaceAdmin: boolean;
 }
 
 export function EditProjectForm({
   project,
   onClose,
   onSuccess,
+  isWorkspaceAdmin,
 }: ProjectFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -90,9 +94,18 @@ export function EditProjectForm({
   };
 
   return (
-    <SmartSheet open={!!project} onOpenChange={onClose}>
-      <div className="p-6">
-        <h2 className="text-lg font-semibold mb-4">Edit Project</h2>
+    <SmartSheet
+      open={!!project}
+      onOpenChange={onClose}
+      className="md:!max-w-[540px]"
+    >
+      <div className="p-2">
+        <div className="mb-8">
+          <Typography.H2>Edit Project</Typography.H2>
+          <Typography.Subtle>
+            Edit project details and status.
+          </Typography.Subtle>
+        </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
@@ -115,9 +128,14 @@ export function EditProjectForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
+                  <FormDescription className="text-sm text-muted-foreground mb-2">
+                    Only workspace admins and owners can modify the project
+                    status
+                  </FormDescription>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
+                    disabled={!isWorkspaceAdmin}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -138,6 +156,20 @@ export function EditProjectForm({
                 </FormItem>
               )}
             />
+
+            {!isWorkspaceAdmin && project && (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Only workspace admins and owners can modify the project status
+                </p>
+                <div className="flex items-center gap-2 p-2 rounded-md border">
+                  {statusEmojis[project.project_status]}{" "}
+                  {project.project_status.charAt(0).toUpperCase() +
+                    project.project_status.slice(1).replace("_", " ")}
+                </div>
+              </FormItem>
+            )}
 
             <div className="flex justify-end space-x-4">
               <Button variant="outline" type="button" onClick={onClose}>
