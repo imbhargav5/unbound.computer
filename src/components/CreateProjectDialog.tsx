@@ -33,9 +33,13 @@ type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
 
 interface CreateProjectDialogProps {
   workspaceId: string;
+  onSuccess?: () => void;
 }
 
-export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps) {
+export function CreateProjectDialog({
+  workspaceId,
+  onSuccess,
+}: CreateProjectDialogProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
@@ -61,6 +65,7 @@ export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps) {
         if (data) {
           router.push(`/project/${data.slug}`);
         }
+        onSuccess?.();
       },
       onError: ({ error }) => {
         const errorMessage = error.serverError ?? "Failed to create project";

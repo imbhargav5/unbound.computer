@@ -9,9 +9,11 @@ import {
   TableRow,
 } from "@/components/compact-table";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import { ReactTablePagination } from "@/components/react-table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/Typography";
 import { getProjectsClient } from "@/data/user/client/projects";
@@ -21,7 +23,7 @@ import {
   type ProjectsFilterSchema,
 } from "@/utils/zod-schemas/projects";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ColumnDef,
   flexRender,
@@ -56,6 +58,11 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
   const [editingProject, setEditingProject] =
     useState<Tables<"projects"> | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [{ pageIndex, pageSize }, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const queryClient = useQueryClient();
 
   const form = useForm<ProjectsFilterSchema>({
     resolver: zodResolver(projectsFilterSchema),
@@ -74,12 +81,17 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
     setValue("sorting", sorting);
   }, [sorting, setValue]);
 
+  useEffect(() => {
+    setValue("page", pageIndex + 1);
+    setValue("perPage", pageSize);
+  }, [pageIndex, pageSize, setValue]);
+
   const {
     data: projectsData,
     isLoading,
     refetch: refetchProjects,
   } = useQuery({
-    queryKey: ["projects", workspaceId, query, sorting],
+    queryKey: ["projects", workspaceId, query, sorting, pageIndex, pageSize],
     queryFn: () =>
       getProjectsClient({
         workspaceId,
@@ -96,6 +108,7 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
   });
 
   const projects = projectsData?.data ?? [];
+  const totalProjects = projectsData?.count ?? 0;
 
   const columns: ColumnDef<Tables<"projects">>[] = [
     {
@@ -197,14 +210,20 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
     state: {
       rowSelection,
       sorting,
+      pagination: {
+        pageIndex,
+        pageSize,
+      },
     },
+    pageCount: Math.ceil(totalProjects / pageSize),
     enableRowSelection: true,
+    manualPagination: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-  console.log("render projects table");
   return (
     <div className="">
       <div className="bg-background p-2 flex justify-between items-center">
@@ -215,21 +234,38 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
           </Button>
         </Link>
       </div>
-      <div className="p-2 border border-b-0">
-        <div className="flex items-center space-x-2 justify-between">
-          <div className="flex w-[300px] items-center  space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search projects..."
-              className="h-8"
-              {...register("query")}
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <CreateProjectDialog workspaceId={workspaceId} />
+      <Form {...form}>
+        <div className="p-2 border border-b-0">
+          <div className="flex items-center space-x-2 justify-between">
+            <div className="flex w-[300px] items-center  space-x-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search projects..."
+                className="h-8"
+                {...register("query")}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <CreateProjectDialog
+                workspaceId={workspaceId}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({
+                    queryKey: [
+                      "projects",
+                      workspaceId,
+                      query,
+                      sorting,
+                      pageIndex,
+                      pageSize,
+                    ],
+                  });
+                  refetchProjects();
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </Form>
 
       <div className="table-container [&>div]:rounded-none [&>div]:border-t-0 [&>div]:border-l-0 [&>div]:border-r-0">
         <Table>
@@ -289,6 +325,20 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="border-t">
+        <ReactTablePagination
+          page={pageIndex + 1}
+          pageSize={pageSize}
+          totalItems={totalProjects}
+          onPageChange={(page) =>
+            setPagination((prev) => ({ ...prev, pageIndex: page - 1 }))
+          }
+          onPageSizeChange={(size) =>
+            setPagination((prev) => ({ ...prev, pageSize: size }))
+          }
+        />
       </div>
 
       <EditProjectForm
