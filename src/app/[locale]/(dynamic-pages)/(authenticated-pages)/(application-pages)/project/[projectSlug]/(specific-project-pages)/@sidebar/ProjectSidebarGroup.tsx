@@ -12,11 +12,8 @@ import { DBTable, WorkspaceWithMembershipType } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import {
   ArrowLeft,
-  Bird,
-  History,
-  Image as ImageIcon,
   Layers,
-  Settings,
+  Settings
 } from "lucide-react";
 
 interface ProjectSidebarGroupProps {
@@ -39,25 +36,11 @@ export function ProjectSidebarGroup({
       href: `/project/${project.slug}`,
       icon: <Layers className="h-5 w-5" />,
     },
-    {
-      label: "Image Generator",
-      href: `/project/${project.slug}/image-generator`,
-      icon: <ImageIcon className="h-5 w-5" />,
-    },
-    {
-      label: "Post Generator",
-      href: `/project/${project.slug}/post-generator`,
-      icon: <Bird className="h-5 w-5" />,
-    },
+
     {
       label: "Project Settings",
       href: `/project/${project.slug}/settings`,
       icon: <Settings className="h-5 w-5" />,
-    },
-    {
-      label: "Chats",
-      href: `/project/${project.slug}/chats`,
-      icon: <History className="h-5 w-5" />,
     },
   ];
 

@@ -424,3 +424,56 @@ export const getProjectsTotalCountForWorkspace = async ({
 
   return Math.ceil(count / limit) ?? 0;
 };
+
+const deleteProjectsSchema = z.object({
+  projectIds: z.array(z.string()),
+});
+
+export const deleteProjectsAction = authActionClient
+  .schema(deleteProjectsSchema)
+  .action(async ({ parsedInput: { projectIds } }) => {
+    const supabase = await createSupabaseUserServerActionClient();
+    const { error } = await supabase
+      .from("projects")
+      .delete()
+      .in("id", projectIds);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/");
+    return { success: true };
+  });
+
+const updateProjectSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1, "Project name is required"),
+  project_status: z.enum([
+    "draft",
+    "pending_approval",
+    "approved",
+    "completed",
+  ]),
+});
+
+export const updateProjectAction = authActionClient
+  .schema(updateProjectSchema)
+  .action(async ({ parsedInput: { projectId, name, project_status } }) => {
+    const supabase = await createSupabaseUserServerActionClient();
+    const { error } = await supabase
+      .from("projects")
+      .update({
+        name,
+        project_status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", projectId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/");
+    return { success: true };
+  });

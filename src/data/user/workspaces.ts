@@ -4,19 +4,20 @@ import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
 import type {
+  DBTableInsertPayload,
   Enum,
   SlimWorkspaces,
   WorkspaceWithMembershipType,
 } from "@/types";
-import {
-  serverGetLoggedInUserVerified
-} from "@/utils/server/serverGetLoggedInUser";
+import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { AuthUserMetadata } from "@/utils/zod-schemas/authUserMetadata";
+import { projectStatusEnum } from "@/utils/zod-schemas/enums/projectStatusEnum";
 import {
   createWorkspaceSchema,
   workspaceMemberRoleEnum,
 } from "@/utils/zod-schemas/workspaces";
+import { faker } from "@faker-js/faker";
 import { revalidatePath } from "next/cache";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -186,13 +187,23 @@ export const createWorkspaceAction = authActionClient
 
       if (isOnboardingFlow) {
         // Create dummy projects
+
+        const randomProjects: DBTableInsertPayload<"projects">[] = Array.from({
+          length: 25,
+        }).map((_) => {
+          const projectPayload: DBTableInsertPayload<"projects"> = {
+            workspace_id: workspaceId,
+            name: faker.internet.domainWord(),
+            project_status: faker.helpers.arrayElement(
+              projectStatusEnum.options,
+            ),
+          };
+          return projectPayload;
+        });
+
         const { error: projectError } = await supabaseClient
           .from("projects")
-          .insert([
-            { workspace_id: workspaceId, name: "Project 1" },
-            { workspace_id: workspaceId, name: "Project 2" },
-            { workspace_id: workspaceId, name: "Project 3" },
-          ]);
+          .insert(randomProjects);
 
         if (projectError) {
           console.error("Error creating projects", projectError);

@@ -19,8 +19,9 @@ import { projectSlugParamSchema } from "@/utils/zod-schemas/params";
 import { notFound } from "next/navigation";
 import { ProjectSidebarGroup } from "./ProjectSidebarGroup";
 
-export async function ProjectSidebar({ params }: { params: unknown }) {
+export async function ProjectSidebar(props: { params: Promise<unknown> }) {
   try {
+    const params = await props.params;
     const { projectSlug } = projectSlugParamSchema.parse(params);
     const project = await getSlimProjectBySlug(projectSlug);
     const [slimWorkspaces, fullProject] = await Promise.all([

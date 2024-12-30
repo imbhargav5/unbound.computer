@@ -9,9 +9,8 @@ import { useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Typography } from "./ui/Typography";
 import { AspectRatio } from "./ui/aspect-ratio";
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { SidebarMenuButton } from "./ui/sidebar";
-
 export function ProFeatureGateDialog({
   workspace,
   label,
@@ -66,7 +65,7 @@ export function ProFeatureGateDialog({
           </motion.div>
         </AspectRatio>
         <div className="mt-4 flex gap-2.5 items-center justify-start">
-          <Typography.H3 className="mt-0">Upgrade to</Typography.H3>
+          <DialogTitle className="mt-0">Upgrade to</DialogTitle>
           <span className="px-2 text-sm text-primary-foreground rounded-md py-1 bg-primary flex place-content-center">
             PRO
           </span>

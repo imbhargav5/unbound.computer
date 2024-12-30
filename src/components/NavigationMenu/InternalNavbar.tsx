@@ -2,7 +2,6 @@ import { cn } from "@/utils/cn";
 import { Suspense, type ReactNode } from "react";
 import { SidebarTrigger } from "../ui/sidebar";
 import { PendingInvitationCounter } from "./PendingInvitationCounter";
-import { UserNav } from "./UserNav";
 
 export async function InternalNavbar({ children }: { children: ReactNode }) {
   return (
@@ -19,12 +18,6 @@ export async function InternalNavbar({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-2">
               <PendingInvitationCounter />
             </div>
-          </div>
-          <div className="w-px h-5 mr-4 ml-2 bg-neutral-200 dark:bg-neutral-700" />
-          <div className="relative w-max flex items-center space-x-3">
-            <Suspense>
-              <UserNav />
-            </Suspense>
           </div>
         </div>
       </div>

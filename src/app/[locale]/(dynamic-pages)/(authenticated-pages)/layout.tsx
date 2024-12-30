@@ -1,5 +1,6 @@
 import { CreateWorkspaceDialogProvider } from "@/contexts/CreateWorkspaceDialogContext";
 import { LoggedInUserProvider } from "@/contexts/LoggedInUserContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { User } from "@supabase/supabase-js";
 import { unauthorized } from "next/navigation";
@@ -20,7 +21,9 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   return (
     <CreateWorkspaceDialogProvider>
-      <LoggedInUserProvider user={user}>{children}</LoggedInUserProvider>
+      <LoggedInUserProvider user={user}>
+        <NotificationsProvider>{children}</NotificationsProvider>
+      </LoggedInUserProvider>
     </CreateWorkspaceDialogProvider>
   );
 }
