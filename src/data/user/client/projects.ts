@@ -9,7 +9,7 @@ export async function getProjectsClient({
   workspaceId: string;
   filters: ProjectsFilterSchema;
 }) {
-  const { query, sorting, page, perPage } = filters;
+  const { query, sorting, page, perPage, statuses } = filters;
 
   let supabaseQuery = supabaseUserClientComponent
     .from("projects")
@@ -19,6 +19,11 @@ export async function getProjectsClient({
   // Apply search filter if query exists
   if (query && query.trim()) {
     supabaseQuery = supabaseQuery.ilike("name", `%${query.trim()}%`);
+  }
+
+  // Apply status filter if statuses exist
+  if (statuses && statuses.length > 0) {
+    supabaseQuery = supabaseQuery.in("project_status", statuses);
   }
 
   // Apply sorting

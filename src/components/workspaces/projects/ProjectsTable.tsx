@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/compact-table";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import FacetedFilter from "@/components/FacetedFilter";
 import { ReactTablePagination } from "@/components/react-table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/Typography";
 import { getProjectsClient } from "@/data/user/client/projects";
 import type { Tables } from "@/lib/database.types";
+import { Enum } from "@/types";
 import {
   projectsFilterSchema,
   type ProjectsFilterSchema,
@@ -48,6 +50,13 @@ const statusEmojis = {
   completed: "✅",
 } as const;
 
+const STATUS_OPTIONS = [
+  { label: "Draft", value: "draft", icon: undefined },
+  { label: "Pending Approval", value: "pending_approval", icon: undefined },
+  { label: "Approved", value: "approved", icon: undefined },
+  { label: "Completed", value: "completed", icon: undefined },
+];
+
 interface ProjectsTableProps {
   workspaceId: string;
 }
@@ -58,6 +67,9 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
   const [editingProject, setEditingProject] =
     useState<Tables<"projects"> | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<
+    Set<Enum<"project_status">>
+  >(new Set());
   const [{ pageIndex, pageSize }, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -91,7 +103,15 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
     isLoading,
     refetch: refetchProjects,
   } = useQuery({
-    queryKey: ["projects", workspaceId, query, sorting, pageIndex, pageSize],
+    queryKey: [
+      "projects",
+      workspaceId,
+      query,
+      sorting,
+      pageIndex,
+      pageSize,
+      Array.from(selectedStatuses),
+    ],
     queryFn: () =>
       getProjectsClient({
         workspaceId,
@@ -100,6 +120,7 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
           sorting,
           page: form.getValues("page"),
           perPage: form.getValues("perPage"),
+          statuses: Array.from(selectedStatuses),
         },
       }),
     staleTime: 1000 * 60 * 5,
@@ -237,12 +258,22 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
       <Form {...form}>
         <div className="p-2 border border-b-0">
           <div className="flex items-center space-x-2 justify-between">
-            <div className="flex w-[300px] items-center  space-x-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search projects..."
-                className="h-8"
-                {...register("query")}
+            <div className="flex items-center space-x-2">
+              <div className="flex w-[300px] items-center space-x-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search projects..."
+                  className="h-8"
+                  {...register("query")}
+                />
+              </div>
+              <FacetedFilter
+                title="Status"
+                options={STATUS_OPTIONS}
+                selectedValues={selectedStatuses}
+                onSelectCb={(values) => {
+                  setSelectedStatuses(new Set(values));
+                }}
               />
             </div>
             <div className="flex items-center space-x-2">
