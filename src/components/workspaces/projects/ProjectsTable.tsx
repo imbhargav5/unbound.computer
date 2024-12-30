@@ -21,7 +21,7 @@ import {
   type ProjectsFilterSchema,
 } from "@/utils/zod-schemas/projects";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ColumnDef,
   flexRender,
@@ -37,7 +37,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { ProjectForm } from "./ProjectForm";
+import { EditProjectForm } from "./EditProjectForm";
 
 const statusEmojis = {
   draft: "📝",
@@ -56,7 +56,6 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
   const [editingProject, setEditingProject] =
     useState<Tables<"projects"> | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const queryClient = useQueryClient();
 
   const form = useForm<ProjectsFilterSchema>({
     resolver: zodResolver(projectsFilterSchema),
@@ -205,15 +204,16 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-
-  const selectedIds = Object.keys(rowSelection).map(
-    (idx) => projects[parseInt(idx)].id,
-  );
-
+  console.log("render projects table");
   return (
     <div className="">
-      <div className="bg-background p-2">
+      <div className="bg-background p-2 flex justify-between items-center">
         <Typography.H3 className="my-0">Recent Projects</Typography.H3>
+        <Link href={`/workspace/${workspaceId}/projects`}>
+          <Button variant="link" size="sm">
+            <span className="text-xs underline">View All</span>
+          </Button>
+        </Link>
       </div>
       <div className="p-2 border border-b-0">
         <div className="flex items-center space-x-2 justify-between">
@@ -226,11 +226,6 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
             />
           </div>
           <div className="flex items-center space-x-2">
-            <Link href={`/workspace/${workspaceId}/projects`}>
-              <Button variant="ghost" size="sm">
-                View All
-              </Button>
-            </Link>
             <CreateProjectDialog workspaceId={workspaceId} />
           </div>
         </div>
@@ -296,8 +291,9 @@ export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
         </Table>
       </div>
 
-      <ProjectForm
+      <EditProjectForm
         project={editingProject}
+        key={editingProject?.id}
         onClose={() => setEditingProject(null)}
         onSuccess={refetchProjects}
       />

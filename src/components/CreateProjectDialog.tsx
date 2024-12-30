@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Layers } from "lucide-react";
+import { Layers, Plus } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -35,9 +35,7 @@ interface CreateProjectDialogProps {
   workspaceId: string;
 }
 
-export function CreateProjectDialog({
-  workspaceId,
-}: CreateProjectDialogProps) {
+export function CreateProjectDialog({ workspaceId }: CreateProjectDialogProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toastRef = useRef<string | number | undefined>(undefined);
@@ -79,8 +77,8 @@ export function CreateProjectDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" size="default">
-          <Layers className="mr-2 w-5 h-5" />
+        <Button variant="ghost" size="default">
+          <Plus className="w-5 h-5" />
           Create Project
         </Button>
       </DialogTrigger>

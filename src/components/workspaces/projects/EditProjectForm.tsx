@@ -48,7 +48,11 @@ interface ProjectFormProps {
   onSuccess?: () => void;
 }
 
-export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
+export function EditProjectForm({
+  project,
+  onClose,
+  onSuccess,
+}: ProjectFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<ProjectFormValues>({
