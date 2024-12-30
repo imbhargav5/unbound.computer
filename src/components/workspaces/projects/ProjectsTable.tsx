@@ -59,9 +59,13 @@ const STATUS_OPTIONS = [
 
 interface ProjectsTableProps {
   workspaceId: string;
+  isWorkspaceAdmin: boolean;
 }
 
-export function ProjectsTable({ workspaceId }: ProjectsTableProps) {
+export function ProjectsTable({
+  workspaceId,
+  isWorkspaceAdmin,
+}: ProjectsTableProps) {
   const router = useRouter();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [editingProject, setEditingProject] =

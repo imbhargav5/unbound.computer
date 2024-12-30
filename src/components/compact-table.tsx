@@ -13,8 +13,12 @@ const CompactTable = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="rounded-sm border">
-    <Table ref={ref} className={cn("text-xs", className)} {...props} />
+  <div className="w-full overflow-auto rounded-md border">
+    <Table
+      ref={ref}
+      className={cn("w-full caption-bottom text-sm", className)}
+      {...props}
+    />
   </div>
 ));
 CompactTable.displayName = "CompactTable";
@@ -25,7 +29,10 @@ const TableRow = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <BaseTableRow
     ref={ref}
-    className={cn("hover:bg-muted/50", className)}
+    className={cn(
+      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      className,
+    )}
     {...props}
   />
 ));
@@ -37,7 +44,10 @@ const TableHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <BaseTableHead
     ref={ref}
-    className={cn("h-8 bg-muted px-2 py-0 text-xs font-medium", className)}
+    className={cn(
+      "h-10 px-4 text-xs font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
     {...props}
   />
 ));
@@ -49,7 +59,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <BaseTableCell
     ref={ref}
-    className={cn("h-8 border-x px-2 py-0", className)}
+    className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)}
     {...props}
   />
 ));

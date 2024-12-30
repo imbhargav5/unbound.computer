@@ -1,5 +1,7 @@
-import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
-import { ProjectsFilter } from "@/utils/zod-schemas/params";
+import {
+  getCachedLoggedInUserWorkspaceRole,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DashboardClientWrapper } from "./DashboardClientWrapper";
@@ -9,19 +11,20 @@ import { ProjectsTable } from "./projects/ProjectsTable";
 
 export type DashboardProps = {
   workspaceSlug: string;
-  projectFilters: ProjectsFilter;
 };
 
-export async function WorkspaceDashboard({
-  workspaceSlug,
-  projectFilters,
-}: DashboardProps) {
+export async function WorkspaceDashboard({ workspaceSlug }: DashboardProps) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
-
+  const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
+  const isWorkspaceAdmin =
+    workspaceRole === "admin" || workspaceRole === "owner";
   return (
     <DashboardClientWrapper>
       <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
-        <ProjectsTable workspaceId={workspace.id} />
+        <ProjectsTable
+          workspaceId={workspace.id}
+          isWorkspaceAdmin={isWorkspaceAdmin}
+        />
       </Suspense>
       <WorkspaceGraphs />
     </DashboardClientWrapper>
