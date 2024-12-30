@@ -20,13 +20,13 @@ export async function WorkspaceDashboard({ workspaceSlug }: DashboardProps) {
     workspaceRole === "admin" || workspaceRole === "owner";
   return (
     <DashboardClientWrapper>
+      <WorkspaceGraphs />
       <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
         <ProjectsTable
           workspaceId={workspace.id}
           isWorkspaceAdmin={isWorkspaceAdmin}
         />
       </Suspense>
-      <WorkspaceGraphs />
     </DashboardClientWrapper>
   );
 }

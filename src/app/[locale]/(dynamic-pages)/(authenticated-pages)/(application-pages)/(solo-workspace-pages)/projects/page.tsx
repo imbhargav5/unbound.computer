@@ -1,22 +1,23 @@
-import { WorkspaceProjects } from "@/components/workspaces/projects/WorkspaceProjects";
+import { DashboardClientWrapper } from "@/components/workspaces/DashboardClientWrapper";
+import { ProjectsLoadingFallback } from "@/components/workspaces/ProjectsLoadingFallback";
+import { ProjectsTable } from "@/components/workspaces/projects/ProjectsTable";
 import { getCachedSoloWorkspace } from "@/rsc-data/user/workspaces";
-import { projectsfilterSchema } from "@/utils/zod-schemas/params";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Projects",
-  description:
-    "You can create projects within teams, or within your organization.",
+  description: "View and manage your projects",
 };
 
-export default async function Page(props: { searchParams: Promise<unknown> }) {
-  const searchParams = await props.searchParams;
-  const { slug: workspaceSlug } = await getCachedSoloWorkspace();
-  const projectFilters = projectsfilterSchema.parse(searchParams);
+export default async function Page() {
+  const { id: workspaceId } = await getCachedSoloWorkspace();
+
   return (
-    <WorkspaceProjects
-      workspaceSlug={workspaceSlug}
-      projectFilters={projectFilters}
-    />
+    <DashboardClientWrapper>
+      <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
+        <ProjectsTable workspaceId={workspaceId} isWorkspaceAdmin={true} />
+      </Suspense>
+    </DashboardClientWrapper>
   );
 }

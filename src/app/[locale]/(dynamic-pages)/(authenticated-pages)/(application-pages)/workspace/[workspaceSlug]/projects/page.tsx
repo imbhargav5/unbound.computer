@@ -1,28 +1,36 @@
-import { WorkspaceProjects } from "@/components/workspaces/projects/WorkspaceProjects";
+import { DashboardClientWrapper } from "@/components/workspaces/DashboardClientWrapper";
+import { ProjectsLoadingFallback } from "@/components/workspaces/ProjectsLoadingFallback";
+import { ProjectsTable } from "@/components/workspaces/projects/ProjectsTable";
 import {
-  projectsfilterSchema,
-  workspaceSlugParamSchema,
-} from "@/utils/zod-schemas/params";
+  getCachedLoggedInUserWorkspaceRole,
+  getCachedWorkspaceBySlug,
+} from "@/rsc-data/user/workspaces";
+import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Projects",
-  description:
-    "You can create projects within teams, or within your organization.",
+  description: "View and manage your workspace projects",
 };
 
-export default async function Page(props: {
-  params: Promise<unknown>;
-  searchParams: Promise<unknown>;
-}) {
-  const searchParams = await props.searchParams;
+export default async function Page(props: { params: Promise<unknown> }) {
   const params = await props.params;
   const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
-  const projectFilters = projectsfilterSchema.parse(searchParams);
+
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
+  const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
+  const isWorkspaceAdmin =
+    workspaceRole === "admin" || workspaceRole === "owner";
+
   return (
-    <WorkspaceProjects
-      workspaceSlug={workspaceSlug}
-      projectFilters={projectFilters}
-    />
+    <DashboardClientWrapper>
+      <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
+        <ProjectsTable
+          workspaceId={workspace.id}
+          isWorkspaceAdmin={isWorkspaceAdmin}
+        />
+      </Suspense>
+    </DashboardClientWrapper>
   );
 }
