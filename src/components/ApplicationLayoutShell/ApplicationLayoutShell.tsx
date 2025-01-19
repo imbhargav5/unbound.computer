@@ -10,8 +10,11 @@ export async function ApplicationLayoutShell({
   return (
     <SidebarProvider>
       {sidebar}
-      <SidebarInset>
-        <main>{children}</main>
+      <SidebarInset className="overflow-hidden"
+        style={{
+          maxHeight: "calc(100svh - 16px)",
+        }}>
+        <div className="overflow-y-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
