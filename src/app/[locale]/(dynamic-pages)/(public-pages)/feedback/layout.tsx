@@ -4,10 +4,8 @@ export default function FeedbackLayout({
   children: React.ReactNode;
 }) {
   return (
-    <section className="w-full h-screen max-h-screen px-4 py-6 ">
-      <div className="max-w-[1296px] h-full max-h-[calc(100%-3rem)] mx-auto flex flex-col">
-        {children}
-      </div>
+    <section className="w-full px-4 py-6 ">
+      <div className="max-w-4xl mx-auto flex flex-col">{children}</div>
     </section>
   );
 }
