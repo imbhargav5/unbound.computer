@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 import { Fragment, Suspense } from "react";
+import { CreateBoardDialog } from "./CreateBoardDialog";
 import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
 import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
 import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
@@ -27,15 +28,23 @@ async function FeedbackPage(props: {
           subTitle="Engage with the community and share your ideas."
         />
 
-        {userRoleType === userRoles.ANON ? (
-          <GiveFeedbackAnonUser className="w-fit">
-            <Button variant="secondary">Create Feedback</Button>
-          </GiveFeedbackAnonUser>
-        ) : (
-          <GiveFeedbackDialog className="w-fit">
-            <Button variant="default">Create Feedback</Button>
-          </GiveFeedbackDialog>
-        )}
+        <div className="flex gap-2">
+          {userRoleType === userRoles.ADMIN && (
+            <CreateBoardDialog className="w-fit">
+              <Button variant="outline">Create Board</Button>
+            </CreateBoardDialog>
+          )}
+
+          {userRoleType === userRoles.ANON ? (
+            <GiveFeedbackAnonUser className="w-fit">
+              <Button variant="secondary">Create Feedback</Button>
+            </GiveFeedbackAnonUser>
+          ) : (
+            <GiveFeedbackDialog className="w-fit">
+              <Button variant="default">Create Feedback</Button>
+            </GiveFeedbackDialog>
+          )}
+        </div>
       </div>
 
       <div className="w-full h-full max-h-[88vh]">

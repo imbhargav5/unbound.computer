@@ -1,7 +1,9 @@
 "use server";
+import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import type { Enum } from "@/types";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { adminToggleFeedbackOpenForCommentsAction } from "../feedback";
 
 /**
@@ -517,38 +519,34 @@ export async function getFeedbackBoards() {
   return data;
 }
 
-/**
- * Creates a new feedback board.
- */
-export async function createFeedbackBoard({
-  title,
-  description,
-  slug,
-  userId,
-}: {
-  title: string;
-  description: string;
-  slug: string;
-  userId: string;
-}) {
-  const { data, error } = await supabaseAdminClient
-    .from("marketing_feedback_boards")
-    .insert({
-      title,
-      description,
-      slug,
-      created_by: userId,
-    })
-    .select("*")
-    .single();
+const createBoardSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+});
 
-  if (error) {
-    throw error;
-  }
+export const createFeedbackBoardAction = adminActionClient
+  .schema(createBoardSchema)
+  .action(async ({ parsedInput: { title, description, slug }, ctx: { userId } }) => {
+    const { data, error } = await supabaseAdminClient
+      .from("marketing_feedback_boards")
+      .insert({
+        title,
+        description,
+        slug,
+        created_by: userId,
+        is_active: true,
+      })
+      .select("*")
+      .single();
 
-  revalidatePath("/feedback/boards");
-  return data;
-}
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/feedback/boards", "layout");
+    return data;
+  });
 
 /**
  * Updates an existing feedback board.
