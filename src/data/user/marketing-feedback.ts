@@ -511,13 +511,17 @@ export async function getLoggedInUserFeedbackById(feedbackId: string) {
   return data;
 }
 
-type MarketingFeedbackBoard = Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
-type MarketingFeedbackThread = Database["public"]["Tables"]["marketing_feedback_threads"]["Row"];
+type MarketingFeedbackBoard =
+  Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
+type MarketingFeedbackThread =
+  Database["public"]["Tables"]["marketing_feedback_threads"]["Row"];
 /**
  * Retrieves all feedback boards visible to logged-in users.
  * @returns Array of feedback boards
  */
-export async function getLoggedInUserFeedbackBoards(): Promise<MarketingFeedbackBoard[]> {
+export async function getLoggedInUserFeedbackBoards(): Promise<
+  MarketingFeedbackBoard[]
+> {
   const supabaseClient = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabaseClient
     .from("marketing_feedback_boards")
@@ -748,15 +752,19 @@ export async function isSubscribedToThread(threadId: string): Promise<boolean> {
 /**
  * Gets all board subscriptions for the current user
  */
-export async function getUserBoardSubscriptions(): Promise<MarketingFeedbackBoard[]> {
+export async function getUserBoardSubscriptions(): Promise<
+  MarketingFeedbackBoard[]
+> {
   const supabaseClient = await createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUserVerified();
 
   const { data, error } = await supabaseClient
     .from("marketing_feedback_board_subscriptions")
-    .select(`
+    .select(
+      `
       board:marketing_feedback_boards(*)
-    `)
+    `,
+    )
     .eq("user_id", user.id)
     .eq("marketing_feedback_boards.is_active", true);
 
@@ -770,15 +778,19 @@ export async function getUserBoardSubscriptions(): Promise<MarketingFeedbackBoar
 /**
  * Gets all thread subscriptions for the current user
  */
-export async function getUserThreadSubscriptions(): Promise<MarketingFeedbackThread[]> {
+export async function getUserThreadSubscriptions(): Promise<
+  MarketingFeedbackThread[]
+> {
   const supabaseClient = await createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUserVerified();
 
   const { data, error } = await supabaseClient
     .from("marketing_feedback_thread_subscriptions")
-    .select(`
+    .select(
+      `
       thread:marketing_feedback_threads(*)
-    `)
+    `,
+    )
     .eq("user_id", user.id)
     .is("marketing_feedback_threads.moderator_hold_category", null);
 
@@ -787,4 +799,50 @@ export async function getUserThreadSubscriptions(): Promise<MarketingFeedbackThr
   }
 
   return compact(data.map((subscription) => subscription.thread));
+}
+
+/**
+ * Gets an active feedback board by its slug for logged-in users.
+ */
+export async function getLoggedInUserFeedbackBoardBySlug(slug: string) {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all visible feedback threads for a specific board by slug.
+ */
+export async function getLoggedInUserFeedbackThreadsByBoardSlug(slug: string) {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+  const board = await getLoggedInUserFeedbackBoardBySlug(slug);
+
+  if (!board) return [];
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", board.id)
+    .or(
+      `user_id.eq.${user.id},added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true`,
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }

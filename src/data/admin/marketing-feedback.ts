@@ -522,31 +522,36 @@ export async function getFeedbackBoards() {
 const createBoardSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9-]+$/),
 });
 
 export const createFeedbackBoardAction = adminActionClient
   .schema(createBoardSchema)
-  .action(async ({ parsedInput: { title, description, slug }, ctx: { userId } }) => {
-    const { data, error } = await supabaseAdminClient
-      .from("marketing_feedback_boards")
-      .insert({
-        title,
-        description,
-        slug,
-        created_by: userId,
-        is_active: true,
-      })
-      .select("*")
-      .single();
+  .action(
+    async ({ parsedInput: { title, description, slug }, ctx: { userId } }) => {
+      const { data, error } = await supabaseAdminClient
+        .from("marketing_feedback_boards")
+        .insert({
+          title,
+          description,
+          slug,
+          created_by: userId,
+          is_active: true,
+        })
+        .select("*")
+        .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    revalidatePath("/feedback/boards", "layout");
-    return data;
-  });
+      revalidatePath("/feedback/boards", "layout");
+      return data;
+    },
+  );
 
 /**
  * Updates an existing feedback board.
@@ -652,6 +657,43 @@ export async function getFeedbackThreadsByBoardId(boardId: string) {
     .from("marketing_feedback_threads")
     .select("*")
     .eq("board_id", boardId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets a feedback board by its slug.
+ */
+export async function getFeedbackBoardBySlug(slug: string) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("slug", slug)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all feedback threads for a specific board by slug.
+ */
+export async function getFeedbackThreadsByBoardSlug(slug: string) {
+  const board = await getFeedbackBoardBySlug(slug);
+  if (!board) return [];
+
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", board.id)
     .order("created_at", { ascending: false });
 
   if (error) {

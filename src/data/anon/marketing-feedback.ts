@@ -11,7 +11,8 @@ type MarketingFeedbackThreadStatus =
   Database["public"]["Enums"]["marketing_feedback_thread_status"];
 type MarketingFeedbackThreadPriority =
   Database["public"]["Enums"]["marketing_feedback_thread_priority"];
-type MarketingFeedbackBoard = Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
+type MarketingFeedbackBoard =
+  Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
 
 export async function getAnonUserFeedbackList({
   query = "",
@@ -209,7 +210,9 @@ export async function getRecentPublicFeedback() {
  * Retrieves all active feedback boards visible to anonymous users.
  * @returns Array of active feedback boards
  */
-export async function getAnonFeedbackBoards(): Promise<MarketingFeedbackBoard[]> {
+export async function getAnonFeedbackBoards(): Promise<
+  MarketingFeedbackBoard[]
+> {
   const { data, error } = await supabaseAnonClient
     .from("marketing_feedback_boards")
     .select("*")
@@ -305,4 +308,46 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
     data,
     count: count ?? 0,
   };
+}
+
+/**
+ * Gets an active feedback board by its slug for anonymous users.
+ */
+export async function getAnonFeedbackBoardBySlug(slug: string) {
+  const { data, error } = await supabaseAnonClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all visible feedback threads for a specific board by slug.
+ */
+export async function getAnonFeedbackThreadsByBoardSlug(slug: string) {
+  const board = await getAnonFeedbackBoardBySlug(slug);
+  if (!board) return [];
+
+  const { data, error } = await supabaseAnonClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", board.id)
+    .or(
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }
