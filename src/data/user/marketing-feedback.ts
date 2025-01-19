@@ -1,11 +1,13 @@
 "use server";
 
+import { Database } from "@/lib/database.types";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
 import type { Enum } from "@/types";
 import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import { marketingFeedbackTypeEnum } from "@/utils/zod-schemas/feedback";
+import { compact } from "lodash";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createReceivedFeedbackNotification } from "./notifications";
@@ -507,4 +509,282 @@ export async function getLoggedInUserFeedbackById(feedbackId: string) {
   }
 
   return data;
+}
+
+type MarketingFeedbackBoard = Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
+type MarketingFeedbackThread = Database["public"]["Tables"]["marketing_feedback_threads"]["Row"];
+/**
+ * Retrieves all feedback boards visible to logged-in users.
+ * @returns Array of feedback boards
+ */
+export async function getLoggedInUserFeedbackBoards(): Promise<MarketingFeedbackBoard[]> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets a specific feedback board by its ID for logged-in users.
+ * @param boardId - The ID of the board to retrieve
+ * @returns The feedback board data or null if not found
+ */
+export async function getLoggedInUserFeedbackBoardById(
+  boardId: string,
+): Promise<MarketingFeedbackBoard | null> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("id", boardId)
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all feedback threads for a specific board for logged-in users.
+ * Includes threads created by the user and public threads.
+ */
+export async function getLoggedInUserFeedbackThreadsByBoardId(
+  boardId: string,
+): Promise<MarketingFeedbackThread[]> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", boardId)
+    .or(
+      `user_id.eq.${user.id},added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true`,
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets paginated feedback threads for a specific board for logged-in users.
+ */
+export async function getPaginatedLoggedInUserFeedbackThreadsByBoardId({
+  boardId,
+  page = 1,
+  limit = 10,
+  sort = "desc",
+}: {
+  boardId: string;
+  page?: number;
+  limit?: number;
+  sort?: "asc" | "desc";
+}) {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+  const zeroIndexedPage = page - 1;
+
+  const { data, count, error } = await supabaseClient
+    .from("marketing_feedback_threads")
+    .select("*", { count: "exact" })
+    .eq("board_id", boardId)
+    .or(
+      `user_id.eq.${user.id},added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true`,
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: sort === "asc" })
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    data,
+    count: count ?? 0,
+  };
+}
+
+/**
+ * Subscribes a user to a feedback board
+ */
+export async function subscribeToBoardAction(boardId: string) {
+  const supabaseClient = await createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { error } = await supabaseClient
+    .from("marketing_feedback_board_subscriptions")
+    .insert({
+      board_id: boardId,
+      user_id: user.id,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback/boards");
+}
+
+/**
+ * Unsubscribes a user from a feedback board
+ */
+export async function unsubscribeFromBoardAction(boardId: string) {
+  const supabaseClient = await createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { error } = await supabaseClient
+    .from("marketing_feedback_board_subscriptions")
+    .delete()
+    .eq("board_id", boardId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback/boards");
+}
+
+/**
+ * Checks if the current user is subscribed to a board
+ */
+export async function isSubscribedToBoard(boardId: string): Promise<boolean> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_board_subscriptions")
+    .select("id")
+    .eq("board_id", boardId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (error) {
+    return false;
+  }
+
+  return !!data;
+}
+
+/**
+ * Subscribes a user to a feedback thread
+ */
+export async function subscribeToThreadAction(threadId: string) {
+  const supabaseClient = await createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { error } = await supabaseClient
+    .from("marketing_feedback_thread_subscriptions")
+    .insert({
+      thread_id: threadId,
+      user_id: user.id,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath(`/feedback/${threadId}`);
+}
+
+/**
+ * Unsubscribes a user from a feedback thread
+ */
+export async function unsubscribeFromThreadAction(threadId: string) {
+  const supabaseClient = await createSupabaseUserServerActionClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { error } = await supabaseClient
+    .from("marketing_feedback_thread_subscriptions")
+    .delete()
+    .eq("thread_id", threadId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath(`/feedback/${threadId}`);
+}
+
+/**
+ * Checks if the current user is subscribed to a thread
+ */
+export async function isSubscribedToThread(threadId: string): Promise<boolean> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_thread_subscriptions")
+    .select("id")
+    .eq("thread_id", threadId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (error) {
+    return false;
+  }
+
+  return !!data;
+}
+
+/**
+ * Gets all board subscriptions for the current user
+ */
+export async function getUserBoardSubscriptions(): Promise<MarketingFeedbackBoard[]> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_board_subscriptions")
+    .select(`
+      board:marketing_feedback_boards(*)
+    `)
+    .eq("user_id", user.id)
+    .eq("marketing_feedback_boards.is_active", true);
+
+  if (error) {
+    throw error;
+  }
+
+  return compact(data.map((subscription) => subscription.board));
+}
+
+/**
+ * Gets all thread subscriptions for the current user
+ */
+export async function getUserThreadSubscriptions(): Promise<MarketingFeedbackThread[]> {
+  const supabaseClient = await createSupabaseUserServerComponentClient();
+  const user = await serverGetLoggedInUserVerified();
+
+  const { data, error } = await supabaseClient
+    .from("marketing_feedback_thread_subscriptions")
+    .select(`
+      thread:marketing_feedback_threads(*)
+    `)
+    .eq("user_id", user.id)
+    .is("marketing_feedback_threads.moderator_hold_category", null);
+
+  if (error) {
+    throw error;
+  }
+
+  return compact(data.map((subscription) => subscription.thread));
 }

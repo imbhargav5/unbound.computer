@@ -57,6 +57,24 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          id: boolean
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       billing_customers: {
         Row: {
           billing_email: string
@@ -722,6 +740,125 @@ export type Database = {
           },
         ]
       }
+      marketing_feedback_board_subscriptions: {
+        Row: {
+          board_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_board_subscriptions_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_feedback_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_feedback_board_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_feedback_boards: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          settings: Json
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          settings?: Json
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          settings?: Json
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_boards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_feedback_comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          reaction_type: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          reaction_type: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          reaction_type?: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_feedback_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_feedback_comment_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_feedback_comments: {
         Row: {
           content: string
@@ -773,9 +910,85 @@ export type Database = {
           },
         ]
       }
+      marketing_feedback_thread_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          reaction_type: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reaction_type: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reaction_type?: Database["public"]["Enums"]["marketing_feedback_reaction_type"]
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_thread_reactions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_feedback_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_feedback_thread_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_feedback_thread_subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_thread_subscriptions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_feedback_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_feedback_thread_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_feedback_threads: {
         Row: {
           added_to_roadmap: boolean
+          board_id: string | null
           content: string
           created_at: string
           id: string
@@ -793,6 +1006,7 @@ export type Database = {
         }
         Insert: {
           added_to_roadmap?: boolean
+          board_id?: string | null
           content: string
           created_at?: string
           id?: string
@@ -810,6 +1024,7 @@ export type Database = {
         }
         Update: {
           added_to_roadmap?: boolean
+          board_id?: string | null
           content?: string
           created_at?: string
           id?: string
@@ -826,6 +1041,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "marketing_feedback_threads_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_feedback_boards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "marketing_feedback_threads_user_id_fkey"
             columns: ["user_id"]
@@ -1058,15 +1280,7 @@ export type Database = {
           full_name?: string | null
           id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -1303,6 +1517,7 @@ export type Database = {
         Row: {
           added_at: string
           id: string
+          permissions: Json
           workspace_id: string
           workspace_member_id: string
           workspace_member_role: Database["public"]["Enums"]["workspace_member_role_type"]
@@ -1310,6 +1525,7 @@ export type Database = {
         Insert: {
           added_at?: string
           id?: string
+          permissions?: Json
           workspace_id: string
           workspace_member_id: string
           workspace_member_role: Database["public"]["Enums"]["workspace_member_role_type"]
@@ -1317,6 +1533,7 @@ export type Database = {
         Update: {
           added_at?: string
           id?: string
+          permissions?: Json
           workspace_id?: string
           workspace_member_id?: string
           workspace_member_role?: Database["public"]["Enums"]["workspace_member_role_type"]
@@ -1477,6 +1694,20 @@ export type Database = {
           member_id: string
         }[]
       }
+      has_workspace_permission: {
+        Args: {
+          user_id: string
+          workspace_id: string
+          permission: string
+        }
+        Returns: boolean
+      }
+      is_application_admin: {
+        Args: {
+          user_id?: string
+        }
+        Returns: boolean
+      }
       is_workspace_admin: {
         Args: {
           user_id: string
@@ -1503,6 +1734,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_workspace_member_permissions: {
+        Args: {
+          member_id: string
+          workspace_id: string
+          new_permissions: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin"
@@ -1513,6 +1752,11 @@ export type Database = {
         | "off_topic"
         | "inappropriate"
         | "other"
+      marketing_feedback_reaction_type:
+        | "like"
+        | "heart"
+        | "celebrate"
+        | "upvote"
       marketing_feedback_thread_priority: "low" | "medium" | "high"
       marketing_feedback_thread_status:
         | "open"
@@ -1951,5 +2195,20 @@ export type Enums<
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
     ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 

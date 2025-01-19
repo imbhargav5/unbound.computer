@@ -499,3 +499,166 @@ export async function adminGetInternalFeedbackById(feedbackId: string) {
 
   return data[0];
 }
+
+/**
+ * Retrieves all feedback boards.
+ * @returns Array of feedback boards
+ */
+export async function getFeedbackBoards() {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Creates a new feedback board.
+ */
+export async function createFeedbackBoard({
+  title,
+  description,
+  slug,
+  userId,
+}: {
+  title: string;
+  description: string;
+  slug: string;
+  userId: string;
+}) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .insert({
+      title,
+      description,
+      slug,
+      created_by: userId,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback/boards");
+  return data;
+}
+
+/**
+ * Updates an existing feedback board.
+ */
+export async function updateFeedbackBoard({
+  boardId,
+  title,
+  description,
+  slug,
+  isActive,
+}: {
+  boardId: string;
+  title?: string;
+  description?: string;
+  slug?: string;
+  isActive?: boolean;
+}) {
+  const updateData: Record<string, unknown> = {};
+  if (title !== undefined) updateData.title = title;
+  if (description !== undefined) updateData.description = description;
+  if (slug !== undefined) updateData.slug = slug;
+  if (isActive !== undefined) updateData.is_active = isActive;
+
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .update(updateData)
+    .eq("id", boardId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback/boards");
+  return data;
+}
+
+/**
+ * Deletes a feedback board.
+ */
+export async function deleteFeedbackBoard(boardId: string) {
+  const { error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .delete()
+    .eq("id", boardId);
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback/boards");
+}
+
+/**
+ * Updates the board assignment of a feedback thread.
+ */
+export async function updateFeedbackThreadBoard({
+  threadId,
+  boardId,
+}: {
+  threadId: string;
+  boardId: string | null;
+}) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_threads")
+    .update({ board_id: boardId })
+    .eq("id", threadId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/feedback");
+  revalidatePath(`/feedback/${threadId}`);
+  return data;
+}
+
+/**
+ * Gets a feedback board by its ID.
+ */
+export async function getFeedbackBoardById(boardId: string) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("id", boardId)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all feedback threads for a specific board.
+ */
+export async function getFeedbackThreadsByBoardId(boardId: string) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", boardId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}

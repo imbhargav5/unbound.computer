@@ -11,6 +11,7 @@ type MarketingFeedbackThreadStatus =
   Database["public"]["Enums"]["marketing_feedback_thread_status"];
 type MarketingFeedbackThreadPriority =
   Database["public"]["Enums"]["marketing_feedback_thread_priority"];
+type MarketingFeedbackBoard = Database["public"]["Tables"]["marketing_feedback_boards"]["Row"];
 
 export async function getAnonUserFeedbackList({
   query = "",
@@ -153,12 +154,15 @@ async function getRoadmapFeedbackByStatus(
   return data;
 }
 
-export const anonGetPlannedRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus("planned");
-export const anonGetInProgressRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus("in_progress");
-export const anonGetCompletedRoadmapFeedbackList = () =>
-  getRoadmapFeedbackByStatus("completed");
+export async function anonGetPlannedRoadmapFeedbackList() {
+  return getRoadmapFeedbackByStatus("planned");
+}
+export async function anonGetInProgressRoadmapFeedbackList() {
+  return getRoadmapFeedbackByStatus("in_progress");
+}
+export async function anonGetCompletedRoadmapFeedbackList() {
+  return getRoadmapFeedbackByStatus("completed");
+}
 
 // Add this new function
 export async function getAnonUserFeedbackById(
@@ -199,4 +203,106 @@ export async function getRecentPublicFeedback() {
   }
 
   return data;
+}
+
+/**
+ * Retrieves all active feedback boards visible to anonymous users.
+ * @returns Array of active feedback boards
+ */
+export async function getAnonFeedbackBoards(): Promise<MarketingFeedbackBoard[]> {
+  const { data, error } = await supabaseAnonClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets a specific active feedback board by its ID.
+ * @param boardId - The ID of the board to retrieve
+ * @returns The feedback board data or null if not found/inactive
+ */
+export async function getAnonFeedbackBoardById(
+  boardId: string,
+): Promise<MarketingFeedbackBoard | null> {
+  const { data, error } = await supabaseAnonClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("id", boardId)
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Gets all visible feedback threads for a specific board.
+ * @param boardId - The ID of the board to get threads for
+ * @returns Array of visible feedback threads in the board
+ */
+export async function getAnonFeedbackThreadsByBoardId(
+  boardId: string,
+): Promise<MarketingFeedbackThread[]> {
+  const { data, error } = await supabaseAnonClient
+    .from("marketing_feedback_threads")
+    .select("*")
+    .eq("board_id", boardId)
+    .or(
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Gets paginated visible feedback threads for a specific board.
+ */
+export async function getPaginatedAnonFeedbackThreadsByBoardId({
+  boardId,
+  page = 1,
+  limit = 10,
+  sort = "desc",
+}: {
+  boardId: string;
+  page?: number;
+  limit?: number;
+  sort?: "asc" | "desc";
+}) {
+  const zeroIndexedPage = page - 1;
+
+  const { data, count, error } = await supabaseAnonClient
+    .from("marketing_feedback_threads")
+    .select("*", { count: "exact" })
+    .eq("board_id", boardId)
+    .or(
+      "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
+    )
+    .is("moderator_hold_category", null)
+    .order("created_at", { ascending: sort === "asc" })
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    data,
+    count: count ?? 0,
+  };
 }
