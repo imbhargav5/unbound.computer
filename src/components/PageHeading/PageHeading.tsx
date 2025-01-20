@@ -10,6 +10,7 @@ type PageHeadingProps = {
   titleClassName?: string;
   subTitleClassName?: string;
   isLoading?: boolean;
+  className?: string;
 };
 
 export function PageHeading({
@@ -20,6 +21,7 @@ export function PageHeading({
   titleClassName,
   subTitleClassName,
   isLoading,
+  className,
 }: PageHeadingProps) {
   const titleElement = (
     <T.H2
@@ -33,7 +35,7 @@ export function PageHeading({
       {title}
     </T.H2>
   );
-  const subTitleElement = (
+  const subTitleElement = subTitle && (
     <T.P
       className={cn(
         "text-muted-foreground text-lg leading-6",
@@ -56,10 +58,11 @@ export function PageHeading({
       className={cn(
         "md:flex md:items-start md:justify-between",
         isLoading ? "animate-pulse pointer-events-none" : "",
+        className,
       )}
     >
       <div className="min-w-0 flex-1">{wrappedTitleElement}</div>
-      <div>{actions}</div>
+      {actions && <div className="mt-4 md:mt-0 md:ml-4">{actions}</div>}
     </div>
   );
 }

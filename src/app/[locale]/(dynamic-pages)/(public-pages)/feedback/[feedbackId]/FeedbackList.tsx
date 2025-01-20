@@ -4,7 +4,7 @@ import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { DBTable } from "@/types";
 import { formatDistance } from "date-fns";
 import { Bug, LucideCloudLightning, MessageSquareDot } from "lucide-react";
@@ -38,38 +38,39 @@ function FeedbackItem({ feedback, filters }: FeedbackItemProps) {
 
   return (
     <Link href={href}>
-      <Card
-        data-testid="feedback-item"
-        className="hover:bg-muted transition-colors duration-200 ease-in cursor-pointer group"
-      >
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-2 px-4">
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-6 w-6">
+      <Card className="hover:bg-muted/50 transition-colors duration-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-8 w-8">
               <AvatarImage
                 src={`https://avatar.vercel.sh/${feedback.user_id}`}
                 alt="User avatar"
               />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
-            <T.Small className="font-medium">{feedback.title}</T.Small>
+            <div className="space-y-1">
+              <T.Small className="font-medium line-clamp-1">
+                {feedback.title}
+              </T.Small>
+              <T.Small className="text-muted-foreground line-clamp-1">
+                {feedback.content}
+              </T.Small>
+            </div>
           </div>
-          <Badge
-            variant="secondary"
-            className="rounded-full group-hover:bg-background text-xs py-0 px-2"
-          >
-            {typeIcons[feedback.type]} {TAGS[feedback.type]}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="secondary"
+              className="rounded-full text-xs py-0 px-2"
+            >
+              {typeIcons[feedback.type]} {TAGS[feedback.type]}
+            </Badge>
+            <T.Small className="text-muted-foreground whitespace-nowrap">
+              {formatDistance(new Date(feedback.created_at), new Date(), {
+                addSuffix: true,
+              })}
+            </T.Small>
+          </div>
         </CardHeader>
-        <CardContent className="py-2 px-4">
-          <T.Small className="text-muted-foreground line-clamp-1">
-            {feedback.content}
-          </T.Small>
-          <T.Small className="text-muted-foreground mt-1">
-            {formatDistance(new Date(feedback.created_at), new Date(), {
-              addSuffix: true,
-            })}
-          </T.Small>
-        </CardContent>
       </Card>
     </Link>
   );
@@ -95,12 +96,13 @@ function FeedbackListContent({
   };
 
   return (
-    <>
-      <div className="flex flex-col gap-2 mb-4">
-        <Search placeholder="Search Feedback... " />
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b space-y-3">
+        <Search placeholder="Search Feedback..." className="max-w-md" />
         <FeedbackFacetedFilters />
       </div>
-      <div className="flex flex-col h-full overflow-y-auto gap-2 mb-4">
+
+      <div className="flex-1 overflow-auto p-4 space-y-2">
         {feedbacks.length > 0 ? (
           feedbacks.map((feedback) => (
             <FeedbackItem
@@ -110,11 +112,10 @@ function FeedbackListContent({
             />
           ))
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed shadow-sm">
-            <div className="flex flex-col items-center gap-1 text-center">
-              <h3 className="text-2xl font-bold tracking-tight">
-                No feedbacks available
-              </h3>
+          <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed p-8">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <MessageSquare className="h-8 w-8 text-muted-foreground" />
+              <h3 className="font-semibold">No Feedbacks Available</h3>
               <p className="text-sm text-muted-foreground">
                 {emptyStateMessages[userType]}
               </p>
@@ -122,10 +123,11 @@ function FeedbackListContent({
           </div>
         )}
       </div>
-      <div className="py-8">
+
+      <div className="border-t p-4">
         <Pagination totalPages={totalPages} />
       </div>
-    </>
+    </div>
   );
 }
 

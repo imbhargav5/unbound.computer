@@ -3,7 +3,7 @@ import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
 import { Button } from "@/components/ui/button";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
-import { Fragment, Suspense } from "react";
+import { Suspense } from "react";
 import { CreateBoardDialog } from "./CreateBoardDialog";
 import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
 import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
@@ -20,39 +20,51 @@ async function FeedbackPage(props: {
   const userRoleType = await serverGetUserType();
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
+  const actions = (
+    <div className="flex gap-2">
+      {userRoleType === userRoles.ADMIN && (
+        <CreateBoardDialog>
+          <Button variant="outline" size="sm">
+            Create Board
+          </Button>
+        </CreateBoardDialog>
+      )}
+
+      {userRoleType === userRoles.ANON ? (
+        <GiveFeedbackAnonUser>
+          <Button variant="secondary" size="sm">
+            Create Feedback
+          </Button>
+        </GiveFeedbackAnonUser>
+      ) : (
+        <GiveFeedbackDialog>
+          <Button variant="default" size="sm">
+            Create Feedback
+          </Button>
+        </GiveFeedbackDialog>
+      )}
+    </div>
+  );
+
   return (
-    <Fragment>
-      <div className="flex justify-between items-center">
-        <PageHeading
-          title="Community Feedback"
-          subTitle="Engage with the community and share your ideas."
-        />
+    <div className="container py-6 space-y-6">
+      <PageHeading
+        title="Community Feedback"
+        subTitle="Engage with the community and share your ideas."
+        actions={actions}
+      />
 
-        <div className="flex gap-2">
-          {userRoleType === userRoles.ADMIN && (
-            <CreateBoardDialog className="w-fit">
-              <Button variant="outline">Create Board</Button>
-            </CreateBoardDialog>
-          )}
-
-          {userRoleType === userRoles.ANON ? (
-            <GiveFeedbackAnonUser className="w-fit">
-              <Button variant="secondary">Create Feedback</Button>
-            </GiveFeedbackAnonUser>
-          ) : (
-            <GiveFeedbackDialog className="w-fit">
-              <Button variant="default">Create Feedback</Button>
-            </GiveFeedbackDialog>
-          )}
-        </div>
-      </div>
-
-      <div className="w-full h-full max-h-[88vh]">
-        <Suspense key={suspenseKey} fallback={<div>Loading...</div>}>
+      <div className="h-[calc(100vh-12rem)] rounded-lg border bg-card">
+        <Suspense
+          key={suspenseKey}
+          fallback={
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-pulse">Loading feedback...</div>
+            </div>
+          }
+        >
           {userRoleType === userRoles.ANON && (
-            <>
-              <AnonFeedbackList filters={validatedSearchParams} />
-            </>
+            <AnonFeedbackList filters={validatedSearchParams} />
           )}
 
           {userRoleType === userRoles.USER && (
@@ -64,7 +76,7 @@ async function FeedbackPage(props: {
           )}
         </Suspense>
       </div>
-    </Fragment>
+    </div>
   );
 }
 

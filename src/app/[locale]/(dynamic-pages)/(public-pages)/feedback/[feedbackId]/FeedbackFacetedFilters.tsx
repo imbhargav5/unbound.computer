@@ -82,7 +82,7 @@ export function FeedbackFacetedFilters() {
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex flex-wrap items-center gap-2">
       <Select
         data-testid="sort-select"
         onValueChange={(val) => {
@@ -90,80 +90,86 @@ export function FeedbackFacetedFilters() {
           setSort(parsedValue);
         }}
       >
-        <SelectTrigger className="w-fit h-8">
-          <SelectValue placeholder="Sort" />
+        <SelectTrigger className="h-8 w-[130px]">
+          <SelectValue placeholder="Sort by" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="desc">Recent First</SelectItem>
           <SelectItem value="asc">Oldest First</SelectItem>
         </SelectContent>
       </Select>
-      <FacetedFilter
-        title="Status"
-        options={NEW_STATUS_OPTIONS}
-        selectedValues={new Set(filters.statuses)}
-        onSelectCb={(values) => {
-          setFilters({
-            ...filters,
-            statuses: values,
-          });
-        }}
-      />
-      <FacetedFilter
-        title="Type"
-        options={NEW_TYPE_OPTIONS}
-        selectedValues={new Set(filters.types)}
-        onSelectCb={(values) => {
-          setFilters({
-            ...filters,
-            types: values,
-          });
-        }}
-      />
-      <FacetedFilter
-        title="Priority"
-        options={NEW_PRIORITY_OPTIONS}
-        selectedValues={new Set(filters.priorities)}
-        onSelectCb={(values) => {
-          setFilters({
-            ...filters,
-            priorities: values,
-          });
-        }}
-      />
-      <Toggle
-        variant={"outline"}
-        className="h-8 px-2 flex gap-2 lg:px-3 rounded-md"
-        defaultPressed={filters.myFeedbacks}
-        onClick={() => {
-          setFilters({
-            ...filters,
-            myFeedbacks: filters.myFeedbacks ? !filters.myFeedbacks : true,
-          });
-        }}
-      >
-        <CircleUser className="h-4 w-4" />
-        My feedbacks
-      </Toggle>
-      {(Boolean(filters.statuses?.length) ||
-        Boolean(filters.types?.length) ||
-        Boolean(filters.priorities?.length)) && (
-        <Button
-          variant="ghost"
-          onClick={() => {
+
+      <div className="flex flex-wrap items-center gap-2">
+        <FacetedFilter
+          title="Status"
+          options={NEW_STATUS_OPTIONS}
+          selectedValues={new Set(filters.statuses)}
+          onSelectCb={(values) => {
             setFilters({
-              statuses: [],
-              types: [],
-              priorities: [],
-              myFeedbacks: false,
+              ...filters,
+              statuses: values,
             });
           }}
-          className="h-8 px-2 lg:px-3"
+        />
+        <FacetedFilter
+          title="Type"
+          options={NEW_TYPE_OPTIONS}
+          selectedValues={new Set(filters.types)}
+          onSelectCb={(values) => {
+            setFilters({
+              ...filters,
+              types: values,
+            });
+          }}
+        />
+        <FacetedFilter
+          title="Priority"
+          options={NEW_PRIORITY_OPTIONS}
+          selectedValues={new Set(filters.priorities)}
+          onSelectCb={(values) => {
+            setFilters({
+              ...filters,
+              priorities: values,
+            });
+          }}
+        />
+        <Toggle
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 flex items-center gap-2"
+          defaultPressed={filters.myFeedbacks}
+          onPressedChange={() => {
+            setFilters({
+              ...filters,
+              myFeedbacks: !filters.myFeedbacks,
+            });
+          }}
         >
-          Reset
-          <Cross2Icon className="ml-2 h-4 w-4" />
-        </Button>
-      )}
+          <CircleUser className="h-4 w-4" />
+          <span className="text-sm">My feedbacks</span>
+        </Toggle>
+
+        {(Boolean(filters.statuses?.length) ||
+          Boolean(filters.types?.length) ||
+          Boolean(filters.priorities?.length)) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilters({
+                  statuses: [],
+                  types: [],
+                  priorities: [],
+                  myFeedbacks: false,
+                });
+              }}
+              className="h-8 px-3"
+            >
+              Reset
+              <Cross2Icon className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+      </div>
     </div>
   );
 }
