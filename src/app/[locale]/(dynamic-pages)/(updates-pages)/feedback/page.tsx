@@ -1,11 +1,11 @@
-import { PageHeading } from "@/components/PageHeading";
 import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 import { Suspense } from "react";
 import { CreateBoardDialog } from "./CreateBoardDialog";
 import { FeedbackListSidebar, SidebarSkeleton } from "./FeedbackListSidebar";
+import { FeedbackPageHeading } from "./FeedbackPageHeading";
 import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
 import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
 import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
@@ -22,34 +22,28 @@ async function FeedbackPage(props: {
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
   const actions = (
-    <div className="flex gap-2">
-      {userRoleType === userRoles.ADMIN && (
-        <CreateBoardDialog>
-          <Button variant="outline" size="sm">
-            Create Board
-          </Button>
-        </CreateBoardDialog>
-      )}
+    <>
+      <DropdownMenuItem asChild>
+        {userRoleType === userRoles.ADMIN && (
+          <CreateBoardDialog>Create Board</CreateBoardDialog>
+        )}
+      </DropdownMenuItem>
 
       {userRoleType === userRoles.ANON ? (
-        <GiveFeedbackAnonUser>
-          <Button variant="secondary" size="sm">
-            Create Feedback
-          </Button>
-        </GiveFeedbackAnonUser>
+        <DropdownMenuItem asChild>
+          <GiveFeedbackAnonUser>Create Feedback</GiveFeedbackAnonUser>
+        </DropdownMenuItem>
       ) : (
-        <GiveFeedbackDialog>
-          <Button variant="default" size="sm">
-            Create Feedback
-          </Button>
-        </GiveFeedbackDialog>
+        <DropdownMenuItem asChild>
+          <GiveFeedbackDialog>Create Feedback</GiveFeedbackDialog>
+        </DropdownMenuItem>
       )}
-    </div>
+    </>
   );
 
   return (
     <div className="py-6 space-y-6">
-      <PageHeading
+      <FeedbackPageHeading
         title="Community Feedback"
         subTitle="Engage with the community and share your ideas."
         actions={actions}

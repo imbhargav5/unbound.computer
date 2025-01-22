@@ -53,7 +53,7 @@ const feedbackSchema = z.object({
 type FeedbackFormType = z.infer<typeof feedbackSchema>;
 
 interface GiveFeedbackDialogProps {
-  children?: React.ReactNode;
+  children: React.ReactNode;
   className?: string;
 }
 
@@ -112,8 +112,8 @@ export const GiveFeedbackDialog: React.FC<GiveFeedbackDialogProps> = ({
         setIsOpen(newIsOpen);
       }}
     >
-      <DialogTrigger className={cn("w-full", className)} asChild>
-        {children ? children : <Button variant="default">Give Feedback</Button>}
+      <DialogTrigger className={cn("w-full", className)}>
+        {children}
       </DialogTrigger>
 
       <DialogContent>

@@ -42,7 +42,7 @@ const boardSchema = z.object({
 type BoardFormType = z.infer<typeof boardSchema>;
 
 interface CreateBoardDialogProps {
-  children?: React.ReactNode;
+  children: React.ReactNode;
   className?: string;
 }
 
@@ -104,12 +104,8 @@ export const CreateBoardDialog: React.FC<CreateBoardDialogProps> = ({
         setIsOpen(newIsOpen);
       }}
     >
-      <DialogTrigger className={cn("w-full", className)} asChild>
-        {children ? (
-          children
-        ) : (
-          <Button variant="default">Create Feedback Board</Button>
-        )}
+      <DialogTrigger className={cn("w-full", className)}>
+        {children}
       </DialogTrigger>
 
       <DialogContent>

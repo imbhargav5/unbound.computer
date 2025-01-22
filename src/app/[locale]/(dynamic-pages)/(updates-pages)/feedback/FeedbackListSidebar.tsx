@@ -32,7 +32,7 @@ export async function FeedbackListSidebar() {
   const totalCount = await getTotalFeedbackCount();
 
   return (
-    <div className="w-64 flex-shrink-0 space-y-4">
+    <div className="w-64 flex-shrink-0 space-y-4 hidden md:block">
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex gap-1 items-center">

@@ -27,8 +27,8 @@ export const GiveFeedbackAnonUser = ({ children, className }: Props) => {
         setIsOpen(newIsOpen);
       }}
     >
-      <DialogTrigger className={cn("w-full", className)} asChild>
-        {children ? children : <Button variant="default">Give Feedback</Button>}
+      <DialogTrigger className={cn("w-full", className)}>
+        {children}
       </DialogTrigger>
 
       <DialogContent>

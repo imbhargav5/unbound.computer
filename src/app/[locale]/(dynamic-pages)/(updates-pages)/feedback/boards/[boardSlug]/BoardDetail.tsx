@@ -1,6 +1,5 @@
 import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
-import { PageHeading } from "@/components/PageHeading";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DBTable } from "@/types";
 import { ArrowLeftCircle } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +10,7 @@ import {
   FeedbackListSidebar,
   SidebarSkeleton,
 } from "../../FeedbackListSidebar";
+import { FeedbackPageHeading } from "../../FeedbackPageHeading";
 
 interface BoardDetailProps {
   board: DBTable<"marketing_feedback_boards">;
@@ -29,21 +29,13 @@ export function BoardDetail({
   userType,
 }: BoardDetailProps) {
   const actions = (
-    <div className="flex gap-2">
+    <DropdownMenuItem asChild>
       {userType === "anon" ? (
-        <GiveFeedbackAnonUser>
-          <Button variant="secondary" size="sm">
-            Create Feedback
-          </Button>
-        </GiveFeedbackAnonUser>
+        <GiveFeedbackAnonUser>Create Feedback</GiveFeedbackAnonUser>
       ) : (
-        <GiveFeedbackDialog>
-          <Button variant="default" size="sm">
-            Create Feedback
-          </Button>
-        </GiveFeedbackDialog>
+        <GiveFeedbackDialog>Create Feedback</GiveFeedbackDialog>
       )}
-    </div>
+    </DropdownMenuItem>
   );
 
   return (
@@ -52,7 +44,7 @@ export function BoardDetail({
         <Link href="/feedback">
           <ArrowLeftCircle className="h-8 w-8" />
         </Link>
-        <PageHeading
+        <FeedbackPageHeading
           className="w-full"
           title={board.title}
           subTitle={board.description ?? "No description"}

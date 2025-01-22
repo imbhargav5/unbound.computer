@@ -11,7 +11,7 @@ import { Menu } from "lucide-react";
 function UpdatesNavigation() {
   const links = [
     { name: "Docs", href: "/docs" },
-    { name: "Community Support", href: "/feedback" },
+    { name: "Feedback", href: "/feedback" },
     { name: "Blog", href: "/blog" },
     { name: "Changelog", href: "/changelog" },
     { name: "Roadmap", href: "/roadmap" },
