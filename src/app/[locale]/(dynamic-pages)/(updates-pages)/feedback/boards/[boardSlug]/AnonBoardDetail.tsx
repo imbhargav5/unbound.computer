@@ -1,25 +1,34 @@
 import {
   getAnonFeedbackBoardBySlug,
-  getAnonFeedbackThreadsByBoardSlug,
+  getPaginatedAnonFeedbackThreadsByBoardId,
 } from "@/data/anon/marketing-feedback";
 import { notFound } from "next/navigation";
+import type { FiltersSchema } from "../../[feedbackId]/schema";
 import { BoardDetail } from "./BoardDetail";
 
 interface AnonBoardDetailProps {
   boardSlug: string;
+  filters: FiltersSchema;
 }
 
-export async function AnonBoardDetail({ boardSlug }: AnonBoardDetailProps) {
+export async function AnonBoardDetail({
+  boardSlug,
+  filters,
+}: AnonBoardDetailProps) {
   const board = await getAnonFeedbackBoardBySlug(boardSlug);
   if (!board) return notFound();
 
-  const feedbacks = await getAnonFeedbackThreadsByBoardSlug(boardSlug);
+  const { data: feedbacks, count: totalPages } =
+    await getPaginatedAnonFeedbackThreadsByBoardId({
+      boardId: board.id,
+      ...filters,
+    });
 
   return (
     <BoardDetail
       board={board}
       feedbacks={feedbacks}
-      totalPages={Math.ceil(feedbacks.length / 10)}
+      totalPages={totalPages ?? 0}
       userType="anon"
     />
   );

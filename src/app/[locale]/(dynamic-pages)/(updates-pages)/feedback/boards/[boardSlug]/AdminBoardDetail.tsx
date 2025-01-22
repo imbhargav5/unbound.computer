@@ -1,26 +1,35 @@
 import {
-    getFeedbackBoardBySlug,
-    getFeedbackThreadsByBoardSlug,
+  getFeedbackBoardBySlug,
+  getPaginatedFeedbackThreadsByBoardId,
 } from "@/data/admin/marketing-feedback";
 import { notFound } from "next/navigation";
+import type { FiltersSchema } from "../../[feedbackId]/schema";
 import { BoardDetail } from "./BoardDetail";
 
 interface AdminBoardDetailProps {
-    boardSlug: string;
+  boardSlug: string;
+  filters: FiltersSchema;
 }
 
-export async function AdminBoardDetail({ boardSlug }: AdminBoardDetailProps) {
-    const board = await getFeedbackBoardBySlug(boardSlug);
-    if (!board) return notFound();
+export async function AdminBoardDetail({
+  boardSlug,
+  filters,
+}: AdminBoardDetailProps) {
+  const board = await getFeedbackBoardBySlug(boardSlug);
+  if (!board) return notFound();
 
-    const feedbacks = await getFeedbackThreadsByBoardSlug(boardSlug);
+  const { data: feedbacks, count: totalPages } =
+    await getPaginatedFeedbackThreadsByBoardId({
+      boardId: board.id,
+      ...filters,
+    });
 
-    return (
-        <BoardDetail
-            board={board}
-            feedbacks={feedbacks}
-            totalPages={Math.ceil(feedbacks.length / 10)}
-            userType="admin"
-        />
-    );
+  return (
+    <BoardDetail
+      board={board}
+      feedbacks={feedbacks}
+      totalPages={totalPages ?? 0}
+      userType="admin"
+    />
+  );
 }

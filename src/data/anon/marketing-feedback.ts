@@ -22,7 +22,7 @@ export async function getAnonUserFeedbackList({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "desc",
+  sort = "recent",
 }: {
   page?: number;
   limit?: number;
@@ -30,7 +30,7 @@ export async function getAnonUserFeedbackList({
   types?: MarketingFeedbackThreadType[];
   statuses?: MarketingFeedbackThreadStatus[];
   priorities?: MarketingFeedbackThreadPriority[];
-  sort?: "asc" | "desc";
+  sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
 
@@ -66,7 +66,7 @@ export async function getAnonUserFeedbackList({
   }
 
   supabaseQuery = supabaseQuery.order("created_at", {
-    ascending: sort === "asc",
+    ascending: sort === "recent",
   });
 
   const { data, count, error } = await supabaseQuery;
@@ -289,7 +289,12 @@ export async function getAnonFeedbackThreadsByBoardId(
 ): Promise<MarketingFeedbackThread[]> {
   const { data, error } = await supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `*,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("board_id", boardId)
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
@@ -301,7 +306,11 @@ export async function getAnonFeedbackThreadsByBoardId(
     throw error;
   }
 
-  return data;
+  return data?.map((thread) => ({
+    ...thread,
+    comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+    reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+  }));
 }
 
 /**
@@ -402,27 +411,78 @@ export async function getAnonFeedbackBoardBySlug(slug: string) {
 }
 
 /**
- * Gets all visible feedback threads for a specific board by slug.
+ * Gets all visible feedback threads for a specific board by slug with filtering.
  */
-export async function getAnonFeedbackThreadsByBoardSlug(slug: string) {
+export async function getAnonFeedbackThreadsByBoardSlug(
+  slug: string,
+  {
+    query = "",
+    types = [],
+    statuses = [],
+    priorities = [],
+    sort = "recent",
+  }: {
+    query?: string;
+    types?: MarketingFeedbackThreadType[];
+    statuses?: MarketingFeedbackThreadStatus[];
+    priorities?: MarketingFeedbackThreadPriority[];
+    sort?: FeedbackSortSchema;
+  } = {},
+) {
   const board = await getAnonFeedbackBoardBySlug(slug);
-  if (!board) return [];
+  if (!board) return { data: [], count: 0 };
 
-  const { data, error } = await supabaseAnonClient
+  let supabaseQuery = supabaseAnonClient
     .from("marketing_feedback_threads")
     .select(
-      "*, marketing_feedback_comments!thread_id(count), marketing_feedback_thread_reactions!thread_id(count)",
+      `*,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
     )
     .eq("board_id", board.id)
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is("moderator_hold_category", null)
-    .order("created_at", { ascending: false });
+    .is("moderator_hold_category", null);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
+  }
+
+  if (types.length > 0) {
+    supabaseQuery = supabaseQuery.in("type", types);
+  }
+
+  if (statuses.length > 0) {
+    supabaseQuery = supabaseQuery.in("status", statuses);
+  }
+
+  if (priorities.length > 0) {
+    supabaseQuery = supabaseQuery.in("priority", priorities);
+  }
+
+  if (sort === "recent") {
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
+  } else if (sort === "comments") {
+    supabaseQuery = supabaseQuery.order("count", {
+      referencedTable: "marketing_feedback_comments",
+      ascending: false,
+    });
+  }
+
+  const { data, count, error } = await supabaseQuery;
 
   if (error) {
     throw error;
   }
 
-  return data;
+  return {
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
+    count: count ?? 0,
+  };
 }

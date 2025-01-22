@@ -26,12 +26,14 @@ export default function FeedbackDetailLayout({
         <Button variant="ghost" asChild className="mb-4">
           <Link href="/feedback">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to all feedback
+            Feedback
           </Link>
         </Button>
       </div>
       <div className="flex flex-grow">
-        <div className="flex-grow border rounded-md pt-4">{children}</div>
+        <div className="flex-grow border rounded-md pt-4 bg-background">
+          {children}
+        </div>
         <aside className="w-64 ml-4 p-4 border rounded-md bg-secondary flex-shrink-0 space-y-6">
           <div>
             <div className="flex items-center mb-2 text-primary">
