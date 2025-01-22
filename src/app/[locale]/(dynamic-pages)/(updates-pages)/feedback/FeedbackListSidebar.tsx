@@ -27,7 +27,7 @@ export function SidebarSkeleton() {
   );
 }
 
-export async function FeedbackSidebar() {
+export async function FeedbackListSidebar() {
   const boards = await getFeedbackBoardsWithCounts();
   const totalCount = await getTotalFeedbackCount();
 

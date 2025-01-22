@@ -5,7 +5,7 @@ import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 import { Suspense } from "react";
 import { CreateBoardDialog } from "./CreateBoardDialog";
-import { FeedbackSidebar, SidebarSkeleton } from "./FeedbackSidebar";
+import { FeedbackListSidebar, SidebarSkeleton } from "./FeedbackListSidebar";
 import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
 import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
 import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
@@ -79,7 +79,7 @@ async function FeedbackPage(props: {
           </Suspense>
         </div>
         <Suspense fallback={<SidebarSkeleton />}>
-          <FeedbackSidebar />
+          <FeedbackListSidebar />
         </Suspense>
       </div>
     </div>
