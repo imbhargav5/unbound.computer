@@ -55,7 +55,7 @@ async function FeedbackPage(props: {
         actions={actions}
       />
 
-      <div className="flex gap-4 w-full">
+      <div className="md:flex gap-4 w-full">
         <div className="flex-1">
           <Suspense
             key={suspenseKey}
