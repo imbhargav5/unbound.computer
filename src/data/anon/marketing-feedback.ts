@@ -35,7 +35,13 @@ export async function getAnonUserFeedbackList({
 
   let supabaseQuery = supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
@@ -68,7 +74,11 @@ export async function getAnonUserFeedbackList({
   }
 
   return {
-    data,
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
     count: count ?? 0,
   };
 }
@@ -127,7 +137,13 @@ export async function anonGetRoadmapFeedbackList(): Promise<
 > {
   const { data, error } = await supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("added_to_roadmap", true)
     .is("moderator_hold_category", null);
 
@@ -135,7 +151,11 @@ export async function anonGetRoadmapFeedbackList(): Promise<
     throw error;
   }
 
-  return data;
+  return data?.map((thread) => ({
+    ...thread,
+    comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+    reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+  }));
 }
 
 async function getRoadmapFeedbackByStatus(
@@ -143,7 +163,13 @@ async function getRoadmapFeedbackByStatus(
 ): Promise<MarketingFeedbackThread[]> {
   const { data, error } = await supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("added_to_roadmap", true)
     .eq("status", status)
     .is("moderator_hold_category", null);
@@ -152,7 +178,11 @@ async function getRoadmapFeedbackByStatus(
     throw error;
   }
 
-  return data;
+  return data?.map((thread) => ({
+    ...thread,
+    comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+    reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+  }));
 }
 
 export async function anonGetPlannedRoadmapFeedbackList() {

@@ -37,7 +37,13 @@ export const getPaginatedInternalFeedbackList = async ({
   const zeroIndexedPage = page - 1; // Convert to zero-indexed page for database query
   let supabaseQuery = supabaseAdminClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
 
   if (query) {
@@ -69,7 +75,11 @@ export const getPaginatedInternalFeedbackList = async ({
   }
 
   return {
-    data,
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
     count,
   };
 };

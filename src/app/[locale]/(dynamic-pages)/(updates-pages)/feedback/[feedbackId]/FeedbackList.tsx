@@ -4,10 +4,15 @@ import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader } from "@/components/ui/card";
 import { DBTable } from "@/types";
+import { NEW_STATUS_OPTIONS } from "@/utils/feedback";
 import { formatDistance } from "date-fns";
-import { Bug, LucideCloudLightning, MessageSquareDot } from "lucide-react";
+import {
+  Bug,
+  LucideCloudLightning,
+  MessageSquare,
+  ThumbsUp,
+} from "lucide-react";
 import { Suspense } from "react";
 import { FeedbackFacetedFilters } from "./FeedbackFacetedFilters";
 import type { FiltersSchema } from "./schema";
@@ -17,7 +22,7 @@ const typeIcons = {
   feature_request: (
     <LucideCloudLightning className="h-3 w-3 mr-1 text-primary" />
   ),
-  general: <MessageSquareDot className="h-3 w-3 mr-1 text-secondary" />,
+  general: <MessageSquare className="h-3 w-3 mr-1 text-secondary" />,
 };
 
 const TAGS = {
@@ -27,7 +32,10 @@ const TAGS = {
 };
 
 interface FeedbackItemProps {
-  feedback: DBTable<"marketing_feedback_threads">;
+  feedback: DBTable<"marketing_feedback_threads"> & {
+    comment_count: number;
+    reaction_count: number;
+  };
   filters: FiltersSchema;
 }
 
@@ -36,48 +44,90 @@ function FeedbackItem({ feedback, filters }: FeedbackItemProps) {
   if (filters.page) searchParams.append("page", filters.page.toString());
   const href = `/feedback/${feedback.id}?${searchParams.toString()}`;
 
+  const statusOption = NEW_STATUS_OPTIONS.find(
+    (option) => option.value === feedback.status,
+  );
+
   return (
     <Link href={href}>
-      <Card className="hover:bg-muted/50 transition-colors duration-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage
-                src={`https://avatar.vercel.sh/${feedback.user_id}`}
-                alt="User avatar"
-              />
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
-            <div className="space-y-1">
-              <T.Small className="font-medium line-clamp-1">
-                {feedback.title}
-              </T.Small>
-              <T.Small className="text-muted-foreground line-clamp-1">
-                {feedback.content}
-              </T.Small>
+      <div className="hover:bg-muted/50 transition-colors duration-200 px-4 py-3">
+        <div className="space-y-2">
+          <T.H4 className="font-semibold line-clamp-1 text-base pt-0 mt-0">
+            {feedback.title}
+          </T.H4>
+
+          <T.Small className="text-muted-foreground line-clamp-2 block">
+            {feedback.content}
+          </T.Small>
+
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center space-x-2">
+              <Avatar className="h-5 w-5">
+                <AvatarImage
+                  src={`https://avatar.vercel.sh/${feedback.user_id}`}
+                  alt="User avatar"
+                />
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
+              <div className="flex gap-1.5 items-center text-xs">
+                <span>{feedback.user_id}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">
+                  {formatDistance(new Date(feedback.created_at), new Date(), {
+                    addSuffix: true,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {statusOption && (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full text-[0.7rem] py-0 px-1.5 h-5 flex items-center gap-1"
+                  >
+                    <statusOption.icon className="h-2.5 w-2.5" />
+                    {statusOption.label}
+                  </Badge>
+                )}
+                <Badge
+                  variant="secondary"
+                  className="rounded-full text-[0.7rem] py-0 px-1.5 h-5 flex items-center gap-1"
+                >
+                  {typeIcons[feedback.type]} {TAGS[feedback.type]}
+                </Badge>
+              </div>
+
+              <div className="flex items-center gap-2 border-l pl-2">
+                <div className="flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground text-xs">
+                    {feedback.comment_count}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <ThumbsUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground text-xs">
+                    {feedback.reaction_count}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="secondary"
-              className="rounded-full text-xs py-0 px-2"
-            >
-              {typeIcons[feedback.type]} {TAGS[feedback.type]}
-            </Badge>
-            <T.Small className="text-muted-foreground whitespace-nowrap">
-              {formatDistance(new Date(feedback.created_at), new Date(), {
-                addSuffix: true,
-              })}
-            </T.Small>
-          </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </div>
     </Link>
   );
 }
 
 interface FeedbackListProps {
-  feedbacks: DBTable<"marketing_feedback_threads">[];
+  feedbacks: Array<
+    DBTable<"marketing_feedback_threads"> & {
+      comment_count: number;
+      reaction_count: number;
+    }
+  >;
   totalPages: number;
   filters: FiltersSchema;
   userType: "admin" | "loggedIn" | "anon";
@@ -96,13 +146,13 @@ function FeedbackListContent({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b space-y-3">
+    <div className="flex flex-col h-full bg-background">
+      <div className="p-3 border-b space-y-2">
         <Search placeholder="Search Feedback..." className="max-w-md" />
         <FeedbackFacetedFilters />
       </div>
 
-      <div className="flex-1 overflow-auto p-4 space-y-2">
+      <div className="flex-1 overflow-auto divide-y divide-y-1 flex flex-col">
         {feedbacks.length > 0 ? (
           feedbacks.map((feedback) => (
             <FeedbackItem
@@ -112,10 +162,10 @@ function FeedbackListContent({
             />
           ))
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed p-8">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h3 className="font-semibold">No Feedbacks Available</h3>
-              <p className="text-sm text-muted-foreground">
+          <div className="flex h-full w-full items-center justify-center p-6">
+            <div className="flex flex-col items-center gap-1.5 text-center">
+              <h3 className="font-semibold text-sm">No Feedbacks Available</h3>
+              <p className="text-xs text-muted-foreground">
                 {emptyStateMessages[userType]}
               </p>
             </div>
@@ -123,7 +173,7 @@ function FeedbackListContent({
         )}
       </div>
 
-      <div className="border-t p-4">
+      <div className="border-t p-3">
         <Pagination totalPages={totalPages} />
       </div>
     </div>

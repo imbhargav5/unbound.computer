@@ -39,7 +39,13 @@ export async function getLoggedInUserFeedbackList({
 
   let supabaseQuery = supabaseClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .or(
       `added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true,user_id.eq.${userId}`,
     )
@@ -77,7 +83,11 @@ export async function getLoggedInUserFeedbackList({
   }
 
   return {
-    data,
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
     count,
   };
 }
