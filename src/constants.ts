@@ -59,3 +59,25 @@ export function isValidLocale(
 // eg: en|de
 export const LOCALE_GLOB_PATTERN = `${LOCALES.join("|")}`;
 export const DEFAULT_LOCALE: Locale = "en";
+
+export const FEEDBACK_BG_BOARD_COLORS = {
+  blue: "bg-blue-500",
+  indigo: "bg-indigo-500",
+  purple: "bg-purple-500",
+  pink: "bg-pink-500",
+  rose: "bg-rose-500",
+  orange: "bg-orange-500",
+  amber: "bg-amber-500",
+  yellow: "bg-yellow-500",
+  lime: "bg-lime-500",
+  green: "bg-green-500",
+  teal: "bg-teal-500",
+  cyan: "bg-cyan-500",
+} as const;
+
+export type FeedbackBoardColor = keyof typeof FEEDBACK_BG_BOARD_COLORS;
+
+export function getFeedbackBoardColorClass(color: string | null): string {
+  if (!color) return "bg-black";
+  return `${FEEDBACK_BG_BOARD_COLORS[color as FeedbackBoardColor] || "bg-black"}`;
+}

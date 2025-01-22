@@ -526,18 +526,23 @@ const createBoardSchema = z.object({
     .string()
     .min(1)
     .regex(/^[a-z0-9-]+$/),
+  color: z.string().optional(),
 });
 
 export const createFeedbackBoardAction = adminActionClient
   .schema(createBoardSchema)
   .action(
-    async ({ parsedInput: { title, description, slug }, ctx: { userId } }) => {
+    async ({
+      parsedInput: { title, description, slug, color },
+      ctx: { userId },
+    }) => {
       const { data, error } = await supabaseAdminClient
         .from("marketing_feedback_boards")
         .insert({
           title,
           description,
           slug,
+          color,
           created_by: userId,
           is_active: true,
         })
@@ -701,4 +706,41 @@ export async function getFeedbackThreadsByBoardSlug(slug: string) {
   }
 
   return data;
+}
+
+/**
+ * Gets all feedback boards with their thread counts
+ */
+export async function getFeedbackBoardsWithCounts() {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .select(
+      `*,marketing_feedback_threads (count)
+    `,
+    )
+    .eq("is_active", true);
+
+  if (error) {
+    throw error;
+  }
+
+  return data.map((board) => ({
+    ...board,
+    threadCount: board.marketing_feedback_threads?.[0]?.count ?? 0,
+  }));
+}
+
+/**
+ * Gets total count of all feedback threads
+ */
+export async function getTotalFeedbackCount() {
+  const { count, error } = await supabaseAdminClient
+    .from("marketing_feedback_threads")
+    .select("*", { count: "exact", head: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
 }

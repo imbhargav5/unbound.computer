@@ -8,10 +8,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { DocsMobileNavigation } from "./DocsMobileNavigation";
 import { navbarLinks } from "./constants";
-const versions = [
-  { label: "Landing page 1", url: "/" },
-  { label: "Landing page 2", url: "/version2" },
-];
 
 export function LeftNav() {
   const pathname = usePathname();

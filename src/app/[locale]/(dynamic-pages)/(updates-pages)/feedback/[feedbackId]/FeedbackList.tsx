@@ -114,7 +114,6 @@ function FeedbackListContent({
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed p-8">
             <div className="flex flex-col items-center gap-2 text-center">
-              <MessageSquare className="h-8 w-8 text-muted-foreground" />
               <h3 className="font-semibold">No Feedbacks Available</h3>
               <p className="text-sm text-muted-foreground">
                 {emptyStateMessages[userType]}

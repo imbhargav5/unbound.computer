@@ -5,6 +5,7 @@ import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 import { Suspense } from "react";
 import { CreateBoardDialog } from "./CreateBoardDialog";
+import { FeedbackSidebar, SidebarSkeleton } from "./FeedbackSidebar";
 import { AdminFeedbackList } from "./[feedbackId]/AdminFeedbackList";
 import { AnonFeedbackList } from "./[feedbackId]/AnonFeedbackList";
 import { GiveFeedbackDialog } from "./[feedbackId]/GiveFeedbackDialog";
@@ -47,33 +48,38 @@ async function FeedbackPage(props: {
   );
 
   return (
-    <div className="container py-6 space-y-6">
+    <div className="py-6 space-y-6">
       <PageHeading
         title="Community Feedback"
         subTitle="Engage with the community and share your ideas."
         actions={actions}
       />
 
-      <div className="h-[calc(100vh-12rem)] rounded-lg border bg-card">
-        <Suspense
-          key={suspenseKey}
-          fallback={
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-pulse">Loading feedback...</div>
-            </div>
-          }
-        >
-          {userRoleType === userRoles.ANON && (
-            <AnonFeedbackList filters={validatedSearchParams} />
-          )}
+      <div className="flex gap-4">
+        <div className="h-[calc(100vh-12rem)] rounded-lg border bg-card">
+          <Suspense
+            key={suspenseKey}
+            fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-pulse">Loading feedback...</div>
+              </div>
+            }
+          >
+            {userRoleType === userRoles.ANON && (
+              <AnonFeedbackList filters={validatedSearchParams} />
+            )}
 
-          {userRoleType === userRoles.USER && (
-            <LoggedInUserFeedbackList filters={validatedSearchParams} />
-          )}
+            {userRoleType === userRoles.USER && (
+              <LoggedInUserFeedbackList filters={validatedSearchParams} />
+            )}
 
-          {userRoleType === userRoles.ADMIN && (
-            <AdminFeedbackList filters={validatedSearchParams} />
-          )}
+            {userRoleType === userRoles.ADMIN && (
+              <AdminFeedbackList filters={validatedSearchParams} />
+            )}
+          </Suspense>
+        </div>
+        <Suspense fallback={<SidebarSkeleton />}>
+          <FeedbackSidebar />
         </Suspense>
       </div>
     </div>
