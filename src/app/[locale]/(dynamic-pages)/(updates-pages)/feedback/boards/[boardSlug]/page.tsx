@@ -14,17 +14,19 @@ async function BoardDetailPage(props: {
   const { boardSlug } = params;
 
   return (
-    <Suspense fallback={<BoardDetailFallback />}>
-      {userRoleType === userRoles.ANON && (
-        <AnonBoardDetail boardSlug={boardSlug} />
-      )}
-      {userRoleType === userRoles.USER && (
-        <LoggedInUserBoardDetail boardSlug={boardSlug} />
-      )}
-      {userRoleType === userRoles.ADMIN && (
-        <AdminBoardDetail boardSlug={boardSlug} />
-      )}
-    </Suspense>
+    <div className="py-6">
+      <Suspense fallback={<BoardDetailFallback />}>
+        {userRoleType === userRoles.ANON && (
+          <AnonBoardDetail boardSlug={boardSlug} />
+        )}
+        {userRoleType === userRoles.USER && (
+          <LoggedInUserBoardDetail boardSlug={boardSlug} />
+        )}
+        {userRoleType === userRoles.ADMIN && (
+          <AdminBoardDetail boardSlug={boardSlug} />
+        )}
+      </Suspense>
+    </div>
   );
 }
 

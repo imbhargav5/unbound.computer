@@ -1,52 +1,78 @@
-import { Link } from "@/components/intl-link";
-import { T } from "@/components/ui/Typography";
+import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
+import { PageHeading } from "@/components/PageHeading";
 import { Button } from "@/components/ui/button";
 import { DBTable } from "@/types";
-import { formatDistance } from "date-fns";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeftCircle } from "lucide-react";
+import Link from "next/link";
+import { Suspense } from "react";
 import { FeedbackList } from "../../[feedbackId]/FeedbackList";
 import { GiveFeedbackDialog } from "../../[feedbackId]/GiveFeedbackDialog";
+import {
+  FeedbackListSidebar,
+  SidebarSkeleton,
+} from "../../FeedbackListSidebar";
 
 interface BoardDetailProps {
-    board: DBTable<"marketing_feedback_boards">;
-    feedbacks: DBTable<"marketing_feedback_threads">[];
-    totalPages: number;
-    userType: "admin" | "loggedIn" | "anon";
+  board: DBTable<"marketing_feedback_boards">;
+  feedbacks: (DBTable<"marketing_feedback_threads"> & {
+    comment_count: number;
+    reaction_count: number;
+  })[];
+  totalPages: number;
+  userType: "admin" | "loggedIn" | "anon";
 }
 
-export function BoardDetail({ board, feedbacks, totalPages, userType }: BoardDetailProps) {
-    return (
-        <div className="space-y-6">
-            <Button variant="ghost" asChild className="mb-4">
-                <Link href="/feedback/boards">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to boards
-                </Link>
-            </Button>
+export function BoardDetail({
+  board,
+  feedbacks,
+  totalPages,
+  userType,
+}: BoardDetailProps) {
+  const actions = (
+    <div className="flex gap-2">
+      {userType === "anon" ? (
+        <GiveFeedbackAnonUser>
+          <Button variant="secondary" size="sm">
+            Create Feedback
+          </Button>
+        </GiveFeedbackAnonUser>
+      ) : (
+        <GiveFeedbackDialog>
+          <Button variant="default" size="sm">
+            Create Feedback
+          </Button>
+        </GiveFeedbackDialog>
+      )}
+    </div>
+  );
 
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold">{board.title}</h1>
-                <p className="text-muted-foreground">{board.description}</p>
-                <T.Small className="text-muted-foreground">
-                    Created {formatDistance(new Date(board.created_at), new Date(), { addSuffix: true })}
-                </T.Small>
-            </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2  w-full items-start">
+        <Link href="/feedback">
+          <ArrowLeftCircle className="h-8 w-8" />
+        </Link>
+        <PageHeading
+          className="w-full"
+          title={board.title}
+          subTitle={board.description ?? "No description"}
+          actions={actions}
+        />
+      </div>
 
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Feedback Threads</h2>
-                {userType !== "anon" && (
-                    <GiveFeedbackDialog className="w-fit">
-                        <Button variant="default">Create Feedback</Button>
-                    </GiveFeedbackDialog>
-                )}
-            </div>
-
-            <FeedbackList
-                feedbacks={feedbacks}
-                totalPages={totalPages}
-                filters={{}}
-                userType={userType}
-            />
+      <div className="flex gap-4 w-full">
+        <div className="flex-1">
+          <FeedbackList
+            feedbacks={feedbacks}
+            totalPages={totalPages}
+            filters={{}}
+            userType={userType}
+          />
         </div>
-    );
+        <Suspense fallback={<SidebarSkeleton />}>
+          <FeedbackListSidebar />
+        </Suspense>
+      </div>
+    </div>
+  );
 }

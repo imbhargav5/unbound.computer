@@ -305,10 +305,14 @@ export async function getAnonFeedbackThreadsByBoardId(
 }
 
 /**
- * Gets paginated visible feedback threads for a specific board.
+ * Gets paginated visible feedback threads for a specific board with filtering.
  */
 export async function getPaginatedAnonFeedbackThreadsByBoardId({
   boardId,
+  query = "",
+  types = [],
+  statuses = [],
+  priorities = [],
   page = 1,
   limit = 10,
   sort = "recent",
@@ -316,14 +320,17 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
   boardId: string;
   page?: number;
   limit?: number;
+  query?: string;
+  types?: MarketingFeedbackThreadType[];
+  statuses?: MarketingFeedbackThreadStatus[];
+  priorities?: MarketingFeedbackThreadPriority[];
   sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
-  let query = supabaseAnonClient
+  let supabaseQuery = supabaseAnonClient
     .from("marketing_feedback_threads")
     .select(
-      `
-      *,
+      `*,
       marketing_feedback_comments!thread_id(count),
       marketing_feedback_thread_reactions!thread_id(count)
     `,
@@ -332,21 +339,35 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is("moderator_hold_category", null);
+    .is("moderator_hold_category", null)
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
+  }
+
+  if (types.length > 0) {
+    supabaseQuery = supabaseQuery.in("type", types);
+  }
+
+  if (statuses.length > 0) {
+    supabaseQuery = supabaseQuery.in("status", statuses);
+  }
+
+  if (priorities.length > 0) {
+    supabaseQuery = supabaseQuery.in("priority", priorities);
+  }
 
   if (sort === "recent") {
-    query = query.order("created_at", { ascending: false });
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
   } else if (sort === "comments") {
-    query = query.order("count", {
+    supabaseQuery = supabaseQuery.order("count", {
       referencedTable: "marketing_feedback_comments",
       ascending: false,
     });
   }
 
-  const { data, count, error } = await query.range(
-    zeroIndexedPage * limit,
-    (zeroIndexedPage + 1) * limit - 1,
-  );
+  const { data, count, error } = await supabaseQuery;
 
   if (error) {
     throw error;
@@ -389,7 +410,9 @@ export async function getAnonFeedbackThreadsByBoardSlug(slug: string) {
 
   const { data, error } = await supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      "*, marketing_feedback_comments!thread_id(count), marketing_feedback_thread_reactions!thread_id(count)",
+    )
     .eq("board_id", board.id)
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",

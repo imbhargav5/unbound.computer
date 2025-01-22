@@ -605,36 +605,79 @@ export async function getLoggedInUserFeedbackThreadsByBoardId(
  */
 export async function getPaginatedLoggedInUserFeedbackThreadsByBoardId({
   boardId,
+  query = "",
+  types = [],
+  statuses = [],
+  priorities = [],
   page = 1,
   limit = 10,
-  sort = "desc",
+  sort = "recent",
 }: {
   boardId: string;
   page?: number;
   limit?: number;
-  sort?: "asc" | "desc";
+  query?: string;
+  types?: Array<Enum<"marketing_feedback_thread_type">>;
+  statuses?: Array<Enum<"marketing_feedback_thread_status">>;
+  priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
+  sort?: FeedbackSortSchema;
 }) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUserVerified();
   const zeroIndexedPage = page - 1;
 
-  const { data, count, error } = await supabaseClient
+  let supabaseQuery = supabaseClient
     .from("marketing_feedback_threads")
-    .select("*", { count: "exact" })
+    .select(
+      `*,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("board_id", boardId)
     .or(
       `user_id.eq.${user.id},added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true`,
     )
     .is("moderator_hold_category", null)
-    .order("created_at", { ascending: sort === "asc" })
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
+  }
+
+  if (types.length > 0) {
+    supabaseQuery = supabaseQuery.in("type", types);
+  }
+
+  if (statuses.length > 0) {
+    supabaseQuery = supabaseQuery.in("status", statuses);
+  }
+
+  if (priorities.length > 0) {
+    supabaseQuery = supabaseQuery.in("priority", priorities);
+  }
+
+  if (sort === "recent") {
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
+  } else if (sort === "comments") {
+    supabaseQuery = supabaseQuery.order("count", {
+      referencedTable: "marketing_feedback_comments",
+      ascending: false,
+    });
+  }
+
+  const { data, count, error } = await supabaseQuery;
 
   if (error) {
     throw error;
   }
 
   return {
-    data,
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
     count: count ?? 0,
   };
 }

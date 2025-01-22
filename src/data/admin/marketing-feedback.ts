@@ -674,7 +674,12 @@ export async function getFeedbackBoardById(boardId: string) {
 export async function getFeedbackThreadsByBoardId(boardId: string) {
   const { data, error } = await supabaseAdminClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `*,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("board_id", boardId)
     .order("created_at", { ascending: false });
 
@@ -682,7 +687,86 @@ export async function getFeedbackThreadsByBoardId(boardId: string) {
     throw error;
   }
 
-  return data;
+  return data?.map((thread) => ({
+    ...thread,
+    comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+    reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+  }));
+}
+
+/**
+ * Gets paginated feedback threads for a specific board with filtering.
+ */
+export async function getPaginatedFeedbackThreadsByBoardId({
+  boardId,
+  query = "",
+  types = [],
+  statuses = [],
+  priorities = [],
+  page = 1,
+  limit = 10,
+  sort = "recent",
+}: {
+  boardId: string;
+  page?: number;
+  limit?: number;
+  query?: string;
+  types?: Array<Enum<"marketing_feedback_thread_type">>;
+  statuses?: Array<Enum<"marketing_feedback_thread_status">>;
+  priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
+  sort?: FeedbackSortSchema;
+}) {
+  const zeroIndexedPage = page - 1;
+  let supabaseQuery = supabaseAdminClient
+    .from("marketing_feedback_threads")
+    .select(
+      `*,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
+    .eq("board_id", boardId)
+    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+
+  if (query) {
+    supabaseQuery = supabaseQuery.ilike("title", `%${query}%`);
+  }
+
+  if (types.length > 0) {
+    supabaseQuery = supabaseQuery.in("type", types);
+  }
+
+  if (statuses.length > 0) {
+    supabaseQuery = supabaseQuery.in("status", statuses);
+  }
+
+  if (priorities.length > 0) {
+    supabaseQuery = supabaseQuery.in("priority", priorities);
+  }
+
+  if (sort === "recent") {
+    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
+  } else if (sort === "comments") {
+    supabaseQuery = supabaseQuery.order("count", {
+      referencedTable: "marketing_feedback_comments",
+      ascending: false,
+    });
+  }
+
+  const { data, count, error } = await supabaseQuery;
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
+    count,
+  };
 }
 
 /**
