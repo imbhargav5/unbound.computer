@@ -52,7 +52,7 @@ export const dropdownFiltersSchema = z.object({
   priorities: feedbackPrioritiesSchema.optional(),
 });
 
-export const sortSchema = z.enum(["asc", "desc"]).optional();
+export const sortSchema = z.enum(["recent", "comments"]).optional();
 
 export type FeedbackSortSchema = z.infer<typeof sortSchema>;
 

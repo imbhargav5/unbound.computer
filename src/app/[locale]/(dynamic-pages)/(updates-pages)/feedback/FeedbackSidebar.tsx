@@ -9,6 +9,7 @@ import {
 } from "@/data/admin/marketing-feedback";
 import { cn } from "@/utils/cn";
 import { NotepadText } from "lucide-react";
+import { FeedbackFilterDialog } from "./components/FeedbackFilterDialog";
 
 export function SidebarSkeleton() {
   return (
@@ -73,8 +74,14 @@ export async function FeedbackSidebar() {
         </CardContent>
       </Card>
 
-      <div className="">
-        <p className="text-xs text-center text-muted-foreground">
+      <Card>
+        <CardContent className="p-0">
+          <FeedbackFilterDialog />
+        </CardContent>
+      </Card>
+
+      <div className="text-center">
+        <p className="text-xs text-muted-foreground">
           Built with{" "}
           <a
             href="https://usenextbase.com"

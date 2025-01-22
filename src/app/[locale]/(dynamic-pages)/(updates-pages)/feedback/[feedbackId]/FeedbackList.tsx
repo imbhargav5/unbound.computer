@@ -1,12 +1,9 @@
 import { Pagination } from "@/components/Pagination";
-import { Search } from "@/components/Search";
 import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DBTable } from "@/types";
 import { NEW_STATUS_OPTIONS } from "@/utils/feedback";
-import { formatDistance } from "date-fns";
 import {
   Bug,
   LucideCloudLightning,
@@ -14,7 +11,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { Suspense } from "react";
-import { FeedbackFacetedFilters } from "./FeedbackFacetedFilters";
+import { FeedbackAvatarServer } from "./FeedbackAvatarServer";
 import type { FiltersSchema } from "./schema";
 
 const typeIcons = {
@@ -50,7 +47,7 @@ function FeedbackItem({ feedback, filters }: FeedbackItemProps) {
 
   return (
     <Link href={href}>
-      <div className="hover:bg-muted/50 transition-colors duration-200 px-4 py-3">
+      <div className="transition-colors duration-200 px-4 py-3 rounded">
         <div className="space-y-2">
           <T.H4 className="font-semibold line-clamp-1 text-base pt-0 mt-0">
             {feedback.title}
@@ -61,24 +58,7 @@ function FeedbackItem({ feedback, filters }: FeedbackItemProps) {
           </T.Small>
 
           <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center space-x-2">
-              <Avatar className="h-5 w-5">
-                <AvatarImage
-                  src={`https://avatar.vercel.sh/${feedback.user_id}`}
-                  alt="User avatar"
-                />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
-              <div className="flex gap-1.5 items-center text-xs">
-                <span>{feedback.user_id}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">
-                  {formatDistance(new Date(feedback.created_at), new Date(), {
-                    addSuffix: true,
-                  })}
-                </span>
-              </div>
-            </div>
+            <FeedbackAvatarServer feedback={feedback} />
 
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
@@ -146,12 +126,7 @@ function FeedbackListContent({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="p-3 border-b space-y-2">
-        <Search placeholder="Search Feedback..." className="max-w-md" />
-        <FeedbackFacetedFilters />
-      </div>
-
+    <div className="flex flex-col border rounded-lg bg-card space-y-3">
       <div className="flex-1 overflow-auto divide-y divide-y-1 flex flex-col">
         {feedbacks.length > 0 ? (
           feedbacks.map((feedback) => (
@@ -173,7 +148,7 @@ function FeedbackListContent({
         )}
       </div>
 
-      <div className="border-t p-3">
+      <div className="px-3">
         <Pagination totalPages={totalPages} />
       </div>
     </div>

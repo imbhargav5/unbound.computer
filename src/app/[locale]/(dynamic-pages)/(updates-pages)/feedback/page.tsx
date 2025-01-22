@@ -55,8 +55,8 @@ async function FeedbackPage(props: {
         actions={actions}
       />
 
-      <div className="flex gap-4">
-        <div className="h-[calc(100vh-12rem)] rounded-lg border bg-card">
+      <div className="flex gap-4 w-full">
+        <div className="flex-1">
           <Suspense
             key={suspenseKey}
             fallback={

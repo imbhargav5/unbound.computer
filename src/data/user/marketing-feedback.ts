@@ -1,5 +1,6 @@
 "use server";
 
+import { FeedbackSortSchema } from "@/app/[locale]/(dynamic-pages)/(updates-pages)/feedback/[feedbackId]/schema";
 import { Database } from "@/lib/database.types";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
@@ -20,7 +21,7 @@ export async function getLoggedInUserFeedbackList({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "desc",
+  sort = "recent",
   myFeedbacks = "false",
 }: {
   page?: number;
@@ -29,7 +30,7 @@ export async function getLoggedInUserFeedbackList({
   types?: Array<Enum<"marketing_feedback_thread_type">>;
   statuses?: Array<Enum<"marketing_feedback_thread_status">>;
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
-  sort?: "asc" | "desc";
+  sort?: FeedbackSortSchema;
   myFeedbacks?: string;
 }) {
   console.log("myFeedbacks", myFeedbacks);
@@ -67,10 +68,13 @@ export async function getLoggedInUserFeedbackList({
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === "asc") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: true });
-  } else {
+  if (sort === "recent") {
     supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
+  } else if (sort === "comments") {
+    supabaseQuery = supabaseQuery.order("count", {
+      referencedTable: "marketing_feedback_comments",
+      ascending: false,
+    });
   }
 
   if (myFeedbacks === "true") {

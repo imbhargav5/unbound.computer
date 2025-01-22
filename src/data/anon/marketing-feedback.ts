@@ -1,5 +1,6 @@
 "use server";
 
+import { FeedbackSortSchema } from "@/app/[locale]/(dynamic-pages)/(updates-pages)/feedback/[feedbackId]/schema";
 import { Database } from "@/lib/database.types";
 import { supabaseAnonClient } from "@/supabase-clients/anon/supabaseAnonClient";
 
@@ -310,32 +311,53 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
   boardId,
   page = 1,
   limit = 10,
-  sort = "desc",
+  sort = "recent",
 }: {
   boardId: string;
   page?: number;
   limit?: number;
-  sort?: "asc" | "desc";
+  sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
-
-  const { data, count, error } = await supabaseAnonClient
+  let query = supabaseAnonClient
     .from("marketing_feedback_threads")
-    .select("*", { count: "exact" })
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("board_id", boardId)
     .or(
       "added_to_roadmap.eq.true,open_for_public_discussion.eq.true,is_publicly_visible.eq.true",
     )
-    .is("moderator_hold_category", null)
-    .order("created_at", { ascending: sort === "asc" })
-    .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
+    .is("moderator_hold_category", null);
+
+  if (sort === "recent") {
+    query = query.order("created_at", { ascending: false });
+  } else if (sort === "comments") {
+    query = query.order("count", {
+      referencedTable: "marketing_feedback_comments",
+      ascending: false,
+    });
+  }
+
+  const { data, count, error } = await query.range(
+    zeroIndexedPage * limit,
+    (zeroIndexedPage + 1) * limit - 1,
+  );
 
   if (error) {
     throw error;
   }
 
   return {
-    data,
+    data: data?.map((thread) => ({
+      ...thread,
+      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
+      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    })),
     count: count ?? 0,
   };
 }
