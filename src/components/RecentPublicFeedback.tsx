@@ -3,6 +3,9 @@ import { getRecentPublicFeedback } from "@/data/anon/marketing-feedback";
 
 export async function RecentPublicFeedback() {
   const recentFeedback = await getRecentPublicFeedback();
+  if (recentFeedback.length === 0) {
+    return <p className="text-sm text-muted-foreground">Nothing here yet.</p>;
+  }
 
   return (
     <ul className="space-y-2">

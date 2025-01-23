@@ -5,6 +5,7 @@ import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { userRoles } from "@/utils/userTypes";
 
 import { SuspendedUserAvatarWithFullname } from "@/components/UserAvatarForAnonViewers";
+import { CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { Suspense } from "react";
@@ -59,19 +60,24 @@ export async function LoggedInUserFeedbackComments({
   feedbackId: string;
 }) {
   const feedbackComments = await getInternalFeedbackComments(feedbackId);
+  if (!feedbackComments.length) {
+    return null;
+  }
 
   return (
-    <ol data-testid="logged-in-user-feedback-comments">
-      {feedbackComments.map((comment) => (
-        <CommentTimeLineItem
-          key={comment.id}
-          userId={comment.user_id}
-          postedAt={comment.created_at}
-          comment={comment.content}
-          commentId={comment.id}
-        />
-      ))}
-    </ol>
+    <CardContent>
+      <ol data-testid="logged-in-user-feedback-comments">
+        {feedbackComments.map((comment) => (
+          <CommentTimeLineItem
+            key={comment.id}
+            userId={comment.user_id}
+            postedAt={comment.created_at}
+            comment={comment.content}
+            commentId={comment.id}
+          />
+        ))}
+      </ol>
+    </CardContent>
   );
 }
 
@@ -81,19 +87,23 @@ export async function AnonUserFeedbackComments({
   feedbackId: string;
 }) {
   const feedbackComments = await getInternalFeedbackComments(feedbackId);
-
+  if (!feedbackComments.length) {
+    return null;
+  }
   return (
-    <ol data-testid="anon-user-feedback-comments">
-      {feedbackComments.map((comment) => (
-        <CommentTimeLineItem
-          key={comment.id}
-          userId={comment.user_id}
-          postedAt={comment.created_at}
-          comment={comment.content}
-          commentId={comment.id}
-        />
-      ))}
-    </ol>
+    <CardContent>
+      <ol data-testid="anon-user-feedback-comments">
+        {feedbackComments.map((comment) => (
+          <CommentTimeLineItem
+            key={comment.id}
+            userId={comment.user_id}
+            postedAt={comment.created_at}
+            comment={comment.content}
+            commentId={comment.id}
+          />
+        ))}
+      </ol>
+    </CardContent>
   );
 }
 
@@ -104,19 +114,23 @@ export async function AdminFeedbackComments({
 }) {
   const feedbackComments =
     await appAdminGetInternalFeedbackComments(feedbackId);
-
+  if (!feedbackComments.length) {
+    return null;
+  }
   return (
-    <ol data-testid="admin-user-feedback-comments">
-      {feedbackComments.map((comment) => (
-        <CommentTimeLineItem
-          key={comment.id}
-          userId={comment.user_id}
-          postedAt={comment.created_at}
-          comment={comment.content}
-          commentId={comment.id}
-        />
-      ))}
-    </ol>
+    <CardContent>
+      <ol data-testid="admin-user-feedback-comments">
+        {feedbackComments.map((comment) => (
+          <CommentTimeLineItem
+            key={comment.id}
+            userId={comment.user_id}
+            postedAt={comment.created_at}
+            comment={comment.content}
+            commentId={comment.id}
+          />
+        ))}
+      </ol>
+    </CardContent>
   );
 }
 
@@ -128,18 +142,16 @@ export async function SuspendedFeedbackComments({
   const userRoleType = await serverGetUserType();
 
   return (
-    <div className="py-2">
-      <Suspense fallback={<FeedbackCommentsFallback />}>
-        {userRoleType == userRoles.ANON && (
-          <AnonUserFeedbackComments feedbackId={feedbackId} />
-        )}
-        {userRoleType == userRoles.ADMIN && (
-          <AdminFeedbackComments feedbackId={feedbackId} />
-        )}
-        {userRoleType == userRoles.USER && (
-          <LoggedInUserFeedbackComments feedbackId={feedbackId} />
-        )}
-      </Suspense>
-    </div>
+    <Suspense fallback={<FeedbackCommentsFallback />}>
+      {userRoleType == userRoles.ANON && (
+        <AnonUserFeedbackComments feedbackId={feedbackId} />
+      )}
+      {userRoleType == userRoles.ADMIN && (
+        <AdminFeedbackComments feedbackId={feedbackId} />
+      )}
+      {userRoleType == userRoles.USER && (
+        <LoggedInUserFeedbackComments feedbackId={feedbackId} />
+      )}
+    </Suspense>
   );
 }

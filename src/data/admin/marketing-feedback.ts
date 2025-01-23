@@ -842,3 +842,17 @@ export async function getTotalFeedbackCount() {
 
   return count ?? 0;
 }
+
+export async function getBoardById(boardId: string) {
+  const { data, error } = await supabaseAdminClient
+    .from("marketing_feedback_boards")
+    .select("*")
+    .eq("id", boardId)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
