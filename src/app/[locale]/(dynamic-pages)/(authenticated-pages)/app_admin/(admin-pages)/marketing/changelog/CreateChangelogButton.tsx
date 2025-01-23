@@ -9,7 +9,7 @@ import React, { useRef } from "react";
 import { toast } from "sonner";
 
 export const CreateChangelogButton: React.FC = () => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const createChangelogMutation = useAction(createChangelogAction, {

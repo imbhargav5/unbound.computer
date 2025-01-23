@@ -1,94 +1,71 @@
-"use client";
 import { Link } from "@/components/intl-link";
-import type { roadmapDataType } from "@/data/admin/marketing-roadmap";
-import { adminUpdateFeedbackStatusAction } from "@/data/feedback";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
-import { useAction } from "next-safe-action/hooks";
-import { useRef } from "react";
-import { toast } from "sonner";
-import { Droppable } from "./_components/Droppable";
+import { T } from "@/components/ui/Typography";
 import { RoadmapList } from "./_components/RoadmapList";
+import type { RoadmapData } from "./types";
 
-export enum Statuses {
-  plannedCards = "Planned",
-  inProgress = "In Progress",
-  completedCards = "Completed",
-}
-
-enum statusesKey {
-  plannedCards = "planned",
-  inProgress = "in_progress",
-  completedCards = "completed",
-}
-
-export function AppAdminRoadmap({
-  roadmapData,
-}: {
-  roadmapData: {
-    plannedCards: roadmapDataType[];
-    inProgress: roadmapDataType[];
-    completedCards: roadmapDataType[];
-  };
-}) {
-  const toastRef = useRef<string | number | undefined>(undefined);
-  const { execute, isPending } = useAction(adminUpdateFeedbackStatusAction, {
-    onExecute: () => {
-      toastRef.current = toast.loading("Updating feedback status");
-    },
-    onSuccess: () => {
-      toast.success("Feedback status updated", {
-        id: toastRef.current,
-      });
-    },
-    onError: () => {
-      toast.error("Error updating feedback status", {
-        id: toastRef.current,
-      });
-    },
-    onSettled: () => {
-      toastRef.current = undefined;
-    },
-  });
-  function handleDragEnd(event: DragEndEvent) {
-    const { over } = event;
-
-    if (over) {
-      execute({
-        feedbackId: event.active.id as string,
-        status: statusesKey[over.id],
-      });
-    }
-  }
-
+export function AppAdminRoadmap({ roadmapData }: { roadmapData: RoadmapData }) {
+  const concatRoadmap = [
+    ...roadmapData.plannedCards,
+    ...roadmapData.inProgress,
+  ];
   return (
-    <div className="space-y-10">
-      <div>
-        If you want to add items to the roadmap, add them{" "}
-        <Link href="/feedback" className="text-primary underline font-bold">
-          here.
-        </Link>
-      </div>
-      <div
-        className="grid grid-cols-3 gap-10"
-        style={{
-          pointerEvents: isPending ? "none" : "auto",
-        }}
-      >
-        <DndContext onDragEnd={handleDragEnd}>
-          {Object.keys(roadmapData).map((cardListName) => (
-            <Droppable
-              key={cardListName}
-              id={cardListName}
-              status={Statuses[cardListName]}
-            >
-              {roadmapData[cardListName].length > 0 ? (
-                <RoadmapList isAdmin cards={roadmapData[cardListName]} />
+    <div className="space-y-6">
+      <div className="md:flex gap-4 w-full">
+        <div className="flex-1">
+          <div className="flex flex-col border rounded-lg bg-card">
+            <div className="flex-1 overflow-auto">
+              {roadmapData.plannedCards.length > 0 ||
+                roadmapData.inProgress.length > 0 ? (
+                <>
+                  <RoadmapList cards={concatRoadmap} />
+                </>
               ) : (
-                <div>Nothing in {Statuses[cardListName]}</div>
+                <div className="text-muted-foreground text-sm py-4 text-center">
+                  No items available
+                </div>
               )}
-            </Droppable>
-          ))}
-        </DndContext>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:block w-[300px] space-y-4">
+          <div className="border rounded-lg bg-card p-4 space-y-3">
+            <T.H4 className="font-semibold mt-0">Admin Actions</T.H4>
+            <p className="text-sm text-muted-foreground">
+              Add new items to the roadmap through the feedback system.
+            </p>
+            <Link
+              href="/feedback"
+              className="text-primary underline font-medium text-sm hover:text-primary/80"
+            >
+              Manage feedback →
+            </Link>
+          </div>
+
+          <div className="border rounded-lg bg-card p-4 space-y-3">
+            <T.H4 className="font-semibold mt-0">Statistics</T.H4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Planned</span>
+                <span className="font-medium">
+                  {roadmapData.plannedCards.length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">In Progress</span>
+                <span className="font-medium">
+                  {roadmapData.inProgress.length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Completed</span>
+                <span className="font-medium">
+                  {roadmapData.completedCards.length}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

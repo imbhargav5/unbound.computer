@@ -57,7 +57,7 @@ export const CreateMarketingAuthorProfileButton: React.FC = () => {
     const randomProfile = {
       display_name: displayName,
       slug: slug,
-      bio: chance.paragraph(1),
+      bio: chance.paragraph({ sentences: 1 }),
       avatar_url: chance.pickone(avatars),
       website_url: chance.url(),
     };

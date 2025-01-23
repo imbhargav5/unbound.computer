@@ -27,7 +27,7 @@ export const DeleteBlogPostDialog: React.FC<DeleteBlogPostDialogProps> = ({
   postTitle,
 }) => {
   const [open, setOpen] = useState(false);
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const deleteMutation = useAction(deleteBlogPostAction, {

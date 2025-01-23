@@ -2,8 +2,7 @@ import { Button } from "@/components/Button";
 import { Link } from "@/components/intl-link";
 import { Label } from "@/components/ui/label";
 import { classNames } from "@/utils/classNames";
-import type { PropsOf } from "@headlessui/react/dist/types";
-import { useState } from "react";
+import { ComponentProps, useState } from "react";
 
 export const EmailAndPassword = ({
   onSubmit,
@@ -13,7 +12,7 @@ export const EmailAndPassword = ({
   onSubmit: (data: { email: string; password: string }) => void;
   view: "sign-in" | "sign-up";
   isLoading: boolean;
-} & PropsOf<typeof Button>) => {
+} & ComponentProps<typeof Button>) => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
 

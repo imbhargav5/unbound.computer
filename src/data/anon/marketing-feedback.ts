@@ -1,6 +1,5 @@
 "use server";
 
-import { FeedbackSortSchema } from "@/app/[locale]/(dynamic-pages)/(updates-pages)/feedback/[feedbackId]/schema";
 import { Database } from "@/lib/database.types";
 import { supabaseAnonClient } from "@/supabase-clients/anon/supabaseAnonClient";
 
@@ -22,7 +21,6 @@ export async function getAnonUserFeedbackList({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
 }: {
   page?: number;
   limit?: number;
@@ -30,7 +28,6 @@ export async function getAnonUserFeedbackList({
   types?: MarketingFeedbackThreadType[];
   statuses?: MarketingFeedbackThreadStatus[];
   priorities?: MarketingFeedbackThreadPriority[];
-  sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
 
@@ -66,7 +63,7 @@ export async function getAnonUserFeedbackList({
   }
 
   supabaseQuery = supabaseQuery.order("created_at", {
-    ascending: sort === "recent",
+    ascending: false,
   });
 
   const { data, count, error } = await supabaseQuery;
@@ -324,7 +321,6 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
 }: {
   boardId: string;
   page?: number;
@@ -333,7 +329,6 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
   types?: MarketingFeedbackThreadType[];
   statuses?: MarketingFeedbackThreadStatus[];
   priorities?: MarketingFeedbackThreadPriority[];
-  sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
   let supabaseQuery = supabaseAnonClient
@@ -366,15 +361,7 @@ export async function getPaginatedAnonFeedbackThreadsByBoardId({
   if (priorities.length > 0) {
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
-
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   const { data, count, error } = await supabaseQuery;
 
@@ -420,13 +407,11 @@ export async function getAnonFeedbackThreadsByBoardSlug(
     types = [],
     statuses = [],
     priorities = [],
-    sort = "recent",
   }: {
     query?: string;
     types?: MarketingFeedbackThreadType[];
     statuses?: MarketingFeedbackThreadStatus[];
     priorities?: MarketingFeedbackThreadPriority[];
-    sort?: FeedbackSortSchema;
   } = {},
 ) {
   const board = await getAnonFeedbackBoardBySlug(slug);
@@ -462,14 +447,7 @@ export async function getAnonFeedbackThreadsByBoardSlug(
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   const { data, count, error } = await supabaseQuery;
 

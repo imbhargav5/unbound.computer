@@ -1,6 +1,5 @@
 "use server";
 
-import { FeedbackSortSchema } from "@/app/[locale]/(dynamic-pages)/(updates-pages)/feedback/[feedbackId]/schema";
 import { Database } from "@/lib/database.types";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/createSupabaseUserServerActionClient";
@@ -21,7 +20,6 @@ export async function getLoggedInUserFeedbackList({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
   myFeedbacks = "false",
 }: {
   page?: number;
@@ -30,7 +28,6 @@ export async function getLoggedInUserFeedbackList({
   types?: Array<Enum<"marketing_feedback_thread_type">>;
   statuses?: Array<Enum<"marketing_feedback_thread_status">>;
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
-  sort?: FeedbackSortSchema;
   myFeedbacks?: string;
 }) {
   console.log("myFeedbacks", myFeedbacks);
@@ -68,14 +65,7 @@ export async function getLoggedInUserFeedbackList({
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   if (myFeedbacks === "true") {
     supabaseQuery = supabaseQuery.eq("user_id", userId);
@@ -611,7 +601,6 @@ export async function getPaginatedLoggedInUserFeedbackThreadsByBoardId({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
 }: {
   boardId: string;
   page?: number;
@@ -620,7 +609,6 @@ export async function getPaginatedLoggedInUserFeedbackThreadsByBoardId({
   types?: Array<Enum<"marketing_feedback_thread_type">>;
   statuses?: Array<Enum<"marketing_feedback_thread_status">>;
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
-  sort?: FeedbackSortSchema;
 }) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
   const user = await serverGetLoggedInUserVerified();
@@ -657,14 +645,7 @@ export async function getPaginatedLoggedInUserFeedbackThreadsByBoardId({
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   const { data, count, error } = await supabaseQuery;
 

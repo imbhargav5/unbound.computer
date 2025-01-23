@@ -26,7 +26,7 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({
   post,
   authors,
 }) => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
 
   const updateAuthorsMutation = useAction(updateBlogPostAuthorsAction, {
     onExecute: () => {
@@ -74,7 +74,9 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({
         name="authors"
         options={options}
         value={defaultValue}
-        onChange={(options) => handleAuthorsChange(options)}
+        onChange={(options) =>
+          handleAuthorsChange(options as MultiValue<AuthorOption>)
+        }
         placeholder="Select authors..."
         classNamePrefix="select"
         styles={reactSelectStyles}

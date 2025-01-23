@@ -127,7 +127,7 @@ export const customMDXComponents: MDXComponents = {
   code: ({ className, ...props }) => {
     const languageClassExist = className
       ?.split(" ")
-      ?.find((className) => className.indexOf("language") !== -1);
+      ?.find((className: string) => className.indexOf("language") !== -1);
     // check if data-language prop exists
     const languageProp = Boolean(props["data-language"]) || languageClassExist;
     return (

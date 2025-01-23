@@ -67,13 +67,11 @@ export default function InternalRoadmapCard({
 
         <div className="mt-3 -mb-0.5">
           <div className="flex space-x-2 mb-3">
-            <Badge size="sm" variant="outline">
+            <Badge variant="outline">
               {getIconVariantForTag(tag)}
               {formatFieldValue(tag)}
             </Badge>
-            <Badge size="sm" variant={"outline"}>
-              {formatFieldValue(priority)}
-            </Badge>
+            <Badge variant={"outline"}>{formatFieldValue(priority)}</Badge>
           </div>
 
           <div className="flex text-sm text-muted-foreground items-center">

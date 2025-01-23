@@ -25,7 +25,7 @@ export const AuthorsSelect: React.FC<AuthorsSelectProps> = ({
   changelog,
   authors,
 }) => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
 
   const updateAuthorsMutation = useAction(updateChangelogAuthorsAction, {
     onExecute: () => {

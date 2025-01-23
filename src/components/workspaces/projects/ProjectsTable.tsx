@@ -50,12 +50,16 @@ const statusEmojis = {
   completed: "✅",
 } as const;
 
-const STATUS_OPTIONS = [
-  { label: "Draft", value: "draft", icon: undefined },
-  { label: "Pending Approval", value: "pending_approval", icon: undefined },
-  { label: "Approved", value: "approved", icon: undefined },
-  { label: "Completed", value: "completed", icon: undefined },
-];
+const STATUS_OPTIONS: {
+  label: string;
+  value: Enum<"project_status">;
+  icon?: React.ComponentType<{ className?: string }>;
+}[] = [
+    { label: "Draft", value: "draft", icon: undefined },
+    { label: "Pending Approval", value: "pending_approval", icon: undefined },
+    { label: "Approved", value: "approved", icon: undefined },
+    { label: "Completed", value: "completed", icon: undefined },
+  ];
 
 interface ProjectsTableProps {
   workspaceId: string;

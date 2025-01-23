@@ -39,7 +39,7 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({
   authors,
 }) => {
   const router = useRouter();
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const [coverImageUrl, setCoverImageUrl] = useState(
     changelog.cover_image || "",
   );

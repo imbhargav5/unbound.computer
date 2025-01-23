@@ -27,7 +27,7 @@ export const DeleteChangelogDialog: React.FC<DeleteChangelogDialogProps> = ({
   changelogTitle,
 }) => {
   const [open, setOpen] = useState(false);
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const deleteChangelogMutation = useAction(deleteChangelogAction, {

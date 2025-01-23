@@ -11,7 +11,7 @@ import slugify from "slugify";
 import { toast } from "sonner";
 
 export const CreateBlogPostButton: React.FC = () => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const createPostMutation = useAction(createBlogPostAction, {

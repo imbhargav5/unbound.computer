@@ -28,29 +28,30 @@ export type roadmapDataType = {
 export const getRoadmap = async () => {
   const roadmapItemsResponse = await supabaseAdminClient
     .from("marketing_feedback_threads")
-    .select("*")
+    .select(
+      `
+      *,
+      marketing_feedback_comments!thread_id(count),
+      marketing_feedback_thread_reactions!thread_id(count)
+    `,
+    )
     .eq("added_to_roadmap", true)
     .eq("is_publicly_visible", true)
     .is("moderator_hold_category", null);
 
   if (roadmapItemsResponse.error) {
-    throw roadmapItemsResponse.error; // Throw an error if the query fails
+    throw roadmapItemsResponse.error;
   }
 
   const roadmapItems = roadmapItemsResponse.data;
 
   // Transform the raw data into a more usable format
-  const roadmapArray = roadmapItems.map((item) => {
-    return {
-      id: item.id,
-      title: item.title,
-      description: item.content,
-      status: item.status,
-      priority: item.priority,
-      tag: item.type,
-      date: moment(item.created_at).format("LL"), // Format the creation date
-    };
-  });
+  const roadmapArray = roadmapItems.map((item) => ({
+    ...item,
+    comment_count: item.marketing_feedback_comments[0]?.count ?? 0,
+    reaction_count: item.marketing_feedback_thread_reactions[0]?.count ?? 0,
+    date: moment(item.created_at).format("LL"),
+  }));
 
   // Filter items based on their status
   const plannedCards = roadmapArray.filter((item) => item.status === "planned");

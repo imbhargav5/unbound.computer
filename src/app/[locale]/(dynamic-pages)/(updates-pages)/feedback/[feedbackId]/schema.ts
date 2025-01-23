@@ -68,3 +68,9 @@ export const filtersSchema = z
   .passthrough();
 
 export type FiltersSchema = z.infer<typeof filtersSchema>;
+
+export const sortSchema = z.object({
+  sort: z.enum(["recent"]).optional(),
+});
+
+export type FeedbackSortSchema = z.infer<typeof sortSchema>;

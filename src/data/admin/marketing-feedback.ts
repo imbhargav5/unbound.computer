@@ -1,5 +1,4 @@
 "use server";
-import { FeedbackSortSchema } from "@/app/[locale]/(dynamic-pages)/(updates-pages)/feedback/[feedbackId]/schema";
 import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabaseAdminClient";
 import type { Enum } from "@/types";
@@ -694,7 +693,6 @@ export async function getPaginatedFeedbackThreadsByBoardId({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
 }: {
   boardId: string;
   page?: number;
@@ -703,7 +701,6 @@ export async function getPaginatedFeedbackThreadsByBoardId({
   types?: Array<Enum<"marketing_feedback_thread_type">>;
   statuses?: Array<Enum<"marketing_feedback_thread_status">>;
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
-  sort?: FeedbackSortSchema;
 }) {
   const zeroIndexedPage = page - 1;
   let supabaseQuery = supabaseAdminClient
@@ -732,15 +729,7 @@ export async function getPaginatedFeedbackThreadsByBoardId({
   if (priorities.length > 0) {
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
-
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   const { data, count, error } = await supabaseQuery;
 

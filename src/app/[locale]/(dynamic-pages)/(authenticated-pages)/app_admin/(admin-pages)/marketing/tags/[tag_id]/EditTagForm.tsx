@@ -27,7 +27,7 @@ type EditTagFormProps = {
 };
 
 export const EditTagForm: React.FC<EditTagFormProps> = ({ tag }) => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const {

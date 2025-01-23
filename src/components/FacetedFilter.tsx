@@ -28,8 +28,11 @@ export default function FacetedFilter<T extends string>({
   onSelectCb,
 }: {
   title: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options: any;
+  options: {
+    label: string;
+    value: T;
+    icon?: React.ComponentType<{ className?: string }>;
+  }[];
   selectedValues: Set<T>;
   onSelectCb: (values: T[]) => void;
 }) {

@@ -27,7 +27,7 @@ export const DeleteTagDialog: React.FC<DeleteTagDialogProps> = ({
   tagName,
 }) => {
   const [open, setOpen] = useState(false);
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const router = useRouter();
 
   const deleteTagMutation = useAction(deleteTagAction, {

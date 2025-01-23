@@ -1,14 +1,15 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { RefObject, useEffect, useId, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 export interface AnimatedBeamProps {
   className?: string;
-  containerRef: RefObject<HTMLElement>; // Container ref
-  fromRef: RefObject<HTMLElement>;
-  toRef: RefObject<HTMLElement>;
+  containerRef: RefObject<HTMLElement | null>; // Container ref
+  fromRef: RefObject<HTMLElement | null>;
+  toRef: RefObject<HTMLElement | null>;
   curvature?: number;
   reverse?: boolean;
   pathColor?: string;
@@ -50,17 +51,17 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   // Calculate the gradient coordinates based on the reverse prop
   const gradientCoordinates = reverse
     ? {
-        x1: ["90%", "-10%"],
-        x2: ["100%", "0%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      }
+      x1: ["90%", "-10%"],
+      x2: ["100%", "0%"],
+      y1: ["0%", "0%"],
+      y2: ["0%", "0%"],
+    }
     : {
-        x1: ["10%", "110%"],
-        x2: ["0%", "100%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      };
+      x1: ["10%", "110%"],
+      x2: ["0%", "100%"],
+      y1: ["0%", "0%"],
+      y2: ["0%", "0%"],
+    };
 
   useEffect(() => {
     const updatePath = () => {
@@ -83,9 +84,8 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
           rectB.top - containerRect.top + rectB.height / 2 + endYOffset;
 
         const controlY = startY - curvature;
-        const d = `M ${startX},${startY} Q ${
-          (startX + endX) / 2
-        },${controlY} ${endX},${endY}`;
+        const d = `M ${startX},${startY} Q ${(startX + endX) / 2
+          },${controlY} ${endX},${endY}`;
         setPathD(d);
       }
     };
@@ -167,7 +167,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
           transition={{
             delay,
             duration,
-            ease: [0.16, 1, 0.3, 1],
+            ease: [0.16, 1, 0.3, 1], // https://easings.net/#easeOutExpo
             repeat: Infinity,
             repeatDelay: 0,
           }}

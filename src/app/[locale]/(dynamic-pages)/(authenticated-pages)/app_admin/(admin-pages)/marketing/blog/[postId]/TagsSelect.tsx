@@ -23,7 +23,7 @@ type TagOption = {
 };
 
 export const TagsSelect: React.FC<TagsSelectProps> = ({ post, tags }) => {
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
 
   const updateTagsMutation = useAction(updateBlogPostTagsAction, {
     onExecute: () => {
@@ -71,7 +71,9 @@ export const TagsSelect: React.FC<TagsSelectProps> = ({ post, tags }) => {
         name="tags"
         options={options}
         value={defaultValue}
-        onChange={handleTagsChange}
+        onChange={(options) =>
+          handleTagsChange(options as MultiValue<TagOption>)
+        }
         placeholder="Select tags..."
         classNamePrefix="select"
         styles={reactSelectStyles}

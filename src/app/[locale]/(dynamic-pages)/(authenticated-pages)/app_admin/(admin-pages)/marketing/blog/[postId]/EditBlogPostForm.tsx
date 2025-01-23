@@ -35,7 +35,7 @@ type EditBlogPostFormProps = {
 
 export function EditBlogPostForm({ post }: EditBlogPostFormProps) {
   const router = useRouter();
-  const toastRef = useRef<string | number>();
+  const toastRef = useRef<string | number | undefined>(undefined);
   const [coverImageUrl, setCoverImageUrl] = useState(post.cover_image || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
