@@ -82,7 +82,7 @@ export async function FeedbackListSidebar() {
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Built with{" "}
+          Powered by{" "}
           <a
             href="https://usenextbase.com"
             target="_blank"

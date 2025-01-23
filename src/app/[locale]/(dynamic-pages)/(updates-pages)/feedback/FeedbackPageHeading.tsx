@@ -66,7 +66,7 @@ export function FeedbackPageHeading({
   return (
     <div
       className={cn(
-        "flex items-center justify-between",
+        "flex justify-between",
         isLoading ? "animate-pulse pointer-events-none" : "",
         className,
       )}
