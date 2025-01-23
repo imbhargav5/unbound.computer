@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   adminGetInternalFeedbackById,
   getBoardById,
+  getFeedbackBoards,
 } from "@/data/admin/marketing-feedback";
 import { getAnonUserFeedbackById } from "@/data/anon/marketing-feedback";
 import { getLoggedInUserFeedbackById } from "@/data/user/marketing-feedback";
@@ -12,6 +13,7 @@ import { UserRole } from "@/types/userTypes";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { Flag, Info, Layout, ListTodo, Type } from "lucide-react";
 import { Suspense } from "react";
+import { BoardSelectionDialog } from "./BoardSelectionDialog";
 import { FeedbackAvatarServer } from "./FeedbackAvatarServer";
 
 function RecentFeedbackSkeleton() {
@@ -41,6 +43,7 @@ export async function FeedbackDetailSidebar({
 }) {
   const userRoleType = await serverGetUserType();
   const feedback = await getFeedback(feedbackId, userRoleType);
+  const boards = userRoleType === "admin" ? await getFeedbackBoards() : null;
 
   if (!feedback) {
     throw new Error("Feedback not found");
@@ -90,13 +93,21 @@ export async function FeedbackDetailSidebar({
           <FeedbackAvatarServer feedback={feedback} />
         </CardHeader>
         <CardContent className="space-y-4">
-          {board && (
-            <div className="flex items-center gap-2">
-              <Layout className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm capitalize">
-                Board: <Badge variant="outline">{board.title}</Badge>
-              </span>
-            </div>
+          {userRoleType === "admin" ? (
+            <BoardSelectionDialog
+              feedbackId={feedbackId}
+              currentBoardId={feedback.board_id}
+              boards={boards || []}
+            />
+          ) : (
+            board && (
+              <div className="flex items-center gap-2">
+                <Layout className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm capitalize">
+                  Board: <Badge variant="outline">{board.title}</Badge>
+                </span>
+              </div>
+            )
           )}
 
           <div className="flex items-center gap-2">

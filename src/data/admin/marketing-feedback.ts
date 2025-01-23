@@ -618,31 +618,27 @@ export async function deleteFeedbackBoard(boardId: string) {
   revalidatePath("/feedback/boards");
 }
 
-/**
- * Updates the board assignment of a feedback thread.
- */
-export async function updateFeedbackThreadBoard({
-  threadId,
-  boardId,
-}: {
-  threadId: string;
-  boardId: string | null;
-}) {
-  const { data, error } = await supabaseAdminClient
-    .from("marketing_feedback_threads")
-    .update({ board_id: boardId })
-    .eq("id", threadId)
-    .select("*")
-    .single();
+const updateFeedbackThreadBoardSchema = z.object({
+  threadId: z.string(),
+  boardId: z.string().nullish(),
+});
 
-  if (error) {
-    throw error;
-  }
+export const updateFeedbackThreadBoardAction = adminActionClient
+  .schema(updateFeedbackThreadBoardSchema)
+  .action(async ({ parsedInput: { threadId, boardId } }) => {
+    const { data, error } = await supabaseAdminClient
+      .from("marketing_feedback_threads")
+      .update({ board_id: boardId ?? null })
+      .eq("id", threadId)
+      .select("*")
+      .single();
 
-  revalidatePath("/feedback");
-  revalidatePath(`/feedback/${threadId}`);
-  return data;
-}
+    if (error) {
+      throw new Error("Failed to update feedback board");
+    }
+
+    return data;
+  });
 
 /**
  * Gets a feedback board by its ID.
