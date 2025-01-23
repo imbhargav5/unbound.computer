@@ -25,7 +25,6 @@ export const getPaginatedInternalFeedbackList = async ({
   priorities = [],
   page = 1,
   limit = 10,
-  sort = "recent",
 }: {
   page?: number;
   limit?: number;
@@ -33,16 +32,17 @@ export const getPaginatedInternalFeedbackList = async ({
   types?: Array<Enum<"marketing_feedback_thread_type">>;
   statuses?: Array<Enum<"marketing_feedback_thread_status">>;
   priorities?: Array<Enum<"marketing_feedback_thread_priority">>;
-  sort?: FeedbackSortSchema;
 }) => {
-  const zeroIndexedPage = page - 1; // Convert to zero-indexed page for database query
+  const zeroIndexedPage = page - 1;
+
+  // Create base query with comment counts as a subquery
   let supabaseQuery = supabaseAdminClient
     .from("marketing_feedback_threads")
     .select(
       `
       *,
-      marketing_feedback_comments!thread_id(count),
-      marketing_feedback_thread_reactions!thread_id(count)
+      comment_count:marketing_feedback_comments!marketing_feedback_comments_thread_id_fkey(count),
+      reaction_count:marketing_feedback_thread_reactions(count)
     `,
     )
     .range(zeroIndexedPage * limit, (zeroIndexedPage + 1) * limit - 1);
@@ -63,14 +63,7 @@ export const getPaginatedInternalFeedbackList = async ({
     supabaseQuery = supabaseQuery.in("priority", priorities);
   }
 
-  if (sort === "recent") {
-    supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
-  } else if (sort === "comments") {
-    supabaseQuery = supabaseQuery.order("count", {
-      referencedTable: "marketing_feedback_comments",
-      ascending: false,
-    });
-  }
+  supabaseQuery = supabaseQuery.order("created_at", { ascending: false });
 
   const { data, count, error } = await supabaseQuery;
 
@@ -81,8 +74,8 @@ export const getPaginatedInternalFeedbackList = async ({
   return {
     data: data?.map((thread) => ({
       ...thread,
-      comment_count: thread.marketing_feedback_comments[0]?.count ?? 0,
-      reaction_count: thread.marketing_feedback_thread_reactions[0]?.count ?? 0,
+      comment_count: thread.comment_count?.[0]?.count ?? 0,
+      reaction_count: thread.reaction_count?.[0]?.count ?? 0,
     })),
     count,
   };

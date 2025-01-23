@@ -26,7 +26,6 @@ interface FilterState {
   statuses: string[];
   types: string[];
   priorities: string[];
-  sortBy: string;
 }
 
 export function FeedbackFilterDialog() {
@@ -40,7 +39,6 @@ export function FeedbackFilterDialog() {
     statuses: searchParams?.get("statuses")?.split(",") || [],
     types: searchParams?.get("types")?.split(",") || [],
     priorities: searchParams?.get("priorities")?.split(",") || [],
-    sortBy: searchParams?.get("sort") || "recent",
   });
 
   const handleSubmit = () => {
@@ -51,7 +49,6 @@ export function FeedbackFilterDialog() {
     if (filters.types.length) params.set("types", filters.types.join(","));
     if (filters.priorities.length)
       params.set("priorities", filters.priorities.join(","));
-    if (filters.sortBy) params.set("sort", filters.sortBy);
 
     params.set("page", "1");
     replace(`${pathname}?${params.toString()}`);
@@ -186,29 +183,6 @@ export function FeedbackFilterDialog() {
               </div>
             ))}
           </div>
-
-          <Separator />
-
-          <div className="space-y-2">
-            <h4 className="font-medium">Sort By</h4>
-            {[
-              { label: "Most Recent", value: "recent" },
-              { label: "Most Commented", value: "comments" },
-            ].map((option) => (
-              <div key={option.value} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`sort-${option.value}`}
-                  checked={filters.sortBy === option.value}
-                  onCheckedChange={() =>
-                    setFilters((prev) => ({ ...prev, sortBy: option.value }))
-                  }
-                />
-                <label htmlFor={`sort-${option.value}`} className="text-sm">
-                  {option.label}
-                </label>
-              </div>
-            ))}
-          </div>
         </div>
         <DialogFooter>
           <Button
@@ -219,7 +193,6 @@ export function FeedbackFilterDialog() {
                 statuses: [],
                 types: [],
                 priorities: [],
-                sortBy: "recent",
               });
             }}
           >

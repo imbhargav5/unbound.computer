@@ -52,10 +52,6 @@ export const dropdownFiltersSchema = z.object({
   priorities: feedbackPrioritiesSchema.optional(),
 });
 
-export const sortSchema = z.enum(["recent", "comments"]).optional();
-
-export type FeedbackSortSchema = z.infer<typeof sortSchema>;
-
 export type FeedbackDropdownFiltersSchema = z.infer<
   typeof dropdownFiltersSchema
 > & {
@@ -68,7 +64,7 @@ export const filtersSchema = z
     query: z.string().optional(),
   })
   .merge(dropdownFiltersSchema)
-  .merge(z.object({ sort: sortSchema }))
-  .merge(z.object({ myFeedbacks: z.string().optional() }));
+  .merge(z.object({ myFeedbacks: z.string().optional() }))
+  .passthrough();
 
 export type FiltersSchema = z.infer<typeof filtersSchema>;
