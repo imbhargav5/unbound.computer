@@ -9,9 +9,13 @@ import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-export async function generateMetadata({ params }: { params: unknown }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<unknown>;
+}) {
   try {
-    const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+    const { workspaceSlug } = workspaceSlugParamSchema.parse(await params);
     const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
     return {
@@ -37,9 +41,13 @@ async function Title({
   );
 }
 
-export async function WorkspaceNavbar({ params }: { params: unknown }) {
+export async function WorkspaceNavbar({
+  params,
+}: {
+  params: Promise<unknown>;
+}) {
   try {
-    const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+    const { workspaceSlug } = workspaceSlugParamSchema.parse(await params);
     const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
     return (
       <div className="flex items-center">
@@ -53,6 +61,7 @@ export async function WorkspaceNavbar({ params }: { params: unknown }) {
       </div>
     );
   } catch (error) {
+    console.error("Error in WorkspaceNavbar", error);
     return notFound();
   }
 }

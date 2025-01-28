@@ -1,4 +1,4 @@
-const exchangeRateMap: Record<string, number> = {
+const exchangeRateMap = {
   inr: 0.012,
   usd: 1, // we store cents in the database
   eur: 1.1,
@@ -15,7 +15,17 @@ const exchangeRateMap: Record<string, number> = {
   zwl: 0.00003,
 };
 
+function isValidCurrency(
+  currency: string,
+): currency is keyof typeof exchangeRateMap {
+  return Object.keys(exchangeRateMap).includes(currency);
+}
+
 export function convertAmountToUSD(amount: number, currency: string): number {
+  const isCurrencySupported = isValidCurrency(currency);
+  if (!isCurrencySupported) {
+    throw new Error(`Unsupported currency: ${currency}`);
+  }
   const exchangeRate = exchangeRateMap[currency];
   if (!exchangeRate) {
     throw new Error(`Unsupported currency: ${currency}`);

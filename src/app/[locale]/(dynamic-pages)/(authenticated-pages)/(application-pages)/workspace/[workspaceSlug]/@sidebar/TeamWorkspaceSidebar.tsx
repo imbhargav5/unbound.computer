@@ -20,9 +20,13 @@ import {
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
 import { notFound } from "next/navigation";
 
-export async function TeamWorkspaceSidebar({ params }: { params: unknown }) {
+export async function TeamWorkspaceSidebar({
+  params,
+}: {
+  params: Promise<unknown>;
+}) {
   try {
-    const { workspaceSlug } = workspaceSlugParamSchema.parse(params);
+    const { workspaceSlug } = workspaceSlugParamSchema.parse(await params);
     const [workspace, slimWorkspaces] = await Promise.all([
       getCachedWorkspaceBySlug(workspaceSlug),
       getCachedSlimWorkspaces(),
@@ -48,6 +52,7 @@ export async function TeamWorkspaceSidebar({ params }: { params: unknown }) {
       </Sidebar>
     );
   } catch (e) {
+    console.error("Error in TeamWorkspaceSidebar", e);
     return notFound();
   }
 }
