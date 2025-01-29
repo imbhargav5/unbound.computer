@@ -17,7 +17,7 @@ export function PendingInvitationsManager({
   const [invitationActions, setInvitationActions] = useState(
     pendingInvitations.map((invitation) => ({
       invitationId: invitation.id,
-      action: "decline" as "accept" | "decline",
+      action: "not_accepted" as "accepted" | "not_accepted",
     })),
   );
 
@@ -25,7 +25,10 @@ export function PendingInvitationsManager({
     setInvitationActions((prev) =>
       prev.map((item) =>
         item.invitationId === invitationId
-          ? { ...item, action: item.action === "accept" ? "decline" : "accept" }
+          ? {
+            ...item,
+            action: item.action === "accepted" ? "not_accepted" : "accepted",
+          }
           : item,
       ),
     );
@@ -59,7 +62,7 @@ export function PendingInvitationsManager({
               checked={
                 invitationActions.find(
                   (item) => item.invitationId === invitation.id,
-                )?.action === "accept"
+                )?.action === "accepted"
               }
               onCheckedChange={() => handleToggle(invitation.id)}
             />
