@@ -5,17 +5,28 @@ type FAQ = {
 
 export const faq: FAQ[] = [
   {
-    question: "Is it accessible?",
-    answer: "Yes. It adheres to the WAI-ARIA design pattern.",
+    question: "Lorem ipsum dolor sit amet?",
+    answer:
+      "Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
   },
   {
-    question: "Is it styled?",
+    question: "Ut enim ad minim veniam?",
     answer:
-      " Yes. It comes with default styles that matches the other components&apos; aesthetic.",
+      "Quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit.",
   },
   {
-    question: "Is it animated?",
+    question: "Excepteur sint occaecat cupidatat?",
     answer:
-      "Yes. It's animated by default, but you can disable it if you prefer",
+      "Non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error.",
+  },
+  {
+    question: "Nemo enim ipsam voluptatem?",
+    answer:
+      "Quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.",
+  },
+  {
+    question: "Neque porro quisquam est?",
+    answer:
+      "Qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt.",
   },
 ];

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
+import { AvatarCirclesDemo } from "./AvatarCirclesDemo";
 
 export default function HeroSection() {
   const t = useTranslations("HomePage");
@@ -20,7 +21,7 @@ export default function HeroSection() {
             </div>
           </Link>
           <h1 className="font-semibold text-3xl lg:text-5xl">{t("title")}</h1>
-          <p className="text-slate-500 dark:text-slate-400 leading-loose lg:text-lg lg:leading-relaxed max-w-4xl">
+          <p className="text-muted-foreground leading-loose lg:text-lg lg:leading-relaxed max-w-4xl">
             {t("description")}
           </p>
           <div className="flex flex-col md:flex-row items-center max-w-md w-full  gap-3 pt-2 ">
@@ -35,6 +36,9 @@ export default function HeroSection() {
               <ChevronRight size={16} className="ml-2" />
             </Button>
           </div>
+        </div>
+        <div className="flex justify-center items-center">
+          <AvatarCirclesDemo />
         </div>
         <div className="relative w-full aspect-[21/9] rounded-md border-2 border-border shadow-sm overflow-hidden">
           <Image

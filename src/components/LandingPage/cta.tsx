@@ -4,7 +4,7 @@ import TitleBlock from "../title-block";
 
 export default function CTA() {
   return (
-    <div className="py-16 px-6 flex flex-col justify-center items-center space-y-6">
+    <div className="py-16 px-6 flex flex-col justify-center items-center space-y-6 bg-muted">
       <TitleBlock
         icon={<Sailboat size={16} />}
         section="Start you journey"

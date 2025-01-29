@@ -1,27 +1,21 @@
 import { Link } from "@/components/intl-link";
-import darkLogo from "@public/logos/acme-logo-dark.png";
-import lightLogo from "@public/logos/acme-logo-light.png";
 import Image from "next/image";
 import { footerItems, footerSocialItems } from "./footer-items";
 
 export function Footer() {
   return (
-    <footer className="bg-secondary/50 min-h-[200px]  text-foreground border-y-2 border-border">
-      <div className="max-w-6xl mx-auto pt-28 px-8 lg:px-6 xl:px-0">
+    <footer className="bg-background min-h-[200px]  text-foreground">
+      <div className="max-w-6xl mx-auto pt-8 md:pt-28 px-8 lg:px-6 xl:px-0">
         <div className="flex flex-col">
           <div className="flex flex-col lg:flex-row items-center gap-y-6 pb-28 ">
             <div className="flex flex-col w-full gap-8 lg:gap-4 ">
               <Link href="/">
                 <div className="relative flex gap-2 items-center text-black dark:text-white ">
                   <Image
-                    src={lightLogo}
+                    src={"/logos/nextbase.png"}
                     alt="logo"
-                    className="dark:block hidden h-8 w-8"
-                  />
-                  <Image
-                    src={darkLogo}
-                    alt="logo"
-                    className="block dark:hidden h-8 w-8"
+                    width={64}
+                    height={64}
                   />
                   <span className=" font-medium text-2xl text-foreground sm:inline-block">
                     Nextbase

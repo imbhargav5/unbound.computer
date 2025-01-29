@@ -20,9 +20,9 @@ export function LeftNav() {
         <Link href="/" className={cn("font-bold text-xl ")}>
           <div className="relative flex space-x-2 h-10 md:w-fit items-center justify-center dark:-ml-4 -ml-2">
             <Image
-              src={`/logos/acme-logo-dark.png`}
-              width={40}
-              height={40}
+              src={`/logos/nextbase.png`}
+              width={32}
+              height={32}
               alt="light-logo"
             />
 
@@ -44,7 +44,7 @@ export function LeftNav() {
         {navbarLinks.map(({ name, href }) => (
           <li
             key={name}
-            className="text-gray-500 dark:text-gray-300 font-regular text-sm hover:text-gray-800 dark:hover:text-gray-500"
+            className="text-muted-foreground font-regular text-sm hover:text-foreground"
           >
             <Link href={href}>{name}</Link>
           </li>

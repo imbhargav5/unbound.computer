@@ -1,4 +1,4 @@
-import { AnimatedBeamMultiple } from "@/components/animated-beam-multiple";
+import { AnimatedBeamMultipleOutputDemo } from "@/components/animated-beam-multiple-outputs";
 import Globe from "@/components/magicui/globe";
 import Marquee from "@/components/magicui/marquee";
 
@@ -71,7 +71,7 @@ export const featuresData = [
       "Ut enim ad minim veniam, quis nostrud exercitationullamco laboris nisi ut aliquip ex ea commodo consequat.",
 
     background: (
-      <AnimatedBeamMultiple className="absolute right-2 top-4 h-full pt-0 border-none transition-all duration-300 ease-out [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] group-hover:scale-105" />
+      <AnimatedBeamMultipleOutputDemo className="absolute inset-0 h-full pt-0 border-none transition-all duration-300 ease-out [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] group-hover:scale-105" />
     ),
   },
   {
