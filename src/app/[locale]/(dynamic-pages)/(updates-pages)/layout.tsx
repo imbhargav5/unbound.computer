@@ -63,7 +63,7 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative p-1 z-0 max-w-4xl mx-auto">
+    <div className="relative p-1 z-0 max-w-4xl w-full mx-auto">
       {/* Decorative top element */}
       <div className="fixed top-0 left-0 right-0 h-64 sm:h-52 -z-10 pointer-events-none select-none bg-muted border-b" />
       <UpdatesNavigation />
