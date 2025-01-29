@@ -1,15 +1,15 @@
 import { expect, request, test } from "@playwright/test";
-import { getUserDetailsFromAuthJson } from "e2e/_helpers/authjson.helper";
-import { onboardUserHelper } from "e2e/_helpers/onboard-user.helper";
+import { getUserDetailsFromAuthJson } from "../_helpers/authjson.helper";
+import { onboardUserHelper } from "../_helpers/onboard-user.helper";
 import {
   getDefaultWorkspaceInfoHelper,
   goToWorkspaceArea,
   matchPathAndExtractWorkspaceInfo,
-} from "e2e/_helpers/workspace.helper";
+} from "../_helpers/workspace.helper";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
-test.describe.skip("Workspace", () => {
+test.describe("Workspace", () => {
   let createdWorkspaceSlug: string | undefined = undefined;
   test("create workspace works correctly", async ({ page }) => {
     const { workspaceSlug } = await getDefaultWorkspaceInfoHelper({ page });

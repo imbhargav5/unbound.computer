@@ -404,7 +404,7 @@ const bulkSettleInvitationsSchema = z.object({
   invitationActions: z.array(
     z.object({
       invitationId: z.string().uuid(),
-      action: z.enum(["accept", "decline"]),
+      action: z.enum(["accepted", "not_accepted"]),
     }),
   ),
 });
@@ -415,10 +415,10 @@ export const bulkSettleInvitationsAction = authActionClient
     const results = await Promise.all(
       invitationActions.map(async ({ invitationId, action }) => {
         try {
-          if (action === "accept") {
+          if (action === "accepted") {
             await acceptWorkspaceInvitation({ invitationId, userId });
           } else {
-            await declineWorkspaceInvitation({ invitationId, userId });
+            // we don't decline invitations in bulk since this is the onboarding flow
           }
           return { invitationId, success: true };
         } catch (error) {

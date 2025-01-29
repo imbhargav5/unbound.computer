@@ -48,22 +48,26 @@ const config: PlaywrightTestConfig = {
 
   projects: [
     {
-      name: "with-auth",
+      name: "with-user-setup",
       testMatch: "_setups/user.setup.ts",
     },
     {
-      name: "with-app-admin",
+      name: "with-app-admin-setup",
       testMatch: "_setups/admin.setup.ts",
     },
     {
-      name: "with-second-user",
+      name: "with-second-user-setup",
       testMatch: "_setups/user2.setup.ts",
     },
     {
       name: "admin-users",
       testMatch: "admin/**/*.spec.ts",
       retries: 0,
-      dependencies: ["with-auth", "with-second-user", "with-app-admin"],
+      dependencies: [
+        "with-user-setup",
+        "with-second-user-setup",
+        "with-app-admin-setup",
+      ],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/app_admin.json",
@@ -73,26 +77,27 @@ const config: PlaywrightTestConfig = {
       name: "logged-in-users",
       testMatch: "user/**/*.spec.ts",
       retries: 0,
-      dependencies: ["with-auth"],
+      dependencies: ["with-user-setup"],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/user_1.json",
       },
     },
-    {
-      name: "misc",
-      testMatch: "misc/**/*.spec.ts",
-      dependencies: ["with-auth", "with-second-user", "with-app-admin"],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/user_1.json",
-      },
-    },
+
     {
       name: "anon-users",
       testMatch: "anon/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
+      },
+    },
+    {
+      name: "password-updation",
+      testMatch: "password-updation/**/*.spec.ts",
+      dependencies: ["logged-in-users"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user_1.json",
       },
     },
   ],

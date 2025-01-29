@@ -21,7 +21,10 @@ export const adminMiddleware: MiddlewareConfig = {
         req.nextUrl.pathname,
       );
       return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/dashboard"))),
+        NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/dashboard")), {
+          // 302 stands for temporary redirect
+          status: 302,
+        }),
         maybeUser,
       ];
     }

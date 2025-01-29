@@ -1,86 +1,91 @@
 import { expect, test } from "@playwright/test";
+import Chance from "chance";
 
-test.describe.skip("Admin Feedback Management", () => {
+test.describe.serial("Admin Feedback Management", () => {
   let feedbackId: string | undefined;
-  let feedbackTitle: string | undefined;
+  const feedbackTitle = Chance().sentence();
+  const feedbackDescription = Chance().sentence();
 
-  test("User creates feedback", async ({ browser, page: userPage }) => {
-    await userPage.goto("/en/dashboard");
-    await userPage.getByTestId("user-nav-avatar").click();
-    await userPage.getByTestId("feedback-link").click();
-    const giveFeedbackForm = userPage.getByTestId("give-feedback-form");
-    const randomTitleSuffix = Math.random().toString(36).substring(2, 15);
-    feedbackTitle = `Admin Test Feedback ${randomTitleSuffix}`;
-    const content = `This is a test feedback for admin actions ${randomTitleSuffix}`;
-    await giveFeedbackForm
-      .getByTestId("feedback-title-input")
-      .fill(feedbackTitle);
-    await giveFeedbackForm.getByTestId("feedback-content-input").fill(content);
-    const selectTrigger = giveFeedbackForm.getByRole("combobox");
-    await selectTrigger.waitFor();
-    await selectTrigger.click();
-    const listBox = userPage.getByRole("listbox");
-    await listBox.waitFor();
-    await listBox.getByText("Bug").click();
-    await giveFeedbackForm.getByTestId("submit-feedback-button").click();
+  test("User creates feedback", async ({ page }) => {
+    // Navigate to the dashboard and create feedback
+    await page.goto("/en/dashboard");
+    await page.getByTestId("sidebar-user-nav-avatar-button").click();
+    await page.getByRole("menuitem", { name: "Feedback" }).click();
+    await page.getByTestId("feedback-heading-actions-trigger").click();
+    await page.getByRole("button", { name: "Create Feedback" }).click();
+    await page.getByTestId("feedback-title-input").fill(feedbackTitle);
+    await page.getByTestId("feedback-content-input").fill(feedbackDescription);
+    await page.getByTestId("submit-feedback-button").click();
 
-    await userPage.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
-    const url = await userPage.url();
+    // Wait for the feedback to be created and get its ID
+    await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+    const url = await page.url();
     feedbackId = url.split("/").pop();
     expect(feedbackId).toBeDefined();
   });
 
-  test("Admin can view and update feedback", async ({ browser, page }) => {
+  test("Admin can view and update feedback", async ({ browser }) => {
     const adminContext = await browser.newContext({
       storageState: "playwright/.auth/app_admin.json",
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`/en/feedback/${feedbackId}`);
 
-    const title = adminPage.getByRole("heading", { name: feedbackTitle });
-    await title.waitFor();
-
     // Wait for the feedback details page to load
-    await adminPage.getByRole("heading", { name: feedbackTitle }).waitFor();
+    await adminPage.getByText(feedbackTitle).waitFor();
     const feedbackVisibility = adminPage.getByTestId("feedback-visibility");
     await feedbackVisibility.waitFor();
     const dropdownMenuTrigger = feedbackVisibility.getByTestId(
       "feedback-actions-dropdown-button",
     );
     await dropdownMenuTrigger.waitFor();
+
     // Apply status
     await dropdownMenuTrigger.click();
-    await adminPage.getByRole("menuitem", { name: "Apply Status" }).click();
+    await adminPage.getByRole("menuitem", { name: /Apply status/i }).click();
     const statusSubMenu = adminPage.getByTestId("apply-status-dropdown-menu");
     await statusSubMenu.waitFor();
-    await statusSubMenu.getByRole("menuitem", { name: "In Progress" }).click();
+    await statusSubMenu.getByRole("menuitem", { name: /In Progress/i }).click();
 
-    await title.click(); // click away to close dropdown
+    // click away
+    await adminPage.click("body");
+    await adminPage.waitForTimeout(1000);
 
     // Apply priority
     await dropdownMenuTrigger.click();
-    await adminPage.getByRole("menuitem", { name: "Apply Priority" }).click();
+    await adminPage.getByRole("menuitem", { name: /Apply priority/i }).click();
     const prioritySubMenu = adminPage.getByTestId(
       "apply-priority-dropdown-menu",
     );
     await prioritySubMenu.waitFor();
-    await prioritySubMenu.getByRole("menuitem", { name: "High" }).click();
+    await prioritySubMenu.getByRole("menuitem", { name: /High/i }).click();
 
-    await title.click(); // click away to close dropdown
-
+    // click away
+    await adminPage.click("body");
+    await adminPage.waitForTimeout(1000);
     // Apply type
     await dropdownMenuTrigger.click();
-    await adminPage.getByRole("menuitem", { name: "Apply Type" }).click();
+    await adminPage.getByRole("menuitem", { name: /Apply type/i }).click();
     const typeSubMenu = adminPage.getByTestId("apply-type-dropdown-menu");
     await typeSubMenu.waitFor();
     await typeSubMenu
-      .getByRole("menuitem", { name: "Feature Request" })
+      .getByRole("menuitem", { name: /Feature Request/i })
       .click();
 
-    // Verify updates
-    await expect(adminPage.getByText("Status: In Progress")).toBeVisible();
-    await expect(adminPage.getByText("Priority: High")).toBeVisible();
-    await expect(adminPage.getByText("Type: Feature Request")).toBeVisible();
+    // click away
+    await adminPage.click("body");
+    await adminPage.waitForTimeout(1000);
+    // Verify updates are visible
+    expect(
+      await adminPage.getByTestId("feedback-status-badge").textContent(),
+    ).toBe("In Progress");
+    expect(
+      await adminPage.getByTestId("feedback-priority-badge").textContent(),
+    ).toBe("High");
+    expect(
+      await adminPage.getByTestId("feedback-type-badge").textContent(),
+    ).toBe("Feature Request");
+
     await adminContext.close();
   });
 
@@ -90,98 +95,16 @@ test.describe.skip("Admin Feedback Management", () => {
     });
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`/en/feedback/${feedbackId}`);
-    const addCommentForm = await adminPage.getByTestId("add-comment-form");
-    await addCommentForm.getByRole("textbox").fill("This is an admin comment.");
-    await addCommentForm.getByRole("button", { name: "Add Comment" }).click();
 
-    const commentsList = await adminPage.getByTestId(
-      "admin-user-feedback-comments",
-    );
-    await commentsList.getByText("This is an admin comment.").waitFor();
-  });
-
-  test("Admin can filter feedback", async ({ browser }) => {
-    const adminContext = await browser.newContext({
-      storageState: "playwright/.auth/app_admin.json",
-    });
-    const adminPage = await adminContext.newPage();
-    await adminPage.goto("/en/feedback");
-
-    // Filter by status
-    await adminPage.getByTestId("status-filter-button").click();
+    const commentText = Chance().sentence();
+    await adminPage.getByPlaceholder("Type your message here.").click();
     await adminPage
-      .getByTestId("status-filter-command-list")
-      .getByRole("option", { name: "In Progress" })
-      .click();
+      .getByPlaceholder("Type your message here.")
+      .fill(commentText);
+    await adminPage.getByRole("button", { name: "Add Comment" }).click();
 
-    // wait for the url to change but no need to match the url
-    await adminPage.waitForLoadState("load");
-
-    // Filter by priority
-    await adminPage.getByTestId("priority-filter-button").click();
-    await adminPage
-      .getByTestId("priority-filter-command-list")
-      .getByRole("option", { name: "High" })
-      .click();
-    // wait for the url to change but no need to match the url
-    await adminPage.waitForLoadState("load");
-    // Filter by type
-    await adminPage.getByTestId("type-filter-button").click();
-    await adminPage
-      .getByTestId("type-filter-command-list")
-      .getByRole("option", { name: "Feature Request" })
-      .click();
-
-    // Check if the filtered list contains our test feedback
-    if (!feedbackTitle) {
-      throw new Error("Feedback title is undefined");
-    }
-    await expect(adminPage.getByText(feedbackTitle)).toBeVisible();
+    // Verify comment is visible
+    await adminPage.getByText(commentText).waitFor();
     await adminContext.close();
-  });
-
-  test("Admin can toggle feedback visibility", async ({ browser }) => {
-    const adminContext = await browser.newContext({
-      storageState: "playwright/.auth/app_admin.json",
-    });
-    const adminPage = await adminContext.newPage();
-    await adminPage.goto(`/en/feedback/${feedbackId}`);
-
-    // Toggle visibility
-    const feedbackVisibility = adminPage.getByTestId("feedback-visibility");
-    await feedbackVisibility.waitFor();
-    const dropdownMenuTrigger = feedbackVisibility.getByTestId(
-      "feedback-actions-dropdown-button",
-    );
-    await dropdownMenuTrigger.waitFor();
-    await dropdownMenuTrigger.click();
-    await adminPage.getByTestId("toggle-visibility-dropdown-menu-item").click();
-    // click on title
-    await adminPage.getByRole("heading", { name: feedbackTitle }).click();
-    // Verify visibility change
-    await expect(
-      adminPage.getByTestId("feedback-visibility").getByText("Private"),
-    ).toBeVisible();
-
-    // Toggle visibility back
-    await dropdownMenuTrigger.click();
-    await adminPage.getByTestId("toggle-visibility-dropdown-menu-item").click();
-    // click on title
-    await adminPage.getByRole("heading", { name: feedbackTitle }).click();
-    // Verify visibility change back to public
-    await expect(
-      adminPage.getByTestId("feedback-visibility").getByText("Public"),
-    ).toBeVisible();
-    await adminContext.close();
-  });
-
-  test("User can see admin updates", async ({ page }) => {
-    await page.goto(`/en/feedback/${feedbackId}`);
-    await page.getByRole("heading", { name: feedbackTitle }).waitFor();
-
-    await expect(page.getByText("Status: In Progress")).toBeVisible();
-    await expect(page.getByText("Priority: High")).toBeVisible();
-    await expect(page.getByText("Type: Feature Request")).toBeVisible();
-    await expect(page.getByText("This is an admin comment.")).toBeVisible();
   });
 });

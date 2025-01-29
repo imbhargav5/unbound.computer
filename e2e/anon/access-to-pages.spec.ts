@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("Anonymous access to pages", () => {
+test.describe.parallel("Anonymous access to pages", () => {
   test("Anon users can see home page", async ({ page }) => {
     // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
     await page.goto("/");

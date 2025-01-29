@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("User access to pages", () => {
+test.describe.parallel("User access to pages", () => {
   test("Logged in users can see home page", async ({ page }) => {
     // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
     await page.goto("/");
@@ -57,12 +57,14 @@ test.describe.skip("User access to pages", () => {
 
   test("Logged in users can see dashboard", async ({ page }) => {
     await page.goto("/en/dashboard");
-    await page.getByTestId("dashboard-title").waitFor();
+    await page.waitForSelector("[data-testid='workspaceId']", {
+      state: "attached",
+    });
   });
 
-  test("Anon users can not see admin", async ({ page }) => {
+  test("Logged in users can not see admin", async ({ page }) => {
     // expect that they are redirected to workspace dashboard page
     await page.goto("/en/app_admin");
-    await page.getByTestId("dashboard-title").waitFor();
+    await page.waitForURL("/en/home");
   });
 });

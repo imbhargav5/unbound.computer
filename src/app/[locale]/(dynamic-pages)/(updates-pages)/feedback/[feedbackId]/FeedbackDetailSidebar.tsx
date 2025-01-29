@@ -9,12 +9,91 @@ import {
 } from "@/data/admin/marketing-feedback";
 import { getAnonUserFeedbackById } from "@/data/anon/marketing-feedback";
 import { getLoggedInUserFeedbackById } from "@/data/user/marketing-feedback";
+import { Enum } from "@/types";
 import { UserRole } from "@/types/userTypes";
 import { serverGetUserType } from "@/utils/server/serverGetUserType";
 import { Flag, Info, Layout, ListTodo, Type } from "lucide-react";
 import { Suspense } from "react";
 import { BoardSelectionDialog } from "./BoardSelectionDialog";
 import { FeedbackAvatarServer } from "./FeedbackAvatarServer";
+
+const statusColorMap = {
+  planned: "bg-blue-500",
+  in_progress: "bg-yellow-500",
+  completed: "bg-green-500",
+  cancelled: "bg-red-500",
+};
+
+const priorityColorMap = {
+  low: "bg-gray-500",
+  medium: "bg-yellow-500",
+  high: "bg-orange-500",
+  urgent: "bg-red-500",
+};
+
+function getStatusColor(status: string) {
+  let defaultColor = "bg-gray-800";
+  const mappedColor = statusColorMap[status as keyof typeof statusColorMap];
+  if (mappedColor) {
+    defaultColor = mappedColor;
+  }
+  return defaultColor;
+}
+
+function getPriorityColor(priority: string) {
+  let defaultColor = "bg-gray-800";
+  const mappedColor =
+    priorityColorMap[priority as keyof typeof priorityColorMap];
+  if (mappedColor) {
+    defaultColor = mappedColor;
+  }
+  return defaultColor;
+}
+
+function getStatusText(status: Enum<"marketing_feedback_thread_status">) {
+  switch (status) {
+    case "planned":
+      return "Planned";
+    case "in_progress":
+      return "In Progress";
+    case "completed":
+      return "Completed";
+    case "closed":
+      return "Closed";
+    case "under_review":
+      return "Under Review";
+    case "moderator_hold":
+      return "Moderator Hold";
+    default:
+      return status;
+  }
+}
+
+function getPriorityText(priority: Enum<"marketing_feedback_thread_priority">) {
+  switch (priority) {
+    case "low":
+      return "Low";
+    case "medium":
+      return "Medium";
+    case "high":
+      return "High";
+    default:
+      return priority;
+  }
+}
+
+function getTypeText(type: Enum<"marketing_feedback_thread_type">) {
+  switch (type) {
+    case "feature_request":
+      return "Feature Request";
+    case "bug":
+      return "Bug";
+    case "general":
+      return "General";
+    default:
+      return type;
+  }
+}
 
 function RecentFeedbackSkeleton() {
   return (
@@ -53,39 +132,6 @@ export async function FeedbackDetailSidebar({
     ? await getBoardById(feedback.board_id)
     : null;
 
-  const statusColorMap = {
-    planned: "bg-blue-500",
-    in_progress: "bg-yellow-500",
-    completed: "bg-green-500",
-    cancelled: "bg-red-500",
-  };
-
-  const priorityColorMap = {
-    low: "bg-gray-500",
-    medium: "bg-yellow-500",
-    high: "bg-orange-500",
-    urgent: "bg-red-500",
-  };
-
-  function getStatusColor(status: string) {
-    let defaultColor = "bg-gray-800";
-    const mappedColor = statusColorMap[status as keyof typeof statusColorMap];
-    if (mappedColor) {
-      defaultColor = mappedColor;
-    }
-    return defaultColor;
-  }
-
-  function getPriorityColor(priority: string) {
-    let defaultColor = "bg-gray-800";
-    const mappedColor =
-      priorityColorMap[priority as keyof typeof priorityColorMap];
-    if (mappedColor) {
-      defaultColor = mappedColor;
-    }
-    return defaultColor;
-  }
-
   return (
     <div className="w-64 flex-shrink-0 space-y-4 hidden md:block">
       <Card>
@@ -114,8 +160,11 @@ export async function FeedbackDetailSidebar({
             <ListTodo className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm capitalize">
               Status:{" "}
-              <Badge className={getStatusColor(feedback.status)}>
-                {feedback.status}
+              <Badge
+                data-testid="feedback-status-badge"
+                className={getStatusColor(feedback.status)}
+              >
+                {getStatusText(feedback.status)}
               </Badge>
             </span>
           </div>
@@ -123,7 +172,13 @@ export async function FeedbackDetailSidebar({
           <div className="flex items-center gap-2">
             <Type className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm capitalize">
-              Type: <Badge variant="outline">{feedback.type}</Badge>
+              Type:{" "}
+              <Badge
+                data-testid="feedback-type-badge"
+                className={feedback.type}
+              >
+                {getTypeText(feedback.type)}
+              </Badge>
             </span>
           </div>
 
@@ -131,8 +186,11 @@ export async function FeedbackDetailSidebar({
             <Flag className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm capitalize">
               Priority:{" "}
-              <Badge className={getPriorityColor(feedback.priority)}>
-                {feedback.priority}
+              <Badge
+                data-testid="feedback-priority-badge"
+                className={getPriorityColor(feedback.priority)}
+              >
+                {getPriorityText(feedback.priority)}
               </Badge>
             </span>
           </div>

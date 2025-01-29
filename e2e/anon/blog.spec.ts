@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.skip("Anon users can see blog list page", async ({ page }) => {
+test("Anon users can see blog list page", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Blog" }).click();
   await expect(

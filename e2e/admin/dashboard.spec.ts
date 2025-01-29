@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-test.describe.skip("admin panel", () => {
+test.describe.serial("admin panel", () => {
   test("go to admin panel", async ({ browser }) => {
     const adminContext = await browser.newContext({
       storageState: "playwright/.auth/app_admin.json",

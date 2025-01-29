@@ -1,8 +1,6 @@
 import { getCachedUserProfile } from "@/rsc-data/user/user";
 import { getUserAvatarUrl } from "@/utils/helpers";
-import {
-  serverGetLoggedInUserVerified
-} from "@/utils/server/serverGetLoggedInUser";
+import { serverGetLoggedInUserVerified } from "@/utils/server/serverGetLoggedInUser";
 import {
   BadgeCheck,
   ChevronsUpDown,
@@ -39,13 +37,14 @@ async function SidebarFooterUserMenu() {
     profileAvatarUrl: data.avatar_url,
   });
   return (
-    <SidebarMenu>
+    <SidebarMenu data-testid="sidebar-user-nav-menu">
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              data-testid="sidebar-user-nav-avatar-button"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage

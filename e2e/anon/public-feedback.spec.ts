@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("Anonymous users can view public feedback", () => {
+test.describe.serial("Anonymous users can view public feedback", () => {
   test("Public feedback is visible on the feedback list page", async ({
     page,
   }) => {
