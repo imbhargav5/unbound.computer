@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("Blog Post Management", () => {
+test.describe.serial("Blog Post Management", () => {
   let blogPostId: string | undefined;
   let blogPostTitle: string | undefined;
 
