@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("Changelog Management", () => {
+test.describe.serial("Changelog Management", () => {
   let changelogId: string | undefined;
   let changelogTitle: string | undefined;
 
