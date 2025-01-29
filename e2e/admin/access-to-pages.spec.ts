@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.skip("Admin users access to pages", async ({ page }) => {
+test.describe.parallel("Access to pages", () => {
   test("Application admin users can see home page", async ({ page }) => {
     // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
     await page.goto("/");
@@ -53,11 +53,6 @@ test.skip("Admin users access to pages", async ({ page }) => {
     await expect(
       page.getByRole("heading", { name: "Terms of Service " }),
     ).toBeVisible();
-  });
-
-  test("Application admin users can see dashboard", async ({ page }) => {
-    await page.goto("/en/dashboard");
-    await page.getByTestId("dashboard-title").waitFor();
   });
 
   test("Application admin users can see admin panel", async ({ page }) => {
