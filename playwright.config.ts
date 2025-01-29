@@ -10,15 +10,16 @@ const baseURL = `http://localhost:${PORT}`;
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
   // highest number of workers in a m3 pro max
-  workers: 4,
+  workers: process.env.CI ? 1 : 4,
   // Timeout per test
-  timeout: 120 * 1000,
+  timeout: process.env.CI ? 60 * 1000 : 120 * 1000,
   // Test directory
   testDir: path.join(__dirname, "e2e"),
   // If a test fails, retry it additional 2 times
   retries: 2,
   // Artifacts folder where screenshots, videos, and traces are stored.
   outputDir: "test-results/",
+  reporter: process.env.CI ? "github" : "list",
 
   // Run your local dev server before starting the tests:
   // https://playwright.dev/docs/test-advanced#launching-a-development-web-server-during-the-tests
