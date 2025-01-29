@@ -39,7 +39,7 @@ function UpdatesNavigation() {
       </div>
 
       {/* Desktop Navigation */}
-      <div className="hidden md:flex h-14 max-w-screen-2xl items-center">
+      <div className="hidden md:flex h-14 max-w-4xl w-full items-center">
         <div className="flex items-center gap-8">
           <ul className="flex gap-8 font-medium items-center">
             {links.map(({ name, href }) => (
