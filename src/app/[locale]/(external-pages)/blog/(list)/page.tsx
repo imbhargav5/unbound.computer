@@ -37,7 +37,7 @@ export default async function BlogListPage(props: {
   return (
     <div className="space-y-8 w-full">
       <div className="flex items-center flex-col space-y-4">
-        <div className="space-y-3 mb-6 text-center">
+        <div className="space-y-2 text-center">
           <T.Subtle>Blog</T.Subtle>
           <T.H1>All blog posts</T.H1>
           <T.P className="text-xl leading-[30px] text-muted-foreground">
