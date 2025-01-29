@@ -18,6 +18,7 @@ import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 
+import { MdxLink } from "@/components/mdxComponents/MdxLink";
 import { routing } from "@/i18n/routing";
 import { cn } from "@/utils/cn";
 import type { HTMLAttributes } from "react";
@@ -27,7 +28,7 @@ function Wrapper(props: HTMLAttributes<HTMLDivElement>): React.ReactElement {
     <div
       {...props}
       className={cn(
-        "rounded-xl bg-gradient-to-br from-pink-500 to-blue-500 p-4 prose-no-margin",
+        "rounded-xl bg-gradient-to-br from-pink-500 to-blue-500 p-4 wysiwyg-no-margin",
         props.className,
       )}
     >
@@ -45,7 +46,7 @@ export default async function Page(props0: {
 }) {
   const params = await props0.params;
   const page = getPage(params.slug);
-
+  console.log(defaultMdxComponents);
   if (!page) {
     notFound();
   }
@@ -53,7 +54,7 @@ export default async function Page(props0: {
     <DocsPage toc={page.data.toc as TOCItemType[]} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
-      <DocsBody>
+      <DocsBody className="nextbase-docs-body">
         <MDXContent
           code={page.data.body}
           components={{
@@ -84,6 +85,7 @@ export default async function Page(props0: {
                 <Pre>{props.children}</Pre>
               </CodeBlock>
             ),
+            a: MdxLink,
             Tab,
             Tabs,
           }}

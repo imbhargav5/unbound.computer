@@ -4,16 +4,20 @@ import { createPreset } from "fumadocs-ui/tailwind-plugin";
 import animate from "tailwindcss-animate";
 import colors from "tailwindcss/colors";
 import defaultTheme from "tailwindcss/defaultTheme";
-
 /** @type {import('tailwindcss').Config} */
 export default {
-  presets: [createPreset()],
+  presets: [
+    createPreset({
+      preset: "vitepress",
+    }),
+  ],
   darkMode: ["selector", "class"],
   content: [
     "./node_modules/fumadocs-ui/dist/**/*.js",
     "./src/app/**/*.tsx",
     "./src/components/**/*.tsx",
     "./src/content/**/*.mdx",
+    "./src/mdx-components.ts",
     // constants files has a few color declarations.
     "./src/constants.ts",
   ],
@@ -150,5 +154,11 @@ export default {
     },
   },
 
-  plugins: [animate, typography, forms],
+  plugins: [
+    animate,
+    typography({
+      className: "wyiswyg",
+    }),
+    forms,
+  ],
 };

@@ -11,7 +11,7 @@ const fadeIn = {
 
 export default function DocsPage() {
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl">
+    <div className="max-w-4xl mx-auto px-4 py-12 max-w-3xl">
       <motion.h1 className="text-4xl font-bold mb-6" {...fadeIn}>
         Documentation
       </motion.h1>

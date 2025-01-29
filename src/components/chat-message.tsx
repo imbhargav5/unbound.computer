@@ -38,7 +38,7 @@ export function ChatMessage({ message, ...props }: ChatMessageProps) {
         )}
       >
         <CardContent className="p-3">
-          <div className="prose dark:prose-invert">
+          <div className="wyiswyg dark:wysiwyg-invert">
             <MemoizedReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
               components={{

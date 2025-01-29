@@ -1,6 +1,6 @@
 @tailwind base;
-@tailwind utilities;
 @tailwind components;
+@tailwind utilities;
 
 @layer base {
   :root {
@@ -287,4 +287,17 @@
   background-size: 2em 2em;
   background-color: #ffffff;
   opacity: 1;
+}
+
+.prose {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    a.peer {
+      text-decoration: none;
+    }
+  }
 }

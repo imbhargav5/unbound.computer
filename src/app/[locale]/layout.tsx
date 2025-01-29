@@ -38,7 +38,7 @@ export default async function RootLayout(props: {
       className={GeistSans.className}
       suppressHydrationWarning
     >
-      <body className="">
+      <body className="flex flex-col min-h-screen">
         <AppProviders locale={locale} messages={messages}>
           {children}
         </AppProviders>

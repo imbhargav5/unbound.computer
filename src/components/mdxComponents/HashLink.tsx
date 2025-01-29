@@ -1,14 +1,6 @@
 "use client";
-import Link, { LinkProps } from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import React, { ComponentProps, useEffect } from "react";
-import { match } from "path-to-regexp";
 import { cn } from "@/utils/cn";
-
-type TocListItemProps = {
-  children: ({ isActive }: { isActive: boolean }) => React.ReactNode;
-  hash: string;
-};
+import React, { ComponentProps, useEffect } from "react";
 
 const useLocationHash = () => {
   const [hash, setHash] = React.useState<string | null>(null);

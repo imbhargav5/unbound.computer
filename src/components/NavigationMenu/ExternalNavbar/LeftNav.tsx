@@ -2,8 +2,6 @@
 
 import { Link } from "@/components/intl-link";
 import { cn } from "@/utils/cn";
-import acmeLightLogo from "@public/logos/acme-logo-dark.png";
-import acmeDarkLogo from "@public/logos/acme-logo-light.png";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { DocsMobileNavigation } from "./DocsMobileNavigation";
@@ -20,23 +18,22 @@ export function LeftNav() {
       <DocsMobileNavigation />
       <div className="flex space-x-8">
         <Link href="/" className={cn("font-bold text-xl ")}>
-          <div className="relative flex space-x-2 h-10 md:w-fit items-center justify-center text-black dark:text-white dark:-ml-4 -ml-2">
+          <div className="relative flex space-x-2 h-10 md:w-fit items-center justify-center dark:-ml-4 -ml-2">
             <Image
-              src={acmeLightLogo}
+              src={`/logos/acme-logo-dark.png`}
               width={40}
               height={40}
-              alt="logo"
-              className="dark:hidden block h-8 w-8"
+              alt="light-logo"
             />
-            <Image
-              src={acmeDarkLogo}
-              width={40}
-              height={40}
-              alt="logo"
-              className="hidden dark:block h-8 w-8"
-            />
-            {isBlogPage && <span className="font-bold">Nextbase Blog</span>}
-            {isDocsPage && <span className="font-bold">Nextbase Docs</span>}
+
+            {isBlogPage && (
+              <span className="font-bold text-foreground">Nextbase Blog</span>
+            )}
+            {isDocsPage && (
+              <span className="font-bold font-bold text-foreground">
+                Nextbase Docs
+              </span>
+            )}
             {!isBlogPage && !isDocsPage && (
               <span className="font-bold">Nextbase</span>
             )}

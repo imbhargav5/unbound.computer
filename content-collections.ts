@@ -4,6 +4,7 @@ import {
   createMetaSchema,
   transformMDX,
 } from "@fumadocs/content-collections/configuration";
+import { remarkGfm, remarkHeading } from "fumadocs-core/mdx-plugins";
 import { remarkInstall } from "fumadocs-docgen";
 
 const docs = defineCollection({
@@ -14,7 +15,7 @@ const docs = defineCollection({
   transform: (document, context) =>
     transformMDX(document, context, {
       // options here
-      remarkPlugins: [remarkInstall],
+      remarkPlugins: [remarkInstall, remarkHeading, remarkGfm],
     }),
 });
 

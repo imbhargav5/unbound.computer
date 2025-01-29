@@ -77,7 +77,7 @@ export default async function BlogPostPage(props: {
             className="aspect-[16/9] w-full rounded-2xl bg-gray-100 object-cover sm:aspect-[2/1] lg:aspect-[3/2]"
           />
         ) : null}
-        <div className="prose prose-lg dark:prose-invert prose-headings:font-display font-default focus:outline-none max-w-full">
+        <div className="wyiswyg wysiwyg-lg dark:wysiwyg-invert wysiwyg-headings:font-display font-default focus:outline-none max-w-full">
           <h1>{post.title}</h1>
           <TiptapJSONContentToHTML jsonContent={post.json_content} />
         </div>

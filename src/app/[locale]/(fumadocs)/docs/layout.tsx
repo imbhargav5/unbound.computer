@@ -1,4 +1,5 @@
 import { pageTree } from "@/app/[locale]/source";
+import { baseOptions } from "@/app/layout.config";
 import { RootToggle } from "fumadocs-ui/components/layout/root-toggle";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { Home } from "lucide-react";
@@ -39,10 +40,7 @@ export default function RootDocsLayout({ children }: { children: ReactNode }) {
           active: "none",
         },
       ]}
-      nav={{
-        title: "Nextbase Docs",
-        url: "/docs",
-      }}
+      {...baseOptions}
     >
       {children}
     </DocsLayout>
