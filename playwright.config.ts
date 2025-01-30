@@ -29,6 +29,9 @@ const config: PlaywrightTestConfig = {
     timeout: 120 * 1000,
     // reuseExistingServer: !process.env.CI,
   },
+  expect: {
+    timeout: process.env.CI ? 15 * 1000 : 5 * 1000,
+  },
 
   use: {
     // Use baseURL so to make navigations relative.
