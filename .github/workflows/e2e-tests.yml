@@ -19,6 +19,18 @@ jobs:
       - name: Set up Node.js
         uses: ./.github/actions/ci-setup
 
+      # Add cache for Playwright browsers
+      - name: Get installed Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm ls @playwright/test | grep @playwright | cut -d'@' -f3)" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright-version.outputs.version }}
+
       - name: Set up supabase
         uses: supabase/setup-cli@v1
         with:
@@ -28,7 +40,9 @@ jobs:
       - name: Start Supabase
         run: supabase start
 
+      # Only install browsers if cache miss
       - name: Install playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps
 
       - name: Run e2e tests
