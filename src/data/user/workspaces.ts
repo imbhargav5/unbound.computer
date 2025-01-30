@@ -599,11 +599,7 @@ export const updateWorkspaceInfoAction = authActionClient
         workspaceMembershipType,
         "/",
       );
-      if (workspaceMembershipType !== "solo") {
-        revalidatePath(revalidateLayoutPath, "layout");
-      } else {
-        revalidatePath(revalidateLayoutPath, "layout");
-      }
+      revalidatePath(revalidateLayoutPath, "layout");
 
       return data;
     },

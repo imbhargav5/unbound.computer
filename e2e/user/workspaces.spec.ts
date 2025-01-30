@@ -61,6 +61,9 @@ test.describe.serial("Solo Workspace", () => {
 
     await page.getByRole("button", { name: "Update" }).click();
 
+    await page.waitForTimeout(2000);
+    await page.reload();
+
     // Then verify the new value
     await expect(async () => {
       const workspaceNameElement = await page.waitForSelector(
@@ -145,7 +148,8 @@ test.describe.serial("Team Workspace", () => {
     await page.waitForTimeout(500);
 
     await page.getByRole("button", { name: "Update" }).click();
-
+    await page.waitForTimeout(2000);
+    await page.reload();
     // Then verify the new value
     await expect(async () => {
       const workspaceNameElement = await page.waitForSelector(
