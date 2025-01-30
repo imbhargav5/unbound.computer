@@ -570,7 +570,7 @@ export const setDefaultWorkspaceAction = authActionClient
 
 const updateWorkspaceInfoSchema = z.object({
   workspaceId: z.string(),
-  title: z.string(),
+  name: z.string(),
   slug: z.string(),
   workspaceMembershipType: z.enum(["solo", "team"]),
 });
@@ -579,13 +579,13 @@ export const updateWorkspaceInfoAction = authActionClient
   .schema(updateWorkspaceInfoSchema)
   .action(
     async ({
-      parsedInput: { workspaceId, title, slug, workspaceMembershipType },
+      parsedInput: { workspaceId, name, slug, workspaceMembershipType },
     }) => {
       const supabase = await createSupabaseUserServerActionClient();
       const { data, error } = await supabase
         .from("workspaces")
         .update({
-          title,
+          name,
           slug,
         })
         .eq("id", workspaceId)
