@@ -41,7 +41,10 @@ export const BlogList: React.FC<BlogListProps> = ({ posts }) => {
         </TableHeader>
         <TableBody>
           {posts.map((post) => (
-            <TableRow key={post.id}>
+            <TableRow
+              key={post.id}
+              data-testid={`admin-blog-list-row-${post.id}`}
+            >
               <TableCell>{post.title}</TableCell>
               <TableCell>{post.slug}</TableCell>
               <TableCell>

@@ -101,7 +101,8 @@ test.describe.serial("Blog Post Management", () => {
     await adminPage.getByRole("button", { name: "Update Blog Post" }).click();
 
     await adminPage.getByRole("link", { name: "Marketing Blog" }).click();
-    const statusCell = adminPage.getByRole("cell", { name: "Draft" });
+    const row = adminPage.getByTestId(`admin-blog-list-row-${blogPostId}`);
+    const statusCell = row.getByRole("cell", { name: "Draft" });
     await expect(statusCell).toBeVisible();
 
     await adminContext.close();

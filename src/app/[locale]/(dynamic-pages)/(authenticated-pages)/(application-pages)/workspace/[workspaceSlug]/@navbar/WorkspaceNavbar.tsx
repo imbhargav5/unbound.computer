@@ -48,6 +48,7 @@ export async function WorkspaceNavbar({
 }) {
   try {
     const { workspaceSlug } = workspaceSlugParamSchema.parse(await params);
+    console.log("workspaceSlug navbar", workspaceSlug);
     const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
     return (
       <div className="flex items-center">

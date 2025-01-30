@@ -61,9 +61,6 @@ test.describe.serial("Solo Workspace", () => {
 
     await page.getByRole("button", { name: "Update" }).click();
 
-    await page.waitForTimeout(2000);
-    await page.reload();
-
     // Then verify the new value
     await expect(async () => {
       const workspaceNameElement = await page.waitForSelector(
@@ -146,10 +143,16 @@ test.describe.serial("Team Workspace", () => {
 
     // Wait for the slug to be automatically generated
     await page.waitForTimeout(500);
+    // get slug
+    const newSlug = await page
+      .getByTestId("edit-workspace-slug-input")
+      .inputValue();
 
     await page.getByRole("button", { name: "Update" }).click();
-    await page.waitForTimeout(2000);
-    await page.reload();
+
+    // Replace waitForURL with direct navigation
+    await page.goto(`/workspace/${newSlug}/home`);
+
     // Then verify the new value
     await expect(async () => {
       const workspaceNameElement = await page.waitForSelector(

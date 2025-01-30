@@ -589,7 +589,7 @@ export const updateWorkspaceInfoAction = authActionClient
           slug,
         })
         .eq("id", workspaceId)
-        .select("*")
+        .select("*, workspace_application_settings(membership_type)")
         .single();
 
       if (error) {
@@ -601,7 +601,11 @@ export const updateWorkspaceInfoAction = authActionClient
       );
       revalidatePath(revalidateLayoutPath, "layout");
 
-      return data;
+      return {
+        ...data,
+        membershipType:
+          data.workspace_application_settings?.membership_type ?? "solo",
+      };
     },
   );
 

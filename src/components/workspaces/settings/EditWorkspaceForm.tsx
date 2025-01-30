@@ -44,7 +44,7 @@ export function EditWorkspaceForm({ workspace }: EditFormProps) {
       toast.success("Workspace information updated!", { id: toastRef.current });
       toastRef.current = undefined;
       if (data?.slug) {
-        router.push(getWorkspaceSubPath(workspace, "/home"));
+        window.location.href = getWorkspaceSubPath(data, "/home");
       }
     },
     onError: ({ error }) => {
@@ -58,7 +58,7 @@ export function EditWorkspaceForm({ workspace }: EditFormProps) {
   const onSubmit: SubmitHandler<CreateWorkspaceSchema> = (data) => {
     execute({
       workspaceId: workspace.id,
-      title: data.name,
+      name: data.name,
       slug: data.slug ?? generateWorkspaceSlug(data.name),
       workspaceMembershipType: workspace.membershipType,
     });
