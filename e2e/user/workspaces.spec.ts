@@ -62,12 +62,11 @@ test.describe.serial("Solo Workspace", () => {
     await page.getByRole("button", { name: "Update" }).click();
 
     await page.waitForFunction(
-      async (newTitle) => {
-        const titleElement = page.getByTestId("workspaceName");
-        const currentTitle = await titleElement.textContent();
-        return currentTitle === newTitle;
+      ([title]) => {
+        const element = document.querySelector('[data-testid="workspaceName"]');
+        return element?.textContent === title;
       },
-      newTitle,
+      [newTitle],
       { timeout: 15000 },
     );
   });
@@ -142,12 +141,11 @@ test.describe.serial("Team Workspace", () => {
     await page.getByRole("button", { name: "Update" }).click();
 
     await page.waitForFunction(
-      async (newTitle) => {
-        const titleElement = page.getByTestId("workspaceName");
-        const currentTitle = await titleElement.textContent();
-        return currentTitle === newTitle;
+      ([title]) => {
+        const element = document.querySelector('[data-testid="workspaceName"]');
+        return element?.textContent === title;
       },
-      newTitle,
+      [newTitle],
       { timeout: 15000 },
     );
   });
