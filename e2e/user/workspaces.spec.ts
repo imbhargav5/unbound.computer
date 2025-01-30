@@ -59,16 +59,20 @@ test.describe.serial("Solo Workspace", () => {
     // Wait for the slug to be automatically generated
     await page.waitForTimeout(500);
 
+    // Get the current title before update
+    const workspaceNameElement = page.getByTestId("workspaceName");
+    const oldTitle = await workspaceNameElement.textContent();
+
     await page.getByRole("button", { name: "Update" }).click();
 
-    await page.waitForFunction(
-      ([title]) => {
-        const element = document.querySelector('[data-testid="workspaceName"]');
-        return element?.textContent === title;
-      },
-      [newTitle],
-      { timeout: 15000 },
-    );
+    if (oldTitle) {
+      // First wait for old value to disappear
+      await expect(workspaceNameElement).not.toHaveText(oldTitle, {
+        timeout: 15000,
+      });
+    }
+    // Then verify the new value
+    await expect(workspaceNameElement).toHaveText(newTitle, { timeout: 15000 });
   });
 });
 
@@ -138,15 +142,20 @@ test.describe.serial("Team Workspace", () => {
     // Wait for the slug to be automatically generated
     await page.waitForTimeout(500);
 
+    // Get the current title before update
+    const workspaceNameElement = page.getByTestId("workspaceName");
+    const oldTitle = await workspaceNameElement.textContent();
+
     await page.getByRole("button", { name: "Update" }).click();
 
-    await page.waitForFunction(
-      ([title]) => {
-        const element = document.querySelector('[data-testid="workspaceName"]');
-        return element?.textContent === title;
-      },
-      [newTitle],
-      { timeout: 15000 },
-    );
+    // First wait for old value to disappear
+    if (oldTitle) {
+      gq;
+      await expect(workspaceNameElement).not.toHaveText(oldTitle, {
+        timeout: 15000,
+      });
+    }
+    // Then verify the new value
+    await expect(workspaceNameElement).toHaveText(newTitle, { timeout: 15000 });
   });
 });
