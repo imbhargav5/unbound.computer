@@ -54,6 +54,7 @@ test.describe.serial("Solo Workspace", () => {
 
     const newTitle = new Chance().word();
     const titleInput = page.getByTestId("edit-workspace-title-input");
+    await titleInput.clear();
     await titleInput.fill(newTitle);
 
     // Wait for the slug to be automatically generated
@@ -139,6 +140,7 @@ test.describe.serial("Team Workspace", () => {
 
     const newTitle = new Chance().word();
     const titleInput = page.getByTestId("edit-workspace-title-input");
+    await titleInput.clear();
     await titleInput.fill(newTitle);
 
     // Wait for the slug to be automatically generated
