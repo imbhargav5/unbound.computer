@@ -21,7 +21,6 @@ test.describe("Workspace", () => {
     await form.locator("input#name").fill("Lorem Ipsum");
     // read the slug from the form using data-testid
     const slug = await form.getByTestId("workspace-slug-input").inputValue();
-    console.log(slug);
     expect(slug).toBeTruthy();
     await form.getByRole("button", { name: "Create Workspace" }).click();
     // playwright wait for url change
@@ -88,7 +87,6 @@ test.describe("Workspace", () => {
       });
       const user2Page = await user2Context.newPage();
       const user2Cookies = await user2Context.cookies();
-      console.log(user2Cookies);
       const user2JWTCookie = user2Cookies.find(
         (cookie) => cookie.name === "sb-localhost-auth-token",
       );
@@ -188,7 +186,6 @@ test.describe("Workspace", () => {
       });
 
       const inviteeCookies = await inviteeContext.cookies();
-      console.log(inviteeCookies);
       const inviteeJWTCookie = inviteeCookies.find(
         (cookie) => cookie.name === "sb-localhost-auth-token",
       );

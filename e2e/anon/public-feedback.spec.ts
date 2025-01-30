@@ -29,7 +29,6 @@ test.describe.serial("Anonymous users can view public feedback", () => {
     const feedbackItems = await page.getByTestId("feedback-item").all();
 
     if (feedbackItems.length > 0) {
-      console.log("Feedback items:", feedbackItems[0]);
       await feedbackItems[0].waitFor();
       // Click on the first feedback item
       await feedbackItems[0].click();
@@ -38,7 +37,6 @@ test.describe.serial("Anonymous users can view public feedback", () => {
       await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
       const url = page.url();
       const feedbackId = url.split("/").pop();
-      console.log("Feedback ID:", feedbackId);
 
       const feedbackVisibility = page.getByTestId("feedback-visibility");
       await expect(feedbackVisibility).toBeVisible();

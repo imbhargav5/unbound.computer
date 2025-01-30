@@ -59,20 +59,22 @@ test.describe.serial("Solo Workspace", () => {
     // Wait for the slug to be automatically generated
     await page.waitForTimeout(500);
 
-    // Get the current title before update
-    const workspaceNameElement = page.getByTestId("workspaceName");
-    const oldTitle = await workspaceNameElement.textContent();
-
     await page.getByRole("button", { name: "Update" }).click();
 
-    if (oldTitle) {
-      // First wait for old value to disappear
-      await expect(workspaceNameElement).not.toHaveText(oldTitle, {
-        timeout: 15000,
-      });
-    }
     // Then verify the new value
-    await expect(workspaceNameElement).toHaveText(newTitle, { timeout: 15000 });
+    await expect(async () => {
+      const workspaceNameElement = await page.waitForSelector(
+        "[data-testid='workspaceName']",
+        {
+          state: "attached",
+        },
+      );
+      const text = await workspaceNameElement.textContent();
+      expect(text).toBe(newTitle);
+    }).toPass({
+      intervals: [1000, 2000, 5000],
+      timeout: 15000,
+    });
   });
 });
 
@@ -142,20 +144,21 @@ test.describe.serial("Team Workspace", () => {
     // Wait for the slug to be automatically generated
     await page.waitForTimeout(500);
 
-    // Get the current title before update
-    const workspaceNameElement = page.getByTestId("workspaceName");
-    const oldTitle = await workspaceNameElement.textContent();
-
     await page.getByRole("button", { name: "Update" }).click();
 
-    // First wait for old value to disappear
-    if (oldTitle) {
-      gq;
-      await expect(workspaceNameElement).not.toHaveText(oldTitle, {
-        timeout: 15000,
-      });
-    }
     // Then verify the new value
-    await expect(workspaceNameElement).toHaveText(newTitle, { timeout: 15000 });
+    await expect(async () => {
+      const workspaceNameElement = await page.waitForSelector(
+        "[data-testid='workspaceName']",
+        {
+          state: "attached",
+        },
+      );
+      const text = await workspaceNameElement.textContent();
+      expect(text).toBe(newTitle);
+    }).toPass({
+      intervals: [1000, 2000, 5000],
+      timeout: 15000,
+    });
   });
 });

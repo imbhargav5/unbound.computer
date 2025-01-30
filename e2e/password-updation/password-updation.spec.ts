@@ -51,7 +51,6 @@ test.describe.serial("Password management", () => {
         const message = await requestContext
           .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessage.id}`)
           .then((res) => res.json());
-        console.log("reset password", message.body.text);
         const urlMatch = message.body.text.match(/Reset password \( (.+) \)/);
         if (!urlMatch) {
           console.error("Email content:", message.body.text);

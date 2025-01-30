@@ -7,7 +7,6 @@ async function getConfirmEmail(username: string): Promise<{
   token: string;
   url: string;
 }> {
-  console.log(username);
   const requestContext = await request.newContext();
   const now = new Date().getTime();
   const messages = await requestContext

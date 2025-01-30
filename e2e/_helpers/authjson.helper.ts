@@ -1,18 +1,21 @@
 import "core-js/stable/atob";
 import { z } from "zod";
 
-const jwtSchema = z.object({
-  user: z.object({
-    id: z.string(),
-    email: z.string(),
-  }).passthrough(),
-}).passthrough();
-
+const jwtSchema = z
+  .object({
+    user: z
+      .object({
+        id: z.string(),
+        email: z.string(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
 
 export function getUserDetailsFromAuthJson(authJsonString: string) {
   try {
     // Remove the 'base64-' prefix if present
-    const jsonString = authJsonString.startsWith('base64-')
+    const jsonString = authJsonString.startsWith("base64-")
       ? authJsonString.slice(7)
       : authJsonString;
 
@@ -21,7 +24,6 @@ export function getUserDetailsFromAuthJson(authJsonString: string) {
 
     // Parse the JSON
     const authJson = JSON.parse(decodedJson);
-    console.log(authJson)
     // Validate the auth JSON structure
     const { user } = jwtSchema.parse(authJson);
 

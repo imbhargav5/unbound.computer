@@ -41,10 +41,7 @@ setup("check current database user and set admin role", async ({ page }) => {
     }
     const userId = data.id;
 
-    console.log(`User ID for ${emailAddress}:`, userId);
-
     await client.query("select make_user_app_admin($1)", [userId]);
-    console.log(`Admin role set for ${emailAddress}`);
     await page.goto(`/logout`);
     await loginUserHelper({ page, emailAddress });
 

@@ -66,7 +66,6 @@ async function getConfirmEmail(username: string): Promise<{
     // We've got the latest email. We're going to use regular
     // expressions to match the bits we need.
     const { token, url } = getTokenAndUrlFromEmailText(message.body.text);
-    console.log("url", url);
     return { token, url };
   }
 
