@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { Chance } from "chance";
 import {
   goToWorkspaceArea,
   matchPathAndExtractWorkspaceInfo,
@@ -51,7 +52,7 @@ test.describe.serial("Solo Workspace", () => {
       isSoloWorkspace,
     });
 
-    const newTitle = "Workspace Name Updated";
+    const newTitle = new Chance().word();
     const titleInput = page.getByTestId("edit-workspace-title-input");
     await titleInput.fill(newTitle);
 
@@ -59,12 +60,16 @@ test.describe.serial("Solo Workspace", () => {
     await page.waitForTimeout(500);
 
     await page.getByRole("button", { name: "Update" }).click();
-    await expect(
-      page.getByText("Workspace information updated!"),
-    ).toBeVisible();
 
-    const titleInput2 = page.getByTestId("edit-workspace-title-input");
-    await expect(titleInput2).toHaveValue(newTitle);
+    await page.waitForFunction(
+      async (newTitle) => {
+        const titleElement = page.getByTestId("workspaceName");
+        const currentTitle = await titleElement.textContent();
+        return currentTitle === newTitle;
+      },
+      newTitle,
+      { timeout: 15000 },
+    );
   });
 });
 
@@ -127,7 +132,7 @@ test.describe.serial("Team Workspace", () => {
       isSoloWorkspace,
     });
 
-    const newTitle = "Team Workspace Updated";
+    const newTitle = new Chance().word();
     const titleInput = page.getByTestId("edit-workspace-title-input");
     await titleInput.fill(newTitle);
 
@@ -135,11 +140,15 @@ test.describe.serial("Team Workspace", () => {
     await page.waitForTimeout(500);
 
     await page.getByRole("button", { name: "Update" }).click();
-    await expect(
-      page.getByText("Workspace information updated!"),
-    ).toBeVisible();
 
-    const titleInput2 = page.getByTestId("edit-workspace-title-input");
-    await expect(titleInput2).toHaveValue(newTitle);
+    await page.waitForFunction(
+      async (newTitle) => {
+        const titleElement = page.getByTestId("workspaceName");
+        const currentTitle = await titleElement.textContent();
+        return currentTitle === newTitle;
+      },
+      newTitle,
+      { timeout: 15000 },
+    );
   });
 });

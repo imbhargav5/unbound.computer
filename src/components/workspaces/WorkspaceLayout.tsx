@@ -20,6 +20,9 @@ async function WorkspaceTestIds({
       <span className="hidden" data-testid="workspaceId">
         {workspace.id}
       </span>
+      <span className="hidden" data-testid="workspaceName">
+        {workspace.name}
+      </span>
       <span className="hidden" data-testid="workspaceSlug">
         {workspace.slug}
       </span>
