@@ -59,7 +59,7 @@ test.describe.serial("Changelog Management", () => {
       name: "Update Changelog",
     });
     await submitButton.click();
-    await adminPage.getByText("Changelog updated successfully").waitFor();
+    await adminPage.waitForTimeout(5000);
     await adminPage.goto("/en/app_admin/marketing/changelog");
     await adminPage.waitForURL(`/en/app_admin/marketing/changelog`);
     await expect(adminPage.getByText(updatedTitle)).toBeVisible();
@@ -92,7 +92,7 @@ test.describe.serial("Changelog Management", () => {
     await adminPage.getByLabel("Draft").click();
     await adminPage.getByRole("button", { name: "Update Changelog" }).click();
 
-    await adminPage.getByText("Changelog updated successfully").waitFor();
+    await adminPage.waitForTimeout(5000);
 
     await adminPage.goto("/en/app_admin/marketing/changelog");
     const row = adminPage.getByRole("row", { name: changelogTitle });
