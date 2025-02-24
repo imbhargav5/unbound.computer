@@ -19,6 +19,7 @@ import { Typography } from "@/components/ui/Typography";
 import { getProjectsClient } from "@/data/user/client/projects";
 import type { Tables } from "@/lib/database.types";
 import { Enum } from "@/types";
+import { getIsWorkspaceAdmin } from "@/utils/workspaces";
 import {
   projectsFilterSchema,
   type ProjectsFilterSchema,
@@ -63,12 +64,12 @@ const STATUS_OPTIONS: {
 
 interface ProjectsTableProps {
   workspaceId: string;
-  isWorkspaceAdmin: boolean;
+  workspaceRole: Enum<"workspace_member_role_type">;
 }
 
 export function ProjectsTable({
   workspaceId,
-  isWorkspaceAdmin,
+  workspaceRole,
 }: ProjectsTableProps) {
   const router = useRouter();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -83,6 +84,7 @@ export function ProjectsTable({
     pageSize: 10,
   });
   const queryClient = useQueryClient();
+  const isWorkspaceAdmin = getIsWorkspaceAdmin(workspaceRole);
 
   const form = useForm<ProjectsFilterSchema>({
     resolver: zodResolver(projectsFilterSchema),
@@ -276,15 +278,20 @@ export function ProjectsTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  // Check if user can modify projects (not readonly)
+  const canModifyProjects = workspaceRole !== "readonly";
   return (
     <div className="">
       <div className="bg-background p-2 mb-2 flex justify-between items-end">
         <div>
           <Typography.H2 className="my-0">Projects</Typography.H2>
           <Typography.Subtle>
-            Manage your projects here. You can double click on a project to view
-            and edit it. You can delete projects by selecting them and choosing
-            the delete action(workspace admin only).
+            {canModifyProjects
+              ? "Manage your projects here. You can double click on a project to view and edit it."
+              : "View projects here. You have read-only access to this workspace."}
+            {isWorkspaceAdmin &&
+              " You can delete projects by selecting them and choosing the delete action."}
           </Typography.Subtle>
         </div>
         <Link href={`/workspace/${workspaceId}/projects`}>
@@ -327,22 +334,24 @@ export function ProjectsTable({
                     }}
                   />
                 )}
-                <CreateProjectDialog
-                  workspaceId={workspaceId}
-                  onSuccess={() => {
-                    queryClient.invalidateQueries({
-                      queryKey: [
-                        "projects",
-                        workspaceId,
-                        query,
-                        sorting,
-                        pageIndex,
-                        pageSize,
-                      ],
-                    });
-                    refetchProjects();
-                  }}
-                />
+                {canModifyProjects && (
+                  <CreateProjectDialog
+                    workspaceId={workspaceId}
+                    onSuccess={() => {
+                      queryClient.invalidateQueries({
+                        queryKey: [
+                          "projects",
+                          workspaceId,
+                          query,
+                          sorting,
+                          pageIndex,
+                          pageSize,
+                        ],
+                      });
+                      refetchProjects();
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -430,6 +439,7 @@ export function ProjectsTable({
         onClose={() => setEditingProject(null)}
         onSuccess={refetchProjects}
         isWorkspaceAdmin={isWorkspaceAdmin}
+        canModifyProjects={canModifyProjects}
       />
     </div>
   );

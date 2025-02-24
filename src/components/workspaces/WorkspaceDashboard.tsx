@@ -16,15 +16,13 @@ export type DashboardProps = {
 export async function WorkspaceDashboard({ workspaceSlug }: DashboardProps) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
-  const isWorkspaceAdmin =
-    workspaceRole === "admin" || workspaceRole === "owner";
   return (
     <DashboardClientWrapper>
       <WorkspaceGraphs />
       <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
         <ProjectsTable
           workspaceId={workspace.id}
-          isWorkspaceAdmin={isWorkspaceAdmin}
+          workspaceRole={workspaceRole}
         />
       </Suspense>
     </DashboardClientWrapper>

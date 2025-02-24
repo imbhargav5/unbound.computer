@@ -49,6 +49,7 @@ interface ProjectFormProps {
   onClose: () => void;
   onSuccess?: () => void;
   isWorkspaceAdmin: boolean;
+  canModifyProjects: boolean;
 }
 
 export function EditProjectForm({
@@ -56,6 +57,7 @@ export function EditProjectForm({
   onClose,
   onSuccess,
   isWorkspaceAdmin,
+  canModifyProjects,
 }: ProjectFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -101,9 +103,13 @@ export function EditProjectForm({
     >
       <div className="p-2">
         <div className="mb-8">
-          <Typography.H2>Edit Project</Typography.H2>
+          <Typography.H2>
+            {canModifyProjects ? "Edit Project" : "View Project"}
+          </Typography.H2>
           <Typography.Subtle>
-            Edit project details and status.
+            {canModifyProjects
+              ? "Edit project details and status."
+              : "View project details. You have read-only access."}
           </Typography.Subtle>
         </div>
         <Form {...form}>
@@ -115,7 +121,11 @@ export function EditProjectForm({
                 <FormItem>
                   <FormLabel>Project Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter project name" {...field} />
+                    <Input
+                      placeholder="Enter project name"
+                      {...field}
+                      disabled={!canModifyProjects}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -129,13 +139,14 @@ export function EditProjectForm({
                 <FormItem>
                   <FormLabel>Status</FormLabel>
                   <FormDescription className="text-sm text-muted-foreground mb-2">
-                    Only workspace admins and owners can modify the project
-                    status
+                    {isWorkspaceAdmin
+                      ? "As a workspace admin, you can modify the project status"
+                      : "Only workspace admins and owners can modify the project status"}
                   </FormDescription>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
-                    disabled={!isWorkspaceAdmin}
+                    disabled={!isWorkspaceAdmin || !canModifyProjects}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -171,14 +182,16 @@ export function EditProjectForm({
               </FormItem>
             )}
 
-            <div className="flex justify-end space-x-4">
-              <Button variant="outline" type="button" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
+            {canModifyProjects && (
+              <div className="flex justify-end space-x-4">
+                <Button variant="outline" type="button" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            )}
           </form>
         </Form>
       </div>

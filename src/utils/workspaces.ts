@@ -30,3 +30,15 @@ export function getWorkspaceSubPath(
   }
   return urlJoin(`/workspace/${arg}`, subPath);
 }
+
+export function getIsWorkspaceAdmin(
+  workspaceRole: Enum<"workspace_member_role_type">,
+) {
+  return workspaceRole === "admin" || workspaceRole === "owner";
+}
+
+export function getIsReadOnlyMember(
+  workspaceRole: Enum<"workspace_member_role_type">,
+) {
+  return workspaceRole === "readonly";
+}

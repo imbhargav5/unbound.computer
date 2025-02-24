@@ -20,15 +20,13 @@ export default async function Page(props: { params: Promise<unknown> }) {
 
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
   const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
-  const isWorkspaceAdmin =
-    workspaceRole === "admin" || workspaceRole === "owner";
 
   return (
     <DashboardClientWrapper>
       <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
         <ProjectsTable
           workspaceId={workspace.id}
-          isWorkspaceAdmin={isWorkspaceAdmin}
+          workspaceRole={workspaceRole}
         />
       </Suspense>
     </DashboardClientWrapper>
