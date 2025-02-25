@@ -16,14 +16,20 @@ import {
   getCachedSlimWorkspaces,
   getCachedSoloWorkspace,
 } from "@/rsc-data/user/workspaces";
-import { notFound } from "next/navigation";
-
+import { notFound, unstable_rethrow } from "next/navigation";
+import { Suspense } from "react";
+async function SoloWorkspaceTips() {
+  try {
+    const workspace = await getCachedSoloWorkspace();
+    return <SidebarTipsNav workspace={workspace} />;
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
 export async function ApplicationAdminSidebar() {
   try {
-    const [workspace, slimWorkspaces] = await Promise.all([
-      getCachedSoloWorkspace(),
-      getCachedSlimWorkspaces(),
-    ]);
+    const slimWorkspaces = await getCachedSlimWorkspaces();
     return (
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>
@@ -32,7 +38,9 @@ export async function ApplicationAdminSidebar() {
         <SidebarContent>
           <SidebarAdminPanelNav />
           <SidebarPlatformNav />
-          <SidebarTipsNav workspace={workspace} />
+          <Suspense>
+            <SoloWorkspaceTips />
+          </Suspense>
         </SidebarContent>
         <SidebarFooter>
           <SidebarFooterUserNav />
@@ -41,6 +49,8 @@ export async function ApplicationAdminSidebar() {
       </Sidebar>
     );
   } catch (e) {
+    unstable_rethrow(e);
+    console.error(e);
     return notFound();
   }
 }

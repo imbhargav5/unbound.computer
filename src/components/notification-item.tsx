@@ -57,23 +57,20 @@ export function NotificationItem({
 
   // Shared content rendering for both linked and non-linked notifications
   const content = (
-    <motion.div
-      // Animate notification entrance with fade and vertical translation
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
+    <div
       onMouseOver={onHover}
-      // Dynamically style notification based on read status and hover state
       className={cn(
-        "flex items-start w-full py-3 gap-4",
-        isRead ? "bg-accent/50" : "bg-background",
-        "hover:bg-accent/25 transition-colors duration-200",
+        "flex items-start w-full p-4 gap-4 relative",
+        isRead ? "bg-muted/50" : "bg-card",
+        "hover:bg-accent/10 transition-colors duration-200",
+        href && "cursor-pointer",
       )}
     >
       {/* Render either a custom icon or a default avatar image */}
       {icon ? (
-        <div className="w-12 h-12 flex items-center justify-center">{icon}</div>
+        <div className="w-12 h-12 flex items-center justify-center rounded-full bg-primary/10">
+          {icon}
+        </div>
       ) : (
         <motion.img
           // Animate image scaling for subtle entrance effect
@@ -82,15 +79,15 @@ export function NotificationItem({
           transition={{ duration: 0.2 }}
           src={image}
           alt={title}
-          className="h-12 w-12 rounded-full object-cover "
+          className="h-12 w-12 rounded-full object-cover border-2 border-border"
         />
       )}
 
       {/* Notification text content with typography variations */}
-      <div className="flex-grow">
-        <T.P className="font-semibold text-foreground !leading-5">{title}</T.P>
-        <T.Small className="text-muted-foreground">{description}</T.Small>
-        <T.Subtle className="text-xs text-muted-foreground/75">
+      <div className="flex-grow space-y-1">
+        <T.P className="font-medium text-foreground leading-snug">{title}</T.P>
+        <T.Small className="text-muted-foreground block">{description}</T.Small>
+        <T.Subtle className="text-xs text-muted-foreground/75 block">
           {createdAt}
         </T.Subtle>
       </div>
@@ -101,10 +98,10 @@ export function NotificationItem({
           // Animate new notification indicator with scale
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="h-2 w-2 rounded-full bg-primary"
+          className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/10"
         />
       )}
-    </motion.div>
+    </div>
   );
 
   // Conditionally render as a link or a div based on href prop

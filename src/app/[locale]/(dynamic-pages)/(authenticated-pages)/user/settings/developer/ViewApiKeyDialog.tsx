@@ -23,7 +23,7 @@ export const ViewApiKeyDialog = ({ apiKey, onCompleted }: Props) => {
 
   return (
     <Dialog open={open}>
-      <DialogContent className="sm:max-w-[425px] [&>.dialog-close]:hidden ">
+      <DialogContent className="sm:max-w-[425px] hide-dialog-close ">
         <DialogHeader>
           <DialogTitle>API Key</DialogTitle>
           <DialogDescription>

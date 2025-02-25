@@ -1,11 +1,12 @@
 "use client";
 
+import { Link } from "@/components/intl-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import type { DBTable } from "@/types";
 import { parseNotification } from "@/utils/parseNotification";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, ExternalLink } from "lucide-react";
 import moment from "moment";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -68,7 +69,6 @@ export const NotificationsDialog = () => {
   const {
     unseenNotificationIds,
     mutateReadAllNotifications,
-
     notifications,
     hasNextPage,
     fetchNextPage,
@@ -85,21 +85,30 @@ export const NotificationsDialog = () => {
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogContent className="md:w-[560px] w-full rounded-xl overflow-hidden">
+      <DialogContent className="md:w-[560px] w-full rounded-xl overflow-hidden hide-dialog-close">
         <DialogHeader>
-          <div className="flex items-center">
+          <div className="flex items-center justify-between">
             <DialogTitle>Notifications</DialogTitle>
-            {unseenNotificationIds?.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => mutateReadAllNotifications()}
+            <div className="flex items-center gap-2">
+              {unseenNotificationIds?.length > 0 && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => mutateReadAllNotifications()}
+                  className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  Mark all as read
+                </motion.button>
+              )}
+              <Link
+                href="/user/notifications"
                 className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Check className="w-4 h-4 mr-1" />
-                Mark all as read
-              </motion.button>
-            )}
+                <ExternalLink className="w-4 h-4 mr-1" />
+                View all
+              </Link>
+            </div>
           </div>
         </DialogHeader>
         <div className="max-h-[400px] overflow-y-auto">

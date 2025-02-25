@@ -50,7 +50,7 @@ export const ConfirmRevokeTokenDialog = ({ keyId }: Props) => {
       <DialogTrigger asChild>
         <Button>Revoke</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] [&>.dialog-close]:hidden">
+      <DialogContent className="sm:max-w-[425px] hide-dialog-close">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Revoke Token</DialogTitle>

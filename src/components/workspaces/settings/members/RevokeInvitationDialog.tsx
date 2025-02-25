@@ -52,7 +52,7 @@ export const RevokeInvitationDialog = ({ invitationId }: Props) => {
           <Trash className="size-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] [&>.dialog-close]:hidden">
+      <DialogContent className="sm:max-w-[425px] hide-dialog-close">
         <form
           onSubmit={(event) => {
             event.preventDefault();
