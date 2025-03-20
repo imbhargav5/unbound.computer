@@ -48,7 +48,7 @@ export const ChangelogPosts = ({ changelogs }: Props) => {
               </div>
             )}
             <h1 className="text-2xl font-bold">{changelog.title}</h1>
-            <div className="max-w-screen-lg">
+            <div className="max-w-(--breakpoint-lg)">
               <TiptapJSONContentToHTML jsonContent={changelog.json_content} />
             </div>
             <Separator />

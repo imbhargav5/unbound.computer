@@ -8,7 +8,7 @@ import { MobileMenuOpen } from "../ExternalNavbar/MobileMenuOpen";
 export function PublicNavigation() {
   return (
     <MobileMenuProvider>
-      <header className="sticky inset-x-0 w-full top-0 z-50 border-b backdrop-blur">
+      <header className="sticky inset-x-0 w-full top-0 z-50 border-b backdrop-blur-sm">
         <nav
           className="flex items-center w-full h-[54px] md:container justify-between px-6 md:px-8"
           aria-label="Global"

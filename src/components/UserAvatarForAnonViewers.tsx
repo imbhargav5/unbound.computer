@@ -25,7 +25,7 @@ async function UserAvatarWithFullname({
       <div>
         {userAvatarUrl ? (
           <Image
-            className="rounded-full border shadow-sm"
+            className="rounded-full border shadow-xs"
             placeholder="blur"
             blurDataURL={blurFallback}
             data-testid="anon-user-avatar"
@@ -42,7 +42,7 @@ async function UserAvatarWithFullname({
         ) : (
           <div
             className={
-              "rounded-full select-none relative border bg-inherit shadow-sm text-sm"
+              "rounded-full select-none relative border bg-inherit shadow-xs text-sm"
             }
             style={{
               width: size,

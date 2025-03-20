@@ -109,7 +109,7 @@ export function CreateWorkspaceDialog() {
               <Label>Workspace Name</Label>
               <Input
                 {...register("name")}
-                className="mt-1.5 shadow appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-none focus:shadow-outline text-base"
+                className="mt-1.5 shadow-sm appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-hidden focus:shadow-outline text-base"
                 id="name"
                 data-testid="workspace-name-input"
                 type="text"
@@ -128,7 +128,7 @@ export function CreateWorkspaceDialog() {
               <Label>Workspace Slug</Label>
               <Input
                 {...register("slug")}
-                className="mt-1.5 shadow appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-none focus:shadow-outline text-base"
+                className="mt-1.5 shadow-sm appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-hidden focus:shadow-outline text-base"
                 id="slug"
                 data-testid="workspace-slug-input"
                 type="text"

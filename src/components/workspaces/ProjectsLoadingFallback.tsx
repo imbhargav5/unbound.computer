@@ -10,7 +10,7 @@ const ProjectsLoadingFallback = ({ quantity }: Props) => {
     <div className="flex w-full gap-4 p-4 overflow-x-auto mt-6">
       {[...Array(quantity)].map((_, i) => (
         <Card
-          className="flex flex-col items-start p-4 bg-card min-h-32 rounded-lg shadow w-72"
+          className="flex flex-col items-start p-4 bg-card min-h-32 rounded-lg shadow-sm w-72"
           key={`${i}skeleton`}
         >
           <Skeleton className="h-6 w-24 mb-2" />

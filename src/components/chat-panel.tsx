@@ -49,7 +49,7 @@ export function ChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message..."
-          className="flex-grow"
+          className="grow"
         />
         <Button type="submit" disabled={isLoading || !input.trim()}>
           <Send className="w-4 h-4 mr-2" />

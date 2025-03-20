@@ -68,7 +68,7 @@ export const ProjectsCardList = ({
           <MotionCard
             key={project.id}
             className={cn(
-              "shadow-sm", // Common styles
+              "shadow-xs", // Common styles
               "w-full", // Mobile styles
               "sm:w-[300px]", // sm and above styles
             )}

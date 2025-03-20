@@ -84,7 +84,7 @@ export function NotificationItem({
       )}
 
       {/* Notification text content with typography variations */}
-      <div className="flex-grow space-y-1">
+      <div className="grow space-y-1">
         <T.P className="font-medium text-foreground leading-snug">{title}</T.P>
         <T.Small className="text-muted-foreground block">{description}</T.Small>
         <T.Subtle className="text-xs text-muted-foreground/75 block">

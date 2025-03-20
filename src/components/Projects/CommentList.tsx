@@ -9,7 +9,7 @@ export function CommentList({ comments }: { comments: CommentWithUser[] }) {
   return comments.map((comment) => (
     <div
       key={comment.id}
-      className="grid grid-cols-[24px,1fr] items-start gap-3 px-6 py-4"
+      className="grid grid-cols-[24px_1fr] items-start gap-3 px-6 py-4"
     >
       <Suspense fallback={<FallbackImage size={24} />}>
         <UserAvatar userId={comment.user_id} size={24} />

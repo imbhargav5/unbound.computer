@@ -40,7 +40,7 @@ export default function HeroSection() {
         <div className="flex justify-center items-center">
           <AvatarCirclesDemo />
         </div>
-        <div className="relative w-full aspect-[21/9] rounded-md border-2 border-border shadow-sm overflow-hidden">
+        <div className="relative w-full aspect-21/9 rounded-md border-2 border-border shadow-xs overflow-hidden">
           <Image
             alt="Hero Image"
             src="/images/hero.jpeg"

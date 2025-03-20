@@ -203,7 +203,7 @@ async function TeamInvitations({
   return (
     <div className="space-y-4 max-w-4xl">
       <T.H3>Invitations</T.H3>
-      <div className="shadow-sm border rounded-lg overflow-hidden">
+      <div className="shadow-xs border rounded-lg overflow-hidden">
         <ShadcnTable>
           <TableHeader>
             <TableRow>

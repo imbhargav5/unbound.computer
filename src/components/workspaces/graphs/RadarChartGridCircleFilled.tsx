@@ -50,7 +50,7 @@ export function RadarChartGridCircleFilled() {
           <RadarChart data={chartData}>
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             <PolarGrid
-              className="fill-[--color-desktop] opacity-20"
+              className="fill-(--color-desktop) opacity-20"
               gridType="circle"
             />
             <PolarAngleAxis dataKey="month" />

@@ -57,7 +57,7 @@ export default function InternalRoadmapCard({
   return (
     <div
       {...rest}
-      className="grid border grid-cols-[1fr,auto] gap-1 items-start rounded-xl bg-white dark:bg-slate-900 p-4"
+      className="grid border grid-cols-[1fr_auto] gap-1 items-start rounded-xl bg-white dark:bg-slate-900 p-4"
     >
       <div className="space-y-4">
         <div className="space-y-1">

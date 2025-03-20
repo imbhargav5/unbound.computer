@@ -28,7 +28,7 @@ export function AvatarUpload({
 
   return (
     <div className="flex items-center space-x-4">
-      <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+      <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-200 shrink-0">
         {preview ? (
           <Image
             src={preview}

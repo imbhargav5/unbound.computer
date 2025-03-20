@@ -142,7 +142,7 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({
   return (
     <div className="flex gap-6">
       <Form {...form}>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-grow space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="grow space-y-6">
           <div>
             <Label htmlFor="cover_image">Cover Image</Label>
             <div className="bg-black rounded-lg 2xl:py-12 2xl:px-2">
@@ -227,7 +227,7 @@ export const EditChangelogForm: React.FC<EditChangelogFormProps> = ({
         </form>
       </Form>
 
-      <div className="w-96 space-y-6 flex-shrink-0">
+      <div className="w-96 space-y-6 shrink-0">
         <AuthorsSelect changelog={changelog} authors={authors} />
       </div>
     </div>

@@ -133,7 +133,7 @@ export async function FeedbackDetailSidebar({
     : null;
 
   return (
-    <div className="w-64 flex-shrink-0 space-y-4 hidden md:block">
+    <div className="w-64 shrink-0 space-y-4 hidden md:block">
       <Card>
         <CardHeader>
           <FeedbackAvatarServer feedback={feedback} />

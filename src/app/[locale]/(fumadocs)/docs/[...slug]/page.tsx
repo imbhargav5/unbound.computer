@@ -28,7 +28,7 @@ function Wrapper(props: HTMLAttributes<HTMLDivElement>): React.ReactElement {
     <div
       {...props}
       className={cn(
-        "rounded-xl bg-gradient-to-br from-pink-500 to-blue-500 p-4 wysiwyg-no-margin",
+        "rounded-xl bg-linear-to-br from-pink-500 to-blue-500 p-4 wysiwyg-no-margin",
         props.className,
       )}
     >

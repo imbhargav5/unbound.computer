@@ -92,7 +92,7 @@ async function LoggedInUserFeedbackDetail({
 
       <Card>
         <CardHeader>
-          <Typography.H4 className="!mt-0">Comments</Typography.H4>
+          <Typography.H4 className="mt-0!">Comments</Typography.H4>
         </CardHeader>
         <CardContent>
           <SuspendedFeedbackComments feedbackId={feedback?.id} />

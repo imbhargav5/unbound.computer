@@ -45,7 +45,7 @@ export default async function AuthorPage(props: { params: Promise<unknown> }) {
                     <img
                       src={post.cover_image ?? "/images/nextbase-logo.png"}
                       alt={post.title}
-                      className="aspect-[16/9] w-full rounded-2xl bg-gray-100  object-cover sm:aspect-[2/1] lg:aspect-[3/2]"
+                      className="aspect-16/9 w-full rounded-2xl bg-gray-100  object-cover sm:aspect-2/1 lg:aspect-3/2"
                     />
                   </div>
                   <div className="max-w-xl">

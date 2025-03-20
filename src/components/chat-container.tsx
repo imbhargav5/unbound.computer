@@ -88,7 +88,7 @@ export function ChatContainer({
         className,
       )}
     >
-      <CardContent className="flex-grow p-4 overflow-hidden relative h-[calc(100%-250px)]">
+      <CardContent className="grow p-4 overflow-hidden relative h-[calc(100%-250px)]">
         {messages.length ? (
           <Fragment>
             <ChatList isLoading={isLoading} messages={messages} />

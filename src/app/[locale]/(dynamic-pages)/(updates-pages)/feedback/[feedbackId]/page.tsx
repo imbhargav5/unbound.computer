@@ -29,8 +29,8 @@ async function FeedbackPage(props: {
           subTitle=""
         />
       </div>
-      <div className="md:flex flex-grow gap-4">
-        <div className="flex-grow">
+      <div className="md:flex grow gap-4">
+        <div className="grow">
           <Suspense fallback={<FeedbackDetailFallback />}>
             {userRoleType === userRoles.ANON && (
               <AnonUserFeedbackdetail feedbackId={feedbackId} />

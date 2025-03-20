@@ -23,7 +23,7 @@ export function SmartSheet({ children, className, ...props }: SmartSheetProps) {
         className={cn(
           isMobile ? "max-h-100svh" : "",
           !isMobile
-            ? "w-[400px] sm:w-[540px] md:w-[640px] lg:w-[800px] xl:w-[1000px] !max-w-none"
+            ? "w-[400px] sm:w-[540px] md:w-[640px] lg:w-[800px] xl:w-[1000px] max-w-none!"
             : "",
           "bg-muted",
           className,

@@ -73,7 +73,7 @@ export const InviteWorkspaceMemberDialog = ({ onInvite, isLoading }: Props) => {
             </div>
             <Label className="text-muted-foreground">Enter Email</Label>
             <Input
-              className="mt-1.5 shadow appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-none focus:shadow-outline text-base"
+              className="mt-1.5 shadow-sm appearance-none border h-11 rounded-lg w-full py-2 px-3 focus:ring-0 leading-tight focus:outline-hidden focus:shadow-outline text-base"
               id="email"
               value={email}
               name="email"
