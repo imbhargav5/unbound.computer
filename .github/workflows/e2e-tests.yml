@@ -46,7 +46,7 @@ jobs:
       # Install browsers if cache miss
       - name: Install playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps --only-shell
 
       - name: Run e2e tests
         run: pnpm run test:e2e
