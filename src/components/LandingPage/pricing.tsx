@@ -84,7 +84,7 @@ const PricingCard = ({
           {isHighlighted && <Badge>Most Popular</Badge>}
         </div>
         <h3 className="text-4xl font-bold py-3 tracking-tighter">${price}</h3>
-        <Button>Get Started</Button>
+        <Button className="w-full">Get Started</Button>
       </CardHeader>
 
       <CardContent className="p-4">
