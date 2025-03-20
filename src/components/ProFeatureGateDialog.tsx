@@ -3,7 +3,7 @@
 import { Link } from "@/components/intl-link";
 import { SlimWorkspace } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Image from "next/image";
 import { useState, type ReactNode } from "react";
 import { Button } from "./Button";

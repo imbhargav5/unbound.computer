@@ -1,5 +1,5 @@
 "use client";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { BarChartActive } from "./BarChartActive";
 import { BarChartInteractive } from "./BarChartInteractive";
 import { LineChartInteractive } from "./LineChartInteractive";

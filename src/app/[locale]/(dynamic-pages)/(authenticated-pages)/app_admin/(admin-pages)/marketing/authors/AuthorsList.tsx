@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/table";
 import { DBTable } from "@/types";
 import { format } from "date-fns";
-import { motion } from "framer-motion";
 import { Edit } from "lucide-react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import React from "react";
 import { CreateMarketingAuthorProfileButton } from "./CreateMarketingAuthorProfileButton";

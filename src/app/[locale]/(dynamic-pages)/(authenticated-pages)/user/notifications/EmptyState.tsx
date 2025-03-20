@@ -2,8 +2,8 @@
 
 import { Card } from "@/components/ui/card";
 import { T } from "@/components/ui/Typography";
-import { motion } from "framer-motion";
 import { Bell } from "lucide-react";
+import { motion } from "motion/react";
 
 export function EmptyState() {
   return (

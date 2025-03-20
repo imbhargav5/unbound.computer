@@ -190,7 +190,7 @@ export function EditBlogPostForm({ post }: EditBlogPostFormProps) {
                       </svg>
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-black-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <span className="text-white font-semibold">
                       Change Cover Image
                     </span>

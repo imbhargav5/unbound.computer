@@ -2,7 +2,7 @@ import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { cn } from "@/utils/cn";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /**
  * Props for the NotificationItem component

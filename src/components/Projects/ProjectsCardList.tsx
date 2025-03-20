@@ -7,8 +7,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { DBTable } from "@/types";
 import { cn } from "@/utils/cn";
 import { format } from "date-fns";
-import { motion } from "framer-motion";
 import { CalendarDays, Clock, Link as LinkIcon } from "lucide-react";
+import { motion } from "motion/react";
 
 export enum ProjectStatus {
   draft = "draft",

@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { T } from "@/components/ui/Typography";
 import { SubscriptionData } from "@/payments/AbstractPaymentGateway";
 import { formatCurrency, normalizePriceAndCurrency } from "@/utils/currency";
-import { motion } from "framer-motion";
 import { CalendarDays, CreditCard, DollarSign, RefreshCw } from "lucide-react";
+import { motion } from "motion/react";
 
 interface SubscriptionCardProps {
   subscription: SubscriptionData;
