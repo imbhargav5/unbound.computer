@@ -11,7 +11,7 @@ export default function CTA() {
         title="Ready to move with ultimate?"
         subtitle="CI/CD streamlines feature delivery, scalable infrastructure ensures global edge optimization and app monitoring capabilities for peak site performance."
       />
-      <Button className="px-6">Get Started</Button>
+      <Button className="w-full sm:w-auto px-6 sm:min-w-32">Get Started</Button>
     </div>
   );
 }
