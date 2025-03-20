@@ -17,7 +17,10 @@ export function ThemeSwitch() {
 
   return (
     <button
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={() => {
+        console.log("clicked", theme);
+        setTheme(theme === "dark" ? "light" : "dark");
+      }}
       className="relative h-6 w-6 flex items-center justify-center"
       aria-label="Toggle theme"
     >

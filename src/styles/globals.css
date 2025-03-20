@@ -233,3 +233,35 @@
     cursor: pointer;
   }
 }
+
+@keyframes animate-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-50% - var(--gap)));
+  }
+}
+
+.animate-marquee {
+  animation-name: animate-marquee;
+  animation-duration: var(--duration);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes animate-marquee-vertical {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(calc(-50% - var(--gap)));
+  }
+}
+
+.animate-marquee-vertical {
+  animation-name: animate-marquee-vertical;
+  animation-duration: var(--duration);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}

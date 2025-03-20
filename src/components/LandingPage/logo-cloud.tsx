@@ -1,7 +1,7 @@
 import { logos } from "@/data/anon/logos";
 
 import Image from "next/image";
-import Marquee from "../magicui/marquee";
+import { Marquee } from "../magicui/marquee";
 
 export default function LogoCloud() {
   return (
