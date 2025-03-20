@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import type { Enum } from "@/types";
 import { formatFieldValue } from "@/utils/feedback";
 import { Bug, Calendar, Command, EyeIcon, Info, Pencil } from "lucide-react";
-import type { HtmlHTMLAttributes } from "react";
-import { Badge, type BadgeProps } from "./ui/badge";
+import type { ComponentProps, HtmlHTMLAttributes } from "react";
+import { Badge } from "./ui/badge";
+
+type BadgeProps = ComponentProps<typeof Badge>;
 
 type InternalRoadmapCardProps = {
   title: string;
@@ -57,7 +59,7 @@ export default function InternalRoadmapCard({
   return (
     <div
       {...rest}
-      className="grid border grid-cols-[1fr,auto] gap-1 items-start rounded-xl bg-white dark:bg-slate-900 p-4"
+      className="grid border grid-cols-[1fr_auto] gap-1 items-start rounded-xl bg-white dark:bg-slate-900 p-4"
     >
       <div className="space-y-4">
         <div className="space-y-1">

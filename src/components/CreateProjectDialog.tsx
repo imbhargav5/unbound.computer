@@ -104,7 +104,7 @@ export function CreateProjectDialog({
             <Label>Project Name</Label>
             <Input
               {...register("name")}
-              className="mt-1.5 shadow appearance-none border rounded-lg w-full"
+              className="mt-1.5 shadow-sm appearance-none border rounded-lg w-full"
               onChange={(e) => {
                 setValue("name", e.target.value);
                 setValue("slug", generateProjectSlug(e.target.value), {
@@ -121,7 +121,7 @@ export function CreateProjectDialog({
             <Label>Project Slug</Label>
             <Input
               {...register("slug")}
-              className="mt-1.5 shadow appearance-none border rounded-lg w-full"
+              className="mt-1.5 shadow-sm appearance-none border rounded-lg w-full"
               id="slug"
               type="text"
               placeholder="project-slug"

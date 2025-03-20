@@ -99,7 +99,7 @@ export function EditProjectForm({
     <SmartSheet
       open={!!project}
       onOpenChange={onClose}
-      className="md:!max-w-[540px]"
+      className="md:max-w-[540px]!"
     >
       <div className="p-2">
         <div className="mb-8">

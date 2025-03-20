@@ -13,7 +13,7 @@ export default function NotFound() {
   return (
     <html className={GeistSans.className}>
       <body className="bg-background">
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-background to-secondary/20">
+        <div className="flex items-center justify-center min-h-screen bg-linear-to-b from-background to-secondary/20">
           <div className="flex flex-col space-y-4 items-center text-center">
             <Typography.H1>404.</Typography.H1>
             <Typography.P>

@@ -152,7 +152,7 @@ export function AccountSettings({
                     Avatar
                   </label>
                   <div className="flex items-center space-x-4">
-                    <div className="relative w-12 h-12 flex-shrink-0">
+                    <div className="relative w-12 h-12 shrink-0">
                       <Image
                         fill
                         className="rounded-full object-cover"

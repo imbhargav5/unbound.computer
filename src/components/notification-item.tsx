@@ -2,7 +2,7 @@ import { Link } from "@/components/intl-link";
 import { T } from "@/components/ui/Typography";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { cn } from "@/utils/cn";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /**
  * Props for the NotificationItem component
@@ -84,7 +84,7 @@ export function NotificationItem({
       )}
 
       {/* Notification text content with typography variations */}
-      <div className="flex-grow space-y-1">
+      <div className="grow space-y-1">
         <T.P className="font-medium text-foreground leading-snug">{title}</T.P>
         <T.Small className="text-muted-foreground block">{description}</T.Small>
         <T.Subtle className="text-xs text-muted-foreground/75 block">

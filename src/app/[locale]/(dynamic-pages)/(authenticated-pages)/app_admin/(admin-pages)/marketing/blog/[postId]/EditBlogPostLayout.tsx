@@ -18,10 +18,10 @@ export const EditBlogPostLayout: React.FC<EditBlogPostLayoutProps> = ({
 }) => {
   return (
     <div className="flex gap-6">
-      <div className="flex-grow">
+      <div className="grow">
         <EditBlogPostForm post={post} />
       </div>
-      <div className="w-1/3 space-y-6 flex-shrink-0">
+      <div className="w-1/3 space-y-6 shrink-0">
         <AuthorsSelect post={post} authors={authors} />
         <TagsSelect post={post} tags={tags} />
       </div>

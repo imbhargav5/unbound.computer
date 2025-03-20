@@ -28,7 +28,7 @@ export function SignUp({ next, nextActionType }: SignUpProps) {
   return (
     <div
       data-success={successMessage}
-      className="container data-[success]:flex items-center data-[success]:justify-center text-left max-w-lg mx-auto overflow-auto data-[success]:h-full min-h-[470px]"
+      className="container data-success:flex items-center data-success:justify-center text-left max-w-lg mx-auto overflow-auto data-success:h-full min-h-[470px]"
     >
       {successMessage ? (
         <EmailConfirmationPendingCard

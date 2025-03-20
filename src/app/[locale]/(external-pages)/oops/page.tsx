@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function InternalServerError() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-background to-secondary/20">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-b from-background to-secondary/20">
       <div className="flex flex-col space-y-4 items-center text-center">
         <Typography.H1>500.</Typography.H1>
         <Typography.P>Oops! Something went wrong on our end.</Typography.P>

@@ -1,5 +1,4 @@
 import "@/styles/globals.css";
-import "@/styles/prosemirror.css";
 import { GeistSans } from "geist/font/sans";
 import { Metadata } from "next";
 import { getMessages } from "next-intl/server";

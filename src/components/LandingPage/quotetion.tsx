@@ -3,7 +3,7 @@ import Icons from "../icons";
 
 export default function Quotation() {
   return (
-    <section className="p-16 lg:p-24 bg-muted flex flex-col justify-center items-center  space-y-2">
+    <section className="p-16 lg:p-24 bg-muted/40 flex flex-col justify-center items-center  space-y-2">
       <div>
         <Icons.quote />
       </div>

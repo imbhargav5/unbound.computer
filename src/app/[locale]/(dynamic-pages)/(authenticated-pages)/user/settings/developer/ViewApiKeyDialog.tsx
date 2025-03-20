@@ -38,7 +38,7 @@ export const ViewApiKeyDialog = ({ apiKey, onCompleted }: Props) => {
                 type="text"
                 readOnly
                 value={apiKey}
-                className="border rounded p-2 flex-grow cursor-pointer"
+                className="border rounded p-2 grow cursor-pointer"
               />
               {isCopied ? <CopyCheck /> : <Copy />}
             </div>

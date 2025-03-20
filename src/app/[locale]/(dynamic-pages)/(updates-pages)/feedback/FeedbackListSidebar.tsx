@@ -13,7 +13,7 @@ import { FeedbackFilterDialog } from "./components/FeedbackFilterDialog";
 
 export function SidebarSkeleton() {
   return (
-    <div className="w-64 flex-shrink-0 p-4">
+    <div className="w-64 shrink-0 p-4">
       <Skeleton className="h-10 w-full mb-6" />
       <div className="space-y-4">
         <Skeleton className="h-4 w-20" />
@@ -32,7 +32,7 @@ export async function FeedbackListSidebar() {
   const totalCount = await getTotalFeedbackCount();
 
   return (
-    <div className="w-64 flex-shrink-0 space-y-4 hidden md:block">
+    <div className="w-64 shrink-0 space-y-4 hidden md:block">
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex gap-1 items-center">

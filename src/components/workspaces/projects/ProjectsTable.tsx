@@ -391,7 +391,7 @@ export function ProjectsTable({
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
                       onDoubleClick={() => setEditingProject(row.original)}
-                      className="cursor-pointer !rounded-none"
+                      className="cursor-pointer rounded-none!"
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>

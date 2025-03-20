@@ -18,8 +18,8 @@ import {
   SubscriptionData,
 } from "@/payments/AbstractPaymentGateway";
 import { formatCurrency, normalizePriceAndCurrency } from "@/utils/currency";
-import { motion } from "framer-motion";
 import { CreditCard, FileText, ShoppingBag } from "lucide-react";
+import { motion } from "motion/react";
 import { SubscriptionCard } from "./SubscriptionCard";
 
 const formatDate = (dateString: string): string => {

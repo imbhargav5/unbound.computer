@@ -24,14 +24,14 @@ export default function HeroSection() {
           <p className="text-muted-foreground leading-loose lg:text-lg lg:leading-relaxed max-w-4xl">
             {t("description")}
           </p>
-          <div className="flex flex-col md:flex-row items-center max-w-md w-full  gap-3 pt-2 ">
-            <Button className="w-full" asChild>
+          <div className="flex gap-4 justify-center pt-4">
+            <Button className="min-w-32" asChild>
               <Link href={"/login"}>
                 Log In
                 <ArrowRight size={16} className="ml-2" />
               </Link>
             </Button>
-            <Button className="w-full" variant={"secondary"}>
+            <Button className="min-w-32" variant={"secondary"}>
               Learn More
               <ChevronRight size={16} className="ml-2" />
             </Button>
@@ -40,7 +40,7 @@ export default function HeroSection() {
         <div className="flex justify-center items-center">
           <AvatarCirclesDemo />
         </div>
-        <div className="relative w-full aspect-[21/9] rounded-md border-2 border-border shadow-sm overflow-hidden">
+        <div className="relative w-full aspect-21/9 rounded-md border-2 border-border shadow-xs overflow-hidden">
           <Image
             alt="Hero Image"
             src="/images/hero.jpeg"

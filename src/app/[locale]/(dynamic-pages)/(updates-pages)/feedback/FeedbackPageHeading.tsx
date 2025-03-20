@@ -73,7 +73,7 @@ export function FeedbackPageHeading({
     >
       <div className="min-w-0 flex-1">{wrappedTitleElement}</div>
       {actions && (
-        <div className="ml-4 flex-shrink-0">
+        <div className="ml-4 shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

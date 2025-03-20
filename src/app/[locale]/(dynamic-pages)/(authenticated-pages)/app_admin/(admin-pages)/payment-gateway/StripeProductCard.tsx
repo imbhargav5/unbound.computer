@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { adminToggleProductVisibilityAction } from "@/data/admin/billing";
 import { DBTable } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useAction } from "next-safe-action/hooks";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";

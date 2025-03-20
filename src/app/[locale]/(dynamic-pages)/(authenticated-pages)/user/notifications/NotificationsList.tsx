@@ -6,9 +6,9 @@ import { Card } from "@/components/ui/card";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { DBTable } from "@/types";
 import { parseNotification } from "@/utils/parseNotification";
-import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import moment from "moment";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 

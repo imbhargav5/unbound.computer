@@ -1,7 +1,7 @@
 import { reviews } from "@/data/anon/reviews";
 import { cn } from "@/utils/cn";
 import Image from "next/image";
-import Marquee from "../magicui/marquee";
+import { Marquee } from "../magicui/marquee";
 import TitleBlock from "../title-block";
 
 export default function Testimonials() {
@@ -9,7 +9,7 @@ export default function Testimonials() {
   const secondRow = reviews.slice(3, 6);
 
   return (
-    <section className="bg-secondary py-24 px-6 ">
+    <section className="bg-muted/40 py-24 px-6 ">
       <div className="max-w-6xl mx-auto space-y-8">
         <TitleBlock
           title="Don't  take our word for it"
@@ -26,8 +26,8 @@ export default function Testimonials() {
               <ReviewCard key={review.username} {...review} />
             ))}
           </Marquee>
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-secondary "></div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-secondary "></div>
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-linear-to-r from-muted/40 "></div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-muted/40 "></div>
         </div>
       </div>
     </section>

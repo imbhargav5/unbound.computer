@@ -1,6 +1,6 @@
 import { AnimatedBeamMultipleOutputDemo } from "@/components/animated-beam-multiple-outputs";
 import Globe from "@/components/magicui/globe";
-import Marquee from "@/components/magicui/marquee";
+import { Marquee } from "@/components/magicui/marquee";
 
 import { Calendar } from "@/components/ui/calendar";
 import {

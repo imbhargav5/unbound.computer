@@ -10,15 +10,17 @@ import Testimonials from "./testimonials";
 
 export const LandingPage = () => {
   return (
-    <div className="flex flex-col gap-16">
-      <HeroSection />
-      <LogoCloud />
-      <Integration />
-      <Quotation />
-      <Pricing />
-      <Testimonials />
-      <FAQ />
-      <CTA />
+    <div>
+      <div className="flex flex-col gap-16">
+        <HeroSection />
+        <LogoCloud />
+        <Integration />
+        <Quotation />
+        <Pricing />
+        <Testimonials />
+        <FAQ />
+        <CTA />
+      </div>
       <Footer />
     </div>
   );
