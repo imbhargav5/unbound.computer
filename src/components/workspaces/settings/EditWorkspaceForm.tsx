@@ -7,9 +7,9 @@ import { useRef } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 
-import { Button } from "@/components/Button";
-import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { T } from "@/components/ui/Typography";
 import { updateWorkspaceInfoAction } from "@/data/user/workspaces"; // Assuming this action exists
 import { generateWorkspaceSlug } from "@/lib/utils";
 import type { WorkspaceWithMembershipType } from "@/types";

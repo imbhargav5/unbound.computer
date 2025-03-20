@@ -1,4 +1,4 @@
-import type { BadgeProps } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import type { Enum } from "@/types";
 import {
   ArrowDownIcon,
@@ -12,6 +12,9 @@ import {
   StopwatchIcon,
 } from "@radix-ui/react-icons";
 import { Bug, MessageSquareDotIcon, XCircle } from "lucide-react";
+import type { ComponentProps } from "react";
+
+type BadgeProps = ComponentProps<typeof Badge>;
 
 export const formatFieldValue = (type: string) => {
   // feature_request to Feature request
@@ -31,81 +34,81 @@ export const NEW_STATUS_OPTIONS: Array<{
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: "Open",
-    value: "open",
-    icon: QuestionMarkCircledIcon,
-  },
-  {
-    label: "In Progress",
-    value: "in_progress",
-    icon: StopwatchIcon,
-  },
-  {
-    label: "Closed",
-    value: "closed",
-    icon: XCircle,
-  },
-  {
-    label: "Planned",
-    value: "planned",
-    icon: CalendarIcon,
-  },
-  {
-    label: "Under Review",
-    value: "under_review",
-    icon: ReaderIcon,
-  },
-  {
-    label: "Completed",
-    value: "completed",
-    icon: CheckCircledIcon,
-  },
-];
+    {
+      label: "Open",
+      value: "open",
+      icon: QuestionMarkCircledIcon,
+    },
+    {
+      label: "In Progress",
+      value: "in_progress",
+      icon: StopwatchIcon,
+    },
+    {
+      label: "Closed",
+      value: "closed",
+      icon: XCircle,
+    },
+    {
+      label: "Planned",
+      value: "planned",
+      icon: CalendarIcon,
+    },
+    {
+      label: "Under Review",
+      value: "under_review",
+      icon: ReaderIcon,
+    },
+    {
+      label: "Completed",
+      value: "completed",
+      icon: CheckCircledIcon,
+    },
+  ];
 
 export const NEW_PRIORITY_OPTIONS: Array<{
   value: Enum<"marketing_feedback_thread_priority">;
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: "Low",
-    value: "low",
-    icon: ArrowDownIcon,
-  },
-  {
-    label: "Medium",
-    value: "medium",
-    icon: ArrowRightIcon,
-  },
-  {
-    label: "High",
-    value: "high",
-    icon: ArrowUpIcon,
-  },
-];
+    {
+      label: "Low",
+      value: "low",
+      icon: ArrowDownIcon,
+    },
+    {
+      label: "Medium",
+      value: "medium",
+      icon: ArrowRightIcon,
+    },
+    {
+      label: "High",
+      value: "high",
+      icon: ArrowUpIcon,
+    },
+  ];
 
 export const NEW_TYPE_OPTIONS: Array<{
   value: Enum<"marketing_feedback_thread_type">;
   label: string;
   icon: React.ElementType;
 }> = [
-  {
-    label: "Bug",
-    value: "bug",
-    icon: Bug,
-  },
-  {
-    label: "Feature Request",
-    value: "feature_request",
-    icon: LightningBoltIcon,
-  },
-  {
-    label: "General",
-    value: "general",
-    icon: MessageSquareDotIcon,
-  },
-];
+    {
+      label: "Bug",
+      value: "bug",
+      icon: Bug,
+    },
+    {
+      label: "Feature Request",
+      value: "feature_request",
+      icon: LightningBoltIcon,
+    },
+    {
+      label: "General",
+      value: "general",
+      icon: MessageSquareDotIcon,
+    },
+  ];
 
 export const PRIORITY_OPTIONS: Array<
   Enum<"marketing_feedback_thread_priority">

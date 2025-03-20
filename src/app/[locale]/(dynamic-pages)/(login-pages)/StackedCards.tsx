@@ -14,16 +14,21 @@ interface CardStackProps {
   interval?: number;
 }
 
-function withRandomKey(imageUrl: string, index: number) {
-  const random = Math.random();
-  return `${imageUrl}?r=${random}`;
+function withSequentialKey(
+  imageUrl: string,
+  index: number,
+  totalImages: number,
+) {
+  return `${imageUrl}?id=${index * totalImages}`;
 }
 
 export const StackedCards: React.FC<CardStackProps> = ({
   images,
   interval = 6000,
 }) => {
-  const [cards, setCards] = useState<string[]>(() => images.map(withRandomKey));
+  const [cards, setCards] = useState<string[]>(() =>
+    images.map((url, index) => withSequentialKey(url, index, images.length)),
+  );
 
   const moveToEnd = () => {
     setCards((prevCards) => {

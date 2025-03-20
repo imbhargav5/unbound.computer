@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import type { Enum } from "@/types";
 import { formatFieldValue } from "@/utils/feedback";
 import { Bug, Calendar, Command, EyeIcon, Info, Pencil } from "lucide-react";
-import type { HtmlHTMLAttributes } from "react";
-import { Badge, type BadgeProps } from "./ui/badge";
+import type { ComponentProps, HtmlHTMLAttributes } from "react";
+import { Badge } from "./ui/badge";
+
+type BadgeProps = ComponentProps<typeof Badge>;
 
 type InternalRoadmapCardProps = {
   title: string;

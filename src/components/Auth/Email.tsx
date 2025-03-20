@@ -1,9 +1,9 @@
 "use client";
-import { Button } from "@/components/Button";
 import { Link } from "@/components/intl-link";
-import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { T } from "@/components/ui/Typography";
 import { useMemo, useState } from "react";
 
 export const Email = ({

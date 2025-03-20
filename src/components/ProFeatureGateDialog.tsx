@@ -1,16 +1,21 @@
 "use client";
 
 import { Link } from "@/components/intl-link";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { Typography } from "@/components/ui/Typography";
 import { SlimWorkspace } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { motion } from "motion/react";
 import Image from "next/image";
 import { useState, type ReactNode } from "react";
-import { Button } from "./Button";
-import { Typography } from "./ui/Typography";
-import { AspectRatio } from "./ui/aspect-ratio";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { SidebarMenuButton } from "./ui/sidebar";
 export function ProFeatureGateDialog({
   workspace,
   label,

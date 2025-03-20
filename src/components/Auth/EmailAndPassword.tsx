@@ -1,5 +1,5 @@
-import { Button } from "@/components/Button";
 import { Link } from "@/components/intl-link";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { classNames } from "@/utils/classNames";
 import { ComponentProps, useState } from "react";

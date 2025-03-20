@@ -1,7 +1,7 @@
 "use client";
-import { Button } from "@/components/Button";
-import { T } from "@/components/ui/Typography";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { T } from "@/components/ui/Typography";
 import { classNames } from "@/utils/classNames";
 import { CSSProperties, useState } from "react";
 
