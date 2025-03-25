@@ -1,7 +1,7 @@
-name: 'CI setup'
-description: 'Setup CI environment for the project'
+name: "CI setup"
+description: "Setup CI environment for the project"
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set environment variable
       run: echo "GITHUB_ACTION=true" >> $GITHUB_ENV
@@ -22,7 +22,7 @@ runs:
       run: |
         echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       name: Setup pnpm cache
       with:
         path: ${{ env.STORE_PATH }}

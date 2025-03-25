@@ -40,8 +40,7 @@ jobs:
           version: latest
       - name: Copy env file
         run: cp .env.local.example .env.local
-      - run: supabase init
-      - run: supabase db start
+      - run: supabase start
 
       # Install browsers if cache miss
       - name: Install playwright browsers
