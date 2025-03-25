@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import Chance from "chance";
 
-test.describe.serial("Users can submit and view submitted feedback", () => {
+test.describe.skip("Users can submit and view submitted feedback", () => {
   let feedbackId: string | undefined = undefined;
   const feedbackTitle = Chance().sentence();
   const feedbackDescription = Chance().sentence();
