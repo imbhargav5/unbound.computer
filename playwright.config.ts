@@ -10,7 +10,7 @@ const baseURL = `http://localhost:${PORT}`;
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
   // highest number of workers in a m3 pro max
-  workers: process.env.CI ? 1 : 4,
+  workers: process.env.CI ? 20 : 4,
   // Timeout per test
   timeout: process.env.CI ? 60 * 1000 : 120 * 1000,
   // Test directory
