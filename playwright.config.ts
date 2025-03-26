@@ -9,10 +9,10 @@ const baseURL = `http://localhost:${PORT}`;
 
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
-  // highest number of workers in a m3 pro max
-  workers: process.env.CI ? 20 : 4,
-  // Timeout per test
-  timeout: process.env.CI ? 60 * 1000 : 120 * 1000,
+  // Reduce CI workers to prevent overwhelming GitHub Actions
+  workers: process.env.CI ? 8 : 4,
+  // Increase CI timeout to match local
+  timeout: 120 * 1000,
   // Test directory
   testDir: path.join(__dirname, "e2e"),
   // If a test fails, retry it additional 2 times
@@ -30,7 +30,8 @@ const config: PlaywrightTestConfig = {
     // reuseExistingServer: !process.env.CI,
   },
   expect: {
-    timeout: process.env.CI ? 15 * 1000 : 5 * 1000,
+    // Increase CI timeout to handle slower CI environment
+    timeout: 15 * 1000,
   },
 
   use: {
@@ -42,7 +43,13 @@ const config: PlaywrightTestConfig = {
     // More information: https://playwright.dev/docs/trace-viewer
     trace: "retry-with-trace",
 
-    actionTimeout: 60 * 1000,
+    // Add retry strategy for network actions
+    navigationTimeout: 30 * 1000,
+    actionTimeout: 30 * 1000,
+
+    // Add video recording for failed tests in CI
+    video: process.env.CI ? "retain-on-failure" : "off",
+    screenshot: process.env.CI ? "only-on-failure" : "off",
 
     // All available context options: https://playwright.dev/docs/api/class-browser#browser-new-context
     // contextOptions: {

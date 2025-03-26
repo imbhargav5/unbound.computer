@@ -11,6 +11,7 @@ on:
 jobs:
   playwright:
     runs-on: ubuntu-latest
+    timeout-minutes: 60 # Add overall job timeout
 
     steps:
       - name: Checkout code
@@ -38,9 +39,15 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
+
       - name: Copy env file
         run: cp .env.local.example .env.local
-      - run: supabase start
+
+      - name: Start Supabase
+        run: |
+          supabase start
+          sleep 10  # Give some time for services to be ready
+          supabase status  # Verify services are running
 
       # Install browsers if cache miss
       - name: Install playwright browsers
@@ -51,3 +58,24 @@ jobs:
         run: pnpm run test:e2e
         env:
           CI: true
+          DEBUG: pw:api* # Enable Playwright API debugging
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-failure-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
