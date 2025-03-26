@@ -61,12 +61,7 @@ jobs:
         run: pnpm exec playwright install --with-deps
 
       - name: Run e2e tests
-        run: |
-          # Start the dev server and wait for it to be ready
-          pnpm dev &
-          echo "Waiting for dev server to be ready..."
-          npx wait-on http://localhost:3000 -t 60000
-          pnpm run test:e2e
+        run: pnpm run test:e2e
         env:
           CI: true
           DEBUG: pw:api*,pw:webserver* # Enable Playwright API and webserver debugging
