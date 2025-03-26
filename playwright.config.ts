@@ -24,10 +24,12 @@ const config: PlaywrightTestConfig = {
   // Run your local dev server before starting the tests:
   // https://playwright.dev/docs/test-advanced#launching-a-development-web-server-during-the-tests
   webServer: {
-    command: "cross-env NODE_ENV=test pnpm dev",
+    command: process.env.CI ? "pnpm dev" : "cross-env NODE_ENV=test pnpm dev",
     url: baseURL,
-    timeout: 120 * 1000,
-    // reuseExistingServer: !process.env.CI,
+    timeout: process.env.CI ? 180 * 1000 : 120 * 1000, // Increased timeout for CI
+    reuseExistingServer: !process.env.CI,
+    stdout: "pipe",
+    stderr: "pipe",
   },
   expect: {
     // Increase CI timeout to handle slower CI environment
