@@ -1,10 +1,10 @@
 import { pageTree } from "@/app/[locale]/source";
 import { baseOptions } from "@/app/layout.config";
+import "@/styles/docs-layout-styles.css";
 import { RootToggle } from "fumadocs-ui/components/layout/root-toggle";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { Home } from "lucide-react";
 import type { ReactNode } from "react";
-import "./docs-layout.css";
 
 export default function RootDocsLayout({ children }: { children: ReactNode }) {
   return (
