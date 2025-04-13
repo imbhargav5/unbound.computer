@@ -1,7 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
 
-CREATE EXTENSION IF NOT EXISTS "vault" CASCADE;
-
 COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
