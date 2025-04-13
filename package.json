@@ -229,7 +229,7 @@
     "sonner": "^1.7.1",
     "strip-ansi": "^7.1.0",
     "stripe": "^17.4.0",
-    "supabase": "^2.1.1",
+    "supabase": "^2.20.12",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.0.14",
     "tailwindcss-animate": "^1.0.7",
