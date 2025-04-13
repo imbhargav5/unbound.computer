@@ -28,7 +28,7 @@ const config: PlaywrightTestConfig = {
     url: baseURL,
     timeout: process.env.CI ? 180 * 1000 : 120 * 1000, // Increased timeout for CI
     reuseExistingServer: !process.env.CI,
-    stdout: "pipe",
+    stdout: "ignore",
     stderr: "pipe",
   },
   expect: {
@@ -43,7 +43,7 @@ const config: PlaywrightTestConfig = {
 
     // Retry a test if its failing with enabled tracing. This allows you to analyse the DOM, console logs, network traffic etc.
     // More information: https://playwright.dev/docs/trace-viewer
-    trace: "retry-with-trace",
+    trace: "retain-on-failure",
 
     // Add retry strategy for network actions
     navigationTimeout: 30 * 1000,

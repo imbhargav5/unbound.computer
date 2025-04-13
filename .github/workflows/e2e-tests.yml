@@ -50,10 +50,7 @@ jobs:
         run: cp .env.local.example .env.local
 
       - name: Start Supabase
-        run: |
-          supabase start
-          sleep 10  # Give some time for services to be ready
-          supabase status  # Verify services are running
+        run: supabase start
 
       # Install browsers if cache miss
       - name: Install playwright browsers
@@ -64,6 +61,7 @@ jobs:
         run: pnpm run test:e2e
         env:
           CI: true
+          NODE_ENV: test
           DEBUG: pw:api*,pw:webserver* # Enable Playwright API and webserver debugging
 
       - name: Upload test results on failure

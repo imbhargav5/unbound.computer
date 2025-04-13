@@ -28,7 +28,7 @@
     "@next/bundle-analyzer": "^15.1.0",
     "@next/eslint-plugin-next": "^15.1.0",
     "@next/mdx": "^15.1.0",
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.51.1",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
