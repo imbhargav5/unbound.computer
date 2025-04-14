@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  setup-supabase:
+  pre-setup:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,6 +17,29 @@ jobs:
 
       - name: Set up Node.js
         uses: ./.github/actions/ci-setup
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+  setup-supabase:
+    needs: pre-setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore cached node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
 
       - name: Set up supabase
         uses: supabase/setup-cli@v1
@@ -27,30 +50,26 @@ jobs:
         run: cp .env.local.example .env.local
 
       - name: Start Supabase
-        run: supabase start
+        run: pnpm supabase start
 
   setup-playwright:
+    needs: pre-setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: ./.github/actions/ci-setup
+      - name: Restore cached node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
 
       - name: Get installed Playwright version
         id: playwright-version
         run: echo "version=$(node -e "console.log(require('./package.json').dependencies['@playwright/test'].replace('^', ''))")" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: |
-            ~/.cache/ms-playwright
-            **/node_modules/playwright
-            **/node_modules/playwright-core
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
 
       - name: Install playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -70,19 +89,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: ./.github/actions/ci-setup
-
-      - name: Set up supabase
-        uses: supabase/setup-cli@v1
+      - name: Restore cached node_modules
+        uses: actions/cache@v4
         with:
-          version: latest
-
-      - name: Copy env file
-        run: cp .env.local.example .env.local
-
-      - name: Start Supabase
-        run: pnpm supabase start
+          path: |
+            node_modules
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
 
       - name: Wait for Supabase to be ready
         run: |
