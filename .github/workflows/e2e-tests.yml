@@ -62,7 +62,6 @@ jobs:
         env:
           CI: true
           NODE_ENV: test
-          DEBUG: pw:api*,pw:webserver* # Enable Playwright API and webserver debugging
 
       - name: Upload test results on failure
         if: failure()
