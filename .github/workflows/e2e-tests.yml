@@ -9,16 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  playwright:
+  setup-supabase:
     runs-on: ubuntu-latest
-    timeout-minutes: 60 # Add overall job timeout
-
-    env:
-      PORT: 3000
-      NODE_ENV: test
-      CI: true
-      DEBUG: pw:api*,pw:webserver* # Enable both API and webserver debugging
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,7 +18,26 @@ jobs:
       - name: Set up Node.js
         uses: ./.github/actions/ci-setup
 
-      # Improved Playwright browser caching
+      - name: Set up supabase
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Copy env file
+        run: cp .env.local.example .env.local
+
+      - name: Start Supabase
+        run: supabase start
+
+  setup-playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: ./.github/actions/ci-setup
+
       - name: Get installed Playwright version
         id: playwright-version
         run: echo "version=$(node -e "console.log(require('./package.json').dependencies['@playwright/test'].replace('^', ''))")" >> $GITHUB_OUTPUT
@@ -41,6 +52,27 @@ jobs:
             **/node_modules/playwright-core
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
 
+      - name: Install playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps
+
+  test:
+    needs: [setup-supabase, setup-playwright]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PORT: 3000
+      NODE_ENV: test
+      CI: true
+      DEBUG: pw:api*,pw:webserver*
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: ./.github/actions/ci-setup
+
       - name: Set up supabase
         uses: supabase/setup-cli@v1
         with:
@@ -48,13 +80,41 @@ jobs:
 
       - name: Copy env file
         run: cp .env.local.example .env.local
-      # - run: supabase init
-      - run: supabase db start
 
-      # Install browsers if cache miss
-      - name: Install playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps
+      - name: Start Supabase
+        run: pnpm supabase start
+
+      - name: Wait for Supabase to be ready
+        run: |
+          timeout=60
+          counter=0
+          echo "Waiting for Supabase to be ready..."
+          until curl -s http://localhost:54321/rest/v1/ > /dev/null; do
+            if [ $counter -eq $timeout ]; then
+              echo "Timeout waiting for Supabase"
+              exit 1
+            fi
+            counter=$((counter+1))
+            echo "Waiting... ($counter/$timeout)"
+            sleep 1
+          done
+          echo "Supabase is ready!"
+
+      - name: Wait for Inbucket to be ready
+        run: |
+          timeout=60
+          counter=0
+          echo "Waiting for Inbucket to be ready..."
+          until curl -s http://localhost:54324 > /dev/null; do
+            if [ $counter -eq $timeout ]; then
+              echo "Timeout waiting for Inbucket"
+              exit 1
+            fi
+            counter=$((counter+1))
+            echo "Waiting... ($counter/$timeout)"
+            sleep 1
+          done
+          echo "Inbucket is ready!"
 
       - name: Run e2e tests
         run: pnpm run test:e2e
