@@ -10,7 +10,7 @@ const baseURL = `http://localhost:${PORT}`;
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
   // Reduce CI workers to prevent overwhelming GitHub Actions
-  workers: process.env.CI ? 8 : 4,
+  workers: process.env.CI ? 1 : 4,
   // Increase CI timeout to match local
   timeout: 120 * 1000,
   // Test directory
