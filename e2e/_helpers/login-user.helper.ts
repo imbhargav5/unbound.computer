@@ -1,47 +1,101 @@
-import { type Page, expect, request } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, request } from "@playwright/test";
+import {
+  inbucketEmailMessageDetailSchema,
+  inbucketEmailSchema,
+} from "./inbucket-email-schema";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
-// eg endpoint: https://api.testmail.app/api/json?apikey=${APIKEY}&namespace=${NAMESPACE}&pretty=true
-async function getConfirmEmail(username: string): Promise<{
+interface EmailConfirmation {
   token: string;
   url: string;
-}> {
-  const requestContext = await request.newContext();
-  const now = new Date().getTime();
-  const messages = await requestContext
-    .get(`${INBUCKET_URL}/api/v1/mailbox/${username}`)
-    .then((res) => res.json())
-    .then((items) =>
-      items
-        .filter((item) => {
-          const itemDate = new Date(item.date).getTime();
+}
 
-          return Math.abs(now - itemDate) < 10000; // Filter out emails received within the last 20 seconds
-        })
-        .sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        ),
+async function getConfirmEmail(username: string): Promise<EmailConfirmation> {
+  const requestContext = await request.newContext();
+
+  try {
+    const response = await requestContext.get(
+      `${INBUCKET_URL}/api/v1/search?query=${username}&limit=50`,
     );
 
-  const latestMessage = messages[0];
-
-  if (latestMessage) {
-    const message = await requestContext
-      .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessage.id}`)
-      .then((res) => res.json());
-
-    const tokenMatch = message.body.text.match(/enter the code: ([0-9]+)/);
-    const urlMatch = message.body.text.match(/Log In \( (.+) \)/);
-
-    if (!tokenMatch || !urlMatch) {
-      throw new Error("Email format unexpected");
+    if (!response.ok()) {
+      throw new Error(
+        `Mailbox not found or not ready yet ${response.status()} for ${username}`,
+      );
     }
 
-    return { token: tokenMatch[1], url: urlMatch[1] };
-  }
+    const emailResponse = await response.json().catch((error) => {
+      throw new Error(`Failed to parse mailbox response: ${error.message}`);
+    });
 
-  throw new Error("No email received");
+    const parsedEmailResponse = inbucketEmailSchema.parse(emailResponse);
+    const messages = parsedEmailResponse.messages;
+
+    // Get messages from the last 2 minutes, sorted by date
+    const TWO_MINUTES = 2 * 60 * 1000;
+    const now = new Date().getTime();
+    const recentMessages = messages
+      .filter((message) => {
+        const messageDate = new Date(message.Created).getTime();
+        return now - messageDate < TWO_MINUTES;
+      })
+      .sort(
+        (a, b) => new Date(b.Created).getTime() - new Date(a.Created).getTime(),
+      );
+
+    if (recentMessages.length === 0) {
+      throw new Error(`No recent messages found for user ${username}`);
+    }
+
+    // Try each recent message until we find one with the correct format
+    for (const message of recentMessages) {
+      try {
+        const messageResponse = await requestContext.get(
+          `${INBUCKET_URL}/api/v1/message/${message.ID}`,
+        );
+
+        if (!messageResponse.ok()) {
+          continue; // Try next message if this one fails
+        }
+
+        const messageDetailsResponse = await messageResponse.json();
+        const messageDetails = inbucketEmailMessageDetailSchema.parse(
+          messageDetailsResponse,
+        );
+
+        try {
+          // Try to extract token and URL from this message
+          const tokenMatch = messageDetails.Text.match(
+            /enter the code: ([0-9]+)/,
+          );
+          const urlMatch = messageDetails.Text.match(/Log In \( (.+) \)/);
+
+          if (!tokenMatch?.[1] || !urlMatch?.[1]) {
+            continue; // Try next message if format doesn't match
+          }
+
+          return {
+            token: tokenMatch[1],
+            url: urlMatch[1],
+          };
+        } catch (e) {
+          // If this message doesn't match our format, try the next one
+          continue;
+        }
+      } catch (e) {
+        // If there's an error fetching this message, try the next one
+        continue;
+      }
+    }
+
+    throw new Error(
+      `No valid login confirmation emails found in the last 2 minutes`,
+    );
+  } finally {
+    await requestContext.dispose();
+  }
 }
 
 export async function loginUserHelper({
@@ -54,38 +108,48 @@ export async function loginUserHelper({
   await page.goto(`/login`);
 
   const magicLinkButton = page.locator('button:has-text("Magic Link")');
-
-  if (!magicLinkButton) {
-    throw new Error("Magic Link button not found");
-  }
-
+  await magicLinkButton.waitFor({ state: "visible" });
   await magicLinkButton.click();
+
   const magicLinkForm = page.getByTestId("magic-link-form");
   await magicLinkForm.waitFor();
-  await magicLinkForm.locator("input").fill(emailAddress);
-  // await page.getByLabel('Password').fill('password');
-  await magicLinkForm.locator("button").click();
-  // check for this text - A magic link has been sent to your email!
+
+  const emailInput = magicLinkForm.locator("input");
+  await emailInput.waitFor({ state: "visible" });
+  await emailInput.fill(emailAddress);
+
+  const submitButton = magicLinkForm.locator("button");
+  await submitButton.waitFor({ state: "visible" });
+  await submitButton.click();
+
   await page.getByTestId("email-confirmation-pending-card").waitFor();
+
   const identifier = emailAddress.split("@")[0];
-  let url;
+  let confirmationUrl: string | null = null;
+
   await expect
     .poll(
       async () => {
         try {
-          const { url: urlFromCheck } = await getConfirmEmail(identifier);
-          url = urlFromCheck;
-          return typeof urlFromCheck;
-        } catch (e) {
-          return null;
+          const result = await getConfirmEmail(identifier);
+          confirmationUrl = result.url;
+          return true;
+        } catch (error) {
+          console.log(`Polling for email: ${error.message}`);
+          return false;
         }
       },
       {
-        message: "make sure the email is received",
-        intervals: [1000, 2000, 5000, 10000, 20000],
+        message: `Waiting for confirmation email for ${identifier}`,
+        timeout: 30000,
+        intervals: [1000, 2000, 3000, 5000],
       },
     )
-    .toBe("string");
+    .toBe(true);
 
-  await page.goto(url);
+  if (!confirmationUrl) {
+    throw new Error("Failed to get confirmation URL after successful poll");
+  }
+
+  await page.goto(confirmationUrl);
 }

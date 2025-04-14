@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
 import { expect, request } from "@playwright/test";
+import {
+  inbucketEmailMessageDetailSchema,
+  inbucketEmailSchema,
+} from "./inbucket-email-schema";
 
 const INBUCKET_URL = `http://localhost:54324`;
 
@@ -9,7 +13,17 @@ const INBUCKET_URL = `http://localhost:54324`;
  * ----------\nMagic Link\n----------\n\nFollow this link to login:\n\nLog In ( http://127.0.0.1:54321/auth/v1/verify?token=pkce_8727a6aad33b430c0a5d01d92e5b2fca0481beda04dfa028a59a50b0&type=magiclink&redirect_to=http://localhost:3000/auth/callback )\n\nAlternatively, enter the code: 122956
  */
 
-const matchers = [
+interface EmailConfirmation {
+  token: string;
+  url: string;
+}
+
+interface EmailMatcher {
+  tokenMatcher: RegExp;
+  urlMatcher: RegExp;
+}
+
+const matchers: EmailMatcher[] = [
   {
     tokenMatcher: /enter the code: ([0-9]+)/,
     urlMatcher: /Confirm your email address \( (.+) \)/,
@@ -20,8 +34,7 @@ const matchers = [
   },
 ];
 
-function getTokenAndUrlFromEmailText(text: string) {
-  // the first matcher that matches the text is used
+function getTokenAndUrlFromEmailText(text: string): EmailConfirmation {
   for (const matcher of matchers) {
     const token = text.match(matcher.tokenMatcher)?.[1];
     const url = text.match(matcher.urlMatcher)?.[1];
@@ -29,47 +42,83 @@ function getTokenAndUrlFromEmailText(text: string) {
       return { token, url };
     }
   }
-  throw new Error("No token and url found in email text");
+  throw new Error(
+    "Email format unexpected - could not extract token and URL from email text",
+  );
 }
 
 // eg endpoint: https://api.testmail.app/api/json?apikey=${APIKEY}&namespace=${NAMESPACE}&pretty=true
-async function getConfirmEmail(username: string): Promise<{
-  token: string;
-  url: string;
-}> {
+async function getConfirmEmail(username: string): Promise<EmailConfirmation> {
   const requestContext = await request.newContext();
-  const messages = await requestContext
-    .get(`${INBUCKET_URL}/api/v1/mailbox/${username}`)
-    .then((res) => res.json())
-    // InBucket doesn't have any params for sorting, so here
-    // we're sorting the messages by date
-    .then((items) =>
-      [...items].sort((a, b) => {
-        if (a.date < b.date) {
-          return 1;
-        }
 
-        if (a.date > b.date) {
-          return -1;
-        }
-
-        return 0;
-      }),
+  try {
+    const response = await requestContext.get(
+      `${INBUCKET_URL}/api/v1/search?query=${username}&limit=50`,
     );
 
-  const latestMessageId = messages[0]?.id;
-  if (latestMessageId) {
-    const message = await requestContext
-      .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessageId}`)
-      .then((res) => res.json());
+    if (!response.ok()) {
+      throw new Error(
+        `Mailbox not found or not ready yet ${response.status()} for ${username}`,
+      );
+    }
 
-    // We've got the latest email. We're going to use regular
-    // expressions to match the bits we need.
-    const { token, url } = getTokenAndUrlFromEmailText(message.body.text);
-    return { token, url };
+    const emailResponse = await response.json().catch((error) => {
+      throw new Error(`Failed to parse mailbox response: ${error.message}`);
+    });
+
+    const parsedEmailResponse = inbucketEmailSchema.parse(emailResponse);
+
+    const messages = parsedEmailResponse.messages;
+
+    // Get messages from the last 2 minutes, sorted by date
+    const TWO_MINUTES = 2 * 60 * 1000;
+    const now = new Date().getTime();
+    const recentMessages = messages
+      .filter((message) => {
+        const messageDate = new Date(message.Created).getTime();
+        return now - messageDate < TWO_MINUTES;
+      })
+      .sort(
+        (a, b) => new Date(b.Created).getTime() - new Date(a.Created).getTime(),
+      );
+
+    if (recentMessages.length === 0) {
+      throw new Error(`No recent messages found for user ${username}`);
+    }
+
+    // Try each recent message until we find one with the correct format
+    for (const message of recentMessages) {
+      try {
+        const messageResponse = await requestContext.get(
+          `${INBUCKET_URL}/api/v1/message/${message.ID}`,
+        );
+
+        if (!messageResponse.ok()) {
+          continue; // Try next message if this one fails
+        }
+
+        const messageDetailsResponse = await messageResponse.json();
+        const messageDetails = inbucketEmailMessageDetailSchema.parse(
+          messageDetailsResponse,
+        );
+
+        try {
+          // Try to extract token and URL from this message
+          return getTokenAndUrlFromEmailText(messageDetails.Text);
+        } catch (e) {
+          // If this message doesn't match our format, try the next one
+          continue;
+        }
+      } catch (e) {
+        // If there's an error fetching this message, try the next one
+        continue;
+      }
+    }
+
+    throw new Error(`No valid confirmation emails found in the last 2 minutes`);
+  } finally {
+    await requestContext.dispose();
   }
-
-  throw new Error("No email received");
 }
 
 export async function signupUserHelper({
@@ -81,43 +130,64 @@ export async function signupUserHelper({
   emailAddress: string;
   identifier: string;
 }) {
-  // Perform authentication steps. Replace these actions with your own.
   await page.goto("/sign-up");
 
-  const magicLoginButton = await page.waitForSelector(
-    'button:has-text("Magic Link")',
-  );
+  const magicLinkButton = page.locator('button:has-text("Magic Link")');
+  await magicLinkButton.waitFor({ state: "visible" });
+  await magicLinkButton.click();
 
-  if (!magicLoginButton) {
-    throw new Error("magicLoginButton not found");
-  }
+  const magicLinkForm = page.getByTestId("magic-link-form");
+  await magicLinkForm.waitFor();
 
-  await magicLoginButton.click();
+  const emailInput = magicLinkForm.locator("input");
+  await emailInput.waitFor({ state: "visible" });
+  await emailInput.fill(emailAddress);
 
-  await page.getByTestId("magic-link-form").locator("input").fill(emailAddress);
-  // await page.getByLabel('Password').fill('password');
-  await page.getByRole("button", { name: "Sign up with Magic Link" }).click();
-  // check for this text - A magic link has been sent to your email!
-  await page.getByText("A magic link has been sent to your email!");
-  let url;
+  const submitButton = page.getByRole("button", {
+    name: "Sign up with Magic Link",
+  });
+  await submitButton.waitFor({ state: "visible" });
+  await submitButton.click();
+
+  // Wait for confirmation message in the confirmation card
+  const confirmationCard = page.getByTestId("email-confirmation-pending-card");
+  await confirmationCard.waitFor({ state: "visible" });
+
+  let confirmationUrl: string | null = null;
+
   await expect
     .poll(
       async () => {
         try {
-          const { url: urlFromCheck } = await getConfirmEmail(identifier);
-          url = urlFromCheck;
-          return typeof urlFromCheck;
-        } catch (e) {
-          return null;
+          const result = await getConfirmEmail(identifier);
+          confirmationUrl = result.url;
+          return true;
+        } catch (error) {
+          console.log(
+            `Polling for signup confirmation email: ${error.message}`,
+          );
+          return false;
         }
       },
       {
-        message: "make sure the email is received",
-        intervals: [1000, 2000, 5000, 10000, 20000],
+        message: `Waiting for signup confirmation email for ${identifier}`,
+        timeout: 30000,
+        intervals: [1000, 2000, 3000, 5000],
       },
     )
-    .toBe("string");
+    .toBe(true);
 
-  await page.goto(url);
-  await page.waitForURL(/\/[a-z]{2}\/onboarding/);
+  if (!confirmationUrl) {
+    throw new Error(
+      "Failed to get signup confirmation URL after successful poll",
+    );
+  }
+
+  await page.goto(confirmationUrl);
+
+  // Wait for redirect to onboarding
+  await page.waitForURL(/\/[a-z]{2}\/onboarding/, {
+    timeout: 10000,
+    waitUntil: "networkidle",
+  });
 }
