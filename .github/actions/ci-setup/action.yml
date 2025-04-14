@@ -6,15 +6,10 @@ runs:
     - name: Set environment variable
       run: echo "GITHUB_ACTION=true" >> $GITHUB_ENV
       shell: bash
-    - name: Install Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 20
-
-    - uses: pnpm/action-setup@v3
+    - uses: pnpm/action-setup@v4
       name: Install pnpm
       with:
-        version: 8
+        version: latest
         run_install: false
 
     - name: Get pnpm store directory
@@ -22,14 +17,11 @@ runs:
       run: |
         echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-    - uses: actions/cache@v4
-      name: Setup pnpm cache
+    - name: Install Node.js
+      uses: actions/setup-node@v4
       with:
-        path: ${{ env.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+        node-version: 20
+        cache: "pnpm"
     - name: Install project dependencies
-      if: steps.pnpm-cache.outputs.cache-hit != 'true'
       run: pnpm install # Updated to pnpm
       shell: bash
