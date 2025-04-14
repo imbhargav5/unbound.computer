@@ -16,7 +16,6 @@ jobs:
       PORT: 3000
       NODE_ENV: test
       CI: true
-      DEBUG: pw:api*,pw:webserver*
 
     steps:
       - name: Checkout code
