@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { Metadata } from "next";
 import { getMessages } from "next-intl/server";
 import "server-only";
+import { AffonsoWrapper } from "./AffonsoWrapper";
 import { AppProviders } from "./AppProviders";
 
 export const metadata: Metadata = {
@@ -37,6 +38,9 @@ export default async function RootLayout(props: {
       className={GeistSans.className}
       suppressHydrationWarning
     >
+      <head>
+        <AffonsoWrapper />
+      </head>
       <body className="flex flex-col min-h-screen">
         <AppProviders locale={locale} messages={messages}>
           {children}
