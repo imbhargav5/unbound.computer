@@ -10,7 +10,7 @@ const baseURL = `http://localhost:${PORT}`;
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
   // Reduce CI workers to prevent overwhelming GitHub Actions
-  workers: process.env.CI ? 1 : 4,
+  workers: process.env.CI ? 8 : 4,
   // Increase CI timeout to match local
   timeout: 120 * 1000,
   // Test directory
@@ -43,7 +43,7 @@ const config: PlaywrightTestConfig = {
 
     // Retry a test if its failing with enabled tracing. This allows you to analyse the DOM, console logs, network traffic etc.
     // More information: https://playwright.dev/docs/trace-viewer
-    trace: "on",
+    trace: "retain-on-failure",
 
     // Add retry strategy for network actions
     navigationTimeout: 30 * 1000,
