@@ -49,20 +49,82 @@ test.describe("Workspace", () => {
       username: string,
     ): Promise<{ url: string }> {
       const requestContext = await request.newContext();
-      const messages = await requestContext
-        .get(`${INBUCKET_URL}/api/v1/mailbox/${username}`)
-        .then((res) => res.json());
-      const latestMessage = messages[0];
 
-      if (latestMessage) {
-        const message = await requestContext
-          .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessage.id}`)
-          .then((res) => res.json());
-        const url = message.body.text.match(/View Invitation \( (.+) \)/)[1];
-        return { url };
+      try {
+        const response = await requestContext.get(
+          `${INBUCKET_URL}/api/v1/search?query=${username}&limit=50`,
+        );
+
+        if (!response.ok()) {
+          throw new Error(
+            `Mailbox not found or not ready yet ${response.status()} for ${username}`,
+          );
+        }
+
+        const emailResponse = await response.json().catch((error) => {
+          throw new Error(`Failed to parse mailbox response: ${error.message}`);
+        });
+
+        const messages = emailResponse.messages;
+
+        // Get messages from the last 2 minutes, sorted by date
+        const TWO_MINUTES = 2 * 60 * 1000;
+        const now = new Date().getTime();
+        const recentMessages = messages
+          .filter((message) => {
+            const messageDate = new Date(message.Created).getTime();
+            return now - messageDate < TWO_MINUTES;
+          })
+          .sort(
+            (a, b) =>
+              new Date(b.Created).getTime() - new Date(a.Created).getTime(),
+          );
+
+        if (recentMessages.length === 0) {
+          throw new Error(`No recent messages found for user ${username}`);
+        }
+
+        // Try each recent message until we find one with the correct format
+        for (const message of recentMessages) {
+          try {
+            const messageResponse = await requestContext.get(
+              `${INBUCKET_URL}/api/v1/message/${message.ID}`,
+            );
+
+            if (!messageResponse.ok()) {
+              continue; // Try next message if this one fails
+            }
+
+            const messageDetails = await messageResponse.json();
+
+            try {
+              // Try to extract URL from this message
+              const urlMatch = messageDetails.Text.match(
+                /View Invitation \( (.+) \)/,
+              );
+              if (!urlMatch?.[1]) {
+                continue; // Try next message if format doesn't match
+              }
+
+              return {
+                url: urlMatch[1],
+              };
+            } catch (e) {
+              // If this message doesn't match our format, try the next one
+              continue;
+            }
+          } catch (e) {
+            // If there's an error fetching this message, try the next one
+            continue;
+          }
+        }
+
+        throw new Error(
+          `No valid invitation emails found in the last 2 minutes`,
+        );
+      } finally {
+        await requestContext.dispose();
       }
-
-      throw new Error("No email received");
     }
     test("invite existing user to a workspace", async ({ browser, page }) => {
       const workspaceSlug = createdWorkspaceSlug;

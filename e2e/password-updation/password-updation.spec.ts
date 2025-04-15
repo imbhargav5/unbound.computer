@@ -33,33 +33,82 @@ test.describe.serial("Password management", () => {
       username: string,
     ): Promise<{ url: string }> {
       const requestContext = await request.newContext();
-      const messages = await requestContext
-        .get(`${INBUCKET_URL}/api/v1/mailbox/${username}`)
-        .then((res) => res.json());
-      const currentTime = Date.now();
-      const recent10Messages = messages.slice(0, 20);
-      const messagesWithSubjectReset = recent10Messages.filter(
-        (message) => message.subject === "Reset Your Password",
-      );
-      const messagesReceivedWithinTheLastMinute =
-        messagesWithSubjectReset.filter(
-          (message) => Math.abs(currentTime - message["posix-millis"]) < 60000,
+
+      try {
+        const response = await requestContext.get(
+          `${INBUCKET_URL}/api/v1/search?query=${username}&limit=50`,
         );
-      const latestMessage = messagesReceivedWithinTheLastMinute[0];
 
-      if (latestMessage) {
-        const message = await requestContext
-          .get(`${INBUCKET_URL}/api/v1/mailbox/${username}/${latestMessage.id}`)
-          .then((res) => res.json());
-        const urlMatch = message.body.text.match(/Reset password \( (.+) \)/);
-        if (!urlMatch) {
-          console.error("Email content:", message.body.text);
-          throw new Error("Email format unexpected");
+        if (!response.ok()) {
+          throw new Error(
+            `Mailbox not found or not ready yet ${response.status()} for ${username}`,
+          );
         }
-        return { url: urlMatch[1] };
-      }
 
-      throw new Error("No email received");
+        const emailResponse = await response.json().catch((error) => {
+          throw new Error(`Failed to parse mailbox response: ${error.message}`);
+        });
+
+        const messages = emailResponse.messages;
+
+        // Get messages from the last 2 minutes, sorted by date
+        const TWO_MINUTES = 2 * 60 * 1000;
+        const now = new Date().getTime();
+        const recentMessages = messages
+          .filter((message) => {
+            const messageDate = new Date(message.Created).getTime();
+            return now - messageDate < TWO_MINUTES;
+          })
+          .sort(
+            (a, b) =>
+              new Date(b.Created).getTime() - new Date(a.Created).getTime(),
+          );
+
+        if (recentMessages.length === 0) {
+          throw new Error(`No recent messages found for user ${username}`);
+        }
+
+        // Try each recent message until we find one with the correct format
+        for (const message of recentMessages) {
+          try {
+            const messageResponse = await requestContext.get(
+              `${INBUCKET_URL}/api/v1/message/${message.ID}`,
+            );
+
+            if (!messageResponse.ok()) {
+              continue; // Try next message if this one fails
+            }
+
+            const messageDetails = await messageResponse.json();
+
+            try {
+              // Try to extract URL from this message
+              const urlMatch = messageDetails.Text.match(
+                /Reset password \( (.+) \)/,
+              );
+              if (!urlMatch?.[1]) {
+                continue; // Try next message if format doesn't match
+              }
+
+              return {
+                url: urlMatch[1],
+              };
+            } catch (e) {
+              // If this message doesn't match our format, try the next one
+              continue;
+            }
+          } catch (e) {
+            // If there's an error fetching this message, try the next one
+            continue;
+          }
+        }
+
+        throw new Error(
+          `No valid reset password emails found in the last 2 minutes`,
+        );
+      } finally {
+        await requestContext.dispose();
+      }
     }
 
     await getDefaultWorkspaceInfoHelper({ page });
