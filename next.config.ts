@@ -85,16 +85,15 @@ export default async function config(
     },
 
     reactStrictMode: true,
-
-    experimental: {
-      turbo: {
-        rules: {
-          "*.svg": {
-            loaders: ["@svgr/webpack"],
-            as: "*.js",
-          },
+    turbo: {
+      rules: {
+        "*.svg": {
+          loaders: ["@svgr/webpack"],
+          as: "*.js",
         },
       },
+    },
+    experimental: {
       authInterrupts: true,
     },
     eslint: {
