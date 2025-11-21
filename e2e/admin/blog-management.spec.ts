@@ -95,9 +95,17 @@ test.describe.serial("Blog Post Management", () => {
     const adminPage = await adminContext.newPage();
 
     await adminPage.goto(`/en/app_admin/marketing/blog/${blogPostId}`);
+    await adminPage.waitForLoadState("networkidle");
 
-    await adminPage.locator("#status").click();
-    await adminPage.getByLabel("Draft").click();
+    const statusSelect = adminPage.locator("#status");
+    await statusSelect.waitFor({ state: "visible" });
+    await statusSelect.click();
+    
+    // Wait for the dropdown menu to appear
+    const draftOption = adminPage.getByLabel("Draft");
+    await draftOption.waitFor({ state: "visible", timeout: 10000 });
+    await draftOption.click();
+    
     await adminPage.getByRole("button", { name: "Update Blog Post" }).click();
 
     await adminPage.getByRole("link", { name: "Marketing Blog" }).click();

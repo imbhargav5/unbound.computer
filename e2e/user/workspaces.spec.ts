@@ -68,19 +68,24 @@ test.describe.serial("Solo Workspace", () => {
     // ).toBeVisible();
 
     // Then verify the new value
-    await expect(async () => {
-      const workspaceNameElement = await page.waitForSelector(
-        "[data-testid='workspaceName']",
-        {
-          state: "attached",
+    await expect
+      .poll(
+        async () => {
+          const workspaceNameElement = await page.waitForSelector(
+            "[data-testid='workspaceName']",
+            {
+              state: "attached",
+            },
+          );
+          const text = await workspaceNameElement.textContent();
+          return text;
         },
-      );
-      const text = await workspaceNameElement.textContent();
-      expect(text).toBe(newTitle);
-    }).toPass({
-      intervals: [1000, 2000, 5000],
-      timeout: 15000,
-    });
+        {
+          intervals: [1000, 2000, 5000],
+          timeout: 15000,
+        },
+      )
+      .toBe(newTitle);
   });
 });
 

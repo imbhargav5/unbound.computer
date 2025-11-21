@@ -1,4 +1,4 @@
-import { expect, request, test } from "@playwright/test";
+import { expect, request, test, type Page } from "@playwright/test";
 import { getUserDetailsFromAuthJson } from "../_helpers/authjson.helper";
 import { onboardUserHelper } from "../_helpers/onboard-user.helper";
 import {
@@ -41,6 +41,32 @@ test.describe("Workspace", () => {
   });
 
   test.describe("Workspace invite", () => {
+    async function ensureWorkspaceExists(page: Page): Promise<string> {
+      if (createdWorkspaceSlug) {
+        return createdWorkspaceSlug;
+      }
+      // Create workspace if it doesn't exist
+      const { workspaceSlug } = await getDefaultWorkspaceInfoHelper({ page });
+      await page.focus("body");
+      // pressing w opens the create workspace dialog
+      await page.keyboard.press("w");
+      const form = page.getByTestId("create-workspace-form");
+      await form.waitFor();
+      await form.locator("input#name").fill("Test Workspace For Invites");
+      // read the slug from the form using data-testid
+      const slug = await form.getByTestId("workspace-slug-input").inputValue();
+      expect(slug).toBeTruthy();
+      await form.getByRole("button", { name: "Create Workspace" }).click();
+      // Wait for URL change
+      await page.waitForURL(new RegExp(`/[a-z]{2}/workspace/${slug}/home`));
+      // Extract the new workspace slug from the URL
+      const {
+        workspaceSlug: newWorkspaceSlug,
+      } = await matchPathAndExtractWorkspaceInfo({ page });
+      createdWorkspaceSlug = newWorkspaceSlug;
+      return newWorkspaceSlug;
+    }
+
     function getInviteeIdentifier(): string {
       return `johnInvitee${Date.now().toString().slice(-4)}`;
     }
@@ -127,10 +153,7 @@ test.describe("Workspace", () => {
       }
     }
     test("invite existing user to a workspace", async ({ browser, page }) => {
-      const workspaceSlug = createdWorkspaceSlug;
-      if (!workspaceSlug) {
-        throw new Error("No workspace slug found");
-      }
+      const workspaceSlug = await ensureWorkspaceExists(page);
 
       // Invite the existing user (user2)
       await goToWorkspaceArea({
@@ -139,9 +162,13 @@ test.describe("Workspace", () => {
         workspaceSlug: workspaceSlug,
         isSoloWorkspace: false,
       });
-      await page.click('button[data-testid="invite-user-button"]');
+      // Wait for the invite button to be visible and clickable
+      const inviteButton = page.locator('button[data-testid="invite-user-button"]');
+      await inviteButton.waitFor({ state: "visible" });
+      await inviteButton.click();
+      // Wait for the form to appear with a longer timeout
       const form = page.getByTestId("invite-user-form");
-      await form.waitFor();
+      await form.waitFor({ state: "visible", timeout: 10000 });
 
       // Switch to user2's context
       const user2Context = await browser.newContext({
@@ -193,19 +220,22 @@ test.describe("Workspace", () => {
       await user2Context.close();
     });
     test("invite new user to a workspace", async ({ page, browser }) => {
-      const workspaceSlug = createdWorkspaceSlug;
-      if (!workspaceSlug) {
-        throw new Error("No workspace slug found");
-      }
+      const workspaceSlug = await ensureWorkspaceExists(page);
       await goToWorkspaceArea({
         page,
         area: "settings/members",
         workspaceSlug: workspaceSlug,
         isSoloWorkspace: false,
       });
-      await page.click('button[data-testid="invite-user-button"]');
+      // Wait for page to be fully loaded
+      await page.waitForLoadState("networkidle");
+      // Wait for the invite button to be visible and clickable
+      const inviteButton = page.locator('button[data-testid="invite-user-button"]');
+      await inviteButton.waitFor({ state: "visible", timeout: 10000 });
+      await inviteButton.click();
+      // Wait for the form to appear with a longer timeout and retry logic
       const form = page.getByTestId("invite-user-form");
-      await form.waitFor();
+      await form.waitFor({ state: "visible", timeout: 15000 });
       const inviteeIdentifier = getInviteeIdentifier();
       const inviteeEmail = `${inviteeIdentifier}@myapp.com`;
 
