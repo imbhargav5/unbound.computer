@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import Chance from "chance";
 
-test.describe.skip("Admin Feedback Management", () => {
+test.describe("Admin Feedback Management", () => {
   let feedbackId: string | undefined;
   const feedbackTitle = Chance().sentence();
   const feedbackDescription = Chance().sentence();

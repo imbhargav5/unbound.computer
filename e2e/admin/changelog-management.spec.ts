@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe.skip("Changelog Management", () => {
+test.describe.serial("Changelog Management", () => {
   let changelogId: string | undefined;
   let changelogTitle: string | undefined;
 
@@ -88,14 +88,23 @@ test.describe.skip("Changelog Management", () => {
 
     await adminPage.goto(`/en/app_admin/marketing/changelog/${changelogId}`);
 
+    await adminPage.locator("#status").waitFor({ state: "visible" });
     await adminPage.locator("#status").click();
-    await adminPage.getByLabel("Draft").click();
+    
+    // Wait for dropdown to appear
+    const draftOption = adminPage.getByLabel("Draft");
+    await draftOption.waitFor({ state: "visible", timeout: 10000 });
+    await draftOption.click();
+    
     await adminPage.getByRole("button", { name: "Update Changelog" }).click();
-
-    await adminPage.waitForTimeout(5000);
+    await adminPage.waitForLoadState("networkidle");
 
     await adminPage.goto("/en/app_admin/marketing/changelog");
+    await adminPage.waitForLoadState("networkidle");
+    
+    // Wait for the row to be visible
     const row = adminPage.getByRole("row", { name: changelogTitle });
+    await row.waitFor({ state: "visible", timeout: 10000 });
     const statusCell = row.getByRole("cell", { name: "Draft" });
     await expect(statusCell).toBeVisible();
 
@@ -117,10 +126,14 @@ test.describe.skip("Changelog Management", () => {
     const adminPage = await adminContext.newPage();
 
     await adminPage.goto("/en/app_admin/marketing/changelog");
+    await adminPage.waitForLoadState("networkidle");
 
-    const deleteButton = adminPage
-      .getByRole("row", { name: changelogTitle })
-      .getByTestId("delete-changelog-dialog-trigger");
+    // Wait for the row to be visible first
+    const row = adminPage.getByRole("row", { name: changelogTitle });
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    
+    const deleteButton = row.getByTestId("delete-changelog-dialog-trigger");
+    await deleteButton.waitFor({ state: "visible", timeout: 10000 });
     await deleteButton.click();
     await adminPage.getByTestId("confirm-delete-button").waitFor();
     await adminPage.getByTestId("confirm-delete-button").click();

@@ -162,13 +162,15 @@ test.describe("Workspace", () => {
         workspaceSlug: workspaceSlug,
         isSoloWorkspace: false,
       });
+      // Wait for page to be fully loaded
+      await page.waitForLoadState("networkidle");
       // Wait for the invite button to be visible and clickable
       const inviteButton = page.locator('button[data-testid="invite-user-button"]');
-      await inviteButton.waitFor({ state: "visible" });
+      await inviteButton.waitFor({ state: "visible", timeout: 10000 });
       await inviteButton.click();
       // Wait for the form to appear with a longer timeout
       const form = page.getByTestId("invite-user-form");
-      await form.waitFor({ state: "visible", timeout: 10000 });
+      await form.waitFor({ state: "visible", timeout: 15000 });
 
       // Switch to user2's context
       const user2Context = await browser.newContext({
