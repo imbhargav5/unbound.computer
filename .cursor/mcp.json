@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "supabase-self-hosted": {
+      "url": "http://localhost:54321/mcp"
+    }
+  }
+}
