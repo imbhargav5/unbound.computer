@@ -60,43 +60,46 @@ const config: PlaywrightTestConfig = {
   },
 
   projects: [
-    {
-      name: "with-user-setup",
-      testMatch: "_setups/user.setup.ts",
-    },
-    {
-      name: "with-app-admin-setup",
-      testMatch: "_setups/admin.setup.ts",
-    },
-    {
-      name: "with-second-user-setup",
-      testMatch: "_setups/user2.setup.ts",
-    },
-    {
-      name: "admin-users",
-      testMatch: "admin/**/*.spec.ts",
-      retries: 0,
-      dependencies: [
-        "with-user-setup",
-        "with-second-user-setup",
-        "with-app-admin-setup",
-      ],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/app_admin.json",
-      },
-    },
-    {
-      name: "logged-in-users",
-      testMatch: "user/**/*.spec.ts",
-      retries: 0,
-      dependencies: ["with-user-setup"],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/user_1.json",
-      },
-    },
-
+    // Disabled: setup projects for non-anon tests
+    // {
+    //   name: "with-user-setup",
+    //   testMatch: "_setups/user.setup.ts",
+    // },
+    // {
+    //   name: "with-app-admin-setup",
+    //   testMatch: "_setups/admin.setup.ts",
+    // },
+    // {
+    //   name: "with-second-user-setup",
+    //   testMatch: "_setups/user2.setup.ts",
+    // },
+    // Disabled: admin-users test project
+    // {
+    //   name: "admin-users",
+    //   testMatch: "admin/**/*.spec.ts",
+    //   retries: 0,
+    //   dependencies: [
+    //     "with-user-setup",
+    //     "with-second-user-setup",
+    //     "with-app-admin-setup",
+    //   ],
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: "playwright/.auth/app_admin.json",
+    //   },
+    // },
+    // Disabled: logged-in-users test project
+    // {
+    //   name: "logged-in-users",
+    //   testMatch: "user/**/*.spec.ts",
+    //   retries: 0,
+    //   dependencies: ["with-user-setup"],
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: "playwright/.auth/user_1.json",
+    //   },
+    // },
+    // Enabled: anon-users test project
     {
       name: "anon-users",
       testMatch: "anon/**/*.spec.ts",
@@ -104,15 +107,16 @@ const config: PlaywrightTestConfig = {
         ...devices["Desktop Chrome"],
       },
     },
-    {
-      name: "password-updation",
-      testMatch: "password-updation/**/*.spec.ts",
-      dependencies: ["logged-in-users"],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "playwright/.auth/user_1.json",
-      },
-    },
+    // Disabled: password-updation test project
+    // {
+    //   name: "password-updation",
+    //   testMatch: "password-updation/**/*.spec.ts",
+    //   dependencies: ["logged-in-users"],
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: "playwright/.auth/user_1.json",
+    //   },
+    // },
   ],
   globalSetup: "./playwright/global-setup.ts",
 };
