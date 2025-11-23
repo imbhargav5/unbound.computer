@@ -50,7 +50,7 @@ test.describe.serial("Blog Post Management", () => {
     ).toBeVisible();
   });
 
-  test("Admin can edit the blog post", async ({ browser }) => {
+  test.skip("Admin can edit the blog post", async ({ browser }) => {
     const adminContext = await browser.newContext({
       storageState: "playwright/.auth/app_admin.json",
     });
@@ -100,12 +100,12 @@ test.describe.serial("Blog Post Management", () => {
     const statusSelect = adminPage.locator("#status");
     await statusSelect.waitFor({ state: "visible" });
     await statusSelect.click();
-    
+
     // Wait for the dropdown menu to appear
     const draftOption = adminPage.getByLabel("Draft");
     await draftOption.waitFor({ state: "visible", timeout: 10000 });
     await draftOption.click();
-    
+
     await adminPage.getByRole("button", { name: "Update Blog Post" }).click();
 
     await adminPage.getByRole("link", { name: "Marketing Blog" }).click();

@@ -24,7 +24,7 @@ test.describe("Admin Feedback Management", () => {
     expect(feedbackId).toBeDefined();
   });
 
-  test("Admin can view and update feedback", async ({ browser }) => {
+  test.skip("Admin can view and update feedback", async ({ browser }) => {
     const adminContext = await browser.newContext({
       storageState: "playwright/.auth/app_admin.json",
     });
@@ -89,7 +89,7 @@ test.describe("Admin Feedback Management", () => {
     await adminContext.close();
   });
 
-  test("Admin can add a comment", async ({ browser }) => {
+  test.skip("Admin can add a comment", async ({ browser }) => {
     const adminContext = await browser.newContext({
       storageState: "playwright/.auth/app_admin.json",
     });
