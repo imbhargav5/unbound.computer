@@ -39,5 +39,6 @@
     "test-integration-ui": {
       "cache": false
     }
-  }
+  },
+  "envMode": "loose"
 }

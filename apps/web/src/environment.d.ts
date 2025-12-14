@@ -11,7 +11,6 @@ declare global {
       STRIPE_WEBHOOK_SECRET: string;
       NODE_ENV: "test" | "development" | "production";
       PORT?: string;
-      PWD: string;
       NEXT_PUBLIC_VERCEL_URL?: string;
       NEXT_PUBLIC_SITE_URL?: string;
       ADMIN_EMAIL: string;
@@ -22,7 +21,6 @@ declare global {
       NEXT_PUBLIC_GA_ID: string;
       UNKEY_ROOT_KEY: string;
       UNKEY_API_ID: string;
-      TESTMAIL_PREFIX?: string;
       OPENAI_API_KEY?: string;
       USE_LOCAL_EMAIL?: string;
     }
