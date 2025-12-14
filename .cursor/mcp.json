@@ -1,10 +1,14 @@
 {
   "mcpServers": {
+    "next-devtools": {
+      "command": "npx",
+      "args": ["-y", "next-devtools-mcp@latest"]
+    },
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest"]
     },
-    "supabase-self-hosted": {
+    "supabase": {
       "url": "http://localhost:54321/mcp"
     }
   }

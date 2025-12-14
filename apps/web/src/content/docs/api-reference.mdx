@@ -1,0 +1,71 @@
+---
+title: API Reference
+description: Example API documentation with tables and parameters
+---
+
+## Overview
+
+This page demonstrates how to document APIs using tables and structured content.
+
+## User API
+
+### Get User
+
+Retrieve user information by ID.
+
+**Endpoint:** `GET /api/users/:id`
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | string | Yes | The unique user identifier |
+
+#### Response
+
+```json
+{
+  "id": "123",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+### Create User
+
+Create a new user account.
+
+**Endpoint:** `POST /api/users`
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | Yes | User's full name |
+| email | string | Yes | User's email address |
+| password | string | Yes | User's password (min 8 chars) |
+
+#### Response Codes
+
+| Code | Description |
+|------|-------------|
+| 201 | User created successfully |
+| 400 | Invalid request data |
+| 409 | Email already exists |
+
+## Authentication
+
+All API requests require authentication using a Bearer token:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  https://api.example.com/users/123
+```
+
+## Related Pages
+
+<Cards>
+  <Card title="Getting Started" href="/docs/getting-started" />
+  <Card title="Components" href="/docs/components" />
+</Cards>

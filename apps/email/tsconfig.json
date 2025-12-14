@@ -1,0 +1,9 @@
+{
+  "extends": "../../packages/typescript-config/tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "strictNullChecks": true
+  },
+  "include": ["emails/**/*.ts", "emails/**/*.tsx"],
+  "exclude": ["node_modules"]
+}

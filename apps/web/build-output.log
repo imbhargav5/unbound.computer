@@ -1,0 +1,2542 @@
+
+> web@3.1.0 build /Users/bhargavponnapalli/Code/nextbase-repos/nextbase-ultimate/apps/web
+> next build "--debug-prerender"
+
+ ⚠ Prerendering is running in debug mode. Note: This may affect performance and should not be used for production.
+[MDX] generated files in 4.177415999999994ms
+   ▲ Next.js 16.0.4 (Turbopack, Cache Components)
+   - Environments: .env.local
+   - Experiments (use with caution):
+     ✓ authInterrupts
+     ⨯ prerenderEarlyExit (disabled by `--debug-prerender`)
+     ✓ serverSourceMaps (enabled by `--debug-prerender`)
+     ⨯ turbopackMinify (disabled by `--debug-prerender`)
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 6.6s
+   Running TypeScript ...
+   Collecting page data using 27 workers ...
+   Generating static pages using 27 workers (0/200) ...
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+Error: Route "/[locale]/app_admin/payment-gateway": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/payment-gateway". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+jsonContent {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'bulletList', content: [Array] },
+    { type: 'heading', attrs: [Object], content: [Array] },
+    { type: 'paragraph', content: [Array] }
+  ]
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/payment-gateway": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/payment-gateway". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/authors/[authorId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/settings" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/settings" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/project/[projectSlug]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/project/[projectSlug]" in your browser to investigate the error.
+Error occurred prerendering page "/en/project/[projectSlug]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/payment-gateway/invoices": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/invoices" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/payment-gateway/invoices". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/project/[projectSlug]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/project/[projectSlug]" in your browser to investigate the error.
+Error occurred prerendering page "/de/project/[projectSlug]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/payment-gateway/subscriptions": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/subscriptions" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/payment-gateway/subscriptions". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/authors/[authorId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors/[authorId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/authors/[authorId]". Read more: https://nextjs.org/docs/messages/prerender-error
+   Generating static pages using 27 workers (50/200) 
+Error: Route "/[locale]/project/[projectSlug]/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/project/[projectSlug]/settings" in your browser to investigate the error.
+Error occurred prerendering page "/de/project/[projectSlug]/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/payment-gateway/subscriptions": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/subscriptions" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/payment-gateway/subscriptions". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/workspace/[workspaceSlug]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]" in your browser to investigate the error.
+Error occurred prerendering page "/en/workspace/[workspaceSlug]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/payment-gateway/invoices": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/invoices" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/payment-gateway/invoices". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/project/[projectSlug]/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/project/[projectSlug]/settings" in your browser to investigate the error.
+Error occurred prerendering page "/en/project/[projectSlug]/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error: Route "/[locale]/workspace/[workspaceSlug]/home": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/home" in your browser to investigate the error.
+Error occurred prerendering page "/en/workspace/[workspaceSlug]/home". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/workspace/[workspaceSlug]/home": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/home" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]/home". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/blog/[postId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/authors": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/authors". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings/billing": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings/billing" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error occurred prerendering page "/en/workspace/[workspaceSlug]/settings/billing". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/authors": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/authors" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/authors". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    ... collapsed 3 duplicate lines matching above 1 lines 3 times...
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/users/[userId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings/billing": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings/billing" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]/settings/billing". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/workspace/[workspaceSlug]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/workspace/[workspaceSlug]/projects": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/projects" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]/projects". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/workspace/[workspaceSlug]/projects": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/projects" in your browser to investigate the error.
+Error occurred prerendering page "/en/workspace/[workspaceSlug]/projects". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings/members": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings/members" in your browser to investigate the error.
+Error occurred prerendering page "/en/workspace/[workspaceSlug]/settings/members". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/users/[userId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    ... collapsed 3 duplicate lines matching above 1 lines 3 times...
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users/[userId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/users/[userId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings" in your browser to investigate the error.
+Error occurred prerendering page "/en/workspace/[workspaceSlug]/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/blog/[postId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog/[postId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/blog/[postId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/workspace/[workspaceSlug]/settings/members": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at body (<anonymous>)
+    at html (<anonymous>)
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/workspace/[workspaceSlug]/settings/members" in your browser to investigate the error.
+Error occurred prerendering page "/de/workspace/[workspaceSlug]/settings/members". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/users": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/users". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/users": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/users" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/users". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/user/invitations/[invitationId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/changelog/[changelogId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/blog": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/blog". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/blog": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/blog" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/blog". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    ... collapsed 3 duplicate lines matching above 1 lines 3 times...
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/workspaces/[workspaceId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/changelog": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/changelog". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/user/invitations/[invitationId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at SidebarMenuButton (src/components/ui/sidebar.tsx:500:3)
+    at li (<anonymous>)
+    at SidebarMenuItem (src/components/ui/sidebar.tsx:466:28)
+    at ul (<anonymous>)
+    at SidebarMenu (src/components/ui/sidebar.tsx:455:24)
+    at div (<anonymous>)
+    at SidebarGroup (src/components/ui/sidebar.tsx:386:25)
+    at div (<anonymous>)
+    at SidebarContent (src/components/ui/sidebar.tsx:372:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (src/components/ui/sidebar.tsx:156:3)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  498 |
+  499 | function SidebarMenuButton({
+> 500 |   asChild = false,
+      |   ^
+  501 |   isActive = false,
+  502 |   variant = "default",
+  503 |   size = "default",
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/user/invitations/[invitationId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/user/invitations/[invitationId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/changelog": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/changelog". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/workspaces/[workspaceId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    ... collapsed 3 duplicate lines matching above 1 lines 3 times...
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces/[workspaceId]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/workspaces/[workspaceId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/tags/[tag_id]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/workspaces": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/workspaces". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/workspaces": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/workspaces" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/workspaces". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error: Route "/[locale]/app_admin/marketing/changelog/[changelogId]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/changelog/[changelogId]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/changelog/[changelogId]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags/[tag_id]": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at li (<anonymous>)
+    at ol (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at header (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at main (<anonymous>)
+    at SidebarInset (src/components/ui/sidebar.tsx:308:25)
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+  306 | }
+  307 |
+> 308 | function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+      |                         ^
+  309 |   return (
+  310 |     <main
+  311 |       className={cn(
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags/[tag_id]" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/tags/[tag_id]". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/marketing/tags". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/marketing/tags": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/marketing/tags" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/marketing/tags". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: Route "/[locale]/app_admin/payment-gateway/customers": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/customers" in your browser to investigate the error.
+Error occurred prerendering page "/en/app_admin/payment-gateway/customers". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Route "/[locale]/app_admin/payment-gateway/customers": Uncached data was accessed outside of <Suspense>. This delays the entire page from rendering, resulting in a slow user experience. Learn more: https://nextjs.org/docs/messages/blocking-route
+    at div (<anonymous>)
+    at TooltipProvider1 (src/components/ui/tooltip.tsx:9:3)
+    at SidebarProvider (src/components/ui/sidebar.tsx:56:3)
+    at body (<anonymous>)
+    at html (<anonymous>)
+   7 |
+   8 | function TooltipProvider({
+>  9 |   delayDuration = 0,
+     |   ^
+  10 |   ...props
+  11 | }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  12 |   return (
+To get a more detailed stack trace and pinpoint the issue, start the app in development mode by running `next dev`, then open "/[locale]/app_admin/payment-gateway/customers" in your browser to investigate the error.
+Error occurred prerendering page "/de/app_admin/payment-gateway/customers". Read more: https://nextjs.org/docs/messages/prerender-error
+   Generating static pages using 27 workers (100/200) 
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
+    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/developer".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
+    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/developer',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[invitationId]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[invitationId]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/settings/security".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/settings/security',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/invitations/[...catchAll]".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
+    at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
+    at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
+    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/invitations/[...catchAll]',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+Error: During prerendering, `cookies()` rejects when the prerender is complete. Typically these errors are handled by React but if you move `cookies()` to a different context by using `setTimeout`, `after`, or similar functions you may observe this error and you should handle it in that context. This occurred at route "/[locale]/user/notifications".
+    at new Promise (<anonymous>)
+    at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
+    at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
+    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at stringify (<anonymous>)
+  4 |
+  5 | export const createSupabaseUserServerComponentClient = async () => {
+> 6 |   const cookieStore = await cookies();
+    |                                    ^
+  7 |
+  8 |   return createServerClient<Database>(
+  9 |     process.env.NEXT_PUBLIC_SUPABASE_URL, {
+  route: '/[locale]/user/notifications',
+  expression: '`cookies()`',
+  digest: 'HANGING_PROMISE_REJECTION'
+}
+
+> Export encountered errors on following paths:
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/project/[projectSlug]/(specific-project-pages)/page: /de/project/[projectSlug]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/project/[projectSlug]/(specific-project-pages)/page: /en/project/[projectSlug]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/project/[projectSlug]/(specific-project-pages)/settings/page: /de/project/[projectSlug]/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/project/[projectSlug]/(specific-project-pages)/settings/page: /en/project/[projectSlug]/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/home/page: /de/workspace/[workspaceSlug]/home
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/home/page: /en/workspace/[workspaceSlug]/home
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/projects/page: /de/workspace/[workspaceSlug]/projects
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/projects/page: /en/workspace/[workspaceSlug]/projects
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/billing/page: /de/workspace/[workspaceSlug]/settings/billing
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/billing/page: /en/workspace/[workspaceSlug]/settings/billing
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/members/page: /de/workspace/[workspaceSlug]/settings/members
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/members/page: /en/workspace/[workspaceSlug]/settings/members
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/page: /de/workspace/[workspaceSlug]/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/@navbar/settings/page: /en/workspace/[workspaceSlug]/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/page: /de/workspace/[workspaceSlug]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/(application-pages)/workspace/[workspaceSlug]/page: /en/workspace/[workspaceSlug]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/authors/[authorId]/page: /de/app_admin/marketing/authors/[authorId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/authors/[authorId]/page: /en/app_admin/marketing/authors/[authorId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/authors/page: /de/app_admin/marketing/authors
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/authors/page: /en/app_admin/marketing/authors
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/blog/[postId]/page: /de/app_admin/marketing/blog/[postId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/blog/[postId]/page: /en/app_admin/marketing/blog/[postId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/blog/page: /de/app_admin/marketing/blog
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/blog/page: /en/app_admin/marketing/blog
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/changelog/[changelogId]/page: /de/app_admin/marketing/changelog/[changelogId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/changelog/[changelogId]/page: /en/app_admin/marketing/changelog/[changelogId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/changelog/page: /de/app_admin/marketing/changelog
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/changelog/page: /en/app_admin/marketing/changelog
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/tags/[tag_id]/page: /de/app_admin/marketing/tags/[tag_id]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/tags/[tag_id]/page: /en/app_admin/marketing/tags/[tag_id]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/tags/page: /de/app_admin/marketing/tags
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/marketing/tags/page: /en/app_admin/marketing/tags
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/page: /de/app_admin
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/page: /en/app_admin
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/customers/page: /de/app_admin/payment-gateway/customers
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/customers/page: /en/app_admin/payment-gateway/customers
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/invoices/page: /de/app_admin/payment-gateway/invoices
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/invoices/page: /en/app_admin/payment-gateway/invoices
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/page: /de/app_admin/payment-gateway
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/page: /en/app_admin/payment-gateway
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/subscriptions/page: /de/app_admin/payment-gateway/subscriptions
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/payment-gateway/subscriptions/page: /en/app_admin/payment-gateway/subscriptions
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/settings/page: /de/app_admin/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/settings/page: /en/app_admin/settings
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/users/[userId]/page: /de/app_admin/users/[userId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/users/[userId]/page: /en/app_admin/users/[userId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/users/page: /de/app_admin/users
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/users/page: /en/app_admin/users
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/workspaces/[workspaceId]/page: /de/app_admin/workspaces/[workspaceId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/workspaces/[workspaceId]/page: /en/app_admin/workspaces/[workspaceId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/workspaces/page: /de/app_admin/workspaces
+	/[locale]/(dynamic-pages)/(authenticated-pages)/app_admin/(admin-pages)/@navbar/workspaces/page: /en/app_admin/workspaces
+	/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/[invitationId]/page: /de/user/invitations/[invitationId]
+	/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/[invitationId]/page: /en/user/invitations/[invitationId]
+ ELIFECYCLE  Command failed with exit code 1.

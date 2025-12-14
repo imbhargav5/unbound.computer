@@ -2,14 +2,17 @@
 description: Rules for data fetching in server components in Nextbase Next.js Supabase application
 globs: **/*.{ts,tsx}
 ---
+
 You are an expert TypeScript software engineer and architect with over 10 years of industry experience. Your expertise spans the entire stack, including React, Next.js 15 (with App Router), Typescript, Supabase and Postgres, Tailwind CSS, shadcn/ui, Radix, Node.js.
 
 # Next.js Data Fetching Guidelines
 
 ## Overview
+
 This document outlines the best practices and patterns for data fetching, server actions, and form handling in Next.js applications using Server Components, next-safe-action, Zod, and React Hook Form.
 
 ## Directory Structure
+
 ```typescript
 src/
   ├── rsc-data/        // Server Component data fetching
@@ -21,12 +24,14 @@ src/
 ## 1. Server Component Data Fetching
 
 ### Core Principles
+
 - Use React Server Components (RSC) for initial data fetching
 - Keep data fetching logic in `rsc-data` directory
 - Implement proper error handling and type safety
 - Use appropriate Supabase clients based on context
 
 ### Implementation Pattern
+
 ```typescript
 // src/rsc-data/user/profile.ts
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/createSupabaseUserServerComponentClient";
@@ -44,14 +49,17 @@ export async function getCachedUserProfile() {
 ```
 
 ### Database Query Patterns
+
 ```typescript
 // Select with relationships
 const { data, error } = await supabaseClient
   .from("main_table")
-  .select(`
+  .select(
+    `
     *,
     related_table!foreign_key(field1, field2)
-  `)
+  `,
+  )
   .eq("condition_field", value);
 
 // Pagination pattern
@@ -66,6 +74,7 @@ let query = supabaseClient
 ## 2. Server Actions
 
 ### Action Client Setup
+
 ```typescript
 // src/lib/safe-action.ts
 import { createSafeActionClient } from "next-safe-action";
@@ -74,17 +83,21 @@ export const actionClient = createSafeActionClient();
 
 export const authActionClient = actionClient.use(async ({ next }) => {
   const supabase = await createSupabaseUserServerActionClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
   if (error || !user) throw new Error("Unauthorized");
 
   return await next({
-    ctx: { userId: user.id }
+    ctx: { userId: user.id },
   });
 });
 ```
 
 ### Server Action Implementation
+
 ```typescript
 // src/data/user/profile.ts
 "use server";
@@ -94,7 +107,7 @@ import { profileSchema } from "@/utils/zod-schemas/profile";
 import { revalidatePath } from "next/cache";
 
 export const updateProfileAction = authActionClient
-  .schema(profileSchema)
+  .inputSchema(profileSchema)
   .action(async ({ parsedInput, ctx: { userId } }) => {
     const supabase = await createSupabaseUserServerActionClient();
     const { data, error } = await supabase
@@ -106,7 +119,7 @@ export const updateProfileAction = authActionClient
 
     if (error) {
       returnValidationErrors(profileSchema, {
-        _errors: [error.message]
+        _errors: [error.message],
       });
     }
 
@@ -118,6 +131,7 @@ export const updateProfileAction = authActionClient
 ## 3. Schema Management
 
 ### Schema Organization
+
 ```typescript
 // /src/utils/zod-schemas/[feature].ts
 import { z } from "zod";
@@ -133,16 +147,17 @@ export type Feature = z.infer<typeof featureSchema>;
 ```
 
 ### Schema Composition
+
 ```typescript
 // Base schema for reuse
 const baseUserSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(2)
+  name: z.string().min(2),
 });
 
 // Extended schemas
 export const createUserSchema = baseUserSchema.extend({
-  password: z.string().min(8)
+  password: z.string().min(8),
 });
 
 export const updateUserSchema = baseUserSchema.partial();
@@ -151,6 +166,7 @@ export const updateUserSchema = baseUserSchema.partial();
 ## 4. Client Components and Forms
 
 ### Form Implementation with React Hook Form
+
 ```typescript
 "use client";
 
@@ -204,7 +220,13 @@ export function ProfileForm() {
 }
 ```
 
-## 5. Best Practices
+## 5. Data fetching in client components
+
+If we are not able to use server components and need to use client components and load data after the client component mounts (eg: in dialogs , sheets etc), then use react query along with api route handlers and supabase route handler client to load data. Use a zod schema to parse the data in the react query onSuccess callback to ensure everything went according to plan.
+
+If it is an admin level route then you must validate whether the user is an admin in the route handler.
+
+## 6. Best Practices
 
 ### Do's ✅
 
@@ -258,14 +280,18 @@ export function ProfileForm() {
    - Don't use raw HTML forms
    - Don't handle server state locally
 
+5. **Client components**
+   - Don't load data into the client component using useEffect and async functions inside it. This is an antipattern.
+
 ## 6. Error Handling
 
 ### Validation Error Pattern
+
 ```typescript
 if (error) {
   // For form validation errors
   returnValidationErrors(schema, {
-    field: { _errors: [errorMessage] }
+    field: { _errors: [errorMessage] },
   });
 
   // For general errors
@@ -274,6 +300,7 @@ if (error) {
 ```
 
 ### Client-Side Error Handling
+
 ```typescript
 const mutation = useAction(serverAction, {
   onSuccess: (data) => {
@@ -281,19 +308,21 @@ const mutation = useAction(serverAction, {
   },
   onError: ({ error }) => {
     toast.error(getSafeActionErrorMessage(error));
-  }
+  },
 });
 ```
 
 ## 7. Cache Invalidation
 
 ### Revalidation Pattern
+
 ```typescript
 // Always revalidate after mutations
 revalidatePath("/path", "layout");
 ```
 
 ### Key Points
+
 - Revalidate appropriate paths after mutations
 - Consider layout vs page revalidation
 - Use proper scoping for revalidation
@@ -301,12 +330,14 @@ revalidatePath("/path", "layout");
 ## 8. Supabase Client Usage
 
 ### Client Selection
+
 - `supabaseAdminClient`: For admin operations
 - `supabaseUserClientComponent`: For client components
 - `createSupabaseUserServerActionClient`: For server actions
 - `createSupabaseUserServerComponentClient`: For server components
 
 ### Usage Pattern
+
 ```typescript
 const supabase = await createSupabaseUserServerActionClient();
 const { data, error } = await supabase
@@ -318,6 +349,7 @@ const { data, error } = await supabase
 ## 9. Type Safety
 
 ### Type Inference
+
 ```typescript
 // Schema with type inference
 const schema = z.object({...});
@@ -330,6 +362,7 @@ function Component({ data }: { data: SchemaType }) {
 ```
 
 ### Database Types
+
 ```typescript
 import type { DBTable } from "@/types";
 

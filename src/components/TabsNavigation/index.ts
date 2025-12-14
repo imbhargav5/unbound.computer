@@ -1,1 +1,0 @@
-export { TabsNavigation } from "./TabsNavigation";

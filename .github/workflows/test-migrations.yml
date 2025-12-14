@@ -3,9 +3,7 @@ name: Test Postgres Migrations
 on:
   push:
     branches:
-      - projects-with-optional-teams
       - main
-      - v2
   pull_request:
 
 jobs:
@@ -36,6 +34,7 @@ jobs:
 
       - name: Apply migrations
         run: |
+          cd apps/database
           export PGPASSWORD=postgres
           for migration in ./supabase/migrations/*.sql; do
             psql -h localhost -U postgres -d test_db -a -f "$migration"

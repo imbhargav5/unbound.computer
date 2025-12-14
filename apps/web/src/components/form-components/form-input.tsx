@@ -1,0 +1,59 @@
+import type { ComponentPropsWithoutRef } from "react";
+import type { Control, FieldValues, Path } from "react-hook-form";
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+
+type FormInputProps<TFieldValues extends FieldValues> = {
+  id: string;
+  label: string;
+  control: Control<TFieldValues>;
+  name: Path<TFieldValues>;
+  description?: string;
+  type?: string;
+  "data-testid"?: string;
+  inputProps?: Omit<
+    ComponentPropsWithoutRef<typeof Input>,
+    "id" | "name" | "type"
+  >;
+};
+
+export function FormInput<TFieldValues extends FieldValues>({
+  id,
+  label,
+  control,
+  name,
+  description,
+  type,
+  "data-testid": dataTestId,
+  inputProps,
+}: FormInputProps<TFieldValues>) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel htmlFor={id}>{label}</FormLabel>
+          <FormControl>
+            <Input
+              data-testid={dataTestId}
+              id={id}
+              type={type}
+              {...inputProps}
+              {...field}
+            />
+          </FormControl>
+          {description && <FormDescription>{description}</FormDescription>}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
