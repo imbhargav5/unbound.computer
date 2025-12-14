@@ -116,6 +116,8 @@ async function BlogPost({ params }: { params: Promise<unknown> }) {
   );
 }
 
+// // This async function will fail in cache components if there
+// are no tags in the database. Comment it if so.
 // Return a list of `params` to populate the [slug] dynamic segment
 export async function generateStaticParams() {
   const posts = await cachedGetPublishedBlogPosts();

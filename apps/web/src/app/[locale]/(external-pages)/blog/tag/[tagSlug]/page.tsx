@@ -9,6 +9,7 @@ import {
   cachedGetPublishedBlogPostsByTagSlug,
   cachedGetTagBySlug,
 } from "@/data/anon/marketing-blog";
+import { routing } from "@/i18n/routing";
 import { PublicBlogList } from "../../public-blog-list";
 import { TagsNav } from "../../tags-nav";
 
@@ -19,15 +20,15 @@ const BlogListByTagPageParamsSchema = z.object({
 
 // This async functionwill fail in cache components if there
 // are no tags in the database. Comment it if so.
-// export async function generateStaticParams() {
-//   const tags = await cachedGetAllBlogTags();
+export async function generateStaticParams() {
+  const tags = await cachedGetAllBlogTags();
 
-//   const params = tags.flatMap((tag) =>
-//     routing.locales.map((locale) => ({ tagSlug: tag.slug, locale }))
-//   );
+  const params = tags.flatMap((tag) =>
+    routing.locales.map((locale) => ({ tagSlug: tag.slug, locale }))
+  );
 
-//   return params;
-// }
+  return params;
+}
 
 export async function generateMetadata(props: {
   params: Promise<unknown>;

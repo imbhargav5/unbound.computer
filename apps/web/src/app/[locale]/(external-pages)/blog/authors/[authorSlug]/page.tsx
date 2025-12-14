@@ -16,6 +16,8 @@ const paramsSchema = z.object({
   locale: z.string(),
 });
 
+// This async functionwill fail in cache components if there
+// are no authors in the database. Comment it if so.
 export async function generateStaticParams() {
   const authors = await cachedGetAllAuthors();
   return routing.locales.map((locale) =>
