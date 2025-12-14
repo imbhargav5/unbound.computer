@@ -50,14 +50,16 @@ const PendingInvitationsTable = ({
             <TableCell>{invitation.organizationTitle}</TableCell>
             <TableCell>{invitation.role}</TableCell>
             <TableCell>
-              <div className="flex space-x-2">                
-                  <Button
-                    asChild
-                    data-invitation-id={invitation.id}
-                    size="default"
-                    variant="default"
-                  >
-                    <Link href={`/user/invitations/${invitation.id}`}>View Invitation</Link>
+              <div className="flex space-x-2">
+                <Button
+                  asChild
+                  data-invitation-id={invitation.id}
+                  size="default"
+                  variant="default"
+                >
+                  <Link href={`/user/invitations/${invitation.id}`}>
+                    View Invitation
+                  </Link>
                 </Button>
               </div>
             </TableCell>

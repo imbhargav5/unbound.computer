@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import Chance from "chance";
-import { ensureSidebarIsOpen } from "../_helpers/sidebar.helper";
-import { adminSetFeedbackVisibilityHelper, createFeedbackHelper } from "e2e/_helpers/feedback.helper";
+import {
+  adminSetFeedbackVisibilityHelper,
+  createFeedbackHelper,
+} from "e2e/_helpers/feedback.helper";
 
 const chance = new Chance();
 
@@ -30,7 +32,9 @@ test.describe
       await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
-      await adminPage.getByRole("heading", { name: commonFeedbackTitle }).waitFor();
+      await adminPage
+        .getByRole("heading", { name: commonFeedbackTitle })
+        .waitFor();
       const feedbackVisibility = adminPage.getByTestId("feedback-visibility");
       await feedbackVisibility.waitFor();
       const dropdownMenuTrigger = feedbackVisibility.getByTestId(
@@ -155,7 +159,9 @@ test.describe
       await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
-      await adminPage.getByRole("heading", { name: commonFeedbackTitle }).waitFor();
+      await adminPage
+        .getByRole("heading", { name: commonFeedbackTitle })
+        .waitFor();
       const feedbackVisibility = adminPage.getByTestId("feedback-visibility");
       await feedbackVisibility.waitFor();
 
@@ -199,7 +205,9 @@ test.describe
       await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
-      await adminPage.getByRole("heading", { name: commonFeedbackTitle }).waitFor();
+      await adminPage
+        .getByRole("heading", { name: commonFeedbackTitle })
+        .waitFor();
       const feedbackVisibility = adminPage.getByTestId("feedback-visibility");
       await feedbackVisibility.waitFor();
       const dropdownMenuTrigger = feedbackVisibility.getByTestId(
@@ -229,8 +237,6 @@ test.describe
     test("Hidden feedback is not visible to anonymous users", async ({
       browser,
     }) => {
-
-
       // First, ensure the feedback is hidden by admin
       const adminContext = await browser.newContext({
         storageState: "playwright/.auth/app-admin.json",
@@ -239,11 +245,11 @@ test.describe
 
       const feedbackTitle = `Test Feedback ${chance.word()}`;
       const feedbackDescription = chance.sentence();
-      
+
       const createdFeedbackId = await createFeedbackHelper({
         page: adminPage,
-        feedbackTitle: feedbackTitle,
-        feedbackDescription: feedbackDescription,
+        feedbackTitle,
+        feedbackDescription,
       });
 
       await adminPage.goto(`/en/feedback/${createdFeedbackId}`, {
@@ -251,7 +257,7 @@ test.describe
       });
 
       await adminSetFeedbackVisibilityHelper({
-        adminPage: adminPage,
+        adminPage,
         feedbackId: createdFeedbackId,
         visibility: "public",
       });
@@ -261,7 +267,7 @@ test.describe
       // Now check as anonymous user
       const anonContext = await browser.newContext();
       const anonPage = await anonContext.newPage();
-      
+
       await anonPage.goto("/en/feedback", {
         waitUntil: "domcontentloaded",
       });
@@ -272,23 +278,21 @@ test.describe
       await anonPage.reload();
       await anonPage.waitForLoadState("domcontentloaded");
 
+      // Verify the hidden feedback is not visible in the list
+      const feedbackInListWhenPublic = anonPage
+        .getByTestId("feedback-list")
+        .locator(`[data-feedback-id="${createdFeedbackId}"]`);
+      await expect(feedbackInListWhenPublic).toBeVisible();
 
-            // Verify the hidden feedback is not visible in the list
-            const feedbackInListWhenPublic = anonPage
-            .getByTestId("feedback-list")
-            .locator(`[data-feedback-id="${createdFeedbackId}"]`);
-          await expect(feedbackInListWhenPublic).toBeVisible();
-
-
-          await adminPage.reload({
-            waitUntil: "domcontentloaded",
-          });
-          await adminSetFeedbackVisibilityHelper({
-            adminPage: adminPage,
-            feedbackId: createdFeedbackId,
-            visibility: "private",
-          });
-          await adminContext.close();
+      await adminPage.reload({
+        waitUntil: "domcontentloaded",
+      });
+      await adminSetFeedbackVisibilityHelper({
+        adminPage,
+        feedbackId: createdFeedbackId,
+        visibility: "private",
+      });
+      await adminContext.close();
 
       // reload a couple of two times
       await anonPage.reload();
