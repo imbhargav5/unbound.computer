@@ -19,8 +19,6 @@ async function WorkspaceDashboardContent() {
 
 export default async function WorkspaceDashboardPage() {
   return (
-    <Suspense fallback={<DashboardLoadingFallback />}>
-      <WorkspaceDashboardContent />
-    </Suspense>
+    <WorkspaceDashboardContent />
   );
 }

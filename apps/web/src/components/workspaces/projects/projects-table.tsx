@@ -295,12 +295,7 @@ export function ProjectsTable({
             {isWorkspaceAdmin &&
               " You can delete projects by selecting them and choosing the delete action."}
           </Typography.Subtle>
-        </div>
-        <Link href={`/workspace/${workspaceId}/projects`}>
-          <Button size="sm" variant="link">
-            <span className="text-xs underline">View All</span>
-          </Button>
-        </Link>
+        </div>        
       </div>
       <div className="space-y-2">
         <Form {...form}>
