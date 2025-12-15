@@ -20,7 +20,7 @@ function CollapseTrigger() {
   const { toggleSidebar } = useSidebar();
   return (
     <SidebarMenuButton
-      className="size-8"
+      className="hidden size-8 md:flex"
       onClick={toggleSidebar}
       size="sm"
       variant="outline"
@@ -31,9 +31,11 @@ function CollapseTrigger() {
 }
 
 export function SwitcherAndToggle({ workspaceId, slimWorkspaces }: Props) {
-  const { state, toggleSidebar } = useSidebar();
+  const { state, isMobile, toggleSidebar } = useSidebar();
 
-  if (state === "collapsed") {
+  // On mobile, always show expanded view (workspace switcher)
+  // On desktop, show collapsed view only when state is "collapsed"
+  if (state === "collapsed" && !isMobile) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>

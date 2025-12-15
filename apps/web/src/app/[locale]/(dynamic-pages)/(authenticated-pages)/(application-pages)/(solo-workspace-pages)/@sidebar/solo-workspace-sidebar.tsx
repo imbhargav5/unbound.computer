@@ -94,9 +94,7 @@ async function SoloWorkspaceSidebarContent({
           <SidebarPlatformNav />
         </Fragment>
       </SidebarContent>
-      <SidebarFooter>
-        {footerUserNav}
-      </SidebarFooter>
+      <SidebarFooter>{footerUserNav}</SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

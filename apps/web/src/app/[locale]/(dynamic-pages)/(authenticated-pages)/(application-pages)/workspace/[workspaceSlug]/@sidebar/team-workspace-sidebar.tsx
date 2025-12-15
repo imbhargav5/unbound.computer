@@ -99,9 +99,7 @@ async function TeamWorkspaceSidebarContent({
           <SidebarPlatformNav />
         </Fragment>
       </SidebarContent>
-      <SidebarFooter>
-        {footerUserNav}
-      </SidebarFooter>
+      <SidebarFooter>{footerUserNav}</SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
