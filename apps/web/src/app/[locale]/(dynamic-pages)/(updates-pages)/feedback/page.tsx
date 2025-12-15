@@ -13,77 +13,83 @@ import { filtersSchema } from "./[feedbackId]/schema";
 import { CreateBoardDialog } from "./create-board-dialog";
 import { FeedbackListSidebar, SidebarSkeleton } from "./feedback-list-sidebar";
 import { FeedbackPageHeading } from "./feedback-page-heading";
+import { Skeleton } from "@/components/ui/skeleton";
 
-async function FeedbackPageContent({
-  searchParams,
-  params,
-}: {
-  searchParams: Promise<unknown>;
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale } = await params;
-  setRequestLocale(locale);
+async function DynamicFeedbackList({ searchParams }: { searchParams: Promise<unknown> }){
   const validatedSearchParams = filtersSchema.parse(await searchParams);
   const userRoleType = await serverGetClaimType();
   const suspenseKey = JSON.stringify(validatedSearchParams);
-
-  const actions = (
-    <>
-      <DropdownMenuItem asChild>
-        {userRoleType === userRoles.ADMIN && (
-          <CreateBoardDialog>Create Board</CreateBoardDialog>
-        )}
-      </DropdownMenuItem>
-
-      {userRoleType === userRoles.ANON ? (
-        <DropdownMenuItem asChild>
-          <GiveFeedbackAnonUser>Create Feedback</GiveFeedbackAnonUser>
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem asChild>
-          <GiveFeedbackDialog>Create Feedback</GiveFeedbackDialog>
-        </DropdownMenuItem>
-      )}
-    </>
-  );
-
-  return (
-    <div className="space-y-6 py-6">
-      <FeedbackPageHeading
-        actions={actions}
-        subTitle="Engage with the community and share your ideas."
-        title="Community Feedback"
-      />
-
-      <div className="w-full gap-4 md:flex">
-        <div className="flex-1">
-          <Suspense
-            fallback={
-              <div className="flex h-full items-center justify-center">
-                <div className="animate-pulse">Loading feedback...</div>
-              </div>
-            }
-            key={suspenseKey}
-          >
-            {userRoleType === userRoles.ANON && (
-              <AnonFeedbackList filters={validatedSearchParams} />
-            )}
-
-            {userRoleType === userRoles.USER && (
-              <LoggedInUserFeedbackList filters={validatedSearchParams} />
-            )}
-
-            {userRoleType === userRoles.ADMIN && (
-              <AdminFeedbackList filters={validatedSearchParams} />
-            )}
-          </Suspense>
+  return <div className="w-full gap-4 md:flex">
+  <div className="flex-1">
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <div className="animate-pulse">Loading feedback...</div>
         </div>
-        <Suspense fallback={<SidebarSkeleton />}>
-          <FeedbackListSidebar />
-        </Suspense>
-      </div>
-    </div>
-  );
+      }
+      key={suspenseKey}
+    >
+      {userRoleType === userRoles.ANON && (
+        <AnonFeedbackList filters={validatedSearchParams} />
+      )}
+
+      {userRoleType === userRoles.USER && (
+        <LoggedInUserFeedbackList filters={validatedSearchParams} />
+      )}
+
+      {userRoleType === userRoles.ADMIN && (
+        <AdminFeedbackList filters={validatedSearchParams} />
+      )}
+    </Suspense>
+  </div>
+  <Suspense fallback={<SidebarSkeleton />}>
+    <FeedbackListSidebar />
+  </Suspense>
+</div>
+}
+
+
+async function DynamicFeedbackActions(){
+  const userRoleType = await serverGetClaimType();
+  return  <>
+  <DropdownMenuItem asChild>
+    {userRoleType === userRoles.ADMIN && (
+      <CreateBoardDialog>Create Board</CreateBoardDialog>
+    )}
+  </DropdownMenuItem>
+
+  {userRoleType === userRoles.ANON ? (
+    <DropdownMenuItem asChild>
+      <GiveFeedbackAnonUser>Create Feedback</GiveFeedbackAnonUser>
+    </DropdownMenuItem>
+  ) : (
+    <DropdownMenuItem asChild>
+      <GiveFeedbackDialog>Create Feedback</GiveFeedbackDialog>
+    </DropdownMenuItem>
+  )}
+</>
+}
+
+async function StaticFeedbackPageContent({
+  params,
+  children,
+  dynamicFeedbackActions,
+}: {
+  params: Promise<{ locale: string }>;
+  children: React.ReactNode;
+  dynamicFeedbackActions: React.ReactNode;
+}) {
+  "use cache";
+  const { locale } = await params;
+  setRequestLocale(locale);
+  return <div className="space-y-6 py-6">
+  <FeedbackPageHeading
+    actions={dynamicFeedbackActions}
+    subTitle="Engage with the community and share your ideas."
+    title="Community Feedback"
+  />
+   {children}
+   </div>
 }
 
 async function FeedbackPage(props: {
@@ -91,12 +97,13 @@ async function FeedbackPage(props: {
   params: Promise<{ locale: string }>;
 }) {
   return (
-    <Suspense fallback={<T.Subtle>Loading feedback...</T.Subtle>}>
-      <FeedbackPageContent
-        params={props.params}
-        searchParams={props.searchParams}
-      />
+    <StaticFeedbackPageContent params={props.params} dynamicFeedbackActions={<Suspense fallback={<DropdownMenuItem>Loading...</DropdownMenuItem>}>
+      <DynamicFeedbackActions/>
+    </Suspense>}>
+    <Suspense fallback={<Skeleton className="h-[24px] w-full" />}>
+    <DynamicFeedbackList searchParams={props.searchParams} />
     </Suspense>
+  </StaticFeedbackPageContent>
   );
 }
 
