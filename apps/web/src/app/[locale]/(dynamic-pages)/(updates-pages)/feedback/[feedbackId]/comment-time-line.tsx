@@ -7,7 +7,7 @@ import { appAdminGetInternalFeedbackComments } from "@/data/admin/marketing-feed
 import { anonGetUserProfile } from "@/data/user/elevated-queries";
 import { getInternalFeedbackComments } from "@/data/user/marketing-feedback";
 import type { DBTable } from "@/types";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 
 function FeedbackCommentsFallback() {
@@ -144,7 +144,7 @@ export async function SuspendedFeedbackComments({
 }: {
   feedbackId: string;
 }) {
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   const feedbackComments = await getInternalFeedbackComments(feedbackId);
   const count = feedbackComments.length;
 

@@ -1,6 +1,6 @@
-// OrganizationSidebar.tsx (Server Component)
+// TeamWorkspaceSidebar.tsx (Server Component)
 
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { SidebarAdminPanelNav } from "@/components/sidebar-admin-panel-nav";
 import { SwitcherAndToggle } from "@/components/sidebar-components/switcher-and-toggle";
 import { SidebarFooterUserNav } from "@/components/sidebar-footer-user-nav";
@@ -49,43 +49,74 @@ async function Content({ params }: { params: Promise<unknown> }) {
   );
 }
 
+async function DynamicHeaderContent({ params }: { params: Promise<unknown> }) {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </>
+      }
+    >
+      <HeaderContent params={params} />
+    </Suspense>
+  );
+}
+
+async function DynamicContent({ params }: { params: Promise<unknown> }) {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </>
+      }
+    >
+      <Content params={params} />
+    </Suspense>
+  );
+}
+
+async function TeamWorkspaceSidebarContent({
+  headerContent,
+  content,
+  footerUserNav,
+}: {
+  headerContent: React.ReactNode;
+  content: React.ReactNode;
+  footerUserNav: React.ReactNode;
+}) {
+  "use cache";
+  return (
+    <Sidebar collapsible="icon" variant="inset">
+      <SidebarHeader>{headerContent}</SidebarHeader>
+      <SidebarContent>
+        <Fragment key="content">{content}</Fragment>
+        <Fragment key="sidebar-platform-nav">
+          <SidebarPlatformNav />
+        </Fragment>
+      </SidebarContent>
+      <SidebarFooter>
+        {footerUserNav}
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
 export async function TeamWorkspaceSidebar({
   params,
 }: {
   params: Promise<unknown>;
 }) {
   return (
-    <Sidebar collapsible="icon" variant="inset">
-      <SidebarHeader>
-        <Suspense
-          fallback={
-            <>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </>
-          }
-        >
-          <HeaderContent params={params} />
-        </Suspense>
-      </SidebarHeader>
-      <SidebarContent>
-        <Suspense
-          fallback={
-            <>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </>
-          }
-        >
-          <Content params={params} />
-        </Suspense>
-      </SidebarContent>
-      <SidebarFooter>
-        <SidebarPlatformNav />
-        <SidebarFooterUserNav />
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+    <TeamWorkspaceSidebarContent
+      content={<DynamicContent params={params} />}
+      footerUserNav={<SidebarFooterUserNav />}
+      headerContent={<DynamicHeaderContent params={params} />}
+    />
   );
 }

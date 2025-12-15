@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { GiveFeedbackAnonUser } from "@/components/give-feedback-anon-use";
 import { T } from "@/components/type-system";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 import { AdminFeedbackList } from "./[feedbackId]/admin-feedback-list";
 import { AnonFeedbackList } from "./[feedbackId]/anon-feedback-list";
@@ -24,7 +24,7 @@ async function FeedbackPageContent({
   const { locale } = await params;
   setRequestLocale(locale);
   const validatedSearchParams = filtersSchema.parse(await searchParams);
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   const suspenseKey = JSON.stringify(validatedSearchParams);
 
   const actions = (

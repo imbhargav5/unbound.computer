@@ -3,11 +3,11 @@
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { supabaseAnonClient } from "@/supabase-clients/anon/supabase-anon-client";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/create-supabase-user-server-action-client";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 
 export async function supabaseClientBasedOnUserRole() {
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
 
   const supabaseClient = {
     [userRoles.ANON]: () => supabaseAnonClient,

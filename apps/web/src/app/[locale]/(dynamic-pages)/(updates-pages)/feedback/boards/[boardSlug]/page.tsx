@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 import { filtersSchema } from "../../[feedbackId]/schema";
 import { AdminBoardDetail } from "./admin-board-detail";
@@ -14,7 +14,7 @@ async function BoardDetailPageContent(props: {
   const params = await props.params;
   const searchParams = await props.searchParams;
   const validatedSearchParams = filtersSchema.parse(searchParams);
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   const { boardSlug } = params;
   const suspenseKey = JSON.stringify(validatedSearchParams);
 

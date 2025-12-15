@@ -2,8 +2,8 @@ import { unauthorized } from "next/navigation";
 import { InternalNavbar } from "@/components/navigation-menu/internal-navbar";
 import { SidebarProviderWithState } from "@/components/sidebar-provider-with-state";
 import { SidebarInset } from "@/components/ui/sidebar";
-import { isSupabaseUserAppAdmin } from "@/utils/is-supabase-user-app-admin";
-import { serverGetLoggedInUserVerified } from "@/utils/server/server-get-logged-in-user";
+import { isSupabaseUserClaimAppAdmin } from "@/utils/is-supabase-user-app-admin";
+import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
 
 export default async function Layout({
   children,
@@ -14,13 +14,11 @@ export default async function Layout({
   sidebar: React.ReactNode;
   navbar: React.ReactNode;
 }) {
-  // get the user from the server.
-  // this will refresh the user if the permissions have changed.
-  // if you want to check the permissions more aggressively, you can move
-  // this function into a higher layout eg: app/[locale]/(dynamic-pages)/(authenticated-pages)/layout.tsx
-  // but that will make the page slower to load and is probably not worth it.
-  const user = await serverGetLoggedInUserVerified();
-  const isAppAdmin = isSupabaseUserAppAdmin(user);
+  // this will only check the claims, not the user.
+  // all of our mutations check the user privilege, so
+  // it is safe to only check the claims here.
+  const user = await serverGetLoggedInUserClaims();
+  const isAppAdmin = isSupabaseUserClaimAppAdmin(user);
   if (!isAppAdmin) {
     return unauthorized();
   }

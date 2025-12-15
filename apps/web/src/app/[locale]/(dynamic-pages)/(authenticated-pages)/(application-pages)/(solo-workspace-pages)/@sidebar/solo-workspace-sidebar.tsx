@@ -1,6 +1,6 @@
 // SoloWorkspaceSidebar.tsx (Server Component)
 
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { SidebarAdminPanelNav } from "@/components/sidebar-admin-panel-nav";
 import { SwitcherAndToggle } from "@/components/sidebar-components/switcher-and-toggle";
 import { SidebarFooterUserNav } from "@/components/sidebar-footer-user-nav";
@@ -44,39 +44,70 @@ async function Content() {
   );
 }
 
-export async function SoloWorkspaceSidebar() {
+async function DynamicHeaderContent() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </>
+      }
+    >
+      <HeaderContent />
+    </Suspense>
+  );
+}
+
+async function DynamicContent() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </>
+      }
+    >
+      <Content />
+    </Suspense>
+  );
+}
+
+async function SoloWorkspaceSidebarContent({
+  headerContent,
+  content,
+  footerUserNav,
+}: {
+  headerContent: React.ReactNode;
+  content: React.ReactNode;
+  footerUserNav: React.ReactNode;
+}) {
+  "use cache";
   return (
     <Sidebar collapsible="icon" variant="inset">
-      <SidebarHeader>
-        <Suspense
-          fallback={
-            <>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </>
-          }
-        >
-          <HeaderContent />
-        </Suspense>
-      </SidebarHeader>
+      <SidebarHeader>{headerContent}</SidebarHeader>
       <SidebarContent>
-        <Suspense
-          fallback={
-            <>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </>
-          }
-        >
-          <Content />
-        </Suspense>
+        <Fragment key="content">{content}</Fragment>
+        <Fragment key="sidebar-platform-nav">
+          <SidebarPlatformNav />
+        </Fragment>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarPlatformNav />
-        <SidebarFooterUserNav />
+        {footerUserNav}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+export async function SoloWorkspaceSidebar() {
+  return (
+    <SoloWorkspaceSidebarContent
+      content={<DynamicContent />}
+      footerUserNav={<SidebarFooterUserNav />}
+      headerContent={<DynamicHeaderContent />}
+    />
   );
 }

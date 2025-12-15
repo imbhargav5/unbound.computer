@@ -5,7 +5,7 @@ import { adminActionClient, authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { supabaseClientBasedOnUserRole } from "@/supabase-clients/user-role-client";
 import { remoteCache } from "@/typed-cache-tags";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 import {
   marketingFeedbackStatusEnum,
@@ -31,7 +31,7 @@ const addCommentToInternalFeedbackThreadSchema = z.object({
 export const addCommentToInternalFeedbackThreadAction = authActionClient
   .inputSchema(addCommentToInternalFeedbackThreadSchema)
   .action(async ({ parsedInput: { feedbackId, content }, ctx: { userId } }) => {
-    const userRoleType = await serverGetUserType();
+    const userRoleType = await serverGetClaimType();
     const supabaseClient = await supabaseClientBasedOnUserRole();
 
     const { data: feedbackThread, error: feedbackThreadError } =

@@ -14,7 +14,7 @@ import {
 import { cn } from "@/utils/cn";
 import { statusConfig, typeConfig } from "@/utils/feedback";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { AddComment } from "./add-comment";
 import { SuspendedFeedbackComments } from "./comment-time-line";
 import { FeedbackActionsDropdown } from "./feedback-actions-dropdown";
@@ -32,7 +32,7 @@ async function LoggedInUserFeedbackDetail({
 }: {
   feedbackId: string;
 }) {
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   const user = await serverGetLoggedInUserClaims();
   const userId = user.sub;
   const feedback = await getLoggedInUserFeedbackById(feedbackId);

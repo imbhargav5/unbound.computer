@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { Link } from "@/components/intl-link";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { userRoles } from "@/utils/user-types";
 import { AdminFeedbackPageContent } from "./components/user-specific/admin-feedback-page-content";
 import { AnonFeedbackPageContent } from "./components/user-specific/anon-feedback-page-content";
@@ -43,7 +43,7 @@ async function FeedbackPageContent({
   setRequestLocale(locale);
 
   // Single user type check for the entire page
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   return (
     <div className="min-h-screen">
       <div className="py-8">

@@ -1,5 +1,4 @@
 import { unauthorized } from "next/navigation";
-import { connection } from "next/server";
 import { type ReactNode, Suspense } from "react";
 import { CreateWorkspaceDialog } from "@/components/create-workspace-dialog";
 import { NotificationsDialog } from "@/components/notifications-dialog";
@@ -8,7 +7,6 @@ import type { UserClaimsSchemaType } from "@/utils/zod-schemas/user-claims-schem
 import PosthogIdentify from "./posthog-identify";
 
 async function DynamicContent() {
-  await connection();
   let userClaims: UserClaimsSchemaType | null = null;
   try {
     userClaims = await serverGetLoggedInUserClaims();

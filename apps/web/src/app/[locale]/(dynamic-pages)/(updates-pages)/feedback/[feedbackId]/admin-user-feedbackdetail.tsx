@@ -10,7 +10,7 @@ import {
 import { adminGetInternalFeedbackById } from "@/data/admin/marketing-feedback";
 import { cn } from "@/utils/cn";
 import { statusConfig, typeConfig } from "@/utils/feedback";
-import { serverGetUserType } from "@/utils/server/server-get-user-type";
+import { serverGetClaimType } from "@/utils/server/server-get-user-type";
 import { AddComment } from "./add-comment";
 import { SuspendedFeedbackComments } from "./comment-time-line";
 import { FeedbackActionsDropdown } from "./feedback-actions-dropdown";
@@ -23,7 +23,7 @@ const typeIcons: Record<string, React.ReactNode> = {
 };
 
 async function AdminUserFeedbackdetail({ feedbackId }: { feedbackId: string }) {
-  const userRoleType = await serverGetUserType();
+  const userRoleType = await serverGetClaimType();
   const feedback = await adminGetInternalFeedbackById(feedbackId);
 
   if (!feedback) {

@@ -50,6 +50,22 @@ export async function DynamicContent({
   );
 }
 
+async function StaticContent({ children }: { children: React.ReactNode }) {
+  "use cache";
+  return (
+    <>
+      <head>
+        <Suspense>
+          <AffonsoWrapper />
+        </Suspense>
+      </head>
+      <body className="flex min-h-screen flex-col">
+        <ThemeProvider attribute="class">{children}</ThemeProvider>
+      </body>
+    </>
+  );
+}
+
 export default async function RootLayout(props: {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
@@ -58,21 +74,14 @@ export default async function RootLayout(props: {
   return (
     <Suspense>
       <DynamicContent params={props.params}>
-        <head>
+        <StaticContent>
           <Suspense>
-            <AffonsoWrapper />
-          </Suspense>
-        </head>
-        <body className="flex min-h-screen flex-col">
-          <ThemeProvider attribute="class">
             <NextIntlClientProvider>
               {children}
-              <Suspense>
-                <AppProviders />
-              </Suspense>
+              <AppProviders />
             </NextIntlClientProvider>
-          </ThemeProvider>
-        </body>
+          </Suspense>
+        </StaticContent>
       </DynamicContent>
     </Suspense>
   );
