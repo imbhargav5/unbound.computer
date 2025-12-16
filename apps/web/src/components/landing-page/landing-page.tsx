@@ -8,12 +8,12 @@ import Pricing from "./pricing";
 import Quotation from "./quotetion";
 import Testimonials from "./testimonials";
 
-export async function LandingPage({ locale }: { locale: string }) {
+export async function LandingPage() {
   "use cache";
   return (
     <div>
       <div className="flex flex-col gap-16">
-        <HeroSection locale={locale} />
+        <HeroSection />
         <LogoCloud />
         <Integration />
         <Quotation />

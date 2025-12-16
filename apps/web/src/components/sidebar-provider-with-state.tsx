@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
+import { Suspense } from "react";
 import { SidebarProvider } from "./ui/sidebar";
 
 export async function SidebarProviderWithStateContent({
@@ -22,8 +23,10 @@ export async function SidebarProviderWithState({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProviderWithStateContent>
-      {children}
-    </SidebarProviderWithStateContent>
+    <Suspense>
+      <SidebarProviderWithStateContent>
+        {children}
+      </SidebarProviderWithStateContent>
+    </Suspense>
   );
 }

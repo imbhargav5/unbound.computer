@@ -27,7 +27,6 @@ export function SidebarWorkspaceNav({
 }) {
   let sidebarLinks = [
     { label: "Home", href: "/home", icon: <Home className="h-5 w-5" /> },
-
     {
       label: "Projects",
       href: "/projects",
@@ -39,24 +38,16 @@ export function SidebarWorkspaceNav({
       icon: <Settings className="h-5 w-5" />,
     },
     {
+      label: "Members",
+      href: "/settings/members",
+      icon: <Users className="h-5 w-5" />,
+    },
+    {
       label: "Billing",
       href: "/settings/billing",
       icon: <DollarSign className="h-5 w-5" />,
     },
   ];
-
-  if (workspace.membershipType === "team") {
-    // pop the last item
-    const lastItem = sidebarLinks.pop();
-    sidebarLinks.push({
-      label: "Members",
-      href: "/settings/members",
-      icon: <Users className="h-5 w-5" />,
-    });
-    if (lastItem) {
-      sidebarLinks.push(lastItem);
-    }
-  }
 
   if (withLinkLabelPrefix) {
     sidebarLinks = sidebarLinks.map((link) => ({

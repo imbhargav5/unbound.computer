@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { T } from "@/components/ui/typography-ui";
 import { updateWorkspaceInfoAction } from "@/data/user/workspaces"; // Assuming this action exists
-import { useRouter } from "@/i18n/navigation";
 import { generateWorkspaceSlug } from "@/lib/utils";
 import type { WorkspaceWithMembershipType } from "@/types";
 import {

@@ -1,5 +1,4 @@
 import { Fragment } from "react";
-import { Link } from "@/components/intl-link";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -8,20 +7,31 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import type { BreadcrumbSegment } from "./breadcrumb-config";
+import type { WorkspaceBreadcrumbSubPathSegment } from "./breadcrumb-config";
+import urlJoin from "url-join";
+import Link from "next/link";
 
 type WorkspaceBreadcrumbProps = {
-  segments: BreadcrumbSegment[];
-  basePath: string; // "" for solo, "/workspace/[slug]" for team
+  segments: WorkspaceBreadcrumbSubPathSegment[];
+  workspaceSlug: string;
 };
 
-export function WorkspaceBreadcrumb({
-  segments,
-  basePath,
-}: WorkspaceBreadcrumbProps) {
+export function WorkspaceBreadcrumbLink({
+  workspaceSlug,
+  segment,
+}: {
+  workspaceSlug: string;
+  segment: WorkspaceBreadcrumbSubPathSegment;
+}) {
+  const href = urlJoin(`/workspace/${workspaceSlug}`, segment.subPath ?? "");
+  return <Link href={href}>{segment.label}</Link>;
+}
+
+
+export function WorkspaceBreadcrumb({ segments, workspaceSlug }: WorkspaceBreadcrumbProps) {
   // Always prepend "Workspace" as root linking to /home
-  const allSegments: BreadcrumbSegment[] = [
-    { label: "Workspace", href: `${basePath}/home` },
+  const allSegments: WorkspaceBreadcrumbSubPathSegment[] = [
+    { label: "Workspace", subPath: "/home" },
     ...segments,
   ];
 
@@ -30,16 +40,15 @@ export function WorkspaceBreadcrumb({
       <BreadcrumbList>
         {allSegments.map((segment, index) => {
           const isLast = index === allSegments.length - 1;
-
           return (
             <Fragment key={segment.label}>
               {index > 0 && <BreadcrumbSeparator />}
               <BreadcrumbItem>
-                {isLast || !segment.href ? (
+                {isLast || !segment.subPath ? (
                   <BreadcrumbPage>{segment.label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link href={segment.href}>{segment.label}</Link>
+                    <WorkspaceBreadcrumbLink workspaceSlug={workspaceSlug} segment={segment} />
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

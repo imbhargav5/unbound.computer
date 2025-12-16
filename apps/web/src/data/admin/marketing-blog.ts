@@ -2,13 +2,12 @@
 "use server";
 
 import { cacheLife, refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import type { z } from "zod";
-import { redirect } from "@/i18n/navigation";
 import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { remoteCache } from "@/typed-cache-tags";
 import type { DBTable } from "@/types";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 import {
   createMarketingBlogPostActionSchema,
   deleteMarketingBlogPostSchema,
@@ -47,11 +46,7 @@ export const createBlogPostAction = adminActionClient
     if (data.status === "published") {
       remoteCache.public.blog.posts.list.revalidateTag();
     }
-    const locale = await serverGetRefererLocale();
-    redirect({
-      href: `/app-admin/marketing/blog/${data.id}`,
-      locale,
-    });
+    redirect(`/app-admin/marketing/blog/${data.id}`);
   });
 
 /**

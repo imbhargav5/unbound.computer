@@ -2,15 +2,14 @@
 
 import type { Database } from "database/types";
 import { compact } from "lodash";
+import { redirect } from "next/navigation";
 import { z } from "zod";
-import { redirect } from "@/i18n/navigation";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/create-supabase-user-server-action-client";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/create-supabase-user-server-component-client";
 import { remoteCache } from "@/typed-cache-tags";
 import type { Enum } from "@/types";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 import { marketingFeedbackTypeEnum } from "@/utils/zod-schemas/feedback";
 import { createReceivedFeedbackNotification } from "./notifications";
 import { getUserFullName } from "./user";
@@ -265,15 +264,7 @@ export const createInternalFeedbackAction = authActionClient
       }
       remoteCache.admin.feedback.list.revalidateTag();
       remoteCache.public.feedback.recent.revalidateTag();
-      // redirect({
-      //   href: redirectPath,
-      //   locale: locale,
-      // });
-      const locale = await serverGetRefererLocale();
-      redirect({
-        href: `/feedback/${data.id}`,
-        locale,
-      });
+      redirect(`/feedback/${data.id}`);
     }
   );
 

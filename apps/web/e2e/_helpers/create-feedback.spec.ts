@@ -9,7 +9,7 @@ export async function createFeedbackHelper(
   title: string,
   content: string
 ): Promise<void> {
-  await page.goto("/en/dashboard", {
+  await page.goto("/dashboard", {
     waitUntil: "domcontentloaded",
     timeout: 30_000,
   });
@@ -36,6 +36,6 @@ export async function createFeedbackHelper(
   await page.getByTestId("submit-feedback-button").click();
 
   // Wait for navigation to the feedback detail page
-  await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+  await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 }

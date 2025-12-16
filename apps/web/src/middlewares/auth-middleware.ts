@@ -3,15 +3,14 @@ import { userClaimsSchema } from "@/utils/zod-schemas/user-claims-schema";
 import { createSupabaseMiddlewareClient } from "../supabase-clients/user/create-supabase-middleware-client";
 import { toSiteURL } from "../utils/helpers";
 import { middlewareLogger } from "../utils/logger";
-import { protectedPathsWithLocale } from "./paths";
+import { protectedPaths } from "./paths";
 import type { MiddlewareConfig } from "./types";
-import { withMaybeLocale } from "./utils";
 
 export const authMiddleware: MiddlewareConfig = {
-  matcher: protectedPathsWithLocale,
+  matcher: protectedPaths,
   middleware: async (request, maybeUser) => {
     middlewareLogger.log(
-      "middleware protected paths with locale",
+      "middleware protected paths",
       request.nextUrl.pathname
     );
 
@@ -27,10 +26,7 @@ export const authMiddleware: MiddlewareConfig = {
         claimsError.message,
         request.nextUrl.pathname
       );
-      return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(request, "/login"))),
-        maybeUser,
-      ];
+      return [NextResponse.redirect(toSiteURL("/login")), maybeUser];
     }
 
     if (!claimsData?.claims) {
@@ -38,10 +34,7 @@ export const authMiddleware: MiddlewareConfig = {
         "User is not logged in. Redirecting to login.",
         request.nextUrl.pathname
       );
-      return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(request, "/login"))),
-        maybeUser,
-      ];
+      return [NextResponse.redirect(toSiteURL("/login")), maybeUser];
     }
 
     const userClaims = userClaimsSchema.parse(claimsData.claims);

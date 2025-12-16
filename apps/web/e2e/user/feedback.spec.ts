@@ -14,7 +14,7 @@ test.describe
       page,
     }) => {
       // Navigate to the dashboard
-      await page.goto("/en/dashboard", {
+      await page.goto("/dashboard", {
         waitUntil: "domcontentloaded",
         timeout: 30_000,
       });
@@ -40,7 +40,7 @@ test.describe
       // Submit the feedback
 
       // Wait for the success toast
-      await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+      await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
       const url = await page.url();
       feedbackId = url.split("/").pop();
       expect(feedbackId).toBeDefined();
@@ -53,7 +53,7 @@ test.describe
       page,
     }) => {
       // Navigate to the feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Check if the recently created feedback is visible
       await expect(page.getByText(feedbackTitle)).toBeVisible();
@@ -62,7 +62,7 @@ test.describe
 
     test("User can view feedback details", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto(`/en/feedback/${feedbackId}`);
+      await page.goto(`/feedback/${feedbackId}`);
 
       // Wait for the feedback details page to load
       await page.getByText(feedbackTitle).waitFor();
@@ -73,7 +73,7 @@ test.describe
 
     test("User can add a comment to feedback and view it", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto(`/en/feedback/${feedbackId}`, {
+      await page.goto(`/feedback/${feedbackId}`, {
         waitUntil: "domcontentloaded",
       });
 
@@ -95,7 +95,7 @@ test.describe
 
     test("User can upvote a feedback item", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto(`/en/feedback/${feedbackId}`);
+      await page.goto(`/feedback/${feedbackId}`);
 
       const upvoteButton = page.getByTestId("upvote-button");
       await upvoteButton.waitFor();
@@ -115,7 +115,7 @@ test.describe
 
     test("User can remove their upvote", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto(`/en/feedback/${feedbackId}`);
+      await page.goto(`/feedback/${feedbackId}`);
 
       const upvoteButton = page.getByTestId("upvote-button");
       await upvoteButton.waitFor();

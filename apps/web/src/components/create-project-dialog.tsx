@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Layers, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
 import { useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
@@ -20,7 +21,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProjectAction } from "@/data/user/projects";
-import { useRouter } from "@/i18n/navigation";
 import { generateProjectSlug } from "@/lib/utils";
 
 const createProjectFormSchema = z.object({

@@ -1,7 +1,7 @@
 import { generate as DefaultImage } from "fumadocs-ui/og";
 import { notFound } from "next/navigation";
 import { ImageResponse } from "next/og";
-import { getPageImage, source } from "@/app/[locale]/source";
+import { getPageImage, source } from "@/app/source";
 
 export async function GET(
   _req: Request,
@@ -26,7 +26,6 @@ export async function GET(
 
 export function generateStaticParams() {
   return source.getPages().map((page) => ({
-    lang: page.locale,
     slug: getPageImage(page).segments,
   }));
 }

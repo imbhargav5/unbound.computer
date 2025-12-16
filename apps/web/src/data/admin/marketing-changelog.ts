@@ -1,11 +1,10 @@
 "use server";
 
 import { cacheLife } from "next/cache";
-import { redirect } from "@/i18n/navigation";
+import { redirect } from "next/navigation";
 import { adminActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { remoteCache } from "@/typed-cache-tags";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 import {
   createMarketingChangelogActionSchema,
   deleteMarketingChangelogSchema,
@@ -35,11 +34,7 @@ export const createChangelogAction = adminActionClient
     if (data.status === "published") {
       remoteCache.public.changelog.items.list.updateTag();
     }
-    const locale = await serverGetRefererLocale();
-    redirect({
-      href: `/app-admin/marketing/changelog/${data.id}`,
-      locale,
-    });
+    redirect(`/app-admin/marketing/changelog/${data.id}`);
   });
 
 export const updateChangelogAction = adminActionClient

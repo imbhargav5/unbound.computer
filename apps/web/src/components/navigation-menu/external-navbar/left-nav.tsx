@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Link } from "@/components/intl-link";
-import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils/cn";
 import { navbarLinks } from "./constants";
 import { DocsMobileNavigation } from "./docs-mobile-navigation";

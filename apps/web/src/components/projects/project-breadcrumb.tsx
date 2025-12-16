@@ -8,20 +8,33 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import type { BreadcrumbSegment } from "@/components/workspaces/breadcrumb-config";
+import type { WorkspaceBreadcrumbSubPathSegment } from "@/components/workspaces/breadcrumb-config";
+import urlJoin from "url-join";
 
 type ProjectBreadcrumbProps = {
-  segments: BreadcrumbSegment[];
-  basePath: string; // "/project/[slug]"
+  segments: WorkspaceBreadcrumbSubPathSegment[];
+  projectSlug: string;
 };
+
+export function ProjectBreadcrumbLink({
+  projectSlug,
+  segment,
+}: {
+  projectSlug: string;
+  segment: WorkspaceBreadcrumbSubPathSegment;
+}) {
+  const href = urlJoin(`/project/${projectSlug}`, segment.subPath ?? "");
+  return <Link href={href}>{segment.label}</Link>;
+}
+
 
 export function ProjectBreadcrumb({
   segments,
-  basePath,
+  projectSlug,
 }: ProjectBreadcrumbProps) {
   // Always prepend "Project" as root linking to basePath
-  const allSegments: BreadcrumbSegment[] = [
-    { label: "Project", href: basePath },
+  const allSegments: WorkspaceBreadcrumbSubPathSegment[] = [
+    { label: "Project", subPath: "/" },
     ...segments,
   ];
 
@@ -35,11 +48,11 @@ export function ProjectBreadcrumb({
             <Fragment key={segment.label}>
               {index > 0 && <BreadcrumbSeparator />}
               <BreadcrumbItem>
-                {isLast || !segment.href ? (
+                {isLast || !segment.subPath ? (
                   <BreadcrumbPage>{segment.label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link href={segment.href}>{segment.label}</Link>
+                    <ProjectBreadcrumbLink projectSlug={projectSlug} segment={segment} />
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

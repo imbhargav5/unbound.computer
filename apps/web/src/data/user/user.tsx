@@ -24,7 +24,7 @@ export async function getIsAppAdmin(): Promise<boolean> {
 
 export async function getUserProfile(userId: string) {
   "use cache: private";
-  userPrivateCache.userPrivate.myProfile.detail.cacheTag();
+  userPrivateCache.userPrivate.user.myProfile.detail.cacheTag({ userId });
 
   const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
@@ -42,7 +42,7 @@ export async function getUserProfile(userId: string) {
 
 export const getUserFullName = async (userId: string) => {
   "use cache: private";
-  userPrivateCache.userPrivate.myProfile.fullName.cacheTag();
+  userPrivateCache.userPrivate.user.myProfile.fullName.cacheTag({ userId });
 
   const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
@@ -60,7 +60,7 @@ export const getUserFullName = async (userId: string) => {
 
 export const getUserAvatarUrl = async (userId: string) => {
   "use cache: private";
-  userPrivateCache.userPrivate.myProfile.avatarUrl.cacheTag();
+  userPrivateCache.userPrivate.user.myProfile.avatarUrl.cacheTag({ userId });
 
   const supabase = await createSupabaseUserServerComponentClient();
   const { data, error } = await supabase
@@ -173,7 +173,9 @@ export const updateProfilePictureUrlAction = authActionClient
       throw new Error(error.message);
     }
 
-    userPrivateCache.userPrivate.myProfile.avatarUrl.updateTag();
+    userPrivateCache.userPrivate.user.myProfile.avatarUrl.updateTag({
+      userId: user.sub,
+    });
     return profilePictureUrl;
   });
 
@@ -221,7 +223,9 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
         await refreshSessionAction();
       }
 
-      userPrivateCache.userPrivate.myProfile.updateTag();
+      userPrivateCache.userPrivate.user.myProfile.updateTag({
+        userId: user.sub,
+      });
       return data;
     }
   );
@@ -248,7 +252,9 @@ export const updateUserProfilePictureAction = authActionClient
       throw new Error(error.message);
     }
 
-    userPrivateCache.userPrivate.myProfile.avatarUrl.updateTag();
+    userPrivateCache.userPrivate.user.myProfile.avatarUrl.updateTag({
+      userId: user.sub,
+    });
     return data;
   });
 
@@ -360,6 +366,8 @@ export const updateUserFullNameAction = authActionClient
       await refreshSessionAction();
     }
 
-    userPrivateCache.userPrivate.myProfile.fullName.updateTag();
+    userPrivateCache.userPrivate.user.myProfile.fullName.updateTag({
+      userId: user.sub,
+    });
     return data;
   });

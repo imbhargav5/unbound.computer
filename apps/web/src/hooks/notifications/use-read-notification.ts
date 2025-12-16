@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { readNotification } from "@/data/user/client/notifications";
-import { useRouter } from "@/i18n/navigation";
 import { getQueryClient } from "@/lib/query-client";
 
 /**

@@ -1,13 +1,11 @@
 import { Suspense } from "react";
-import { DesktopLocaleSwitcherWrapper } from "@/components/desktop-locale-switcher-wrapper";
 import { MobileMenuWrapper } from "@/components/mobile-menu-wrapper";
 import { ThemeSwitch, ThemeSwitchFallback } from "@/components/theme-switch";
-import type { Locale } from "@/i18n/routing";
 import { LeftNav } from "./left-nav";
 import { LoginCTAButton } from "./login-cta-button";
 import { MobileMenuOpen } from "./mobile-menu-open";
 
-export async function ExternalNavigation({ locale }: { locale: Locale }) {
+export async function ExternalNavigation() {
   return (
     <header className="sticky inset-x-0 top-0 z-50 w-full border-b backdrop-blur-3xl">
       <nav
@@ -19,9 +17,6 @@ export async function ExternalNavigation({ locale }: { locale: Locale }) {
         </Suspense>
         <div className="flex gap-5">
           <div className="lg:-mr-2 flex items-center space-x-3">
-            <Suspense fallback={<div>Loading...</div>}>
-              <DesktopLocaleSwitcherWrapper locale={locale} />
-            </Suspense>
             <Suspense fallback={<ThemeSwitchFallback />}>
               <ThemeSwitch />
             </Suspense>
@@ -36,7 +31,7 @@ export async function ExternalNavigation({ locale }: { locale: Locale }) {
           </Suspense>
         </div>
       </nav>
-      <MobileMenuWrapper locale={locale} />
+      <MobileMenuWrapper />
     </header>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { readAllNotifications } from "@/data/user/client/notifications";
-import { useRouter } from "@/i18n/navigation";
 import { getQueryClient } from "@/lib/query-client";
 import type { UserClaimsSchemaType } from "@/utils/zod-schemas/user-claims-schema";
 

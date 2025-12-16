@@ -1,6 +1,9 @@
-import type { BreadcrumbSegment } from "@/components/workspaces/breadcrumb-config";
+import type { WorkspaceBreadcrumbSubPathSegment } from "@/components/workspaces/breadcrumb-config";
 
-export const PROJECT_BREADCRUMBS: Record<string, BreadcrumbSegment[]> = {
+export const PROJECT_BREADCRUMBS: Record<
+  string,
+  WorkspaceBreadcrumbSubPathSegment[]
+> = {
   home: [],
   settings: [{ label: "Settings" }],
 };

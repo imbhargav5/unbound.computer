@@ -54,7 +54,7 @@ test.describe("Workspace", () => {
     await form.getByRole("button", { name: "Create Workspace" }).click();
 
     // Wait for navigation to new workspace
-    await page.waitForURL(new RegExp(`/[a-z]{2}/workspace/${slug}/home`), {
+    await page.waitForURL(new RegExp(`/workspace/${slug}/home`), {
       timeout: 20_000,
     });
 
@@ -191,12 +191,12 @@ test.describe("Workspace", () => {
       await firstInvitationButton.click();
 
       try {
-        await user2Page.waitForURL(/\/(en|de)\/user\/invitations\/[^/]+\/?$/, {
+        await user2Page.waitForURL(/\/user\/invitations\/[^/]+\/?$/, {
           waitUntil: "domcontentloaded",
           timeout: 5000,
         });
       } catch {
-        await user2Page.goto(`/en/user/invitations/${firstInvitationId}`, {
+        await user2Page.goto(`/user/invitations/${firstInvitationId}`, {
           waitUntil: "domcontentloaded",
         });
       }
@@ -210,7 +210,7 @@ test.describe("Workspace", () => {
       await user2Page.getByTestId("confirm").click();
 
       // Wait for navigation to workspace after accepting
-      await user2Page.waitForURL(/\/(en|de)\/workspace\/.*\//, {
+      await user2Page.waitForURL(/\/workspace\/.*\//, {
         timeout: 20_000,
       });
 
@@ -319,14 +319,11 @@ test.describe("Workspace", () => {
         await invitationLink.getAttribute("data-invitation-id");
       await invitationLink.click();
       try {
-        await inviteePage.waitForURL(
-          /\/(en|de)\/user\/invitations\/[^/]+\/?$/,
-          {
-            timeout: 5000,
-          }
-        );
+        await inviteePage.waitForURL(/\/user\/invitations\/[^/]+\/?$/, {
+          timeout: 5000,
+        });
       } catch {
-        await inviteePage.goto(`/en/user/invitations/${invitationId}`, {
+        await inviteePage.goto(`/user/invitations/${invitationId}`, {
           waitUntil: "domcontentloaded",
         });
       }

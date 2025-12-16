@@ -4,7 +4,7 @@ test.describe
   .serial("Feedback Filtering", () => {
     test("User can filter feedback by status", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Open filter dialog
       await page.getByTestId("filter-dialog-trigger").click();
@@ -21,7 +21,7 @@ test.describe
 
     test("User can filter feedback by type", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Open filter dialog
       await page.getByTestId("filter-dialog-trigger").click();
@@ -38,7 +38,7 @@ test.describe
 
     test("User can filter feedback by priority", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Open filter dialog
       await page.getByTestId("filter-dialog-trigger").click();
@@ -55,7 +55,7 @@ test.describe
 
     test("User can search feedback by keyword", async ({ page }) => {
       // Navigate to the feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Open filter dialog
       await page.getByTestId("filter-dialog-trigger").click();
@@ -72,7 +72,7 @@ test.describe
 
     test("User can reset filters", async ({ page }) => {
       // Navigate to the feedback page with existing filters
-      await page.goto("/en/feedback?statuses=open&types=bug");
+      await page.goto("/feedback?statuses=open&types=bug");
 
       // Open filter dialog
       const filterDialog = page.getByRole("dialog", {

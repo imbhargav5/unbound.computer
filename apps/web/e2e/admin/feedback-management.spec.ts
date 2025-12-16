@@ -29,7 +29,7 @@ test.describe
         storageState: "playwright/.auth/app-admin.json",
       });
       const adminPage = await adminContext.newPage();
-      await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
+      await adminPage.goto(`/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
       await adminPage
@@ -135,7 +135,7 @@ test.describe
         storageState: "playwright/.auth/app-admin.json",
       });
       const adminPage = await adminContext.newPage();
-      await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
+      await adminPage.goto(`/feedback/${commonFeedbackId}`);
 
       const commentText = `Test comment ${chance.word()}`;
       await adminPage
@@ -156,7 +156,7 @@ test.describe
         storageState: "playwright/.auth/app-admin.json",
       });
       const adminPage = await adminContext.newPage();
-      await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
+      await adminPage.goto(`/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
       await adminPage
@@ -202,7 +202,7 @@ test.describe
         storageState: "playwright/.auth/app-admin.json",
       });
       const adminPage = await adminContext.newPage();
-      await adminPage.goto(`/en/feedback/${commonFeedbackId}`);
+      await adminPage.goto(`/feedback/${commonFeedbackId}`);
 
       // Wait for the feedback details page to load
       await adminPage
@@ -252,7 +252,7 @@ test.describe
         feedbackDescription,
       });
 
-      await adminPage.goto(`/en/feedback/${createdFeedbackId}`, {
+      await adminPage.goto(`/feedback/${createdFeedbackId}`, {
         waitUntil: "domcontentloaded",
       });
 
@@ -268,7 +268,7 @@ test.describe
       const anonContext = await browser.newContext();
       const anonPage = await anonContext.newPage();
 
-      await anonPage.goto("/en/feedback", {
+      await anonPage.goto("/feedback", {
         waitUntil: "domcontentloaded",
       });
 

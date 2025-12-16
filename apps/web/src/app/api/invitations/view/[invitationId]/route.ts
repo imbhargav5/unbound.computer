@@ -11,11 +11,10 @@ const paramsSchema = z.object({
 export async function GET(
   _req: NextRequest,
   props: {
-    params: Promise<{ invitationId: string; locale: string }>;
+    params: Promise<{ invitationId: string;  }>;
   }
 ) {
   const params = await props.params;
-  const { locale } = params;
   const { success } = paramsSchema.safeParse(params);
   if (!success) {
     return NextResponse.json({
@@ -32,7 +31,7 @@ export async function GET(
   const userClaims = userClaimsSchema.parse(data?.claims);
 
   if (!userClaims) {
-    const url = new URL(toSiteURL(`/${locale}/login`));
+    const url = new URL(toSiteURL(`/login`));
     url.searchParams.append(
       "next",
       `/user/invitations/${encodeURIComponent(invitationId)}`
@@ -43,7 +42,7 @@ export async function GET(
 
   if (typeof invitationId === "string") {
     return NextResponse.redirect(
-      toSiteURL(`/${locale}/user/invitations/${invitationId}`)
+      toSiteURL(`/user/invitations/${invitationId}`)
     );
   }
   return NextResponse.json({

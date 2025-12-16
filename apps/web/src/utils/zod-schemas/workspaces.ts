@@ -13,7 +13,7 @@ export const createWorkspaceSchema = z.object({
         message: "Invalid or restricted slug",
       }
     ),
-  workspaceType: z.enum(["solo", "team"]).default("solo"),
+  workspaceType: z.enum(["solo", "team"]).default("team"),
   isOnboardingFlow: z.boolean().default(false),
 });
 

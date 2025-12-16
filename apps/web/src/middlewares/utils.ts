@@ -1,30 +1,7 @@
 import type { User } from "@supabase/supabase-js";
-import type { NextRequest } from "next/server";
 import { match } from "path-to-regexp";
-import urlJoin from "url-join";
-import { LOCALES } from "@/constants";
-import type { Locale } from "@/i18n/routing";
 import { authUserMetadataSchema } from "../utils/zod-schemas/auth-user-metadata";
 import type { UserClaimsSchemaType } from "../utils/zod-schemas/user-claims-schema";
-
-/**
- * Prepends the current locale to a given subPath if a locale cookie exists
- * @param request - The Next.js request object containing cookies
- * @param subPath - The path to potentially prefix with the locale
- * @returns The subPath with the locale prepended if it exists, otherwise just the subPath
- * @example
- * // If NEXT_LOCALE cookie is 'en'
- * withMaybeLocale(request, '/dashboard') // Returns 'en/dashboard'
- * // If no NEXT_LOCALE cookie
- * withMaybeLocale(request, '/dashboard') // Returns '/dashboard'
- */
-export function withMaybeLocale(request: NextRequest, subPath: string) {
-  const currentLocale = request.cookies.get("NEXT_LOCALE")?.value;
-  if (currentLocale) {
-    return urlJoin(currentLocale, subPath);
-  }
-  return subPath;
-}
 
 /**
  * Checks if a pathname matches one or more path patterns
@@ -66,8 +43,4 @@ export function shouldOnboardUser(user: User | UserClaimsSchemaType) {
     onboardingHasCompletedProfile &&
     onboardingHasCreatedWorkspace
   );
-}
-
-export function isStringALocale(maybeLocale: string): maybeLocale is Locale {
-  return LOCALES.some((locale) => locale === maybeLocale);
 }

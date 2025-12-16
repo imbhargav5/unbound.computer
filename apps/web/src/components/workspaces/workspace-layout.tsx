@@ -1,20 +1,11 @@
 import { type ReactNode, Suspense } from "react";
 import { InternalNavbar } from "@/components/navigation-menu/internal-navbar";
-import {
-  getCachedSoloWorkspace,
-  getCachedWorkspaceBySlug,
-} from "@/rsc-data/user/workspaces";
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { SidebarProviderWithState } from "../sidebar-provider-with-state";
 import { SidebarInset } from "../ui/sidebar";
 
-async function WorkspaceTestIds({
-  workspaceSlug,
-}: {
-  workspaceSlug: string | undefined;
-}) {
-  const workspace = workspaceSlug
-    ? await getCachedWorkspaceBySlug(workspaceSlug)
-    : await getCachedSoloWorkspace();
+async function WorkspaceTestIds({ workspaceSlug }: { workspaceSlug: string }) {
+  const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
 
   return (
     <div
@@ -38,8 +29,7 @@ export async function WorkspaceLayout({
   children: ReactNode;
   navbar: ReactNode;
   sidebar: ReactNode;
-  // undefined for solo workspace
-  workspaceSlug: string | undefined;
+  workspaceSlug: string;
 }) {
   return (
     <SidebarProviderWithState>

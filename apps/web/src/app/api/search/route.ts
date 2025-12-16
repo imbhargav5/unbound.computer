@@ -1,5 +1,5 @@
 import { createSearchAPI } from "fumadocs-core/search/server";
-import { source } from "@/app/[locale]/source";
+import { source } from "@/app/source";
 
 /**
  * Creates and exports a search API endpoint using the 'advanced' search mode.

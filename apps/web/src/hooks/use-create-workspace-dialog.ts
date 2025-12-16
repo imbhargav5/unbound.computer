@@ -1,12 +1,11 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
 import { useCallback, useRef } from "react";
 import { useTimeoutWhen } from "rooks";
 import { toast } from "sonner";
 import { createWorkspaceAction } from "@/data/user/workspaces";
-import { usePathname, useRouter } from "@/i18n/navigation";
 
 /**
  * Hook to manage the open/close state of the create workspace dialog.

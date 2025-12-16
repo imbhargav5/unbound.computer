@@ -1,8 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
-import { usePathname, useRouter } from "@/i18n/navigation";
 
 const NOTIFICATIONS_DIALOG_SEARCH_PARAM = "showNotificationsDialog";
 

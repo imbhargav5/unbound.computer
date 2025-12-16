@@ -1,14 +1,13 @@
 "use server";
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
-import { redirect } from "@/i18n/navigation";
 import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/create-supabase-user-server-action-client";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/create-supabase-user-server-component-client";
 import type { CommentWithUser } from "@/types";
 import { normalizeComment } from "@/utils/comments";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 
 export async function getSlimProjectById(projectId: string) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
@@ -342,8 +341,7 @@ export const createProjectAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
-    const locale = await serverGetRefererLocale();
-    redirect({ href: `/project/${project.slug}`, locale });
+    redirect(`/project/${project.slug}`);
     return project;
   });
 

@@ -11,7 +11,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
       const createButton = adminPage.getByRole("button", {
         name: "Create Changelog",
       });
@@ -21,7 +21,7 @@ test.describe
       // Wait for either URL change (success) OR error toast (failure)
       const result = await Promise.race([
         adminPage
-          .waitForURL(/\/en\/app-admin\/marketing\/changelog\/[a-zA-Z0-9-]+$/, {
+          .waitForURL(/\/app-admin\/marketing\/changelog\/[a-zA-Z0-9-]+$/, {
             timeout: 10_000,
           })
           .then(() => ({ type: "success" as const })),
@@ -81,7 +81,7 @@ test.describe
         adminPage.getByText(/Changelog updated|Updated!/i).first()
       ).toBeVisible({ timeout: 15_000 });
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
 
       // Verify the changelog appears in the list (check it's in the DOM)
       await expect(adminPage.getByText(changelogTitle).first()).toBeAttached();
@@ -90,7 +90,7 @@ test.describe
     });
 
     test("Anonymous user can see the published changelog", async ({ page }) => {
-      await page.goto("/en/changelog");
+      await page.goto("/changelog");
       if (!changelogTitle) {
         throw new Error("Changelog title is undefined");
       }
@@ -103,7 +103,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto(`/en/app-admin/marketing/changelog/${changelogId}`);
+      await adminPage.goto(`/app-admin/marketing/changelog/${changelogId}`);
 
       const updatedTitle = `${changelogTitle} (Updated)`;
       await adminPage.getByLabel("Title").fill(updatedTitle);
@@ -114,8 +114,8 @@ test.describe
         adminPage.getByText(/Changelog updated|Updated!/i).first()
       ).toBeVisible({ timeout: 15_000 });
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
-      await adminPage.waitForURL("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
+      await adminPage.waitForURL("/app-admin/marketing/changelog");
 
       // Verify the updated changelog appears in the list
       await expect(
@@ -131,7 +131,7 @@ test.describe
     });
 
     test("Anonymous user can see the updated changelog", async ({ page }) => {
-      await page.goto("/en/changelog");
+      await page.goto("/changelog");
       if (!changelogTitle) {
         throw new Error("Changelog title is undefined");
       }
@@ -144,7 +144,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto(`/en/app-admin/marketing/changelog/${changelogId}`);
+      await adminPage.goto(`/app-admin/marketing/changelog/${changelogId}`);
 
       await adminPage.locator("#status").first().click();
       await adminPage.getByLabel("Draft").click();
@@ -155,7 +155,7 @@ test.describe
         adminPage.getByText(/Changelog updated|Updated!/i).first()
       ).toBeVisible({ timeout: 15_000 });
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
       const row = adminPage.getByRole("row", { name: changelogTitle });
       const statusCell = row.getByRole("cell", { name: "Draft" });
       await expect(statusCell).toBeVisible();
@@ -164,7 +164,7 @@ test.describe
     });
 
     test("Anonymous user cannot see the draft changelog", async ({ page }) => {
-      await page.goto("/en/changelog");
+      await page.goto("/changelog");
       if (!changelogTitle) {
         throw new Error("Changelog title is undefined");
       }
@@ -177,7 +177,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
 
       await adminPage.waitForLoadState("load", { timeout: 15_000 });
 
@@ -206,7 +206,7 @@ test.describe
         // If toast doesn't appear, that's okay - we'll verify via reload
       });
 
-      await adminPage.goto("/en/app-admin/marketing/changelog");
+      await adminPage.goto("/app-admin/marketing/changelog");
 
       // Verify the changelog is no longer in the list
       await expect(

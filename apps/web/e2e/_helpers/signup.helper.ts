@@ -180,7 +180,7 @@ export async function signupUserHelper({
   await page.goto(confirmationUrl);
 
   // Wait for redirect to onboarding
-  await page.waitForURL(/\/[a-z]{2}\/onboarding/, {
+  await page.waitForURL(/\/onboarding/, {
     timeout: 20_000,
     waitUntil: "domcontentloaded",
   });

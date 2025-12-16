@@ -1,5 +1,6 @@
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -17,7 +18,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { T } from "@/components/ui/typography-ui";
 import { deleteWorkspaceAction } from "@/data/user/workspaces";
-import { useRouter } from "@/i18n/navigation";
 
 type DeleteWorkspaceProps = {
   workspaceName: string;

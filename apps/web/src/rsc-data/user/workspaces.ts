@@ -5,7 +5,6 @@ import {
   fetchSlimWorkspaces,
   getLoggedInUserWorkspaceRole,
   getMaybeDefaultWorkspace,
-  getSoloWorkspace,
   getWorkspaceById,
   getWorkspaceBySlug,
 } from "@/data/user/workspaces";
@@ -17,8 +16,6 @@ export const getCachedLoggedInUserWorkspaceRole = cache(
 );
 
 export const getCachedDefaultWorkspace = cache(getMaybeDefaultWorkspace);
-
-export const getCachedSoloWorkspace = cache(getSoloWorkspace);
 
 export const getCachedSlimWorkspaces = cache(fetchSlimWorkspaces);
 

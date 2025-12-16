@@ -2,9 +2,8 @@
 
 import { ArrowLeftIcon, ArrowRightIcon } from "@radix-ui/react-icons";
 import clsx from "clsx";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Link } from "@/components/intl-link";
-import { usePathname } from "@/i18n/navigation";
 
 export const generatePagination = (currentPage: number, totalPages: number) => {
   // If the total number of pages is 7 or less,

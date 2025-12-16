@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 /**
  * Extract workspace slug from the current URL.
- * Handles both team workspaces (/workspace/{slug}/...) and solo workspaces (/home, /settings, etc.)
+ * All workspaces use the path format: /workspace/{slug}/...
  */
 function extractSlugFromUrl(url: string): string | null {
   const match = url.match(/\/workspace\/([^/]+)/);
@@ -14,16 +14,14 @@ export async function extractInfoFromWorkspaceDashboard({
   slug,
 }: {
   page: Page;
-  slug: string | null;
+  slug: string;
 }): Promise<{
   workspaceId: string;
   workspaceSlug: string;
 }> {
   // Use slug to find the specific workspace-details element to avoid race conditions
   // during React concurrent rendering where multiple elements may exist
-  const selector = slug
-    ? `[data-testid="workspace-details"][data-workspace-slug="${slug}"]`
-    : '[data-testid="workspace-details"][data-workspace-membership-type="solo"]';
+  const selector = `[data-testid="workspace-details"][data-workspace-slug="${slug}"]`;
 
   const workspaceDetails = page.locator(selector).first();
   await workspaceDetails.waitFor({ state: "attached", timeout: 10_000 });
@@ -53,8 +51,11 @@ export async function matchPathAndExtractWorkspaceInfo({
   // Wait for network idle to ensure page transition is complete
   await page.waitForLoadState("domcontentloaded");
 
-  // Extract slug from URL to match the correct workspace component
+  // Extract slug from URL
   const slug = extractSlugFromUrl(page.url());
+  if (!slug) {
+    throw new Error("Could not extract workspace slug from URL");
+  }
 
   return await extractInfoFromWorkspaceDashboard({ page, slug });
 }
@@ -75,21 +76,13 @@ export async function goToWorkspaceArea({
   page,
   area,
   workspaceSlug,
-  workspaceType,
 }: {
   page: Page;
   area: "home" | "settings" | "members" | "billing" | "settings/members";
   workspaceSlug: string;
-  workspaceType: "solo" | "team";
 }): Promise<void> {
   const areaPath = area.startsWith("/") ? area : `/${area}`;
-  if (workspaceType === "solo") {
-    await page.goto(areaPath, {
-      waitUntil: "domcontentloaded",
-    });
-  } else {
-    await page.goto(`/workspace/${workspaceSlug}${areaPath}`, {
-      waitUntil: "domcontentloaded",
-    });
-  }
+  await page.goto(`/workspace/${workspaceSlug}${areaPath}`, {
+    waitUntil: "domcontentloaded",
+  });
 }

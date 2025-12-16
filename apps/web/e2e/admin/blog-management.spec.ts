@@ -12,7 +12,7 @@ test.describe
       const adminPage = await adminContext.newPage();
 
       // Navigate to blog list page
-      await adminPage.goto("/en/app-admin/marketing/blog", {
+      await adminPage.goto("/app-admin/marketing/blog", {
         waitUntil: "domcontentloaded",
       });
 
@@ -22,12 +22,12 @@ test.describe
 
       // Wait for navigation to create page, fallback to manual navigation if needed
       try {
-        await adminPage.waitForURL(/\/en\/app-admin\/marketing\/blog\/create/, {
+        await adminPage.waitForURL(/\/app-admin\/marketing\/blog\/create/, {
           waitUntil: "domcontentloaded",
           timeout: 5000,
         });
       } catch {
-        await adminPage.goto("/en/app-admin/marketing/blog/create", {
+        await adminPage.goto("/app-admin/marketing/blog/create", {
           waitUntil: "domcontentloaded",
         });
       }
@@ -53,7 +53,7 @@ test.describe
         .getByTestId("blog-post-edit-header")
         .waitFor({ state: "visible" });
       adminPage.waitForURL(
-        /\/en\/app-admin\/marketing\/blog\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        /\/app-admin\/marketing\/blog\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
         { timeout: 15_000 }
       );
 
@@ -65,7 +65,7 @@ test.describe
       // Verify we're on the edit page
       await expect(adminPage.getByLabel("Title")).toHaveValue(blogPostTitle);
 
-      await adminPage.goto("/en/app-admin/marketing/blog", {
+      await adminPage.goto("/app-admin/marketing/blog", {
         waitUntil: "domcontentloaded",
       });
 
@@ -82,7 +82,7 @@ test.describe
       page,
       request,
     }) => {
-      await page.goto("/en/blog", { waitUntil: "load" });
+      await page.goto("/blog", { waitUntil: "load" });
       // this will still fetch stale data, but it will fetch fresh data in the background for the next request.
       // hence reload
       await page.reload();
@@ -95,7 +95,7 @@ test.describe
       // Click on the card/link containing the blog post
       await page.locator(`text="${blogPostTitle}"`).first().click();
 
-      await page.waitForURL(/\/en\/blog\/[a-zA-Z0-9-]+$/);
+      await page.waitForURL(/\/blog\/[a-zA-Z0-9-]+$/);
       await expect(
         page.getByRole("heading", { name: blogPostTitle })
       ).toBeVisible();
@@ -107,7 +107,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto(`/en/app-admin/marketing/blog/${blogPostId}`);
+      await adminPage.goto(`/app-admin/marketing/blog/${blogPostId}`);
 
       const updatedTitle = `${blogPostTitle} (Updated)`;
       await adminPage.getByLabel("Title").fill(updatedTitle);
@@ -118,7 +118,7 @@ test.describe
         adminPage.getByText("Blog post updated successfully")
       ).toBeVisible({ timeout: 15_000 });
 
-      await adminPage.goto("/en/app-admin/marketing/blog");
+      await adminPage.goto("/app-admin/marketing/blog");
 
       // Wait for the list page to fully load
       await adminPage
@@ -138,7 +138,7 @@ test.describe
     });
 
     test("Anonymous user can see the updated blog post", async ({ page }) => {
-      await page.goto("/en/blog", { waitUntil: "load" });
+      await page.goto("/blog", { waitUntil: "load" });
       // this will still fetch stale data, but it will fetch fresh data in the background for the next request.
       // hence reload
       await page.reload();
@@ -150,7 +150,7 @@ test.describe
 
       await updatedBlogPostLink.click();
 
-      await page.waitForURL(/\/en\/blog\/[a-zA-Z0-9-]+$/);
+      await page.waitForURL(/\/blog\/[a-zA-Z0-9-]+$/);
       await expect(
         page.getByRole("heading", { name: blogPostTitle })
       ).toBeVisible();
@@ -162,7 +162,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto(`/en/app-admin/marketing/blog/${blogPostId}`);
+      await adminPage.goto(`/app-admin/marketing/blog/${blogPostId}`);
 
       await adminPage.locator("#status").first().click();
       await adminPage.getByLabel("Draft").click();
@@ -173,7 +173,7 @@ test.describe
         adminPage.getByText(/Blog post updated|Updated!/i).first()
       ).toBeVisible({ timeout: 15_000 });
 
-      await adminPage.goto("/en/app-admin/marketing/blog");
+      await adminPage.goto("/app-admin/marketing/blog");
       const row = adminPage.getByTestId(`admin-blog-list-row-${blogPostId}`);
       // Use case-insensitive regex - status cell shows lowercase "draft"
       const statusCell = row.getByRole("cell", { name: /draft/i });
@@ -183,7 +183,7 @@ test.describe
     });
 
     test("Anonymous user cannot see the draft blog post", async ({ page }) => {
-      await page.goto("/en/blog", { waitUntil: "load" });
+      await page.goto("/blog", { waitUntil: "load" });
       // this will still fetch stale data, but it will fetch fresh data in the background for the next request.
       // hence reload
       await page.reload();
@@ -198,7 +198,7 @@ test.describe
       });
       const adminPage = await adminContext.newPage();
 
-      await adminPage.goto("/en/app-admin/marketing/blog");
+      await adminPage.goto("/app-admin/marketing/blog");
 
       const deleteButton = adminPage
         .getByRole("row", { name: blogPostTitle })

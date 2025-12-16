@@ -2,8 +2,8 @@
 import { renderAsync } from "@react-email/render";
 import TeamInvitationEmail from "emails/team-invitation";
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
-import { redirect } from "@/i18n/navigation";
 import { authActionClient } from "@/lib/safe-action";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/create-supabase-user-server-action-client";
@@ -13,7 +13,6 @@ import type { WorkspaceInvitation } from "@/types";
 import { sendEmail } from "@/utils/api-routes/utils";
 import { toSiteURL } from "@/utils/helpers";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 import { invitationRoleEnum } from "@/utils/zod-schemas/enums/invitations";
 import {
@@ -263,9 +262,10 @@ export const acceptInvitationAction = authActionClient
       }
     );
 
-    userPrivateCache.userPrivate.myWorkspaces.slim.list.updateTag();
-    const locale = await serverGetRefererLocale();
-    redirect({ href: getWorkspaceSubPath(workspace, "/"), locale });
+    userPrivateCache.userPrivate.user.myWorkspaces.slim.list.updateTag({
+      userId,
+    });
+    redirect(getWorkspaceSubPath(workspace, "/"));
   });
 
 const declineInvitationSchema = z.object({
@@ -279,8 +279,7 @@ export const declineInvitationAction = authActionClient
       invitationId,
       userId,
     });
-    const locale = await serverGetRefererLocale();
-    redirect({ href: "/dashboard", locale });
+    redirect("/dashboard");
   });
 
 export async function getPendingInvitationsOfUser(): Promise<
@@ -428,7 +427,9 @@ export const bulkSettleInvitationsAction = authActionClient
       })
     );
 
-    userPrivateCache.userPrivate.myWorkspaces.slim.list.updateTag();
+    userPrivateCache.userPrivate.user.myWorkspaces.slim.list.updateTag({
+      userId,
+    });
 
     return results;
   });

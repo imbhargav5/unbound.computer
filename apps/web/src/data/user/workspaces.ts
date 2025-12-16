@@ -1,8 +1,8 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
-import { redirect } from "@/i18n/navigation";
 import { authActionClient } from "@/lib/safe-action";
 import { createSupabaseUserServerActionClient } from "@/supabase-clients/user/create-supabase-user-server-action-client";
 import { createSupabaseUserServerComponentClient } from "@/supabase-clients/user/create-supabase-user-server-component-client";
@@ -13,7 +13,6 @@ import type {
   WorkspaceWithMembershipType,
 } from "@/types";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
-import { serverGetRefererLocale } from "@/utils/server/server-get-referer-locale";
 import type { AuthUserMetadata } from "@/utils/zod-schemas/auth-user-metadata";
 import {
   createWorkspaceSchema,
@@ -46,7 +45,11 @@ export const getWorkspaceBySlug = async (
   slug: string
 ): Promise<WorkspaceWithMembershipType> => {
   "use cache: private";
-  userPrivateCache.userPrivate.myWorkspaces.verbose.bySlug.cacheTag({ slug });
+  const user = await serverGetLoggedInUserClaims();
+  userPrivateCache.userPrivate.user.myWorkspaces.verbose.bySlug.cacheTag({
+    userId: user.sub,
+    slug,
+  });
 
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
@@ -63,7 +66,7 @@ export const getWorkspaceBySlug = async (
   const { workspace_application_settings, ...workspace } = data;
   return {
     ...workspace,
-    membershipType: workspace_application_settings?.membership_type ?? "solo",
+    membershipType: workspace_application_settings?.membership_type ?? "team",
   };
 };
 
@@ -215,11 +218,9 @@ export const createWorkspaceAction = authActionClient
         await refreshSessionAction();
       }
 
-      userPrivateCache.userPrivate.myWorkspaces.updateTag();
+      userPrivateCache.userPrivate.user.myWorkspaces.updateTag({ userId });
       if (!isOnboardingFlow) {
-        const locale = await serverGetRefererLocale();
-        console.log("redirecting to", `/${locale}/workspace/${slug}/home`);
-        redirect({ href: `/workspace/${slug}/home`, locale });
+        redirect(`/workspace/${slug}/home`);
       }
     }
   );
@@ -242,7 +243,7 @@ export const getWorkspaceById = async (
   const { workspace_application_settings, ...workspace } = data;
   return {
     ...workspace,
-    membershipType: workspace_application_settings?.membership_type ?? "solo",
+    membershipType: workspace_application_settings?.membership_type ?? "team",
   };
 };
 
@@ -280,7 +281,7 @@ export const getAllWorkspacesForUser = async (
   const workspaces = data.map(
     ({ workspace_application_settings, ...workspace }) => ({
       ...workspace,
-      membershipType: workspace_application_settings?.membership_type ?? "solo",
+      membershipType: workspace_application_settings?.membership_type ?? "team",
     })
   );
   return workspaces;
@@ -323,7 +324,7 @@ const deleteWorkspaceParamsSchema = z.object({
 
 export const deleteWorkspaceAction = authActionClient
   .inputSchema(deleteWorkspaceParamsSchema)
-  .action(async ({ parsedInput: { workspaceId } }) => {
+  .action(async ({ parsedInput: { workspaceId }, ctx: { userId } }) => {
     const supabaseClient = await createSupabaseUserServerActionClient();
 
     const { error } = await supabaseClient
@@ -335,7 +336,9 @@ export const deleteWorkspaceAction = authActionClient
       return { status: "error", message: error.message };
     }
 
-    userPrivateCache.userPrivate.myWorkspaces.slim.list.revalidateTag();
+    userPrivateCache.userPrivate.user.myWorkspaces.slim.list.revalidateTag({
+      userId,
+    });
 
     return {
       status: "success",
@@ -446,11 +449,11 @@ export async function getMaybeDefaultWorkspace(): Promise<{
           ...defaultWorkspace,
           membershipType:
             defaultWorkspace.workspace_application_settings?.membership_type ??
-            "solo",
+            "team",
         },
         workspaceMembershipType:
           defaultWorkspace.workspace_application_settings?.membership_type ??
-          "solo",
+          "team",
       };
     }
     const w = workspaceList[0];
@@ -458,37 +461,22 @@ export async function getMaybeDefaultWorkspace(): Promise<{
       workspace: {
         ...w,
         membershipType:
-          w.workspace_application_settings?.membership_type ?? "solo",
+          w.workspace_application_settings?.membership_type ?? "team",
       },
       workspaceMembershipType:
         workspaceList[0].workspace_application_settings?.membership_type ??
-        "solo",
+        "team",
     };
   }
   return null;
 }
 
-export async function getSoloWorkspace(): Promise<WorkspaceWithMembershipType> {
-  "use cache: private";
-  userPrivateCache.userPrivate.myWorkspaces.slim.list.cacheTag();
-
-  const user = await serverGetLoggedInUserClaims();
-
-  const allWorkspaces = await getAllWorkspacesForUser(user.sub);
-  const soloWorkspace = allWorkspaces.find(
-    (workspace) => workspace.membershipType === "solo"
-  );
-  if (!soloWorkspace) {
-    throw new Error("No solo workspace found");
-  }
-  return soloWorkspace;
-}
-
 export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
   "use cache: private";
-  userPrivateCache.userPrivate.myWorkspaces.slim.list.cacheTag();
-
   const currentUser = await serverGetLoggedInUserClaims();
+  userPrivateCache.userPrivate.user.myWorkspaces.slim.list.cacheTag({
+    userId: currentUser.sub,
+  });
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data: workspaceMembers, error: membersError } = await supabaseClient
@@ -522,7 +510,7 @@ export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
     name: workspace.name,
     slug: workspace.slug,
     membershipType:
-      workspace.workspace_application_settings?.membership_type ?? "solo",
+      workspace.workspace_application_settings?.membership_type ?? "team",
   }));
   return workspaces;
 }
@@ -563,35 +551,29 @@ const updateWorkspaceInfoSchema = z.object({
 export const updateWorkspaceInfoAction = authActionClient
   .inputSchema(updateWorkspaceInfoSchema)
   .action(
-    async ({
-      parsedInput: { workspaceId, name, slug, workspaceMembershipType },
-    }) => {
-      const previousSlug = await getWorkspaceSlugById(workspaceId);
+    async ({ parsedInput: { workspaceId, name, slug }, ctx: { userId } }) => {
       const supabase = await createSupabaseUserServerActionClient();
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("workspaces")
         .update({
           name,
           slug,
         })
-        .eq("id", workspaceId)
-        .select("*, workspace_application_settings(membership_type)")
-        .single();
+        .eq("id", workspaceId);
 
       if (error) {
         throw new Error(error.message);
       }
-      userPrivateCache.userPrivate.myWorkspaces.verbose.bySlug.updateTag({
+      userPrivateCache.userPrivate.user.myWorkspaces.verbose.bySlug.updateTag({
+        userId,
         slug,
       });
-      userPrivateCache.userPrivate.myWorkspaces.slim.list.updateTag();
-      const locale = await serverGetRefererLocale();
+      userPrivateCache.userPrivate.user.myWorkspaces.slim.list.updateTag({
+        userId,
+      });
 
-      if (data.workspace_application_settings?.membership_type === "team") {
-        redirect({ href: `/workspace/${slug}/home`, locale });
-      } else {
-        redirect({ href: "/home", locale });
-      }
+      // Always redirect to team workspace path
+      redirect(`/workspace/${slug}/home`);
     }
   );
 
@@ -654,6 +636,11 @@ export const removeWorkspaceMemberAction = authActionClient
     if (error) {
       throw new Error(error.message);
     }
+
+    // Invalidate the removed member's cache
+    userPrivateCache.userPrivate.user.myWorkspaces.slim.list.updateTag({
+      userId: memberId,
+    });
   });
 
 const leaveWorkspaceSchema = z.object({
@@ -676,5 +663,8 @@ export const leaveWorkspaceAction = authActionClient
       throw new Error(error.message);
     }
 
-    userPrivateCache.userPrivate.myWorkspaces.slim.list.updateTag();
+    // Invalidate the leaving member's cache
+    userPrivateCache.userPrivate.user.myWorkspaces.slim.list.updateTag({
+      userId: memberId,
+    });
   });

@@ -5,9 +5,6 @@ const withMDX = createMDX();
 // import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/dist/shared/lib/constants";
-import createNextIntlPlugin from "next-intl/plugin";
-
-const withNextIntl = createNextIntlPlugin();
 
 export default async function config(
   phase: string,
@@ -126,7 +123,7 @@ export default async function config(
     };
   }
 
-  const modifiedConfig = withMDX(withNextIntl(nextConfig));
+  const modifiedConfig = withMDX(nextConfig);
 
   // If you want to use sentry, uncomment the following line
   // return withSentryConfig(modifiedConfig);

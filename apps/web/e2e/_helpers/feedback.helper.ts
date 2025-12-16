@@ -11,7 +11,7 @@ export async function createFeedbackHelper({
   feedbackDescription: string;
 }) {
   // Navigate to the dashboard and create feedback
-  await page.goto("/en/dashboard", {
+  await page.goto("/dashboard", {
     waitUntil: "domcontentloaded",
     timeout: 30_000,
   });
@@ -28,7 +28,7 @@ export async function createFeedbackHelper({
   await page.getByTestId("submit-feedback-button").click();
 
   // Wait for the feedback to be created and get its ID
-  await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+  await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
   const url = page.url();
   const feedbackId = url.split("/").pop();
   if (!feedbackId) {

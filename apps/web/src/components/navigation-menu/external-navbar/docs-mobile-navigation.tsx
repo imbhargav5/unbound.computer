@@ -3,11 +3,11 @@ import lightLogo from "@public/logos/acme-logo-dark.png";
 import darkLogo from "@public/logos/acme-logo-light.png";
 import { PanelLeft } from "lucide-react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { type ComponentProps, useState } from "react";
 import { Link } from "@/components/intl-link";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { usePathname, useRouter } from "@/i18n/navigation";
 import { DocsNavigation } from "./docs-navigation";
 
 function MenuIcon(props: ComponentProps<"svg">) {

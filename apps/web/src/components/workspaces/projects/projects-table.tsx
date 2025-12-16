@@ -14,7 +14,7 @@ import {
 import type { Tables } from "database/types";
 import { format } from "date-fns";
 import { CalendarDays, ChevronsUpDown, Clock } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -34,7 +34,6 @@ import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography-ui";
 import { getProjectsClient } from "@/data/user/client/projects";
-import { useRouter } from "@/i18n/navigation";
 import { getQueryClient } from "@/lib/query-client";
 import type { Enum } from "@/types";
 import { getIsWorkspaceAdmin } from "@/utils/workspaces";
@@ -295,7 +294,7 @@ export function ProjectsTable({
             {isWorkspaceAdmin &&
               " You can delete projects by selecting them and choosing the delete action."}
           </Typography.Subtle>
-        </div>        
+        </div>
       </div>
       <div className="space-y-2">
         <Form {...form}>

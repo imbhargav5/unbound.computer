@@ -22,7 +22,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -39,7 +39,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -111,7 +111,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -320,7 +320,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -378,7 +378,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -437,7 +437,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -475,7 +475,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -528,7 +528,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -641,7 +641,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -678,7 +678,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -715,7 +715,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -757,7 +757,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -820,7 +820,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -906,7 +906,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -925,7 +925,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -983,7 +983,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1664,7 +1664,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1762,7 +1762,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1899,7 +1899,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1918,7 +1918,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1949,7 +1949,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -1992,7 +1992,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2034,7 +2034,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2068,7 +2068,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2102,7 +2102,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2134,7 +2134,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2168,7 +2168,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2185,7 +2185,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2233,7 +2233,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2252,7 +2252,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2271,7 +2271,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2289,7 +2289,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2307,7 +2307,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2324,7 +2324,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at getPendingInvitationsOfUser (src/data/user/invitation.tsx:288:71)
-    at PendingInvitationsList (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
+    at PendingInvitationsList (src/app/(dynamic-pages)/(authenticated-pages)/user/invitations/PendingInvitationsList.tsx:69:63)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2343,7 +2343,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at getActiveDeveloperKeyCount (src/data/user/unkey.ts:106:51)
-    at DeveloperSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
+    at DeveloperSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/developer/page.tsx:11:67)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2362,7 +2362,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2381,7 +2381,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2399,7 +2399,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at AccountSettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
+    at AccountSettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/page.tsx:7:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2417,7 +2417,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
-    at SecuritySettingsContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
+    at SecuritySettingsContent (src/app/(dynamic-pages)/(authenticated-pages)/user/settings/security/page.tsx:8:51)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2436,7 +2436,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at <unknown> (src/utils/server/serverSessionUtils.ts:12:65)
     at <unknown> (src/utils/server/serverGetLoggedInUser.ts:35:20)
     at fetchSlimWorkspaces (src/data/user/workspaces.ts:505:58)
-    at UserSidebarContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
+    at UserSidebarContent (src/app/(dynamic-pages)/(authenticated-pages)/user/@sidebar/user-sidebar.tsx:32:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2453,7 +2453,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {
@@ -2470,7 +2470,7 @@ Error: During prerendering, `cookies()` rejects when the prerender is complete. 
     at new Promise (<anonymous>)
     at createSupabaseUserServerComponentClient (src/supabase-clients/user/createSupabaseUserServerComponentClient.ts:6:36)
     at <unknown> (src/utils/server/serverSessionUtils.ts:17:65)
-    at NotificationsPageContent (src/app/[locale]/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
+    at NotificationsPageContent (src/app/(dynamic-pages)/(authenticated-pages)/user/notifications/page.tsx:13:55)
     at stringify (<anonymous>)
   4 |
   5 | export const createSupabaseUserServerComponentClient = async () => {

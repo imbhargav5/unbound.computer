@@ -6,7 +6,7 @@ test.describe
       page,
     }) => {
       // Navigate to the public feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Check if the page loads correctly
       await expect(
@@ -26,7 +26,7 @@ test.describe
       page,
     }) => {
       // Navigate to the public feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Get all feedback items
       const feedbackItems = await page.getByTestId("feedback-item").all();
@@ -37,7 +37,7 @@ test.describe
         await feedbackItems[0].click();
 
         // Wait for the feedback details page to load
-        await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+        await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
 
         const feedbackVisibility = page.getByTestId("feedback-visibility");
         await expect(feedbackVisibility).toBeVisible();
@@ -62,14 +62,14 @@ test.describe
 
     test("Anonymous user cannot upvote feedback", async ({ page }) => {
       // Navigate to the public feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Get all feedback items
       const feedbackItems = await page.getByTestId("feedback-item").all();
 
       if (feedbackItems.length > 0) {
         await feedbackItems[0].click();
-        await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+        await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
 
         // The upvote button should not be visible for anonymous users
         // or clicking it should prompt for login
@@ -92,14 +92,14 @@ test.describe
 
     test("Anonymous user cannot comment on feedback", async ({ page }) => {
       // Navigate to the public feedback page
-      await page.goto("/en/feedback");
+      await page.goto("/feedback");
 
       // Get all feedback items
       const feedbackItems = await page.getByTestId("feedback-item").all();
 
       if (feedbackItems.length > 0) {
         await feedbackItems[0].click();
-        await page.waitForURL(/\/en\/feedback\/[a-zA-Z0-9-]+$/);
+        await page.waitForURL(/\/feedback\/[a-zA-Z0-9-]+$/);
 
         // The comment form should not be visible for anonymous users
         const commentForm = page.getByTestId("add-comment-form");

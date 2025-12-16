@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { toSiteURL } from "../utils/helpers";
 import { middlewareLogger } from "../utils/logger";
-import { dashboardRoutesWithLocale, onboardingPathsWithLocale } from "./paths";
+import { dashboardRoutes, onboardingPaths } from "./paths";
 import type { MiddlewareConfig } from "./types";
-import { shouldOnboardUser, withMaybeLocale } from "./utils";
+import { shouldOnboardUser } from "./utils";
 
 export const dashboardOnboardingMiddleware: MiddlewareConfig = {
-  matcher: dashboardRoutesWithLocale,
+  matcher: dashboardRoutes,
   middleware: async (req, maybeUser) => {
-    middlewareLogger.log(
-      "middleware dashboard paths with locale",
-      req.nextUrl.pathname
-    );
+    middlewareLogger.log("middleware dashboard paths", req.nextUrl.pathname);
     const res = NextResponse.next();
 
     if (!maybeUser) {
@@ -23,10 +20,7 @@ export const dashboardOnboardingMiddleware: MiddlewareConfig = {
         "User should onboard. Redirecting to onboarding.",
         req.nextUrl.pathname
       );
-      return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/onboarding"))),
-        maybeUser,
-      ];
+      return [NextResponse.redirect(toSiteURL("/onboarding")), maybeUser];
     }
 
     return [res, maybeUser];
@@ -34,12 +28,9 @@ export const dashboardOnboardingMiddleware: MiddlewareConfig = {
 };
 
 export const onboardingRedirectMiddleware: MiddlewareConfig = {
-  matcher: onboardingPathsWithLocale,
+  matcher: onboardingPaths,
   middleware: async (req, maybeUser) => {
-    middlewareLogger.log(
-      "middleware onboarding paths with locale",
-      req.nextUrl.pathname
-    );
+    middlewareLogger.log("middleware onboarding paths", req.nextUrl.pathname);
     const res = NextResponse.next();
 
     if (!maybeUser) {
@@ -51,10 +42,7 @@ export const onboardingRedirectMiddleware: MiddlewareConfig = {
         "User should not onboard. Redirecting to dashboard.",
         req.nextUrl.pathname
       );
-      return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/dashboard"))),
-        maybeUser,
-      ];
+      return [NextResponse.redirect(toSiteURL("/dashboard")), maybeUser];
     }
 
     return [res, maybeUser];

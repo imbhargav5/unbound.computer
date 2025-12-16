@@ -1,15 +1,10 @@
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react";
 import Image from "next/image";
-import { getTranslations } from "next-intl/server";
 import { Link } from "@/components/intl-link";
 import { Button } from "@/components/ui/button";
 import { AvatarCirclesDemo } from "./avatar-circles-demo";
 
-export default async function HeroSection({ locale }: { locale: string }) {
-  const t = await getTranslations({
-    locale,
-    namespace: "HomePage",
-  });
+export default async function HeroSection() {
   return (
     <section className="mx-auto max-w-5xl px-6 py-10 text-left lg:py-20 lg:text-center">
       <div className="flex w-full flex-col gap-10">
@@ -23,9 +18,14 @@ export default async function HeroSection({ locale }: { locale: string }) {
               <ArrowRight size={16} />
             </div>
           </Link>
-          <h1 className="font-semibold text-3xl lg:text-5xl">{t("title")}</h1>
+          <h1 className="max-w-xl font-thin text-3xl lg:text-5xl">
+            Fast typesafe starterkit <br />
+            for <em>vibecoders</em>
+          </h1>
           <p className="max-w-4xl text-muted-foreground leading-loose lg:text-lg lg:leading-relaxed">
-            {t("description")}
+            Welcome to Nextbase Ultimate Landing Page: Your Gateway to
+            Innovation. Discover the Future of Excellence and Elevate Your
+            Experience.
           </p>
           <div className="flex w-full flex-col gap-4 pt-4 sm:flex-row sm:justify-center">
             <Button asChild className="w-full sm:w-auto sm:min-w-32">

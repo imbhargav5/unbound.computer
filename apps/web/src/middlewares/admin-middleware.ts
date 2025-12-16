@@ -2,17 +2,13 @@ import { NextResponse } from "next/server";
 import { toSiteURL } from "../utils/helpers";
 import { isSupabaseUserClaimAppAdmin } from "../utils/is-supabase-user-app-admin";
 import { middlewareLogger } from "../utils/logger";
-import { appAdminPathsWithLocale } from "./paths";
+import { appAdminPaths } from "./paths";
 import type { MiddlewareConfig } from "./types";
-import { withMaybeLocale } from "./utils";
 
 export const adminMiddleware: MiddlewareConfig = {
-  matcher: appAdminPathsWithLocale,
+  matcher: appAdminPaths,
   middleware: async (req, maybeUser) => {
-    middlewareLogger.log(
-      "middleware app admin paths with locale",
-      req.nextUrl.pathname
-    );
+    middlewareLogger.log("middleware app admin paths", req.nextUrl.pathname);
     const res = NextResponse.next();
     // here we are only checking the claims
     // deeper check will be done in the layout
@@ -22,7 +18,7 @@ export const adminMiddleware: MiddlewareConfig = {
         req.nextUrl.pathname
       );
       return [
-        NextResponse.redirect(toSiteURL(withMaybeLocale(req, "/dashboard")), {
+        NextResponse.redirect(toSiteURL("/dashboard"), {
           // 302 stands for temporary redirect
           status: 302,
         }),

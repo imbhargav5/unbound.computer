@@ -135,26 +135,29 @@ export const remoteCache = createCache(commonDataSchema, commonDataScopes);
 // we want to cache the profile details
 // we want to cache the pending invitations
 const userPrivateDataSchema = {
-  myWorkspaces: {
-    slim: {
-      list: {},
-      byId: { _params: ["id"] as const },
-      bySlug: { _params: ["slug"] as const },
+  user: {
+    _params: ["userId"] as const,
+    myWorkspaces: {
+      slim: {
+        list: {},
+        byId: { _params: ["id"] as const },
+        bySlug: { _params: ["slug"] as const },
+      },
+      verbose: {
+        list: {},
+        byId: { _params: ["id"] as const },
+        bySlug: { _params: ["slug"] as const },
+      },
     },
-    verbose: {
-      list: {},
-      byId: { _params: ["id"] as const },
-      bySlug: { _params: ["slug"] as const },
+    myProfile: {
+      detail: {},
+      fullName: {},
+      email: {},
+      avatarUrl: {},
     },
-  },
-  myProfile: {
-    detail: {},
-    fullName: {},
-    email: {},
-    avatarUrl: {},
-  },
-  myPendingInvitations: {
-    list: {},
+    myPendingInvitations: {
+      list: {},
+    },
   },
 } as const;
 

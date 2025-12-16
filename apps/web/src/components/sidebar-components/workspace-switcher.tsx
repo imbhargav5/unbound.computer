@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronsUpDown, Home, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Fragment } from "react";
 import { toast } from "sonner";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/sidebar";
 import { useCreateWorkspaceDialog } from "@/hooks/use-create-workspace-dialog";
 import { useSafeShortcut } from "@/hooks/use-safe-shortcut";
-import { useRouter } from "@/i18n/navigation";
 import type { SlimWorkspace, SlimWorkspaces } from "@/types";
 import { getWorkspaceSubPath } from "@/utils/workspaces";
 
@@ -34,15 +34,13 @@ function WorkspaceToggler({
   currentWorkspaceId: string;
   goToWorkspace: (workspace: SlimWorkspace) => void;
 }) {
-  // Only register shortcuts for first 9 workspaces (⌘1-⌘9)
-  // Keyboards don't have Digit10+, so shortcuts above 9 don't work
-  if (index >= 9) {
-    return null;
-  }
-
   const shortcutNumber = index + 1;
   const shortcutCode = `Digit${shortcutNumber}`;
+  // Only register shortcuts for first 9 workspaces (⌘1-⌘9)
+  // Keyboards don't have Digit10+, so shortcuts above 9 don't work
+  const isValidShortcut = index < 9;
   useSafeShortcut(shortcutCode, (event) => {
+    if (!isValidShortcut) return;
     if (event.metaKey) {
       event.preventDefault();
       event.stopPropagation();
@@ -79,9 +77,9 @@ function WorkspaceOption({
       }}
     >
       {workspace.name}
-      {hasShortcut && (
+      {hasShortcut ? (
         <DropdownMenuShortcut>⌘{shortcutNumber}</DropdownMenuShortcut>
-      )}
+      ) : null}
     </DropdownMenuItem>
   );
 }
@@ -133,12 +131,7 @@ export function WorkspaceSwitcher({
                   <span className="truncate font-semibold">
                     {currentWorkspace?.name ?? "Select Workspace"}
                   </span>
-                  <span className="truncate text-xs">
-                    {currentWorkspace?.membershipType === "solo"
-                      ? "Personal"
-                      : "Team"}{" "}
-                    Workspace
-                  </span>
+                  <span className="truncate text-xs">Workspace</span>
                 </div>
                 <ChevronsUpDown className="ml-auto" />
               </SidebarMenuButton>
