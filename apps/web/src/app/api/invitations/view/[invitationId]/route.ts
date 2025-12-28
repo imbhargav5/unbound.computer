@@ -11,7 +11,7 @@ const paramsSchema = z.object({
 export async function GET(
   _req: NextRequest,
   props: {
-    params: Promise<{ invitationId: string;  }>;
+    params: Promise<{ invitationId: string }>;
   }
 ) {
   const params = await props.params;
@@ -31,7 +31,7 @@ export async function GET(
   const userClaims = userClaimsSchema.parse(data?.claims);
 
   if (!userClaims) {
-    const url = new URL(toSiteURL(`/login`));
+    const url = new URL(toSiteURL("/login"));
     url.searchParams.append(
       "next",
       `/user/invitations/${encodeURIComponent(invitationId)}`

@@ -11,8 +11,8 @@ export default async function ProjectNavbar(props: {
   const { projectSlug } = projectSlugParamSchema.parse(params);
   return (
     <ProjectBreadcrumb
-      segments={PROJECT_BREADCRUMBS.home}
       projectSlug={projectSlug}
+      segments={PROJECT_BREADCRUMBS.home}
     />
   );
 }

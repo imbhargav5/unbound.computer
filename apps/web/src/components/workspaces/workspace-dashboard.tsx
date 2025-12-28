@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import {
-  getCachedLoggedInUserWorkspaceRole,
-  getCachedWorkspaceBySlug,
-} from "@/rsc-data/user/workspaces";
+import { getCachedWorkspaceBySlug } from "@/rsc-data/user/workspaces";
 import { DashboardClientWrapper } from "./dashboard-client-wrapper";
 import { WorkspaceGraphs } from "./graphs/workspace-graphs";
-import { ProjectsTable } from "./projects/projects-table";
-import { ProjectsLoadingFallback } from "./projects-loading-fallback";
 
 export type DashboardProps = {
   workspaceSlug: string;
@@ -15,7 +9,6 @@ export type DashboardProps = {
 
 export async function WorkspaceDashboard({ workspaceSlug }: DashboardProps) {
   const workspace = await getCachedWorkspaceBySlug(workspaceSlug);
-  const workspaceRole = await getCachedLoggedInUserWorkspaceRole(workspace.id);
   return (
     <DashboardClientWrapper>
       {/* Hidden elements for E2E testing */}
@@ -27,12 +20,6 @@ export async function WorkspaceDashboard({ workspaceSlug }: DashboardProps) {
       </div>
 
       <WorkspaceGraphs />
-      <Suspense fallback={<ProjectsLoadingFallback quantity={3} />}>
-        <ProjectsTable
-          workspaceId={workspace.id}
-          workspaceRole={workspaceRole}
-        />
-      </Suspense>
     </DashboardClientWrapper>
   );
 }

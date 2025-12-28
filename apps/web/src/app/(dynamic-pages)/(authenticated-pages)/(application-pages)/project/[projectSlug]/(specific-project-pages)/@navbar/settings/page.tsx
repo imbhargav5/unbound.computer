@@ -10,8 +10,8 @@ export default async function SettingsNavbar({
   const { projectSlug } = projectSlugParamSchema.parse(await params);
   return (
     <ProjectBreadcrumb
-      segments={PROJECT_BREADCRUMBS.settings}
       projectSlug={projectSlug}
+      segments={PROJECT_BREADCRUMBS.settings}
     />
   );
 }

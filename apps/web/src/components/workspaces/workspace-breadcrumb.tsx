@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Fragment } from "react";
+import urlJoin from "url-join";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -8,8 +10,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { WorkspaceBreadcrumbSubPathSegment } from "./breadcrumb-config";
-import urlJoin from "url-join";
-import Link from "next/link";
 
 type WorkspaceBreadcrumbProps = {
   segments: WorkspaceBreadcrumbSubPathSegment[];
@@ -27,8 +27,10 @@ export function WorkspaceBreadcrumbLink({
   return <Link href={href}>{segment.label}</Link>;
 }
 
-
-export function WorkspaceBreadcrumb({ segments, workspaceSlug }: WorkspaceBreadcrumbProps) {
+export function WorkspaceBreadcrumb({
+  segments,
+  workspaceSlug,
+}: WorkspaceBreadcrumbProps) {
   // Always prepend "Workspace" as root linking to /home
   const allSegments: WorkspaceBreadcrumbSubPathSegment[] = [
     { label: "Workspace", subPath: "/home" },
@@ -48,7 +50,10 @@ export function WorkspaceBreadcrumb({ segments, workspaceSlug }: WorkspaceBreadc
                   <BreadcrumbPage>{segment.label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <WorkspaceBreadcrumbLink workspaceSlug={workspaceSlug} segment={segment} />
+                    <WorkspaceBreadcrumbLink
+                      segment={segment}
+                      workspaceSlug={workspaceSlug}
+                    />
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

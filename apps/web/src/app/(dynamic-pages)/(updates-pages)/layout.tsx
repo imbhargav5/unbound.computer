@@ -10,13 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 function UpdatesNavigation() {
-  const links = [
-    { name: "Docs", href: "/docs" },
-    { name: "Feedback", href: "/feedback" },
-    { name: "Blog", href: "/blog" },
-    { name: "Changelog", href: "/changelog" },
-    { name: "Roadmap", href: "/roadmap" },
-  ];
+  const links = [{ name: "Docs", href: "/docs" }];
 
   return (
     <nav>

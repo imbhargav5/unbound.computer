@@ -1,6 +1,5 @@
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProjectsLoadingFallback } from "./projects-loading-fallback";
 
 export const DashboardLoadingFallback = () => (
   <div className="mt-8 flex w-full flex-col space-y-12">
@@ -10,10 +9,6 @@ export const DashboardLoadingFallback = () => (
         <Skeleton className="h-10 w-48 border" />
         <Skeleton className="h-10 w-48 border" />
       </div>
-    </div>
-    <div>
-      <Skeleton className="h-10 w-48" />
-      <ProjectsLoadingFallback quantity={3} />
     </div>
     <Card className="p-8">
       <Skeleton className="h-10 w-48" />

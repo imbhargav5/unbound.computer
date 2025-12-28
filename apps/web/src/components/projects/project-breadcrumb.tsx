@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import urlJoin from "url-join";
 import { Link } from "@/components/intl-link";
 import {
   Breadcrumb,
@@ -9,7 +10,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { WorkspaceBreadcrumbSubPathSegment } from "@/components/workspaces/breadcrumb-config";
-import urlJoin from "url-join";
 
 type ProjectBreadcrumbProps = {
   segments: WorkspaceBreadcrumbSubPathSegment[];
@@ -26,7 +26,6 @@ export function ProjectBreadcrumbLink({
   const href = urlJoin(`/project/${projectSlug}`, segment.subPath ?? "");
   return <Link href={href}>{segment.label}</Link>;
 }
-
 
 export function ProjectBreadcrumb({
   segments,
@@ -52,7 +51,10 @@ export function ProjectBreadcrumb({
                   <BreadcrumbPage>{segment.label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <ProjectBreadcrumbLink projectSlug={projectSlug} segment={segment} />
+                    <ProjectBreadcrumbLink
+                      projectSlug={projectSlug}
+                      segment={segment}
+                    />
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

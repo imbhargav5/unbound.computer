@@ -2,10 +2,10 @@ import { unauthorized } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { CreateWorkspaceDialog } from "@/components/create-workspace-dialog";
 import { NotificationsDialog } from "@/components/notifications-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
 import type { UserClaimsSchemaType } from "@/utils/zod-schemas/user-claims-schema";
 import PosthogIdentify from "./posthog-identify";
-import { Skeleton } from "@/components/ui/skeleton";
 
 async function DynamicContent() {
   let userClaims: UserClaimsSchemaType | null = null;

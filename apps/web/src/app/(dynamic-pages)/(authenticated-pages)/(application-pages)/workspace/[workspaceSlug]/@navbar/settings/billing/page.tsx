@@ -1,8 +1,8 @@
 import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WORKSPACE_BREADCRUMBS } from "@/components/workspaces/breadcrumb-config";
 import { WorkspaceBreadcrumb } from "@/components/workspaces/workspace-breadcrumb";
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
-import { Skeleton } from "@/components/ui/skeleton";
 
 async function WorkspaceSettingsBillingNavbarContent({
   params,
