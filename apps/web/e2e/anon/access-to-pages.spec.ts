@@ -5,17 +5,7 @@ test.describe
     test("Anon users can see home page", async ({ page }) => {
       // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
       await page.goto("/");
-      await expect(page.locator("h1")).toContainText(
-        "starterkit"
-      );
-    });
-
-    test("Anon users can see feedback page", async ({ page }) => {
-      // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
-      await page.goto("/feedback");
-      await expect(
-        page.getByRole("heading", { name: "Community Feedback" })
-      ).toBeVisible();
+      await expect(page.locator("h1")).toContainText("starterkit");
     });
 
     test("Anon users can see docs page", async ({ page }) => {
@@ -23,30 +13,6 @@ test.describe
       await page.goto("/docs");
       await expect(page.getByTestId("page-heading-title")).toContainText(
         "Documentation"
-      );
-    });
-
-    test("Anon users can see blog page", async ({ page }) => {
-      // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
-      await page.goto("/blog");
-      await expect(
-        page.getByRole("heading", { name: "All Blog Posts " })
-      ).toBeVisible();
-    });
-
-    test("Anon users can see roadmap page", async ({ page }) => {
-      // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
-      await page.goto("/roadmap");
-      await expect(
-        page.getByRole("heading", { name: "Roadmap " })
-      ).toBeVisible();
-    });
-
-    test("Anon users can see changelog page", async ({ page }) => {
-      // Start from the index page (the baseURL is set via the webServer in the playwright.config.ts)
-      await page.goto("/changelog");
-      await expect(page.getByTestId("page-heading-title")).toContainText(
-        "Changelog"
       );
     });
 

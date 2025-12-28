@@ -1,10 +1,10 @@
 // https://github.com/vercel/next.js/issues/58272
 
+import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WORKSPACE_BREADCRUMBS } from "@/components/workspaces/breadcrumb-config";
 import { WorkspaceBreadcrumb } from "@/components/workspaces/workspace-breadcrumb";
 import { workspaceSlugParamSchema } from "@/utils/zod-schemas/params";
-import { Suspense } from "react";
 
 async function WorkspaceDefaultNavbarContent({
   params,
@@ -14,7 +14,10 @@ async function WorkspaceDefaultNavbarContent({
   const { workspaceSlug } = workspaceSlugParamSchema.parse(await params);
   return (
     <>
-      <WorkspaceBreadcrumb segments={WORKSPACE_BREADCRUMBS.home} workspaceSlug={workspaceSlug} />
+      <WorkspaceBreadcrumb
+        segments={WORKSPACE_BREADCRUMBS.home}
+        workspaceSlug={workspaceSlug}
+      />
     </>
   );
 }
