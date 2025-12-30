@@ -27,6 +27,7 @@
     "@unbound/identity": "workspace:*"
   },
   "devDependencies": {
+    "@nextbase/typescript-config": "workspace:*",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

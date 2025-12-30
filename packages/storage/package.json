@@ -26,7 +26,9 @@
     "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "@types/keytar": "^4.4.4",
+    "@nextbase/typescript-config": "workspace:*",
+    "@types/keytar": "^4.4.2",
+    "@types/node": "^22.13.2",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

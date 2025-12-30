@@ -186,7 +186,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const deviceId = searchParams.get("deviceId");
     const repositoryId = searchParams.get("repositoryId");
-    const status = searchParams.get("status");
+    const statusParam = searchParams.get("status");
+
+    // Validate status is a valid enum value
+    const validStatuses = ["active", "paused", "ended"] as const;
+    const status =
+      statusParam &&
+      validStatuses.includes(statusParam as (typeof validStatuses)[number])
+        ? (statusParam as (typeof validStatuses)[number])
+        : null;
 
     let query = supabaseClient
       .from("coding_sessions")
