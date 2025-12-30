@@ -14,12 +14,15 @@ import { cn } from "@/lib/utils";
 import TitleBlock from "../title-block";
 
 const Pricing = () => (
-  <section className="mx-auto flex max-w-6xl flex-col items-center justify-center space-y-10 overflow-hidden px-6 py-16">
+  <section
+    className="mx-auto flex max-w-6xl flex-col items-center justify-center space-y-10 overflow-hidden px-6 py-16"
+    id="pricing"
+  >
     <TitleBlock
       icon={<DollarSign size={16} />}
       section="Pricing"
-      subtitle="CI/CD streamlines feature delivery, scalable infrastructure ensures global edge optimization and app monitoring capabilities for peak site performance."
-      title="Quality without any compromise"
+      subtitle="Start free and scale as you grow. All plans include end-to-end encryption and secure relay infrastructure."
+      title="Simple, transparent pricing"
     />
 
     <Tabs

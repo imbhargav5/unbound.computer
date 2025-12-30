@@ -10,11 +10,14 @@ import TitleBlock from "../title-block";
 
 export default function FAQ() {
   return (
-    <section className="mx-auto flex max-w-6xl flex-col items-center justify-center space-y-6 px-6 py-16">
+    <section
+      className="mx-auto flex max-w-6xl flex-col items-center justify-center space-y-6 px-6 py-16"
+      id="faq"
+    >
       <TitleBlock
         icon={<Icons.questionMark />}
         section="FAQ"
-        subtitle="Get detailed answers to common inquiries. Enhance your understanding of our offerings and policies."
+        subtitle="Everything you need to know about running Claude Code remotely with end-to-end encryption."
         title="Frequently Asked Questions"
       />
       {faq.map((item, i) => (

@@ -14,10 +14,7 @@
     "gen-types-local": "turbo run gen-types-local --filter=database",
     "database#start": "turbo run database#start",
     "database#stop": "turbo run database#stop",
-    "database#status": "turbo run database#status",
-    "test-integration": "turbo run test-integration --filter=web",
-    "test-integration-ui": "turbo run test-integration-ui --filter=web",
-    "build-and-test-integration": "turbo run build-and-test-integration"
+    "database#status": "turbo run database#status"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.4",

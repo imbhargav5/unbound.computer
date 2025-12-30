@@ -5,28 +5,28 @@ type FAQ = {
 
 export const faq: FAQ[] = [
   {
-    question: "Lorem ipsum dolor sit amet?",
+    question: "How does end-to-end encryption work?",
     answer:
-      "Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "Your mobile device and development machine establish a secure channel using public-key cryptography. The relay server only forwards encrypted messages - it never has access to your code, commands, or session content.",
   },
   {
-    question: "Ut enim ad minim veniam?",
+    question: "What platforms are supported?",
     answer:
-      "Quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit.",
+      "The Unbound daemon runs on macOS, Linux, and Windows. Mobile apps are available for iOS and Android. The daemon runs as a background service (launchd on Mac, systemd on Linux) and maintains a persistent connection to the relay.",
   },
   {
-    question: "Excepteur sint occaecat cupidatat?",
+    question: "How do I register a repository?",
     answer:
-      "Non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error.",
+      "Run 'unbound register' in any git repository. The CLI detects repo info (name, path, remote URL) and syncs it to your account. The repository then becomes available on your mobile device for starting Claude Code sessions.",
   },
   {
-    question: "Nemo enim ipsam voluptatem?",
+    question: "Can I start a session from my computer and continue on mobile?",
     answer:
-      "Quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.",
+      "Yes! Use 'unbound' in any registered directory to start Claude Code in handoff mode. The session immediately appears on your phone, letting you monitor and interact with it remotely.",
   },
   {
-    question: "Neque porro quisquam est?",
+    question: "What happens if my internet connection drops?",
     answer:
-      "Qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt.",
+      "The daemon maintains session state locally. When connectivity is restored, it automatically reconnects to the relay server. Active Claude Code sessions continue running on your machine regardless of network status.",
   },
 ];

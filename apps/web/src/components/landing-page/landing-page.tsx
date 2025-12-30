@@ -3,10 +3,8 @@ import FAQ from "./faq";
 import { Footer } from "./footer";
 import HeroSection from "./hero-section";
 import Integration from "./integration";
-import LogoCloud from "./logo-cloud";
 import Pricing from "./pricing";
 import Quotation from "./quotetion";
-import Testimonials from "./testimonials";
 
 export async function LandingPage() {
   "use cache";
@@ -14,11 +12,9 @@ export async function LandingPage() {
     <div>
       <div className="flex flex-col gap-16">
         <HeroSection />
-        <LogoCloud />
         <Integration />
         <Quotation />
         <Pricing />
-        <Testimonials />
         <FAQ />
         <CTA />
       </div>

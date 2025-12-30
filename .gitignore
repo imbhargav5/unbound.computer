@@ -22,3 +22,6 @@ test-results
 supabase/signing_key.json
 
 .nextbase-references/
+
+# Build output
+dist
