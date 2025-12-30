@@ -7,5 +7,5 @@ import { config } from "../config.js";
  */
 export const supabaseAdmin = createClient(
   config.SUPABASE_URL,
-  config.SUPABASE_SERVICE_ROLE_KEY
+  config.SUPABASE_SECRET_KEY
 );

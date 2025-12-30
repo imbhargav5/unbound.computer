@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
+import { Terminal } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Link } from "@/components/intl-link";
-import { cn } from "@/utils/cn";
 import { navbarLinks } from "./constants";
 import { DocsMobileNavigation } from "./docs-mobile-navigation";
 
@@ -16,37 +15,25 @@ export function LeftNav() {
   return (
     <div className="flex items-center gap-8">
       <DocsMobileNavigation />
-      <div className="flex space-x-8">
-        <Link className={cn("font-bold text-xl")} href="/">
-          <div className="dark:-ml-4 -ml-2 relative flex h-10 items-center justify-center space-x-2 md:w-fit">
-            <Image
-              alt="light-logo"
-              height={32}
-              src={"/logos/nextbase.png"}
-              width={32}
-            />
-
-            {isBlogPage && (
-              <span className="font-bold text-foreground">Nextbase Blog</span>
-            )}
-            {isDocsPage && (
-              <span className="font-bold font-bold text-foreground">
-                Nextbase Docs
-              </span>
-            )}
-            {!(isBlogPage || isDocsPage) && (
-              <span className="font-bold">Nextbase</span>
-            )}
-          </div>
-        </Link>
-      </div>
-      <ul className="hidden items-center gap-8 font-medium lg:flex">
+      <Link className="flex items-center gap-2" href="/">
+        <div className="flex size-8 items-center justify-center rounded-lg border border-white/20">
+          <Terminal className="size-4 text-white" />
+        </div>
+        <span className="font-medium text-white">
+          {isBlogPage && "Unbound Blog"}
+          {isDocsPage && "Unbound Docs"}
+          {!(isBlogPage || isDocsPage) && "Unbound"}
+        </span>
+      </Link>
+      <ul className="hidden items-center gap-6 lg:flex">
         {navbarLinks.map(({ name, href }) => (
-          <li
-            className="font-regular text-muted-foreground text-sm hover:text-foreground"
-            key={name}
-          >
-            <Link href={href}>{name}</Link>
+          <li key={name}>
+            <Link
+              className="text-sm text-white/60 transition-colors hover:text-white"
+              href={href}
+            >
+              {name}
+            </Link>
           </li>
         ))}
       </ul>

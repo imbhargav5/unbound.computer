@@ -1,71 +1,57 @@
-import { ArrowRight, Lock, Smartphone, Terminal } from "lucide-react";
+import { ArrowRight, Terminal } from "lucide-react";
 import { Link } from "@/components/intl-link";
 import { Button } from "@/components/ui/button";
 
 export default async function HeroSection() {
   return (
-    <section className="mx-auto max-w-5xl px-6 py-10 text-left lg:py-20 lg:text-center">
-      <div className="flex w-full flex-col gap-10">
-        <div className="flex flex-1 flex-col space-y-4 lg:items-center">
-          <div className="flex w-fit items-center gap-2 rounded-full border border-border bg-secondary px-3 py-1 dark:border-none">
-            <Lock size={16} />
-            <span className="font-medium text-md lg:text-base">
-              End-to-End Encrypted
-            </span>
-          </div>
-          <h1 className="max-w-2xl font-thin text-3xl lg:text-5xl">
-            Run Claude Code on your machine <br />
-            <em>from anywhere</em>
-          </h1>
-          <p className="max-w-4xl text-muted-foreground leading-loose lg:text-lg lg:leading-relaxed">
-            Control Claude Code sessions on your Mac, Linux, or Windows machine
-            from your phone. Secure relay infrastructure with zero-knowledge
-            encryption ensures your code never leaves your trusted devices.
-          </p>
-          <div className="flex w-full flex-col gap-4 pt-4 sm:flex-row sm:justify-center">
-            <Button asChild className="w-full sm:w-auto sm:min-w-32">
-              <Link href={"/login"}>
-                Get Started
-                <ArrowRight className="ml-2" size={16} />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="w-full sm:w-auto sm:min-w-32"
-              variant={"secondary"}
-            >
-              <Link href={"/docs"}>
-                Documentation
-                <Terminal className="ml-2" size={16} />
-              </Link>
-            </Button>
-          </div>
+    <section className="relative mx-auto max-w-5xl px-6 py-20 text-center lg:py-32">
+      {/* Subtle radial gradient glow behind headline */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="h-[500px] w-[800px] rounded-full bg-white/[0.02] blur-3xl" />
+      </div>
+
+      <div className="relative flex w-full flex-col items-center gap-8">
+        {/* Badge */}
+        <div className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-1.5">
+          <div className="size-2 animate-pulse rounded-full bg-white" />
+          <span className="text-sm text-white/70">End-to-End Encrypted</span>
         </div>
-        <div className="flex items-center justify-center gap-8 pt-8">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-secondary">
-              <Smartphone className="text-muted-foreground" size={24} />
-            </div>
-            <span className="text-muted-foreground text-sm">
-              Phone-initiated sessions
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-secondary">
-              <Terminal className="text-muted-foreground" size={24} />
-            </div>
-            <span className="text-muted-foreground text-sm">
-              CLI handoff mode
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-secondary">
-              <Lock className="text-muted-foreground" size={24} />
-            </div>
-            <span className="text-muted-foreground text-sm">
-              Zero-knowledge relay
-            </span>
-          </div>
+
+        {/* Headline */}
+        <h1 className="max-w-4xl font-light text-4xl text-white tracking-tight sm:text-5xl lg:text-7xl">
+          Run Claude Code
+          <br />
+          <span className="text-white/50">from anywhere</span>
+        </h1>
+
+        {/* Subheadline */}
+        <p className="max-w-2xl text-lg text-white/40 leading-relaxed lg:text-xl">
+          Control Claude Code sessions on your Mac from your phone.
+          Zero-knowledge encryption ensures your code never leaves your trusted
+          devices.
+        </p>
+
+        {/* CTAs */}
+        <div className="flex flex-col gap-4 pt-4 sm:flex-row">
+          <Button
+            asChild
+            className="bg-white px-8 py-6 text-base text-black hover:bg-white/90"
+          >
+            <Link href="/login">
+              Get Started
+              <ArrowRight className="ml-2" size={18} />
+            </Link>
+          </Button>
+          <Button
+            asChild
+            className="border-white/20 bg-transparent px-8 py-6 text-base text-white hover:bg-white/5"
+            variant="outline"
+          >
+            <Link href="/docs">
+              <Terminal className="mr-2" size={18} />
+              Documentation
+            </Link>
+          </Button>
         </div>
       </div>
     </section>

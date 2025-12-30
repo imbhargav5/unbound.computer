@@ -29,6 +29,7 @@ struct WorkspaceView: View {
 
     // State
     @State private var isAddingProject = false
+    @State private var hasMigratedOrphans = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -71,10 +72,9 @@ struct WorkspaceView: View {
                 .id(workspaceId)  // Force view recreation when workspace changes
                 .frame(minWidth: 400)
             } else {
-                ContentUnavailableView(
-                    "No Workspace Selected",
-                    systemImage: "folder",
-                    description: Text("Select a workspace from the sidebar")
+                WorkspaceEmptyState(
+                    hasProjects: !workspaces.isEmpty,
+                    onAddRepository: { addProject() }
                 )
                 .frame(minWidth: 400)
             }
@@ -91,6 +91,7 @@ struct WorkspaceView: View {
         .background(colors.background)
         .task {
             loadWorkspaces()
+            await migrateOrphanProjects()
         }
         .onChange(of: appState.workspacesService.workspaces) { _, _ in
             loadWorkspaces()
@@ -159,11 +160,39 @@ struct WorkspaceView: View {
 
         Task {
             do {
-                _ = try await appState.projectsService.addProjectWithPicker()
+                if let project = try await appState.projectsService.addProjectWithPicker() {
+                    // Auto-create a workspace for the new project
+                    let workspace = try await appState.workspacesService.createWorkspace(from: project)
+                    loadWorkspaces()
+                    selectedWorkspace = workspace
+                }
             } catch {
                 print("Failed to add project: \(error)")
             }
             isAddingProject = false
+        }
+    }
+
+    private func migrateOrphanProjects() async {
+        guard !hasMigratedOrphans else { return }
+        hasMigratedOrphans = true
+
+        let allWorkspaces = appState.workspacesService.workspaces
+        let projectsWithWorkspaces = Set(allWorkspaces.compactMap { $0.projectId })
+        let orphanProjects = appState.projectsService.projects.filter {
+            !projectsWithWorkspaces.contains($0.id)
+        }
+
+        for project in orphanProjects {
+            do {
+                _ = try await appState.workspacesService.createWorkspace(from: project)
+            } catch {
+                print("Failed to migrate orphan project \(project.name): \(error)")
+            }
+        }
+
+        if !orphanProjects.isEmpty {
+            loadWorkspaces()
         }
     }
 }

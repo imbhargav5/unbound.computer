@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, Check, Fingerprint, Mail } from "lucide-react";
+import { ArrowLeft, Check, Fingerprint, Mail, Terminal } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
 
@@ -29,64 +29,56 @@ export function EmailConfirmationPendingCard({
     >
       {/* Logo */}
       <Link className="mb-4 inline-flex items-center gap-2" href="/">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <span className="font-bold text-primary-foreground text-sm">N</span>
+        <div className="flex size-8 items-center justify-center rounded-lg border border-white/20">
+          <Terminal className="size-4 text-white" />
         </div>
-        <span className="font-semibold text-foreground text-lg">Nextbase</span>
+        <span className="font-medium text-lg text-white">Unbound</span>
       </Link>
 
       {/* Success Icon */}
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
-          <Check className="h-5 w-5 text-primary-foreground" />
+      <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-white/20 bg-white/[0.02]">
+        <div className="flex size-10 items-center justify-center rounded-full bg-white">
+          <Check className="size-5 text-black" />
         </div>
       </div>
 
       {/* Message */}
       <div className="space-y-2">
-        <h1 className="font-semibold text-2xl text-foreground tracking-tight">
+        <h1 className="font-light text-2xl text-white tracking-tight">
           {heading}
         </h1>
-        <p className="mx-auto max-w-xs text-muted-foreground text-sm">
-          {message}
-        </p>
+        <p className="mx-auto max-w-xs text-sm text-white/50">{message}</p>
       </div>
 
       {/* Instruction Card */}
-      <div className="space-y-3 rounded-xl border border-border/50 bg-muted/50 p-4 text-left">
+      <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4 text-left">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background">
-            <Mail className="h-3 w-3 text-muted-foreground" />
+          <div className="mt-0.5 flex size-6 flex-shrink-0 items-center justify-center rounded-full border border-white/20">
+            <Mail className="size-3 text-white/50" />
           </div>
           <div className="space-y-1">
-            <p className="font-medium text-foreground text-sm">
-              Check your inbox
-            </p>
-            <p className="text-muted-foreground text-xs">
+            <p className="font-medium text-sm text-white">Check your inbox</p>
+            <p className="text-white/40 text-xs">
               Click the link in the email to{" "}
               {type === "reset-password" ? "reset your password" : "continue"}
             </p>
           </div>
         </div>
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background">
+          <div className="mt-0.5 flex size-6 flex-shrink-0 items-center justify-center rounded-full border border-white/20">
             {type === "reset-password" ? (
-              <Fingerprint className="h-3 w-3 text-muted-foreground" />
+              <Fingerprint className="size-3 text-white/50" />
             ) : (
-              <span className="font-medium text-muted-foreground text-xs">
-                !
-              </span>
+              <span className="font-medium text-white/50 text-xs">!</span>
             )}
           </div>
           <div className="space-y-1">
-            <p className="font-medium text-foreground text-sm">
-              Didn't receive it?
-            </p>
-            <p className="text-muted-foreground text-xs">
+            <p className="font-medium text-sm text-white">Didn't receive it?</p>
+            <p className="text-white/40 text-xs">
               Check your spam folder or{" "}
               {resendEmail ? (
                 <button
-                  className="text-foreground underline underline-offset-2 hover:no-underline"
+                  className="text-white underline underline-offset-2 hover:no-underline"
                   onClick={resendEmail}
                   type="button"
                 >
@@ -94,7 +86,7 @@ export function EmailConfirmationPendingCard({
                 </button>
               ) : (
                 <button
-                  className="text-foreground underline underline-offset-2 hover:no-underline"
+                  className="text-white underline underline-offset-2 hover:no-underline"
                   onClick={() => resetSuccessMessage(null)}
                   type="button"
                 >
@@ -108,11 +100,11 @@ export function EmailConfirmationPendingCard({
 
       {/* Back Link */}
       <Link
-        className="inline-flex items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm text-white/50 transition-colors hover:text-white"
         href={backPath}
         onClick={() => resetSuccessMessage(null)}
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="size-4" />
         {backLabel}
       </Link>
     </div>

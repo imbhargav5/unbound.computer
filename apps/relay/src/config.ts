@@ -11,7 +11,7 @@ const ConfigSchema = z.object({
 
   // Supabase
   SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
 
   // Timeouts (milliseconds)
   HEARTBEAT_INTERVAL_MS: z.coerce.number().default(30_000), // 30 seconds

@@ -2,7 +2,7 @@
 # See https://fly.io/docs/reference/configuration/
 
 app = "unbound-relay"
-primary_region = "iad"
+primary_region = "bom"
 
 [build]
   dockerfile = "Dockerfile"

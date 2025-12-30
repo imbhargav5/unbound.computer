@@ -9,9 +9,8 @@ const SearchParamsSchema = z.object({
 });
 
 export const metadata: Metadata = {
-  title: "Sign Up | Nextbase Starter Kits Demo",
-  description:
-    "Create an account to get started with Nextbase Starter Kits Demo",
+  title: "Sign Up | Unbound",
+  description: "Create an account to get started with Unbound",
 };
 
 async function SignUpPageContent({

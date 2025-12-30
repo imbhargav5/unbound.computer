@@ -42,20 +42,24 @@ struct WorkspacesSidebar: View {
             ShadcnDivider()
                 .padding(.horizontal, Spacing.md)
 
-            // Workspaces list grouped by project
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: Spacing.sm) {
-                    ForEach(workspacesByProject, id: \.project.id) { group in
-                        ProjectGroup(
-                            project: group.project,
-                            workspaces: group.workspaces,
-                            selectedWorkspace: $selectedWorkspace,
-                            onCreateWorkspace: onCreateWorkspaceForProject
-                        )
+            // Workspaces list grouped by project or empty state
+            if workspacesByProject.isEmpty {
+                ProjectsEmptyState(onAddRepository: onAddProject)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: Spacing.sm) {
+                        ForEach(workspacesByProject, id: \.project.id) { group in
+                            ProjectGroup(
+                                project: group.project,
+                                workspaces: group.workspaces,
+                                selectedWorkspace: $selectedWorkspace,
+                                onCreateWorkspace: onCreateWorkspaceForProject
+                            )
+                        }
                     }
+                    .padding(.top, Spacing.sm)
+                    .padding(.horizontal, Spacing.sm)
                 }
-                .padding(.top, Spacing.sm)
-                .padding(.horizontal, Spacing.sm)
             }
 
             ShadcnDivider()

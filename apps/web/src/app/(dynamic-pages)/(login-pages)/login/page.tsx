@@ -9,8 +9,8 @@ const SearchParamsSchema = z.object({
 });
 
 export const metadata: Metadata = {
-  title: "Login | Nextbase Starter Kits Demo",
-  description: "Login to your Nextbase Starter Kits Demo account",
+  title: "Login | Unbound",
+  description: "Sign in to your Unbound account",
 };
 
 async function LoginPageContent({

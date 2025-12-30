@@ -42,7 +42,7 @@ export const footerItems: FooterItem[] = [
     items: [
       {
         name: "Privacy Policy",
-        url: "/terms",
+        url: "/privacy",
       },
       {
         name: "Terms of Service",
