@@ -35,7 +35,7 @@ export async function POST(_req: NextRequest) {
     const userId = user.id;
 
     // Create Unkey token with CLI-specific prefix and metadata
-    const { result: data, error: unkeyError } = await unkey.keys.create({
+    const result = await unkey.keys.createKey({
       externalId: userId,
       apiId: process.env.UNKEY_API_ID!,
       prefix: "ub_cli",
@@ -45,14 +45,7 @@ export async function POST(_req: NextRequest) {
       },
     });
 
-    if (unkeyError || !data) {
-      return NextResponse.json(
-        { error: "Failed to generate API key" },
-        { status: 500 }
-      );
-    }
-
-    const { key, keyId } = data;
+    const { key, keyId } = result.data;
 
     // Store masked key in database
     const { error: insertError } = await supabaseClient

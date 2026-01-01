@@ -1,5 +1,4 @@
 "use client";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleUserRound, Copy, Loader, Wand2 } from "lucide-react";
 import Image from "next/image";
 import { useAction } from "next-cool-action/hooks";
@@ -9,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { generateImageAction } from "@/data/user/dalle";
 import { updateUserProfilePictureAction } from "@/data/user/user";
+import { zodResolver } from "@/lib/zod-resolver";
 import {
   type GenerateImageFormSchemaType,
   generateImageFormSchema,

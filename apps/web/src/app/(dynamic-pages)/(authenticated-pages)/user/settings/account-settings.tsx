@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormActionErrorMapper } from "@next-cool-action/adapter-react-hook-form/hooks";
 import { Camera } from "lucide-react";
 import { useAction, useOptimisticAction } from "next-cool-action/hooks";
@@ -15,6 +14,7 @@ import {
   updateUserFullNameAction,
   uploadPublicUserAvatarAction,
 } from "@/data/user/user";
+import { zodResolver } from "@/lib/zod-resolver";
 import type { DBTable } from "@/types";
 import { getInitials } from "@/utils/generate-avatar";
 import { getUserAvatarUrl } from "@/utils/helpers";

@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormActionErrorMapper } from "@next-cool-action/adapter-react-hook-form/hooks";
 import { Check, Loader, UserPlus } from "lucide-react";
 import { useAction } from "next-cool-action/hooks";
@@ -30,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { WorkspaceMemberRoleSelect } from "@/components/workspace-member-role-select";
 import { createInvitationAction } from "@/data/user/invitation";
+import { zodResolver } from "@/lib/zod-resolver";
 import type { WorkspaceWithMembershipType } from "@/types";
 import { invitationRoleEnum } from "@/utils/zod-schemas/enums/invitations";
 

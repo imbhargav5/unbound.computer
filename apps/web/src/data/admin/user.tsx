@@ -217,7 +217,8 @@ export const sendLoginLinkAction = adminActionClient
           throw userProfileError;
         }
 
-        const userEmail = userProfile.user_application_settings?.email_readonly;
+        const userEmail =
+          userProfile.user_application_settings?.[0]?.email_readonly;
         const userName = userProfile.full_name;
 
         if (!userEmail) {

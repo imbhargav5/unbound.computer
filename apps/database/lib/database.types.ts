@@ -32,29 +32,6 @@ export type Database = {
       [_ in never]: never;
     };
   };
-  pgbouncer: {
-    Tables: {
-      [_ in never]: never;
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      get_auth: {
-        Args: { p_usename: string };
-        Returns: {
-          password: string;
-          username: string;
-        }[];
-      };
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
   public: {
     Tables: {
       account_delete_tokens: {
@@ -74,6 +51,7 @@ export type Database = {
           {
             foreignKeyName: "account_delete_tokens_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -126,6 +104,7 @@ export type Database = {
           {
             foreignKeyName: "billing_customers_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -175,18 +154,21 @@ export type Database = {
           {
             foreignKeyName: "billing_invoices_gateway_customer_id_fkey";
             columns: ["gateway_customer_id"];
+            isOneToOne: false;
             referencedRelation: "billing_customers";
             referencedColumns: ["gateway_customer_id"];
           },
           {
             foreignKeyName: "billing_invoices_gateway_price_id_fkey";
             columns: ["gateway_price_id"];
+            isOneToOne: false;
             referencedRelation: "billing_prices";
             referencedColumns: ["gateway_price_id"];
           },
           {
             foreignKeyName: "billing_invoices_gateway_product_id_fkey";
             columns: ["gateway_product_id"];
+            isOneToOne: false;
             referencedRelation: "billing_products";
             referencedColumns: ["gateway_product_id"];
           },
@@ -233,24 +215,28 @@ export type Database = {
           {
             foreignKeyName: "billing_one_time_payments_gateway_customer_id_fkey";
             columns: ["gateway_customer_id"];
+            isOneToOne: false;
             referencedRelation: "billing_customers";
             referencedColumns: ["gateway_customer_id"];
           },
           {
             foreignKeyName: "billing_one_time_payments_gateway_invoice_id_fkey";
             columns: ["gateway_invoice_id"];
+            isOneToOne: false;
             referencedRelation: "billing_invoices";
             referencedColumns: ["gateway_invoice_id"];
           },
           {
             foreignKeyName: "billing_one_time_payments_gateway_price_id_fkey";
             columns: ["gateway_price_id"];
+            isOneToOne: false;
             referencedRelation: "billing_prices";
             referencedColumns: ["gateway_price_id"];
           },
           {
             foreignKeyName: "billing_one_time_payments_gateway_product_id_fkey";
             columns: ["gateway_product_id"];
+            isOneToOne: false;
             referencedRelation: "billing_products";
             referencedColumns: ["gateway_product_id"];
           },
@@ -285,6 +271,7 @@ export type Database = {
           {
             foreignKeyName: "billing_payment_methods_gateway_customer_id_fkey";
             columns: ["gateway_customer_id"];
+            isOneToOne: false;
             referencedRelation: "billing_customers";
             referencedColumns: ["gateway_customer_id"];
           },
@@ -331,6 +318,7 @@ export type Database = {
           {
             foreignKeyName: "billing_prices_gateway_product_id_fkey";
             columns: ["gateway_product_id"];
+            isOneToOne: false;
             referencedRelation: "billing_products";
             referencedColumns: ["gateway_product_id"];
           },
@@ -419,18 +407,21 @@ export type Database = {
           {
             foreignKeyName: "billing_subscriptions_gateway_customer_id_fkey";
             columns: ["gateway_customer_id"];
+            isOneToOne: false;
             referencedRelation: "billing_customers";
             referencedColumns: ["gateway_customer_id"];
           },
           {
             foreignKeyName: "billing_subscriptions_gateway_price_id_fkey";
             columns: ["gateway_price_id"];
+            isOneToOne: false;
             referencedRelation: "billing_prices";
             referencedColumns: ["gateway_price_id"];
           },
           {
             foreignKeyName: "billing_subscriptions_gateway_product_id_fkey";
             columns: ["gateway_product_id"];
+            isOneToOne: false;
             referencedRelation: "billing_products";
             referencedColumns: ["gateway_product_id"];
           },
@@ -462,6 +453,7 @@ export type Database = {
           {
             foreignKeyName: "billing_usage_logs_gateway_customer_id_fkey";
             columns: ["gateway_customer_id"];
+            isOneToOne: false;
             referencedRelation: "billing_customers";
             referencedColumns: ["gateway_customer_id"];
           },
@@ -493,6 +485,7 @@ export type Database = {
           {
             foreignKeyName: "billing_volume_tiers_gateway_price_id_fkey";
             columns: ["gateway_price_id"];
+            isOneToOne: false;
             referencedRelation: "billing_prices";
             referencedColumns: ["gateway_price_id"];
           },
@@ -524,12 +517,14 @@ export type Database = {
           {
             foreignKeyName: "chats_project_id_fkey";
             columns: ["project_id"];
+            isOneToOne: false;
             referencedRelation: "projects";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "chats_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -585,18 +580,21 @@ export type Database = {
           {
             foreignKeyName: "coding_sessions_device_id_fkey";
             columns: ["device_id"];
+            isOneToOne: false;
             referencedRelation: "devices";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "coding_sessions_repository_id_fkey";
             columns: ["repository_id"];
+            isOneToOne: false;
             referencedRelation: "repositories";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "coding_sessions_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -643,6 +641,7 @@ export type Database = {
           {
             foreignKeyName: "devices_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -710,12 +709,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_blog_author_posts_author_id_fkey";
             columns: ["author_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_author_profiles";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_blog_author_posts_post_id_fkey";
             columns: ["post_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_blog_posts";
             referencedColumns: ["id"];
           },
@@ -738,12 +739,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_blog_post_tags_relationship_blog_post_id_fkey";
             columns: ["blog_post_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_blog_posts";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_blog_post_tags_relationship_tag_id_fkey";
             columns: ["tag_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_tags";
             referencedColumns: ["id"];
           },
@@ -868,12 +871,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_changelog_author_relationship_author_id_fkey";
             columns: ["author_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_author_profiles";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_changelog_author_relationship_changelog_id_fkey";
             columns: ["changelog_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_changelog";
             referencedColumns: ["id"];
           },
@@ -902,12 +907,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_board_subscriptions_board_id_fkey";
             columns: ["board_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_boards";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_board_subscriptions_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -954,6 +961,7 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_boards_created_by_fkey";
             columns: ["created_by"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -985,12 +993,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_comment_reactions_comment_id_fkey";
             columns: ["comment_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_comments";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_comment_reactions_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1034,12 +1044,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_comments_thread_id_fkey";
             columns: ["thread_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_threads";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_comments_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1071,12 +1083,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_thread_reactions_thread_id_fkey";
             columns: ["thread_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_threads";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_thread_reactions_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1105,12 +1119,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_thread_subscriptions_thread_id_fkey";
             columns: ["thread_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_threads";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_thread_subscriptions_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1175,12 +1191,14 @@ export type Database = {
           {
             foreignKeyName: "marketing_feedback_threads_board_id_fkey";
             columns: ["board_id"];
+            isOneToOne: false;
             referencedRelation: "marketing_feedback_boards";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "marketing_feedback_threads_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1236,18 +1254,21 @@ export type Database = {
           {
             foreignKeyName: "project_comments_in_reply_to_fkey";
             columns: ["in_reply_to"];
+            isOneToOne: false;
             referencedRelation: "project_comments";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "project_comments_project_id_fkey";
             columns: ["project_id"];
+            isOneToOne: false;
             referencedRelation: "projects";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "project_comments_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1285,6 +1306,7 @@ export type Database = {
           {
             foreignKeyName: "projects_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1343,18 +1365,21 @@ export type Database = {
           {
             foreignKeyName: "repositories_device_id_fkey";
             columns: ["device_id"];
+            isOneToOne: false;
             referencedRelation: "devices";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "repositories_parent_repository_id_fkey";
             columns: ["parent_repository_id"];
+            isOneToOne: false;
             referencedRelation: "repositories";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "repositories_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1389,6 +1414,7 @@ export type Database = {
           {
             foreignKeyName: "user_api_keys_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1411,6 +1437,7 @@ export type Database = {
           {
             foreignKeyName: "user_application_settings_id_fkey";
             columns: ["id"];
+            isOneToOne: true;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1448,6 +1475,7 @@ export type Database = {
           {
             foreignKeyName: "user_notifications_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1494,6 +1522,7 @@ export type Database = {
           {
             foreignKeyName: "user_roles_user_id_fkey";
             columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1516,12 +1545,89 @@ export type Database = {
           {
             foreignKeyName: "user_settings_default_workspace_fkey";
             columns: ["default_workspace"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "user_settings_id_fkey";
             columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      web_sessions: {
+        Row: {
+          authorized_at: string | null;
+          authorizing_device_id: string | null;
+          browser_fingerprint: string | null;
+          created_at: string;
+          encrypted_session_key: string | null;
+          expires_at: string;
+          id: string;
+          ip_address: unknown;
+          last_activity_at: string | null;
+          responder_public_key: string | null;
+          revoked_at: string | null;
+          revoked_reason: string | null;
+          session_token_hash: string;
+          status: Database["public"]["Enums"]["web_session_status"];
+          user_agent: string | null;
+          user_id: string;
+          web_public_key: string;
+        };
+        Insert: {
+          authorized_at?: string | null;
+          authorizing_device_id?: string | null;
+          browser_fingerprint?: string | null;
+          created_at?: string;
+          encrypted_session_key?: string | null;
+          expires_at: string;
+          id?: string;
+          ip_address?: unknown;
+          last_activity_at?: string | null;
+          responder_public_key?: string | null;
+          revoked_at?: string | null;
+          revoked_reason?: string | null;
+          session_token_hash: string;
+          status?: Database["public"]["Enums"]["web_session_status"];
+          user_agent?: string | null;
+          user_id: string;
+          web_public_key: string;
+        };
+        Update: {
+          authorized_at?: string | null;
+          authorizing_device_id?: string | null;
+          browser_fingerprint?: string | null;
+          created_at?: string;
+          encrypted_session_key?: string | null;
+          expires_at?: string;
+          id?: string;
+          ip_address?: unknown;
+          last_activity_at?: string | null;
+          responder_public_key?: string | null;
+          revoked_at?: string | null;
+          revoked_reason?: string | null;
+          session_token_hash?: string;
+          status?: Database["public"]["Enums"]["web_session_status"];
+          user_agent?: string | null;
+          user_id?: string;
+          web_public_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "web_sessions_authorizing_device_id_fkey";
+            columns: ["authorizing_device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "web_sessions_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1544,6 +1650,7 @@ export type Database = {
           {
             foreignKeyName: "workspace_admin_settings_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: true;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1566,6 +1673,7 @@ export type Database = {
           {
             foreignKeyName: "workspace_application_settings_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: true;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1594,6 +1702,7 @@ export type Database = {
           {
             foreignKeyName: "workspace_credits_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1631,12 +1740,14 @@ export type Database = {
           {
             foreignKeyName: "workspace_credits_logs_workspace_credits_id_fkey";
             columns: ["workspace_credits_id"];
+            isOneToOne: false;
             referencedRelation: "workspace_credits";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "workspace_credits_logs_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1677,18 +1788,21 @@ export type Database = {
           {
             foreignKeyName: "workspace_invitations_invitee_user_id_fkey";
             columns: ["invitee_user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "workspace_invitations_inviter_user_id_fkey";
             columns: ["inviter_user_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "workspace_invitations_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1723,12 +1837,14 @@ export type Database = {
           {
             foreignKeyName: "workspace_members_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: false;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
           {
             foreignKeyName: "workspace_members_workspace_member_id_fkey";
             columns: ["workspace_member_id"];
+            isOneToOne: false;
             referencedRelation: "user_profiles";
             referencedColumns: ["id"];
           },
@@ -1751,6 +1867,7 @@ export type Database = {
           {
             foreignKeyName: "workspace_settings_workspace_id_fkey";
             columns: ["workspace_id"];
+            isOneToOne: true;
             referencedRelation: "workspaces";
             referencedColumns: ["id"];
           },
@@ -1783,50 +1900,51 @@ export type Database = {
     };
     Functions: {
       app_admin_get_projects_created_per_month: {
-        Args: Record<PropertyKey, never>;
+        Args: never;
         Returns: {
           month: string;
           number_of_projects: number;
         }[];
       };
       app_admin_get_recent_30_day_signin_count: {
-        Args: Record<PropertyKey, never>;
+        Args: never;
         Returns: number;
       };
-      app_admin_get_total_organization_count: {
-        Args: Record<PropertyKey, never>;
-        Returns: number;
-      };
-      app_admin_get_total_project_count: {
-        Args: Record<PropertyKey, never>;
-        Returns: number;
-      };
-      app_admin_get_total_user_count: {
-        Args: Record<PropertyKey, never>;
-        Returns: number;
-      };
+      app_admin_get_total_organization_count: { Args: never; Returns: number };
+      app_admin_get_total_project_count: { Args: never; Returns: number };
+      app_admin_get_total_user_count: { Args: never; Returns: number };
       app_admin_get_user_id_by_email: {
         Args: { emailarg: string };
         Returns: string;
       };
       app_admin_get_users_created_per_month: {
-        Args: Record<PropertyKey, never>;
+        Args: never;
         Returns: {
           month: string;
           number_of_users: number;
         }[];
       };
       app_admin_get_workspaces_created_per_month: {
-        Args: Record<PropertyKey, never>;
+        Args: never;
         Returns: {
           month: string;
           number_of_workspaces: number;
         }[];
       };
+      authorize_web_session: {
+        Args: {
+          p_device_id: string;
+          p_encrypted_session_key: string;
+          p_responder_public_key: string;
+          p_session_id: string;
+        };
+        Returns: boolean;
+      };
       check_if_authenticated_user_owns_email: {
         Args: { email: string };
         Returns: boolean;
       };
+      cleanup_expired_web_sessions: { Args: never; Returns: number };
       custom_access_token_hook: { Args: { event: Json }; Returns: Json };
       decrement_credits: {
         Args: { amount: number; org_id: string };
@@ -1873,6 +1991,11 @@ export type Database = {
         Args: { user_id_arg: string };
         Returns: undefined;
       };
+      revoke_web_session: {
+        Args: { p_reason?: string; p_session_id: string };
+        Returns: boolean;
+      };
+      touch_web_session: { Args: { p_session_id: string }; Returns: boolean };
       update_workspace_member_permissions: {
         Args: {
           member_id: string;
@@ -1928,6 +2051,7 @@ export type Database = {
         | "past_due"
         | "unpaid"
         | "paused";
+      web_session_status: "pending" | "active" | "expired" | "revoked";
       workspace_invitation_link_status:
         | "active"
         | "finished_accepted"
@@ -1940,23 +2064,630 @@ export type Database = {
       [_ in never]: never;
     };
   };
+  storage: {
+    Tables: {
+      buckets: {
+        Row: {
+          allowed_mime_types: string[] | null;
+          avif_autodetection: boolean | null;
+          created_at: string | null;
+          file_size_limit: number | null;
+          id: string;
+          name: string;
+          owner: string | null;
+          owner_id: string | null;
+          public: boolean | null;
+          type: Database["storage"]["Enums"]["buckettype"];
+          updated_at: string | null;
+        };
+        Insert: {
+          allowed_mime_types?: string[] | null;
+          avif_autodetection?: boolean | null;
+          created_at?: string | null;
+          file_size_limit?: number | null;
+          id: string;
+          name: string;
+          owner?: string | null;
+          owner_id?: string | null;
+          public?: boolean | null;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string | null;
+        };
+        Update: {
+          allowed_mime_types?: string[] | null;
+          avif_autodetection?: boolean | null;
+          created_at?: string | null;
+          file_size_limit?: number | null;
+          id?: string;
+          name?: string;
+          owner?: string | null;
+          owner_id?: string | null;
+          public?: boolean | null;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      buckets_analytics: {
+        Row: {
+          created_at: string;
+          deleted_at: string | null;
+          format: string;
+          id: string;
+          name: string;
+          type: Database["storage"]["Enums"]["buckettype"];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          deleted_at?: string | null;
+          format?: string;
+          id?: string;
+          name: string;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          deleted_at?: string | null;
+          format?: string;
+          id?: string;
+          name?: string;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      buckets_vectors: {
+        Row: {
+          created_at: string;
+          id: string;
+          type: Database["storage"]["Enums"]["buckettype"];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id: string;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          type?: Database["storage"]["Enums"]["buckettype"];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      iceberg_namespaces: {
+        Row: {
+          bucket_name: string;
+          catalog_id: string;
+          created_at: string;
+          id: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          bucket_name: string;
+          catalog_id: string;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          bucket_name?: string;
+          catalog_id?: string;
+          created_at?: string;
+          id?: string;
+          metadata?: Json;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "iceberg_namespaces_catalog_id_fkey";
+            columns: ["catalog_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets_analytics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      iceberg_tables: {
+        Row: {
+          bucket_name: string;
+          catalog_id: string;
+          created_at: string;
+          id: string;
+          location: string;
+          name: string;
+          namespace_id: string;
+          remote_table_id: string | null;
+          shard_id: string | null;
+          shard_key: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          bucket_name: string;
+          catalog_id: string;
+          created_at?: string;
+          id?: string;
+          location: string;
+          name: string;
+          namespace_id: string;
+          remote_table_id?: string | null;
+          shard_id?: string | null;
+          shard_key?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          bucket_name?: string;
+          catalog_id?: string;
+          created_at?: string;
+          id?: string;
+          location?: string;
+          name?: string;
+          namespace_id?: string;
+          remote_table_id?: string | null;
+          shard_id?: string | null;
+          shard_key?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "iceberg_tables_catalog_id_fkey";
+            columns: ["catalog_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets_analytics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "iceberg_tables_namespace_id_fkey";
+            columns: ["namespace_id"];
+            isOneToOne: false;
+            referencedRelation: "iceberg_namespaces";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      migrations: {
+        Row: {
+          executed_at: string | null;
+          hash: string;
+          id: number;
+          name: string;
+        };
+        Insert: {
+          executed_at?: string | null;
+          hash: string;
+          id: number;
+          name: string;
+        };
+        Update: {
+          executed_at?: string | null;
+          hash?: string;
+          id?: number;
+          name?: string;
+        };
+        Relationships: [];
+      };
+      objects: {
+        Row: {
+          bucket_id: string | null;
+          created_at: string | null;
+          id: string;
+          last_accessed_at: string | null;
+          level: number | null;
+          metadata: Json | null;
+          name: string | null;
+          owner: string | null;
+          owner_id: string | null;
+          path_tokens: string[] | null;
+          updated_at: string | null;
+          user_metadata: Json | null;
+          version: string | null;
+        };
+        Insert: {
+          bucket_id?: string | null;
+          created_at?: string | null;
+          id?: string;
+          last_accessed_at?: string | null;
+          level?: number | null;
+          metadata?: Json | null;
+          name?: string | null;
+          owner?: string | null;
+          owner_id?: string | null;
+          path_tokens?: string[] | null;
+          updated_at?: string | null;
+          user_metadata?: Json | null;
+          version?: string | null;
+        };
+        Update: {
+          bucket_id?: string | null;
+          created_at?: string | null;
+          id?: string;
+          last_accessed_at?: string | null;
+          level?: number | null;
+          metadata?: Json | null;
+          name?: string | null;
+          owner?: string | null;
+          owner_id?: string | null;
+          path_tokens?: string[] | null;
+          updated_at?: string | null;
+          user_metadata?: Json | null;
+          version?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "objects_bucketId_fkey";
+            columns: ["bucket_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      prefixes: {
+        Row: {
+          bucket_id: string;
+          created_at: string | null;
+          level: number;
+          name: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          bucket_id: string;
+          created_at?: string | null;
+          level?: number;
+          name: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          bucket_id?: string;
+          created_at?: string | null;
+          level?: number;
+          name?: string;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "prefixes_bucketId_fkey";
+            columns: ["bucket_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      s3_multipart_uploads: {
+        Row: {
+          bucket_id: string;
+          created_at: string;
+          id: string;
+          in_progress_size: number;
+          key: string;
+          owner_id: string | null;
+          upload_signature: string;
+          user_metadata: Json | null;
+          version: string;
+        };
+        Insert: {
+          bucket_id: string;
+          created_at?: string;
+          id: string;
+          in_progress_size?: number;
+          key: string;
+          owner_id?: string | null;
+          upload_signature: string;
+          user_metadata?: Json | null;
+          version: string;
+        };
+        Update: {
+          bucket_id?: string;
+          created_at?: string;
+          id?: string;
+          in_progress_size?: number;
+          key?: string;
+          owner_id?: string | null;
+          upload_signature?: string;
+          user_metadata?: Json | null;
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "s3_multipart_uploads_bucket_id_fkey";
+            columns: ["bucket_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      s3_multipart_uploads_parts: {
+        Row: {
+          bucket_id: string;
+          created_at: string;
+          etag: string;
+          id: string;
+          key: string;
+          owner_id: string | null;
+          part_number: number;
+          size: number;
+          upload_id: string;
+          version: string;
+        };
+        Insert: {
+          bucket_id: string;
+          created_at?: string;
+          etag: string;
+          id?: string;
+          key: string;
+          owner_id?: string | null;
+          part_number: number;
+          size?: number;
+          upload_id: string;
+          version: string;
+        };
+        Update: {
+          bucket_id?: string;
+          created_at?: string;
+          etag?: string;
+          id?: string;
+          key?: string;
+          owner_id?: string | null;
+          part_number?: number;
+          size?: number;
+          upload_id?: string;
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "s3_multipart_uploads_parts_bucket_id_fkey";
+            columns: ["bucket_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "s3_multipart_uploads_parts_upload_id_fkey";
+            columns: ["upload_id"];
+            isOneToOne: false;
+            referencedRelation: "s3_multipart_uploads";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      vector_indexes: {
+        Row: {
+          bucket_id: string;
+          created_at: string;
+          data_type: string;
+          dimension: number;
+          distance_metric: string;
+          id: string;
+          metadata_configuration: Json | null;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          bucket_id: string;
+          created_at?: string;
+          data_type: string;
+          dimension: number;
+          distance_metric: string;
+          id?: string;
+          metadata_configuration?: Json | null;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          bucket_id?: string;
+          created_at?: string;
+          data_type?: string;
+          dimension?: number;
+          distance_metric?: string;
+          id?: string;
+          metadata_configuration?: Json | null;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "vector_indexes_bucket_id_fkey";
+            columns: ["bucket_id"];
+            isOneToOne: false;
+            referencedRelation: "buckets_vectors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      add_prefixes: {
+        Args: { _bucket_id: string; _name: string };
+        Returns: undefined;
+      };
+      can_insert_object: {
+        Args: { bucketid: string; metadata: Json; name: string; owner: string };
+        Returns: undefined;
+      };
+      delete_leaf_prefixes: {
+        Args: { bucket_ids: string[]; names: string[] };
+        Returns: undefined;
+      };
+      delete_prefix: {
+        Args: { _bucket_id: string; _name: string };
+        Returns: boolean;
+      };
+      extension: { Args: { name: string }; Returns: string };
+      filename: { Args: { name: string }; Returns: string };
+      foldername: { Args: { name: string }; Returns: string[] };
+      get_level: { Args: { name: string }; Returns: number };
+      get_prefix: { Args: { name: string }; Returns: string };
+      get_prefixes: { Args: { name: string }; Returns: string[] };
+      get_size_by_bucket: {
+        Args: never;
+        Returns: {
+          bucket_id: string;
+          size: number;
+        }[];
+      };
+      list_multipart_uploads_with_delimiter: {
+        Args: {
+          bucket_id: string;
+          delimiter_param: string;
+          max_keys?: number;
+          next_key_token?: string;
+          next_upload_token?: string;
+          prefix_param: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          key: string;
+        }[];
+      };
+      list_objects_with_delimiter: {
+        Args: {
+          bucket_id: string;
+          delimiter_param: string;
+          max_keys?: number;
+          next_token?: string;
+          prefix_param: string;
+          start_after?: string;
+        };
+        Returns: {
+          id: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        }[];
+      };
+      lock_top_prefixes: {
+        Args: { bucket_ids: string[]; names: string[] };
+        Returns: undefined;
+      };
+      operation: { Args: never; Returns: string };
+      search: {
+        Args: {
+          bucketname: string;
+          levels?: number;
+          limits?: number;
+          offsets?: number;
+          prefix: string;
+          search?: string;
+          sortcolumn?: string;
+          sortorder?: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          last_accessed_at: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        }[];
+      };
+      search_legacy_v1: {
+        Args: {
+          bucketname: string;
+          levels?: number;
+          limits?: number;
+          offsets?: number;
+          prefix: string;
+          search?: string;
+          sortcolumn?: string;
+          sortorder?: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          last_accessed_at: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        }[];
+      };
+      search_v1_optimised: {
+        Args: {
+          bucketname: string;
+          levels?: number;
+          limits?: number;
+          offsets?: number;
+          prefix: string;
+          search?: string;
+          sortcolumn?: string;
+          sortorder?: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          last_accessed_at: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        }[];
+      };
+      search_v2: {
+        Args: {
+          bucket_name: string;
+          levels?: number;
+          limits?: number;
+          prefix: string;
+          sort_column?: string;
+          sort_column_after?: string;
+          sort_order?: string;
+          start_after?: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          key: string;
+          last_accessed_at: string;
+          metadata: Json;
+          name: string;
+          updated_at: string;
+        }[];
+      };
+    };
+    Enums: {
+      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR";
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
 };
 
-type DefaultSchema = Database[Extract<keyof Database, "public">];
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<
+  keyof Database,
+  "public"
+>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database;
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals;
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R;
     }
     ? R
@@ -1974,14 +2705,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database;
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals;
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I;
     }
     ? I
@@ -1997,14 +2730,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database;
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals;
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U;
     }
     ? U
@@ -2020,14 +2755,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database;
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals;
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never;
@@ -2035,14 +2772,90 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database;
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals;
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      app_role: ["admin"],
+      coding_session_status: ["active", "paused", "ended"],
+      device_type: ["mac", "linux", "windows", "cli"],
+      marketing_blog_post_status: ["draft", "published"],
+      marketing_changelog_status: ["draft", "published"],
+      marketing_feedback_moderator_hold_category: [
+        "spam",
+        "off_topic",
+        "inappropriate",
+        "other",
+      ],
+      marketing_feedback_reaction_type: [
+        "like",
+        "heart",
+        "celebrate",
+        "upvote",
+      ],
+      marketing_feedback_thread_priority: ["low", "medium", "high"],
+      marketing_feedback_thread_status: [
+        "open",
+        "under_review",
+        "planned",
+        "closed",
+        "in_progress",
+        "completed",
+        "moderator_hold",
+      ],
+      marketing_feedback_thread_type: ["bug", "feature_request", "general"],
+      organization_joining_status: [
+        "invited",
+        "joinied",
+        "declined_invitation",
+        "joined",
+      ],
+      organization_member_role: ["owner", "admin", "member", "readonly"],
+      pricing_plan_interval: ["day", "week", "month", "year"],
+      pricing_type: ["one_time", "recurring"],
+      project_status: ["draft", "pending_approval", "approved", "completed"],
+      project_team_member_role: ["admin", "member", "readonly"],
+      repository_status: ["active", "archived"],
+      subscription_status: [
+        "trialing",
+        "active",
+        "canceled",
+        "incomplete",
+        "incomplete_expired",
+        "past_due",
+        "unpaid",
+        "paused",
+      ],
+      web_session_status: ["pending", "active", "expired", "revoked"],
+      workspace_invitation_link_status: [
+        "active",
+        "finished_accepted",
+        "finished_declined",
+        "inactive",
+      ],
+      workspace_member_role_type: ["owner", "admin", "member", "readonly"],
+      workspace_membership_type: ["solo", "team"],
+    },
+  },
+  storage: {
+    Enums: {
+      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
+    },
+  },
+} as const;

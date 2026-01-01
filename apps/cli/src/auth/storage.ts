@@ -158,6 +158,13 @@ class CredentialStorage {
   }
 
   /**
+   * Check if master key exists in keychain
+   */
+  async hasMasterKey(): Promise<boolean> {
+    return this.getSecrets().hasMasterKey();
+  }
+
+  /**
    * Store device private key in keychain (as base64 string)
    */
   async setDevicePrivateKey(privateKey: Uint8Array): Promise<void> {

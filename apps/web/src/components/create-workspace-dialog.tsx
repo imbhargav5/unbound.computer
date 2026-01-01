@@ -1,5 +1,4 @@
 "use client";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCheck, Network } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateWorkspaceDialog } from "@/hooks/use-create-workspace-dialog";
 import { useSafeShortcut } from "@/hooks/use-safe-shortcut";
 import { generateWorkspaceSlug } from "@/lib/utils";
+import { zodResolver } from "@/lib/zod-resolver";
 import {
   type CreateWorkspaceFormSchema,
   createWorkspaceFormSchema,

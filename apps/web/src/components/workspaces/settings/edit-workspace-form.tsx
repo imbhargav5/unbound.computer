@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
 import { type SubmitHandler, useForm } from "react-hook-form";
@@ -10,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { T } from "@/components/ui/typography-ui";
 import { updateWorkspaceInfoAction } from "@/data/user/workspaces"; // Assuming this action exists
 import { generateWorkspaceSlug } from "@/lib/utils";
+import { zodResolver } from "@/lib/zod-resolver";
 import type { WorkspaceWithMembershipType } from "@/types";
 import {
   type CreateWorkspaceFormSchema,

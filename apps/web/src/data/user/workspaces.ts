@@ -66,7 +66,8 @@ export const getWorkspaceBySlug = async (
   const { workspace_application_settings, ...workspace } = data;
   return {
     ...workspace,
-    membershipType: workspace_application_settings?.membership_type ?? "team",
+    membershipType:
+      workspace_application_settings?.[0]?.membership_type ?? "team",
   };
 };
 
@@ -243,7 +244,8 @@ export const getWorkspaceById = async (
   const { workspace_application_settings, ...workspace } = data;
   return {
     ...workspace,
-    membershipType: workspace_application_settings?.membership_type ?? "team",
+    membershipType:
+      workspace_application_settings?.[0]?.membership_type ?? "team",
   };
 };
 
@@ -281,7 +283,8 @@ export const getAllWorkspacesForUser = async (
   const workspaces = data.map(
     ({ workspace_application_settings, ...workspace }) => ({
       ...workspace,
-      membershipType: workspace_application_settings?.membership_type ?? "team",
+      membershipType:
+        workspace_application_settings?.[0]?.membership_type ?? "team",
     })
   );
   return workspaces;
@@ -448,12 +451,12 @@ export async function getMaybeDefaultWorkspace(): Promise<{
         workspace: {
           ...defaultWorkspace,
           membershipType:
-            defaultWorkspace.workspace_application_settings?.membership_type ??
-            "team",
+            defaultWorkspace.workspace_application_settings?.[0]
+              ?.membership_type ?? "team",
         },
         workspaceMembershipType:
-          defaultWorkspace.workspace_application_settings?.membership_type ??
-          "team",
+          defaultWorkspace.workspace_application_settings?.[0]
+            ?.membership_type ?? "team",
       };
     }
     const w = workspaceList[0];
@@ -461,10 +464,10 @@ export async function getMaybeDefaultWorkspace(): Promise<{
       workspace: {
         ...w,
         membershipType:
-          w.workspace_application_settings?.membership_type ?? "team",
+          w.workspace_application_settings?.[0]?.membership_type ?? "team",
       },
       workspaceMembershipType:
-        workspaceList[0].workspace_application_settings?.membership_type ??
+        workspaceList[0].workspace_application_settings?.[0]?.membership_type ??
         "team",
     };
   }
@@ -510,7 +513,7 @@ export async function fetchSlimWorkspaces(): Promise<SlimWorkspaces> {
     name: workspace.name,
     slug: workspace.slug,
     membershipType:
-      workspace.workspace_application_settings?.membership_type ?? "team",
+      workspace.workspace_application_settings?.[0]?.membership_type ?? "team",
   }));
   return workspaces;
 }

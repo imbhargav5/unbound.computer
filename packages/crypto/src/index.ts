@@ -18,6 +18,18 @@ export { deriveKey, deriveSessionKey, generateMasterKey } from "./hkdf.js";
 export { randomBytes } from "./random.js";
 export type { EncryptedMessage, KeyPair } from "./types.js";
 export { KEY_SIZE } from "./types.js";
+export type { WebSessionAuthData, WebSessionInfo } from "./web.js";
+// Web session utilities
+export {
+  createWebSessionQRData,
+  deriveWebSessionKey,
+  generateSessionToken,
+  hashSessionToken,
+  isBrowser,
+  isSecureContext,
+  parseWebSessionQRData,
+  sha256Hash,
+} from "./web.js";
 // X25519 key exchange
 export {
   computeSharedSecret,

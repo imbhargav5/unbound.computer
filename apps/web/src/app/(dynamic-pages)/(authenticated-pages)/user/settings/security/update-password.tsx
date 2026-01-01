@@ -1,16 +1,15 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAction } from "next-cool-action/hooks";
 import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updatePasswordAction } from "@/data/user/security";
+import { zodResolver } from "@/lib/zod-resolver";
 import { cn } from "@/utils/cn";
 
 const updatePasswordSchema = z.object({

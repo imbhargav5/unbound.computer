@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Layers, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-cool-action/hooks";
@@ -22,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProjectAction } from "@/data/user/projects";
 import { generateProjectSlug } from "@/lib/utils";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const createProjectFormSchema = z.object({
   name: z.string().min(1),

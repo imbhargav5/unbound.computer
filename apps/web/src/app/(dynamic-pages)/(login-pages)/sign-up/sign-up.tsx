@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useHookFormActionErrorMapper } from "@next-cool-action/adapter-react-hook-form/hooks";
 import { ArrowRight, Mail, Terminal } from "lucide-react";
 import { useAction } from "next-cool-action/hooks";
@@ -24,6 +23,7 @@ import {
   signInWithProviderAction,
 } from "@/data/auth/auth";
 import { cn } from "@/lib/utils";
+import { zodResolver } from "@/lib/zod-resolver";
 import { getSafeActionErrorMessage } from "@/utils/error-message";
 import {
   signInWithMagicLinkFormSchema,

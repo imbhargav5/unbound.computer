@@ -1,11 +1,11 @@
 "use client";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAction } from "next-cool-action/hooks";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createProjectCommentAction } from "@/data/user/projects";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const addCommentSchema = z.object({
   text: z.string().min(1),

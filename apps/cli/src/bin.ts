@@ -10,6 +10,7 @@ import {
   statusCommand,
   unlinkCommand,
   unregisterCommand,
+  webAuthorizeCommand,
 } from "./commands/index.js";
 
 const program = new Command();
@@ -85,6 +86,17 @@ program
   .action(async () => {
     await credentials.init();
     await unlinkCommand();
+  });
+
+// Web Authorize command - authorize a web session
+program
+  .command("web-authorize")
+  .alias("wa")
+  .description("Authorize a web session by scanning QR code or pasting data")
+  .argument("[qrData]", "QR code data or web session URL (optional)")
+  .action(async (qrData?: string) => {
+    await credentials.init();
+    await webAuthorizeCommand(qrData);
   });
 
 // Start daemon in foreground (for debugging)
