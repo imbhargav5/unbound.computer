@@ -69,6 +69,18 @@ export async function handleMessage(
         presenceManager.recordHeartbeat(deviceId);
         ws.send(JSON.stringify(createHeartbeatAckEvent()));
         return;
+
+      case "REGISTER_ROLE":
+        handleRegisterRole(ws, deviceId, command);
+        return;
+
+      case "JOIN_SESSION":
+        handleJoinSession(ws, deviceId, command);
+        return;
+
+      case "LEAVE_SESSION":
+        handleLeaveSession(ws, deviceId, command);
+        return;
     }
   }
 

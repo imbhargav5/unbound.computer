@@ -1,8 +1,25 @@
 import { z } from "zod";
 import { AuthMessageSchema } from "./auth.js";
+import {
+  JoinSessionCommandSchema,
+  LeaveSessionCommandSchema,
+  RegisterRoleCommandSchema,
+} from "./roles.js";
+
+// Re-export role command types
+export type {
+  JoinSessionCommand,
+  LeaveSessionCommand,
+  RegisterRoleCommand,
+} from "./roles.js";
+export {
+  JoinSessionCommandSchema,
+  LeaveSessionCommandSchema,
+  RegisterRoleCommandSchema,
+};
 
 /**
- * SUBSCRIBE command - join a session
+ * SUBSCRIBE command - join a session (legacy, use JOIN_SESSION for role-based)
  */
 export const SubscribeCommandSchema = z.object({
   type: z.literal("SUBSCRIBE"),
@@ -38,6 +55,9 @@ export const RelayCommandSchema = z.discriminatedUnion("type", [
   SubscribeCommandSchema,
   UnsubscribeCommandSchema,
   HeartbeatCommandSchema,
+  RegisterRoleCommandSchema,
+  JoinSessionCommandSchema,
+  LeaveSessionCommandSchema,
 ]);
 
 export type RelayCommand = z.infer<typeof RelayCommandSchema>;

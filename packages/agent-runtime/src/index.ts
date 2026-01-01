@@ -1,11 +1,20 @@
 // Types
 
-// Encryption
-export type { EncryptedSessionMessage } from "./encryption.js";
+// Encryption - Pairwise (device-rooted trust model)
+export type {
+  EncryptedSessionMessage,
+  PairwiseEncryptionManagerOptions,
+  PairwiseSessionEncryptionOptions,
+} from "./encryption.js";
+// Encryption - Legacy (master key based, deprecated)
 export {
   createEncryptionManager,
+  createPairwiseEncryptionManager,
+  createPairwiseSessionEncryption,
   createSessionEncryption,
   EncryptionManager,
+  PairwiseEncryptionManager,
+  PairwiseSessionEncryption,
   SessionEncryption,
 } from "./encryption.js";
 // Session manager

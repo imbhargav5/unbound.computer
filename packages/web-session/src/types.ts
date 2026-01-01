@@ -8,7 +8,27 @@ export type WebSessionState =
   | "waiting_for_auth"
   | "authorized"
   | "expired"
+  | "idle_timeout"
   | "error";
+
+/**
+ * Permission levels for web sessions
+ */
+export type WebSessionPermission = "view_only" | "interact" | "full_control";
+
+/**
+ * Information about the device that authorized the session
+ */
+export interface AuthorizingDevice {
+  /** Device ID */
+  id: string;
+  /** Device name */
+  name: string;
+  /** Device type */
+  deviceType: string;
+  /** Device's public key (base64) */
+  publicKey?: string;
+}
 
 /**
  * Web session client state
@@ -26,8 +46,20 @@ export interface WebSession {
   createdAt: Date;
   /** When the session expires */
   expiresAt: Date;
+  /** When the session will expire due to inactivity */
+  idleExpiresAt?: Date;
+  /** Last activity timestamp */
+  lastActivityAt: Date;
   /** Decrypted session key (only available after authorization) */
   sessionKey?: Uint8Array;
+  /** Permission level for this session */
+  permission: WebSessionPermission;
+  /** Device that authorized this session */
+  authorizingDevice?: AuthorizingDevice;
+  /** Maximum idle time in seconds */
+  maxIdleSeconds: number;
+  /** Session TTL in seconds */
+  sessionTtlSeconds: number;
   /** Error message if state is 'error' */
   error?: string;
 }
@@ -47,18 +79,29 @@ export interface WebSessionInitResponse {
  */
 export interface WebSessionStatusResponse {
   id: string;
-  status: "pending" | "active" | "expired" | "revoked";
+  status: "pending" | "active" | "expired" | "revoked" | "idle_timeout";
   createdAt: string;
   expiresAt: string;
   authorizedAt: string | null;
   encryptedSessionKey: string | null;
   responderPublicKey: string | null;
+  permission: WebSessionPermission;
+  maxIdleSeconds: number;
+  sessionTtlSeconds: number;
+  lastActivityAt: string | null;
   authorizingDevice: {
     id: string;
     name: string;
     deviceType: string;
+    publicKey?: string;
   } | null;
 }
+
+/**
+ * Default TTL values
+ */
+export const DEFAULT_MAX_IDLE_SECONDS = 1800; // 30 minutes
+export const DEFAULT_SESSION_TTL_SECONDS = 86_400; // 24 hours
 
 /**
  * Options for creating a web session
@@ -70,6 +113,14 @@ export interface WebSessionOptions {
   pollingInterval?: number;
   /** Maximum polling attempts */
   maxPollingAttempts?: number;
+  /** Maximum idle time in seconds (default: 30 minutes) */
+  maxIdleSeconds?: number;
+  /** Session TTL in seconds (default: 24 hours) */
+  sessionTtlSeconds?: number;
+  /** Enable automatic idle timeout checking */
+  enableIdleTimeout?: boolean;
+  /** Callback when session is about to expire (called 1 min before) */
+  onExpiryWarning?: () => void;
 }
 
 /**

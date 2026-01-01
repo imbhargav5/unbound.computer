@@ -528,6 +528,9 @@ importers:
       '@unbound/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@unbound/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@unkey/api':
         specifier: ^2.0.5
         version: 2.2.0
@@ -1063,6 +1066,28 @@ importers:
       '@nextbase/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.7.1)
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.16.3)(happy-dom@20.0.11)(jsdom@27.2.0)(lightningcss@1.30.2)(terser@5.39.0)
+
+  packages/session:
+    dependencies:
+      '@unbound/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+    devDependencies:
+      '@nextbase/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.13.2
+        version: 22.16.3
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.7.1)

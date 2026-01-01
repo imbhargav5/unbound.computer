@@ -1,5 +1,5 @@
 import { fromBase64, toBase64 } from "@unbound/crypto";
-import type { SecureStorage } from "./types.js";
+import type { SecureStorage, TrustedDevice } from "./types.js";
 import { STORAGE_KEYS } from "./types.js";
 
 /**
@@ -129,9 +129,95 @@ export class SecretsManager {
 
   /**
    * Check if the device is paired (has Master Key)
+   * @deprecated Use hasTrustedDevices() instead
    */
   async isDevicePaired(): Promise<boolean> {
     return this.hasMasterKey();
+  }
+
+  // ==========================================
+  // Trusted Devices Management (Device-Rooted Trust)
+  // ==========================================
+
+  /**
+   * Get all trusted devices
+   */
+  async getTrustedDevices(): Promise<TrustedDevice[]> {
+    const value = await this.storage.get(STORAGE_KEYS.TRUSTED_DEVICES);
+    if (!value) return [];
+    try {
+      return JSON.parse(value) as TrustedDevice[];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Add a trusted device
+   */
+  async addTrustedDevice(device: TrustedDevice): Promise<void> {
+    const devices = await this.getTrustedDevices();
+    // Remove existing entry for this device if present
+    const filtered = devices.filter((d) => d.deviceId !== device.deviceId);
+    filtered.push(device);
+    await this.storage.set(
+      STORAGE_KEYS.TRUSTED_DEVICES,
+      JSON.stringify(filtered)
+    );
+  }
+
+  /**
+   * Remove a trusted device
+   */
+  async removeTrustedDevice(deviceId: string): Promise<boolean> {
+    const devices = await this.getTrustedDevices();
+    const filtered = devices.filter((d) => d.deviceId !== deviceId);
+    if (filtered.length === devices.length) {
+      return false; // Device not found
+    }
+    await this.storage.set(
+      STORAGE_KEYS.TRUSTED_DEVICES,
+      JSON.stringify(filtered)
+    );
+    return true;
+  }
+
+  /**
+   * Check if a device is trusted
+   */
+  async isTrustedDevice(deviceId: string): Promise<boolean> {
+    const devices = await this.getTrustedDevices();
+    const device = devices.find((d) => d.deviceId === deviceId);
+    if (!device) return false;
+    // Check expiration
+    if (device.expiresAt && new Date(device.expiresAt) < new Date()) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Get a specific trusted device by ID
+   */
+  async getTrustedDevice(deviceId: string): Promise<TrustedDevice | null> {
+    const devices = await this.getTrustedDevices();
+    return devices.find((d) => d.deviceId === deviceId) ?? null;
+  }
+
+  /**
+   * Check if any trusted devices exist
+   */
+  async hasTrustedDevices(): Promise<boolean> {
+    const devices = await this.getTrustedDevices();
+    return devices.length > 0;
+  }
+
+  /**
+   * Get the trust root device (if present)
+   */
+  async getTrustRoot(): Promise<TrustedDevice | null> {
+    const devices = await this.getTrustedDevices();
+    return devices.find((d) => d.role === "trust_root") ?? null;
   }
 
   /**
@@ -144,6 +230,7 @@ export class SecretsManager {
       this.storage.delete(STORAGE_KEYS.DEVICE_PRIVATE_KEY),
       this.storage.delete(STORAGE_KEYS.API_KEY),
       this.storage.delete(STORAGE_KEYS.DEVICE_FINGERPRINT),
+      this.storage.delete(STORAGE_KEYS.TRUSTED_DEVICES),
     ]);
   }
 }

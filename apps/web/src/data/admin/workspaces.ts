@@ -86,8 +86,7 @@ export const getSlimWorkspacesOfUserAction = adminActionClient
       name: workspace.name,
       slug: workspace.slug,
       membershipType:
-        workspace.workspace_application_settings?.[0]?.membership_type ??
-        "solo",
+        workspace.workspace_application_settings?.membership_type ?? "solo",
     }));
   });
 

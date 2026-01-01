@@ -20,6 +20,26 @@ export {
   serializeSessionIdentity,
   validateSessionInfo,
 } from "./session.js";
+// Trust relationships
+export type {
+  CreateTrustRelationshipOptions,
+  DeviceRole,
+  TrustRelationship,
+  TrustRelationshipInfo,
+  TrustStatus,
+} from "./trust.js";
+export {
+  activateTrust,
+  createTrustRelationship,
+  DeviceRoleSchema,
+  deserializeTrustRelationship,
+  isTrustValid,
+  revokeTrust,
+  serializeTrustRelationship,
+  TrustRelationshipInfoSchema,
+  TrustStatusSchema,
+  validateTrustRelationshipInfo,
+} from "./trust.js";
 export type {
   DeviceIdentity,
   DeviceInfo,

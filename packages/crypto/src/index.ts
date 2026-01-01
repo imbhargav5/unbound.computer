@@ -14,6 +14,18 @@ export {
 // HKDF key derivation
 export { deriveKey, deriveSessionKey, generateMasterKey } from "./hkdf.js";
 
+// Pairwise crypto primitives (device-rooted trust)
+export type { PairwiseSecret } from "./pairwise.js";
+export {
+  computePairwiseSecret,
+  deriveMessageKey,
+  deriveSessionKeyFromPair,
+  deriveWebSessionKeyFromDevice,
+  generateSessionKey,
+  orderDeviceIds,
+  PAIRWISE_CONTEXT,
+} from "./pairwise.js";
+
 // Random bytes
 export { randomBytes } from "./random.js";
 export type { EncryptedMessage, KeyPair } from "./types.js";

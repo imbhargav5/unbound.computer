@@ -15,6 +15,10 @@ import type {
   WebSessionStatusResponse,
   WebSessionStorage,
 } from "./types.js";
+import {
+  DEFAULT_MAX_IDLE_SECONDS,
+  DEFAULT_SESSION_TTL_SECONDS,
+} from "./types.js";
 
 /**
  * Default polling interval (2 seconds)
@@ -27,14 +31,40 @@ const DEFAULT_POLLING_INTERVAL = 2000;
 const DEFAULT_MAX_POLLING_ATTEMPTS = 150;
 
 /**
+ * Idle check interval (30 seconds)
+ */
+const IDLE_CHECK_INTERVAL = 30_000;
+
+/**
+ * Warning time before expiry (60 seconds)
+ */
+const EXPIRY_WARNING_TIME = 60_000;
+
+/**
  * WebSessionManager handles the lifecycle of a web session
  * from initialization through authorization and message encryption.
  */
+/**
+ * Internal options type with required fields except callbacks
+ */
+interface WebSessionManagerOptions {
+  apiBaseUrl: string;
+  pollingInterval: number;
+  maxPollingAttempts: number;
+  maxIdleSeconds: number;
+  sessionTtlSeconds: number;
+  enableIdleTimeout: boolean;
+  onExpiryWarning?: () => void;
+}
+
 export class WebSessionManager {
   private session: WebSession | null = null;
   private storage: WebSessionStorage;
-  private options: Required<WebSessionOptions>;
+  private options: WebSessionManagerOptions;
   private pollingAbortController: AbortController | null = null;
+  private idleCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private expiryWarningTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hasWarnedExpiry = false;
 
   constructor(options: WebSessionOptions) {
     this.options = {
@@ -42,6 +72,11 @@ export class WebSessionManager {
       pollingInterval: options.pollingInterval ?? DEFAULT_POLLING_INTERVAL,
       maxPollingAttempts:
         options.maxPollingAttempts ?? DEFAULT_MAX_POLLING_ATTEMPTS,
+      maxIdleSeconds: options.maxIdleSeconds ?? DEFAULT_MAX_IDLE_SECONDS,
+      sessionTtlSeconds:
+        options.sessionTtlSeconds ?? DEFAULT_SESSION_TTL_SECONDS,
+      enableIdleTimeout: options.enableIdleTimeout ?? true,
+      onExpiryWarning: options.onExpiryWarning,
     };
 
     // Use browser session storage by default
@@ -93,14 +128,19 @@ export class WebSessionManager {
 
     const data: WebSessionInitResponse = await response.json();
 
+    const now = new Date();
     // Create session object
     this.session = {
       id: data.sessionId,
       state: "waiting_for_auth",
       ephemeralKeyPair,
       sessionToken: data.sessionToken,
-      createdAt: new Date(),
+      createdAt: now,
       expiresAt: new Date(data.expiresAt),
+      lastActivityAt: now,
+      permission: "view_only", // Default, updated on authorization
+      maxIdleSeconds: this.options.maxIdleSeconds,
+      sessionTtlSeconds: this.options.sessionTtlSeconds,
     };
 
     // Store session data
@@ -144,10 +184,7 @@ export class WebSessionManager {
 
         if (status.status === "active") {
           // Session authorized - process the encrypted session key
-          await this.handleAuthorization(
-            status.encryptedSessionKey!,
-            status.responderPublicKey!
-          );
+          await this.handleAuthorization(status);
           return;
         }
 
@@ -211,11 +248,17 @@ export class WebSessionManager {
    * Decrypts and stores the session key
    */
   private async handleAuthorization(
-    encryptedSessionKey: string,
-    responderPublicKey: string
+    status: WebSessionStatusResponse
   ): Promise<void> {
     if (!this.session) {
       throw new Error("No session initialized");
+    }
+
+    const { encryptedSessionKey, responderPublicKey, authorizingDevice } =
+      status;
+
+    if (!(encryptedSessionKey && responderPublicKey)) {
+      throw new Error("Missing session key or responder public key");
     }
 
     try {
@@ -238,11 +281,38 @@ export class WebSessionManager {
       const ciphertext = encryptedBytes.slice(24);
       const sessionKey = decrypt(decryptionKey, nonce, ciphertext);
 
-      // Store session key
+      // Store session key and update session state
       this.session.sessionKey = sessionKey;
       this.session.state = "authorized";
+      this.session.permission = status.permission;
+      this.session.maxIdleSeconds = status.maxIdleSeconds;
+      this.session.sessionTtlSeconds = status.sessionTtlSeconds;
+      this.session.lastActivityAt = new Date();
+
+      // Store authorizing device info
+      if (authorizingDevice) {
+        this.session.authorizingDevice = {
+          id: authorizingDevice.id,
+          name: authorizingDevice.name,
+          deviceType: authorizingDevice.deviceType,
+          publicKey: authorizingDevice.publicKey,
+        };
+      }
+
+      // Calculate idle expiry time
+      this.session.idleExpiresAt = new Date(
+        Date.now() + this.session.maxIdleSeconds * 1000
+      );
 
       this.storage.set(STORAGE_KEYS.SESSION_KEY, toBase64(sessionKey));
+
+      // Start idle timeout checking
+      if (this.options.enableIdleTimeout) {
+        this.startIdleTimeoutCheck();
+      }
+
+      // Set up expiry warning
+      this.setupExpiryWarning();
     } catch (error) {
       this.session.state = "error";
       this.session.error =
@@ -251,6 +321,104 @@ export class WebSessionManager {
           : "Failed to decrypt session key";
       throw error;
     }
+  }
+
+  /**
+   * Start checking for idle timeout
+   */
+  private startIdleTimeoutCheck(): void {
+    this.stopIdleTimeoutCheck();
+
+    this.idleCheckInterval = setInterval(() => {
+      if (!this.session || this.session.state !== "authorized") {
+        this.stopIdleTimeoutCheck();
+        return;
+      }
+
+      const now = Date.now();
+      const idleTime = now - this.session.lastActivityAt.getTime();
+      const maxIdleMs = this.session.maxIdleSeconds * 1000;
+
+      if (idleTime >= maxIdleMs) {
+        this.session.state = "idle_timeout";
+        this.session.error = "Session expired due to inactivity";
+        this.stopIdleTimeoutCheck();
+      }
+    }, IDLE_CHECK_INTERVAL);
+  }
+
+  /**
+   * Stop idle timeout checking
+   */
+  private stopIdleTimeoutCheck(): void {
+    if (this.idleCheckInterval) {
+      clearInterval(this.idleCheckInterval);
+      this.idleCheckInterval = null;
+    }
+  }
+
+  /**
+   * Set up warning before session expiry
+   */
+  private setupExpiryWarning(): void {
+    if (!(this.session && this.options.onExpiryWarning)) return;
+
+    const timeUntilExpiry = this.session.expiresAt.getTime() - Date.now();
+    const warningTime = timeUntilExpiry - EXPIRY_WARNING_TIME;
+
+    if (warningTime > 0) {
+      this.expiryWarningTimeout = setTimeout(() => {
+        if (!this.hasWarnedExpiry && this.options.onExpiryWarning) {
+          this.hasWarnedExpiry = true;
+          this.options.onExpiryWarning();
+        }
+      }, warningTime);
+    }
+  }
+
+  /**
+   * Record activity to reset idle timeout
+   */
+  recordActivity(): void {
+    if (!this.session || this.session.state !== "authorized") return;
+
+    this.session.lastActivityAt = new Date();
+    this.session.idleExpiresAt = new Date(
+      Date.now() + this.session.maxIdleSeconds * 1000
+    );
+  }
+
+  /**
+   * Get time remaining until session expires (ms)
+   */
+  getTimeRemaining(): number {
+    if (!this.session) return 0;
+    return Math.max(0, this.session.expiresAt.getTime() - Date.now());
+  }
+
+  /**
+   * Get time remaining until idle timeout (ms)
+   */
+  getIdleTimeRemaining(): number {
+    if (!this.session?.idleExpiresAt) return 0;
+    return Math.max(0, this.session.idleExpiresAt.getTime() - Date.now());
+  }
+
+  /**
+   * Get session permission level
+   */
+  getPermission(): string | null {
+    return this.session?.permission ?? null;
+  }
+
+  /**
+   * Check if session has a specific permission
+   */
+  hasPermission(required: "view_only" | "interact" | "full_control"): boolean {
+    if (!this.session) return false;
+
+    const levels = { view_only: 0, interact: 1, full_control: 2 };
+    return levels[this.session.permission] >= levels[required];
   }
 
   /**
@@ -364,16 +532,29 @@ export class WebSessionManager {
 
     const privateKey = fromBase64(privateKeyBase64);
     const publicKey = new Uint8Array(32); // We don't need the public key for decryption
+    const now = new Date();
 
     this.session = {
       id: sessionId,
       state: sessionKeyBase64 ? "authorized" : "waiting_for_auth",
       ephemeralKeyPair: { publicKey, privateKey },
       sessionToken,
-      createdAt: new Date(), // Unknown, but doesn't matter
+      createdAt: now, // Unknown, but doesn't matter
       expiresAt: expiresAtDate,
+      lastActivityAt: now,
       sessionKey: sessionKeyBase64 ? fromBase64(sessionKeyBase64) : undefined,
+      permission: "view_only", // Default, will be updated on next status check
+      maxIdleSeconds: this.options.maxIdleSeconds,
+      sessionTtlSeconds: this.options.sessionTtlSeconds,
     };
+
+    // If restored and authorized, start idle timeout check
+    if (this.session.state === "authorized" && this.options.enableIdleTimeout) {
+      this.session.idleExpiresAt = new Date(
+        now.getTime() + this.session.maxIdleSeconds * 1000
+      );
+      this.startIdleTimeoutCheck();
+    }
 
     return true;
   }
@@ -383,8 +564,16 @@ export class WebSessionManager {
    */
   destroy(): void {
     this.cancelWaiting();
+    this.stopIdleTimeoutCheck();
+
+    if (this.expiryWarningTimeout) {
+      clearTimeout(this.expiryWarningTimeout);
+      this.expiryWarningTimeout = null;
+    }
+
     this.session = null;
     this.storage.clear();
+    this.hasWarnedExpiry = false;
   }
 
   /**
@@ -393,6 +582,10 @@ export class WebSessionManager {
   async touch(): Promise<void> {
     if (!this.session) return;
 
+    // Record local activity
+    this.recordActivity();
+
+    // Notify server of activity
     await fetch(
       `${this.options.apiBaseUrl}/api/v1/web/sessions/${this.session.id}`,
       {

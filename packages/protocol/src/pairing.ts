@@ -89,22 +89,29 @@ export function createPairingRequest(
 }
 
 /**
+ * Options for creating a pairing response
+ */
+export interface CreatePairingResponseOptions {
+  deviceId: string;
+  encryptedMasterKey: string;
+  nonce: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
  * Create a pairing response
  */
 export function createPairingResponse(
-  deviceId: string,
-  encryptedMasterKey: string,
-  nonce: string,
-  success: boolean,
-  error?: string
+  options: CreatePairingResponseOptions
 ): PairingResponse {
   return {
     type: "PAIRING_RESPONSE",
-    deviceId,
-    encryptedMasterKey,
-    nonce,
-    success,
-    error,
+    deviceId: options.deviceId,
+    encryptedMasterKey: options.encryptedMasterKey,
+    nonce: options.nonce,
+    success: options.success,
+    error: options.error,
   };
 }
 

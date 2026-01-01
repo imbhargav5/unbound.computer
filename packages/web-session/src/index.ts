@@ -18,10 +18,18 @@ export {
 
 // Types
 export type {
+  AuthorizingDevice,
   WebSession,
   WebSessionInitResponse,
   WebSessionOptions,
+  WebSessionPermission,
   WebSessionState,
   WebSessionStatusResponse,
   WebSessionStorage,
+} from "./types.js";
+
+// Constants
+export {
+  DEFAULT_MAX_IDLE_SECONDS,
+  DEFAULT_SESSION_TTL_SECONDS,
 } from "./types.js";
