@@ -13,7 +13,42 @@ export const metadata = {
   description: "View a real-time Claude Code session",
 };
 
-async function SessionContent({ sessionId }: { sessionId: string }) {
+/**
+ * Generate a short-lived viewer token for the session
+ * This is a placeholder - in production, use a proper token service
+ */
+async function generateViewerToken(
+  userId: string,
+  sessionId: string
+): Promise<string> {
+  // Create a simple JWT-like token for development
+  // In production, this should use Unkey or another token service
+  const payload = {
+    sub: userId,
+    sessionId,
+    type: "viewer",
+    iat: Date.now(),
+    exp: Date.now() + 30 * 60 * 1000, // 30 minutes
+  };
+
+  // For now, just base64 encode - replace with proper signing
+  return Buffer.from(JSON.stringify(payload)).toString("base64");
+}
+
+async function SessionPageContent({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
+  const { sessionId } = await params;
+
+  // Validate session ID format
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(sessionId)) {
+    notFound();
+  }
+
   const supabase = await createSupabaseUserServerComponentClient();
   const {
     data: { user },
@@ -54,65 +89,34 @@ async function SessionContent({ sessionId }: { sessionId: string }) {
     : (session.repository?.default_branch ?? "main");
 
   return (
-    <SessionViewerClient
-      branchName={branchName}
-      deviceName={session.device?.name ?? "Unknown Device"}
-      relayUrl={relayUrl}
-      repositoryName={session.repository?.name ?? "Unknown Repository"}
-      sessionId={sessionId}
-      status={session.status as "active" | "paused" | "ended"}
-      viewerId={user.id}
-      viewerToken={viewerToken}
-    />
+    <div className="flex h-screen flex-col">
+      <SessionViewerClient
+        branchName={branchName}
+        deviceName={session.device?.name ?? "Unknown Device"}
+        relayUrl={relayUrl}
+        repositoryName={session.repository?.name ?? "Unknown Repository"}
+        sessionId={sessionId}
+        status={session.status as "active" | "paused" | "ended"}
+        viewerId={user.id}
+        viewerToken={viewerToken}
+      />
+    </div>
   );
 }
 
-/**
- * Generate a short-lived viewer token for the session
- * This is a placeholder - in production, use a proper token service
- */
-async function generateViewerToken(
-  userId: string,
-  sessionId: string
-): Promise<string> {
-  // Create a simple JWT-like token for development
-  // In production, this should use Unkey or another token service
-  const payload = {
-    sub: userId,
-    sessionId,
-    type: "viewer",
-    iat: Date.now(),
-    exp: Date.now() + 30 * 60 * 1000, // 30 minutes
-  };
-
-  // For now, just base64 encode - replace with proper signing
-  return Buffer.from(JSON.stringify(payload)).toString("base64");
-}
-
 export default async function SessionPage({ params }: SessionPageProps) {
-  const { sessionId } = await params;
-
-  // Validate session ID format
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(sessionId)) {
-    notFound();
-  }
-
   return (
-    <div className="flex h-screen flex-col">
-      <Suspense
-        fallback={
-          <div className="flex h-full flex-col">
-            <Skeleton className="h-16 w-full" />
-            <div className="flex-1 p-4">
-              <Skeleton className="h-full w-full" />
-            </div>
+    <Suspense
+      fallback={
+        <div className="flex h-screen flex-col">
+          <Skeleton className="h-16 w-full" />
+          <div className="flex-1 p-4">
+            <Skeleton className="h-full w-full" />
           </div>
-        }
-      >
-        <SessionContent sessionId={sessionId} />
-      </Suspense>
-    </div>
+        </div>
+      }
+    >
+      <SessionPageContent params={params} />
+    </Suspense>
   );
 }

@@ -89,7 +89,7 @@ struct PairingQRView: View {
                     }
                 }
 
-                Button(pairingState == .paired(trustRoot: nil) ? "Done" : "Cancel") {
+                Button(isPaired ? "Done" : "Cancel") {
                     dismiss()
                 }
                 .keyboardShortcut(.escape)
@@ -241,12 +241,12 @@ struct PairingQRView: View {
         return String(format: "%d:%02d", minutes, secs)
     }
 
-    // Helper for pattern matching
-    private func paired(trustRoot: TrustedDevice?) -> PairingState {
-        if let trustRoot {
-            return .paired(trustRoot)
+    // Helper computed property for checking paired state
+    private var isPaired: Bool {
+        if case .paired = pairingState {
+            return true
         }
-        return .generating
+        return false
     }
 }
 
