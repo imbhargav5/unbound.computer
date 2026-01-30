@@ -1,0 +1,34 @@
+[package]
+name = "daemon-bin"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "unbound-daemon"
+path = "src/main.rs"
+
+[dependencies]
+daemon-core = { workspace = true }
+daemon-storage = { workspace = true }
+daemon-database = { workspace = true }
+daemon-auth = { workspace = true }
+daemon-relay = { workspace = true }
+daemon-outbox = { workspace = true }
+daemon-ipc = { workspace = true }
+rusqlite = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+clap = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+regex = "1.10"
+rayon = "1.10"
+base64 = { workspace = true }
+urlencoding = "2.1"
+reqwest = { workspace = true }
+hostname = "0.4"
+libc = "0.2.180"

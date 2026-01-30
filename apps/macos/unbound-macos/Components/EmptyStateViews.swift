@@ -1,0 +1,270 @@
+//
+//  EmptyStateViews.swift
+//  unbound-macos
+//
+//  Empty state components for when no content is available
+//
+
+import SwiftUI
+
+// MARK: - Repositories Empty State (Sidebar)
+
+struct RepositoriesEmptyState: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var onAddRepository: () -> Void
+
+    @State private var hasAppeared = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer()
+
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.xl)
+                    .fill(colors.muted.opacity(0.5))
+                    .frame(width: 64, height: 64)
+
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(colors.mutedForeground)
+            }
+            .scaleFade(isVisible: hasAppeared, initialScale: 0.8)
+
+            // Text
+            VStack(spacing: Spacing.sm) {
+                Text("No repositories yet")
+                    .font(Typography.bodySmall)
+                    .fontWeight(.medium)
+                    .foregroundStyle(colors.foreground)
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.1)
+
+                Text("Add a repository to get started")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                    .multilineTextAlignment(.center)
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.15)
+            }
+
+            // CTA Button
+            Button(action: onAddRepository) {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "plus")
+                        .font(.system(size: IconSize.sm, weight: .medium))
+                    Text("Add Repository")
+                        .font(Typography.bodySmall)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(colors.primaryForeground)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.sm)
+                .background(colors.primary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+            .buttonStyle(.plain)
+            .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.2)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Spacing.lg)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                hasAppeared = true
+            }
+        }
+    }
+}
+
+// MARK: - Workspace Empty State (Main Content)
+
+struct WorkspaceEmptyState: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var hasRepositories: Bool
+    var onAddRepository: () -> Void
+
+    @State private var hasAppeared = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.xxl) {
+            Spacer()
+
+            // Illustration
+            ZStack {
+                // Background circles for visual interest
+                Circle()
+                    .fill(colors.muted.opacity(0.3))
+                    .frame(width: 160, height: 160)
+
+                Circle()
+                    .fill(colors.muted.opacity(0.5))
+                    .frame(width: 120, height: 120)
+
+                // Main icon
+                VStack(spacing: Spacing.sm) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundStyle(colors.mutedForeground)
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(colors.info.opacity(0.8))
+                        .offset(x: 24, y: -32)
+                }
+            }
+            .scaleFade(isVisible: hasAppeared, initialScale: 0.85)
+
+            // Content
+            VStack(spacing: Spacing.md) {
+                Text(hasRepositories ? "Select a Session" : "Welcome to Unbound")
+                    .font(Typography.h3)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(colors.foreground)
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.1)
+
+                Text(hasRepositories
+                     ? "Choose a session from the sidebar to start coding with Claude"
+                     : "Your AI-powered development environment")
+                    .font(Typography.body)
+                    .foregroundStyle(colors.mutedForeground)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.15)
+            }
+
+            if !hasRepositories {
+                // Getting started section
+                VStack(spacing: Spacing.lg) {
+                    Text("Get started")
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(colors.mutedForeground)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.2)
+
+                    Button(action: onAddRepository) {
+                        HStack(spacing: Spacing.md) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: Radius.md)
+                                    .fill(colors.info.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+
+                                Image(systemName: "folder.badge.plus")
+                                    .font(.system(size: IconSize.lg))
+                                    .foregroundStyle(colors.info)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add your first repository")
+                                    .font(Typography.bodySmall)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(colors.foreground)
+
+                                Text("Import an existing project to get started")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(colors.mutedForeground)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: IconSize.sm, weight: .medium))
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+                        .padding(Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(colors.card)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Radius.lg)
+                                        .stroke(colors.border, lineWidth: BorderWidth.default)
+                                )
+                        )
+                        .frame(maxWidth: 360)
+                    }
+                    .buttonStyle(.plain)
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.25)
+                }
+                .padding(.top, Spacing.lg)
+            }
+
+            Spacer()
+
+            // Keyboard shortcut hint
+            if hasRepositories {
+                HStack(spacing: Spacing.sm) {
+                    KeyboardShortcutHint(keys: ["Cmd", "1-9"])
+                    Text("to quickly switch sessions")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                }
+                .padding(.bottom, Spacing.xxl)
+                .slideIn(isVisible: hasAppeared, from: .bottom, delay: 0.2)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                hasAppeared = true
+            }
+        }
+    }
+}
+
+// MARK: - Keyboard Shortcut Hint
+
+struct KeyboardShortcutHint: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let keys: [String]
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.xs) {
+            ForEach(keys, id: \.self) { key in
+                Text(key)
+                    .font(Typography.micro)
+                    .fontWeight(.medium)
+                    .foregroundStyle(colors.mutedForeground)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(colors.muted)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+            }
+        }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Sidebar Empty State") {
+    RepositoriesEmptyState(onAddRepository: {})
+        .frame(width: 280, height: 500)
+        .background(ShadcnColors.Dark.background)
+}
+
+#Preview("Workspace Empty - No Repositories") {
+    WorkspaceEmptyState(hasRepositories: false, onAddRepository: {})
+        .frame(width: 800, height: 600)
+        .background(ShadcnColors.Dark.background)
+}
+
+#Preview("Workspace Empty - Has Repositories") {
+    WorkspaceEmptyState(hasRepositories: true, onAddRepository: {})
+        .frame(width: 800, height: 600)
+        .background(ShadcnColors.Dark.background)
+}

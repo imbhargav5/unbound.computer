@@ -1,0 +1,163 @@
+//
+//  ContentView.swift
+//  unbound-macos
+//
+//  Main content view with shadcn styling.
+//  Gates app behind daemon connection and authentication.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        Group {
+            switch appState.daemonConnectionState {
+            case .disconnected, .connecting:
+                // Connecting to daemon
+                DaemonConnectingView()
+                    .transition(.opacity)
+
+            case .failed(let reason):
+                // Daemon connection failed
+                DaemonErrorView(reason: reason) {
+                    Task {
+                        await appState.retryDaemonConnection()
+                    }
+                }
+                .transition(.opacity)
+
+            case .connected:
+                // Daemon connected - check auth
+                connectedContent
+            }
+        }
+        .background(colors.background)
+        .animation(.easeInOut(duration: Duration.medium), value: appState.daemonConnectionState)
+        .task {
+            // Connect to daemon on first appearance
+            if !appState.isDaemonConnected {
+                await appState.connectToDaemon()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var connectedContent: some View {
+        if appState.isAuthenticated {
+            // Show main app
+            Group {
+                if appState.showSettings {
+                    SettingsView()
+                        .transition(.move(edge: .trailing))
+                } else {
+                    WorkspaceView()
+                        .transition(.move(edge: .leading))
+                }
+            }
+            .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
+        } else {
+            // Show login
+            OnboardingView()
+                .transition(.opacity)
+        }
+    }
+}
+
+// MARK: - Daemon Connecting View
+
+struct DaemonConnectingView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .scaleEffect(1.5)
+
+            VStack(spacing: Spacing.sm) {
+                Text("Connecting to Unbound")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(colors.foreground)
+
+                Text("Starting daemon service...")
+                    .font(.body)
+                    .foregroundColor(colors.mutedForeground)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Daemon Error View
+
+struct DaemonErrorView: View {
+    let reason: String
+    let onRetry: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.xl) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(colors.destructive)
+
+            VStack(spacing: Spacing.sm) {
+                Text("Daemon Not Running")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(colors.foreground)
+
+                Text(reason)
+                    .font(.body)
+                    .foregroundColor(colors.mutedForeground)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
+            }
+
+            VStack(spacing: Spacing.md) {
+                Button(action: onRetry) {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Retry Connection")
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.sm)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Text("Make sure the Unbound daemon is installed.")
+                    .font(.caption)
+                    .foregroundColor(colors.mutedForeground)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+#Preview("Connected - Authenticated") {
+    ContentView()
+        .environment(AppState())
+        .frame(width: 1200, height: 800)
+}
+
+#Preview("Daemon Error") {
+    DaemonErrorView(reason: "Daemon socket not found. Is the daemon running?") {}
+        .frame(width: 600, height: 400)
+}

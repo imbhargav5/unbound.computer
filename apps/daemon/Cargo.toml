@@ -1,0 +1,83 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/daemon-core",
+    "crates/daemon-storage",
+    "crates/daemon-database",
+    "crates/daemon-auth",
+    "crates/daemon-relay",
+    "crates/daemon-outbox",
+    "crates/daemon-ipc",
+    "crates/daemon-bin",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Unbound <team@unbound.computer>"]
+license = "MIT"
+repository = "https://github.com/unbound-computer/unbound"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled", "modern_sqlite"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.25"
+tokio-rusqlite = "0.6"  # Async SQLite executor with dedicated thread
+
+# Encryption
+chacha20poly1305 = "0.10"
+rand = "0.8"
+hkdf = "0.12"
+sha2 = "0.10"
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+
+# Platform-specific secure storage
+security-framework = "3.1"  # macOS Keychain
+security-framework-sys = "2.12"  # Low-level macOS Security APIs
+core-foundation = "0.10"  # macOS Core Foundation types
+secret-service = "3.0"       # Linux Secret Service (blocking API)
+windows = { version = "0.58", features = ["Security_Credentials"] }
+
+# WebSocket
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+futures-util = "0.3"
+
+# IPC
+interprocess = { version = "2.2", features = ["tokio"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Utilities
+thiserror = "2.0"
+anyhow = "1.0"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+url = "2.5"
+dirs = "6.0"
+ulid = "1.1"
+
+# HTTP client (for OAuth callback and relay HTTP)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Local workspace crates
+daemon-core = { path = "crates/daemon-core" }
+daemon-storage = { path = "crates/daemon-storage" }
+daemon-database = { path = "crates/daemon-database" }
+daemon-auth = { path = "crates/daemon-auth" }
+daemon-relay = { path = "crates/daemon-relay" }
+daemon-outbox = { path = "crates/daemon-outbox" }
+daemon-ipc = { path = "crates/daemon-ipc" }

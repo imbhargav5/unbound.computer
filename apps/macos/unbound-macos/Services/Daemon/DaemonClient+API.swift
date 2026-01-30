@@ -1,0 +1,364 @@
+//
+//  DaemonClient+API.swift
+//  unbound-macos
+//
+//  Typed API methods for the daemon client.
+//  Provides high-level methods that wrap the raw call() method.
+//
+
+import Foundation
+import Logging
+
+private let logger = Logger(label: "app.daemon.api")
+
+// MARK: - Health
+
+extension DaemonClient {
+    /// Check daemon health.
+    func health() async throws -> Bool {
+        let response = try await call(method: .health)
+        return response.isSuccess
+    }
+}
+
+// MARK: - Authentication
+
+extension DaemonClient {
+    /// Get current authentication status.
+    func getAuthStatus() async throws -> DaemonAuthStatus {
+        let response = try await call(method: .authStatus)
+        return try response.resultAs(DaemonAuthStatus.self)
+    }
+
+    /// Start login flow.
+    /// - Parameter provider: OAuth provider ("github", "google") or "email" for magic link.
+    func login(provider: String, email: String? = nil) async throws {
+        var params: [String: Any] = ["provider": provider]
+        if let email {
+            params["email"] = email
+        }
+        _ = try await call(method: .authLogin, params: params)
+    }
+
+    /// Logout and clear session.
+    func logout() async throws {
+        _ = try await call(method: .authLogout)
+    }
+}
+
+// MARK: - Sessions
+
+extension DaemonClient {
+    /// List all sessions, optionally filtered by repository.
+    func listSessions(repositoryId: String? = nil) async throws -> [DaemonSession] {
+        var params: [String: Any]? = nil
+        if let repositoryId {
+            params = ["repository_id": repositoryId]
+        }
+        let response = try await call(method: .sessionList, params: params)
+
+        guard let result = response.resultAsDict(),
+              let sessionsData = result["sessions"] as? [[String: Any]] else {
+            logger.debug("No sessions in response or invalid format")
+            return []
+        }
+
+        logger.debug("Parsing \(sessionsData.count) sessions from daemon")
+
+        let decoder = JSONDecoder()
+
+        return sessionsData.compactMap { dict in
+            guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
+                logger.warning("Failed to serialize session dict: \(dict)")
+                return nil
+            }
+            do {
+                return try decoder.decode(DaemonSession.self, from: data)
+            } catch {
+                logger.warning("Failed to decode session: \(error), dict: \(dict)")
+                return nil
+            }
+        }
+    }
+
+    /// Create a new session.
+    func createSession(repositoryId: String, title: String? = nil) async throws -> DaemonSession {
+        var params: [String: Any] = ["repository_id": repositoryId]
+        if let title {
+            params["title"] = title
+        }
+        let response = try await call(method: .sessionCreate, params: params)
+
+        guard let result = response.resultAsDict(),
+              let sessionData = result["session"] as? [String: Any] else {
+            throw DaemonError.noResult
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let data = try JSONSerialization.data(withJSONObject: sessionData)
+        return try decoder.decode(DaemonSession.self, from: data)
+    }
+
+    /// Get a session by ID.
+    func getSession(sessionId: String) async throws -> DaemonSession {
+        let response = try await call(method: .sessionGet, params: ["session_id": sessionId])
+
+        guard let result = response.resultAsDict(),
+              let sessionData = result["session"] as? [String: Any] else {
+            throw DaemonError.notFound("session")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let data = try JSONSerialization.data(withJSONObject: sessionData)
+        return try decoder.decode(DaemonSession.self, from: data)
+    }
+
+    /// Delete a session.
+    func deleteSession(sessionId: String) async throws {
+        _ = try await call(method: .sessionDelete, params: ["session_id": sessionId])
+    }
+}
+
+// MARK: - Messages
+
+extension DaemonClient {
+    /// List messages for a session.
+    func listMessages(sessionId: String, limit: Int? = nil, offset: Int? = nil) async throws -> [DaemonMessage] {
+        var params: [String: Any] = ["session_id": sessionId]
+        if let limit {
+            params["limit"] = limit
+        }
+        if let offset {
+            params["offset"] = offset
+        }
+
+        let response = try await call(method: .messageList, params: params)
+
+        guard let result = response.resultAsDict(),
+              let messagesData = result["messages"] as? [[String: Any]] else {
+            return []
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        return messagesData.compactMap { dict in
+            guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+            return try? decoder.decode(DaemonMessage.self, from: data)
+        }
+    }
+
+    /// Send a message (adds to session without triggering Claude).
+    func sendMessage(sessionId: String, role: String, content: String) async throws -> DaemonMessage {
+        let response = try await call(method: .messageSend, params: [
+            "session_id": sessionId,
+            "role": role,
+            "content": content
+        ])
+
+        guard let result = response.resultAsDict(),
+              let messageData = result["message"] as? [String: Any] else {
+            throw DaemonError.noResult
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let data = try JSONSerialization.data(withJSONObject: messageData)
+        return try decoder.decode(DaemonMessage.self, from: data)
+    }
+}
+
+// MARK: - Claude
+
+extension DaemonClient {
+    /// Send a message to Claude (persists user message, spawns Claude CLI).
+    func sendToClaude(
+        sessionId: String,
+        content: String,
+        workingDirectory: String? = nil,
+        modelIdentifier: String? = nil
+    ) async throws {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "content": content
+        ]
+        if let workingDirectory {
+            params["working_directory"] = workingDirectory
+        }
+        if let modelIdentifier {
+            params["model"] = modelIdentifier
+        }
+
+        _ = try await call(method: .claudeSend, params: params)
+        logger.info("Sent message to Claude for session \(sessionId)")
+    }
+
+    /// Get Claude process status.
+    func getClaudeStatus(sessionId: String? = nil) async throws -> DaemonClaudeStatus {
+        var params: [String: Any]? = nil
+        if let sessionId {
+            params = ["session_id": sessionId]
+        }
+        let response = try await call(method: .claudeStatus, params: params)
+        return try response.resultAs(DaemonClaudeStatus.self)
+    }
+
+    /// Stop Claude process.
+    func stopClaude(sessionId: String) async throws {
+        _ = try await call(method: .claudeStop, params: ["session_id": sessionId])
+        logger.info("Stopped Claude for session \(sessionId)")
+    }
+}
+
+// MARK: - Repositories
+
+extension DaemonClient {
+    /// List all repositories.
+    func listRepositories() async throws -> [DaemonRepository] {
+        let response = try await call(method: .repositoryList)
+
+        guard let result = response.resultAsDict(),
+              let reposData = result["repositories"] as? [[String: Any]] else {
+            logger.debug("No repositories in response or invalid format")
+            return []
+        }
+
+        logger.debug("Parsing \(reposData.count) repositories from daemon")
+
+        let decoder = JSONDecoder()
+
+        return reposData.compactMap { dict in
+            guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
+                logger.warning("Failed to serialize repository dict: \(dict)")
+                return nil
+            }
+            do {
+                return try decoder.decode(DaemonRepository.self, from: data)
+            } catch {
+                logger.warning("Failed to decode repository: \(error), dict: \(dict)")
+                return nil
+            }
+        }
+    }
+
+    /// Add a repository.
+    func addRepository(name: String, path: String) async throws -> DaemonRepository {
+        let response = try await call(method: .repositoryAdd, params: [
+            "name": name,
+            "path": path
+        ])
+
+        guard let result = response.resultAsDict(),
+              let repoData = result["repository"] as? [String: Any] else {
+            throw DaemonError.noResult
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let data = try JSONSerialization.data(withJSONObject: repoData)
+        return try decoder.decode(DaemonRepository.self, from: data)
+    }
+
+    /// Remove a repository.
+    func removeRepository(repositoryId: String) async throws {
+        _ = try await call(method: .repositoryRemove, params: ["repository_id": repositoryId])
+    }
+}
+
+// MARK: - Git
+
+extension DaemonClient {
+    /// Get git status for a path.
+    func getGitStatus(path: String) async throws -> DaemonGitStatus {
+        let response = try await call(method: .gitStatus, params: ["path": path])
+        return try response.resultAs(DaemonGitStatus.self)
+    }
+
+    /// Get diff for a specific file.
+    func getGitDiff(path: String, filePath: String) async throws -> String {
+        let response = try await call(method: .gitDiffFile, params: [
+            "path": path,
+            "file_path": filePath
+        ])
+
+        guard let result = response.resultAsDict(),
+              let diff = result["diff"] as? String else {
+            return ""
+        }
+
+        return diff
+    }
+}
+
+// MARK: - Terminal
+
+extension DaemonClient {
+    /// Run a terminal command.
+    func runTerminalCommand(
+        sessionId: String,
+        command: String,
+        workingDirectory: String? = nil
+    ) async throws -> String {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "command": command
+        ]
+        if let workingDirectory {
+            params["working_directory"] = workingDirectory
+        }
+
+        let response = try await call(method: .terminalRun, params: params)
+
+        guard let result = response.resultAsDict(),
+              let commandId = result["command_id"] as? String else {
+            throw DaemonError.noResult
+        }
+
+        return commandId
+    }
+
+    /// Get terminal command status.
+    func getTerminalStatus(commandId: String) async throws -> (isRunning: Bool, exitCode: Int?) {
+        let response = try await call(method: .terminalStatus, params: ["command_id": commandId])
+
+        guard let result = response.resultAsDict() else {
+            throw DaemonError.noResult
+        }
+
+        let isRunning = result["is_running"] as? Bool ?? false
+        let exitCode = result["exit_code"] as? Int
+
+        return (isRunning, exitCode)
+    }
+
+    /// Stop a terminal command.
+    func stopTerminalCommand(commandId: String) async throws {
+        _ = try await call(method: .terminalStop, params: ["command_id": commandId])
+    }
+}
+
+// MARK: - Convenience
+
+extension DaemonClient {
+    /// Ensure connection is established.
+    func ensureConnected() async throws {
+        if !connectionState.isConnected {
+            try await connect()
+        }
+    }
+
+    /// Get sessions as local Session models.
+    func getSessions(repositoryId: UUID? = nil) async throws -> [Session] {
+        let repoIdStr = repositoryId?.uuidString.lowercased()
+        let daemonSessions = try await listSessions(repositoryId: repoIdStr)
+        return daemonSessions.compactMap { $0.toSession() }
+    }
+
+    /// Get repositories as local Repository models.
+    func getRepositories() async throws -> [Repository] {
+        let daemonRepos = try await listRepositories()
+        return daemonRepos.compactMap { $0.toRepository() }
+    }
+}

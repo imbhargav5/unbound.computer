@@ -1,0 +1,19 @@
+{
+  "name": "@unbound/daemon",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "./scripts/test.sh",
+    "build": "cargo build --workspace --release",
+    "build:dev": "dotenv -e .env.local -- cargo build --workspace",
+    "build:prod": "dotenv -e .env.production.local -- cargo build --workspace --release",
+    "dev": "dotenv -e .env.local -- cargo run --bin unbound-daemon",
+    "start": "./target/debug/unbound-daemon",
+    "start:release": "./target/release/unbound-daemon",
+    "lint": "cargo clippy --workspace -- -D warnings",
+    "typecheck": "cargo check --workspace"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.2"
+  }
+}

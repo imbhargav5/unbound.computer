@@ -1,0 +1,44 @@
+// Debug.xcconfig.template
+// Local development configuration for iOS app
+//
+// Copy this file to Debug.xcconfig and customize as needed.
+// Debug.xcconfig is gitignored and will not be committed.
+//
+// Usage:
+//   1. Copy: cp Debug.xcconfig.template Debug.xcconfig
+//   2. Edit Debug.xcconfig with your local values
+//   3. In Xcode: Project > Info > Configurations > Debug > Set to Debug.xcconfig
+
+// ================================
+// Local Development URLs
+// ================================
+
+// Relay WebSocket server (local)
+RELAY_URL = ws://localhost:8080
+
+// Web API server (local Next.js)
+API_URL = http://localhost:3000
+
+// Supabase (local instance)
+SUPABASE_URL = http://127.0.0.1:54321
+
+// Supabase publishable key (local default)
+// This is the default key for local Supabase - safe to commit
+SUPABASE_PUBLISHABLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+// ================================
+// Staging URLs (uncomment to use)
+// ================================
+
+// RELAY_URL = wss://staging-relay.example.com
+// API_URL = https://staging.unbound.computer
+// SUPABASE_URL = https://staging-project.supabase.co
+// SUPABASE_PUBLISHABLE_KEY = your-staging-publishable-key
+
+// ================================
+// Notes
+// ================================
+// - These values override the defaults in Config.swift when DEBUG is defined
+// - The app reads these from ProcessInfo.processInfo.environment
+// - For Xcode to use these, add them to Scheme > Run > Arguments > Environment Variables
+//   with $(RELAY_URL), $(API_URL), etc.

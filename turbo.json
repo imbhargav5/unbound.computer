@@ -1,0 +1,44 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["pnpm-lock.yaml"],
+  "tasks": {
+    "dev": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "test": {
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "gen-types": {
+      "outputs": ["apps/database/lib/database.types.ts"]
+    },
+    "gen-types-local": {
+      "outputs": ["apps/database/lib/database.types.ts"]
+    },
+    "database#start": {},
+    "database#stop": {},
+    "database#status": {},
+    "test-integration": {
+      "cache": false
+    },
+    "build-and-test-integration": {
+      "dependsOn": ["build", "test-integration"],
+      "cache": false
+    },
+    "test-integration-ui": {
+      "cache": false
+    }
+  },
+  "envMode": "loose"
+}

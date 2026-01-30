@@ -1,0 +1,50 @@
+"use client";
+
+import { useAction } from "next-cool-action/hooks";
+import { useRef } from "react";
+import { toast } from "sonner";
+import { createUserCheckoutSession } from "@/data/user/billing";
+import { Button } from "./ui/button";
+
+interface SubscriptionSelectProps {
+  priceId: string;
+  isOneTimePurchase?: boolean;
+}
+
+export function SubscriptionSelect({
+  priceId,
+  isOneTimePurchase = false,
+}: SubscriptionSelectProps) {
+  const toastRef = useRef<string | number | undefined>(undefined);
+
+  const { execute: createCheckoutSession } = useAction(
+    createUserCheckoutSession,
+    {
+      onExecute: () => {
+        toastRef.current = toast.loading("Redirecting to checkout...");
+      },
+      onSuccess: ({ data }) => {
+        if (data) {
+          window.location.href = data.url;
+        }
+      },
+      onError: ({ error }) => {
+        const errorMessage =
+          error.serverError ?? "Failed to create checkout session";
+        toast.error(errorMessage, {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      },
+    }
+  );
+
+  return (
+    <Button
+      className="w-full"
+      onClick={() => createCheckoutSession({ priceId })}
+    >
+      {isOneTimePurchase ? "Purchase" : "Select Plan"}
+    </Button>
+  );
+}

@@ -1,0 +1,315 @@
+//! Configuration management for the daemon.
+
+use crate::{CoreError, CoreResult, Paths};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use url::Url;
+
+/// Default relay URL (can be overridden at compile time via UNBOUND_RELAY_URL env var).
+pub const DEFAULT_RELAY_URL: &str = match option_env!("UNBOUND_RELAY_URL") {
+    Some(url) => url,
+    None => "wss://relay.unbound.computer",
+};
+
+/// Default Supabase URL (can be overridden at compile time via SUPABASE_URL env var).
+pub const DEFAULT_SUPABASE_URL: &str = match option_env!("SUPABASE_URL") {
+    Some(url) => url,
+    None => "https://random.supabase.co",
+};
+
+/// Default Supabase publishable key (can be overridden at compile time via SUPABASE_PUBLISHABLE_KEY env var).
+pub const DEFAULT_SUPABASE_PUBLISHABLE_KEY: &str = match option_env!("SUPABASE_PUBLISHABLE_KEY") {
+    Some(key) => key,
+    None => "random-key",
+};
+
+/// Default log level.
+pub const DEFAULT_LOG_LEVEL: &str = "info";
+
+/// Relay configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelayConfig {
+    /// Relay WebSocket URL.
+    pub url: String,
+    /// Heartbeat interval in seconds.
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval_secs: u64,
+    /// Reconnect base delay in seconds.
+    #[serde(default = "default_reconnect_base_delay")]
+    pub reconnect_base_delay_secs: u64,
+    /// Maximum reconnect delay in seconds.
+    #[serde(default = "default_reconnect_max_delay")]
+    pub reconnect_max_delay_secs: u64,
+    /// Maximum reconnect attempts.
+    #[serde(default = "default_max_reconnect_attempts")]
+    pub max_reconnect_attempts: u32,
+}
+
+fn default_heartbeat_interval() -> u64 {
+    30
+}
+
+fn default_reconnect_base_delay() -> u64 {
+    2
+}
+
+fn default_reconnect_max_delay() -> u64 {
+    30
+}
+
+fn default_max_reconnect_attempts() -> u32 {
+    10
+}
+
+impl Default for RelayConfig {
+    fn default() -> Self {
+        Self {
+            url: DEFAULT_RELAY_URL.to_string(),
+            heartbeat_interval_secs: default_heartbeat_interval(),
+            reconnect_base_delay_secs: default_reconnect_base_delay(),
+            reconnect_max_delay_secs: default_reconnect_max_delay(),
+            max_reconnect_attempts: default_max_reconnect_attempts(),
+        }
+    }
+}
+
+/// Main daemon configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    /// Relay configuration.
+    pub relay: RelayConfig,
+    /// Log level (trace, debug, info, warn, error).
+    pub log_level: String,
+    /// Supabase project URL.
+    #[serde(default = "default_supabase_url")]
+    pub supabase_url: String,
+    /// Supabase publishable API key (public, safe to expose).
+    #[serde(default = "default_supabase_publishable_key")]
+    pub supabase_publishable_key: String,
+}
+
+fn default_supabase_url() -> String {
+    DEFAULT_SUPABASE_URL.to_string()
+}
+
+fn default_supabase_publishable_key() -> String {
+    DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string()
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            relay: RelayConfig::default(),
+            log_level: DEFAULT_LOG_LEVEL.to_string(),
+            supabase_url: DEFAULT_SUPABASE_URL.to_string(),
+            supabase_publishable_key: DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string(),
+        }
+    }
+}
+
+impl Config {
+    /// Create a new Config with default values, then override from environment.
+    pub fn new() -> Self {
+        let mut config = Self::default();
+        config.load_from_env();
+        config
+    }
+
+    /// Load configuration from a file, falling back to defaults.
+    /// Note: relay.url, supabase_url, and supabase_publishable_key are
+    /// compile-time only and will always use the built-in defaults,
+    /// regardless of what's in the config file.
+    pub fn load(paths: &Paths) -> CoreResult<Self> {
+        let config_path = paths.config_file();
+
+        let mut config = if config_path.exists() {
+            Self::load_from_file(&config_path)?
+        } else {
+            Self::default()
+        };
+
+        // Force compile-time values (never from config file)
+        config.relay.url = DEFAULT_RELAY_URL.to_string();
+        config.supabase_url = DEFAULT_SUPABASE_URL.to_string();
+        config.supabase_publishable_key = DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string();
+
+        // Environment variables can only override log_level
+        config.load_from_env();
+
+        Ok(config)
+    }
+
+    /// Load configuration from a specific file.
+    pub fn load_from_file(path: &Path) -> CoreResult<Self> {
+        let content = std::fs::read_to_string(path)?;
+        let config: Config = serde_json::from_str(&content)?;
+        Ok(config)
+    }
+
+    /// Save configuration to a file.
+    pub fn save(&self, paths: &Paths) -> CoreResult<()> {
+        paths.ensure_dirs()?;
+        let config_path = paths.config_file();
+        let content = serde_json::to_string_pretty(self)?;
+        std::fs::write(config_path, content)?;
+        Ok(())
+    }
+
+    /// Override configuration from environment variables.
+    /// Note: relay_url, supabase_url, and supabase_publishable_key are
+    /// compile-time only (set via env vars during build). Only log_level
+    /// can be overridden at runtime.
+    fn load_from_env(&mut self) {
+        if let Ok(log_level) = std::env::var("UNBOUND_LOG_LEVEL") {
+            self.log_level = log_level;
+        }
+    }
+
+    /// Get the Supabase URL as a parsed URL.
+    pub fn supabase_url(&self) -> CoreResult<Url> {
+        Url::parse(&self.supabase_url).map_err(CoreError::from)
+    }
+
+    /// Get the relay URL as a parsed URL.
+    pub fn relay_url(&self) -> CoreResult<Url> {
+        Url::parse(&self.relay.url).map_err(CoreError::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert_eq!(config.relay.url, DEFAULT_RELAY_URL);
+        assert_eq!(config.log_level, DEFAULT_LOG_LEVEL);
+        assert_eq!(config.supabase_url, DEFAULT_SUPABASE_URL);
+        assert_eq!(config.supabase_publishable_key, DEFAULT_SUPABASE_PUBLISHABLE_KEY);
+    }
+
+    #[test]
+    fn test_relay_config_defaults() {
+        let relay = RelayConfig::default();
+        assert_eq!(relay.heartbeat_interval_secs, 30);
+        assert_eq!(relay.reconnect_base_delay_secs, 2);
+        assert_eq!(relay.reconnect_max_delay_secs, 30);
+        assert_eq!(relay.max_reconnect_attempts, 10);
+    }
+
+    #[test]
+    fn test_config_load_from_file() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("config.json");
+
+        // Write a config file
+        let config_json = r#"{
+            "relay": {
+                "url": "wss://custom.relay.com",
+                "heartbeat_interval_secs": 60
+            },
+            "log_level": "debug"
+        }"#;
+
+        std::fs::write(&config_path, config_json).unwrap();
+
+        // Load from file
+        let config = Config::load_from_file(&config_path).unwrap();
+        assert_eq!(config.relay.url, "wss://custom.relay.com");
+        assert_eq!(config.relay.heartbeat_interval_secs, 60);
+        assert_eq!(config.log_level, "debug");
+    }
+
+    #[test]
+    fn test_config_save_and_load_roundtrip() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().to_path_buf());
+
+        // Create a config with custom log_level and relay settings
+        // Note: relay.url, supabase_url, supabase_publishable_key are
+        // compile-time only and will be forced to defaults on load
+        let mut config = Config::default();
+        config.log_level = "trace".to_string();
+        config.relay.heartbeat_interval_secs = 45;
+
+        // Save
+        config.save(&paths).unwrap();
+
+        // Load - relay.url will be compile-time default, but log_level persists
+        let loaded = Config::load(&paths).unwrap();
+        assert_eq!(loaded.relay.url, DEFAULT_RELAY_URL); // Forced to compile-time default
+        assert_eq!(loaded.log_level, "trace"); // This can be loaded from file
+        assert_eq!(loaded.relay.heartbeat_interval_secs, 45); // This can be loaded from file
+    }
+
+    #[test]
+    fn test_config_load_nonexistent_uses_defaults() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().to_path_buf());
+
+        // Load without a config file should use defaults
+        let config = Config::load(&paths).unwrap();
+        assert_eq!(config.relay.url, DEFAULT_RELAY_URL);
+        assert_eq!(config.supabase_url, DEFAULT_SUPABASE_URL);
+    }
+
+    #[test]
+    fn test_config_supabase_url_parse() {
+        let config = Config::default();
+        let url = config.supabase_url().unwrap();
+        assert_eq!(url.scheme(), "https");
+        assert!(url.host_str().unwrap().contains("supabase.co"));
+    }
+
+    #[test]
+    fn test_config_relay_url_parse() {
+        let config = Config::default();
+        let url = config.relay_url().unwrap();
+        assert_eq!(url.scheme(), "wss");
+        assert_eq!(url.host_str(), Some("relay.unbound.computer"));
+    }
+
+    #[test]
+    fn test_config_invalid_url() {
+        let mut config = Config::default();
+        config.supabase_url = "not a valid url".to_string();
+
+        let result = config.supabase_url();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_new_uses_defaults() {
+        // Clear env vars that might interfere
+        std::env::remove_var("UNBOUND_LOG_LEVEL");
+
+        let config = Config::new();
+        assert_eq!(config.supabase_url, DEFAULT_SUPABASE_URL);
+    }
+
+    #[test]
+    fn test_default_constants() {
+        assert!(!DEFAULT_RELAY_URL.is_empty());
+        assert!(!DEFAULT_LOG_LEVEL.is_empty());
+        assert!(!DEFAULT_SUPABASE_URL.is_empty());
+        assert!(!DEFAULT_SUPABASE_PUBLISHABLE_KEY.is_empty());
+        assert!(DEFAULT_RELAY_URL.starts_with("wss://"));
+        assert!(DEFAULT_SUPABASE_URL.starts_with("https://"));
+    }
+
+    #[test]
+    fn test_relay_config_serde_defaults() {
+        // Test that serde defaults work for partial JSON
+        let json = r#"{"url": "wss://test.com"}"#;
+        let relay: RelayConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(relay.url, "wss://test.com");
+        // Other fields should have defaults
+        assert_eq!(relay.heartbeat_interval_secs, 30);
+        assert_eq!(relay.reconnect_base_delay_secs, 2);
+        assert_eq!(relay.reconnect_max_delay_secs, 30);
+        assert_eq!(relay.max_reconnect_attempts, 10);
+    }
+}

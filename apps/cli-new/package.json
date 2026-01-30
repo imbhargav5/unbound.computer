@@ -1,0 +1,14 @@
+{
+  "name": "@unbound/cli",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release",
+    "build:dev": "cargo build",
+    "dev": "cargo build && ./target/debug/unbound",
+    "start": "./target/debug/unbound",
+    "start:release": "./target/release/unbound",
+    "lint": "cargo clippy -- -D warnings",
+    "typecheck": "cargo check"
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "PAIR_REQUEST"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "remoteDeviceName": {
+              "type": "string"
+            },
+            "remoteDeviceId": {
+              "type": "string"
+            },
+            "remotePublicKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "remoteDeviceName",
+            "remoteDeviceId",
+            "remotePublicKey"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "HANDSHAKE"
+        },
+        "sessionId": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "PAIR_ACCEPTED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "executorDeviceId": {
+              "type": "string"
+            },
+            "executorPublicKey": {
+              "type": "string"
+            },
+            "executorDeviceName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "executorDeviceId",
+            "executorPublicKey",
+            "executorDeviceName"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "HANDSHAKE"
+        },
+        "sessionId": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_CREATED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "HANDSHAKE"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "title": "HandshakeEvent"
+}

@@ -1,0 +1,35 @@
+.env
+.env.local
+.env.*.local
+node_modules
+.next
+tsconfig.tsbuildinfo
+.vercel
+playwright/.auth
+supabase/.temp
+supabase/.branches
+
+analyze
+
+# Local Netlify folder
+.netlify
+.DS_Store
+# content-collections
+.content-collections
+
+.turbo
+
+test-results
+supabase/signing_key.json
+
+.nextbase-references/
+
+# Build output
+dist
+
+# Rust build artifacts
+target/
+
+# Xcode local configuration
+*.xcconfig
+!*.xcconfig.template

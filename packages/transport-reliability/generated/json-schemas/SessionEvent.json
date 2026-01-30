@@ -1,0 +1,2845 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_PAUSE_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_RESUME_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_STOP_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "force": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_CANCEL_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "USER_PROMPT_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "file",
+                      "url"
+                    ]
+                  },
+                  "data": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "filename": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "USER_CONFIRMATION_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "questionId",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "MCQ_RESPONSE_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "selectedOptionIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "customAnswer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "questionId",
+            "selectedOptionIds"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_APPROVAL_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "approved": {
+              "type": "boolean"
+            },
+            "modifiedInput": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "toolUseId",
+            "approved"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "WORKTREE_CREATE_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "branch": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "branch"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "CONFLICTS_FIX_COMMAND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "REMOTE_COMMAND"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "EXECUTION_STARTED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "OUTPUT_CHUNK"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "EXECUTION_COMPLETED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "success"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "WORKTREE_ADDED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "REPOSITORY_ADDED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "REPOSITORY_REMOVED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "CONFLICTS_FIXED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "CONFLICTS_FIX_FAILED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "GIT_PUSH_COMPLETED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "GIT_PUSH_FAILED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "CONFLICTS_FOUND"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "repoId": {
+              "type": "string"
+            },
+            "worktreeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repoId",
+            "worktreeId"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_STARTED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "toolUseId",
+            "toolName"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_OUTPUT_CHUNK"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "chunk": {
+              "type": "string"
+            },
+            "sequenceNumber": {
+              "type": "number"
+            },
+            "isComplete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "toolUseId",
+            "chunk",
+            "sequenceNumber",
+            "isComplete"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_COMPLETED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            },
+            "success": {
+              "type": "boolean"
+            },
+            "durationMs": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "toolUseId",
+            "toolName",
+            "success",
+            "durationMs"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_FAILED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            },
+            "errorCode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "toolUseId",
+            "toolName",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TOOL_APPROVAL_REQUIRED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "risk": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "required": [
+            "toolUseId",
+            "toolName",
+            "input"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "STREAMING_THINKING"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "thinkingContent": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "STREAMING_GENERATING"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "contentType": {
+              "type": "string",
+              "enum": [
+                "text",
+                "tool_use"
+              ]
+            }
+          },
+          "required": [
+            "contentType"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "STREAMING_WAITING"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "user_input",
+                "tool_execution",
+                "rate_limit",
+                "api_call"
+              ]
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "STREAMING_IDLE"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "FILE_CREATED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "linesAdded": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "filePath",
+            "linesAdded"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "FILE_MODIFIED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string"
+            },
+            "diff": {
+              "type": "string"
+            },
+            "linesAdded": {
+              "type": "number"
+            },
+            "linesRemoved": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "filePath",
+            "linesAdded",
+            "linesRemoved"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "FILE_DELETED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string"
+            },
+            "linesRemoved": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "filePath",
+            "linesRemoved"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "FILE_RENAMED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "oldPath": {
+              "type": "string"
+            },
+            "newPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "oldPath",
+            "newPath"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_HEARTBEAT"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "processAlive": {
+              "type": "boolean"
+            },
+            "memoryUsageMb": {
+              "type": "number"
+            },
+            "cpuPercent": {
+              "type": "number"
+            },
+            "uptime": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "processAlive",
+            "uptime"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_STATE_CHANGED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "previousState": {
+              "type": "string",
+              "enum": [
+                "initializing",
+                "running",
+                "paused",
+                "completed",
+                "error"
+              ]
+            },
+            "newState": {
+              "type": "string",
+              "enum": [
+                "initializing",
+                "running",
+                "paused",
+                "completed",
+                "error"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "previousState",
+            "newState"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "CONNECTION_QUALITY_UPDATE"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "latencyMs": {
+              "type": "number"
+            },
+            "packetLossPercent": {
+              "type": "number"
+            },
+            "quality": {
+              "type": "string",
+              "enum": [
+                "excellent",
+                "good",
+                "fair",
+                "poor"
+              ]
+            }
+          },
+          "required": [
+            "latencyMs",
+            "packetLossPercent",
+            "quality"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_ERROR"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "string"
+            },
+            "recoverable": {
+              "type": "boolean"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "retry",
+                "restart",
+                "abort",
+                "ignore"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "recoverable"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "SESSION_WARNING"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "RATE_LIMIT_WARNING"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "retryAfterMs": {
+              "type": "number"
+            },
+            "limitType": {
+              "type": "string",
+              "enum": [
+                "requests",
+                "tokens",
+                "concurrent"
+              ]
+            }
+          },
+          "required": [
+            "retryAfterMs",
+            "limitType"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TODO_LIST_UPDATED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "in_progress",
+                      "completed"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "content",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "TODO_ITEM_UPDATED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "previousStatus": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed"
+              ]
+            },
+            "newStatus": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed"
+              ]
+            }
+          },
+          "required": [
+            "itemId",
+            "content",
+            "previousStatus",
+            "newStatus"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "QUESTION_ASKED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "questionType": {
+              "type": "string",
+              "enum": [
+                "confirmation",
+                "mcq",
+                "text_input"
+              ]
+            },
+            "question": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "allowsMultiSelect": {
+              "type": "boolean"
+            },
+            "allowsCustomAnswer": {
+              "type": "boolean"
+            },
+            "defaultValue": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "questionId",
+            "questionType",
+            "question"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "const": "EVENT"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "const": "QUESTION_ANSWERED"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "selectedOptionIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "textResponse": {
+              "type": "string"
+            },
+            "answeredBy": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "questionId",
+            "answeredBy"
+          ],
+          "additionalProperties": false
+        },
+        "plane": {
+          "type": "string",
+          "const": "SESSION"
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "sessionEventType": {
+          "type": "string",
+          "const": "EXECUTOR_UPDATE"
+        }
+      },
+      "required": [
+        "opcode",
+        "eventId",
+        "createdAt",
+        "type",
+        "payload",
+        "plane",
+        "sessionId",
+        "sessionEventType"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "title": "SessionEvent"
+}

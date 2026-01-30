@@ -1,0 +1,26 @@
+name: "CI setup"
+description: "Setup CI environment for the project"
+runs:
+  using: "composite"
+  steps:
+    - name: Set environment variable
+      run: echo "GITHUB_ACTION=true" >> $GITHUB_ENV
+      shell: bash
+    - uses: pnpm/action-setup@v4
+      name: Install pnpm
+      with:
+        run_install: false
+
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: "pnpm"
+    - name: Install project dependencies
+      run: pnpm install # Updated to pnpm
+      shell: bash

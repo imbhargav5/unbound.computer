@@ -1,0 +1,27 @@
+{
+  "name": "@unbound/database",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "gen-types": "supabase gen types typescript --linked --schema public > ./lib/database.types.ts",
+    "gen-types-local": "supabase gen types typescript --local > ./lib/database.types.ts",
+    "gen-signing-keys": "bash scripts/generate-signing-keys.sh",
+    "test-db": "supabase test db",
+    "test-db-watch": "supabase test db --watch"
+  },
+  "dependencies": {
+    "supabase": "^2.54.11"
+  },
+  "devDependencies": {
+    "@unbound/typescript-config": "workspace:*"
+  },
+  "exports": {
+    "./types": "./lib/database.types.ts"
+  },
+  "files": [
+    "lib/database.types.ts"
+  ]
+}

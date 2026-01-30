@@ -1,0 +1,8 @@
+next-safe-actions is currently not supporting cacheComponents properly.
+However its security is critical right now. So this is a hack until we get 
+next-safe actions work with router correctly again.
+
+Reference: https://github.com/TheEdoRan/next-safe-action/pull/394
+
+Why are the routes very specific? eg: navigation-fns/to-feedback vs navigation-fns/to-route 
+This is to make sure there are no tricks played by hackers to burn your api requests and create loops.

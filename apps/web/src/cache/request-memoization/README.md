@@ -1,0 +1,11 @@
+# Why use cache()?
+
+```
+import { cache } from 'react'
+```
+
+https://nextjs.org/docs/app/getting-started/fetching-data#deduplicate-requests-and-cache-data
+
+
+TLDR: cache(async supabasequery) helps to make sure that resource is only
+fetched once per request. So if you two componetns in a tree are requesting the same data then it is only fetched once.

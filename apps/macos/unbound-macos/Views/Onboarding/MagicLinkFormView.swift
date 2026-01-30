@@ -1,0 +1,132 @@
+//
+//  MagicLinkFormView.swift
+//  unbound-macos
+//
+//  Magic link email input form.
+//
+
+import Logging
+import SwiftUI
+
+private let logger = Logger(label: "app.auth")
+
+struct MagicLinkFormView: View {
+    @Environment(AppState.self) private var appState
+
+    @State private var email = ""
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    @FocusState private var isFocused: Bool
+
+    var onSuccess: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            // Email field
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Email")
+                    .font(Typography.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+
+                emailField
+            }
+
+            // Error message
+            if let error = errorMessage {
+                Text(error)
+                    .font(Typography.caption)
+                    .foregroundStyle(Color(hex: "ef4444"))
+            }
+
+            // Send button
+            Button {
+                sendMagicLink()
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .progressViewStyle(.circular)
+                    }
+                    Text(isLoading ? "Sending..." : "Send magic link")
+                        .font(Typography.label)
+                    Spacer()
+                    Image(systemName: "paperplane")
+                        .font(.system(size: IconSize.md))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .padding(.horizontal, Spacing.lg)
+                .background(Color.white.opacity(0.05))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading || email.isEmpty)
+            .opacity(email.isEmpty ? 0.5 : 1)
+        }
+    }
+
+    private var emailField: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "envelope")
+                .font(.system(size: IconSize.md))
+                .foregroundStyle(isFocused ? .white.opacity(0.6) : .white.opacity(0.3))
+
+            TextField("you@example.com", text: $email)
+                .textFieldStyle(.plain)
+                .font(Typography.body)
+                .foregroundStyle(.white)
+                .focused($isFocused)
+                .textContentType(.emailAddress)
+                .autocorrectionDisabled()
+                .onSubmit {
+                    if !email.isEmpty {
+                        sendMagicLink()
+                    }
+                }
+        }
+        .frame(height: 44)
+        .padding(.horizontal, Spacing.md)
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.md)
+                .stroke(
+                    isFocused ? Color.white.opacity(0.2) : Color.white.opacity(0.1),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private func sendMagicLink() {
+        errorMessage = nil
+        isLoading = true
+
+        Task {
+            do {
+                // Use daemon for magic link login
+                try await appState.login(provider: "magic_link", email: email)
+                onSuccess(email)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+}
+
+#Preview {
+    MagicLinkFormView { email in
+        logger.info("Magic link sent to: \(email)")
+    }
+    .environment(AppState())
+    .padding(Spacing.xxxxl)
+    .background(Color.black)
+    .frame(width: 400)
+}

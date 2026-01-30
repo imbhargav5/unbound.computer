@@ -1,0 +1,66 @@
+/* Onboarding step transitions */
+.onboarding-step-transition {
+  animation: fadeSlideIn 300ms ease-out;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Preview panel highlight animation for updates */
+@keyframes highlight {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.preview-highlight {
+  animation: highlight 400ms ease-in-out;
+}
+
+/* Smooth transitions for interactive elements */
+.onboarding-interactive {
+  transition: all 200ms ease;
+}
+
+.onboarding-interactive:hover {
+  transform: translateY(-2px);
+}
+
+/* Avatar selection hover effect */
+.avatar-option {
+  transition: all 200ms ease;
+}
+
+.avatar-option:hover {
+  transform: scale(1.05);
+}
+
+.avatar-option:active {
+  transform: scale(0.98);
+}
+
+/* Button transitions */
+.onboarding-button {
+  transition: all 200ms ease;
+}
+
+.onboarding-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.onboarding-button:active:not(:disabled) {
+  transform: translateY(0);
+}
