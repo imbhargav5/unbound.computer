@@ -25,6 +25,8 @@ pub struct SessionState {
     pub terminal_exit_code: Option<i32>,
     pub terminal_input: String,
     pub needs_message_refresh: bool,
+    /// Last message preview for sidebar display
+    pub last_message_preview: Option<String>,
 }
 
 impl Default for SessionState {
@@ -46,6 +48,7 @@ impl Default for SessionState {
             terminal_exit_code: None,
             terminal_input: String::new(),
             needs_message_refresh: true,
+            last_message_preview: None,
         }
     }
 }
@@ -272,6 +275,59 @@ pub enum FileStatus {
     Unchanged,
 }
 
+/// Compute preview from session state components.
+/// Priority: active sub-agent > active tools > streaming content > last message.
+fn compute_session_preview(
+    active_sub_agent: &Option<ActiveSubAgent>,
+    active_tools: &[ActiveTool],
+    streaming_content: Option<&str>,
+    messages: &[ChatMessage],
+    max_len: usize,
+) -> Option<String> {
+    use super::ui::format_message_preview;
+
+    // 1. Check for active sub-agent
+    if let Some(ref agent) = active_sub_agent {
+        if agent.status == ToolStatus::Running {
+            let desc = agent
+                .description
+                .as_deref()
+                .unwrap_or(&agent.subagent_type);
+            return Some(format_message_preview(
+                &format!("[{}] {}", agent.subagent_type, desc),
+                max_len,
+            ));
+        }
+    }
+
+    // 2. Check for active tools
+    let running_tools: Vec<_> = active_tools
+        .iter()
+        .filter(|t| t.status == ToolStatus::Running)
+        .collect();
+    if !running_tools.is_empty() {
+        let tool = running_tools.last().unwrap();
+        let preview = if let Some(ref input) = tool.input_preview {
+            format!("[{}] {}", tool.tool_name, input)
+        } else {
+            format!("[{}]", tool.tool_name)
+        };
+        return Some(format_message_preview(&preview, max_len));
+    }
+
+    // 3. Check for streaming content
+    if let Some(content) = streaming_content {
+        if !content.is_empty() {
+            return Some(format_message_preview(content, max_len));
+        }
+    }
+
+    // 4. Fall back to last message
+    messages
+        .last()
+        .map(|m| format_message_preview(&m.content, max_len))
+}
+
 impl App {
     /// Create a new application state with the specified theme mode.
     pub async fn new(theme_mode: ThemeMode) -> Self {
@@ -410,6 +466,17 @@ impl App {
                 }
             }
         }
+
+        // Update preview for active session when messages change
+        if has_new_messages {
+            if let Some(ref session_id) = self.selected_session_id.clone() {
+                let preview = self.get_session_preview(session_id, 40);
+                if let Some(state) = self.session_states.get_mut(session_id) {
+                    state.last_message_preview = preview;
+                }
+            }
+        }
+
         has_new_messages
     }
 
@@ -885,8 +952,30 @@ impl App {
             .unwrap_or(false)
     }
 
+    /// Get last message preview for sidebar display.
+    /// Priority: active sub-agent > active tools > streaming content > last message.
+    /// For background sessions: returns stored preview.
+    pub fn get_session_preview(&self, session_id: &str, max_len: usize) -> Option<String> {
+        // Active session - compute from top-level state
+        if self.selected_session_id.as_deref() == Some(session_id) {
+            return compute_session_preview(
+                &self.active_sub_agent,
+                &self.active_tools,
+                self.streaming_content.as_deref(),
+                &self.messages,
+                max_len,
+            );
+        }
+
+        // Background session - use stored preview
+        self.session_states
+            .get(session_id)
+            .and_then(|s| s.last_message_preview.clone())
+    }
+
+
     /// Poll all background (non-active) session subscriptions.
-    /// Updates claude_running and needs_message_refresh flags.
+    /// Updates claude_running, needs_message_refresh, and last_message_preview flags.
     pub fn drain_background_subscriptions(&mut self) {
         let active_id = self.selected_session_id.clone();
         for (session_id, state) in &mut self.session_states {
@@ -894,8 +983,10 @@ impl App {
             if Some(session_id.as_str()) == active_id.as_deref() {
                 continue;
             }
+            let mut had_events = false;
             if let Some(ref mut sub) = state.subscription {
                 while let Some(event) = sub.try_recv() {
+                    had_events = true;
                     match event.event_type {
                         EventType::ClaudeEvent => {
                             if let Some(raw) = event.data.get("raw").and_then(|r| r.as_str()) {
@@ -907,15 +998,31 @@ impl App {
                             }
                             state.needs_message_refresh = true;
                         }
-                        EventType::StatusChange
-                        | EventType::Message
-                        | EventType::StreamingChunk
-                        | EventType::InitialState => {
+                        EventType::StreamingChunk => {
+                            // Update streaming content for background session
+                            if let Some(content) = event.data.get("content").and_then(|c| c.as_str())
+                            {
+                                state.streaming_content = Some(content.to_string());
+                            }
+                            state.needs_message_refresh = true;
+                        }
+                        EventType::StatusChange | EventType::Message | EventType::InitialState => {
                             state.needs_message_refresh = true;
                         }
                         _ => {}
                     }
                 }
+            }
+
+            // Update preview for background session after processing events
+            if had_events {
+                state.last_message_preview = compute_session_preview(
+                    &state.active_sub_agent,
+                    &state.active_tools,
+                    state.streaming_content.as_deref(),
+                    &state.messages,
+                    40,
+                );
             }
         }
     }

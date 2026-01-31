@@ -6,8 +6,8 @@
 //  Manages message state, streaming content, tool state, and daemon subscription
 //  for a single session. Replaces ChatPanelViewModel with per-session isolation.
 //
-//  Each instance owns a SessionSubscription (dedicated Unix socket connection)
-//  so multiple sessions can stream events concurrently.
+//  Each instance owns a SessionSubscription (shared memory consumer)
+//  so multiple sessions can stream events concurrently with low latency.
 //
 
 import Foundation
@@ -127,6 +127,8 @@ class SessionLiveState {
     /// Activate this session: subscribe for events and load messages.
     /// Idempotent - returns immediately if already subscribed.
     func activate() async {
+        let activateStart = CFAbsoluteTimeGetCurrent()
+
         guard subscriptionState != .subscribed, subscriptionState != .subscribing else {
             return
         }
@@ -134,9 +136,13 @@ class SessionLiveState {
         subscriptionState = .subscribing
 
         // Load messages first
+        let loadStart = CFAbsoluteTimeGetCurrent()
         await loadMessages()
+        let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
+        logger.info("loadMessages took \(String(format: "%.3f", loadDuration))s")
 
         // Then subscribe for real-time updates
+        let subStart = CFAbsoluteTimeGetCurrent()
         do {
             let sub = SessionSubscription(
                 sessionId: sessionId.uuidString.lowercased()
@@ -144,9 +150,13 @@ class SessionLiveState {
             self.subscription = sub
 
             let eventStream = try await sub.subscribe()
+            let subDuration = CFAbsoluteTimeGetCurrent() - subStart
+            logger.info("subscribe took \(String(format: "%.3f", subDuration))s")
+
             subscriptionState = .subscribed
 
-            logger.info("Session \(sessionId) activated with subscription")
+            let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
+            logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
 
             // Start polling events
             subscriptionTask = Task { [weak self] in
@@ -193,11 +203,17 @@ class SessionLiveState {
         defer { isLoadingMessages = false }
 
         do {
+            let fetchStart = CFAbsoluteTimeGetCurrent()
             let daemonMessages = try await daemonClient.listMessages(
                 sessionId: sessionId.uuidString.lowercased()
             )
+            let fetchDuration = CFAbsoluteTimeGetCurrent() - fetchStart
+            logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
+
+            let parseStart = CFAbsoluteTimeGetCurrent()
             messages = daemonMessages.compactMap { parseMessage($0) }
-            logger.info("Loaded \(messages.count) messages for session \(sessionId)")
+            let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
+            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(messages.count) parsed messages")
         } catch {
             logger.error("Failed to load messages: \(error)")
             messages = []
@@ -349,7 +365,7 @@ class SessionLiveState {
 
     private func handleDaemonEvent(_ event: DaemonEvent) {
         switch event.type {
-        case .streamingChunk:
+        case .streamingChunk, .claudeStreaming:
             if let content = event.streamingContent {
                 logger.debug("Received streaming chunk (\(content.count) chars) for session \(sessionId)")
                 streamingContent = content
@@ -360,9 +376,17 @@ class SessionLiveState {
             streamingContent = nil
             debouncedFetchMessages()
 
-        case .claudeEvent:
+        case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
+            // All Claude events contain raw JSON that needs to be parsed
             if let raw = event.rawClaudeEvent {
                 handleClaudeEvent(raw)
+            } else {
+                // For new event types, the data IS the parsed JSON already
+                // Convert it back to JSON string for handleClaudeEvent
+                if let jsonData = try? JSONSerialization.data(withJSONObject: event.data.mapValues { $0.value }),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    handleClaudeEvent(jsonString)
+                }
             }
 
         case .statusChange:
@@ -460,6 +484,12 @@ class SessionLiveState {
 
         // Check for Task (sub-agent)
         if name == "Task" {
+            // Don't recreate sub-agent if it's already archived in history
+            if toolHistory.contains(where: { $0.subAgent?.id == id }) {
+                logger.debug("Sub-agent \(id) already in history, skipping creation")
+                return
+            }
+
             let subagentType = input?["subagent_type"] as? String ?? "unknown"
             let description = input?["description"] as? String ?? ""
 
@@ -585,15 +615,25 @@ class SessionLiveState {
     }
 
     private func moveToolsToHistory() {
-        if !activeTools.isEmpty || activeSubAgent != nil {
-            toolHistory.append(ToolHistoryEntry(
-                tools: activeTools,
-                subAgent: activeSubAgent,
-                afterMessageIndex: messages.count.advanced(by: -1)
-            ))
+        guard !activeTools.isEmpty || activeSubAgent != nil else { return }
+
+        // Check if this sub-agent is already in history (prevents duplicate entries
+        // when both statusChange and result events trigger moveToolsToHistory)
+        if let subAgent = activeSubAgent,
+           toolHistory.contains(where: { $0.subAgent?.id == subAgent.id }) {
+            logger.debug("Sub-agent \(subAgent.id) already in history, clearing active state only")
             activeTools.removeAll()
             activeSubAgent = nil
+            return
         }
+
+        toolHistory.append(ToolHistoryEntry(
+            tools: activeTools,
+            subAgent: activeSubAgent,
+            afterMessageIndex: messages.count.advanced(by: -1)
+        ))
+        activeTools.removeAll()
+        activeSubAgent = nil
     }
 
     // MARK: - Private: Message Parsing

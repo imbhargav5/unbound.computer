@@ -23,7 +23,8 @@ struct WorkspaceView: View {
 
     // Version control state - ViewModel manages file tree
     @State private var fileTreeViewModel: FileTreeViewModel?
-    @State private var selectedVCTab: VersionControlTab = .allFiles
+    @State private var gitViewModel = GitViewModel()
+    @State private var selectedSidebarTab: RightSidebarTab = .changes
     @State private var selectedTerminalTab: TerminalTab = .terminal
 
     // State
@@ -99,10 +100,11 @@ struct WorkspaceView: View {
                 .frame(minWidth: 400)
             }
 
-            // Right sidebar - Version Control
-            VersionControlPanel(
-                viewModel: fileTreeViewModel,
-                selectedTab: $selectedVCTab,
+            // Right sidebar - Git Operations
+            RightSidebarPanel(
+                fileTreeViewModel: fileTreeViewModel,
+                gitViewModel: gitViewModel,
+                selectedTab: $selectedSidebarTab,
                 selectedTerminalTab: $selectedTerminalTab,
                 workingDirectory: workingDirectoryPath
             )
@@ -149,24 +151,12 @@ struct WorkspaceView: View {
     private func createSession(for repository: Repository, locationType: SessionLocationType) {
         Task {
             do {
-                switch locationType {
-                case .mainDirectory:
-                    // Create session directly in main repository via daemon
-                    let session = try await appState.createSession(
-                        repositoryId: repository.id,
-                        title: "New conversation"
-                    )
-                    appState.selectSession(session.id)
-
-                case .worktree:
-                    // TODO: Worktree creation via daemon
-                    // For now, just create a regular session
-                    let session = try await appState.createSession(
-                        repositoryId: repository.id,
-                        title: "New conversation"
-                    )
-                    appState.selectSession(session.id)
-                }
+                let session = try await appState.createSession(
+                    repositoryId: repository.id,
+                    title: "New conversation",
+                    locationType: locationType
+                )
+                appState.selectSession(session.id)
             } catch {
                 logger.error("Failed to create session: \(error)")
             }

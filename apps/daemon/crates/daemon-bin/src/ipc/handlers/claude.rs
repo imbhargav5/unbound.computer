@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_process;
 use crate::utils::shell_escape;
 use daemon_database::queries;
-use daemon_ipc::{error_codes, Event, EventType, IpcServer, Method, Response};
+use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::sync::broadcast;
@@ -228,7 +228,7 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                 };
 
                 // Store the user message in the database
-                let stored_sequence = if let Some(key) = &encryption_key {
+                let _stored_sequence = if let Some(key) = &encryption_key {
                     let conn = match state.db.get() {
                         Ok(c) => c,
                         Err(_) => {
@@ -272,19 +272,9 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                     None
                 };
 
-                // Broadcast user message event to subscribers
-                if let Some(seq) = stored_sequence {
-                    let event = Event::new(
-                        EventType::Message,
-                        &session_id,
-                        serde_json::json!({
-                            "role": "user",
-                            "content": content,
-                        }),
-                        seq,
-                    );
-                    state.subscriptions.broadcast_or_create(&session_id, event).await;
-                }
+                // Note: User message is stored in database above. Clients receive
+                // it when they fetch messages. We don't broadcast via socket since
+                // all streaming now uses shared memory for low latency.
 
                 // Spawn the process
                 let child = match Command::new("zsh")

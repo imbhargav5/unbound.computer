@@ -52,7 +52,7 @@ impl App {
     }
 
     /// Create a new session for the selected repository.
-    pub async fn create_session(&mut self, title: Option<&str>) -> Result<()> {
+    pub async fn create_session(&mut self, title: Option<&str>, is_worktree: bool) -> Result<()> {
         let repo_id = self
             .selected_repo()
             .map(|r| r.id.clone())
@@ -62,6 +62,7 @@ impl App {
         let params = serde_json::json!({
             "repository_id": repo_id,
             "title": title.unwrap_or("New session"),
+            "is_worktree": is_worktree,
         });
 
         let response = client
@@ -392,6 +393,14 @@ impl App {
 
             // Enable auto-scroll when new messages arrive
             self.chat_auto_scroll = true;
+
+            // Update preview for sidebar display
+            if let Some(ref session_id) = self.selected_session_id.clone() {
+                let preview = self.get_session_preview(session_id, 40);
+                if let Some(state) = self.session_states.get_mut(session_id) {
+                    state.last_message_preview = preview;
+                }
+            }
         }
 
         Ok(())

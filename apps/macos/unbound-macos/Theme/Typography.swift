@@ -77,6 +77,9 @@ enum Typography {
     /// 12pt Regular Mono - Terminal text
     static let terminal = Font.system(size: FontSize.sm, weight: .regular, design: .monospaced)
 
+    /// 11pt Regular Mono - Monospace for hashes, IDs
+    static let mono = Font.system(size: FontSize.xs, weight: .regular, design: .monospaced)
+
     // MARK: - Special
 
     /// 14pt Semibold Mono - Navigation items

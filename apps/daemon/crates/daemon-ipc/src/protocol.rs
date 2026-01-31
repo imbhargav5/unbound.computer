@@ -67,6 +67,16 @@ pub enum Method {
     GitStatus,
     #[serde(rename = "git.diff_file")]
     GitDiffFile,
+    #[serde(rename = "git.log")]
+    GitLog,
+    #[serde(rename = "git.branches")]
+    GitBranches,
+    #[serde(rename = "git.stage")]
+    GitStage,
+    #[serde(rename = "git.unstage")]
+    GitUnstage,
+    #[serde(rename = "git.discard")]
+    GitDiscard,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]
@@ -348,6 +358,11 @@ mod tests {
             (Method::ClaudeStop, "claude.stop"),
             (Method::GitStatus, "git.status"),
             (Method::GitDiffFile, "git.diff_file"),
+            (Method::GitLog, "git.log"),
+            (Method::GitBranches, "git.branches"),
+            (Method::GitStage, "git.stage"),
+            (Method::GitUnstage, "git.unstage"),
+            (Method::GitDiscard, "git.discard"),
             (Method::TerminalRun, "terminal.run"),
             (Method::TerminalStatus, "terminal.status"),
             (Method::TerminalStop, "terminal.stop"),

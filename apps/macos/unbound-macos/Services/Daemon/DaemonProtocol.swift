@@ -52,6 +52,11 @@ enum DaemonMethod: String, Codable {
     // Git operations
     case gitStatus = "git.status"
     case gitDiffFile = "git.diff_file"
+    case gitLog = "git.log"
+    case gitBranches = "git.branches"
+    case gitStage = "git.stage"
+    case gitUnstage = "git.unstage"
+    case gitDiscard = "git.discard"
 
     // Terminal operations
     case terminalRun = "terminal.run"
@@ -80,6 +85,16 @@ enum DaemonEventType: String, Codable {
     case terminalFinished = "terminal_finished"
     /// Raw Claude NDJSON event (TUI parses typed messages from this).
     case claudeEvent = "claude_event"
+    /// Claude streaming content (for real-time display).
+    case claudeStreaming = "claude_streaming"
+    /// Claude system event.
+    case claudeSystem = "claude_system"
+    /// Claude assistant event.
+    case claudeAssistant = "claude_assistant"
+    /// Claude user event.
+    case claudeUser = "claude_user"
+    /// Claude result event.
+    case claudeResult = "claude_result"
 }
 
 // MARK: - Request
@@ -168,6 +183,14 @@ struct DaemonEvent: Codable {
         case sessionId = "session_id"
         case data
         case sequence
+    }
+
+    /// Create a new DaemonEvent (used by shared memory consumer).
+    init(type: DaemonEventType, sessionId: String, data: [String: AnyCodableValue], sequence: Int64) {
+        self.type = type
+        self.sessionId = sessionId
+        self.data = data
+        self.sequence = sequence
     }
 
     /// Get data value for key.

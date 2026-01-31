@@ -166,6 +166,7 @@ pub async fn run_daemon(
         device_id: device_id_arc,
         device_private_key: device_private_key_arc,
         session_sync,
+        stream_producers: Arc::new(Mutex::new(HashMap::new())),
     };
 
     // Load session secrets from Supabase into memory cache

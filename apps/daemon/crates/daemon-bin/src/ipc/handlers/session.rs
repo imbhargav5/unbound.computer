@@ -1,9 +1,11 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
+use daemon_core::git;
 use daemon_database::queries;
-use daemon_ipc::{error_codes, Event, EventType, IpcServer, Method, Response};
+use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
+use std::path::Path;
 use tracing::{debug, warn};
 
 /// Register session handlers.
@@ -88,6 +90,28 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     .unwrap_or("New session")
                     .to_string();
 
+                // Worktree params
+                let is_worktree = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("is_worktree"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                let worktree_name = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("worktree_name"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
+                let branch_name = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("branch_name"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
                 let Some(repository_id) = repository_id else {
                     return Response::error(
                         &req.id,
@@ -100,6 +124,58 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                 let session_id = uuid::Uuid::new_v4().to_string();
                 let session_secret = SecretsManager::generate_session_secret();
 
+                // Determine worktree path if creating a worktree
+                let worktree_path = if is_worktree {
+                    // Get repository path from database
+                    let db = state.db.clone();
+                    let repo_id = repository_id.clone();
+                    let repo_result = tokio::task::spawn_blocking(move || {
+                        let conn = db.get()?;
+                        queries::get_repository(&conn, &repo_id)
+                    })
+                    .await
+                    .unwrap();
+
+                    let repo = match repo_result {
+                        Ok(Some(r)) => r,
+                        Ok(None) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::NOT_FOUND,
+                                "Repository not found",
+                            );
+                        }
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &e.to_string(),
+                            );
+                        }
+                    };
+
+                    // Use session ID as worktree name if not provided
+                    let wt_name = worktree_name.as_deref().unwrap_or(&session_id);
+
+                    // Create the git worktree
+                    match git::create_worktree(
+                        Path::new(&repo.path),
+                        wt_name,
+                        branch_name.as_deref(),
+                    ) {
+                        Ok(path) => Some(path),
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to create worktree: {}", e),
+                            );
+                        }
+                    }
+                } else {
+                    None
+                };
+
                 // Create session in database
                 let db = state.db.clone();
                 let session_id_clone = session_id.clone();
@@ -110,8 +186,8 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                         repository_id,
                         title,
                         claude_session_id: None,
-                        is_worktree: false,
-                        worktree_path: None,
+                        is_worktree,
+                        worktree_path,
                     };
                     queries::insert_session(&conn, &session)
                 })
@@ -206,7 +282,9 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                 // Run both storage operations concurrently
                 tokio::join!(sqlite_future, supabase_future);
 
-                // Broadcast SessionCreated event to all global subscribers
+                // Note: We don't broadcast SessionCreated via socket since all
+                // streaming now uses shared memory. Clients should poll for new
+                // sessions or receive them via the API response.
                 let session_data = serde_json::json!({
                     "id": created_session.id,
                     "repository_id": created_session.repository_id,
@@ -217,12 +295,6 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     "created_at": created_session.created_at.to_rfc3339(),
                     "last_accessed_at": created_session.last_accessed_at.to_rfc3339(),
                 });
-                state.subscriptions.broadcast_global(Event::new(
-                    EventType::SessionCreated,
-                    &created_session.id,
-                    session_data.clone(),
-                    0,
-                ));
 
                 Response::success(&req.id, session_data)
             }
@@ -284,7 +356,7 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
 async fn register_session_delete(server: &IpcServer, state: DaemonState) {
     server
         .register_handler(Method::SessionDelete, move |req| {
-            let db = state.db.clone();
+            let state = state.clone();
             async move {
                 let id = req
                     .params
@@ -301,6 +373,64 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                     );
                 };
 
+                // First, get the session to check if it's a worktree
+                let db = state.db.clone();
+                let session_id = id.clone();
+                let session_result = tokio::task::spawn_blocking(move || {
+                    let conn = db.get()?;
+                    queries::get_session(&conn, &session_id)
+                })
+                .await
+                .unwrap();
+
+                let session = match session_result {
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
+                        return Response::error(&req.id, error_codes::NOT_FOUND, "Session not found");
+                    }
+                    Err(e) => {
+                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string());
+                    }
+                };
+
+                // If it's a worktree session, clean up the worktree
+                if session.is_worktree {
+                    if let Some(worktree_path) = &session.worktree_path {
+                        // Get repository path for worktree cleanup
+                        let db = state.db.clone();
+                        let repo_id = session.repository_id.clone();
+                        let repo_result = tokio::task::spawn_blocking(move || {
+                            let conn = db.get()?;
+                            queries::get_repository(&conn, &repo_id)
+                        })
+                        .await
+                        .unwrap();
+
+                        if let Ok(Some(repo)) = repo_result {
+                            // Try to remove the worktree, but don't fail the deletion if this fails
+                            if let Err(e) = git::remove_worktree(
+                                Path::new(&repo.path),
+                                Path::new(worktree_path),
+                            ) {
+                                warn!(
+                                    session_id = %session.id,
+                                    worktree_path = %worktree_path,
+                                    "Failed to remove worktree: {}",
+                                    e
+                                );
+                            } else {
+                                debug!(
+                                    session_id = %session.id,
+                                    worktree_path = %worktree_path,
+                                    "Worktree removed successfully"
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Delete the session from database
+                let db = state.db.clone();
                 let result = tokio::task::spawn_blocking(move || {
                     let conn = db.get()?;
                     queries::delete_session(&conn, &id)

@@ -91,11 +91,26 @@ fn build_sidebar_items(app: &App, max_width: usize, theme: &Theme) -> Vec<ListIt
                         ("> ", theme.text_muted)
                     };
 
-                    items.push(ListItem::new(Line::from(vec![
+                    // Line 1: indicator + title
+                    let mut lines = vec![Line::from(vec![
                         Span::raw("  "),
                         Span::styled(indicator, Style::default().fg(indicator_color)),
                         Span::styled(title, style),
-                    ])));
+                    ])];
+
+                    // Line 2: last message preview
+                    let preview_max = max_width.saturating_sub(8); // Extra indent for preview
+                    if let Some(preview) = app.get_session_preview(&session.id, preview_max) {
+                        lines.push(Line::from(vec![
+                            Span::raw("      "), // 6 spaces: 2 base + 4 extra indent
+                            Span::styled(
+                                truncate_str(&preview, preview_max),
+                                Style::default().fg(theme.text_muted),
+                            ),
+                        ]));
+                    }
+
+                    items.push(ListItem::new(lines));
                 }
             }
         }
@@ -121,7 +136,7 @@ fn render_footer(frame: &mut Frame, _app: &App, area: Rect, is_active: bool, the
     };
 
     let footer = Paragraph::new(Line::from(vec![Span::styled(
-        " [n] New session",
+        " [n] New  [N] Worktree",
         footer_style,
     )]))
     .style(Style::default().bg(theme.bg));

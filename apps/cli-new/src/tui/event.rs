@@ -90,7 +90,10 @@ async fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
             app.enter_edit_mode();
         }
         KeyCode::Char('n') => {
-            handle_new(app).await;
+            handle_new(app, false).await;
+        }
+        KeyCode::Char('N') => {
+            handle_new(app, true).await;
         }
         KeyCode::Char('d') => {
             handle_delete(app).await;
@@ -147,7 +150,7 @@ async fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
         // Help
         KeyCode::Char('?') => {
             app.set_status_message(
-                "Tab: panel | j/k: move | u: account | n: new | d: delete | r: refresh | q: quit"
+                "Tab: panel | j/k: move | u: account | n: new | N: worktree | d: delete | r: refresh | q: quit"
                     .to_string(),
             );
         }
@@ -466,15 +469,20 @@ async fn handle_enter(app: &mut App) {
 }
 
 /// Handle new action.
-async fn handle_new(app: &mut App) {
+async fn handle_new(app: &mut App, is_worktree: bool) {
     if app.active_panel == Panel::Sidebar {
-        match app.create_session(None).await {
+        match app.create_session(None, is_worktree).await {
             Ok(()) => {
                 // Subscribe to the new session for real-time updates
                 if let Some(session_id) = app.selected_session_id.clone() {
                     match app.subscribe_to_session(&session_id).await {
                         Ok(()) => {
-                            app.set_status_message("Session created".to_string());
+                            let msg = if is_worktree {
+                                "Worktree session created"
+                            } else {
+                                "Session created"
+                            };
+                            app.set_status_message(msg.to_string());
                         }
                         Err(e) => {
                             app.set_status_message(format!(
@@ -484,7 +492,12 @@ async fn handle_new(app: &mut App) {
                         }
                     }
                 } else {
-                    app.set_status_message("Session created".to_string());
+                    let msg = if is_worktree {
+                        "Worktree session created"
+                    } else {
+                        "Session created"
+                    };
+                    app.set_status_message(msg.to_string());
                 }
             }
             Err(e) => {

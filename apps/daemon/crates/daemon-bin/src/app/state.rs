@@ -7,6 +7,7 @@ use daemon_core::{Config, Paths};
 use daemon_database::DatabasePool;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
+use daemon_stream::StreamProducer;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
@@ -41,4 +42,7 @@ pub struct DaemonState {
     pub device_private_key: Arc<Mutex<Option<[u8; 32]>>>,
     /// Service for syncing sessions to Supabase.
     pub session_sync: Arc<SessionSyncService>,
+    /// Shared memory stream producers for low-latency event streaming.
+    /// Maps session_id to StreamProducer. Created when a Claude/terminal process starts.
+    pub stream_producers: Arc<Mutex<HashMap<String, Arc<StreamProducer>>>>,
 }

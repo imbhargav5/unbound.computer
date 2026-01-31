@@ -8,6 +8,7 @@ members = [
     "crates/daemon-relay",
     "crates/daemon-outbox",
     "crates/daemon-ipc",
+    "crates/daemon-stream",
     "crates/daemon-bin",
 ]
 
@@ -81,3 +82,4 @@ daemon-auth = { path = "crates/daemon-auth" }
 daemon-relay = { path = "crates/daemon-relay" }
 daemon-outbox = { path = "crates/daemon-outbox" }
 daemon-ipc = { path = "crates/daemon-ipc" }
+daemon-stream = { path = "crates/daemon-stream" }

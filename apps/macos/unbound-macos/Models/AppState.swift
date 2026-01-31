@@ -307,10 +307,20 @@ class AppState {
     // MARK: - Session Management
 
     /// Create a new session.
-    func createSession(repositoryId: UUID, title: String? = nil) async throws -> Session {
+    /// - Parameters:
+    ///   - repositoryId: The repository ID
+    ///   - title: Optional session title
+    ///   - locationType: Where to create the session (main directory or worktree)
+    func createSession(
+        repositoryId: UUID,
+        title: String? = nil,
+        locationType: SessionLocationType = .mainDirectory
+    ) async throws -> Session {
+        let isWorktree = locationType == .worktree
         let daemonSession = try await daemonClient.createSession(
             repositoryId: repositoryId.uuidString,
-            title: title
+            title: title,
+            isWorktree: isWorktree
         )
         guard let session = daemonSession.toSession() else {
             throw DaemonError.decodingFailed("Invalid session data")

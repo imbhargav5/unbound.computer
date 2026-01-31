@@ -2,8 +2,9 @@
 
 use crate::app::DaemonState;
 use daemon_database::{queries, AgentStatus};
-use daemon_ipc::{Event, EventType};
+use daemon_stream::{EventType as StreamEventType, StreamProducer};
 use regex::Regex;
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::broadcast;
@@ -15,7 +16,7 @@ use tracing::{debug, error, info, warn};
 /// 1. Validates each line is parseable JSON
 /// 2. Extracts `type` field to map to `role` column
 /// 3. Stores raw JSON encrypted in messages table
-/// 4. Broadcasts ClaudeEvent for TUI to parse typed messages
+/// 4. Streams events via shared memory for clients to consume
 pub async fn handle_claude_process(
     mut child: Child,
     session_id: String,
@@ -31,6 +32,31 @@ pub async fn handle_claude_process(
 
     // ANSI escape code regex
     let ansi_regex = Regex::new(r"\x1B(?:\[[0-9;?]*[A-Za-z~]|\][^\x07]*\x07)").unwrap();
+
+    // Create shared memory stream producer for event delivery
+    let stream_producer: Option<Arc<StreamProducer>> = match StreamProducer::new(&session_id) {
+        Ok(producer) => {
+            let producer = Arc::new(producer);
+            // Store in state for client discovery
+            state
+                .stream_producers
+                .lock()
+                .unwrap()
+                .insert(session_id.clone(), producer.clone());
+            info!(
+                "\x1b[35m[PROCESS]\x1b[0m Created shared memory stream for session: {}",
+                session_id
+            );
+            Some(producer)
+        }
+        Err(e) => {
+            error!(
+                "\x1b[31m[PROCESS]\x1b[0m Failed to create shared memory stream: {}. Clients will not receive events.",
+                e
+            );
+            None
+        }
+    };
 
     // Get encryption key for storing messages (checks cache first, then SQLite, then keychain)
     info!("\x1b[35m[PROCESS]\x1b[0m Getting encryption key...");
@@ -274,14 +300,19 @@ pub async fn handle_claude_process(
                             }
                         }
 
-                        // Broadcast ClaudeEvent for TUI to parse
-                        let ipc_event = Event::new(
-                            EventType::ClaudeEvent,
-                            &session_id,
-                            serde_json::json!({ "raw": clean_line }),
-                            msg_sequence,
-                        );
-                        state.subscriptions.broadcast_or_create(&session_id, ipc_event).await;
+                        // Write to shared memory stream for clients
+                        if let Some(ref producer) = stream_producer {
+                            if let Err(e) = producer.write_event(
+                                StreamEventType::ClaudeEvent,
+                                msg_sequence,
+                                clean_line.as_bytes(),
+                            ) {
+                                warn!(
+                                    "\x1b[33m[PROCESS]\x1b[0m Shared memory write failed: {}",
+                                    e
+                                );
+                            }
+                        }
 
                         // Handle result event - update agent status
                         if event_type == "result" {
@@ -353,5 +384,18 @@ pub async fn handle_claude_process(
             "\x1b[35m[PROCESS]\x1b[0m Cleaned up process for session: {}",
             session_id
         );
+    }
+
+    // Cleanup shared memory stream producer
+    if stream_producer.is_some() {
+        let mut producers = state.stream_producers.lock().unwrap();
+        if let Some(producer) = producers.remove(&session_id) {
+            // Shutdown signals consumers before dropping
+            producer.shutdown();
+            info!(
+                "\x1b[35m[PROCESS]\x1b[0m Cleaned up shared memory stream for session: {}",
+                session_id
+            );
+        }
     }
 }

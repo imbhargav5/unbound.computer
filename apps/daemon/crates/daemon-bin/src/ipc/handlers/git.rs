@@ -1,14 +1,21 @@
 //! Git handlers.
 
 use crate::app::DaemonState;
-use daemon_core::{get_file_diff, get_status};
+use daemon_core::{
+    discard_changes, get_branches, get_file_diff, get_log, get_status, stage_files, unstage_files,
+};
 use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 
 /// Register git handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
     register_git_status(server, state.clone()).await;
-    register_git_diff_file(server, state).await;
+    register_git_diff_file(server, state.clone()).await;
+    register_git_log(server, state.clone()).await;
+    register_git_branches(server, state.clone()).await;
+    register_git_stage(server, state.clone()).await;
+    register_git_unstage(server, state.clone()).await;
+    register_git_discard(server, state).await;
 }
 
 async fn register_git_status(server: &IpcServer, state: DaemonState) {
@@ -175,6 +182,240 @@ async fn register_git_diff_file(server: &IpcServer, state: DaemonState) {
                             "deletions": diff.deletions,
                         }),
                     ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+/// Helper to extract repository path from request params.
+fn extract_repo_path(
+    state: &DaemonState,
+    params: &Option<serde_json::Value>,
+) -> Result<String, (i32, String)> {
+    if let Some(repo_id) = params
+        .as_ref()
+        .and_then(|p| p.get("repository_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase())
+    {
+        let conn = state
+            .db
+            .get()
+            .map_err(|e| (error_codes::INTERNAL_ERROR, e.to_string()))?;
+        match queries::get_repository(&conn, &repo_id) {
+            Ok(Some(repo)) => Ok(repo.path),
+            Ok(None) => Err((error_codes::NOT_FOUND, "Repository not found".to_string())),
+            Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
+        }
+    } else if let Some(path) = params
+        .as_ref()
+        .and_then(|p| p.get("path"))
+        .and_then(|v| v.as_str())
+    {
+        Ok(path.to_string())
+    } else {
+        Err((
+            error_codes::INVALID_PARAMS,
+            "repository_id or path is required".to_string(),
+        ))
+    }
+}
+
+async fn register_git_log(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitLog, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params) {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let limit = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("limit"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
+                let offset = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("offset"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
+                let branch = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("branch"))
+                    .and_then(|v| v.as_str());
+
+                match get_log(
+                    std::path::Path::new(&repo_path),
+                    limit,
+                    offset,
+                    branch,
+                ) {
+                    Ok(log) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "commits": log.commits,
+                            "has_more": log.has_more,
+                            "total_count": log.total_count,
+                        }),
+                    ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_branches(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitBranches, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params) {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                match get_branches(std::path::Path::new(&repo_path)) {
+                    Ok(branches) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "local": branches.local,
+                            "remote": branches.remote,
+                            "current": branches.current,
+                        }),
+                    ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_stage(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitStage, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params) {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let paths: Vec<String> = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("paths"))
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                if paths.is_empty() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "paths array is required",
+                    );
+                }
+
+                let path_refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+
+                match stage_files(std::path::Path::new(&repo_path), &path_refs) {
+                    Ok(()) => Response::success(&req.id, serde_json::json!({ "success": true })),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_unstage(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitUnstage, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params) {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let paths: Vec<String> = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("paths"))
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                if paths.is_empty() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "paths array is required",
+                    );
+                }
+
+                let path_refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+
+                match unstage_files(std::path::Path::new(&repo_path), &path_refs) {
+                    Ok(()) => Response::success(&req.id, serde_json::json!({ "success": true })),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_discard(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitDiscard, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params) {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let paths: Vec<String> = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("paths"))
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                if paths.is_empty() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "paths array is required",
+                    );
+                }
+
+                let path_refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+
+                match discard_changes(std::path::Path::new(&repo_path), &path_refs) {
+                    Ok(()) => Response::success(&req.id, serde_json::json!({ "success": true })),
                     Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
                 }
             }

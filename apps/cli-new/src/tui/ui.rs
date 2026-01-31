@@ -187,3 +187,17 @@ pub fn truncate_str(s: &str, max_width: usize) -> String {
         s[..max_width].to_string()
     }
 }
+
+/// Format a message for sidebar preview display.
+/// Collapses whitespace and newlines to single spaces, truncates with ellipsis.
+pub fn format_message_preview(content: &str, max_len: usize) -> String {
+    let collapsed: String = content.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    if collapsed.len() <= max_len {
+        collapsed
+    } else if max_len > 3 {
+        format!("{}...", &collapsed[..max_len - 3])
+    } else {
+        collapsed[..max_len].to_string()
+    }
+}

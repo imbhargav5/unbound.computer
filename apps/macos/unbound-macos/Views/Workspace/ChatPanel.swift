@@ -75,11 +75,34 @@ struct ChatPanel: View {
         liveState?.messages ?? []
     }
 
+    /// Tool history from live state
+    private var toolHistory: [ToolHistoryEntry] {
+        liveState?.toolHistory ?? []
+    }
+
+    /// Currently active sub-agent (if any)
+    private var activeSubAgent: ActiveSubAgent? {
+        liveState?.activeSubAgent
+    }
+
+    /// Currently active standalone tools (not in a sub-agent)
+    private var activeTools: [ActiveTool] {
+        liveState?.activeTools ?? []
+    }
+
+    /// Whether there's any active tool state to display
+    private var hasActiveToolState: Bool {
+        activeSubAgent != nil || !activeTools.isEmpty || !toolHistory.isEmpty
+    }
+
     /// Coalesced scroll identity - combines factors that should trigger auto-scroll
     /// Using a single hash prevents multiple scroll operations per update
     private var scrollIdentity: Int {
         var hasher = Hasher()
         hasher.combine(messages.count)
+        hasher.combine(toolHistory.count)
+        hasher.combine(activeSubAgent?.childTools.count ?? 0)
+        hasher.combine(activeTools.count)
         if let last = messages.last {
             hasher.combine(last.content.count)
             // Include text length for smooth streaming scroll
@@ -127,7 +150,7 @@ struct ChatPanel: View {
                     if isLoadingMessages {
                         ProgressView("Loading messages...")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if messages.isEmpty {
+                    } else if messages.isEmpty && !hasActiveToolState {
                         switch workspacePathResult {
                         case .noRepository:
                             // No workspace selected
@@ -144,19 +167,40 @@ struct ChatPanel: View {
                         }
                         Spacer()
                     } else {
-                        // Messages list
+                        // Messages list with interleaved tool history
                         ScrollViewReader { proxy in
                             ScrollView {
                                 LazyVStack(spacing: 0) {
-                                    ForEach(messages) { message in
+                                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                                         ChatMessageView(
                                             message: message,
                                             onQuestionSubmit: handleQuestionSubmit
                                         )
                                         .id(message.id)
+
+                                        // Render tool history entries that belong after this message
+                                        ForEach(toolHistory.filter { $0.afterMessageIndex == index }) { entry in
+                                            ToolHistoryEntryView(entry: entry)
+                                        }
+
                                         ShadcnDivider()
                                             .padding(.horizontal, Spacing.lg)
                                     }
+
+                                    // Render active sub-agent (if running)
+                                    if let subAgent = activeSubAgent {
+                                        ActiveSubAgentView(subAgent: subAgent)
+                                            .padding(.horizontal, Spacing.lg)
+                                            .padding(.vertical, Spacing.sm)
+                                    }
+
+                                    // Render active standalone tools (if no sub-agent is running)
+                                    if activeSubAgent == nil && !activeTools.isEmpty {
+                                        ActiveToolsView(tools: activeTools)
+                                            .padding(.horizontal, Spacing.lg)
+                                            .padding(.vertical, Spacing.sm)
+                                    }
+
                                     // Invisible scroll anchor at bottom for reliable scrolling
                                     Color.clear.frame(height: 1).id("bottomAnchor")
                                 }

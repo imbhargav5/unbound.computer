@@ -82,15 +82,22 @@ extension DaemonClient {
     }
 
     /// Create a new session.
-    func createSession(repositoryId: String, title: String? = nil) async throws -> DaemonSession {
+    func createSession(
+        repositoryId: String,
+        title: String? = nil,
+        isWorktree: Bool = false
+    ) async throws -> DaemonSession {
         var params: [String: Any] = ["repository_id": repositoryId]
         if let title {
             params["title"] = title
         }
+        if isWorktree {
+            params["is_worktree"] = true
+        }
         let response = try await call(method: .sessionCreate, params: params)
 
-        guard let result = response.resultAsDict(),
-              let sessionData = result["session"] as? [String: Any] else {
+        // Daemon returns session data directly (not wrapped in "session" key)
+        guard let sessionData = response.resultAsDict() else {
             throw DaemonError.noResult
         }
 
@@ -270,7 +277,13 @@ extension DaemonClient {
 // MARK: - Git
 
 extension DaemonClient {
-    /// Get git status for a path.
+    /// Get git status for a path (returns new GitStatusResult).
+    func getGitStatusV2(path: String) async throws -> GitStatusResult {
+        let response = try await call(method: .gitStatus, params: ["path": path])
+        return try response.resultAs(GitStatusResult.self)
+    }
+
+    /// Get git status for a path (legacy format).
     func getGitStatus(path: String) async throws -> DaemonGitStatus {
         let response = try await call(method: .gitStatus, params: ["path": path])
         return try response.resultAs(DaemonGitStatus.self)
@@ -289,6 +302,57 @@ extension DaemonClient {
         }
 
         return diff
+    }
+
+    /// Get commit history for a repository.
+    /// - Parameters:
+    ///   - path: Repository path
+    ///   - limit: Maximum number of commits (default 50)
+    ///   - offset: Number of commits to skip (for pagination)
+    ///   - branch: Optional branch name (default: HEAD)
+    func getGitLog(
+        path: String,
+        limit: Int? = nil,
+        offset: Int? = nil,
+        branch: String? = nil
+    ) async throws -> GitLogResult {
+        var params: [String: Any] = ["path": path]
+        if let limit { params["limit"] = limit }
+        if let offset { params["offset"] = offset }
+        if let branch { params["branch"] = branch }
+
+        let response = try await call(method: .gitLog, params: params)
+        return try response.resultAs(GitLogResult.self)
+    }
+
+    /// Get all branches for a repository.
+    func getGitBranches(path: String) async throws -> GitBranchesResult {
+        let response = try await call(method: .gitBranches, params: ["path": path])
+        return try response.resultAs(GitBranchesResult.self)
+    }
+
+    /// Stage files for commit.
+    func stageFiles(path: String, files: [String]) async throws {
+        _ = try await call(method: .gitStage, params: [
+            "path": path,
+            "paths": files
+        ])
+    }
+
+    /// Unstage files (remove from index).
+    func unstageFiles(path: String, files: [String]) async throws {
+        _ = try await call(method: .gitUnstage, params: [
+            "path": path,
+            "paths": files
+        ])
+    }
+
+    /// Discard working tree changes.
+    func discardChanges(path: String, files: [String]) async throws {
+        _ = try await call(method: .gitDiscard, params: [
+            "path": path,
+            "paths": files
+        ])
     }
 }
 
