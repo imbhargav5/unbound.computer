@@ -44,15 +44,14 @@ final class SessionSubscription: Sendable {
 
     /// Open shared memory stream and start receiving events for this session.
     /// Returns an AsyncStream of events for this session.
+    ///
+    /// Note: The shared memory stream is created by the daemon when the first
+    /// message is sent to Claude. This method will wait (with retries) for the
+    /// stream to become available.
     func subscribe() async throws -> AsyncStream<DaemonEvent> {
-        // Try to open shared memory consumer
-        guard let shmConsumer = SharedMemoryConsumer.open(sessionId: sessionId) else {
-            logger.error("Failed to open shared memory stream for session \(sessionId)")
-            throw DaemonError.connectionFailed("Shared memory stream not available for session")
-        }
-
-        self.consumer = shmConsumer
-        logger.info("Opened shared memory stream for session \(sessionId)")
+        // The shared memory is created when the first message is sent.
+        // We create a lazy stream that will connect when events start flowing.
+        logger.info("Creating lazy subscription for session \(sessionId) - will connect when stream is available")
 
         // Create event stream
         let stream = AsyncStream<DaemonEvent> { continuation in
@@ -62,10 +61,23 @@ final class SessionSubscription: Sendable {
             }
         }
 
-        // Start polling for events
+        // Start polling for events (will connect lazily when stream becomes available)
         startPolling()
 
         return stream
+    }
+
+    /// Try to open the shared memory stream with retries.
+    /// Returns true if connected, false if should keep trying.
+    private func tryConnect() -> Bool {
+        guard consumer == nil else { return true }  // Already connected
+
+        if let shmConsumer = SharedMemoryConsumer.open(sessionId: sessionId) {
+            self.consumer = shmConsumer
+            logger.info("Connected to shared memory stream for session \(sessionId)")
+            return true
+        }
+        return false
     }
 
     /// Disconnect and stop polling. Cleans up shared memory resources.
@@ -92,7 +104,30 @@ final class SessionSubscription: Sendable {
 
     private func startPolling() {
         pollTask = Task { [weak self] in
-            guard let self, let consumer = self.consumer else { return }
+            guard let self else { return }
+
+            // Wait for shared memory to become available (created when first message sent)
+            var connectAttempts = 0
+            while !Task.isCancelled {
+                if self.tryConnect() {
+                    break
+                }
+
+                connectAttempts += 1
+                if connectAttempts % 100 == 0 {
+                    logger.debug("Waiting for shared memory stream (\(connectAttempts) attempts) for session \(self.sessionId)")
+                }
+
+                // Poll every 50ms while waiting for stream to be created
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+
+            guard !Task.isCancelled, let consumer = self.consumer else {
+                self.eventContinuation?.finish()
+                return
+            }
+
+            logger.info("Event polling started for session \(self.sessionId)")
 
             // Use the async sequence for event iteration
             for await event in consumer.events(pollInterval: .milliseconds(1)) {
