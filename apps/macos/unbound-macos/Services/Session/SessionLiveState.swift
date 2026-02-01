@@ -141,44 +141,39 @@ class SessionLiveState {
         let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
         logger.info("loadMessages took \(String(format: "%.3f", loadDuration))s")
 
-        // Then subscribe for real-time updates
+        // Then subscribe for real-time updates (lazy connection - waits for stream to be created)
         let subStart = CFAbsoluteTimeGetCurrent()
-        do {
-            let sub = SessionSubscription(
-                sessionId: sessionId.uuidString.lowercased()
-            )
-            self.subscription = sub
+        let sub = SessionSubscription(
+            sessionId: sessionId.uuidString.lowercased()
+        )
+        self.subscription = sub
 
-            let eventStream = try await sub.subscribe()
-            let subDuration = CFAbsoluteTimeGetCurrent() - subStart
-            logger.info("subscribe took \(String(format: "%.3f", subDuration))s")
+        let eventStream = await sub.subscribe()
+        let subDuration = CFAbsoluteTimeGetCurrent() - subStart
+        logger.info("subscribe took \(String(format: "%.3f", subDuration))s")
 
-            subscriptionState = .subscribed
+        subscriptionState = .subscribed
 
-            let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
-            logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
+        let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
+        logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
 
-            // Start polling events
-            subscriptionTask = Task { [weak self] in
-                logger.debug("Event loop started for session \(sessionId)")
-                for await event in eventStream {
-                    await MainActor.run {
-                        self?.handleDaemonEvent(event)
-                    }
-                }
-
-                // Stream ended
-                logger.info("Event stream ended for session \(sessionId)")
+        // Start polling events (will connect to shared memory when daemon creates it)
+        subscriptionTask = Task { [weak self] in
+            logger.debug("Event loop started for session \(sessionId)")
+            for await event in eventStream {
                 await MainActor.run {
-                    if self?.subscriptionState == .subscribed {
-                        self?.subscriptionState = .disconnected
-                        logger.warning("Session \(sessionId) disconnected (stream ended)")
-                    }
+                    self?.handleDaemonEvent(event)
                 }
             }
-        } catch {
-            logger.warning("Failed to subscribe to session \(sessionId): \(error)")
-            subscriptionState = .disconnected
+
+            // Stream ended
+            logger.info("Event stream ended for session \(sessionId)")
+            await MainActor.run {
+                if self?.subscriptionState == .subscribed {
+                    self?.subscriptionState = .disconnected
+                    logger.warning("Session \(sessionId) disconnected (stream ended)")
+                }
+            }
         }
     }
 

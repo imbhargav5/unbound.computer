@@ -70,7 +70,11 @@ pub(crate) fn create_shm(name: &str, size: usize) -> StreamResult<(*mut u8, c_in
     let c_name = CString::new(name).map_err(|e| StreamError::SharedMemory(e.to_string()))?;
 
     unsafe {
-        // Create shared memory object (fail if exists)
+        // Try to unlink any stale shared memory from previous runs
+        // This handles the case where a previous daemon crashed without cleanup
+        let _ = shm_unlink(c_name.as_ptr());
+
+        // Create shared memory object (will succeed since we just unlinked any stale one)
         let fd = shm_open(
             c_name.as_ptr(),
             O_CREAT | O_EXCL | O_RDWR,

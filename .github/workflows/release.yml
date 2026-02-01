@@ -1,0 +1,33 @@
+name: Release
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write # Required for changesets action to push version commits
+  pull-requests: write # Required for changesets action to create release PRs
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v4
+
+      - name: ⎔ CI Setup
+        uses: ./.github/actions/ci-setup
+
+      - name: 🏗 Run build script
+        run: pnpm run build
+
+      - name: Create Release Pull Request
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm run version
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

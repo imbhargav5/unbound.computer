@@ -1,0 +1,14 @@
+# daemon-database
+
+SQLite persistence layer for the daemon.
+
+## Purpose
+
+Stores repositories, sessions, messages, and outbox events. Provides async database access with WAL mode for concurrent reads.
+
+## Key Features
+
+- **Async executor**: Single-threaded SQLite with channel-based queries
+- **Encryption**: ChaCha20-Poly1305 for message content
+- **Migrations**: Schema versioning and upgrades
+- **Query helpers**: CRUD operations for all models

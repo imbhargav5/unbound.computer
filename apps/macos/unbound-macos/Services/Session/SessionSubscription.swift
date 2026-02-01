@@ -48,7 +48,7 @@ final class SessionSubscription: Sendable {
     /// Note: The shared memory stream is created by the daemon when the first
     /// message is sent to Claude. This method will wait (with retries) for the
     /// stream to become available.
-    func subscribe() async throws -> AsyncStream<DaemonEvent> {
+    func subscribe() async -> AsyncStream<DaemonEvent> {
         // The shared memory is created when the first message is sent.
         // We create a lazy stream that will connect when events start flowing.
         logger.info("Creating lazy subscription for session \(sessionId) - will connect when stream is available")
