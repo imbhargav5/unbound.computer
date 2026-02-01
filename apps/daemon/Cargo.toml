@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/armin",
     "crates/daemon-core",
     "crates/daemon-storage",
     "crates/daemon-database",
@@ -75,6 +76,7 @@ ulid = "1.1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 # Local workspace crates
+armin = { path = "crates/armin" }
 daemon-core = { path = "crates/daemon-core" }
 daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }

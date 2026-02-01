@@ -93,6 +93,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "armin"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "async-broadcast"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
