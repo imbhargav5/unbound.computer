@@ -206,8 +206,9 @@ pub async fn handle_terminal_process(
         );
     }
 
-    // Cleanup shared memory stream producer if no Claude process is using it
-    if stream_producer.is_some() {
+    // Signal shutdown to consumers but keep the producer alive for them to read.
+    // The shared memory will be cleaned up when a new process starts.
+    if let Some(ref producer) = stream_producer {
         let claude_running = state
             .claude_processes
             .lock()
@@ -215,14 +216,11 @@ pub async fn handle_terminal_process(
             .contains_key(&session_id);
 
         if !claude_running {
-            let mut producers = state.stream_producers.lock().unwrap();
-            if let Some(producer) = producers.remove(&session_id) {
-                producer.shutdown();
-                info!(
-                    "\x1b[36m[TERMINAL]\x1b[0m Cleaned up shared memory stream for session: {}",
-                    session_id
-                );
-            }
+            producer.shutdown();
+            info!(
+                "\x1b[36m[TERMINAL]\x1b[0m Signaled shutdown to consumers for session: {}",
+                session_id
+            );
         } else {
             debug!(
                 "\x1b[36m[TERMINAL]\x1b[0m Keeping shared memory stream (Claude still running) for session: {}",

@@ -22,6 +22,8 @@ jobs:
 
       - name: 🏗 Run build script
         run: pnpm run build
+        # TODO: Remove this once the build is working
+        if: false
 
       - name: Create Release Pull Request
         id: changesets

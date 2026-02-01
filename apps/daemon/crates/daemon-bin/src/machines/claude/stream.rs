@@ -33,7 +33,20 @@ pub async fn handle_claude_process(
     // ANSI escape code regex
     let ansi_regex = Regex::new(r"\x1B(?:\[[0-9;?]*[A-Za-z~]|\][^\x07]*\x07)").unwrap();
 
-    // Create shared memory stream producer for event delivery
+    // Create shared memory stream producer for event delivery.
+    // First remove any existing producer to ensure clean shared memory.
+    {
+        let mut producers = state.stream_producers.lock().unwrap();
+        if let Some(old_producer) = producers.remove(&session_id) {
+            // Drop the old producer, which will unlink the stale shared memory
+            drop(old_producer);
+            debug!(
+                "\x1b[35m[PROCESS]\x1b[0m Removed stale stream producer for session: {}",
+                session_id
+            );
+        }
+    }
+
     let stream_producer: Option<Arc<StreamProducer>> = match StreamProducer::new(&session_id) {
         Ok(producer) => {
             let producer = Arc::new(producer);
@@ -386,16 +399,19 @@ pub async fn handle_claude_process(
         );
     }
 
-    // Cleanup shared memory stream producer
-    if stream_producer.is_some() {
-        let mut producers = state.stream_producers.lock().unwrap();
-        if let Some(producer) = producers.remove(&session_id) {
-            // Shutdown signals consumers before dropping
-            producer.shutdown();
-            info!(
-                "\x1b[35m[PROCESS]\x1b[0m Cleaned up shared memory stream for session: {}",
-                session_id
-            );
-        }
+    // Signal shutdown to consumers but keep the producer alive.
+    // The shared memory will be cleaned up when a new message is sent (which
+    // recreates the producer) or when the daemon shuts down.
+    // This ensures consumers have time to read all events.
+    if let Some(ref producer) = stream_producer {
+        producer.shutdown();
+        info!(
+            "\x1b[35m[PROCESS]\x1b[0m Signaled shutdown to consumers for session: {}",
+            session_id
+        );
     }
+
+    // Note: We keep the producer in state.stream_producers so consumers can
+    // finish reading. The stale shm cleanup in create_shm() will handle
+    // removing old shared memory when a new message is sent.
 }
