@@ -16,7 +16,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role, SessionId};
+use crate::types::{NewMessage, SessionId};
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use std::collections::HashSet;
@@ -32,9 +32,8 @@ fn rule_101_no_message_without_session() {
     // Can't append without creating session first
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         armin.append(
-            SessionId(1),
+            &SessionId::from_string("nonexistent-session-1"),
             NewMessage {
-                role: Role::User,
                 content: "Orphan".to_string(),
             },
         );
@@ -53,7 +52,7 @@ fn rule_102_session_closure_permanent() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
-        armin.close(session_id);
+        armin.close(&session_id);
         session_id
     };
 
@@ -63,15 +62,14 @@ fn rule_102_session_closure_permanent() {
 
     // Session should still be closed
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert!(session.is_closed());
 
     // Should not be able to append
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Should fail".to_string(),
             },
         );
@@ -87,14 +85,14 @@ fn rule_103_closure_exactly_one_side_effect() {
     let session_id = armin.create_session();
     armin.sink().clear();
 
-    armin.close(session_id);
+    armin.close(&session_id);
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0], SideEffect::SessionClosed { session_id });
+    assert_eq!(effects[0], SideEffect::SessionClosed { session_id: session_id.clone() });
 
     // Second close should emit nothing
-    armin.close(session_id);
+    armin.close(&session_id);
     assert_eq!(armin.sink().effects().len(), 1);
 }
 
@@ -106,17 +104,16 @@ fn rule_104_closed_sessions_in_snapshot() {
 
     let session_id = armin.create_session();
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before close".to_string(),
         },
     );
-    armin.close(session_id);
+    armin.close(&session_id);
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert!(session.is_closed());
     assert_eq!(session.message_count(), 1);
 }
@@ -129,16 +126,15 @@ fn rule_105_closed_session_subscriptions() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before close".to_string(),
         },
     );
-    armin.close(session_id);
+    armin.close(&session_id);
 
     // Should receive the message sent before close
     assert_eq!(sub.try_recv().unwrap().content, "Before close");
@@ -158,24 +154,23 @@ fn rule_106_empty_sessions() {
 
     // Snapshot
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 0);
     assert!(session.messages().is_empty());
     assert!(!session.is_closed());
 
     // Delta
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert!(delta.is_empty());
 
     // Can still append
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "First".to_string(),
         },
     );
-    assert_eq!(armin.delta(session_id).len(), 1);
+    assert_eq!(armin.delta(&session_id).len(), 1);
 }
 
 /// Rule 107: Single-message sessions behave correctly
@@ -185,26 +180,25 @@ fn rule_107_single_message_sessions() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let msg_id = armin.append(
-        session_id,
+    let msg = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Only message".to_string(),
         },
     );
 
     // Delta
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
-    assert_eq!(delta.messages()[0].id, msg_id);
+    assert_eq!(delta.messages()[0].id, msg.id);
     assert_eq!(delta.messages()[0].content, "Only message");
 
     // Refresh and check snapshot
     armin.refresh_snapshot().unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
-    assert_eq!(session.messages()[0].id, msg_id);
+    assert_eq!(session.messages()[0].id, msg.id);
 }
 
 /// Rule 108: Large sessions behave correctly
@@ -215,31 +209,30 @@ fn rule_108_large_sessions() {
     let session_id = armin.create_session();
 
     let message_count = 1000;
-    let mut message_ids = Vec::with_capacity(message_count);
+    let mut messages = Vec::with_capacity(message_count);
 
     for i in 0..message_count {
-        message_ids.push(armin.append(
-            session_id,
+        messages.push(armin.append(
+            &session_id,
             NewMessage {
-                role: if i % 2 == 0 { Role::User } else { Role::Assistant },
                 content: format!("Message {} with some content to make it longer", i),
             },
         ));
     }
 
     // Verify delta
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), message_count);
 
     // Refresh and verify snapshot
     armin.refresh_snapshot().unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), message_count);
 
     // Verify order preserved
     for (i, msg) in session.messages().iter().enumerate() {
-        assert_eq!(msg.id, message_ids[i]);
+        assert_eq!(msg.id, messages[i].id);
     }
 }
 
@@ -255,9 +248,8 @@ fn rule_109_memory_grows_predictably() {
         let session_id = armin.create_session();
         for i in 0..100 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -272,9 +264,8 @@ fn rule_109_memory_grows_predictably() {
         let session_id = armin.create_session();
         for i in 0..100 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -298,29 +289,28 @@ fn rule_110_invariants_under_stress() {
     // Create many sessions with various operations
     for session_num in 0..20 {
         let session_id = armin.create_session();
-        all_session_ids.push(session_id);
+        all_session_ids.push(session_id.clone());
 
         // Some messages
         for i in 0..50 {
-            let msg_id = armin.append(
-                session_id,
+            let msg = armin.append(
+                &session_id,
                 NewMessage {
-                    role: if i % 2 == 0 { Role::User } else { Role::Assistant },
                     content: format!("S{}-M{}", session_num, i),
                 },
             );
 
             // No duplicate message IDs
             assert!(
-                all_message_ids.insert(msg_id),
+                all_message_ids.insert(msg.id.clone()),
                 "Duplicate message ID: {}",
-                msg_id.0
+                msg.id.as_str()
             );
         }
 
         // Close some sessions
         if session_num % 3 == 0 {
-            armin.close(session_id);
+            armin.close(&session_id);
         }
 
         // Refresh snapshot periodically
@@ -334,7 +324,7 @@ fn rule_110_invariants_under_stress() {
     let snapshot = armin.snapshot();
 
     for (i, session_id) in all_session_ids.iter().enumerate() {
-        let session = snapshot.session(*session_id).unwrap();
+        let session = snapshot.session(session_id).unwrap();
         assert_eq!(session.message_count(), 50);
 
         // Check closure status
@@ -359,9 +349,8 @@ fn tests_use_in_memory_sqlite() {
     // This test itself uses in-memory SQLite
     let session_id = armin.create_session();
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -379,19 +368,17 @@ fn tests_deterministic() {
         let ids: Vec<_> = (0..10)
             .map(|i| {
                 armin.append(
-                    session_id,
+                    &session_id,
                     NewMessage {
-                        role: Role::User,
                         content: format!("Message {}", i),
                     },
                 )
             })
             .collect();
 
-        // IDs should always be sequential
-        for i in 1..ids.len() {
-            assert!(ids[i].0 > ids[i - 1].0);
-        }
+        // IDs should always be unique
+        let unique_ids: std::collections::HashSet<_> = ids.iter().map(|msg| msg.id.as_str()).collect();
+        assert_eq!(unique_ids.len(), ids.len());
     }
 }
 
@@ -401,14 +388,13 @@ fn invariant_violation_detected() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
-    armin.close(session_id);
+    armin.close(&session_id);
 
     // This should fail (and our test catches it)
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Violation".to_string(),
             },
         );
@@ -427,14 +413,13 @@ fn message_ids_globally_unique() {
     for _ in 0..5 {
         let session_id = armin.create_session();
         for i in 0..20 {
-            let msg_id = armin.append(
-                session_id,
+            let msg = armin.append(
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Msg {}", i),
                 },
             );
-            assert!(all_ids.insert(msg_id), "Duplicate message ID");
+            assert!(all_ids.insert(msg.id), "Duplicate message ID");
         }
     }
 }
@@ -468,17 +453,16 @@ fn unicode_content_preserved() {
         "Здравствуйте",
     ];
 
-    for content in &contents {
+    for (i, content) in contents.iter().enumerate() {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: content.to_string(),
             },
         );
     }
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     for (i, msg) in delta.iter().enumerate() {
         assert_eq!(msg.content, contents[i]);
     }
@@ -491,14 +475,13 @@ fn empty_content_allowed() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: String::new(),
         },
     );
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
     assert_eq!(delta.messages()[0].content, "");
 }
@@ -512,14 +495,13 @@ fn very_long_content_preserved() {
     let long_content = "A".repeat(100_000);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: long_content.clone(),
         },
     );
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.messages()[0].content.len(), 100_000);
     assert_eq!(delta.messages()[0].content, long_content);
 }

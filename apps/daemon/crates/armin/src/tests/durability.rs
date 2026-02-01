@@ -25,7 +25,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::Armin;
 use tempfile::NamedTempFile;
@@ -45,9 +45,8 @@ fn rule_01_every_append_writes_to_sqlite() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Test message".to_string(),
             },
         );
@@ -58,7 +57,7 @@ fn rule_01_every_append_writes_to_sqlite() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "Test message");
 }
@@ -75,10 +74,9 @@ fn rule_02_sqlite_write_before_side_effect() {
     let session_id = armin.create_session();
 
     // Append a message
-    let message_id = armin.append(
-        session_id,
+    let message = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -88,7 +86,7 @@ fn rule_02_sqlite_write_before_side_effect() {
     assert!(effects.iter().any(|e| matches!(
         e,
         crate::SideEffect::MessageAppended { session_id: s, message_id: m }
-        if *s == session_id && *m == message_id
+        if *s == session_id && *m == message.id
     )));
 
     // Drop and reopen - message should be there (proving SQLite write happened)
@@ -96,7 +94,7 @@ fn rule_02_sqlite_write_before_side_effect() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
 }
 
@@ -112,36 +110,28 @@ fn rule_06_message_ids_are_monotonic() {
     let mut all_ids = Vec::new();
 
     // Interleave appends across sessions
-    for _ in 0..5 {
+    for i in 0..5 {
         all_ids.push(
             armin.append(
-                session1,
+                &session1,
                 NewMessage {
-                    role: Role::User,
                     content: "S1".to_string(),
                 },
             ),
         );
         all_ids.push(
             armin.append(
-                session2,
+                &session2,
                 NewMessage {
-                    role: Role::User,
                     content: "S2".to_string(),
                 },
             ),
         );
     }
 
-    // All IDs should be strictly monotonic
-    for i in 1..all_ids.len() {
-        assert!(
-            all_ids[i].0 > all_ids[i - 1].0,
-            "Message ID {} should be greater than {}",
-            all_ids[i].0,
-            all_ids[i - 1].0
-        );
-    }
+    // All IDs should be unique (UUIDs)
+    let unique_ids: std::collections::HashSet<_> = all_ids.iter().map(|msg| msg.id.as_str()).collect();
+    assert_eq!(unique_ids.len(), all_ids.len(), "All message IDs should be unique");
 }
 
 /// Rule 7: Messages are persisted in append order
@@ -157,9 +147,8 @@ fn rule_07_messages_persisted_in_append_order() {
 
         for i in 0..10 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -171,7 +160,7 @@ fn rule_07_messages_persisted_in_append_order() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     for (i, msg) in session.messages().iter().enumerate() {
         assert_eq!(msg.content, format!("Message {}", i));
@@ -186,17 +175,16 @@ fn rule_08_multiple_appends_preserve_order() {
     let session_id = armin.create_session();
 
     let contents = vec!["First", "Second", "Third", "Fourth", "Fifth"];
-    for content in &contents {
+    for (i, content) in contents.iter().enumerate() {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: content.to_string(),
             },
         );
     }
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     for (i, msg) in delta.messages().iter().enumerate() {
         assert_eq!(msg.content, contents[i]);
     }
@@ -215,9 +203,8 @@ fn rule_09_messages_survive_restart() {
 
         for i in 0..100 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: if i % 2 == 0 { Role::User } else { Role::Assistant },
                     content: format!("Message {}", i),
                 },
             );
@@ -230,7 +217,7 @@ fn rule_09_messages_survive_restart() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let snapshot = armin.snapshot();
-        let session = snapshot.session(session_id).unwrap();
+        let session = snapshot.session(&session_id).unwrap();
         assert_eq!(session.message_count(), message_count);
     }
 }
@@ -244,20 +231,18 @@ fn rule_10_closed_sessions_reject_appends() {
 
     let session_id = armin.create_session();
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before close".to_string(),
         },
     );
 
-    armin.close(session_id);
+    armin.close(&session_id);
 
     // This should panic
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "After close".to_string(),
         },
     );
@@ -273,28 +258,27 @@ fn rule_71_crash_after_commit_preserves_message() {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let (session_id, message_id) = {
+    let (session_id, message) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
-        let message_id = armin.append(
-            session_id,
+        let message = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Committed message".to_string(),
             },
         );
         // "Crash" by dropping without graceful shutdown
-        (session_id, message_id)
+        (session_id, message)
     };
 
     // Recover
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
-    assert_eq!(session.messages()[0].id, message_id);
+    assert_eq!(session.messages()[0].id, message.id);
 }
 
 /// Rule 75: Recovery rebuilds delta from SQLite
@@ -308,9 +292,8 @@ fn rule_75_recovery_rebuilds_delta() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Message 1".to_string(),
             },
         );
@@ -322,19 +305,18 @@ fn rule_75_recovery_rebuilds_delta() {
     let armin = Armin::open(path, sink).unwrap();
 
     // Delta should be empty after recovery (messages are in snapshot)
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert!(delta.is_empty(), "Delta should be empty after recovery");
 
     // Add new message - this should appear in delta
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Message 2".to_string(),
         },
     );
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
     assert_eq!(delta.messages()[0].content, "Message 2");
 }
@@ -351,22 +333,20 @@ fn rule_76_recovery_rebuilds_snapshots() {
 
         let s1 = armin.create_session();
         armin.append(
-            s1,
+            &s1,
             NewMessage {
-                role: Role::User,
                 content: "S1M1".to_string(),
             },
         );
 
         let s2 = armin.create_session();
         armin.append(
-            s2,
+            &s2,
             NewMessage {
-                role: Role::Assistant,
                 content: "S2M1".to_string(),
             },
         );
-        armin.close(s2);
+        armin.close(&s2);
 
         (s1, s2)
     };
@@ -377,11 +357,11 @@ fn rule_76_recovery_rebuilds_snapshots() {
     let snapshot = armin.snapshot();
 
     // Both sessions should be in snapshot
-    let s1 = snapshot.session(session1).unwrap();
+    let s1 = snapshot.session(&session1).unwrap();
     assert_eq!(s1.message_count(), 1);
     assert!(!s1.is_closed());
 
-    let s2 = snapshot.session(session2).unwrap();
+    let s2 = snapshot.session(&session2).unwrap();
     assert_eq!(s2.message_count(), 1);
     assert!(s2.is_closed());
 }
@@ -400,9 +380,8 @@ fn rule_77_recovery_emits_no_side_effects() {
             let session_id = armin.create_session();
             for j in 0..10 {
                 armin.append(
-                    session_id,
+                    &session_id,
                     NewMessage {
-                        role: Role::User,
                         content: format!("Message {}", j),
                     },
                 );
@@ -432,9 +411,8 @@ fn rule_78_recovery_does_not_notify_live_subscribers() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Historical message".to_string(),
             },
         );
@@ -446,7 +424,7 @@ fn rule_78_recovery_does_not_notify_live_subscribers() {
     let armin = Armin::open(path, sink).unwrap();
 
     // Subscribe after recovery
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Should not receive the historical message
     assert!(
@@ -467,9 +445,8 @@ fn rule_79_recovery_produces_consistent_views() {
         let session_id = armin.create_session();
         for i in 0..20 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: if i % 2 == 0 { Role::User } else { Role::Assistant },
                     content: format!("Message {}", i),
                 },
             );
@@ -483,20 +460,16 @@ fn rule_79_recovery_produces_consistent_views() {
 
     // Snapshot should have all messages
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 20);
 
     // Delta should be empty
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert!(delta.is_empty());
 
     // Messages should be in order with correct content
     for (i, msg) in session.messages().iter().enumerate() {
         assert_eq!(msg.content, format!("Message {}", i));
-        assert_eq!(
-            msg.role,
-            if i % 2 == 0 { Role::User } else { Role::Assistant }
-        );
     }
 }
 
@@ -511,9 +484,8 @@ fn rule_80_recovery_is_idempotent() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Test".to_string(),
             },
         );
@@ -527,7 +499,7 @@ fn rule_80_recovery_is_idempotent() {
 
         // State should be identical each time
         let snapshot = armin.snapshot();
-        let session = snapshot.session(session_id).unwrap();
+        let session = snapshot.session(&session_id).unwrap();
         assert_eq!(
             session.message_count(),
             1,

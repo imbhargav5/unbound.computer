@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::Armin;
 use tempfile::NamedTempFile;
@@ -31,9 +31,8 @@ fn rule_41_snapshots_contain_committed_messages() {
         let session_id = armin.create_session();
 
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Committed message".to_string(),
             },
         );
@@ -45,7 +44,7 @@ fn rule_41_snapshots_contain_committed_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "Committed message");
@@ -59,9 +58,8 @@ fn rule_43_snapshots_immutable() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Message 1".to_string(),
         },
     );
@@ -73,15 +71,14 @@ fn rule_43_snapshots_immutable() {
 
     // Add more messages
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Message 2".to_string(),
         },
     );
 
     // Original snapshot should still have only 1 message
-    let session = snapshot1.session(session_id).unwrap();
+    let session = snapshot1.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "Message 1");
 }
@@ -94,9 +91,8 @@ fn rule_44_snapshots_unchanged_without_rebuild() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before".to_string(),
         },
     );
@@ -107,9 +103,8 @@ fn rule_44_snapshots_unchanged_without_rebuild() {
     // Add more messages
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("After {}", i),
             },
         );
@@ -117,8 +112,8 @@ fn rule_44_snapshots_unchanged_without_rebuild() {
 
     // Snapshot should be unchanged
     let snapshot_after = armin.snapshot();
-    let session_before = snapshot_before.session(session_id).unwrap();
-    let session_after = snapshot_after.session(session_id).unwrap();
+    let session_before = snapshot_before.session(&session_id).unwrap();
+    let session_after = snapshot_after.session(&session_id).unwrap();
 
     assert_eq!(session_before.message_count(), session_after.message_count());
     assert_eq!(session_before.message_count(), 1);
@@ -133,9 +128,8 @@ fn rule_45_snapshot_rebuild_no_side_effects() {
 
     for i in 0..20 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -160,11 +154,10 @@ fn rule_46_snapshot_rebuild_preserves_order() {
     let session_id = armin.create_session();
 
     let contents: Vec<_> = (0..20).map(|i| format!("Message {}", i)).collect();
-    for content in &contents {
+    for (i, content) in contents.iter().enumerate() {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: content.clone(),
             },
         );
@@ -173,7 +166,7 @@ fn rule_46_snapshot_rebuild_preserves_order() {
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     for (i, msg) in session.messages().iter().enumerate() {
         assert_eq!(msg.content, contents[i], "Message {} out of order", i);
@@ -191,9 +184,8 @@ fn rule_47_snapshot_includes_all_history() {
     for batch in 0..5 {
         for i in 0..10 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Batch {} Message {}", batch, i),
                 },
             );
@@ -202,7 +194,7 @@ fn rule_47_snapshot_includes_all_history() {
     }
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     // Should have all 50 messages
     assert_eq!(session.message_count(), 50);
@@ -216,31 +208,29 @@ fn rule_48_snapshots_exclude_delta_before_refresh() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "In snapshot".to_string(),
         },
     );
     armin.refresh_snapshot().unwrap();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "In delta".to_string(),
         },
     );
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     // Snapshot should only have "In snapshot"
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "In snapshot");
 
     // Delta should have "In delta"
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
     assert_eq!(delta.messages()[0].content, "In delta");
 }
@@ -255,9 +245,8 @@ fn rule_49_snapshot_plus_delta_equals_full() {
     // Add messages to snapshot
     for i in 0..5 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Snapshot {}", i),
             },
         );
@@ -267,9 +256,8 @@ fn rule_49_snapshot_plus_delta_equals_full() {
     // Add messages to delta
     for i in 0..5 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Delta {}", i),
             },
         );
@@ -277,8 +265,8 @@ fn rule_49_snapshot_plus_delta_equals_full() {
 
     // Combine snapshot and delta
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let delta = armin.delta(session_id);
+    let session = snapshot.session(&session_id).unwrap();
+    let delta = armin.delta(&session_id);
 
     let mut all_messages: Vec<_> = session.messages().iter().map(|m| &m.content).collect();
     all_messages.extend(delta.iter().map(|m| &m.content));
@@ -302,9 +290,8 @@ fn rule_50_snapshot_reads_in_memory() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -313,7 +300,7 @@ fn rule_50_snapshot_reads_in_memory() {
     // Multiple snapshot reads should work without issues
     for _ in 0..100 {
         let snapshot = armin.snapshot();
-        let session = snapshot.session(session_id).unwrap();
+        let session = snapshot.session(&session_id).unwrap();
         assert_eq!(session.message_count(), 1);
         let _ = session.messages();
         let _ = session.is_closed();
@@ -343,16 +330,14 @@ fn snapshot_with_multiple_sessions() {
     let session2 = armin.create_session();
 
     armin.append(
-        session1,
+        &session1,
         NewMessage {
-            role: Role::User,
             content: "S1".to_string(),
         },
     );
     armin.append(
-        session2,
+        &session2,
         NewMessage {
-            role: Role::User,
             content: "S2".to_string(),
         },
     );
@@ -362,10 +347,10 @@ fn snapshot_with_multiple_sessions() {
     let snapshot = armin.snapshot();
     assert_eq!(snapshot.len(), 2);
 
-    let s1 = snapshot.session(session1).unwrap();
+    let s1 = snapshot.session(&session1).unwrap();
     assert_eq!(s1.messages()[0].content, "S1");
 
-    let s2 = snapshot.session(session2).unwrap();
+    let s2 = snapshot.session(&session2).unwrap();
     assert_eq!(s2.messages()[0].content, "S2");
 }
 
@@ -376,13 +361,13 @@ fn snapshot_preserves_closed_status() {
 
     let open_session = armin.create_session();
     let closed_session = armin.create_session();
-    armin.close(closed_session);
+    armin.close(&closed_session);
 
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    assert!(!snapshot.session(open_session).unwrap().is_closed());
-    assert!(snapshot.session(closed_session).unwrap().is_closed());
+    assert!(!snapshot.session(&open_session).unwrap().is_closed());
+    assert!(snapshot.session(&closed_session).unwrap().is_closed());
 }
 
 #[test]
@@ -412,7 +397,7 @@ fn snapshot_nonexistent_session_returns_none() {
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    assert!(snapshot.session(crate::types::SessionId(9999)).is_none());
+    assert!(snapshot.session(&crate::types::SessionId::from_string("nonexistent-session-9999")).is_none());
 }
 
 #[test]
@@ -422,9 +407,8 @@ fn snapshot_clone_is_independent() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -436,19 +420,18 @@ fn snapshot_clone_is_independent() {
 
     // Add more and refresh
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "New".to_string(),
         },
     );
     armin.refresh_snapshot().unwrap();
 
     // Cloned snapshots should be unchanged
-    assert_eq!(snapshot1.session(session_id).unwrap().message_count(), 1);
-    assert_eq!(snapshot2.session(session_id).unwrap().message_count(), 1);
+    assert_eq!(snapshot1.session(&session_id).unwrap().message_count(), 1);
+    assert_eq!(snapshot2.session(&session_id).unwrap().message_count(), 1);
 
     // Fresh snapshot should have both
     let snapshot3 = armin.snapshot();
-    assert_eq!(snapshot3.session(session_id).unwrap().message_count(), 2);
+    assert_eq!(snapshot3.session(&session_id).unwrap().message_count(), 2);
 }

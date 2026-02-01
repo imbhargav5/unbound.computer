@@ -35,13 +35,13 @@ impl SnapshotView {
     }
 
     /// Gets a session by ID.
-    pub fn session(&self, id: SessionId) -> Option<&SessionSnapshot> {
-        self.sessions.get(&id)
+    pub fn session(&self, id: &SessionId) -> Option<&SessionSnapshot> {
+        self.sessions.get(id)
     }
 
     /// Returns an iterator over all session IDs.
-    pub fn session_ids(&self) -> impl Iterator<Item = SessionId> + '_ {
-        self.sessions.keys().copied()
+    pub fn session_ids(&self) -> impl Iterator<Item = &SessionId> + '_ {
+        self.sessions.keys()
     }
 
     /// Returns the number of sessions in the snapshot.
@@ -74,8 +74,8 @@ impl SessionSnapshot {
     }
 
     /// Returns the session ID.
-    pub fn id(&self) -> SessionId {
-        self.id
+    pub fn id(&self) -> &SessionId {
+        &self.id
     }
 
     /// Returns all messages in the session.
@@ -97,60 +97,66 @@ impl SessionSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{MessageId, Role};
+    use crate::types::MessageId;
 
     #[test]
     fn empty_snapshot() {
         let snapshot = SnapshotView::empty();
         assert!(snapshot.is_empty());
         assert_eq!(snapshot.len(), 0);
-        assert!(snapshot.session(SessionId(1)).is_none());
+        assert!(snapshot.session(&SessionId::from_string("1")).is_none());
     }
 
     #[test]
     fn snapshot_with_sessions() {
+        let session1_id = SessionId::from_string("session-1");
+        let session2_id = SessionId::from_string("session-2");
+
         let mut sessions = HashMap::new();
         sessions.insert(
-            SessionId(1),
+            session1_id.clone(),
             SessionSnapshot::new(
-                SessionId(1),
+                session1_id.clone(),
                 vec![Message {
-                    id: MessageId(1),
-                    role: Role::User,
+                    id: MessageId::from_string("msg-1"),
                     content: "Hello".to_string(),
+                    sequence_number: 0,
                 }],
                 false,
             ),
         );
         sessions.insert(
-            SessionId(2),
-            SessionSnapshot::new(SessionId(2), vec![], true),
+            session2_id.clone(),
+            SessionSnapshot::new(session2_id.clone(), vec![], true),
         );
 
         let snapshot = SnapshotView::new(sessions);
         assert_eq!(snapshot.len(), 2);
 
-        let session1 = snapshot.session(SessionId(1)).unwrap();
-        assert_eq!(session1.id(), SessionId(1));
+        let session1 = snapshot.session(&session1_id).unwrap();
+        assert_eq!(session1.id(), &session1_id);
         assert_eq!(session1.message_count(), 1);
         assert!(!session1.is_closed());
 
-        let session2 = snapshot.session(SessionId(2)).unwrap();
-        assert_eq!(session2.id(), SessionId(2));
+        let session2 = snapshot.session(&session2_id).unwrap();
+        assert_eq!(session2.id(), &session2_id);
         assert_eq!(session2.message_count(), 0);
         assert!(session2.is_closed());
     }
 
     #[test]
     fn session_ids_iterator() {
+        let session1_id = SessionId::from_string("session-1");
+        let session2_id = SessionId::from_string("session-2");
+
         let mut sessions = HashMap::new();
-        sessions.insert(SessionId(1), SessionSnapshot::new(SessionId(1), vec![], false));
-        sessions.insert(SessionId(2), SessionSnapshot::new(SessionId(2), vec![], false));
+        sessions.insert(session1_id.clone(), SessionSnapshot::new(session1_id.clone(), vec![], false));
+        sessions.insert(session2_id.clone(), SessionSnapshot::new(session2_id.clone(), vec![], false));
 
         let snapshot = SnapshotView::new(sessions);
         let ids: Vec<_> = snapshot.session_ids().collect();
         assert_eq!(ids.len(), 2);
-        assert!(ids.contains(&SessionId(1)));
-        assert!(ids.contains(&SessionId(2)));
+        assert!(ids.contains(&&session1_id));
+        assert!(ids.contains(&&session2_id));
     }
 }

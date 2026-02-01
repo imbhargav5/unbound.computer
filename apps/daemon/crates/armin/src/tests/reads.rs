@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::Armin;
 use std::thread;
@@ -27,9 +27,8 @@ fn rule_51_reads_never_emit_side_effects() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -38,18 +37,18 @@ fn rule_51_reads_never_emit_side_effects() {
 
     // All read operations
     let _ = armin.snapshot();
-    let _ = armin.delta(session_id);
-    let _ = armin.subscribe(session_id);
+    let _ = armin.delta(&session_id);
+    let _ = armin.subscribe(&session_id);
 
     let snapshot = armin.snapshot();
-    if let Some(session) = snapshot.session(session_id) {
+    if let Some(session) = snapshot.session(&session_id) {
         let _ = session.id();
         let _ = session.messages();
         let _ = session.message_count();
         let _ = session.is_closed();
     }
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     let _ = delta.len();
     let _ = delta.is_empty();
     let _ = delta.messages();
@@ -75,9 +74,8 @@ fn rule_52_reads_never_write_sqlite() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Original".to_string(),
             },
         );
@@ -92,7 +90,7 @@ fn rule_52_reads_never_write_sqlite() {
         // Many read operations
         for _ in 0..100 {
             let _ = armin.snapshot();
-            let _ = armin.delta(session_id);
+            let _ = armin.delta(&session_id);
         }
     }
 
@@ -100,7 +98,7 @@ fn rule_52_reads_never_write_sqlite() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "Original");
 }
@@ -113,22 +111,21 @@ fn rule_53_reads_never_modify_delta() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
 
     // Many reads
     for _ in 0..100 {
-        let delta = armin.delta(session_id);
+        let delta = armin.delta(&session_id);
         let _ = delta.len();
         for _ in delta.iter() {}
     }
 
     // Delta should still have 1 message
-    assert_eq!(armin.delta(session_id).len(), 1);
+    assert_eq!(armin.delta(&session_id).len(), 1);
 }
 
 /// Rule 54: Read operations never notify live subscribers
@@ -138,12 +135,12 @@ fn rule_54_reads_never_notify_subscribers() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Perform reads
     for _ in 0..100 {
         let _ = armin.snapshot();
-        let _ = armin.delta(session_id);
+        let _ = armin.delta(&session_id);
     }
 
     // Subscriber should not have received anything
@@ -162,20 +159,19 @@ fn rule_55_reads_are_deterministic() {
 
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
     // Multiple reads should return identical results
-    let deltas: Vec<_> = (0..10).map(|_| armin.delta(session_id)).collect();
+    let deltas: Vec<_> = (0..10).map(|_| armin.delta(&session_id)).collect();
 
-    let first_ids: Vec<_> = deltas[0].iter().map(|m| m.id).collect();
+    let first_ids: Vec<_> = deltas[0].iter().map(|m| m.id.clone()).collect();
     for (i, delta) in deltas.iter().enumerate() {
-        let ids: Vec<_> = delta.iter().map(|m| m.id).collect();
+        let ids: Vec<_> = delta.iter().map(|m| m.id.clone()).collect();
         assert_eq!(ids, first_ids, "Read {} differs from first", i);
     }
 }
@@ -188,9 +184,8 @@ fn rule_56_reads_are_repeatable() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -199,7 +194,7 @@ fn rule_56_reads_are_repeatable() {
     // Repeat same read many times
     for _ in 0..1000 {
         let snapshot = armin.snapshot();
-        let session = snapshot.session(session_id).unwrap();
+        let session = snapshot.session(&session_id).unwrap();
         assert_eq!(session.message_count(), 1);
         assert_eq!(session.messages()[0].content, "Test");
     }
@@ -216,9 +211,8 @@ fn rule_57_concurrent_reads_safe() {
 
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -233,9 +227,10 @@ fn rule_57_concurrent_reads_safe() {
     let handles: Vec<_> = (0..10)
         .map(|_| {
             let snap = snapshot.clone();
+            let sid = session_id.clone();
             thread::spawn(move || {
                 for _ in 0..100 {
-                    let session = snap.session(session_id).unwrap();
+                    let session = snap.session(&sid).unwrap();
                     assert_eq!(session.message_count(), 10);
                 }
             })
@@ -255,9 +250,8 @@ fn rule_58_reads_tolerate_snapshot_replacement() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "V1".to_string(),
         },
     );
@@ -268,22 +262,21 @@ fn rule_58_reads_tolerate_snapshot_replacement() {
 
     // Modify and refresh
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "V2".to_string(),
         },
     );
     armin.refresh_snapshot().unwrap();
 
     // Old snapshot still works
-    let session = old_snapshot.session(session_id).unwrap();
+    let session = old_snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "V1");
 
     // New snapshot has both
     let new_snapshot = armin.snapshot();
-    let session = new_snapshot.session(session_id).unwrap();
+    let session = new_snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 2);
 }
 
@@ -295,15 +288,14 @@ fn rule_59_reads_tolerate_delta_growth() {
     let session_id = armin.create_session();
 
     // Take initial delta
-    let delta_before = armin.delta(session_id);
+    let delta_before = armin.delta(&session_id);
     assert!(delta_before.is_empty());
 
     // Grow delta
     for i in 0..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -313,7 +305,7 @@ fn rule_59_reads_tolerate_delta_growth() {
     assert!(delta_before.is_empty());
 
     // New delta has all messages
-    let delta_after = armin.delta(session_id);
+    let delta_after = armin.delta(&session_id);
     assert_eq!(delta_after.len(), 100);
 }
 
@@ -326,22 +318,21 @@ fn rule_60_reads_do_not_block_writes() {
 
     // Hold onto read references
     let _snapshot = armin.snapshot();
-    let _delta = armin.delta(session_id);
-    let _sub = armin.subscribe(session_id);
+    let _delta = armin.delta(&session_id);
+    let _sub = armin.subscribe(&session_id);
 
     // Writes should still work
     for i in 0..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
     // Verify writes succeeded
-    assert_eq!(armin.delta(session_id).len(), 100);
+    assert_eq!(armin.delta(&session_id).len(), 100);
 }
 
 // =============================================================================
@@ -357,7 +348,7 @@ fn reading_empty_session() {
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 0);
     assert!(session.messages().is_empty());
 }
@@ -370,9 +361,9 @@ fn reading_nonexistent_session() {
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    assert!(snapshot.session(crate::types::SessionId(9999)).is_none());
+    assert!(snapshot.session(&crate::types::SessionId::from_string("nonexistent-session-9999")).is_none());
 
-    let delta = armin.delta(crate::types::SessionId(9999));
+    let delta = armin.delta(&crate::types::SessionId::from_string("nonexistent-session-9999"));
     assert!(delta.is_empty());
 }
 
@@ -383,45 +374,18 @@ fn reading_closed_session() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before close".to_string(),
         },
     );
-    armin.close(session_id);
+    armin.close(&session_id);
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert!(session.is_closed());
     assert_eq!(session.message_count(), 1);
-}
-
-#[test]
-fn reading_message_roles() {
-    let sink = RecordingSink::new();
-    let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
-
-    armin.append(
-        session_id,
-        NewMessage {
-            role: Role::User,
-            content: "User".to_string(),
-        },
-    );
-    armin.append(
-        session_id,
-        NewMessage {
-            role: Role::Assistant,
-            content: "Assistant".to_string(),
-        },
-    );
-
-    let delta = armin.delta(session_id);
-    assert_eq!(delta.messages()[0].role, Role::User);
-    assert_eq!(delta.messages()[1].role, Role::Assistant);
 }
 
 #[test]
@@ -430,22 +394,20 @@ fn reading_message_ids() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let id1 = armin.append(
-        session_id,
+    let msg1 = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "One".to_string(),
         },
     );
-    let id2 = armin.append(
-        session_id,
+    let msg2 = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Two".to_string(),
         },
     );
 
-    let delta = armin.delta(session_id);
-    assert_eq!(delta.messages()[0].id, id1);
-    assert_eq!(delta.messages()[1].id, id2);
+    let delta = armin.delta(&session_id);
+    assert_eq!(delta.messages()[0].id, msg1.id);
+    assert_eq!(delta.messages()[1].id, msg2.id);
 }

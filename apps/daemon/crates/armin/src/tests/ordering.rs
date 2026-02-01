@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{MessageId, NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use std::collections::HashSet;
@@ -28,19 +28,18 @@ fn rule_61_order_consistent_across_views() {
     let session_id = armin.create_session();
 
     // Subscribe before appending
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Add messages
     let mut expected_order = Vec::new();
     for i in 0..5 {
-        let id = armin.append(
-            session_id,
+        let msg = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
-        expected_order.push(id);
+        expected_order.push(msg.id);
     }
 
     // Take snapshot
@@ -48,58 +47,54 @@ fn rule_61_order_consistent_across_views() {
 
     // Add more messages
     for i in 5..10 {
-        let id = armin.append(
-            session_id,
+        let msg = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
-        expected_order.push(id);
+        expected_order.push(msg.id);
     }
 
     // Verify snapshot order (first 5)
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let snapshot_ids: Vec<_> = session.messages().iter().map(|m| m.id).collect();
+    let session = snapshot.session(&session_id).unwrap();
+    let snapshot_ids: Vec<_> = session.messages().iter().map(|m| m.id.clone()).collect();
     assert_eq!(snapshot_ids, expected_order[..5]);
 
     // Verify delta order (last 5)
-    let delta = armin.delta(session_id);
-    let delta_ids: Vec<_> = delta.iter().map(|m| m.id).collect();
+    let delta = armin.delta(&session_id);
+    let delta_ids: Vec<_> = delta.iter().map(|m| m.id.clone()).collect();
     assert_eq!(delta_ids, expected_order[5..]);
 
     // Verify live order (all 10)
     let mut live_ids = Vec::new();
     while let Some(msg) = sub.try_recv() {
-        live_ids.push(msg.id);
+        live_ids.push(msg.id.clone());
     }
     assert_eq!(live_ids, expected_order);
 }
 
-/// Rule 62: Message IDs increase with append order
+/// Rule 62: Message IDs are unique (UUIDs)
 #[test]
-fn rule_62_message_ids_increase_with_order() {
+fn rule_62_message_ids_are_unique() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let mut prev_id = MessageId(0);
+    let mut all_ids = std::collections::HashSet::new();
     for i in 0..100 {
-        let id = armin.append(
-            session_id,
+        let msg = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
         assert!(
-            id.0 > prev_id.0,
-            "ID {} should be greater than previous {}",
-            id.0,
-            prev_id.0
+            all_ids.insert(msg.id.as_str().to_string()),
+            "ID {} should be unique",
+            msg.id.as_str()
         );
-        prev_id = id;
     }
 }
 
@@ -112,9 +107,8 @@ fn rule_63_no_duplicate_messages() {
 
     for i in 0..50 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -124,9 +118,8 @@ fn rule_63_no_duplicate_messages() {
 
     for i in 50..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -134,18 +127,18 @@ fn rule_63_no_duplicate_messages() {
 
     // Check snapshot for duplicates
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let snapshot_ids: HashSet<_> = session.messages().iter().map(|m| m.id).collect();
+    let session = snapshot.session(&session_id).unwrap();
+    let snapshot_ids: HashSet<_> = session.messages().iter().map(|m| m.id.clone()).collect();
     assert_eq!(snapshot_ids.len(), session.message_count());
 
     // Check delta for duplicates
-    let delta = armin.delta(session_id);
-    let delta_ids: HashSet<_> = delta.iter().map(|m| m.id).collect();
+    let delta = armin.delta(&session_id);
+    let delta_ids: HashSet<_> = delta.iter().map(|m| m.id.clone()).collect();
     assert_eq!(delta_ids.len(), delta.len());
 
     // Check no overlap between snapshot and delta
     for id in &delta_ids {
-        assert!(!snapshot_ids.contains(id), "ID {} in both snapshot and delta", id.0);
+        assert!(!snapshot_ids.contains(id), "ID {} in both snapshot and delta", id.as_str());
     }
 }
 
@@ -155,32 +148,32 @@ fn rule_64_no_message_disappears() {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let (session_id, message_ids) = {
+    let (session_id, messages) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
 
-        let mut ids = Vec::new();
+        let mut msgs = Vec::new();
         for i in 0..100 {
-            ids.push(armin.append(
-                session_id,
+            msgs.push(armin.append(
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             ));
         }
-        (session_id, ids)
+        (session_id, msgs)
     };
 
     // Reopen and verify all messages present
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
 
     assert_eq!(session.message_count(), 100);
-    let recovered_ids: Vec<_> = session.messages().iter().map(|m| m.id).collect();
+    let recovered_ids: Vec<_> = session.messages().iter().map(|m| m.id.clone()).collect();
+    let message_ids: Vec<_> = messages.iter().map(|m| m.id.clone()).collect();
     assert_eq!(recovered_ids, message_ids);
 }
 
@@ -192,9 +185,8 @@ fn rule_65_stale_snapshots_allowed() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "V1".to_string(),
         },
     );
@@ -205,21 +197,20 @@ fn rule_65_stale_snapshots_allowed() {
 
     // Add more
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "V2".to_string(),
         },
     );
     armin.refresh_snapshot().unwrap();
 
     // Stale snapshot still shows V1 only
-    let session = stale_snapshot.session(session_id).unwrap();
+    let session = stale_snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
 
     // Fresh snapshot shows V1 and V2
     let fresh_snapshot = armin.snapshot();
-    let session = fresh_snapshot.session(session_id).unwrap();
+    let session = fresh_snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 2);
 }
 
@@ -234,14 +225,13 @@ fn rule_66_no_torn_messages() {
     let long_content = "A".repeat(10000);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: long_content.clone(),
         },
     );
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     let msg = &delta.messages()[0];
 
     // Message should be complete
@@ -263,9 +253,8 @@ fn rule_67_side_effects_match_sqlite_order() {
 
         for i in 0..10 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -276,7 +265,7 @@ fn rule_67_side_effects_match_sqlite_order() {
             .effects()
             .iter()
             .filter_map(|e| match e {
-                SideEffect::MessageAppended { message_id, .. } => Some(*message_id),
+                SideEffect::MessageAppended { message_id, .. } => Some(message_id.clone()),
                 _ => None,
             })
             .collect();
@@ -288,8 +277,8 @@ fn rule_67_side_effects_match_sqlite_order() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let sqlite_ids: Vec<_> = session.messages().iter().map(|m| m.id).collect();
+    let session = snapshot.session(&session_id).unwrap();
+    let sqlite_ids: Vec<_> = session.messages().iter().map(|m| m.id.clone()).collect();
 
     assert_eq!(effect_ids, sqlite_ids);
 }
@@ -305,13 +294,12 @@ fn rule_68_live_matches_sqlite_order() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
 
-        let sub = armin.subscribe(session_id);
+        let sub = armin.subscribe(&session_id);
 
         for i in 0..10 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -319,7 +307,7 @@ fn rule_68_live_matches_sqlite_order() {
 
         let mut ids = Vec::new();
         while let Some(msg) = sub.try_recv() {
-            ids.push(msg.id);
+            ids.push(msg.id.clone());
         }
 
         (session_id, ids)
@@ -329,8 +317,8 @@ fn rule_68_live_matches_sqlite_order() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let sqlite_ids: Vec<_> = session.messages().iter().map(|m| m.id).collect();
+    let session = snapshot.session(&session_id).unwrap();
+    let sqlite_ids: Vec<_> = session.messages().iter().map(|m| m.id.clone()).collect();
 
     assert_eq!(live_ids, sqlite_ids);
 }
@@ -348,9 +336,8 @@ fn rule_69_delta_matches_sqlite_order() {
 
         for i in 0..10 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -363,26 +350,24 @@ fn rule_69_delta_matches_sqlite_order() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
 
-    let delta_start = armin.delta(session_id).len(); // Should be 0 after recovery
+    let delta_start = armin.delta(&session_id).len(); // Should be 0 after recovery
     assert_eq!(delta_start, 0);
 
     for i in 10..20 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
-    let delta = armin.delta(session_id);
-    let delta_ids: Vec<_> = delta.iter().map(|m| m.id).collect();
+    let delta = armin.delta(&session_id);
+    let delta_ids: Vec<_> = delta.iter().map(|m| m.id.clone()).collect();
 
-    // Verify order is monotonic
-    for i in 1..delta_ids.len() {
-        assert!(delta_ids[i].0 > delta_ids[i - 1].0);
-    }
+    // Verify IDs are unique
+    let unique_ids: std::collections::HashSet<_> = delta_ids.iter().map(|id| id.as_str()).collect();
+    assert_eq!(unique_ids.len(), delta_ids.len());
 }
 
 /// Rule 70: Snapshot order matches SQLite order
@@ -391,31 +376,31 @@ fn rule_70_snapshot_matches_sqlite_order() {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let (session_id, original_ids) = {
+    let (session_id, original_messages) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
 
-        let mut ids = Vec::new();
+        let mut msgs = Vec::new();
         for i in 0..20 {
-            ids.push(armin.append(
-                session_id,
+            msgs.push(armin.append(
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             ));
         }
 
-        (session_id, ids)
+        (session_id, msgs)
     };
 
     // Reopen - snapshot from SQLite
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    let snapshot_ids: Vec<_> = session.messages().iter().map(|m| m.id).collect();
+    let session = snapshot.session(&session_id).unwrap();
+    let snapshot_ids: Vec<_> = session.messages().iter().map(|m| m.id.clone()).collect();
+    let original_ids: Vec<_> = original_messages.iter().map(|m| m.id.clone()).collect();
 
     assert_eq!(snapshot_ids, original_ids);
 }
@@ -432,23 +417,21 @@ fn interleaved_sessions_maintain_global_order() {
     let session1 = armin.create_session();
     let session2 = armin.create_session();
 
-    let mut all_ids = Vec::new();
+    let mut all_messages = Vec::new();
 
     // Interleave
     for i in 0..10 {
-        all_ids.push(armin.append(
-            if i % 2 == 0 { session1 } else { session2 },
+        all_messages.push(armin.append(
+            if i % 2 == 0 { &session1 } else { &session2 },
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         ));
     }
 
-    // Global IDs should be monotonic
-    for i in 1..all_ids.len() {
-        assert!(all_ids[i].0 > all_ids[i - 1].0);
-    }
+    // Global IDs should be unique
+    let unique_ids: std::collections::HashSet<_> = all_messages.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(unique_ids.len(), all_messages.len());
 }
 
 #[test]
@@ -458,17 +441,16 @@ fn message_content_preserved_in_order() {
     let session_id = armin.create_session();
 
     let contents: Vec<_> = (0..20).map(|i| format!("Content-{}", i)).collect();
-    for content in &contents {
+    for (i, content) in contents.iter().enumerate() {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: content.clone(),
             },
         );
     }
 
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     for (i, msg) in delta.iter().enumerate() {
         assert_eq!(msg.content, contents[i]);
     }

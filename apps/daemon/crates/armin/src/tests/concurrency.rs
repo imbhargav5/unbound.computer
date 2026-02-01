@@ -18,7 +18,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use std::thread;
@@ -32,21 +32,20 @@ fn rule_83_concurrent_reads_no_blocking() {
 
     // Take many read references
     let _snapshots: Vec<_> = (0..100).map(|_| armin.snapshot()).collect();
-    let deltas: Vec<_> = (0..100).map(|_| armin.delta(session_id)).collect();
+    let deltas: Vec<_> = (0..100).map(|_| armin.delta(&session_id)).collect();
 
     // Writes should still work
     for i in 0..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
     // Verify writes succeeded
-    assert_eq!(armin.delta(session_id).len(), 100);
+    assert_eq!(armin.delta(&session_id).len(), 100);
 
     // Old references should still be valid (with old state)
     for delta in &deltas {
@@ -62,14 +61,13 @@ fn rule_85_concurrent_subscribers_isolated() {
     let session_id = armin.create_session();
 
     // Create many subscribers
-    let subscribers: Vec<_> = (0..50).map(|_| armin.subscribe(session_id)).collect();
+    let subscribers: Vec<_> = (0..50).map(|_| armin.subscribe(&session_id)).collect();
 
     // Send messages
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -96,9 +94,8 @@ fn rule_86_side_effects_sequential() {
     // Append many messages
     for i in 0..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -107,13 +104,12 @@ fn rule_86_side_effects_sequential() {
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 100);
 
-    // Verify sequential order by message IDs
-    let mut prev_id = crate::types::MessageId(0);
+    // Verify all IDs are unique
+    let mut seen_ids = std::collections::HashSet::new();
     for effect in effects {
         match effect {
             SideEffect::MessageAppended { message_id, .. } => {
-                assert!(message_id.0 > prev_id.0, "Side-effects out of order");
-                prev_id = message_id;
+                assert!(seen_ids.insert(message_id.as_str().to_string()), "Duplicate ID in side-effects");
             }
             _ => panic!("Unexpected side-effect"),
         }
@@ -133,16 +129,14 @@ fn rule_87_side_effects_no_interleave() {
     // Alternate between sessions
     for i in 0..10 {
         armin.append(
-            session1,
+            &session1,
             NewMessage {
-                role: Role::User,
                 content: format!("S1-{}", i),
             },
         );
         armin.append(
-            session2,
+            &session2,
             NewMessage {
-                role: Role::User,
                 content: format!("S2-{}", i),
             },
         );
@@ -151,14 +145,14 @@ fn rule_87_side_effects_no_interleave() {
     let effects = armin.sink().effects();
 
     // Verify each effect is complete (has both session_id and message_id)
-    for effect in effects {
+    for effect in &effects {
         match effect {
             SideEffect::MessageAppended {
-                session_id,
-                message_id,
+                session_id: sid,
+                message_id: mid,
             } => {
-                assert!(session_id == session1 || session_id == session2);
-                assert!(message_id.0 > 0);
+                assert!(*sid == session1 || *sid == session2);
+                assert!(!mid.as_str().is_empty());
             }
             _ => panic!("Unexpected side-effect type"),
         }
@@ -174,16 +168,15 @@ fn rule_88_delta_thread_safe_reads() {
 
     for i in 0..100 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
     // Get delta (it's Clone)
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
 
     // Read from multiple threads
     let handles: Vec<_> = (0..10)
@@ -211,14 +204,13 @@ fn rule_89_live_hub_thread_safe() {
     let session_id = armin.create_session();
 
     // Subscribe
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Append messages
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -250,9 +242,8 @@ fn rule_90_sqlite_synchronized() {
 
         for i in 0..100 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -265,7 +256,7 @@ fn rule_90_sqlite_synchronized() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 100);
 }
 
@@ -304,9 +295,8 @@ fn multiple_snapshot_clones_independent() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Original".to_string(),
         },
     );
@@ -320,8 +310,9 @@ fn multiple_snapshot_clones_independent() {
     let handles: Vec<_> = vec![snap1, snap2, snap3]
         .into_iter()
         .map(|snap| {
+            let sid = session_id.clone();
             thread::spawn(move || {
-                let session = snap.session(session_id).unwrap();
+                let session = snap.session(&sid).unwrap();
                 assert_eq!(session.message_count(), 1);
             })
         })
@@ -340,15 +331,14 @@ fn delta_clones_independent() {
 
     for i in 0..50 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
-    let delta1 = armin.delta(session_id);
+    let delta1 = armin.delta(&session_id);
     let delta2 = delta1.clone();
 
     // Both work independently
@@ -365,12 +355,11 @@ fn many_subscribers_single_message() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(session_id)).collect();
+    let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Broadcast".to_string(),
         },
     );

@@ -7,7 +7,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::Armin;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -24,16 +24,14 @@ fn recovery_rebuilds_sessions() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Hello".to_string(),
             },
         );
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::Assistant,
                 content: "Hi".to_string(),
             },
         );
@@ -47,7 +45,7 @@ fn recovery_rebuilds_sessions() {
 
     // Snapshot should contain the session
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 2);
     assert_eq!(session.messages()[0].content, "Hello");
     assert_eq!(session.messages()[1].content, "Hi");
@@ -64,9 +62,8 @@ fn recovery_emits_no_side_effects() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Test".to_string(),
             },
         );
@@ -96,18 +93,16 @@ fn recovery_rebuilds_multiple_sessions() {
 
         let s1 = armin.create_session();
         armin.append(
-            s1,
+            &s1,
             NewMessage {
-                role: Role::User,
                 content: "Session 1".to_string(),
             },
         );
 
         let s2 = armin.create_session();
         armin.append(
-            s2,
+            &s2,
             NewMessage {
-                role: Role::User,
                 content: "Session 2".to_string(),
             },
         );
@@ -122,10 +117,10 @@ fn recovery_rebuilds_multiple_sessions() {
     let snapshot = armin.snapshot();
     assert_eq!(snapshot.len(), 2);
 
-    let s1 = snapshot.session(session1).unwrap();
+    let s1 = snapshot.session(&session1).unwrap();
     assert_eq!(s1.messages()[0].content, "Session 1");
 
-    let s2 = snapshot.session(session2).unwrap();
+    let s2 = snapshot.session(&session2).unwrap();
     assert_eq!(s2.messages()[0].content, "Session 2");
 }
 
@@ -140,13 +135,12 @@ fn recovery_preserves_closed_sessions() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Closing".to_string(),
             },
         );
-        armin.close(session_id);
+        armin.close(&session_id);
         session_id
     };
 
@@ -155,7 +149,7 @@ fn recovery_preserves_closed_sessions() {
     let armin = Armin::open(path, sink).unwrap();
 
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert!(session.is_closed());
 }
 
@@ -170,9 +164,8 @@ fn recovery_clears_deltas() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Message".to_string(),
             },
         );
@@ -184,7 +177,7 @@ fn recovery_clears_deltas() {
     let armin = Armin::open(path, sink).unwrap();
 
     // Delta should be empty after recovery (messages are in snapshot)
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert!(
         delta.is_empty(),
         "Delta should be empty after recovery, messages should be in snapshot"
@@ -192,7 +185,7 @@ fn recovery_clears_deltas() {
 
     // But snapshot should have the messages
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
 }
 
@@ -207,9 +200,8 @@ fn new_messages_after_recovery_appear_in_delta() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Before recovery".to_string(),
             },
         );
@@ -221,21 +213,20 @@ fn new_messages_after_recovery_appear_in_delta() {
     let armin = Armin::open(path, sink).unwrap();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::Assistant,
             content: "After recovery".to_string(),
         },
     );
 
     // New message should be in delta
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
     assert_eq!(delta.messages()[0].content, "After recovery");
 
     // Snapshot has old messages
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.message_count(), 1);
     assert_eq!(session.messages()[0].content, "Before recovery");
 }
@@ -277,9 +268,8 @@ fn recovery_with_counting_sink_emits_nothing() {
             let session_id = armin.create_session();
             for j in 0..3 {
                 armin.append(
-                    session_id,
+                    &session_id,
                     NewMessage {
-                        role: Role::User,
                         content: format!("Message {}-{}", i, j),
                     },
                 );

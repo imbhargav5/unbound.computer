@@ -5,7 +5,7 @@
 //! - Legacy connection pool with WAL mode (deprecated)
 //! - Database migrations
 //! - Model types for all tables
-//! - ChaCha20-Poly1305 encryption for message content
+//! - ChaCha20-Poly1305 encryption for session secrets
 //! - Query helpers for CRUD operations
 //!
 //! # Architecture
@@ -27,6 +27,11 @@
 //!
 //! The `DatabasePool` uses r2d2 with multiple connections. This is being
 //! phased out in favor of the async executor.
+//!
+//! # Message Storage
+//!
+//! Messages are stored as plain text in SQLite. Encryption is only used for
+//! Supabase sync (handled separately, not in this crate).
 
 mod db;
 mod encryption;
@@ -38,6 +43,7 @@ mod pool;
 pub mod queries;
 
 pub use db::Database;
+// Encryption is still used for session secrets (encrypted with device key)
 pub use encryption::{decrypt_content, encrypt_content, generate_nonce};
 pub use error::{DatabaseError, DatabaseResult};
 pub use executor::AsyncDatabase;

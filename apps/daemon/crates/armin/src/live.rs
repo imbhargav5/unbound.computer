@@ -68,26 +68,26 @@ impl LiveHub {
     ///
     /// The subscription will receive all messages appended to the session
     /// after the subscription is created.
-    pub fn subscribe(&self, session: SessionId) -> LiveSubscription {
+    pub fn subscribe(&self, session: &SessionId) -> LiveSubscription {
         let (sender, receiver) = mpsc::channel();
 
         let mut subscribers = self.subscribers.write().expect("lock poisoned");
         subscribers
-            .entry(session)
+            .entry(session.clone())
             .or_insert_with(Vec::new)
             .push(sender);
 
-        LiveSubscription::new(session, receiver)
+        LiveSubscription::new(session.clone(), receiver)
     }
 
     /// Notifies all subscribers of a session about a new message.
     ///
     /// This should be called after the message is committed to SQLite.
     /// Dead subscribers (those whose receivers have been dropped) are automatically removed.
-    pub fn notify(&self, session: SessionId, message: Message) {
+    pub fn notify(&self, session: &SessionId, message: Message) {
         let mut subscribers = self.subscribers.write().expect("lock poisoned");
 
-        if let Some(senders) = subscribers.get_mut(&session) {
+        if let Some(senders) = subscribers.get_mut(session) {
             // Send to all subscribers, removing dead ones
             senders.retain(|sender| sender.send(message.clone()).is_ok());
         }
@@ -96,15 +96,15 @@ impl LiveHub {
     /// Removes all subscribers for a session.
     ///
     /// This is typically called when a session is closed.
-    pub fn close_session(&self, session: SessionId) {
+    pub fn close_session(&self, session: &SessionId) {
         let mut subscribers = self.subscribers.write().expect("lock poisoned");
-        subscribers.remove(&session);
+        subscribers.remove(session);
     }
 
     /// Returns the number of active subscribers for a session.
-    pub fn subscriber_count(&self, session: SessionId) -> usize {
+    pub fn subscriber_count(&self, session: &SessionId) -> usize {
         let subscribers = self.subscribers.read().expect("lock poisoned");
-        subscribers.get(&session).map(|s| s.len()).unwrap_or(0)
+        subscribers.get(session).map(|s| s.len()).unwrap_or(0)
     }
 }
 
@@ -117,25 +117,25 @@ impl Default for LiveHub {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{MessageId, Role};
+    use crate::types::MessageId;
 
-    fn make_message(id: u64, content: &str) -> Message {
+    fn make_message(id: &str, content: &str) -> Message {
         Message {
-            id: MessageId(id),
-            role: Role::User,
+            id: MessageId::from_string(id),
             content: content.to_string(),
+            sequence_number: 0,
         }
     }
 
     #[test]
     fn subscribe_and_receive() {
         let hub = LiveHub::new();
-        let session = SessionId(1);
+        let session = SessionId::from_string("session-1");
 
-        let sub = hub.subscribe(session);
-        assert_eq!(hub.subscriber_count(session), 1);
+        let sub = hub.subscribe(&session);
+        assert_eq!(hub.subscriber_count(&session), 1);
 
-        hub.notify(session, make_message(1, "Hello"));
+        hub.notify(&session, make_message("1", "Hello"));
 
         let msg = sub.try_recv().unwrap();
         assert_eq!(msg.content, "Hello");
@@ -144,13 +144,13 @@ mod tests {
     #[test]
     fn multiple_subscribers() {
         let hub = LiveHub::new();
-        let session = SessionId(1);
+        let session = SessionId::from_string("session-1");
 
-        let sub1 = hub.subscribe(session);
-        let sub2 = hub.subscribe(session);
-        assert_eq!(hub.subscriber_count(session), 2);
+        let sub1 = hub.subscribe(&session);
+        let sub2 = hub.subscribe(&session);
+        assert_eq!(hub.subscriber_count(&session), 2);
 
-        hub.notify(session, make_message(1, "Broadcast"));
+        hub.notify(&session, make_message("1", "Broadcast"));
 
         assert_eq!(sub1.try_recv().unwrap().content, "Broadcast");
         assert_eq!(sub2.try_recv().unwrap().content, "Broadcast");
@@ -159,40 +159,42 @@ mod tests {
     #[test]
     fn dead_subscriber_cleanup() {
         let hub = LiveHub::new();
-        let session = SessionId(1);
+        let session = SessionId::from_string("session-1");
 
         // Create and drop a subscriber
         {
-            let _sub = hub.subscribe(session);
-            assert_eq!(hub.subscriber_count(session), 1);
+            let _sub = hub.subscribe(&session);
+            assert_eq!(hub.subscriber_count(&session), 1);
         }
 
         // After sending a message, dead subscribers should be cleaned up
-        hub.notify(session, make_message(1, "Test"));
-        assert_eq!(hub.subscriber_count(session), 0);
+        hub.notify(&session, make_message("1", "Test"));
+        assert_eq!(hub.subscriber_count(&session), 0);
     }
 
     #[test]
     fn close_session_removes_subscribers() {
         let hub = LiveHub::new();
-        let session = SessionId(1);
+        let session = SessionId::from_string("session-1");
 
-        let _sub = hub.subscribe(session);
-        assert_eq!(hub.subscriber_count(session), 1);
+        let _sub = hub.subscribe(&session);
+        assert_eq!(hub.subscriber_count(&session), 1);
 
-        hub.close_session(session);
-        assert_eq!(hub.subscriber_count(session), 0);
+        hub.close_session(&session);
+        assert_eq!(hub.subscriber_count(&session), 0);
     }
 
     #[test]
     fn multiple_sessions() {
         let hub = LiveHub::new();
+        let session1 = SessionId::from_string("session-1");
+        let session2 = SessionId::from_string("session-2");
 
-        let sub1 = hub.subscribe(SessionId(1));
-        let sub2 = hub.subscribe(SessionId(2));
+        let sub1 = hub.subscribe(&session1);
+        let sub2 = hub.subscribe(&session2);
 
-        hub.notify(SessionId(1), make_message(1, "Session 1"));
-        hub.notify(SessionId(2), make_message(2, "Session 2"));
+        hub.notify(&session1, make_message("1", "Session 1"));
+        hub.notify(&session2, make_message("2", "Session 2"));
 
         assert_eq!(sub1.try_recv().unwrap().content, "Session 1");
         assert_eq!(sub2.try_recv().unwrap().content, "Session 2");
@@ -205,13 +207,13 @@ mod tests {
     #[test]
     fn no_message_before_subscribe() {
         let hub = LiveHub::new();
-        let session = SessionId(1);
+        let session = SessionId::from_string("session-1");
 
         // Send message before subscription
-        hub.notify(session, make_message(1, "Before"));
+        hub.notify(&session, make_message("1", "Before"));
 
         // Subscribe after
-        let sub = hub.subscribe(session);
+        let sub = hub.subscribe(&session);
 
         // Should not receive the message sent before subscription
         assert!(sub.try_recv().is_none());

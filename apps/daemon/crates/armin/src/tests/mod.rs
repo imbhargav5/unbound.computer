@@ -27,7 +27,7 @@ mod snapshot;
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 
@@ -42,22 +42,20 @@ fn basic_workflow() {
 
     // Append messages
     let _msg1 = engine.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Hello".to_string(),
         },
     );
     let _msg2 = engine.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::Assistant,
             content: "Hi there!".to_string(),
         },
     );
 
     // Verify delta
-    let delta = engine.delta(session_id);
+    let delta = engine.delta(&session_id);
     assert_eq!(delta.len(), 2);
 
     // Verify side-effects
@@ -68,6 +66,6 @@ fn basic_workflow() {
     assert!(matches!(effects[2], SideEffect::MessageAppended { .. }));
 
     // Close session
-    engine.close(session_id);
+    engine.close(&session_id);
     assert_eq!(engine.sink().len(), 4);
 }

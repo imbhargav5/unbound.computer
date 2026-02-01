@@ -364,17 +364,15 @@ impl Database {
     pub fn insert_message(&self, message: &NewAgentCodingSessionMessage) -> DatabaseResult<()> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO agent_coding_session_messages (id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?5, ?8)",
+            "INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?4)",
             params![
                 message.id,
                 message.session_id,
-                message.content_encrypted,
-                message.content_nonce,
+                message.content,
                 now,
                 message.is_streaming,
                 message.sequence_number,
-                message.debugging_decrypted_payload,
             ],
         )?;
         Ok(())
@@ -383,7 +381,7 @@ impl Database {
     /// Get a message by ID.
     pub fn get_message(&self, id: &str) -> DatabaseResult<Option<AgentCodingSessionMessage>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload
+            "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
              FROM agent_coding_session_messages WHERE id = ?1",
         )?;
 
@@ -391,13 +389,11 @@ impl Database {
             Ok(AgentCodingSessionMessage {
                 id: row.get(0)?,
                 session_id: row.get(1)?,
-                content_encrypted: row.get(2)?,
-                content_nonce: row.get(3)?,
-                timestamp: parse_datetime(row.get::<_, String>(4)?),
-                is_streaming: row.get(5)?,
-                sequence_number: row.get(6)?,
-                created_at: parse_datetime(row.get::<_, String>(7)?),
-                debugging_decrypted_payload: row.get(8)?,
+                content: row.get(2)?,
+                timestamp: parse_datetime(row.get::<_, String>(3)?),
+                is_streaming: row.get(4)?,
+                sequence_number: row.get(5)?,
+                created_at: parse_datetime(row.get::<_, String>(6)?),
             })
         });
 
@@ -411,7 +407,7 @@ impl Database {
     /// List messages for a session ordered by sequence number.
     pub fn list_messages_for_session(&self, session_id: &str) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload
+            "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
              FROM agent_coding_session_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
         )?;
 
@@ -420,13 +416,11 @@ impl Database {
                 Ok(AgentCodingSessionMessage {
                     id: row.get(0)?,
                     session_id: row.get(1)?,
-                    content_encrypted: row.get(2)?,
-                    content_nonce: row.get(3)?,
-                    timestamp: parse_datetime(row.get::<_, String>(4)?),
-                    is_streaming: row.get(5)?,
-                    sequence_number: row.get(6)?,
-                    created_at: parse_datetime(row.get::<_, String>(7)?),
-                    debugging_decrypted_payload: row.get(8)?,
+                    content: row.get(2)?,
+                    timestamp: parse_datetime(row.get::<_, String>(3)?),
+                    is_streaming: row.get(4)?,
+                    sequence_number: row.get(5)?,
+                    created_at: parse_datetime(row.get::<_, String>(6)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -835,15 +829,13 @@ mod tests {
         let db = create_test_db();
         let (_, session_id) = setup_test_repo_and_session(&db);
 
-        // Insert message with debugging payload
+        // Insert message with plain text content
         let msg = NewAgentCodingSessionMessage {
             id: "msg-1".to_string(),
             session_id: session_id.clone(),
-            content_encrypted: vec![1, 2, 3],
-            content_nonce: vec![4, 5, 6],
+            content: r#"{"type":"user","content":"hello"}"#.to_string(),
             sequence_number: 1,
             is_streaming: false,
-            debugging_decrypted_payload: Some(r#"{"type":"user","content":"hello"}"#.to_string()),
         };
         db.insert_message(&msg).unwrap();
 
@@ -851,10 +843,9 @@ mod tests {
         let fetched = db.get_message("msg-1").unwrap().unwrap();
         assert_eq!(fetched.id, "msg-1");
         assert_eq!(fetched.session_id, session_id);
-        assert_eq!(fetched.content_encrypted, vec![1, 2, 3]);
+        assert_eq!(fetched.content, r#"{"type":"user","content":"hello"}"#);
         assert_eq!(fetched.sequence_number, 1);
         assert!(!fetched.is_streaming);
-        assert_eq!(fetched.debugging_decrypted_payload, Some(r#"{"type":"user","content":"hello"}"#.to_string()));
 
         // List messages
         let messages = db.list_messages_for_session(&session_id).unwrap();
@@ -877,11 +868,9 @@ mod tests {
         db.insert_message(&NewAgentCodingSessionMessage {
             id: "msg-1".to_string(),
             session_id: session_id.clone(),
-            content_encrypted: vec![],
-            content_nonce: vec![],
+            content: "message 1".to_string(),
             sequence_number: seq1,
             is_streaming: false,
-            debugging_decrypted_payload: None,
         }).unwrap();
 
         // Next sequence should be 2
@@ -892,11 +881,9 @@ mod tests {
         db.insert_message(&NewAgentCodingSessionMessage {
             id: "msg-2".to_string(),
             session_id: session_id.clone(),
-            content_encrypted: vec![],
-            content_nonce: vec![],
+            content: "message 2".to_string(),
             sequence_number: seq2,
             is_streaming: false,
-            debugging_decrypted_payload: None,
         }).unwrap();
 
         // Next sequence should be 3
@@ -919,11 +906,9 @@ mod tests {
         db.insert_message(&NewAgentCodingSessionMessage {
             id: "msg-1".to_string(),
             session_id: session_id.clone(),
-            content_encrypted: vec![],
-            content_nonce: vec![],
+            content: "test message".to_string(),
             sequence_number: 1,
             is_streaming: false,
-            debugging_decrypted_payload: None,
         }).unwrap();
 
         // Insert outbox event
@@ -962,11 +947,9 @@ mod tests {
             db.insert_message(&NewAgentCodingSessionMessage {
                 id: format!("msg-{}", i),
                 session_id: session_id.clone(),
-                content_encrypted: vec![],
-                content_nonce: vec![],
+                content: format!("message {}", i),
                 sequence_number: i,
                 is_streaming: false,
-                debugging_decrypted_payload: None,
             }).unwrap();
         }
 
@@ -1012,11 +995,9 @@ mod tests {
         db.insert_message(&NewAgentCodingSessionMessage {
             id: "msg-1".to_string(),
             session_id: session_id.clone(),
-            content_encrypted: vec![],
-            content_nonce: vec![],
+            content: "test message".to_string(),
             sequence_number: 1,
             is_streaming: false,
-            debugging_decrypted_payload: None,
         }).unwrap();
 
         // Insert outbox event

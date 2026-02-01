@@ -1,6 +1,7 @@
 //! Daemon initialization.
 
 use crate::app::DaemonState;
+use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
 use crate::outbox::SessionSyncService;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
@@ -151,6 +152,12 @@ pub async fn run_daemon(
         session_secret_cache.inner(),
     ));
 
+    // Initialize Armin session engine for fast in-memory reads
+    // Armin uses its own SQLite database separate from the main daemon database
+    let armin_db_path = paths.base_dir().join("armin.db");
+    let armin = create_daemon_armin(&armin_db_path, ipc_server.subscriptions().clone())
+        .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
+
     // Create shared state (Clone-able with internal Arc)
     let state = DaemonState {
         config: Arc::new(config),
@@ -167,6 +174,7 @@ pub async fn run_daemon(
         device_private_key: device_private_key_arc,
         session_sync,
         stream_producers: Arc::new(Mutex::new(HashMap::new())),
+        armin,
     };
 
     // Load session secrets from Supabase into memory cache

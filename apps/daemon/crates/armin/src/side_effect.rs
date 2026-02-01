@@ -97,12 +97,15 @@ mod tests {
         let sink = RecordingSink::new();
         assert!(sink.is_empty());
 
+        let session_id = SessionId::from_string("session-1");
+        let message_id = MessageId::from_string("message-1");
+
         sink.emit(SideEffect::SessionCreated {
-            session_id: SessionId(1),
+            session_id: session_id.clone(),
         });
         sink.emit(SideEffect::MessageAppended {
-            session_id: SessionId(1),
-            message_id: MessageId(1),
+            session_id: session_id.clone(),
+            message_id: message_id.clone(),
         });
 
         assert_eq!(sink.len(), 2);
@@ -110,14 +113,14 @@ mod tests {
         assert_eq!(
             effects[0],
             SideEffect::SessionCreated {
-                session_id: SessionId(1)
+                session_id: session_id.clone()
             }
         );
         assert_eq!(
             effects[1],
             SideEffect::MessageAppended {
-                session_id: SessionId(1),
-                message_id: MessageId(1)
+                session_id: session_id.clone(),
+                message_id: message_id.clone()
             }
         );
     }
@@ -126,7 +129,7 @@ mod tests {
     fn recording_sink_clear() {
         let sink = RecordingSink::new();
         sink.emit(SideEffect::SessionCreated {
-            session_id: SessionId(1),
+            session_id: SessionId::from_string("session-1"),
         });
         assert!(!sink.is_empty());
 
@@ -139,7 +142,7 @@ mod tests {
         let sink = NullSink;
         // Should not panic
         sink.emit(SideEffect::SessionCreated {
-            session_id: SessionId(1),
+            session_id: SessionId::from_string("session-1"),
         });
     }
 }

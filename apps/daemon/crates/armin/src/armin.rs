@@ -31,7 +31,7 @@ use crate::reader::SessionReader;
 use crate::side_effect::{SideEffect, SideEffectSink};
 use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
-use crate::types::{Message, MessageId, NewMessage, SessionId};
+use crate::types::{Message, NewMessage, SessionId};
 use crate::writer::SessionWriter;
 use crate::ArminError;
 
@@ -99,16 +99,16 @@ impl<S: SideEffectSink> Armin<S> {
 
         for session in sessions {
             // Load messages for this session
-            let messages = self.sqlite.get_messages(session.id)?;
-            let last_message_id = messages.last().map(|m| m.id);
+            let messages = self.sqlite.get_messages(&session.id)?;
+            let last_message_id = messages.last().map(|m| m.id.clone());
 
             // Initialize delta tracking with cursor at end of current messages
-            self.delta.init_session(session.id, last_message_id);
+            self.delta.init_session(session.id.clone(), last_message_id);
 
             // Create snapshot
             snapshot_sessions.insert(
-                session.id,
-                SessionSnapshot::new(session.id, messages, session.closed),
+                session.id.clone(),
+                SessionSnapshot::new(session.id.clone(), messages, session.closed),
             );
         }
 
@@ -132,14 +132,14 @@ impl<S: SideEffectSink> Armin<S> {
         let mut snapshot_sessions = HashMap::new();
 
         for session in sessions {
-            let messages = self.sqlite.get_messages(session.id)?;
+            let messages = self.sqlite.get_messages(&session.id)?;
 
             // Clear delta and update cursor
-            self.delta.clear(session.id);
+            self.delta.clear(&session.id);
 
             snapshot_sessions.insert(
-                session.id,
-                SessionSnapshot::new(session.id, messages, session.closed),
+                session.id.clone(),
+                SessionSnapshot::new(session.id.clone(), messages, session.closed),
             );
         }
 
@@ -157,15 +157,15 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             .expect("failed to create session");
 
         // 2. Update derived state
-        self.delta.init_session(session_id, None);
+        self.delta.init_session(session_id.clone(), None);
 
         // 3. Emit side-effect
-        self.sink.emit(SideEffect::SessionCreated { session_id });
+        self.sink.emit(SideEffect::SessionCreated { session_id: session_id.clone() });
 
         session_id
     }
 
-    fn append(&self, session: SessionId, message: NewMessage) -> MessageId {
+    fn append(&self, session: &SessionId, message: NewMessage) -> Message {
         // Verify session exists and is open
         if !self
             .sqlite
@@ -175,32 +175,32 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             panic!("session {} does not exist or is closed", session.0);
         }
 
-        // 1. Commit fact to SQLite
-        let message_id = self
+        // 1. Commit fact to SQLite (atomic sequence assignment)
+        let inserted = self
             .sqlite
             .insert_message(session, &message)
             .expect("failed to insert message");
 
         let full_message = Message {
-            id: message_id,
-            role: message.role,
+            id: inserted.id.clone(),
             content: message.content,
+            sequence_number: inserted.sequence_number,
         };
 
         // 2. Update derived state
         self.delta.append(session, full_message.clone());
-        self.live.notify(session, full_message);
+        self.live.notify(session, full_message.clone());
 
         // 3. Emit side-effect
         self.sink.emit(SideEffect::MessageAppended {
-            session_id: session,
-            message_id,
+            session_id: session.clone(),
+            message_id: inserted.id,
         });
 
-        message_id
+        full_message
     }
 
-    fn close(&self, session: SessionId) {
+    fn close(&self, session: &SessionId) {
         // 1. Commit fact to SQLite
         let closed = self
             .sqlite
@@ -215,7 +215,7 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         self.live.close_session(session);
 
         // 3. Emit side-effect
-        self.sink.emit(SideEffect::SessionClosed { session_id: session });
+        self.sink.emit(SideEffect::SessionClosed { session_id: session.clone() });
     }
 }
 
@@ -224,11 +224,11 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
         self.snapshot.read().expect("lock poisoned").clone()
     }
 
-    fn delta(&self, session: SessionId) -> DeltaView {
+    fn delta(&self, session: &SessionId) -> DeltaView {
         self.delta.get(session)
     }
 
-    fn subscribe(&self, session: SessionId) -> LiveSubscription {
+    fn subscribe(&self, session: &SessionId) -> LiveSubscription {
         self.live.subscribe(session)
     }
 }
@@ -237,7 +237,6 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
 mod tests {
     use super::*;
     use crate::side_effect::RecordingSink;
-    use crate::types::Role;
 
     #[test]
     fn create_session_emits_side_effect() {
@@ -248,7 +247,7 @@ mod tests {
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0], SideEffect::SessionCreated { session_id });
+        assert_eq!(effects[0], SideEffect::SessionCreated { session_id: session_id.clone() });
     }
 
     #[test]
@@ -259,10 +258,9 @@ mod tests {
         let session_id = armin.create_session();
         armin.sink().clear();
 
-        let message_id = armin.append(
-            session_id,
+        let message = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Hello".to_string(),
             },
         );
@@ -272,8 +270,8 @@ mod tests {
         assert_eq!(
             effects[0],
             SideEffect::MessageAppended {
-                session_id,
-                message_id
+                session_id: session_id.clone(),
+                message_id: message.id.clone()
             }
         );
     }
@@ -286,11 +284,11 @@ mod tests {
         let session_id = armin.create_session();
         armin.sink().clear();
 
-        armin.close(session_id);
+        armin.close(&session_id);
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0], SideEffect::SessionClosed { session_id });
+        assert_eq!(effects[0], SideEffect::SessionClosed { session_id: session_id.clone() });
     }
 
     #[test]
@@ -299,22 +297,24 @@ mod tests {
         let armin = Armin::in_memory(sink).unwrap();
 
         let session_id = armin.create_session();
-        armin.append(
-            session_id,
+        let msg1 = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "First".to_string(),
             },
         );
-        armin.append(
-            session_id,
+        let msg2 = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::Assistant,
                 content: "Second".to_string(),
             },
         );
 
-        let delta = armin.delta(session_id);
+        // Verify sequence numbers are assigned correctly
+        assert_eq!(msg1.sequence_number, 1);
+        assert_eq!(msg2.sequence_number, 2);
+
+        let delta = armin.delta(&session_id);
         assert_eq!(delta.len(), 2);
         assert_eq!(delta.messages()[0].content, "First");
         assert_eq!(delta.messages()[1].content, "Second");
@@ -326,12 +326,11 @@ mod tests {
         let armin = Armin::in_memory(sink).unwrap();
 
         let session_id = armin.create_session();
-        let sub = armin.subscribe(session_id);
+        let sub = armin.subscribe(&session_id);
 
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Hello".to_string(),
             },
         );
@@ -347,12 +346,11 @@ mod tests {
         let armin = Armin::in_memory(sink).unwrap();
 
         let session_id = armin.create_session();
-        armin.close(session_id);
+        armin.close(&session_id);
 
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Should fail".to_string(),
             },
         );
@@ -365,9 +363,8 @@ mod tests {
 
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Message".to_string(),
             },
         );
@@ -377,7 +374,7 @@ mod tests {
         armin.refresh_snapshot().unwrap();
 
         let snapshot = armin.snapshot();
-        let session = snapshot.session(session_id).unwrap();
+        let session = snapshot.session(&session_id).unwrap();
         assert_eq!(session.message_count(), 1);
         assert_eq!(session.messages()[0].content, "Message");
     }

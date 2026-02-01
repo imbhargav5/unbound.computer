@@ -1,6 +1,7 @@
 //! Claude process output streaming and event handling.
 
 use crate::app::DaemonState;
+use armin::{NewMessage, SessionId, SessionWriter};
 use daemon_database::{queries, AgentStatus};
 use daemon_stream::{EventType as StreamEventType, StreamProducer};
 use regex::Regex;
@@ -10,12 +11,12 @@ use tokio::process::Child;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-/// Handle Claude process output, storing raw JSON as messages in the database.
+/// Handle Claude process output, storing raw JSON as messages via Armin.
 ///
 /// This simplified handler:
 /// 1. Validates each line is parseable JSON
-/// 2. Extracts `type` field to map to `role` column
-/// 3. Stores raw JSON encrypted in messages table
+/// 2. Extracts `type` field for logging
+/// 3. Stores raw JSON as plain text via Armin
 /// 4. Streams events via shared memory for clients to consume
 pub async fn handle_claude_process(
     mut child: Child,
@@ -71,99 +72,6 @@ pub async fn handle_claude_process(
         }
     };
 
-    // Get encryption key for storing messages (checks cache first, then SQLite, then keychain)
-    info!("\x1b[35m[PROCESS]\x1b[0m Getting encryption key...");
-    let cached_db_key = *state.db_encryption_key.lock().unwrap();
-    let encryption_key = {
-        let conn = match state.db.get() {
-            Ok(c) => c,
-            Err(e) => {
-                error!("\x1b[31m[PROCESS]\x1b[0m Database connection error: {}", e);
-                return;
-            }
-        };
-        let secrets = state.secrets.lock().unwrap();
-        state
-            .session_secret_cache
-            .get(&conn, &secrets, &session_id, cached_db_key.as_ref())
-    };
-
-    let encryption_key = match encryption_key {
-        Some(key) => {
-            info!("\x1b[35m[PROCESS]\x1b[0m Found existing encryption key");
-            key
-        }
-        None => {
-            info!("\x1b[35m[PROCESS]\x1b[0m No existing key, creating new session secret...");
-            let new_secret = daemon_storage::SecretsManager::generate_session_secret();
-
-            let db_key = match cached_db_key {
-                Some(key) => {
-                    info!("\x1b[35m[PROCESS]\x1b[0m Using cached database encryption key");
-                    key
-                }
-                None => {
-                    error!("\x1b[31m[PROCESS]\x1b[0m No database encryption key available (no device key?)");
-                    return;
-                }
-            };
-
-            let nonce = daemon_database::generate_nonce();
-            let encrypted_secret = match daemon_database::encrypt_content(
-                &db_key,
-                &nonce,
-                new_secret.as_bytes(),
-            ) {
-                Ok(e) => e,
-                Err(e) => {
-                    error!(
-                        "\x1b[31m[PROCESS]\x1b[0m Failed to encrypt session secret: {}",
-                        e
-                    );
-                    return;
-                }
-            };
-
-            {
-                let conn = match state.db.get() {
-                    Ok(c) => c,
-                    Err(e) => {
-                        error!("\x1b[31m[PROCESS]\x1b[0m Database connection error: {}", e);
-                        return;
-                    }
-                };
-                if let Err(e) = queries::set_session_secret(
-                    &conn,
-                    &daemon_database::NewSessionSecret {
-                        session_id: session_id.clone(),
-                        encrypted_secret,
-                        nonce: nonce.to_vec(),
-                    },
-                ) {
-                    error!(
-                        "\x1b[31m[PROCESS]\x1b[0m Failed to store session secret: {}",
-                        e
-                    );
-                    return;
-                }
-            }
-
-            match daemon_storage::SecretsManager::parse_session_secret(&new_secret) {
-                Ok(key) => {
-                    info!("\x1b[35m[PROCESS]\x1b[0m Created and stored new session secret");
-                    key
-                }
-                Err(e) => {
-                    error!(
-                        "\x1b[31m[PROCESS]\x1b[0m Failed to parse session secret: {}",
-                        e
-                    );
-                    return;
-                }
-            }
-        }
-    };
-
     // Set agent status to running
     {
         let conn = match state.db.get() {
@@ -190,6 +98,9 @@ pub async fn handle_claude_process(
 
     let mut reader = BufReader::new(stdout).lines();
     let mut event_count = 0;
+
+    // Convert session_id to Armin's SessionId
+    let armin_session_id = SessionId::from_string(&session_id);
 
     info!("\x1b[35m[PROCESS]\x1b[0m Starting to read Claude stdout...");
 
@@ -233,53 +144,14 @@ pub async fn handle_claude_process(
                         event_count += 1;
                         let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
 
-                        // Store raw JSON as a message with role = event type
-                        let msg_sequence = {
-                            let conn = match state.db.get() {
-                                Ok(c) => c,
-                                Err(e) => {
-                                    error!("\x1b[31m[PROCESS]\x1b[0m Database connection error: {}", e);
-                                    continue;
-                                }
-                            };
-                            let sequence = match queries::get_next_message_sequence(&conn, &session_id) {
-                                Ok(s) => s,
-                                Err(e) => {
-                                    error!("\x1b[31m[PROCESS]\x1b[0m Failed to get message sequence: {}", e);
-                                    continue;
-                                }
-                            };
-
-                            let nonce = daemon_database::generate_nonce();
-                            let encrypted = match daemon_database::encrypt_content(
-                                &encryption_key,
-                                &nonce,
-                                clean_line.as_bytes(),
-                            ) {
-                                Ok(e) => e,
-                                Err(e) => {
-                                    error!("\x1b[31m[PROCESS]\x1b[0m Failed to encrypt message: {}", e);
-                                    continue;
-                                }
-                            };
-
-                            let msg = daemon_database::NewAgentCodingSessionMessage {
-                                id: uuid::Uuid::new_v4().to_string(),
-                                session_id: session_id.clone(),
-                                content_encrypted: encrypted,
-                                content_nonce: nonce.to_vec(),
-                                sequence_number: sequence,
-                                is_streaming: false,
-                                debugging_decrypted_payload: Some(clean_line.clone()),
-                            };
-
-                            if let Err(e) = queries::insert_message(&conn, &msg) {
-                                warn!("\x1b[33m[PROCESS]\x1b[0m Failed to store message: {}", e);
-                                continue;
-                            }
-
-                            sequence
-                        };
+                        // Store raw JSON via Armin (sequence number assigned atomically)
+                        let message = state.armin.append(
+                            &armin_session_id,
+                            NewMessage {
+                                content: clean_line.clone(),
+                            },
+                        );
+                        let sequence = message.sequence_number;
 
                         // Log the event
                         match event_type {
@@ -317,7 +189,7 @@ pub async fn handle_claude_process(
                         if let Some(ref producer) = stream_producer {
                             if let Err(e) = producer.write_event(
                                 StreamEventType::ClaudeEvent,
-                                msg_sequence,
+                                sequence,
                                 clean_line.as_bytes(),
                             ) {
                                 warn!(

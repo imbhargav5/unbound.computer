@@ -9,7 +9,7 @@
 //! - Side-effects are emitted after derived state is updated
 //! - If SQLite write fails, nothing else happens
 
-use crate::types::{MessageId, NewMessage, SessionId};
+use crate::types::{Message, NewMessage, SessionId};
 
 /// A writer for session data.
 ///
@@ -25,15 +25,18 @@ pub trait SessionWriter {
 
     /// Appends a message to a session.
     ///
-    /// Returns the ID of the newly created message.
+    /// The sequence number is assigned atomically by Armin. Callers must NOT
+    /// provide a sequence number - Armin owns all sequencing and ordering.
+    ///
+    /// Returns the full message with assigned ID and sequence number.
     ///
     /// # Panics
     ///
     /// Panics if the session does not exist or is closed.
-    fn append(&self, session: SessionId, message: NewMessage) -> MessageId;
+    fn append(&self, session: &SessionId, message: NewMessage) -> Message;
 
     /// Closes a session.
     ///
     /// After closing, no more messages can be appended to the session.
-    fn close(&self, session: SessionId);
+    fn close(&self, session: &SessionId);
 }

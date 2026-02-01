@@ -8,7 +8,7 @@ use rusqlite::Connection;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 7;
+pub const CURRENT_VERSION: i32 = 8;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -52,6 +52,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 7 {
         migrate_v7_drop_role_column(conn)?;
+    }
+    if current_version < 8 {
+        migrate_v8_plaintext_messages(conn)?;
     }
 
     info!("Migrations complete");
@@ -387,6 +390,52 @@ fn migrate_v7_drop_role_column(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+/// V8: Convert messages to plaintext storage.
+/// Remove encryption columns (content_encrypted, content_nonce, debugging_decrypted_payload)
+/// and add a simple content TEXT column.
+fn migrate_v8_plaintext_messages(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v8: plaintext messages");
+
+    conn.execute_batch(
+        "
+        -- Create new table with plaintext content column
+        CREATE TABLE agent_coding_session_messages_new (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            is_streaming INTEGER NOT NULL DEFAULT 0,
+            sequence_number INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- Copy data from old table, using debugging_decrypted_payload as content
+        -- For messages without debugging payload, we use empty string (data is lost)
+        INSERT INTO agent_coding_session_messages_new
+            (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+        SELECT id, session_id, COALESCE(debugging_decrypted_payload, ''), timestamp, is_streaming, sequence_number, created_at
+        FROM agent_coding_session_messages;
+
+        -- Drop old table
+        DROP TABLE agent_coding_session_messages;
+
+        -- Rename new table
+        ALTER TABLE agent_coding_session_messages_new RENAME TO agent_coding_session_messages;
+
+        -- Recreate indexes
+        CREATE INDEX IF NOT EXISTS idx_messages_session_id
+            ON agent_coding_session_messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_session_seq
+            ON agent_coding_session_messages(session_id, sequence_number);
+        CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+            ON agent_coding_session_messages(timestamp);
+        ",
+    )?;
+
+    record_migration(conn, 8, "plaintext_messages")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,15 +476,15 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 
     #[test]
-    fn test_messages_table_no_role_column() {
+    fn test_messages_table_plaintext_content() {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
 
-        // Verify role column doesn't exist by checking table schema
+        // Verify the table has plaintext content column
         let columns: Vec<String> = conn
             .prepare("PRAGMA table_info(agent_coding_session_messages)")
             .unwrap()
@@ -444,8 +493,12 @@ mod tests {
             .filter_map(|r| r.ok())
             .collect();
 
+        // Should have content column
+        assert!(columns.contains(&"content".to_string()), "content column should exist");
+        // Should NOT have encryption columns
         assert!(!columns.contains(&"role".to_string()), "role column should not exist");
-        assert!(columns.contains(&"content_encrypted".to_string()));
-        assert!(columns.contains(&"debugging_decrypted_payload".to_string()));
+        assert!(!columns.contains(&"content_encrypted".to_string()), "content_encrypted should not exist");
+        assert!(!columns.contains(&"content_nonce".to_string()), "content_nonce should not exist");
+        assert!(!columns.contains(&"debugging_decrypted_payload".to_string()), "debugging_decrypted_payload should not exist");
     }
 }

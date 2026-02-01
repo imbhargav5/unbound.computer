@@ -1,6 +1,7 @@
 //! Unbound Daemon - Background service for authentication, database, and relay communication.
 
 mod app;
+mod armin_adapter;
 mod auth;
 mod ipc;
 mod machines;

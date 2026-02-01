@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role, SessionId};
+use crate::types::{NewMessage, SessionId};
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use tempfile::NamedTempFile;
@@ -30,9 +30,8 @@ fn rule_11_side_effect_for_every_append() {
     let append_count = 10;
     for i in 0..append_count {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -60,10 +59,9 @@ fn rule_12_exactly_one_side_effect_per_append() {
     let session_id = armin.create_session();
     armin.sink().clear();
 
-    let message_id = armin.append(
-        session_id,
+    let message = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Single message".to_string(),
         },
     );
@@ -75,7 +73,7 @@ fn rule_12_exactly_one_side_effect_per_append() {
             matches!(
                 e,
                 SideEffect::MessageAppended { session_id: s, message_id: m }
-                if *s == session_id && *m == message_id
+                if *s == session_id && *m == message.id
             )
         })
         .collect();
@@ -93,14 +91,13 @@ fn rule_13_side_effects_after_sqlite_commit() {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let (session_id, message_id) = {
+    let (session_id, message) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
-        let message_id = armin.append(
-            session_id,
+        let message = armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Test".to_string(),
             },
         );
@@ -109,18 +106,18 @@ fn rule_13_side_effects_after_sqlite_commit() {
         assert!(armin.sink().effects().iter().any(|e| matches!(
             e,
             SideEffect::MessageAppended { session_id: s, message_id: m }
-            if *s == session_id && *m == message_id
+            if *s == session_id && *m == message.id
         )));
 
-        (session_id, message_id)
+        (session_id, message)
     };
 
     // Reopen - message should be there (proving SQLite commit happened before side-effect)
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
-    assert_eq!(session.messages()[0].id, message_id);
+    let session = snapshot.session(&session_id).unwrap();
+    assert_eq!(session.messages()[0].id, message.id);
 }
 
 /// Rule 14: Side-effects contain correct session_id
@@ -134,16 +131,14 @@ fn rule_14_side_effects_contain_correct_session_id() {
     armin.sink().clear();
 
     armin.append(
-        session1,
+        &session1,
         NewMessage {
-            role: Role::User,
             content: "S1".to_string(),
         },
     );
     armin.append(
-        session2,
+        &session2,
         NewMessage {
-            role: Role::User,
             content: "S2".to_string(),
         },
     );
@@ -175,17 +170,15 @@ fn rule_15_side_effects_contain_correct_message_id() {
     let session_id = armin.create_session();
     armin.sink().clear();
 
-    let msg_id1 = armin.append(
-        session_id,
+    let msg1 = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "M1".to_string(),
         },
     );
-    let msg_id2 = armin.append(
-        session_id,
+    let msg2 = armin.append(
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "M2".to_string(),
         },
     );
@@ -194,14 +187,14 @@ fn rule_15_side_effects_contain_correct_message_id() {
 
     match &effects[0] {
         SideEffect::MessageAppended { message_id, .. } => {
-            assert_eq!(*message_id, msg_id1);
+            assert_eq!(*message_id, msg1.id);
         }
         _ => panic!("Expected MessageAppended"),
     }
 
     match &effects[1] {
         SideEffect::MessageAppended { message_id, .. } => {
-            assert_eq!(*message_id, msg_id2);
+            assert_eq!(*message_id, msg2.id);
         }
         _ => panic!("Expected MessageAppended"),
     }
@@ -215,12 +208,11 @@ fn rule_16_side_effects_preserve_append_order() {
     let session_id = armin.create_session();
     armin.sink().clear();
 
-    let mut message_ids = Vec::new();
+    let mut messages = Vec::new();
     for i in 0..20 {
-        message_ids.push(armin.append(
-            session_id,
+        messages.push(armin.append(
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         ));
@@ -232,7 +224,7 @@ fn rule_16_side_effects_preserve_append_order() {
         match effect {
             SideEffect::MessageAppended { message_id, .. } => {
                 assert_eq!(
-                    *message_id, message_ids[i],
+                    *message_id, messages[i].id,
                     "Side-effect {} has wrong message_id",
                     i
                 );
@@ -249,15 +241,14 @@ fn rule_17_no_side_effect_on_failed_write() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
-    armin.close(session_id);
+    armin.close(&session_id);
     armin.sink().clear();
 
     // Attempt to append to closed session (will panic)
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Should fail".to_string(),
             },
         );
@@ -283,9 +274,8 @@ fn rule_18_no_side_effects_during_recovery() {
         let session_id = armin.create_session();
         for i in 0..50 {
             armin.append(
-                session_id,
+                &session_id,
                 NewMessage {
-                    role: Role::User,
                     content: format!("Message {}", i),
                 },
             );
@@ -312,9 +302,8 @@ fn rule_19_no_side_effects_during_snapshot_rebuild() {
 
     for i in 0..10 {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
@@ -339,9 +328,8 @@ fn rule_20_reads_never_emit_side_effects() {
     let session_id = armin.create_session();
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -350,19 +338,19 @@ fn rule_20_reads_never_emit_side_effects() {
 
     // Perform various read operations
     let _snapshot = armin.snapshot();
-    let _delta = armin.delta(session_id);
-    let _sub = armin.subscribe(session_id);
+    let _delta = armin.delta(&session_id);
+    let _sub = armin.subscribe(&session_id);
 
     // Access snapshot data
     let snapshot = armin.snapshot();
-    if let Some(session) = snapshot.session(session_id) {
+    if let Some(session) = snapshot.session(&session_id) {
         let _ = session.messages();
         let _ = session.message_count();
         let _ = session.is_closed();
     }
 
     // Access delta data
-    let delta = armin.delta(session_id);
+    let delta = armin.delta(&session_id);
     let _ = delta.len();
     let _ = delta.is_empty();
     for _ in delta.iter() {}
@@ -397,11 +385,11 @@ fn session_closed_emits_side_effect() {
     let session_id = armin.create_session();
     armin.sink().clear();
 
-    armin.close(session_id);
+    armin.close(&session_id);
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0], SideEffect::SessionClosed { session_id });
+    assert_eq!(effects[0], SideEffect::SessionClosed { session_id: session_id.clone() });
 }
 
 #[test]
@@ -409,7 +397,7 @@ fn closing_nonexistent_session_emits_nothing() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    armin.close(SessionId(9999));
+    armin.close(&SessionId::from_string("nonexistent-session-9999"));
 
     assert!(armin.sink().is_empty());
 }
@@ -420,10 +408,10 @@ fn closing_already_closed_session_emits_nothing() {
     let armin = Armin::in_memory(sink).unwrap();
 
     let session_id = armin.create_session();
-    armin.close(session_id);
+    armin.close(&session_id);
     armin.sink().clear();
 
-    armin.close(session_id);
+    armin.close(&session_id);
 
     assert!(armin.sink().is_empty());
 }
@@ -437,16 +425,14 @@ fn multiple_sessions_emit_independent_side_effects() {
     let session2 = armin.create_session();
 
     armin.append(
-        session1,
+        &session1,
         NewMessage {
-            role: Role::User,
             content: "Session 1".to_string(),
         },
     );
     armin.append(
-        session2,
+        &session2,
         NewMessage {
-            role: Role::User,
             content: "Session 2".to_string(),
         },
     );
@@ -456,8 +442,8 @@ fn multiple_sessions_emit_independent_side_effects() {
 
     assert!(effects
         .iter()
-        .any(|e| *e == SideEffect::SessionCreated { session_id: session1 }));
+        .any(|e| *e == SideEffect::SessionCreated { session_id: session1.clone() }));
     assert!(effects
         .iter()
-        .any(|e| *e == SideEffect::SessionCreated { session_id: session2 }));
+        .any(|e| *e == SideEffect::SessionCreated { session_id: session2.clone() }));
 }

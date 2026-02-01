@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, Role};
+use crate::types::NewMessage;
 use crate::writer::SessionWriter;
 use crate::Armin;
 use tempfile::NamedTempFile;
@@ -26,12 +26,11 @@ fn rule_31_subscribers_receive_new_messages() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Hello".to_string(),
         },
     );
@@ -47,14 +46,13 @@ fn rule_32_subscribers_receive_in_order() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     let contents = vec!["First", "Second", "Third", "Fourth", "Fifth"];
-    for content in &contents {
+    for (i, content) in contents.iter().enumerate() {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: content.to_string(),
             },
         );
@@ -75,15 +73,14 @@ fn rule_33_no_historical_messages() {
 
     // Add messages before subscription
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Historical".to_string(),
         },
     );
 
     // Subscribe after
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Should not receive historical message
     assert!(
@@ -93,9 +90,8 @@ fn rule_33_no_historical_messages() {
 
     // But should receive new messages
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "New".to_string(),
         },
     );
@@ -112,16 +108,15 @@ fn rule_34_subscribers_block_semantics() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // No message yet - try_recv should return None
     assert!(sub.try_recv().is_none());
 
     // Add message
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
@@ -137,14 +132,13 @@ fn rule_35_multiple_subscribers_same_messages() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub1 = armin.subscribe(session_id);
-    let sub2 = armin.subscribe(session_id);
-    let sub3 = armin.subscribe(session_id);
+    let sub1 = armin.subscribe(&session_id);
+    let sub2 = armin.subscribe(&session_id);
+    let sub3 = armin.subscribe(&session_id);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Broadcast".to_string(),
         },
     );
@@ -162,22 +156,21 @@ fn rule_36_slow_subscribers_no_blocking() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Write many messages without reading
     let count = 100;
     for i in 0..count {
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: format!("Message {}", i),
             },
         );
     }
 
     // Verify all writes completed
-    assert_eq!(armin.delta(session_id).len(), count);
+    assert_eq!(armin.delta(&session_id).len(), count);
 
     // Slow subscriber can still read
     let mut received = 0;
@@ -198,12 +191,11 @@ fn rule_38_notifications_after_commit() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
 
-        let sub = armin.subscribe(session_id);
+        let sub = armin.subscribe(&session_id);
 
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Committed".to_string(),
             },
         );
@@ -217,7 +209,7 @@ fn rule_38_notifications_after_commit() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
     let snapshot = armin.snapshot();
-    let session = snapshot.session(session_id).unwrap();
+    let session = snapshot.session(&session_id).unwrap();
     assert_eq!(session.messages()[0].content, message_content);
 }
 
@@ -230,23 +222,21 @@ fn rule_40_subscriptions_session_scoped() {
     let session1 = armin.create_session();
     let session2 = armin.create_session();
 
-    let sub1 = armin.subscribe(session1);
-    let sub2 = armin.subscribe(session2);
+    let sub1 = armin.subscribe(&session1);
+    let sub2 = armin.subscribe(&session2);
 
     // Message to session1
     armin.append(
-        session1,
+        &session1,
         NewMessage {
-            role: Role::User,
             content: "For session 1".to_string(),
         },
     );
 
     // Message to session2
     armin.append(
-        session2,
+        &session2,
         NewMessage {
-            role: Role::User,
             content: "For session 2".to_string(),
         },
     );
@@ -273,9 +263,8 @@ fn subscription_after_recovery_receives_new_messages() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session();
         armin.append(
-            session_id,
+            &session_id,
             NewMessage {
-                role: Role::User,
                 content: "Before restart".to_string(),
             },
         );
@@ -285,16 +274,15 @@ fn subscription_after_recovery_receives_new_messages() {
     // Restart and subscribe
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     // Should not receive historical message
     assert!(sub.try_recv().is_none());
 
     // But should receive new ones
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "After restart".to_string(),
         },
     );
@@ -310,19 +298,18 @@ fn dropped_subscription_cleaned_up() {
 
     // Create and drop subscription
     {
-        let _sub = armin.subscribe(session_id);
+        let _sub = armin.subscribe(&session_id);
     }
 
     // Writing should still work (dead subscriber cleaned up)
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Test".to_string(),
         },
     );
 
-    assert_eq!(armin.delta(session_id).len(), 1);
+    assert_eq!(armin.delta(&session_id).len(), 1);
 }
 
 #[test]
@@ -331,17 +318,16 @@ fn closed_session_stops_notifications() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Before close".to_string(),
         },
     );
 
-    armin.close(session_id);
+    armin.close(&session_id);
 
     // Should still receive the message that was sent
     assert_eq!(sub.try_recv().unwrap().content, "Before close");
@@ -356,19 +342,17 @@ fn subscription_iterator() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session();
 
-    let sub = armin.subscribe(session_id);
+    let sub = armin.subscribe(&session_id);
 
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "One".to_string(),
         },
     );
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Two".to_string(),
         },
     );
@@ -389,13 +373,12 @@ fn many_subscribers_performance() {
     let session_id = armin.create_session();
 
     // Create many subscribers
-    let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(session_id)).collect();
+    let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
 
     // Send a message
     armin.append(
-        session_id,
+        &session_id,
         NewMessage {
-            role: Role::User,
             content: "Broadcast to many".to_string(),
         },
     );

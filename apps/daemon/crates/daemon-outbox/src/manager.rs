@@ -162,7 +162,7 @@ pub struct QueueStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use daemon_database::{NewAgentCodingSessionMessage, MessageRole};
+    use daemon_database::NewAgentCodingSessionMessage;
 
     fn create_test_db() -> Arc<Database> {
         let db = Arc::new(Database::open_in_memory().unwrap());
@@ -223,9 +223,7 @@ mod tests {
             db.insert_message(&NewAgentCodingSessionMessage {
                 id: msg_id.to_string(),
                 session_id: session_id.to_string(),
-                role: MessageRole::User,
-                content_encrypted: vec![],
-                content_nonce: vec![],
+                content: format!("message {}", i + 1),
                 sequence_number: (i + 1) as i64,
                 is_streaming: false,
             }).unwrap();

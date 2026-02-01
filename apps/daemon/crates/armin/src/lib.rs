@@ -26,7 +26,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use armin::{Armin, Message, NewMessage, Role, SessionReader, SessionWriter};
+//! use armin::{Armin, Message, NewMessage, SessionReader, SessionWriter};
 //! use armin::side_effect::{RecordingSink, SideEffect};
 //!
 //! // Create an in-memory engine for testing
@@ -37,13 +37,12 @@
 //! let session_id = engine.create_session();
 //!
 //! // Append messages
-//! engine.append(session_id, NewMessage {
-//!     role: Role::User,
+//! engine.append(&session_id, NewMessage {
 //!     content: "Hello!".to_string(),
 //! });
 //!
 //! // Read via delta
-//! let delta = engine.delta(session_id);
+//! let delta = engine.delta(&session_id);
 //! assert_eq!(delta.len(), 1);
 //!
 //! // Check side-effects were emitted
@@ -77,7 +76,7 @@ mod tests;
 pub use crate::armin::Armin;
 pub use reader::SessionReader;
 pub use side_effect::{NullSink, RecordingSink, SideEffect, SideEffectSink};
-pub use types::{Message, MessageId, NewMessage, Role, SessionId};
+pub use types::{Message, MessageId, NewMessage, SessionId};
 pub use writer::SessionWriter;
 
 /// Errors that can occur in Armin.

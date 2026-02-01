@@ -334,17 +334,15 @@ pub fn update_agent_status(
 pub fn insert_message(conn: &Connection, message: &NewAgentCodingSessionMessage) -> DatabaseResult<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_coding_session_messages (id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?5, ?8)",
+        "INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?4)",
         params![
             message.id,
             message.session_id,
-            message.content_encrypted,
-            message.content_nonce,
+            message.content,
             now,
             message.is_streaming,
             message.sequence_number,
-            message.debugging_decrypted_payload,
         ],
     )?;
     Ok(())
@@ -356,7 +354,7 @@ pub fn get_message(
     id: &str,
 ) -> DatabaseResult<Option<AgentCodingSessionMessage>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload
+        "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
          FROM agent_coding_session_messages WHERE id = ?1",
     )?;
 
@@ -364,13 +362,11 @@ pub fn get_message(
         Ok(AgentCodingSessionMessage {
             id: row.get(0)?,
             session_id: row.get(1)?,
-            content_encrypted: row.get(2)?,
-            content_nonce: row.get(3)?,
-            timestamp: parse_datetime(row.get::<_, String>(4)?),
-            is_streaming: row.get(5)?,
-            sequence_number: row.get(6)?,
-            created_at: parse_datetime(row.get::<_, String>(7)?),
-            debugging_decrypted_payload: row.get(8)?,
+            content: row.get(2)?,
+            timestamp: parse_datetime(row.get::<_, String>(3)?),
+            is_streaming: row.get(4)?,
+            sequence_number: row.get(5)?,
+            created_at: parse_datetime(row.get::<_, String>(6)?),
         })
     });
 
@@ -387,7 +383,7 @@ pub fn list_messages_for_session(
     session_id: &str,
 ) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, session_id, content_encrypted, content_nonce, timestamp, is_streaming, sequence_number, created_at, debugging_decrypted_payload
+        "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
          FROM agent_coding_session_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
     )?;
 
@@ -396,13 +392,11 @@ pub fn list_messages_for_session(
             Ok(AgentCodingSessionMessage {
                 id: row.get(0)?,
                 session_id: row.get(1)?,
-                content_encrypted: row.get(2)?,
-                content_nonce: row.get(3)?,
-                timestamp: parse_datetime(row.get::<_, String>(4)?),
-                is_streaming: row.get(5)?,
-                sequence_number: row.get(6)?,
-                created_at: parse_datetime(row.get::<_, String>(7)?),
-                debugging_decrypted_payload: row.get(8)?,
+                content: row.get(2)?,
+                timestamp: parse_datetime(row.get::<_, String>(3)?),
+                is_streaming: row.get(4)?,
+                sequence_number: row.get(5)?,
+                created_at: parse_datetime(row.get::<_, String>(6)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

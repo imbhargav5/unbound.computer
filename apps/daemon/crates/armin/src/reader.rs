@@ -23,10 +23,10 @@ pub trait SessionReader {
     /// Returns a delta view for a specific session.
     ///
     /// The delta contains messages appended since the last snapshot.
-    fn delta(&self, session: SessionId) -> DeltaView;
+    fn delta(&self, session: &SessionId) -> DeltaView;
 
     /// Subscribes to live updates for a specific session.
     ///
     /// Returns a subscription that yields new messages as they are appended.
-    fn subscribe(&self, session: SessionId) -> LiveSubscription;
+    fn subscribe(&self, session: &SessionId) -> LiveSubscription;
 }

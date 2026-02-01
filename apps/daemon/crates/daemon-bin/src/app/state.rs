@@ -1,5 +1,6 @@
 //! Daemon state definition.
 
+use crate::armin_adapter::DaemonArmin;
 use crate::outbox::SessionSyncService;
 use crate::utils::SessionSecretCache;
 use daemon_auth::SupabaseClient;
@@ -45,4 +46,8 @@ pub struct DaemonState {
     /// Shared memory stream producers for low-latency event streaming.
     /// Maps session_id to StreamProducer. Created when a Claude/terminal process starts.
     pub stream_producers: Arc<Mutex<HashMap<String, Arc<StreamProducer>>>>,
+    /// Armin session engine for fast in-memory message reads.
+    /// Provides snapshot, delta, and live subscription views.
+    /// Uses UUID-based session IDs directly - no mapping needed.
+    pub armin: Arc<DaemonArmin>,
 }

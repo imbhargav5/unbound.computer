@@ -113,20 +113,17 @@ impl AgentStatus {
     }
 }
 
-/// Agent coding session message - encrypted message content.
-/// The role/type is embedded in the encrypted JSON payload.
+/// Agent coding session message - plain text message content.
+/// The role/type is embedded in the JSON content.
 #[derive(Debug, Clone)]
 pub struct AgentCodingSessionMessage {
     pub id: String,
     pub session_id: String,
-    pub content_encrypted: Vec<u8>,
-    pub content_nonce: Vec<u8>,
+    pub content: String,
     pub timestamp: DateTime<Utc>,
     pub is_streaming: bool,
     pub sequence_number: i64,
     pub created_at: DateTime<Utc>,
-    /// Raw unencrypted JSON for debugging (only populated in debug builds).
-    pub debugging_decrypted_payload: Option<String>,
 }
 
 /// Message role - maps Claude event types to storage roles.
@@ -251,12 +248,9 @@ pub struct NewAgentCodingSession {
 pub struct NewAgentCodingSessionMessage {
     pub id: String,
     pub session_id: String,
-    pub content_encrypted: Vec<u8>,
-    pub content_nonce: Vec<u8>,
+    pub content: String,
     pub sequence_number: i64,
     pub is_streaming: bool,
-    /// Raw unencrypted JSON for debugging.
-    pub debugging_decrypted_payload: Option<String>,
 }
 
 /// New outbox event for insertion.

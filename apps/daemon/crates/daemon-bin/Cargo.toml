@@ -10,6 +10,7 @@ name = "unbound-daemon"
 path = "src/main.rs"
 
 [dependencies]
+armin = { workspace = true }
 daemon-core = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
@@ -27,7 +28,6 @@ clap = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 regex = "1.10"
-rayon = "1.10"
 base64 = { workspace = true }
 urlencoding = "2.1"
 reqwest = { workspace = true }

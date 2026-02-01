@@ -225,7 +225,7 @@ impl OutboxQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use daemon_database::{NewAgentCodingSessionMessage, MessageRole};
+    use daemon_database::NewAgentCodingSessionMessage;
 
     fn create_test_db() -> Arc<Database> {
         Arc::new(Database::open_in_memory().unwrap())
@@ -262,9 +262,7 @@ mod tests {
             db.insert_message(&NewAgentCodingSessionMessage {
                 id: format!("msg-{}", i),
                 session_id: session_id.to_string(),
-                role: MessageRole::User,
-                content_encrypted: vec![],
-                content_nonce: vec![],
+                content: format!("message {}", i),
                 sequence_number: i,
                 is_streaming: false,
             }).unwrap();
