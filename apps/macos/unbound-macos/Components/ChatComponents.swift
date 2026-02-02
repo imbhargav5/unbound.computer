@@ -62,6 +62,9 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         let scrollView = NSScrollView()
         scrollView.documentView = textView
         scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true

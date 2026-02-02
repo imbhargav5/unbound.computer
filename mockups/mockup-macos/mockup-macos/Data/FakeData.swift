@@ -143,20 +143,50 @@ struct FakeData {
         GitCommit(
             hash: "abc123def456789",
             message: "feat: Add async authentication",
-            author: "developer@example.com",
+            author: "Sarah Chen",
             date: Date().addingTimeInterval(-3600)
         ),
         GitCommit(
             hash: "def456ghi789012",
-            message: "fix: Handle token expiration",
-            author: "developer@example.com",
+            message: "fix: Handle token expiration edge case",
+            author: "Sarah Chen",
             date: Date().addingTimeInterval(-7200)
         ),
         GitCommit(
             hash: "ghi789jkl012345",
-            message: "refactor: Clean up API client",
-            author: "developer@example.com",
+            message: "refactor: Extract validation logic to utils",
+            author: "Alex Kim",
+            date: Date().addingTimeInterval(-18000)
+        ),
+        GitCommit(
+            hash: "jkl012mno345678",
+            message: "docs: Update API documentation",
+            author: "Jordan Lee",
             date: Date().addingTimeInterval(-86400)
+        ),
+        GitCommit(
+            hash: "mno345pqr678901",
+            message: "chore: Upgrade dependencies to latest",
+            author: "Sarah Chen",
+            date: Date().addingTimeInterval(-172800)
+        ),
+        GitCommit(
+            hash: "pqr678stu901234",
+            message: "feat: Implement OAuth2 flow",
+            author: "Alex Kim",
+            date: Date().addingTimeInterval(-259200)
+        ),
+        GitCommit(
+            hash: "stu901vwx234567",
+            message: "test: Add integration tests for auth",
+            author: "Jordan Lee",
+            date: Date().addingTimeInterval(-345600)
+        ),
+        GitCommit(
+            hash: "vwx234yza567890",
+            message: "fix: Resolve memory leak in session manager",
+            author: "Sarah Chen",
+            date: Date().addingTimeInterval(-432000)
         )
     ]
 
