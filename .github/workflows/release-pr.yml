@@ -1,0 +1,135 @@
+name: Create Release PR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".releases/*.md"
+
+concurrency:
+  group: release-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Detect release type
+        id: detect
+        run: |
+          RELEASE_TYPE=$(pnpm tsx scripts/release/detect-release-type.ts)
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "Detected release type: $RELEASE_TYPE"
+
+      - name: Exit if no release needed
+        if: steps.detect.outputs.release_type == 'none'
+        run: |
+          echo "No release files found, skipping"
+          exit 0
+
+      - name: Get current version
+        if: steps.detect.outputs.release_type != 'none'
+        id: current
+        run: |
+          CURRENT_VERSION=$(pnpm tsx scripts/release/get-current-version.ts)
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Bump versions
+        if: steps.detect.outputs.release_type != 'none'
+        id: bump
+        run: |
+          OUTPUT=$(pnpm tsx scripts/release/bump-versions.ts ${{ steps.detect.outputs.release_type }})
+          echo "$OUTPUT"
+          NEW_VERSION=$(echo "$OUTPUT" | grep "NEW_VERSION=" | cut -d'=' -f2)
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Configure git
+        if: steps.detect.outputs.release_type != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release branch
+        if: steps.detect.outputs.release_type != 'none'
+        run: |
+          BRANCH_NAME="release/v${{ steps.bump.outputs.new_version }}"
+          git checkout -b "$BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Commit version changes
+        if: steps.detect.outputs.release_type != 'none'
+        run: |
+          git add -A
+          git commit -m "chore: release v${{ steps.bump.outputs.new_version }}"
+
+      - name: Push release branch
+        if: steps.detect.outputs.release_type != 'none'
+        run: |
+          git push origin "${{ env.branch_name }}" --force
+
+      - name: Create or update PR
+        if: steps.detect.outputs.release_type != 'none'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.bump.outputs.new_version }}"
+          RELEASE_TYPE="${{ steps.detect.outputs.release_type }}"
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "${{ env.branch_name }}" --json number --jq '.[0].number' || echo "")
+
+          BODY="## Release v${VERSION}
+
+          This PR was automatically created by the release workflow.
+
+          **Release type:** \`${RELEASE_TYPE}\`
+          **Previous version:** \`${{ steps.current.outputs.version }}\`
+          **New version:** \`${VERSION}\`
+
+          ### What happens when you merge this PR?
+
+          1. A git tag \`v${VERSION}\` will be created
+          2. A GitHub Release will be published with auto-generated notes from commits
+          3. The release marker files in \`.releases/\` will be cleaned up
+
+          ---
+          *Merge this PR to publish the release.*"
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Updating existing PR #$EXISTING_PR"
+            gh pr edit "$EXISTING_PR" --title "Release v${VERSION}" --body "$BODY"
+          else
+            echo "Creating new PR"
+            gh pr create \
+              --title "Release v${VERSION}" \
+              --body "$BODY" \
+              --base main \
+              --head "${{ env.branch_name }}"
+          fi

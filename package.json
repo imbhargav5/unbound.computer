@@ -15,9 +15,9 @@
     "database#start": "turbo run database#start",
     "database#stop": "turbo run database#stop",
     "database#status": "turbo run database#status",
-    "changeset": "changeset",
-    "version": "changeset version",
-    "release": "changeset publish",
+    "release:patch": "tsx scripts/release/add-release.ts patch",
+    "release:minor": "tsx scripts/release/add-release.ts minor",
+    "release:major": "tsx scripts/release/add-release.ts major",
     "daemon:build": "cd apps/daemon && cargo build --release",
     "daemon:start": "./apps/daemon/target/release/unbound-daemon start &",
     "daemon:foreground": "RUST_LOG=debug ./apps/daemon/target/release/unbound-daemon start --foreground",
@@ -29,8 +29,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.4",
-    "@changesets/changelog-github": "^0.5.2",
-    "@changesets/cli": "^2.29.8",
+    "tsx": "^4.19.2",
     "turbo": "^2.2.3",
     "ultracite": "6.3.2"
   }
