@@ -54,15 +54,15 @@ struct NewSessionDialog: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             // Header
             Text("Where should this session run?")
-                .font(Typography.body)
+                .font(Typography.bodySmall)
                 .fontWeight(.medium)
                 .foregroundStyle(colors.foreground)
 
             // Options
-            VStack(spacing: Spacing.sm) {
+            VStack(spacing: Spacing.xs) {
                 ForEach(SessionLocationType.allCases, id: \.self) { locationType in
                     LocationOption(
                         locationType: locationType,
@@ -87,8 +87,8 @@ struct NewSessionDialog: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(colors.mutedForeground)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
 
                 Button {
                     onCreateSession(selectedType)
@@ -101,11 +101,11 @@ struct NewSessionDialog: View {
                 .tint(colors.primary)
             }
         }
-        .padding(Spacing.lg)
-        .frame(width: 320)
+        .padding(Spacing.md)
+        .frame(width: 280)
         .background(colors.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .shadow(color: .black.opacity(0.2), radius: 16, x: 0, y: 8)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 6)
     }
 }
 
@@ -125,22 +125,22 @@ struct LocationOption: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: Spacing.sm) {
                 // Icon
                 Image(systemName: locationType.icon)
-                    .font(.system(size: IconSize.md))
+                    .font(.system(size: IconSize.sm))
                     .foregroundStyle(isSelected ? colors.primary : colors.mutedForeground)
-                    .frame(width: 24)
+                    .frame(width: 20)
 
                 // Title and description
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(locationType.title)
-                        .font(Typography.bodySmall)
+                        .font(Typography.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(colors.foreground)
 
                     Text(locationType.description)
-                        .font(Typography.caption)
+                        .font(Typography.micro)
                         .foregroundStyle(colors.mutedForeground)
                 }
 
@@ -149,17 +149,17 @@ struct LocationOption: View {
                 // Selection indicator
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: IconSize.md))
+                        .font(.system(size: IconSize.sm))
                         .foregroundStyle(colors.primary)
                 }
             }
-            .padding(Spacing.md)
+            .padding(Spacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: Radius.sm)
                     .fill(isSelected ? colors.accent : (isHovered ? colors.muted : colors.background))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: Radius.sm)
                     .stroke(isSelected ? colors.primary : colors.border, lineWidth: 1)
             )
             .contentShape(Rectangle())

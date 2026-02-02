@@ -48,6 +48,14 @@ struct RefreshUser {
     email: Option<String>,
 }
 
+/// Supabase user verification response.
+#[derive(Debug, Deserialize)]
+struct UserResponse {
+    id: String,
+    #[serde(default)]
+    email: Option<String>,
+}
+
 /// Callback type for auth state change notifications.
 pub type AuthStateCallback = Box<dyn Fn(AuthStateChangedPayload) + Send + Sync>;
 
@@ -170,11 +178,15 @@ impl SessionManager {
     /// Validate and refresh session on startup.
     ///
     /// This should be called when the daemon starts to ensure the stored session
-    /// is still valid. If the session is expired, it attempts to refresh with
-    /// exponential backoff. If refresh fails, the session is cleared.
+    /// is still valid. Always verifies the session with the Supabase server to
+    /// ensure it hasn't been revoked. If the token is expired locally, attempts
+    /// to refresh with exponential backoff. If refresh fails, the session is cleared.
     ///
     /// Uses the FSM to track state transitions:
-    /// - NotLoggedIn -> Validating -> (LoggedIn | Refreshing -> LoggedIn | NotLoggedIn)
+    /// - NotLoggedIn -> Validating -> TokenNotExpired -> VerifyingWithServer -> ServerVerified -> LoggedIn
+    /// - NotLoggedIn -> Validating -> TokenNotExpired -> VerifyingWithServer -> ServerRejected -> NotLoggedIn
+    /// - NotLoggedIn -> Validating -> SessionExpired -> Refreshing -> RefreshSuccess -> LoggedIn
+    /// - NotLoggedIn -> Validating -> NoSession -> NotLoggedIn
     ///
     /// Returns:
     /// - `Ok(true)` if session is valid or was successfully refreshed
@@ -202,52 +214,121 @@ impl SessionManager {
             }
         };
 
-        // Check if token is still valid (not expired)
-        if !self.secrets.is_supabase_session_expired()? {
-            info!(
-                user_id = %meta.user_id,
-                "Session validated on startup (token still valid)"
-            );
-            self.transition(&AuthMachineInput::SessionValid)?;
-            return Ok(true);
-        }
-
-        // Token is expired - transition to refreshing via SessionExpired
-        info!(
-            user_id = %meta.user_id,
-            "Session expired on startup, attempting refresh"
-        );
-        self.transition(&AuthMachineInput::SessionExpired)?;
-
-        let refresh_token = match self.secrets.get_supabase_refresh_token()? {
+        // Get access token for server verification
+        let access_token = match self.secrets.get_supabase_access_token()? {
             Some(t) => t,
             None => {
-                warn!("Session expired but no refresh token found, clearing session");
+                info!("Session metadata exists but access token is missing, clearing session");
                 self.secrets.clear_supabase_session()?;
-                self.transition(&AuthMachineInput::RefreshFailed)?;
-                return Err(AuthError::TokenRefresh(
-                    "No refresh token available".to_string(),
-                ));
+                self.transition(&AuthMachineInput::NoSession)?;
+                return Ok(false);
             }
         };
 
-        // Try to refresh with retry logic
-        match self
-            .refresh_with_backoff(&refresh_token, &meta.project_ref)
-            .await
-        {
-            Ok((_, user_id)) => {
-                info!(user_id = %user_id, "Session refreshed successfully on startup");
+        // Check if token is expired locally first
+        let token_expired = self.secrets.is_supabase_session_expired()?;
+
+        if token_expired {
+            // Token is expired locally - attempt refresh
+            info!(
+                user_id = %meta.user_id,
+                "Session expired on startup, attempting refresh"
+            );
+            self.transition(&AuthMachineInput::SessionExpired)?;
+
+            let refresh_token = match self.secrets.get_supabase_refresh_token()? {
+                Some(t) => t,
+                None => {
+                    warn!("Session expired but no refresh token found, clearing session");
+                    self.secrets.clear_supabase_session()?;
+                    self.transition(&AuthMachineInput::RefreshFailed)?;
+                    return Err(AuthError::TokenRefresh(
+                        "No refresh token available".to_string(),
+                    ));
+                }
+            };
+
+            // Try to refresh with retry logic
+            match self
+                .refresh_with_backoff(&refresh_token, &meta.project_ref)
+                .await
+            {
+                Ok((_, user_id)) => {
+                    info!(user_id = %user_id, "Session refreshed successfully on startup");
+                    return Ok(true);
+                }
+                Err(e) => {
+                    warn!(
+                        "Session refresh failed on startup, session cleared: {}",
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+        }
+
+        // Token is not expired locally - transition to VerifyingWithServer state
+        info!(
+            user_id = %meta.user_id,
+            "Token not expired, verifying session with server"
+        );
+        self.transition(&AuthMachineInput::TokenNotExpired)?;
+
+        // Now in VerifyingWithServer state - must call server
+        match self.verify_session_with_server(&access_token).await {
+            Ok(user_id) => {
+                info!(
+                    user_id = %user_id,
+                    "Session validated on startup (verified with server)"
+                );
+                self.transition(&AuthMachineInput::ServerVerified)?;
                 Ok(true)
             }
             Err(e) => {
                 warn!(
-                    "Session refresh failed on startup, session cleared: {}",
-                    e
+                    user_id = %meta.user_id,
+                    error = %e,
+                    "Session verification failed, clearing session"
                 );
+                self.secrets.clear_supabase_session()?;
+                self.transition(&AuthMachineInput::ServerRejected)?;
                 Err(e)
             }
         }
+    }
+
+    /// Verify the session is valid by calling the Supabase /auth/v1/user endpoint.
+    ///
+    /// This ensures the session hasn't been revoked server-side.
+    /// Returns the user ID if the session is valid.
+    async fn verify_session_with_server(&self, access_token: &str) -> AuthResult<String> {
+        let user_url = format!("{}/auth/v1/user", self.supabase_url);
+
+        debug!(url = %user_url, "Verifying session with Supabase");
+
+        let response = self
+            .http_client
+            .get(&user_url)
+            .header("apikey", &self.supabase_publishable_key)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %body, "Session verification failed");
+
+            return Err(AuthError::SessionInvalid(format!(
+                "Server rejected session: HTTP {}: {}",
+                status, body
+            )));
+        }
+
+        let user: UserResponse = response.json().await?;
+        debug!(user_id = %user.id, "Session verified with server");
+
+        Ok(user.id)
     }
 
     /// Get current authentication status (backward-compatible API).

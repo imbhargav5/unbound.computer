@@ -73,11 +73,27 @@ struct WorkspacesSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Agents header
-            SidebarHeader(title: "Agents") {
-                // Menu action
+            // Custom toolbar area (next to traffic lights)
+            WindowToolbar {
+                HStack {
+                    Text("Agents")
+                        .font(Typography.h4)
+                        .foregroundStyle(colors.foreground)
+
+                    Spacer()
+
+                    // Menu button
+                    Button {
+                        // Menu action
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.mutedForeground)
+                    }
+                    .buttonGhost(size: .icon)
+                }
+                .padding(.trailing, Spacing.md)
             }
-            .padding(.top, Spacing.sm)
 
             ShadcnDivider()
                 .padding(.horizontal, Spacing.md)
@@ -140,58 +156,69 @@ struct RepositoryGroup: View {
         ThemeColors(colorScheme)
     }
 
+    @State private var isHoveringAdd: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Repository header
-            Button {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: IconSize.xs, weight: .semibold))
+                            .foregroundStyle(colors.mutedForeground)
+                            .frame(width: IconSize.sm)
+
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.info)
+
+                        Text(repository.name)
+                            .font(Typography.bodySmall)
+                            .fontWeight(.medium)
+                            .foregroundStyle(colors.foreground)
+                    }
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: IconSize.xs, weight: .semibold))
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(width: IconSize.sm)
+                .buttonStyle(.plain)
 
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: IconSize.sm))
-                        .foregroundStyle(colors.info)
+                Spacer()
 
-                    Text(repository.name)
-                        .font(Typography.bodySmall)
-                        .fontWeight(.medium)
-                        .foregroundStyle(colors.foreground)
-
-                    Spacer()
-
-                    Text("\(locations.totalCount)")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
+                // New session button (inline +)
+                Button {
+                    onCreateSession(repository, .mainDirectory)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: IconSize.xs, weight: .medium))
+                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                        .frame(width: IconSize.md, height: IconSize.md)
+                        .contentShape(Rectangle())
                 }
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.sm)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                        isHoveringAdd = hovering
+                    }
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.sm)
 
             // Sessions under this repository
             if isExpanded {
-                // Create session button (at top)
-                NewSessionButton(
-                    repository: repository,
-                    showNewSessionDialog: $showNewSessionDialog,
-                    onCreateSession: onCreateSession
-                )
 
-                // Main Directory section (if there are sessions)
-                if !locations.mainDirectorySessions.isEmpty {
-                    MainDirectorySection(
-                        sessions: locations.mainDirectorySessions,
-                        selectedSessionId: selectedSessionId,
-                        onSelectSession: onSelectSession
-                    )
-                }
+                // Main Directory section (always show for + button)
+                MainDirectorySection(
+                    repository: repository,
+                    sessions: locations.mainDirectorySessions,
+                    selectedSessionId: selectedSessionId,
+                    onSelectSession: onSelectSession,
+                    onCreateSession: { onCreateSession(repository, .mainDirectory) }
+                )
 
                 // Worktree sections
                 ForEach(locations.worktreeSessions, id: \.name) { worktreeGroup in
@@ -207,64 +234,19 @@ struct RepositoryGroup: View {
     }
 }
 
-// MARK: - New Session Button
-
-struct NewSessionButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let repository: Repository
-    @Binding var showNewSessionDialog: Bool
-    var onCreateSession: (Repository, SessionLocationType) -> Void
-
-    @State private var isHoveringAdd: Bool = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    var body: some View {
-        Button {
-            // For mockup, just create in main directory
-            onCreateSession(repository, .mainDirectory)
-        } label: {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "plus")
-                    .font(.system(size: IconSize.xs))
-                    .foregroundStyle(colors.mutedForeground)
-
-                Text("New session")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-            }
-            .padding(.leading, Spacing.xl)
-            .padding(.trailing, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isHoveringAdd ? colors.muted : Color.clear)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHoveringAdd = hovering
-            }
-        }
-    }
-}
-
 // MARK: - Main Directory Section
 
 struct MainDirectorySection: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    let repository: Repository
     let sessions: [Session]
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
+    var onCreateSession: () -> Void
 
     @State private var isExpanded: Bool = true
+    @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -273,37 +255,52 @@ struct MainDirectorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Section header
-            Button {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(colors.mutedForeground)
+                            .frame(width: IconSize.xs)
+
+                        Image(systemName: "house.fill")
+                            .font(.system(size: IconSize.xs))
+                            .foregroundStyle(colors.mutedForeground)
+
+                        Text("Main Directory")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.mutedForeground)
+                    }
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(width: IconSize.xs)
+                .buttonStyle(.plain)
 
-                    Image(systemName: "house.fill")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
+                Spacer()
 
-                    Text("Main Directory")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Spacer()
-
-                    Text("\(sessions.count)")
-                        .font(Typography.micro)
-                        .foregroundStyle(colors.mutedForeground.opacity(0.7))
+                // New session button (inline +)
+                Button {
+                    onCreateSession()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                        .frame(width: IconSize.sm, height: IconSize.sm)
+                        .contentShape(Rectangle())
                 }
-                .padding(.leading, Spacing.xl)
-                .padding(.trailing, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                        isHoveringAdd = hovering
+                    }
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.leading, Spacing.xl)
+            .padding(.trailing, Spacing.md)
+            .padding(.vertical, Spacing.xs)
 
             // Sessions
             if isExpanded {
@@ -358,12 +355,6 @@ struct WorktreeSection: View {
                     Text(name)
                         .font(Typography.caption)
                         .foregroundStyle(colors.mutedForeground)
-
-                    Spacer()
-
-                    Text("\(sessions.count)")
-                        .font(Typography.micro)
-                        .foregroundStyle(colors.mutedForeground.opacity(0.7))
                 }
                 .padding(.leading, Spacing.xl)
                 .padding(.trailing, Spacing.md)

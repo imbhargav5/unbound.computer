@@ -15,8 +15,12 @@
 //! │   LoggingIn     │     │   Validating    │
 //! └────────┬────────┘     └────────┬────────┘
 //!          │                       │
-//!          │ LoginSuccess          │ SessionValid/SessionExpired/NoSession
-//!          ▼                       ▼
+//!          │ LoginSuccess          │ TokenNotExpired ──► VerifyingWithServer
+//!          │                       │                            │
+//!          │                       │ SessionExpired             │ ServerVerified/ServerRejected
+//!          │                       │                            │
+//!          │                       │ NoSession                  ▼
+//!          ▼                       ▼                     LoggedIn/NotLoggedIn
 //! ┌─────────────────┐      TokenExpired      ┌─────────────────┐
 //! │    LoggedIn     │ ─────────────────────► │   Refreshing    │
 //! └────────┬────────┘                        └────────┬────────┘
@@ -50,9 +54,18 @@ state_machine! {
         ValidateSession => Validating
     },
     Validating => {
-        SessionValid => LoggedIn,
+        // Token not expired locally - must verify with server
+        TokenNotExpired => VerifyingWithServer,
+        // Token expired locally - attempt refresh
         SessionExpired => Refreshing,
+        // No session exists
         NoSession => NotLoggedIn
+    },
+    VerifyingWithServer => {
+        // Server confirmed session is valid
+        ServerVerified => LoggedIn,
+        // Server rejected session (revoked, invalid, etc.)
+        ServerRejected => NotLoggedIn
     },
     LoggingIn => {
         LoginSuccess => LoggedIn,
@@ -87,8 +100,10 @@ pub enum AuthState {
     NotLoggedIn,
     /// Currently logging in.
     LoggingIn,
-    /// Validating existing session.
+    /// Validating existing session (checking local storage).
     Validating,
+    /// Verifying session with Supabase server.
+    VerifyingWithServer,
     /// Logged in with valid session.
     LoggedIn,
     /// Refreshing expired token.
@@ -107,7 +122,11 @@ impl AuthState {
     pub fn is_transient(&self) -> bool {
         matches!(
             self,
-            AuthState::LoggingIn | AuthState::Validating | AuthState::Refreshing | AuthState::LoggingOut
+            AuthState::LoggingIn
+                | AuthState::Validating
+                | AuthState::VerifyingWithServer
+                | AuthState::Refreshing
+                | AuthState::LoggingOut
         )
     }
 }
@@ -118,6 +137,7 @@ impl From<&AuthMachineState> for AuthState {
             AuthMachineState::NotLoggedIn => AuthState::NotLoggedIn,
             AuthMachineState::LoggingIn => AuthState::LoggingIn,
             AuthMachineState::Validating => AuthState::Validating,
+            AuthMachineState::VerifyingWithServer => AuthState::VerifyingWithServer,
             AuthMachineState::LoggedIn => AuthState::LoggedIn,
             AuthMachineState::Refreshing => AuthState::Refreshing,
             AuthMachineState::LoggingOut => AuthState::LoggingOut,
@@ -208,15 +228,57 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_session_flow_valid() {
+    fn test_validate_session_flow_server_verified() {
         let mut machine = AuthMachine::new();
 
         // Start validation
         machine.consume(&AuthMachineInput::ValidateSession).unwrap();
         assert_eq!(*machine.state(), AuthMachineState::Validating);
 
-        // Session is valid
-        machine.consume(&AuthMachineInput::SessionValid).unwrap();
+        // Token not expired - must verify with server
+        machine.consume(&AuthMachineInput::TokenNotExpired).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::VerifyingWithServer);
+
+        // Server verifies session is valid
+        machine.consume(&AuthMachineInput::ServerVerified).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::LoggedIn);
+    }
+
+    #[test]
+    fn test_validate_session_flow_server_rejected() {
+        let mut machine = AuthMachine::new();
+
+        // Start validation
+        machine.consume(&AuthMachineInput::ValidateSession).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::Validating);
+
+        // Token not expired - must verify with server
+        machine.consume(&AuthMachineInput::TokenNotExpired).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::VerifyingWithServer);
+
+        // Server rejects session (revoked, invalid, etc.)
+        machine.consume(&AuthMachineInput::ServerRejected).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::NotLoggedIn);
+    }
+
+    #[test]
+    fn test_cannot_skip_server_verification() {
+        let mut machine = AuthMachine::new();
+
+        // Start validation
+        machine.consume(&AuthMachineInput::ValidateSession).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::Validating);
+
+        // Cannot go directly to LoggedIn from Validating (must go through VerifyingWithServer)
+        let result = machine.consume(&AuthMachineInput::ServerVerified);
+        assert!(result.is_err());
+
+        // Token not expired - must verify with server first
+        machine.consume(&AuthMachineInput::TokenNotExpired).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::VerifyingWithServer);
+
+        // Now server verification succeeds
+        machine.consume(&AuthMachineInput::ServerVerified).unwrap();
         assert_eq!(*machine.state(), AuthMachineState::LoggedIn);
     }
 
@@ -338,6 +400,10 @@ mod tests {
         assert_eq!(AuthState::from(&AuthMachineState::NotLoggedIn), AuthState::NotLoggedIn);
         assert_eq!(AuthState::from(&AuthMachineState::LoggingIn), AuthState::LoggingIn);
         assert_eq!(AuthState::from(&AuthMachineState::Validating), AuthState::Validating);
+        assert_eq!(
+            AuthState::from(&AuthMachineState::VerifyingWithServer),
+            AuthState::VerifyingWithServer
+        );
         assert_eq!(AuthState::from(&AuthMachineState::LoggedIn), AuthState::LoggedIn);
         assert_eq!(AuthState::from(&AuthMachineState::Refreshing), AuthState::Refreshing);
         assert_eq!(AuthState::from(&AuthMachineState::LoggingOut), AuthState::LoggingOut);
@@ -348,6 +414,7 @@ mod tests {
         assert!(!AuthState::NotLoggedIn.is_authenticated());
         assert!(!AuthState::LoggingIn.is_authenticated());
         assert!(!AuthState::Validating.is_authenticated());
+        assert!(!AuthState::VerifyingWithServer.is_authenticated());
         assert!(AuthState::LoggedIn.is_authenticated());
         assert!(!AuthState::Refreshing.is_authenticated());
         assert!(!AuthState::LoggingOut.is_authenticated());
@@ -358,6 +425,7 @@ mod tests {
         assert!(!AuthState::NotLoggedIn.is_transient());
         assert!(AuthState::LoggingIn.is_transient());
         assert!(AuthState::Validating.is_transient());
+        assert!(AuthState::VerifyingWithServer.is_transient());
         assert!(!AuthState::LoggedIn.is_transient());
         assert!(AuthState::Refreshing.is_transient());
         assert!(AuthState::LoggingOut.is_transient());

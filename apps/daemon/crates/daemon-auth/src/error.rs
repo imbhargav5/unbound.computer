@@ -29,6 +29,10 @@ pub enum AuthError {
     #[error("Session expired")]
     SessionExpired,
 
+    /// Session was invalidated server-side (revoked, logged out elsewhere, etc.)
+    #[error("Session invalid: {0}")]
+    SessionInvalid(String),
+
     /// Invalid state transition in the auth FSM
     #[error("Invalid auth state transition: {0}")]
     InvalidStateTransition(String),
@@ -127,5 +131,10 @@ mod tests {
     #[test]
     fn test_is_not_transient_refresh_exhausted() {
         assert!(!AuthError::RefreshExhausted(3).is_transient());
+    }
+
+    #[test]
+    fn test_is_not_transient_session_invalid() {
+        assert!(!AuthError::SessionInvalid("revoked".to_string()).is_transient());
     }
 }

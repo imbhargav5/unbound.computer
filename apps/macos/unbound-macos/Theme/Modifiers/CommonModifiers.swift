@@ -80,7 +80,7 @@ struct HoverEffectModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(isHovering ? colors.accent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: Duration.fast)) {
                     isHovering = hovering
@@ -103,7 +103,7 @@ struct SelectionModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(isSelected ? colors.accent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
     }
 }
 
@@ -168,8 +168,8 @@ struct Badge: View {
     var body: some View {
         Text(text)
             .font(Typography.micro)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.xs)
+            .padding(.vertical, Spacing.xxs)
             .foregroundStyle(foregroundColor)
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: Radius.full))
@@ -218,7 +218,7 @@ extension View {
         modifier(SurfaceBackgroundModifier(variant: variant))
     }
 
-    func borderStyle(radius: CGFloat = Radius.md, width: CGFloat = BorderWidth.default) -> some View {
+    func borderStyle(radius: CGFloat = Radius.sm, width: CGFloat = BorderWidth.default) -> some View {
         modifier(BorderStyleModifier(radius: radius, width: width))
     }
 
@@ -393,15 +393,15 @@ struct TypingDotsIndicator: View {
     }
 
     let dotCount = 3
-    let dotSize: CGFloat = 6
+    let dotSize: CGFloat = 5
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             ForEach(0..<dotCount, id: \.self) { index in
                 Circle()
                     .fill(colors.mutedForeground)
                     .frame(width: dotSize, height: dotSize)
-                    .offset(y: animatingDot == index ? -4 : 0)
+                    .offset(y: animatingDot == index ? -3 : 0)
             }
         }
         .onAppear {
@@ -410,7 +410,7 @@ struct TypingDotsIndicator: View {
     }
 
     private func startAnimation() {
-        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { timer in
+        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 animatingDot = (animatingDot + 1) % dotCount
             }

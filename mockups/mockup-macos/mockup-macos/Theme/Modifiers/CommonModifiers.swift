@@ -417,3 +417,80 @@ struct TypingDotsIndicator: View {
         }
     }
 }
+
+// MARK: - Window Toolbar (Custom Title Bar for Option 1)
+
+/// A custom toolbar that sits next to the traffic light buttons.
+/// Supports window dragging, double-click to zoom, and proper spacing.
+struct WindowToolbar<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    /// Standard traffic light width + padding
+    private let trafficLightWidth: CGFloat = 78
+
+    /// Standard macOS toolbar height
+    private let toolbarHeight: CGFloat = 52
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Space for traffic lights (close, minimize, zoom)
+            Color.clear
+                .frame(width: trafficLightWidth)
+
+            // User content
+            content()
+        }
+        .frame(height: toolbarHeight)
+        .frame(maxWidth: .infinity)
+        .background(WindowDragView())
+    }
+}
+
+/// NSView that enables window dragging and double-click to zoom
+struct WindowDragView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = WindowDragNSView()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+/// Custom NSView that handles window dragging and double-click zoom
+class WindowDragNSView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Enable dragging by window background
+        window?.isMovableByWindowBackground = true
+    }
+
+    override var mouseDownCanMoveWindow: Bool {
+        true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        // Double-click to zoom (maximize/restore)
+        if event.clickCount == 2 {
+            window?.zoom(nil)
+        }
+        super.mouseUp(with: event)
+    }
+}
+
+// MARK: - Toolbar Content Helpers
+
+/// A draggable spacer that fills available space in the toolbar
+struct ToolbarDraggableSpacer: View {
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Makes this view a window drag area (for custom toolbars)
+    func windowDraggable() -> some View {
+        background(WindowDragView())
+    }
+}

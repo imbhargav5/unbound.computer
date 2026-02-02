@@ -19,30 +19,30 @@ struct AppearanceSettings: View {
         @Bindable var state = appState
 
         ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xxl) {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
                 // Header
                 Text("Appearance")
                     .font(Typography.h2)
                     .foregroundStyle(colors.foreground)
 
                 Text("Customize how the app looks on your device.")
-                    .font(Typography.body)
+                    .font(Typography.bodySmall)
                     .foregroundStyle(colors.mutedForeground)
 
                 ShadcnDivider()
 
                 // Theme selection
-                VStack(alignment: .leading, spacing: Spacing.lg) {
+                VStack(alignment: .leading, spacing: Spacing.md) {
                     Text("Theme")
                         .font(Typography.h4)
                         .foregroundStyle(colors.foreground)
 
                     Text("Select your preferred color scheme")
-                        .font(Typography.bodySmall)
+                        .font(Typography.caption)
                         .foregroundStyle(colors.mutedForeground)
 
                     // Theme cards
-                    HStack(spacing: Spacing.lg) {
+                    HStack(spacing: Spacing.md) {
                         ForEach(ThemeMode.allCases) { mode in
                             ThemeCard(
                                 mode: mode,
@@ -59,7 +59,7 @@ struct AppearanceSettings: View {
 
                 Spacer()
             }
-            .padding(Spacing.xxl)
+            .padding(Spacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(colors.background)
@@ -81,40 +81,40 @@ struct ThemeCard: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(spacing: Spacing.md) {
+            VStack(spacing: Spacing.sm) {
                 // Preview
                 ThemePreview(mode: mode)
-                    .frame(width: 120, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .frame(width: 100, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                     .overlay(
-                        RoundedRectangle(cornerRadius: Radius.lg)
+                        RoundedRectangle(cornerRadius: Radius.md)
                             .stroke(isSelected ? colors.primary : colors.border, lineWidth: isSelected ? BorderWidth.thick : BorderWidth.default)
                     )
 
                 // Label
-                HStack(spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: mode.iconName)
-                        .font(.system(size: IconSize.sm))
+                        .font(.system(size: IconSize.xs))
 
                     Text(mode.rawValue)
-                        .font(Typography.bodySmall)
+                        .font(Typography.caption)
                 }
                 .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
 
                 // Selection indicator
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: IconSize.lg))
+                        .font(.system(size: IconSize.md))
                         .foregroundStyle(colors.primary)
                 } else {
                     Circle()
                         .stroke(colors.border, lineWidth: BorderWidth.default)
-                        .frame(width: IconSize.lg, height: IconSize.lg)
+                        .frame(width: IconSize.md, height: IconSize.md)
                 }
             }
-            .padding(Spacing.md)
+            .padding(Spacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: Radius.xl)
+                RoundedRectangle(cornerRadius: Radius.lg)
                     .fill(isSelected ? colors.accent : Color.clear)
             )
         }

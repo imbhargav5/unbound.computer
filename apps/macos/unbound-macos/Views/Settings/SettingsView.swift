@@ -48,7 +48,7 @@ struct SettingsView: View {
     private var settingsContent: some View {
         switch selectedSection {
         case .general:
-            PlaceholderSettings(section: .general)
+            GeneralSettings()
         case .account:
             AccountSettings()
         case .repositories:

@@ -32,48 +32,48 @@ enum Spacing {
     static let xxxxxl: CGFloat = 48
 }
 
-// MARK: - Border Radius
+// MARK: - Border Radius (flat, minimal design)
 
 enum Radius {
-    /// 2pt - Extra small radius
-    static let xs: CGFloat = 2
-    /// 4pt - Small radius
-    static let sm: CGFloat = 4
-    /// 6pt - Medium radius (default)
-    static let md: CGFloat = 6
-    /// 8pt - Large radius
-    static let lg: CGFloat = 8
-    /// 12pt - Extra large radius
-    static let xl: CGFloat = 12
-    /// 16pt - 2x large radius
-    static let xxl: CGFloat = 16
+    /// 1pt - Extra small radius
+    static let xs: CGFloat = 1
+    /// 2pt - Small radius
+    static let sm: CGFloat = 2
+    /// 3pt - Medium radius (default)
+    static let md: CGFloat = 3
+    /// 4pt - Large radius
+    static let lg: CGFloat = 4
+    /// 6pt - Extra large radius
+    static let xl: CGFloat = 6
+    /// 8pt - 2x large radius
+    static let xxl: CGFloat = 8
     /// Full pill radius
     static let full: CGFloat = 9999
 }
 
-// MARK: - Font Sizes
+// MARK: - Font Sizes (compact base, scaled by LocalSettings)
 
 enum FontSize {
-    /// 10pt - Extra extra small
-    static let xxs: CGFloat = 10
-    /// 11pt - Extra small
-    static let xs: CGFloat = 11
-    /// 12pt - Small
-    static let sm: CGFloat = 12
-    /// 13pt - Small-medium
-    static let smMd: CGFloat = 13
-    /// 14pt - Base/default
-    static let base: CGFloat = 14
-    /// 16pt - Large
-    static let lg: CGFloat = 16
-    /// 18pt - Extra large
-    static let xl: CGFloat = 18
-    /// 20pt - 2x large
-    static let xxl: CGFloat = 20
-    /// 24pt - 3x large
-    static let xxxl: CGFloat = 24
-    /// 30pt - Display small
-    static let display: CGFloat = 30
+    /// 9pt - Extra extra small
+    static let xxs: CGFloat = 9
+    /// 10pt - Extra small
+    static let xs: CGFloat = 10
+    /// 11pt - Small
+    static let sm: CGFloat = 11
+    /// 12pt - Small-medium
+    static let smMd: CGFloat = 12
+    /// 13pt - Base/default
+    static let base: CGFloat = 13
+    /// 14pt - Large
+    static let lg: CGFloat = 14
+    /// 16pt - Extra large
+    static let xl: CGFloat = 16
+    /// 18pt - 2x large
+    static let xxl: CGFloat = 18
+    /// 22pt - 3x large
+    static let xxxl: CGFloat = 22
+    /// 28pt - Display small
+    static let display: CGFloat = 28
 }
 
 // MARK: - Icon Sizes

@@ -28,22 +28,23 @@ enum ButtonSize {
 
     var horizontalPadding: CGFloat {
         switch self {
-        case .sm: return Spacing.md
-        case .md: return Spacing.lg
-        case .lg: return Spacing.xxl
-        case .icon: return Spacing.sm
+        case .sm: return Spacing.sm
+        case .md: return Spacing.md
+        case .lg: return Spacing.xl
+        case .icon: return Spacing.xs
         }
     }
 
     var verticalPadding: CGFloat {
         switch self {
-        case .sm: return Spacing.xs
-        case .md: return Spacing.sm
-        case .lg: return Spacing.md
-        case .icon: return Spacing.sm
+        case .sm: return Spacing.xxs
+        case .md: return Spacing.xs
+        case .lg: return Spacing.sm
+        case .icon: return Spacing.xs
         }
     }
 
+    @MainActor
     var font: Font {
         switch self {
         case .sm: return Typography.caption
@@ -74,7 +75,7 @@ struct ShadcnButtonStyle: ButtonStyle {
             .padding(.vertical, size.verticalPadding)
             .foregroundStyle(foregroundColor(isPressed: configuration.isPressed))
             .background(backgroundColor(isPressed: configuration.isPressed))
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
             .overlay(borderOverlay)
             .opacity(isEnabled ? 1 : 0.5)
             .animation(.easeInOut(duration: Duration.fast), value: configuration.isPressed)
@@ -120,7 +121,7 @@ struct ShadcnButtonStyle: ButtonStyle {
     private var borderOverlay: some View {
         switch variant {
         case .outline:
-            RoundedRectangle(cornerRadius: Radius.md)
+            RoundedRectangle(cornerRadius: Radius.sm)
                 .stroke(colors.border, lineWidth: BorderWidth.default)
         default:
             EmptyView()

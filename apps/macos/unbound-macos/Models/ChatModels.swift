@@ -120,7 +120,7 @@ struct AIModel: Identifiable, Hashable {
     /// Default model - uses Claude's default (currently Sonnet)
     static let defaultModel = AIModel(
         id: "default",
-        name: "Default (Recommended)",
+        name: "Default",
         iconName: "star.fill",
         modelIdentifier: nil,
         supportsThinking: true

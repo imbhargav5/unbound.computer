@@ -3,6 +3,7 @@
 //  unbound-macos
 //
 //  SF Mono typography system for dev-tool aesthetic
+//  Supports dynamic scaling via LocalSettings font size preset
 //
 
 import SwiftUI
@@ -10,83 +11,158 @@ import SwiftUI
 // MARK: - Typography
 
 enum Typography {
+    // MARK: - Scaled Font Helper
+
+    /// Creates a scaled font based on LocalSettings
+    @MainActor
+    private static func scaledFont(size: CGFloat, weight: Font.Weight, design: Font.Design = .monospaced) -> Font {
+        let scaledSize = LocalSettings.shared.scaled(size)
+        return Font.system(size: scaledSize, weight: weight, design: design)
+    }
+
     // MARK: - Display
 
-    /// 30pt Light Mono - Large feature headlines (onboarding)
-    static let displayLight = Font.system(size: FontSize.display, weight: .light, design: .monospaced)
+    /// Display Light Mono - Large feature headlines (onboarding)
+    @MainActor
+    static var displayLight: Font {
+        scaledFont(size: FontSize.display, weight: .light)
+    }
 
-    /// 28pt Light Mono - Feature headlines
-    static let headline = Font.system(size: 28, weight: .light, design: .monospaced)
+    /// Headline Light Mono - Feature headlines
+    @MainActor
+    static var headline: Font {
+        scaledFont(size: 26, weight: .light)
+    }
 
     // MARK: - Headings
 
-    /// 24pt Bold Mono - Page titles
-    static let h1 = Font.system(size: FontSize.xxxl, weight: .bold, design: .monospaced)
+    /// Bold Mono - Page titles
+    @MainActor
+    static var h1: Font {
+        scaledFont(size: FontSize.xxxl, weight: .bold)
+    }
 
-    /// 24pt Semibold Mono - Large titles (replaces .title)
-    static let title = Font.system(size: FontSize.xxxl, weight: .semibold, design: .monospaced)
+    /// Semibold Mono - Large titles (replaces .title)
+    @MainActor
+    static var title: Font {
+        scaledFont(size: FontSize.xxxl, weight: .semibold)
+    }
 
-    /// 20pt Semibold Mono - Section headers
-    static let h2 = Font.system(size: FontSize.xxl, weight: .semibold, design: .monospaced)
+    /// Semibold Mono - Section headers
+    @MainActor
+    static var h2: Font {
+        scaledFont(size: FontSize.xxl, weight: .semibold)
+    }
 
-    /// 20pt Bold Mono - Subsection titles (replaces .title2)
-    static let title2 = Font.system(size: FontSize.xxl, weight: .bold, design: .monospaced)
+    /// Bold Mono - Subsection titles (replaces .title2)
+    @MainActor
+    static var title2: Font {
+        scaledFont(size: FontSize.xxl, weight: .bold)
+    }
 
-    /// 18pt Semibold Mono - Subsection headers
-    static let h3 = Font.system(size: FontSize.xl, weight: .semibold, design: .monospaced)
+    /// Semibold Mono - Subsection headers
+    @MainActor
+    static var h3: Font {
+        scaledFont(size: FontSize.xl, weight: .semibold)
+    }
 
-    /// 18pt Bold Mono - Small titles (replaces .title3)
-    static let title3 = Font.system(size: FontSize.xl, weight: .bold, design: .monospaced)
+    /// Bold Mono - Small titles (replaces .title3)
+    @MainActor
+    static var title3: Font {
+        scaledFont(size: FontSize.xl, weight: .bold)
+    }
 
-    /// 16pt Medium Mono - Card titles
-    static let h4 = Font.system(size: FontSize.lg, weight: .medium, design: .monospaced)
+    /// Medium Mono - Card titles
+    @MainActor
+    static var h4: Font {
+        scaledFont(size: FontSize.lg, weight: .medium)
+    }
 
     // MARK: - Body Text
 
-    /// 14pt Regular Mono - Default body text
-    static let body = Font.system(size: FontSize.base, weight: .regular, design: .monospaced)
+    /// Regular Mono - Default body text
+    @MainActor
+    static var body: Font {
+        scaledFont(size: FontSize.base, weight: .regular)
+    }
 
-    /// 14pt Medium Mono - Emphasized body text
-    static let bodyMedium = Font.system(size: FontSize.base, weight: .medium, design: .monospaced)
+    /// Medium Mono - Emphasized body text
+    @MainActor
+    static var bodyMedium: Font {
+        scaledFont(size: FontSize.base, weight: .medium)
+    }
 
-    /// 13pt Regular Mono - Smaller body text
-    static let bodySmall = Font.system(size: FontSize.smMd, weight: .regular, design: .monospaced)
+    /// Regular Mono - Smaller body text
+    @MainActor
+    static var bodySmall: Font {
+        scaledFont(size: FontSize.smMd, weight: .regular)
+    }
 
     // MARK: - UI Elements
 
-    /// 12pt Medium Mono - Labels, buttons
-    static let label = Font.system(size: FontSize.sm, weight: .medium, design: .monospaced)
+    /// Medium Mono - Labels, buttons
+    @MainActor
+    static var label: Font {
+        scaledFont(size: FontSize.sm, weight: .medium)
+    }
 
-    /// 12pt Regular Mono - Secondary labels
-    static let labelRegular = Font.system(size: FontSize.sm, weight: .regular, design: .monospaced)
+    /// Regular Mono - Secondary labels
+    @MainActor
+    static var labelRegular: Font {
+        scaledFont(size: FontSize.sm, weight: .regular)
+    }
 
-    /// 11pt Regular Mono - Captions, hints
-    static let caption = Font.system(size: FontSize.xs, weight: .regular, design: .monospaced)
+    /// Regular Mono - Captions, hints
+    @MainActor
+    static var caption: Font {
+        scaledFont(size: FontSize.xs, weight: .regular)
+    }
 
-    /// 11pt Medium Mono - Badges, tags
-    static let captionMedium = Font.system(size: FontSize.xs, weight: .medium, design: .monospaced)
+    /// Medium Mono - Badges, tags
+    @MainActor
+    static var captionMedium: Font {
+        scaledFont(size: FontSize.xs, weight: .medium)
+    }
 
-    /// 10pt Regular Mono - Extra small text
-    static let micro = Font.system(size: FontSize.xxs, weight: .regular, design: .monospaced)
+    /// Regular Mono - Extra small text
+    @MainActor
+    static var micro: Font {
+        scaledFont(size: FontSize.xxs, weight: .regular)
+    }
 
     // MARK: - Code/Terminal
 
-    /// 13pt Regular Mono - Code blocks
-    static let code = Font.system(size: FontSize.smMd, weight: .regular, design: .monospaced)
+    /// Regular Mono - Code blocks
+    @MainActor
+    static var code: Font {
+        scaledFont(size: FontSize.smMd, weight: .regular)
+    }
 
-    /// 12pt Regular Mono - Terminal text
-    static let terminal = Font.system(size: FontSize.sm, weight: .regular, design: .monospaced)
+    /// Regular Mono - Terminal text
+    @MainActor
+    static var terminal: Font {
+        scaledFont(size: FontSize.sm, weight: .regular)
+    }
 
-    /// 11pt Regular Mono - Monospace for hashes, IDs
-    static let mono = Font.system(size: FontSize.xs, weight: .regular, design: .monospaced)
+    /// Regular Mono - Monospace for hashes, IDs
+    @MainActor
+    static var mono: Font {
+        scaledFont(size: FontSize.xs, weight: .regular)
+    }
 
     // MARK: - Special
 
-    /// 14pt Semibold Mono - Navigation items
-    static let nav = Font.system(size: FontSize.base, weight: .semibold, design: .monospaced)
+    /// Semibold Mono - Navigation items
+    @MainActor
+    static var nav: Font {
+        scaledFont(size: FontSize.base, weight: .semibold)
+    }
 
-    /// 12pt Semibold Mono - Tab labels
-    static let tab = Font.system(size: FontSize.sm, weight: .semibold, design: .monospaced)
+    /// Semibold Mono - Tab labels
+    @MainActor
+    static var tab: Font {
+        scaledFont(size: FontSize.sm, weight: .semibold)
+    }
 }
 
 // MARK: - Text Style View Modifier

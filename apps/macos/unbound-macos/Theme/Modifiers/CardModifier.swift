@@ -38,9 +38,9 @@ struct CardStyleModifier: ViewModifier {
         case .default:
             content
                 .background(colors.card)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
+                    RoundedRectangle(cornerRadius: Radius.md)
                         .stroke(colors.border, lineWidth: BorderWidth.default)
                 )
                 .modifier(ElevationModifier(elevation: elevation))
@@ -48,7 +48,7 @@ struct CardStyleModifier: ViewModifier {
         case .muted:
             content
                 .background(colors.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .modifier(ElevationModifier(elevation: elevation))
 
         case .ghost:
@@ -58,18 +58,18 @@ struct CardStyleModifier: ViewModifier {
         case .bordered:
             content
                 .background(Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
+                    RoundedRectangle(cornerRadius: Radius.md)
                         .stroke(colors.border, lineWidth: BorderWidth.default)
                 )
 
         case .glass:
             content
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
+                    RoundedRectangle(cornerRadius: Radius.md)
                         .stroke(colors.border.opacity(0.5), lineWidth: BorderWidth.hairline)
                 )
                 .modifier(ElevationModifier(elevation: elevation))
@@ -77,7 +77,7 @@ struct CardStyleModifier: ViewModifier {
         case .elevated:
             content
                 .background(colors.card)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .modifier(ElevationModifier(elevation: elevation == Elevation.none ? Elevation.md : elevation))
         }
     }
@@ -142,7 +142,7 @@ struct Card<Content: View>: View {
 
     var body: some View {
         content()
-            .padding(Spacing.lg)
+            .padding(Spacing.md)
             .modifier(CardStyleModifier(variant: variant, elevation: elevation))
     }
 }

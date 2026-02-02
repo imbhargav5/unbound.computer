@@ -7,8 +7,8 @@ on:
     branches:
       - main
 permissions:
-  contents: write # Required for changesets action to push version commits
-  pull-requests: write # Required for changesets action to create release PRs
+  contents: write
+  pull-requests: write
 jobs:
   release:
     name: Release
@@ -27,12 +27,35 @@ jobs:
         # TODO: Remove this once the build is working
         if: false
 
-      - name: Create Release Pull Request
+      - name: Create Release Pull Request or Tag
         id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm run version
           publish: pnpm changeset tag
-          createGithubReleases: true
+          createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version from package
+        if: steps.changesets.outputs.published == 'true'
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' packages/protocol/package.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create unified GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract changelog for this version from any package's CHANGELOG.md
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Generate release notes from the merged changesets
+          NOTES=$(cat packages/*/CHANGELOG.md 2>/dev/null | head -100 || echo "Release v${VERSION}")
+
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            --latest

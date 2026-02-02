@@ -29,29 +29,29 @@ struct InputStyleModifier: ViewModifier {
         case .default:
             content
                 .font(Typography.body)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
                 .background(colors.background)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md)
+                    RoundedRectangle(cornerRadius: Radius.sm)
                         .stroke(colors.border, lineWidth: BorderWidth.default)
                 )
 
         case .ghost:
             content
                 .font(Typography.body)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
                 .background(Color.clear)
 
         case .filled:
             content
                 .font(Typography.body)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
                 .background(colors.input)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
         }
     }
 }
@@ -106,7 +106,7 @@ struct ShadcnTextField: View {
             .focused($isFocused)
             .modifier(InputStyleModifier(variant: variant))
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: Radius.sm)
                     .stroke(
                         isFocused ? colors.ring : Color.clear,
                         lineWidth: isFocused ? 2 : 0
@@ -143,11 +143,11 @@ struct ShadcnTextEditor: View {
             .font(Typography.body)
             .scrollContentBackground(.hidden)
             .focused($isFocused)
-            .padding(Spacing.md)
+            .padding(Spacing.sm)
             .background(variant == .filled ? colors.input : colors.background)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: Radius.sm)
                     .stroke(
                         isFocused ? colors.ring : colors.border,
                         lineWidth: BorderWidth.default
