@@ -6,7 +6,6 @@ mod tui;
 
 use clap::{Parser, Subcommand};
 use tracing::{debug, info};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Unbound CLI - Control the Unbound daemon and manage coding sessions.
 #[derive(Parser)]
@@ -323,14 +322,13 @@ async fn ensure_repo_added() -> Option<String> {
 async fn main() {
     let cli = Cli::parse();
 
-    // Initialize logging
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&cli.log_level));
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt::layer().with_target(false))
-        .init();
+    // Initialize logging via observability crate
+    observability::init_with_config(observability::LogConfig {
+        service_name: "cli".into(),
+        default_level: cli.log_level.clone(),
+        also_stderr: false, // CLI doesn't need stderr output by default
+        ..Default::default()
+    });
 
     // Handle --ui flag or explicit tui command
     let result = if cli.ui && cli.command.is_none() {

@@ -95,6 +95,12 @@ enum DaemonEventType: String, Codable {
     case claudeUser = "claude_user"
     /// Claude result event.
     case claudeResult = "claude_result"
+    /// Auth state changed event.
+    case authStateChanged = "auth_state_changed"
+    /// Session created event.
+    case sessionCreated = "session_created"
+    /// Session deleted event.
+    case sessionDeleted = "session_deleted"
 }
 
 // MARK: - Request

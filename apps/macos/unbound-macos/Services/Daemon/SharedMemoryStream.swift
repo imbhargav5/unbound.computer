@@ -157,11 +157,11 @@ final class SharedMemoryConsumer {
     static func open(sessionId: String) -> SharedMemoryConsumer? {
         let name = shmName(sessionId: sessionId)
 
-        // Open existing shared memory
-        let fd = shm_open(name, O_RDWR, 0)
+        // Open existing shared memory (using wrapper for variadic C function)
+        let fd = shm_open_wrapper(name, O_RDWR, 0)
         if fd == -1 {
             let error = String(cString: strerror(errno))
-            logger.debug("shm_open failed for '\(name)': \(error)")
+            logger.debug("shm_open_wrapper failed for '\(name)': \(error)")
             return nil
         }
 

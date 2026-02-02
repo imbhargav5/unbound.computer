@@ -2,16 +2,23 @@
 //  mockup_macosApp.swift
 //  mockup-macos
 //
-//  Created by Bhargav Ponnapalli on 02/02/26.
+//  Mockup app for testing and visualizing UI improvements
+//  before porting them to the main macOS app.
 //
 
 import SwiftUI
 
 @main
 struct mockup_macosApp: App {
+    @State private var appState = MockAppState()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(appState)
+                .preferredColorScheme(.dark)
         }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1200, height: 800)
     }
 }

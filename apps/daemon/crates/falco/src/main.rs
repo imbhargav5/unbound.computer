@@ -8,7 +8,6 @@
 use clap::Parser;
 use falco::{Courier, FalcoConfig, FalcoResult};
 use tracing::{error, info};
-use tracing_subscriber::{fmt, EnvFilter};
 
 /// Falco: Stateless courier for encrypted remote commands.
 #[derive(Parser, Debug)]
@@ -31,18 +30,10 @@ struct Args {
     /// Daemon response timeout in seconds.
     #[arg(long, env = "FALCO_TIMEOUT_SECS", default_value = "15")]
     timeout_secs: u64,
-}
 
-fn init_logging() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-
-    fmt()
-        .with_env_filter(filter)
-        .with_target(true)
-        .with_thread_ids(false)
-        .with_file(false)
-        .with_line_number(false)
-        .init();
+    /// Log level (trace, debug, info, warn, error)
+    #[arg(long, default_value = "info")]
+    log_level: String,
 }
 
 fn get_device_id(args: &Args) -> FalcoResult<String> {
@@ -65,9 +56,15 @@ fn get_device_id(args: &Args) -> FalcoResult<String> {
 
 #[tokio::main]
 async fn main() -> FalcoResult<()> {
-    init_logging();
-
     let args = Args::parse();
+
+    // Initialize logging via observability crate
+    observability::init_with_config(observability::LogConfig {
+        service_name: "falco".into(),
+        default_level: args.log_level.clone(),
+        also_stderr: true,
+        ..Default::default()
+    });
 
     info!("Falco starting...");
 

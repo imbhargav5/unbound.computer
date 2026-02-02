@@ -130,7 +130,7 @@ final class SessionSubscription: Sendable {
             logger.info("Event polling started for session \(self.sessionId)")
 
             // Use the async sequence for event iteration
-            for await event in consumer.events(pollInterval: .milliseconds(1)) {
+            for await event in consumer.events(pollInterval: Swift.Duration.milliseconds(1)) {
                 if Task.isCancelled { break }
 
                 // Convert SharedMemoryEvent to DaemonEvent

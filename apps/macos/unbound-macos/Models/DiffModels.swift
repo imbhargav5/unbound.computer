@@ -152,6 +152,12 @@ struct FileDiff: Identifiable, Hashable {
     var isRename: Bool {
         oldPath != nil && oldPath != filePath
     }
+
+    /// Parse a single file diff from raw diff content.
+    /// Convenience wrapper around DiffParser.parseFileDiff.
+    static func parse(from content: String, filePath: String) -> FileDiff? {
+        DiffParser.parseFileDiff(content, filePath: filePath)
+    }
 }
 
 // MARK: - Git Status With Diffs

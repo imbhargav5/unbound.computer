@@ -1,77 +1,62 @@
 //! Logging initialization for the daemon.
+//!
+//! This module re-exports the observability crate's initialization functions.
+//! All daemon services use a centralized logging system that writes structured
+//! JSONL to `~/.unbound/logs/dev.jsonl`.
 
-use tracing::Level;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+// Re-exports for direct access if needed
+#[allow(unused_imports)]
+pub use observability::{init, init_with_config, LogConfig};
 
-/// Initialize the logging system.
+/// Initialize the logging system for the daemon.
 ///
 /// This sets up tracing with:
-/// - Console output with timestamps and colors
-/// - Log level from the provided string or RUST_LOG env var
-/// - File output to the specified path (optional)
+/// - Structured JSONL output to `~/.unbound/logs/dev.jsonl`
+/// - Log level from RUST_LOG env var or the provided default
+/// - Service name included in every log line
+///
+/// # Arguments
+///
+/// * `level` - Default log level (trace, debug, info, warn, error)
+///
+/// # Example
+///
+/// ```ignore
+/// init_logging("info");
+/// tracing::info!("Daemon started");
+/// ```
 pub fn init_logging(level: &str) {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(level));
-
-    let fmt_layer = fmt::layer()
-        .with_target(true)
-        .with_level(true)
-        .with_thread_ids(false)
-        .with_thread_names(false)
-        .with_ansi(true);  // Enable colored output
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer)
-        .init();
+    observability::init_with_config(observability::LogConfig {
+        service_name: "daemon".into(),
+        default_level: level.into(),
+        also_stderr: true, // Show logs on stderr for foreground mode
+        ..Default::default()
+    });
 }
 
-/// Initialize logging with file output.
+/// Initialize logging with a custom service name.
 ///
-/// Logs to both console and the specified file.
-pub fn init_logging_with_file(level: &str, log_file: &std::path::Path) -> std::io::Result<()> {
-    use std::fs::OpenOptions;
-
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(level));
-
-    // Ensure parent directory exists
-    if let Some(parent) = log_file.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_file)?;
-
-    let file_layer = fmt::layer()
-        .with_writer(file)
-        .with_target(true)
-        .with_level(true)
-        .with_ansi(false);
-
-    let console_layer = fmt::layer()
-        .with_target(true)
-        .with_level(true);
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(console_layer)
-        .with(file_layer)
-        .init();
-
-    Ok(())
+/// Use this when you need to distinguish between different daemon components
+/// in the central log stream.
+#[allow(dead_code)]
+pub fn init_logging_for_service(service_name: &str, level: &str) {
+    observability::init_with_config(observability::LogConfig {
+        service_name: service_name.into(),
+        default_level: level.into(),
+        also_stderr: true,
+        ..Default::default()
+    });
 }
 
 /// Parse a log level string into a tracing Level.
-pub fn parse_level(level: &str) -> Level {
+#[allow(dead_code)]
+pub fn parse_level(level: &str) -> tracing::Level {
     match level.to_lowercase().as_str() {
-        "trace" => Level::TRACE,
-        "debug" => Level::DEBUG,
-        "info" => Level::INFO,
-        "warn" | "warning" => Level::WARN,
-        "error" => Level::ERROR,
-        _ => Level::INFO,
+        "trace" => tracing::Level::TRACE,
+        "debug" => tracing::Level::DEBUG,
+        "info" => tracing::Level::INFO,
+        "warn" | "warning" => tracing::Level::WARN,
+        "error" => tracing::Level::ERROR,
+        _ => tracing::Level::INFO,
     }
 }

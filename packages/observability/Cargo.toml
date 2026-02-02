@@ -1,0 +1,36 @@
+[package]
+name = "observability"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unbound <team@unbound.computer>"]
+license = "MIT"
+description = "Centralized observability layer for the Unbound monorepo"
+repository = "https://github.com/unbound-computer/unbound"
+
+[features]
+default = ["dev"]
+dev = []      # Dev mode: JSONL file sink for local streaming
+prod = []     # Prod mode: stdout + external sinks (future)
+
+[dependencies]
+# Core tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-appender = "0.2"
+
+# Serialization for structured logs
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Platform utilities
+dirs = "6.0"
+
+# Sync primitives for global state
+once_cell = "1.19"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"

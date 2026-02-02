@@ -2,20 +2,13 @@
 //  ContentView.swift
 //  mockup-ios
 //
-//  Created by Bhargav Ponnapalli on 02/02/26.
-//
+//  This file is kept for compatibility but the main app entry point is in mockup_iosApp.swift
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        DeviceListView()
     }
 }
 
