@@ -97,6 +97,9 @@ class AppState {
         }
     }
 
+    /// Local settings for font size and other UI preferences
+    let localSettings = LocalSettings.shared
+
     var showSettings: Bool = false
     var selectedSessionId: UUID?
     var selectedRepositoryId: UUID?
@@ -193,9 +196,22 @@ class AppState {
         }
     }
 
-    /// Login via daemon.
-    func login(provider: String, email: String? = nil) async throws {
-        try await daemonClient.login(provider: provider, email: email)
+    /// Login via daemon with email and password.
+    func loginWithPassword(email: String, password: String) async throws {
+        try await daemonClient.loginWithPassword(email: email, password: password)
+        await refreshAuthStatus()
+
+        if isAuthenticated {
+            await loadDataAsync()
+        }
+    }
+
+    /// Login via daemon with OAuth provider.
+    /// - Parameters:
+    ///   - provider: OAuth provider ("github", "google") or "magic_link" for passwordless.
+    ///   - email: Email address (required for magic_link, optional for OAuth).
+    func loginWithProvider(_ provider: String, email: String? = nil) async throws {
+        try await daemonClient.loginWithProvider(provider, email: email)
         await refreshAuthStatus()
 
         if isAuthenticated {

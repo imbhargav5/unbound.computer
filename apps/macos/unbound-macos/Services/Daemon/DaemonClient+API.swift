@@ -30,9 +30,23 @@ extension DaemonClient {
         return try response.resultAs(DaemonAuthStatus.self)
     }
 
-    /// Start login flow.
-    /// - Parameter provider: OAuth provider ("github", "google") or "email" for magic link.
-    func login(provider: String, email: String? = nil) async throws {
+    /// Start login flow with email and password.
+    /// - Parameters:
+    ///   - email: User's email address.
+    ///   - password: User's password.
+    func loginWithPassword(email: String, password: String) async throws {
+        let params: [String: Any] = [
+            "email": email,
+            "password": password
+        ]
+        _ = try await call(method: .authLogin, params: params)
+    }
+
+    /// Start login flow with OAuth provider.
+    /// - Parameters:
+    ///   - provider: OAuth provider ("github", "google") or "magic_link" for passwordless.
+    ///   - email: Email address (required for magic_link, optional for OAuth).
+    func loginWithProvider(_ provider: String, email: String? = nil) async throws {
         var params: [String: Any] = ["provider": provider]
         if let email {
             params["email"] = email

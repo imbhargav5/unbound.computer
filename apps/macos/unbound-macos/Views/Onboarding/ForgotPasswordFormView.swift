@@ -111,7 +111,7 @@ struct ForgotPasswordFormView: View {
         Task {
             do {
                 // Use daemon for password reset (magic link)
-                try await appState.login(provider: "reset_password", email: email)
+                try await appState.loginWithProvider("reset_password", email: email)
                 onSuccess(email)
             } catch {
                 errorMessage = error.localizedDescription

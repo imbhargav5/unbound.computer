@@ -111,7 +111,7 @@ struct MagicLinkFormView: View {
         Task {
             do {
                 // Use daemon for magic link login
-                try await appState.login(provider: "magic_link", email: email)
+                try await appState.loginWithProvider("magic_link", email: email)
                 onSuccess(email)
             } catch {
                 errorMessage = error.localizedDescription

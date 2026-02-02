@@ -232,7 +232,7 @@ struct SignUpFormView: View {
         Task {
             do {
                 // Use daemon for email signup
-                try await appState.login(provider: "email", email: email)
+                try await appState.loginWithProvider("email", email: email)
             } catch {
                 logger.error("Sign up error: \(error)")
             }

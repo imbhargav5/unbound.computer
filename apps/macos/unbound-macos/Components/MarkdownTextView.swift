@@ -257,10 +257,10 @@ private struct InlineMarkdownText: View {
     let colors: ThemeColors
     let baseFont: Font
 
-    init(_ text: String, colors: ThemeColors, baseFont: Font = Typography.body) {
+    init(_ text: String, colors: ThemeColors, baseFont: Font? = nil) {
         self.text = text
         self.colors = colors
-        self.baseFont = baseFont
+        self.baseFont = baseFont ?? .system(size: FontSize.base, weight: .regular, design: .monospaced)
     }
 
     var body: some View {

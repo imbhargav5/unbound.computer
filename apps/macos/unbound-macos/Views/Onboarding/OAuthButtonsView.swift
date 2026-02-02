@@ -108,7 +108,7 @@ struct OAuthButtonsView: View {
         Task {
             do {
                 // Use daemon for OAuth login
-                try await appState.login(provider: provider.rawValue)
+                try await appState.loginWithProvider(provider.rawValue)
             } catch {
                 logger.error("OAuth error: \(error)")
             }

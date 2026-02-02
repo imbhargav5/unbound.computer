@@ -188,7 +188,7 @@ struct SignInFormView: View {
         Task {
             do {
                 // Use daemon for email/password login
-                try await appState.login(provider: "email", email: email)
+                try await appState.loginWithPassword(email: email, password: password)
             } catch {
                 logger.error("Sign in error: \(error)")
             }
