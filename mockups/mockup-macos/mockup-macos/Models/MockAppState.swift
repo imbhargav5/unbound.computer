@@ -15,6 +15,8 @@ class MockAppState {
     // MARK: - UI State
 
     var showSettings: Bool = false
+    var showCommandPalette: Bool = false
+    var showAddRepository: Bool = false
     var selectedSessionId: UUID?
     var selectedRepositoryId: UUID?
 

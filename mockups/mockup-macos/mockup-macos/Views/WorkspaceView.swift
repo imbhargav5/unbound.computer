@@ -55,11 +55,18 @@ struct WorkspaceView: View {
         return selectedRepository?.path
     }
 
+    /// Space needed for traffic lights (close, minimize, zoom)
+    private let trafficLightWidth: CGFloat = 78
+
     var body: some View {
         VStack(spacing: 0) {
             // Full-width custom toolbar
             WindowToolbar {
                 HStack(spacing: Spacing.lg) {
+                    // Left spacer for traffic lights
+                    Spacer()
+                        .frame(width: trafficLightWidth)
+
                     // Left section - App title / Agents
                     Text("Agents")
                         .font(Typography.h4)

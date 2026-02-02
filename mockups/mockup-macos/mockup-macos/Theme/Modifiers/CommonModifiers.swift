@@ -420,24 +420,25 @@ struct TypingDotsIndicator: View {
 
 // MARK: - Window Toolbar (Custom Title Bar for Option 1)
 
-/// A custom toolbar that sits next to the traffic light buttons.
-/// Supports window dragging, double-click to zoom, and proper spacing.
+/// A custom toolbar that works with macOS transparent titlebar.
+/// The titlebar still exists (~28pt) with traffic lights, but is transparent.
+/// This toolbar provides additional height and content next to/below the traffic lights.
+///
+/// Requirements for this to work:
+/// - Window must have `.fullSizeContentView` in styleMask
+/// - Window must have `titlebarAppearsTransparent = true`
+/// - Window must have `titleVisibility = .hidden`
 struct WindowToolbar<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
-    /// Standard traffic light width + padding
-    private let trafficLightWidth: CGFloat = 78
-
-    /// Standard macOS toolbar height
+    /// Total toolbar height (includes space that overlaps with titlebar)
+    /// macOS titlebar is ~28pt, we add extra for our content
     private let toolbarHeight: CGFloat = 52
 
     var body: some View {
         HStack(spacing: 0) {
-            // Space for traffic lights (close, minimize, zoom)
-            Color.clear
-                .frame(width: trafficLightWidth)
-
-            // User content
+            // User content - no need for traffic light spacing
+            // since titlebar handles that
             content()
         }
         .frame(height: toolbarHeight)
