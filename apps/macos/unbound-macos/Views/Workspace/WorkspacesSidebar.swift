@@ -478,19 +478,11 @@ struct SessionRowInGroup: View {
                 // Workspace icon - morphs to loader when session is active
                 SessionIcon(isActive: isSessionActive, size: IconSize.sm)
 
-                // Session title and branch
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.displayTitle)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
-                        .lineLimit(1)
-
-                    if let branch = gitStatus?.branch {
-                        Text(branch)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                }
+                // Session title
+                Text(session.displayTitle)
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
 
                 Spacer()
 
@@ -610,20 +602,12 @@ struct SessionRow: View {
                 // Workspace icon - morphs to loader when session is active
                 SessionIcon(isActive: isSessionActive, size: IconSize.sm)
 
-                // Session title and branch
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.displayTitle)
-                        .font(Typography.bodySmall)
-                        .fontWeight(.medium)
-                        .foregroundStyle(colors.foreground)
-                        .lineLimit(1)
-
-                    if let branch = gitStatus?.branch {
-                        Text(branch)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                }
+                // Session title
+                Text(session.displayTitle)
+                    .font(Typography.bodySmall)
+                    .fontWeight(.medium)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
 
                 Spacer()
 

@@ -392,16 +392,10 @@ struct SessionRowInGroup: View {
                 SessionIcon(isActive: false, size: IconSize.sm)
 
                 // Session title
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.displayTitle)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
-                        .lineLimit(1)
-
-                    Text("main")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-                }
+                Text(session.displayTitle)
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
 
                 Spacer()
 
