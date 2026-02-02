@@ -24,10 +24,24 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for release files
+        id: check
+        run: |
+          # Count release files (excluding README.md)
+          COUNT=$(find .releases -name "*.md" ! -name "README.md" 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          if [ "$COUNT" -eq "0" ]; then
+            echo "No release files found, skipping release workflow"
+          else
+            echo "Found $COUNT release file(s)"
+          fi
+
       - name: CI Setup
+        if: steps.check.outputs.count != '0'
         uses: ./.github/actions/ci-setup
 
       - name: Detect release type
+        if: steps.check.outputs.count != '0'
         id: detect
         run: |
           RELEASE_TYPE=$(pnpm tsx scripts/release/detect-release-type.ts)
@@ -35,7 +49,7 @@ jobs:
           echo "Detected release type: $RELEASE_TYPE"
 
       - name: Get current version
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         id: current
         run: |
           CURRENT_VERSION=$(pnpm tsx scripts/release/get-current-version.ts)
@@ -43,7 +57,7 @@ jobs:
           echo "Current version: $CURRENT_VERSION"
 
       - name: Bump versions
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         id: bump
         run: |
           OUTPUT=$(pnpm tsx scripts/release/bump-versions.ts ${{ steps.detect.outputs.release_type }})
@@ -53,31 +67,31 @@ jobs:
           echo "New version: $NEW_VERSION"
 
       - name: Configure git
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create release branch
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         run: |
           BRANCH_NAME="release/v${{ steps.bump.outputs.new_version }}"
           git checkout -b "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Commit version changes
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         run: |
           git add -A
           git commit -m "chore: release v${{ steps.bump.outputs.new_version }}"
 
       - name: Push release branch
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         run: |
           git push origin "${{ env.branch_name }}" --force
 
       - name: Create or update PR
-        if: steps.detect.outputs.release_type != 'none'
+        if: steps.check.outputs.count != '0'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
