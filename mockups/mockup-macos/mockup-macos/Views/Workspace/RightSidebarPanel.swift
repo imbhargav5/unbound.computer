@@ -335,7 +335,7 @@ struct VSCodeChangeRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: Spacing.sm) {
-                // Status indicator letter (M, A, D, ?)
+                // Status indicator letter (M, A, D, U)
                 Text(file.status.indicator)
                     .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
                     .foregroundStyle(statusColor)
@@ -349,6 +349,9 @@ struct VSCodeChangeRow: View {
                     .truncationMode(.head)
 
                 Spacer(minLength: Spacing.sm)
+
+                // Change stats (+N / -N) - VS Code style
+                changeStats
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
@@ -358,6 +361,22 @@ struct VSCodeChangeRow: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
+        }
+    }
+
+    @ViewBuilder
+    private var changeStats: some View {
+        HStack(spacing: Spacing.xs) {
+            if let additions = file.additions, additions > 0 {
+                Text("+\(additions)")
+                    .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
+                    .foregroundStyle(colors.success)
+            }
+            if let deletions = file.deletions, deletions > 0 {
+                Text("-\(deletions)")
+                    .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
+                    .foregroundStyle(colors.destructive)
+            }
         }
     }
 

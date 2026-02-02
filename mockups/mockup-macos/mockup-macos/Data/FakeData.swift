@@ -132,22 +132,22 @@ struct FakeData {
     // Diverse set of file statuses to demonstrate the Changes view
 
     static let changedFiles: [GitStatusFile] = [
-        // Modified files (yellow M indicator)
-        GitStatusFile(path: "src/auth/login.swift", status: .modified),
-        GitStatusFile(path: "src/models/User.swift", status: .modified),
-        GitStatusFile(path: "src/views/SettingsView.swift", status: .modified),
+        // Modified files (yellow M indicator) - with line change stats
+        GitStatusFile(path: "src/auth/login.swift", status: .modified, additions: 24, deletions: 8),
+        GitStatusFile(path: "src/models/User.swift", status: .modified, additions: 12, deletions: 3),
+        GitStatusFile(path: "src/views/SettingsView.swift", status: .modified, additions: 156, deletions: 42),
 
-        // Added files (green A indicator)
-        GitStatusFile(path: "src/api/endpoints.swift", status: .added),
-        GitStatusFile(path: "tests/auth_tests.swift", status: .added),
+        // Added files (green A indicator) - only additions
+        GitStatusFile(path: "src/api/endpoints.swift", status: .added, additions: 87, deletions: 0),
+        GitStatusFile(path: "tests/auth_tests.swift", status: .added, additions: 234, deletions: 0),
 
-        // Deleted files (red D indicator)
-        GitStatusFile(path: "src/legacy/OldAuth.swift", status: .deleted),
+        // Deleted files (red D indicator) - only deletions
+        GitStatusFile(path: "src/legacy/OldAuth.swift", status: .deleted, additions: 0, deletions: 145),
 
         // Renamed files (blue R indicator)
-        GitStatusFile(path: "src/utils/helpers.swift", status: .renamed),
+        GitStatusFile(path: "src/utils/helpers.swift", status: .renamed, additions: 5, deletions: 2),
 
-        // Untracked files (gray ? indicator)
+        // Untracked files (gray U indicator) - no stats for untracked
         GitStatusFile(path: "notes.txt", status: .untracked),
         GitStatusFile(path: ".env.local", status: .untracked)
     ]

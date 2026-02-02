@@ -77,17 +77,25 @@ struct GitStatusFile: Identifiable, Hashable {
     let path: String
     let status: FileStatus
     let staged: Bool
+    /// Number of lines added (optional, from git diff --numstat).
+    var additions: Int?
+    /// Number of lines deleted (optional, from git diff --numstat).
+    var deletions: Int?
 
     init(
         id: UUID = UUID(),
         path: String,
         status: FileStatus,
-        staged: Bool = false
+        staged: Bool = false,
+        additions: Int? = nil,
+        deletions: Int? = nil
     ) {
         self.id = id
         self.path = path
         self.status = status
         self.staged = staged
+        self.additions = additions
+        self.deletions = deletions
     }
 
     var filename: String {

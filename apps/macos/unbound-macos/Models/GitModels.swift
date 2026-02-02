@@ -173,6 +173,10 @@ struct GitStatusFile: Codable, Identifiable, Hashable {
     let status: GitFileStatusType
     /// Whether the file is staged.
     let staged: Bool
+    /// Number of lines added (optional, from git diff --numstat).
+    var additions: Int?
+    /// Number of lines deleted (optional, from git diff --numstat).
+    var deletions: Int?
 
     var id: String { path }
 
@@ -226,7 +230,7 @@ enum GitFileStatusType: String, Codable, Hashable {
         case .deleted: return "D"
         case .renamed: return "R"
         case .copied: return "C"
-        case .untracked: return "?"
+        case .untracked: return "U"
         case .ignored: return "!"
         case .typechange: return "T"
         case .unreadable: return "X"

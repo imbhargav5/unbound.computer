@@ -202,7 +202,7 @@ enum FileStatus: String, Hashable {
         case .added: return "A"
         case .deleted: return "D"
         case .renamed: return "R"
-        case .untracked: return "?"
+        case .untracked: return "U"
         }
     }
 
