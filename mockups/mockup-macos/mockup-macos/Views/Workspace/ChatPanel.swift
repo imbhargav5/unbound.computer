@@ -33,9 +33,7 @@ struct ChatPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header with project name
-            ChatHeader(projectName: repository?.name ?? "No Repository") {
-                // Open action
-            }
+            ChatHeader(projectName: repository?.name ?? "No Repository")
 
             ShadcnDivider()
 
@@ -79,7 +77,7 @@ struct ChatPanel: View {
                         onSend: sendMessage,
                         onCancel: cancelStream
                     )
-                    .padding(Spacing.lg)
+                    .padding(Spacing.compact)
                 } else {
                     // No session selected
                     ContentUnavailableView(
@@ -90,6 +88,13 @@ struct ChatPanel: View {
                 }
             }
             .background(colors.background)
+
+            ShadcnDivider()
+
+            // Footer (empty, 20px height)
+            Color.clear
+                .frame(height: 20)
+                .background(colors.card)
         }
     }
 

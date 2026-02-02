@@ -14,6 +14,8 @@ enum Spacing {
     static let xxs: CGFloat = 2
     /// 4pt - Extra small spacing
     static let xs: CGFloat = 4
+    /// 12pt - Compact spacing
+    static let compact: CGFloat = 12
     /// 8pt - Small spacing
     static let sm: CGFloat = 8
     /// 12pt - Medium spacing

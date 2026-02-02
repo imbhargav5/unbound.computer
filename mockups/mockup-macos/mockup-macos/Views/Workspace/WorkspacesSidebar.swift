@@ -73,6 +73,13 @@ struct WorkspacesSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Agents header (top bar with fixed 64px height)
+            SidebarHeader(title: "Agents") {
+                // Menu action
+            }
+
+            ShadcnDivider()
+
             // Sessions list grouped by repository or empty state
             if sessionsByRepository.isEmpty {
                 RepositoriesEmptyState(onAddRepository: onAddRepository)
@@ -95,19 +102,18 @@ struct WorkspacesSidebar: View {
                             ))
                         }
                     }
-                    .padding(.top, Spacing.sm)
-                    .padding(.horizontal, Spacing.sm)
+                    .padding(.top, Spacing.compact)
+                    .padding(.horizontal, Spacing.compact)
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessionsByRepository.map(\.repository.id))
                 }
             }
 
             ShadcnDivider()
 
-            // Footer
-            SidebarFooter(
-                onAddRepository: onAddRepository,
-                onOpenSettings: onOpenSettings
-            )
+            // Footer (empty, 20px height)
+            Color.clear
+                .frame(height: 20)
+                .background(colors.card)
         }
         .background(colors.background)
     }

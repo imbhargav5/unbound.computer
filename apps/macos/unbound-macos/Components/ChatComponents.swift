@@ -197,10 +197,10 @@ struct ChatInputField: View {
             .padding(.bottom, Spacing.md)
         }
         .background(isPlanMode ? colors.info.opacity(0.05) : colors.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : colors.border), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
+            RoundedRectangle(cornerRadius: Radius.md)
+                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : Color.clear), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
         )
         .animation(.easeInOut(duration: Duration.fast), value: isFocused)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
@@ -753,7 +753,6 @@ struct ChatHeader: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let projectName: String
-    var onOpen: () -> Void
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -771,43 +770,10 @@ struct ChatHeader: View {
             }
             .foregroundStyle(colors.mutedForeground)
 
-            // Open button
-            Button(action: onOpen) {
-                HStack(spacing: Spacing.xs) {
-                    Text("Open")
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: IconSize.xs))
-                }
-                .font(Typography.bodySmall)
-                .foregroundStyle(colors.mutedForeground)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(colors.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            }
-            .buttonStyle(.plain)
-
             Spacer()
-
-            // Create PR button
-            Button(action: {}) {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "arrow.triangle.pull")
-                    Text("Create PR")
-                    Text("P")
-                        .font(Typography.micro)
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, Spacing.xs)
-                        .background(colors.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                }
-                .font(Typography.bodySmall)
-                .foregroundStyle(colors.mutedForeground)
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
+        .frame(height: 40)
         .background(colors.card)
     }
 }

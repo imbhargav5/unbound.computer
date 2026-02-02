@@ -10,6 +10,55 @@ import SwiftUI
 
 private let logger = Logger(label: "app.ui.sidebar")
 
+// MARK: - Editor Mode
+
+enum EditorMode: String, CaseIterable, Identifiable, Hashable {
+    case agent = "Agent"
+    case editor = "Editor"
+
+    var id: String { rawValue }
+}
+
+// MARK: - Editor Mode Toggle
+
+struct EditorModeToggle: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    @Binding var selection: EditorMode
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(EditorMode.allCases) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                        selection = mode
+                    }
+                } label: {
+                    Text(mode.rawValue)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(selection == mode ? colors.foreground : colors.mutedForeground)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(
+                            selection == mode ?
+                            colors.card :
+                            Color.clear
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(Spacing.xxs)
+        .background(colors.muted)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+    }
+}
+
 struct RightSidebarPanel: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppState.self) private var appState
@@ -30,6 +79,9 @@ struct RightSidebarPanel: View {
     @State private var isLoadingDiff: Bool = false
     @State private var showDiffPanel: Bool = false
 
+    // Editor mode state
+    @State private var selectedEditorMode: EditorMode = .agent
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -38,6 +90,11 @@ struct RightSidebarPanel: View {
         VSplitView {
             // Top section - Tab content
             VStack(spacing: 0) {
+                // Top toolbar row (matches main content area top bar height)
+                topToolbarRow
+
+                ShadcnDivider()
+
                 // Tab header
                 tabHeader
 
@@ -55,6 +112,13 @@ struct RightSidebarPanel: View {
 
             // Bottom section - Terminal
             terminalSection
+
+            // Footer (empty, 20px height)
+            ShadcnDivider()
+
+            Color.clear
+                .frame(height: 20)
+                .background(colors.card)
         }
         .background(colors.background)
         .onChange(of: workingDirectory) { _, newPath in
@@ -68,6 +132,38 @@ struct RightSidebarPanel: View {
                 await gitViewModel.setRepository(path: workingDirectory)
             }
         }
+    }
+
+    // MARK: - Top Toolbar Row
+
+    private var topToolbarRow: some View {
+        HStack(spacing: Spacing.md) {
+            // Open selector on the left
+            Button(action: {
+                // Open action placeholder
+            }) {
+                HStack(spacing: Spacing.xs) {
+                    Text("Open")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: IconSize.xs))
+                }
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(colors.muted)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // Agent Mode / Editor Mode toggle on the right
+            EditorModeToggle(selection: $selectedEditorMode)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: 40)
+        .background(colors.card)
     }
 
     // MARK: - Tab Header
@@ -112,7 +208,7 @@ struct RightSidebarPanel: View {
                 })
             }
         }
-        .padding(.horizontal, Spacing.sm)
+        .padding(.horizontal, Spacing.compact)
         .padding(.vertical, Spacing.xs)
     }
 

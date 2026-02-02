@@ -37,7 +37,8 @@ struct SidebarHeader: View {
             }
         }
         .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
+        .frame(height: 40)
+        .background(colors.card)
     }
 }
 
