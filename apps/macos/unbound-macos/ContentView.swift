@@ -52,13 +52,12 @@ struct ContentView: View {
     private var connectedContent: some View {
         if appState.isAuthenticated {
             // Show main app
-            Group {
+            ZStack {
+                WorkspaceView()
+                    .opacity(appState.showSettings ? 0 : 1)
+
                 if appState.showSettings {
                     SettingsView()
-                        .transition(.move(edge: .trailing))
-                } else {
-                    WorkspaceView()
-                        .transition(.move(edge: .leading))
                 }
             }
             .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)

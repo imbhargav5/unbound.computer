@@ -56,47 +56,102 @@ struct WorkspaceView: View {
     }
 
     var body: some View {
-        HSplitView {
-            // Left sidebar - Sessions
-            WorkspacesSidebar(
-                onOpenSettings: {
-                    appState.showSettings = true
-                },
-                onAddRepository: {
-                    // Mock add repository action
-                },
-                onCreateSessionForRepository: { _, _ in
-                    // Mock create session action
-                }
-            )
-            .frame(minWidth: 200, idealWidth: 280, maxWidth: 400)
+        VStack(spacing: 0) {
+            // Full-width custom toolbar
+            WindowToolbar {
+                HStack(spacing: Spacing.lg) {
+                    // Left section - App title / Agents
+                    Text("Agents")
+                        .font(Typography.h4)
+                        .foregroundStyle(colors.foreground)
 
-            // Center - Chat Panel
-            if selectedSession != nil {
-                ChatPanel(
-                    session: selectedSession,
-                    repository: selectedRepository,
-                    chatInput: $chatInput,
-                    selectedModel: $selectedModel,
-                    selectedThinkMode: $selectedThinkMode,
-                    isPlanMode: $isPlanMode
-                )
-                .frame(minWidth: 400)
-            } else {
-                WorkspaceEmptyState(
-                    hasRepositories: !sessions.isEmpty,
-                    onAddRepository: {}
-                )
-                .frame(minWidth: 400)
+                    Spacer()
+
+                    // Center section - Search (optional)
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.mutedForeground)
+                        Text("Search...")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(colors.muted)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+
+                    Spacer()
+
+                    // Right section - Actions
+                    HStack(spacing: Spacing.sm) {
+                        Button {
+                            appState.showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: IconSize.sm))
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+                        .buttonGhost(size: .icon)
+
+                        Button {
+                            // User profile action
+                        } label: {
+                            Image(systemName: "person.circle")
+                                .font(.system(size: IconSize.md))
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+                        .buttonGhost(size: .icon)
+                    }
+                }
+                .padding(.trailing, Spacing.md)
             }
 
-            // Right sidebar - Git Operations
-            RightSidebarPanel(
-                selectedTab: $selectedSidebarTab,
-                selectedTerminalTab: $selectedTerminalTab,
-                workingDirectory: workingDirectoryPath
-            )
-            .frame(minWidth: 200, idealWidth: 300, maxWidth: 500)
+            ShadcnDivider()
+
+            // Main content area with split panels
+            HSplitView {
+                // Left sidebar - Sessions
+                WorkspacesSidebar(
+                    onOpenSettings: {
+                        appState.showSettings = true
+                    },
+                    onAddRepository: {
+                        // Mock add repository action
+                    },
+                    onCreateSessionForRepository: { _, _ in
+                        // Mock create session action
+                    }
+                )
+                .frame(minWidth: 200, idealWidth: 280, maxWidth: 400)
+
+                // Center - Chat Panel
+                if selectedSession != nil {
+                    ChatPanel(
+                        session: selectedSession,
+                        repository: selectedRepository,
+                        chatInput: $chatInput,
+                        selectedModel: $selectedModel,
+                        selectedThinkMode: $selectedThinkMode,
+                        isPlanMode: $isPlanMode
+                    )
+                    .frame(minWidth: 400)
+                } else {
+                    WorkspaceEmptyState(
+                        hasRepositories: !sessions.isEmpty,
+                        onAddRepository: {}
+                    )
+                    .frame(minWidth: 400)
+                }
+
+                // Right sidebar - Git Operations
+                RightSidebarPanel(
+                    selectedTab: $selectedSidebarTab,
+                    selectedTerminalTab: $selectedTerminalTab,
+                    workingDirectory: workingDirectoryPath
+                )
+                .frame(minWidth: 200, idealWidth: 300, maxWidth: 500)
+            }
         }
         .background(colors.background)
     }

@@ -57,8 +57,6 @@ struct GeneralSettings: View {
                         }
                     }
                 }
-
-                Spacer()
             }
             .padding(Spacing.xl)
         }

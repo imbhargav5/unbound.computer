@@ -73,31 +73,6 @@ struct WorkspacesSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Custom toolbar area (next to traffic lights)
-            WindowToolbar {
-                HStack {
-                    Text("Agents")
-                        .font(Typography.h4)
-                        .foregroundStyle(colors.foreground)
-
-                    Spacer()
-
-                    // Menu button
-                    Button {
-                        // Menu action
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: IconSize.sm))
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                    .buttonGhost(size: .icon)
-                }
-                .padding(.trailing, Spacing.md)
-            }
-
-            ShadcnDivider()
-                .padding(.horizontal, Spacing.md)
-
             // Sessions list grouped by repository or empty state
             if sessionsByRepository.isEmpty {
                 RepositoriesEmptyState(onAddRepository: onAddRepository)
