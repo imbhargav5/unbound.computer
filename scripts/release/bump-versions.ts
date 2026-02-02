@@ -1,20 +1,18 @@
 #!/usr/bin/env tsx
-/**
- * Bumps version in all package.json and Cargo.toml files
- *
- * Usage:
- *   tsx bump-versions.ts <patch|minor|major>
- *
- * Updates:
- *   - Root package.json
- *   - All apps/*/package.json
- *   - All packages/*/package.json
- *   - apps/daemon/Cargo.toml ([workspace.package].version)
- *   - apps/cli-new/Cargo.toml
- *   - packages/observability/Cargo.toml
- */
+// Bumps version in all package.json and Cargo.toml files
+//
+// Usage:
+//   tsx bump-versions.ts <patch|minor|major>
+//
+// Updates:
+//   - Root package.json
+//   - All apps/[name]/package.json
+//   - All packages/[name]/package.json
+//   - apps/daemon/Cargo.toml ([workspace.package].version)
+//   - apps/cli-new/Cargo.toml
+//   - packages/observability/Cargo.toml
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const RELEASE_TYPES = ["patch", "minor", "major"] as const
@@ -115,7 +113,7 @@ function main() {
   const releaseType = process.argv[2] as ReleaseType
 
   if (!releaseType || !RELEASE_TYPES.includes(releaseType)) {
-    console.error(`Usage: bump-versions.ts <patch|minor|major>`)
+    console.error("Usage: bump-versions.ts <patch|minor|major>")
     process.exit(1)
   }
 
@@ -128,7 +126,9 @@ function main() {
 
   const newVersion = bumpVersion(currentVersion, releaseType)
 
-  console.log(`Bumping version: ${currentVersion} -> ${newVersion} (${releaseType})`)
+  console.log(
+    `Bumping version: ${currentVersion} -> ${newVersion} (${releaseType})`
+  )
   console.log("")
 
   // Update all package.json files
