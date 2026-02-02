@@ -1,7 +1,7 @@
 {
   "name": "@unbound/database",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.1",
   "scripts": {
     "start": "supabase start",
     "stop": "supabase stop",
