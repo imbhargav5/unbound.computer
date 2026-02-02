@@ -13,7 +13,7 @@ struct WorkspaceView: View {
 
     // Chat state
     @State private var chatInput: String = ""
-    @State private var selectedModel: AIModel = .defaultModel
+    @State private var selectedModel: AIModel = .opus
     @State private var selectedThinkMode: ThinkMode = .none
     @State private var isPlanMode: Bool = false
 

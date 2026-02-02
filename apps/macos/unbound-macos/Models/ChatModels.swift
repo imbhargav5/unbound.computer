@@ -117,15 +117,6 @@ struct AIModel: Identifiable, Hashable {
         self.supportsThinking = supportsThinking
     }
 
-    /// Default model - uses Claude's default (currently Sonnet)
-    static let defaultModel = AIModel(
-        id: "default",
-        name: "Default",
-        iconName: "star.fill",
-        modelIdentifier: nil,
-        supportsThinking: true
-    )
-
     /// Claude Opus 4.5 - highest capability with extended thinking
     static let opus = AIModel(
         id: "opus-4.5",
@@ -153,5 +144,5 @@ struct AIModel: Identifiable, Hashable {
         supportsThinking: false
     )
 
-    static let allModels: [AIModel] = [.defaultModel, .opus, .sonnet, .haiku]
+    static let allModels: [AIModel] = [.opus, .sonnet, .haiku]
 }

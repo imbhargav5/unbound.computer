@@ -235,8 +235,6 @@ struct ModelSelector: View {
                 HStack(spacing: Spacing.xs) {
                     Text(selectedModel.name)
                         .font(Typography.bodySmall)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: IconSize.xs))
                 }
                 .foregroundStyle(colors.mutedForeground)
                 .padding(.horizontal, Spacing.sm)
@@ -245,6 +243,7 @@ struct ModelSelector: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
 
             // Think mode dropdown (only show if model supports thinking)
             if selectedModel.supportsThinking {
@@ -271,8 +270,6 @@ struct ModelSelector: View {
                             .font(.system(size: IconSize.sm))
                         Text(selectedThinkMode.name)
                             .font(Typography.bodySmall)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: IconSize.xs))
                     }
                     .foregroundStyle(selectedThinkMode == .none ? colors.mutedForeground : colors.info)
                     .padding(.horizontal, Spacing.sm)
@@ -281,6 +278,7 @@ struct ModelSelector: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
             }
         }
     }
