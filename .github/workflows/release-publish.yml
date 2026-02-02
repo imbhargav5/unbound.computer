@@ -58,6 +58,12 @@ jobs:
             echo "Created and pushed tag: $TAG"
           fi
 
+      - name: Generate release notes
+        run: |
+          pnpm tsx scripts/release/generate-release-notes.ts ${{ steps.version.outputs.version }} > /tmp/release-notes.md
+          echo "Generated release notes:"
+          cat /tmp/release-notes.md
+
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,7 +77,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "$TAG" \
-              --generate-notes \
+              --notes-file /tmp/release-notes.md \
               --latest
             echo "Created GitHub Release: $TAG"
           fi

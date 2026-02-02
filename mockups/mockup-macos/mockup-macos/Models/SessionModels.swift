@@ -183,6 +183,11 @@ struct DiffEntry: Identifiable, Hashable {
     }
 }
 
+/// Git file status with standard visual indicators.
+/// Design principles:
+/// - Git-standard letter codes (M, A, D, R, ?)
+/// - Semantic colors (Green=Added, Yellow=Modified, Red=Deleted, Gray=Untracked)
+/// - No abstract icons like pencil; use explicit status symbols
 enum FileStatus: String, Hashable {
     case modified
     case added
@@ -190,16 +195,40 @@ enum FileStatus: String, Hashable {
     case renamed
     case untracked
 
-    var iconName: String {
+    /// Git-standard single-letter indicator
+    var indicator: String {
         switch self {
-        case .modified: return "pencil"
-        case .added: return "plus"
-        case .deleted: return "minus"
-        case .renamed: return "arrow.right"
-        case .untracked: return "questionmark"
+        case .modified: return "M"
+        case .added: return "A"
+        case .deleted: return "D"
+        case .renamed: return "R"
+        case .untracked: return "?"
         }
     }
 
+    /// SF Symbol icon - uses semantic Git metaphors
+    var iconName: String {
+        switch self {
+        case .modified: return "circle.fill"    // Filled dot for modified
+        case .added: return "plus"              // Standard Git + for added
+        case .deleted: return "minus"           // Standard Git - for deleted
+        case .renamed: return "arrow.right"     // Movement indicator
+        case .untracked: return "questionmark"  // Unknown/untracked
+        }
+    }
+
+    /// Display name for accessibility and labels
+    var displayName: String {
+        switch self {
+        case .modified: return "Modified"
+        case .added: return "Added"
+        case .deleted: return "Deleted"
+        case .renamed: return "Renamed"
+        case .untracked: return "Untracked"
+        }
+    }
+
+    /// Color name for reference (actual Color values in view)
     var color: String {
         switch self {
         case .modified: return "yellow"

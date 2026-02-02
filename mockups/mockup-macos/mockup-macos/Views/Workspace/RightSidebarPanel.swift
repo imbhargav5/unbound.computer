@@ -176,45 +176,355 @@ struct RightSidebarPanel: View {
 
 // MARK: - Changes Tab View
 
+/// Redesigned Changes view with Git-standard visual language.
+/// Design principles:
+/// - Status visible at a glance (<200ms recognition)
+/// - Git-standard indicators: M, A, D, R, ?
+/// - Color coding: Green=Added, Yellow=Modified, Red=Deleted, Gray=Untracked
+/// - Grouped by status with clear section headers
 struct ChangesTabView: View {
     @Environment(\.colorScheme) private var colorScheme
+
+    @State private var stagedExpanded = true
+    @State private var changesExpanded = true
+    @State private var untrackedExpanded = true
+    @State private var selectedFileId: UUID?
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    // Group files by status category
+    private var modifiedFiles: [GitStatusFile] {
+        FakeData.changedFiles.filter { $0.status == .modified }
+    }
+
+    private var addedFiles: [GitStatusFile] {
+        FakeData.changedFiles.filter { $0.status == .added }
+    }
+
+    private var deletedFiles: [GitStatusFile] {
+        FakeData.changedFiles.filter { $0.status == .deleted }
+    }
+
+    private var untrackedFiles: [GitStatusFile] {
+        FakeData.changedFiles.filter { $0.status == .untracked }
+    }
+
+    private var trackedChanges: [GitStatusFile] {
+        FakeData.changedFiles.filter { $0.status != .untracked }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                // Summary header showing total changes
+                changesSummaryHeader
+
+                ShadcnDivider()
+
+                // Changes section (modified, added, deleted)
+                if !trackedChanges.isEmpty {
+                    ChangesSection(
+                        title: "Changes",
+                        count: trackedChanges.count,
+                        isExpanded: $changesExpanded,
+                        statusSummary: statusBreakdown(trackedChanges)
+                    ) {
+                        ForEach(trackedChanges) { file in
+                            ChangeFileRow(
+                                file: file,
+                                isSelected: selectedFileId == file.id,
+                                onSelect: { selectedFileId = file.id }
+                            )
+                        }
+                    }
+                }
+
+                // Untracked section
+                if !untrackedFiles.isEmpty {
+                    ChangesSection(
+                        title: "Untracked",
+                        count: untrackedFiles.count,
+                        isExpanded: $untrackedExpanded
+                    ) {
+                        ForEach(untrackedFiles) { file in
+                            ChangeFileRow(
+                                file: file,
+                                isSelected: selectedFileId == file.id,
+                                onSelect: { selectedFileId = file.id }
+                            )
+                        }
+                    }
+                }
+
+                // Empty state
+                if FakeData.changedFiles.isEmpty {
+                    emptyState
+                }
+            }
+        }
+    }
+
+    // MARK: - Summary Header
+
+    @ViewBuilder
+    private var changesSummaryHeader: some View {
+        HStack(spacing: Spacing.md) {
+            // Status counts with colors
+            if !modifiedFiles.isEmpty {
+                statusCount(count: modifiedFiles.count, indicator: "M", color: colors.warning)
+            }
+            if !addedFiles.isEmpty {
+                statusCount(count: addedFiles.count, indicator: "A", color: colors.success)
+            }
+            if !deletedFiles.isEmpty {
+                statusCount(count: deletedFiles.count, indicator: "D", color: colors.destructive)
+            }
+            if !untrackedFiles.isEmpty {
+                statusCount(count: untrackedFiles.count, indicator: "?", color: colors.mutedForeground)
+            }
+
+            Spacer()
+
+            // Total files changed
+            Text("\(FakeData.changedFiles.count) files")
+                .font(Typography.micro)
+                .foregroundStyle(colors.mutedForeground)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+    }
+
+    @ViewBuilder
+    private func statusCount(count: Int, indicator: String, color: Color) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            Text("\(count)")
+                .font(.system(size: FontSize.xs, weight: .semibold, design: .monospaced))
+            Text(indicator)
+                .font(.system(size: FontSize.xs, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(color)
+    }
+
+    private func statusBreakdown(_ files: [GitStatusFile]) -> [FileStatus: Int] {
+        var breakdown: [FileStatus: Int] = [:]
+        for file in files {
+            breakdown[file.status, default: 0] += 1
+        }
+        return breakdown
+    }
+
+    // MARK: - Empty State
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: Spacing.md) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: IconSize.xxxl))
+                .foregroundStyle(colors.success)
+
+            Text("Working directory clean")
+                .font(Typography.body)
+                .foregroundStyle(colors.foreground)
+
+            Text("No uncommitted changes")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Spacing.xl)
+    }
+}
+
+// MARK: - Changes Section
+
+/// Collapsible section for grouping files
+struct ChangesSection<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let title: String
+    let count: Int
+    @Binding var isExpanded: Bool
+    var statusSummary: [FileStatus: Int]?
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovered = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.xs) {
-                ForEach(FakeData.changedFiles) { file in
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: file.status.iconName)
-                            .font(.system(size: IconSize.xs))
-                            .foregroundStyle(statusColor(for: file.status))
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
+            Button {
+                withAnimation(.easeInOut(duration: Duration.fast)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    // Chevron
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: IconSize.xs, weight: .semibold))
+                        .foregroundStyle(colors.mutedForeground)
+                        .frame(width: IconSize.sm)
 
-                        Text(file.filename)
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(colors.foreground)
-                            .lineLimit(1)
+                    // Title
+                    Text(title)
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(colors.mutedForeground)
+                        .textCase(.uppercase)
 
-                        Spacer()
+                    // Count badge
+                    Text("\(count)")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
+                        .padding(.horizontal, Spacing.xs)
+                        .padding(.vertical, Spacing.xxs)
+                        .background(colors.muted)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+
+                    // Status breakdown
+                    if let summary = statusSummary {
+                        statusBreakdownView(summary)
                     }
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(Color.clear)
-                    )
+
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Content
+            if isExpanded {
+                content()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statusBreakdownView(_ summary: [FileStatus: Int]) -> some View {
+        HStack(spacing: Spacing.xs) {
+            ForEach(Array(summary.keys.sorted { $0.rawValue < $1.rawValue }), id: \.self) { status in
+                if let statusCount = summary[status], statusCount > 0 {
+                    HStack(spacing: 1) {
+                        Text("\(statusCount)")
+                            .font(.system(size: FontSize.xxs, weight: .medium, design: .monospaced))
+                        Text(status.indicator)
+                            .font(.system(size: FontSize.xxs, weight: .bold, design: .monospaced))
+                    }
+                    .foregroundStyle(statusColor(for: status))
                 }
             }
-            .padding(.vertical, Spacing.sm)
         }
     }
 
     private func statusColor(for status: FileStatus) -> Color {
         switch status {
-        case .modified: return colors.warning
         case .added: return colors.success
+        case .modified: return colors.warning
+        case .deleted: return colors.destructive
+        case .renamed: return colors.info
+        case .untracked: return colors.mutedForeground
+        }
+    }
+}
+
+// MARK: - Change File Row
+
+/// A single file row with Git-standard status indicator.
+/// Design: [M] filename.swift
+///              path/to/file/
+struct ChangeFileRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let file: GitStatusFile
+    let isSelected: Bool
+    var onSelect: () -> Void
+
+    @State private var isHovered = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: Spacing.sm) {
+                // Status badge with letter indicator
+                statusBadge
+
+                // File info
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(file.filename)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(colors.foreground)
+                        .lineLimit(1)
+
+                    // Directory path (if available)
+                    let directory = file.path.replacingOccurrences(of: file.filename, with: "")
+                    if !directory.isEmpty {
+                        Text(directory)
+                            .font(Typography.micro)
+                            .foregroundStyle(colors.mutedForeground)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                // Hover actions
+                if isHovered {
+                    HStack(spacing: Spacing.xs) {
+                        IconButton(
+                            systemName: "plus.circle",
+                            size: IconSize.sm,
+                            action: {}
+                        )
+                        .help("Stage")
+                    }
+                }
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.xs)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.sm)
+                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: Duration.fast)) {
+                isHovered = hovering
+            }
+        }
+    }
+
+    // MARK: - Status Badge
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        let statusColor = semanticStatusColor
+
+        Text(file.status.indicator)
+            .font(.system(size: FontSize.xs, weight: .semibold, design: .monospaced))
+            .foregroundStyle(statusColor)
+            .frame(width: IconSize.lg, height: IconSize.lg)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.sm)
+                    .fill(statusColor.opacity(0.15))
+            )
+    }
+
+    private var semanticStatusColor: Color {
+        switch file.status {
+        case .added: return colors.success
+        case .modified: return colors.warning
         case .deleted: return colors.destructive
         case .renamed: return colors.info
         case .untracked: return colors.mutedForeground

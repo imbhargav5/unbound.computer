@@ -129,12 +129,27 @@ struct FakeData {
     ]
 
     // MARK: - Git Status Files
+    // Diverse set of file statuses to demonstrate the Changes view
 
     static let changedFiles: [GitStatusFile] = [
+        // Modified files (yellow M indicator)
         GitStatusFile(path: "src/auth/login.swift", status: .modified),
         GitStatusFile(path: "src/models/User.swift", status: .modified),
+        GitStatusFile(path: "src/views/SettingsView.swift", status: .modified),
+
+        // Added files (green A indicator)
         GitStatusFile(path: "src/api/endpoints.swift", status: .added),
-        GitStatusFile(path: "tests/auth_tests.swift", status: .added)
+        GitStatusFile(path: "tests/auth_tests.swift", status: .added),
+
+        // Deleted files (red D indicator)
+        GitStatusFile(path: "src/legacy/OldAuth.swift", status: .deleted),
+
+        // Renamed files (blue R indicator)
+        GitStatusFile(path: "src/utils/helpers.swift", status: .renamed),
+
+        // Untracked files (gray ? indicator)
+        GitStatusFile(path: "notes.txt", status: .untracked),
+        GitStatusFile(path: ".env.local", status: .untracked)
     ]
 
     // MARK: - Git Commits

@@ -218,6 +218,7 @@ enum GitFileStatusType: String, Codable, Hashable {
         }
     }
 
+    /// Git-standard single-character indicator (matches `git status --short`)
     var indicator: String {
         switch self {
         case .modified: return "M"
@@ -230,38 +231,63 @@ enum GitFileStatusType: String, Codable, Hashable {
         case .typechange: return "T"
         case .unreadable: return "X"
         case .conflicted: return "U"
-        case .unchanged: return ""
+        case .unchanged: return " "
         }
     }
 
+    /// Semantic color following Git conventions:
+    /// - Green: Added (new files)
+    /// - Yellow: Modified (changes to existing files)
+    /// - Red: Deleted/Destructive
+    /// - Gray: Untracked/Unknown
+    /// - Blue: Renamed/Moved
     var color: Color {
         switch self {
-        case .modified: return .orange
-        case .added: return .green
-        case .deleted: return .red
-        case .renamed: return .blue
-        case .copied: return .cyan
-        case .untracked: return .gray
-        case .ignored: return .secondary
-        case .typechange: return .purple
-        case .unreadable: return .red
-        case .conflicted: return .red
+        case .modified: return .yellow       // Yellow - warning/attention
+        case .added: return .green           // Green - success/new
+        case .deleted: return .red           // Red - destructive
+        case .renamed: return .blue          // Blue - info/movement
+        case .copied: return .cyan           // Cyan - similar to renamed
+        case .untracked: return .gray        // Gray - unknown/pending
+        case .ignored: return .secondary     // Darker gray - de-emphasized
+        case .typechange: return .purple     // Purple - type change
+        case .unreadable: return .red        // Red - error
+        case .conflicted: return .orange     // Orange - urgent attention
         case .unchanged: return .clear
         }
     }
 
+    /// SF Symbol icon name - uses semantic Git metaphors
+    /// Avoids abstract icons like pencil; prefers explicit status symbols
     var iconName: String {
         switch self {
-        case .modified: return "pencil"
-        case .added: return "plus"
-        case .deleted: return "minus"
-        case .renamed: return "arrow.right"
-        case .copied: return "doc.on.doc"
-        case .untracked: return "questionmark"
-        case .ignored: return "eye.slash"
-        case .typechange: return "arrow.triangle.2.circlepath"
-        case .unreadable: return "exclamationmark.triangle"
-        case .conflicted: return "exclamationmark.2"
+        case .modified: return "circle.fill"              // Filled dot for modified
+        case .added: return "plus"                        // Standard Git + for added
+        case .deleted: return "minus"                     // Standard Git - for deleted
+        case .renamed: return "arrow.right"               // Movement indicator
+        case .copied: return "doc.on.doc"                 // Duplicate indicator
+        case .untracked: return "questionmark"            // Unknown/untracked
+        case .ignored: return "eye.slash"                 // Hidden/ignored
+        case .typechange: return "arrow.triangle.swap"    // Type swap
+        case .unreadable: return "exclamationmark.triangle.fill" // Error
+        case .conflicted: return "exclamationmark.2"      // Conflict
+        case .unchanged: return ""
+        }
+    }
+
+    /// Compact badge text for inline display (matches VS Code style)
+    var badge: String {
+        switch self {
+        case .modified: return "M"
+        case .added: return "A"
+        case .deleted: return "D"
+        case .renamed: return "R"
+        case .copied: return "C"
+        case .untracked: return "U"
+        case .ignored: return "I"
+        case .typechange: return "T"
+        case .unreadable: return "!"
+        case .conflicted: return "!"
         case .unchanged: return ""
         }
     }

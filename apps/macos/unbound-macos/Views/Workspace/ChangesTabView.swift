@@ -147,6 +147,11 @@ struct ChangesTabView: View {
 
 // MARK: - Changes Section
 
+/// A collapsible section header for grouping files by status.
+/// Design principles:
+/// - Clear hierarchy with section title, count badge, and optional status summary
+/// - Hover reveals bulk actions (stage all, unstage all)
+/// - Smooth expand/collapse animations
 struct ChangesSection<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -156,6 +161,8 @@ struct ChangesSection<Content: View>: View {
     var headerAction: (() -> Void)?
     var headerActionIcon: String = "plus.circle"
     var headerActionTooltip: String = ""
+    /// Optional status summary (e.g., file type breakdown)
+    var statusSummary: [GitFileStatusType: Int]?
     @ViewBuilder let content: () -> Content
 
     @State private var isHeaderHovered = false
@@ -174,17 +181,20 @@ struct ChangesSection<Content: View>: View {
                     }
                 } label: {
                     HStack(spacing: Spacing.sm) {
+                        // Chevron indicator
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: IconSize.xs, weight: .semibold))
                             .foregroundStyle(colors.mutedForeground)
                             .frame(width: IconSize.sm)
 
+                        // Section title
                         Text(title)
                             .font(Typography.caption)
                             .fontWeight(.medium)
                             .foregroundStyle(colors.mutedForeground)
                             .textCase(.uppercase)
 
+                        // Count badge
                         Text("\(count)")
                             .font(Typography.micro)
                             .foregroundStyle(colors.mutedForeground)
@@ -192,6 +202,11 @@ struct ChangesSection<Content: View>: View {
                             .padding(.vertical, Spacing.xxs)
                             .background(colors.muted)
                             .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+
+                        // Status breakdown badges (optional)
+                        if let summary = statusSummary, !summary.isEmpty {
+                            statusBreakdown(summary)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
@@ -222,6 +237,35 @@ struct ChangesSection<Content: View>: View {
             }
         }
     }
+
+    /// Mini status breakdown showing count per status type
+    /// e.g., [3M] [2A] [1D] in their respective colors
+    @ViewBuilder
+    private func statusBreakdown(_ summary: [GitFileStatusType: Int]) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            ForEach(Array(summary.keys.sorted { $0.rawValue < $1.rawValue }), id: \.self) { status in
+                if let statusCount = summary[status], statusCount > 0 {
+                    HStack(spacing: 1) {
+                        Text("\(statusCount)")
+                            .font(.system(size: FontSize.xxs, weight: .medium, design: .monospaced))
+                        Text(status.indicator)
+                            .font(.system(size: FontSize.xxs, weight: .bold, design: .monospaced))
+                    }
+                    .foregroundStyle(statusColor(for: status))
+                }
+            }
+        }
+    }
+
+    private func statusColor(for status: GitFileStatusType) -> Color {
+        switch status {
+        case .added: return colors.success
+        case .modified: return colors.warning
+        case .deleted: return colors.destructive
+        case .renamed: return colors.info
+        default: return colors.mutedForeground
+        }
+    }
 }
 
 // MARK: - Change File Row
@@ -231,6 +275,11 @@ enum StageAction {
     case unstage
 }
 
+/// A single file row in the Changes tab.
+/// Design principles:
+/// - Status visible at a glance (<200ms recognition)
+/// - Git-standard visual metaphors (not custom icons)
+/// - Color-coded: Green=Added, Yellow=Modified, Red=Deleted, Gray=Untracked
 struct ChangeFileRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -250,13 +299,11 @@ struct ChangeFileRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: Spacing.sm) {
-                // Status indicator
-                Text(file.status.indicator)
-                    .font(Typography.mono)
-                    .foregroundStyle(file.status.color)
-                    .frame(width: IconSize.md, alignment: .center)
+                // Status indicator: colored badge with Git letter code
+                // This is the primary visual signal - must be instantly recognizable
+                statusBadge
 
-                // File name and directory
+                // File name and directory path
                 VStack(alignment: .leading, spacing: 0) {
                     Text(file.fileName)
                         .font(Typography.bodySmall)
@@ -275,27 +322,7 @@ struct ChangeFileRow: View {
 
                 // Action buttons (appear on hover)
                 if isHovered {
-                    HStack(spacing: Spacing.xs) {
-                        // Discard button (only for unstaged)
-                        if let discard = onDiscard {
-                            Button(action: discard) {
-                                Image(systemName: "arrow.uturn.backward")
-                                    .font(.system(size: IconSize.xs))
-                                    .foregroundStyle(colors.destructive)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Discard Changes")
-                        }
-
-                        // Stage/Unstage button
-                        Button(action: onStageToggle) {
-                            Image(systemName: stageAction == .stage ? "plus" : "minus")
-                                .font(.system(size: IconSize.xs))
-                                .foregroundStyle(colors.mutedForeground)
-                        }
-                        .buttonStyle(.plain)
-                        .help(stageAction == .stage ? "Stage" : "Unstage")
-                    }
+                    actionButtons
                 }
             }
             .padding(.horizontal, Spacing.md)
@@ -311,6 +338,71 @@ struct ChangeFileRow: View {
             withAnimation(.easeInOut(duration: Duration.fast)) {
                 isHovered = hovering
             }
+        }
+    }
+
+    // MARK: - Status Badge
+
+    /// Git-standard status badge with letter indicator and semantic color.
+    /// Examples: [M] yellow, [A] green, [D] red, [?] gray
+    @ViewBuilder
+    private var statusBadge: some View {
+        let statusColor = semanticStatusColor
+
+        Text(file.status.indicator)
+            .font(.system(size: FontSize.xs, weight: .semibold, design: .monospaced))
+            .foregroundStyle(statusColor)
+            .frame(width: IconSize.lg, height: IconSize.lg)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.sm)
+                    .fill(statusColor.opacity(0.15))
+            )
+    }
+
+    /// Semantic color based on ThemeColors for consistency
+    private var semanticStatusColor: Color {
+        switch file.status {
+        case .added:
+            return colors.success
+        case .modified:
+            return colors.warning
+        case .deleted:
+            return colors.destructive
+        case .renamed, .copied:
+            return colors.info
+        case .untracked:
+            return colors.mutedForeground
+        case .conflicted:
+            return colors.destructive
+        default:
+            return colors.mutedForeground
+        }
+    }
+
+    // MARK: - Action Buttons
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        HStack(spacing: Spacing.xs) {
+            // Discard button (only for unstaged modified/deleted files)
+            if let discard = onDiscard {
+                Button(action: discard) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.destructive)
+                }
+                .buttonStyle(.plain)
+                .help("Discard Changes")
+            }
+
+            // Stage/Unstage button
+            Button(action: onStageToggle) {
+                Image(systemName: stageAction == .stage ? "plus.circle" : "minus.circle")
+                    .font(.system(size: IconSize.sm))
+                    .foregroundStyle(colors.mutedForeground)
+            }
+            .buttonStyle(.plain)
+            .help(stageAction == .stage ? "Stage" : "Unstage")
         }
     }
 }
