@@ -225,13 +225,11 @@ struct ModelSelector: View {
                             selectedThinkMode = .none
                         }
                     } label: {
-                        Label(model.name, systemImage: model.iconName)
+                        Text(model.name)
                     }
                 }
             } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: selectedModel.iconName)
-                        .font(.system(size: IconSize.sm))
+                HStack(spacing: Spacing.xs) {
                     Text(selectedModel.name)
                         .font(Typography.bodySmall)
                     Image(systemName: "chevron.down")
@@ -382,7 +380,10 @@ struct MessageContentView: View {
         case .error(let error):
             ErrorContentView(error: error)
 
-        case .askUserQuestion, .subAgentActivity:
+        case .subAgentActivity(let activity):
+            SubAgentActivityView(activity: activity)
+
+        case .askUserQuestion:
             // Simplified for mockup
             EmptyView()
         }
@@ -668,6 +669,230 @@ struct ErrorContentView: View {
     }
 }
 
+// MARK: - Sub-Agent Activity View
+
+/// Displays a sub-agent's activity with grouped tools - simple button-like UI with borders
+struct SubAgentActivityView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let activity: SubAgentActivity
+
+    @State private var isExpanded = false
+    @State private var hasAppeared = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            agentHeader
+
+            // Expandable content
+            if isExpanded {
+                expandedContent
+            }
+        }
+        .background(colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.md)
+                .stroke(colors.border, lineWidth: BorderWidth.default)
+        )
+        .scaleFade(isVisible: hasAppeared)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                hasAppeared = true
+            }
+        }
+    }
+
+    // MARK: - Header
+
+    private var agentHeader: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                // Agent type label
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: IconSize.xs))
+
+                    Text(activity.subagentType)
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(colors.foreground)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(colors.muted)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.sm)
+                        .stroke(colors.border, lineWidth: BorderWidth.default)
+                )
+
+                // Status indicator
+                if activity.status == .running {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: IconSize.sm, height: IconSize.sm)
+                } else if activity.status == .completed {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.mutedForeground)
+                } else if activity.status == .failed {
+                    Image(systemName: "xmark")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.destructive)
+                }
+
+                Spacer()
+
+                // Tool count
+                if !activity.tools.isEmpty {
+                    Text("\(activity.tools.count) tools")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
+                }
+
+                // Expand/collapse chevron
+                Image(systemName: "chevron.right")
+                    .font(.system(size: IconSize.xs))
+                    .foregroundStyle(colors.mutedForeground)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .padding(Spacing.sm)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Expanded Content
+
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            ShadcnDivider()
+
+            // Description
+            if !activity.description.isEmpty {
+                Text(activity.description)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.top, Spacing.xs)
+            }
+
+            // Tools list
+            if !activity.tools.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    ForEach(activity.tools) { tool in
+                        SubAgentToolRow(tool: tool)
+                    }
+                }
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+            }
+
+            // Result (if completed)
+            if let result = activity.result, activity.status == .completed {
+                ShadcnDivider()
+
+                Text(result)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.foreground)
+                    .padding(Spacing.sm)
+            }
+        }
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .top)),
+            removal: .opacity
+        ))
+    }
+}
+
+// MARK: - Sub-Agent Tool Row
+
+struct SubAgentToolRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let tool: ToolUse
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            // Tool name
+            Text(tool.toolName)
+                .font(Typography.caption)
+                .foregroundStyle(colors.foreground)
+
+            // Input preview (truncated)
+            if let input = tool.input {
+                Text(input)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Status indicator
+            Group {
+                switch tool.status {
+                case .running:
+                    ProgressView()
+                        .scaleEffect(0.4)
+                case .completed:
+                    Image(systemName: "checkmark")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.mutedForeground)
+                case .failed:
+                    Image(systemName: "xmark")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.destructive)
+                }
+            }
+            .frame(width: IconSize.sm)
+        }
+        .padding(.vertical, Spacing.xs)
+        .padding(.horizontal, Spacing.sm)
+        .background(colors.muted)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.sm)
+                .stroke(colors.border, lineWidth: BorderWidth.default)
+        )
+    }
+}
+
+// MARK: - Multiple Sub-Agents View
+
+/// Displays multiple sub-agents in a stacked view
+struct SubAgentStackView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let activities: [SubAgentActivity]
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            ForEach(activities) { activity in
+                SubAgentActivityView(activity: activity)
+            }
+        }
+    }
+}
+
 // MARK: - Welcome Chat View
 
 struct WelcomeChatView: View {
@@ -759,4 +984,50 @@ struct ChatHeader: View {
         .padding(.vertical, Spacing.sm)
         .background(colors.card)
     }
+}
+
+// MARK: - Previews
+
+#Preview("Sub-Agent Activity - Running") {
+    VStack(spacing: Spacing.lg) {
+        SubAgentActivityView(activity: FakeData.exploreAgentRunning)
+        SubAgentActivityView(activity: FakeData.generalAgentActivity)
+    }
+    .padding(Spacing.lg)
+    .background(ShadcnColors.Dark.background)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Sub-Agent Activity - Completed") {
+    VStack(spacing: Spacing.lg) {
+        SubAgentActivityView(activity: FakeData.exploreAgentCompleted)
+        SubAgentActivityView(activity: FakeData.planAgentActivity)
+    }
+    .padding(Spacing.lg)
+    .background(ShadcnColors.Dark.background)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Sub-Agent Stack - Parallel Execution") {
+    SubAgentStackView(activities: [
+        FakeData.exploreAgentRunning,
+        FakeData.bashAgentActivity,
+        FakeData.exploreAgentCompleted
+    ])
+    .padding(Spacing.lg)
+    .background(ShadcnColors.Dark.background)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Chat with Sub-Agents") {
+    ScrollView {
+        VStack(spacing: Spacing.md) {
+            ForEach(Array(FakeData.messagesWithSubAgents.enumerated()), id: \.element.id) { index, message in
+                ChatMessageView(message: message, index: index)
+            }
+        }
+        .padding(.vertical, Spacing.lg)
+    }
+    .background(ShadcnColors.Dark.background)
+    .preferredColorScheme(.dark)
 }

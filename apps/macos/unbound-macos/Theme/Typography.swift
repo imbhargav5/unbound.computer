@@ -2,166 +2,253 @@
 //  Typography.swift
 //  unbound-macos
 //
-//  SF Mono typography system for dev-tool aesthetic
+//  Geist typography system for dev-tool aesthetic
 //  Supports dynamic scaling via LocalSettings font size preset
 //
 
 import SwiftUI
+import AppKit
+import CoreText
+
+// MARK: - Font Registration
+
+/// Registers custom Geist fonts on app startup
+enum FontRegistration {
+    static var isRegistered = false
+
+    static func registerFonts() {
+        guard !isRegistered else { return }
+
+        let fontNames = [
+            "Geist-Regular",
+            "Geist-Medium",
+            "Geist-SemiBold",
+            "Geist-Bold",
+            "Geist-Light",
+            "GeistMono-Regular",
+            "GeistMono-Medium",
+            "GeistMono-SemiBold",
+            "GeistMono-Bold",
+            "GeistMono-Light"
+        ]
+
+        for fontName in fontNames {
+            if let fontURL = Bundle.main.url(forResource: fontName, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, nil)
+            }
+        }
+
+        isRegistered = true
+    }
+}
+
+// MARK: - Geist Font Helper
+
+enum GeistFont {
+    /// Creates a Geist Sans font with scaling support, falling back to system font if not available
+    @MainActor
+    static func sans(size: CGFloat, weight: Font.Weight) -> Font {
+        FontRegistration.registerFonts()
+        let scaledSize = LocalSettings.shared.scaled(size)
+
+        let fontName: String
+        switch weight {
+        case .light:
+            fontName = "Geist-Light"
+        case .regular:
+            fontName = "Geist-Regular"
+        case .medium:
+            fontName = "Geist-Medium"
+        case .semibold:
+            fontName = "Geist-SemiBold"
+        case .bold, .heavy, .black:
+            fontName = "Geist-Bold"
+        default:
+            fontName = "Geist-Regular"
+        }
+
+        // Try custom font, fall back to system
+        if NSFont(name: fontName, size: scaledSize) != nil {
+            return Font.custom(fontName, size: scaledSize)
+        }
+        return Font.system(size: scaledSize, weight: weight, design: .default)
+    }
+
+    /// Creates a Geist Mono font with scaling support, falling back to system monospaced if not available
+    @MainActor
+    static func mono(size: CGFloat, weight: Font.Weight) -> Font {
+        FontRegistration.registerFonts()
+        let scaledSize = LocalSettings.shared.scaled(size)
+
+        let fontName: String
+        switch weight {
+        case .light:
+            fontName = "GeistMono-Light"
+        case .regular:
+            fontName = "GeistMono-Regular"
+        case .medium:
+            fontName = "GeistMono-Medium"
+        case .semibold:
+            fontName = "GeistMono-SemiBold"
+        case .bold, .heavy, .black:
+            fontName = "GeistMono-Bold"
+        default:
+            fontName = "GeistMono-Regular"
+        }
+
+        // Try custom font, fall back to system monospaced
+        if NSFont(name: fontName, size: scaledSize) != nil {
+            return Font.custom(fontName, size: scaledSize)
+        }
+        return Font.system(size: scaledSize, weight: weight, design: .monospaced)
+    }
+}
 
 // MARK: - Typography
 
 enum Typography {
-    // MARK: - Scaled Font Helper
-
-    /// Creates a scaled font based on LocalSettings
-    @MainActor
-    private static func scaledFont(size: CGFloat, weight: Font.Weight, design: Font.Design = .monospaced) -> Font {
-        let scaledSize = LocalSettings.shared.scaled(size)
-        return Font.system(size: scaledSize, weight: weight, design: design)
-    }
-
     // MARK: - Display
 
-    /// Display Light Mono - Large feature headlines (onboarding)
+    /// Display Light - Large feature headlines (onboarding)
     @MainActor
     static var displayLight: Font {
-        scaledFont(size: FontSize.display, weight: .light)
+        GeistFont.sans(size: FontSize.display, weight: .light)
     }
 
-    /// Headline Light Mono - Feature headlines
+    /// Headline Light - Feature headlines
     @MainActor
     static var headline: Font {
-        scaledFont(size: 26, weight: .light)
+        GeistFont.sans(size: 26, weight: .light)
     }
 
     // MARK: - Headings
 
-    /// Bold Mono - Page titles
+    /// Bold - Page titles
     @MainActor
     static var h1: Font {
-        scaledFont(size: FontSize.xxxl, weight: .bold)
+        GeistFont.sans(size: FontSize.xxxl, weight: .bold)
     }
 
-    /// Semibold Mono - Large titles (replaces .title)
+    /// Semibold - Large titles (replaces .title)
     @MainActor
     static var title: Font {
-        scaledFont(size: FontSize.xxxl, weight: .semibold)
+        GeistFont.sans(size: FontSize.xxxl, weight: .semibold)
     }
 
-    /// Semibold Mono - Section headers
+    /// Semibold - Section headers
     @MainActor
     static var h2: Font {
-        scaledFont(size: FontSize.xxl, weight: .semibold)
+        GeistFont.sans(size: FontSize.xxl, weight: .semibold)
     }
 
-    /// Bold Mono - Subsection titles (replaces .title2)
+    /// Bold - Subsection titles (replaces .title2)
     @MainActor
     static var title2: Font {
-        scaledFont(size: FontSize.xxl, weight: .bold)
+        GeistFont.sans(size: FontSize.xxl, weight: .bold)
     }
 
-    /// Semibold Mono - Subsection headers
+    /// Semibold - Subsection headers
     @MainActor
     static var h3: Font {
-        scaledFont(size: FontSize.xl, weight: .semibold)
+        GeistFont.sans(size: FontSize.xl, weight: .semibold)
     }
 
-    /// Bold Mono - Small titles (replaces .title3)
+    /// Bold - Small titles (replaces .title3)
     @MainActor
     static var title3: Font {
-        scaledFont(size: FontSize.xl, weight: .bold)
+        GeistFont.sans(size: FontSize.xl, weight: .bold)
     }
 
-    /// Medium Mono - Card titles
+    /// Medium - Card titles
     @MainActor
     static var h4: Font {
-        scaledFont(size: FontSize.lg, weight: .medium)
+        GeistFont.sans(size: FontSize.lg, weight: .medium)
     }
 
     // MARK: - Body Text
 
-    /// Regular Mono - Default body text
+    /// Regular - Default body text
     @MainActor
     static var body: Font {
-        scaledFont(size: FontSize.base, weight: .regular)
+        GeistFont.sans(size: FontSize.base, weight: .regular)
     }
 
-    /// Medium Mono - Emphasized body text
+    /// Medium - Emphasized body text
     @MainActor
     static var bodyMedium: Font {
-        scaledFont(size: FontSize.base, weight: .medium)
+        GeistFont.sans(size: FontSize.base, weight: .medium)
     }
 
-    /// Regular Mono - Smaller body text
+    /// Regular - Smaller body text
     @MainActor
     static var bodySmall: Font {
-        scaledFont(size: FontSize.smMd, weight: .regular)
+        GeistFont.sans(size: FontSize.smMd, weight: .regular)
     }
 
     // MARK: - UI Elements
 
-    /// Medium Mono - Labels, buttons
+    /// Medium - Labels, buttons
     @MainActor
     static var label: Font {
-        scaledFont(size: FontSize.sm, weight: .medium)
+        GeistFont.sans(size: FontSize.sm, weight: .medium)
     }
 
-    /// Regular Mono - Secondary labels
+    /// Regular - Secondary labels
     @MainActor
     static var labelRegular: Font {
-        scaledFont(size: FontSize.sm, weight: .regular)
+        GeistFont.sans(size: FontSize.sm, weight: .regular)
     }
 
-    /// Regular Mono - Captions, hints
+    /// Regular - Captions, hints
     @MainActor
     static var caption: Font {
-        scaledFont(size: FontSize.xs, weight: .regular)
+        GeistFont.sans(size: FontSize.xs, weight: .regular)
     }
 
-    /// Medium Mono - Badges, tags
+    /// Medium - Badges, tags
     @MainActor
     static var captionMedium: Font {
-        scaledFont(size: FontSize.xs, weight: .medium)
+        GeistFont.sans(size: FontSize.xs, weight: .medium)
     }
 
-    /// Regular Mono - Extra small text
+    /// Regular - Extra small text
     @MainActor
     static var micro: Font {
-        scaledFont(size: FontSize.xxs, weight: .regular)
+        GeistFont.sans(size: FontSize.xxs, weight: .regular)
     }
 
-    // MARK: - Code/Terminal
+    // MARK: - Code/Terminal (Geist Mono)
 
     /// Regular Mono - Code blocks
     @MainActor
     static var code: Font {
-        scaledFont(size: FontSize.smMd, weight: .regular)
+        GeistFont.mono(size: FontSize.smMd, weight: .regular)
     }
 
     /// Regular Mono - Terminal text
     @MainActor
     static var terminal: Font {
-        scaledFont(size: FontSize.sm, weight: .regular)
+        GeistFont.mono(size: FontSize.sm, weight: .regular)
     }
 
     /// Regular Mono - Monospace for hashes, IDs
     @MainActor
     static var mono: Font {
-        scaledFont(size: FontSize.xs, weight: .regular)
+        GeistFont.mono(size: FontSize.xs, weight: .regular)
     }
 
     // MARK: - Special
 
-    /// Semibold Mono - Navigation items
+    /// Semibold - Navigation items
     @MainActor
     static var nav: Font {
-        scaledFont(size: FontSize.base, weight: .semibold)
+        GeistFont.sans(size: FontSize.base, weight: .semibold)
     }
 
-    /// Semibold Mono - Tab labels
+    /// Semibold - Tab labels
     @MainActor
     static var tab: Font {
-        scaledFont(size: FontSize.sm, weight: .semibold)
+        GeistFont.sans(size: FontSize.sm, weight: .semibold)
     }
 }
 
@@ -177,7 +264,7 @@ struct TypographyModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        if let color = color {
+        if let color {
             content
                 .font(font)
                 .foregroundStyle(color)

@@ -25,9 +25,9 @@ struct ChatPanel: View {
         ThemeColors(colorScheme)
     }
 
-    /// Mock messages
+    /// Mock messages - using messages with sub-agents to demonstrate sub-agent UI
     private var messages: [ChatMessage] {
-        FakeData.sampleMessages
+        FakeData.messagesWithSubAgents
     }
 
     var body: some View {
@@ -60,9 +60,6 @@ struct ChatPanel: View {
                                             index: index
                                         )
                                         .id(message.id)
-
-                                        ShadcnDivider()
-                                            .padding(.horizontal, Spacing.lg)
                                     }
 
                                     // Invisible scroll anchor at bottom

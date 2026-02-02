@@ -198,4 +198,167 @@ struct FakeData {
         TodoItem(content: "Update documentation", status: .pending),
         TodoItem(content: "Code review", status: .pending)
     ])
+
+    // MARK: - Sub-Agent Activity Examples
+
+    /// Sample Explore agent activity (completed)
+    static let exploreAgentCompleted = SubAgentActivity(
+        parentToolUseId: "explore_001",
+        subagentType: "Explore",
+        description: "Search codebase for authentication patterns",
+        tools: [
+            ToolUse(
+                toolName: "Glob",
+                input: "**/auth/**/*.swift",
+                output: "Found 12 files",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Read",
+                input: "src/auth/AuthManager.swift",
+                output: "File contents...",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Grep",
+                input: "func authenticate",
+                output: "3 matches found",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Read",
+                input: "src/auth/TokenStore.swift",
+                output: "File contents...",
+                status: .completed
+            )
+        ],
+        status: .completed,
+        result: "Found authentication implementation in AuthManager.swift with JWT-based token handling. TokenStore manages secure storage."
+    )
+
+    /// Sample Explore agent activity (running)
+    static let exploreAgentRunning = SubAgentActivity(
+        parentToolUseId: "explore_002",
+        subagentType: "Explore",
+        description: "Find related UI components",
+        tools: [
+            ToolUse(
+                toolName: "Glob",
+                input: "**/Components/**/*.swift",
+                output: "Found 24 files",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Read",
+                input: "src/Components/ChatView.swift",
+                status: .running
+            )
+        ],
+        status: .running
+    )
+
+    /// Sample Plan agent activity
+    static let planAgentActivity = SubAgentActivity(
+        parentToolUseId: "plan_001",
+        subagentType: "Plan",
+        description: "Design implementation strategy for dark mode",
+        tools: [
+            ToolUse(
+                toolName: "Read",
+                input: "src/Theme/Colors.swift",
+                output: "File contents...",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Glob",
+                input: "**/Theme/**/*.swift",
+                output: "Found 8 files",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Read",
+                input: "src/Theme/ThemeManager.swift",
+                output: "File contents...",
+                status: .completed
+            )
+        ],
+        status: .completed,
+        result: "Recommended approach: 1) Create DarkTheme struct, 2) Add theme toggle to ThemeManager, 3) Update all views to use dynamic colors."
+    )
+
+    /// Sample general-purpose agent activity
+    static let generalAgentActivity = SubAgentActivity(
+        parentToolUseId: "general_001",
+        subagentType: "general-purpose",
+        description: "Implement user settings persistence",
+        tools: [
+            ToolUse(
+                toolName: "Read",
+                input: "src/Settings/SettingsManager.swift",
+                output: "File contents...",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Edit",
+                input: "src/Settings/SettingsManager.swift",
+                output: "Changes applied",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Write",
+                input: "src/Settings/UserPreferences.swift",
+                status: .running
+            )
+        ],
+        status: .running
+    )
+
+    /// Sample Bash agent activity
+    static let bashAgentActivity = SubAgentActivity(
+        parentToolUseId: "bash_001",
+        subagentType: "Bash",
+        description: "Run tests and build project",
+        tools: [
+            ToolUse(
+                toolName: "Bash",
+                input: "swift test",
+                output: "All tests passed (42 tests)",
+                status: .completed
+            ),
+            ToolUse(
+                toolName: "Bash",
+                input: "swift build -c release",
+                status: .running
+            )
+        ],
+        status: .running
+    )
+
+    /// Sample messages with sub-agent activities
+    static let messagesWithSubAgents: [ChatMessage] = [
+        ChatMessage(role: .user, text: "Can you explore the authentication code and then plan how to add OAuth support?"),
+        ChatMessage(
+            role: .assistant,
+            content: [
+                .text(TextContent(text: "I'll explore the authentication codebase and then design a plan for OAuth implementation.")),
+                .subAgentActivity(exploreAgentCompleted),
+                .subAgentActivity(planAgentActivity),
+                .text(TextContent(text: "Based on my analysis, here's what I found and recommend:"))
+            ]
+        ),
+        ChatMessage(role: .user, text: "Great, now implement the first step"),
+        ChatMessage(
+            role: .assistant,
+            content: [
+                .text(TextContent(text: "I'll start implementing the OAuth configuration struct.")),
+                .subAgentActivity(generalAgentActivity)
+            ]
+        )
+    ]
+
+    /// Sample parallel sub-agents (multiple running at once)
+    static let parallelSubAgents: [SubAgentActivity] = [
+        exploreAgentRunning,
+        bashAgentActivity
+    ]
 }

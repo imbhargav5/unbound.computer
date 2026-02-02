@@ -24,6 +24,8 @@ struct unbound_macosApp: App {
     @State private var appState: AppState?
 
     init() {
+        // Register Geist fonts on app startup
+        FontRegistration.registerFonts()
         LoggingService.bootstrap()
     }
 

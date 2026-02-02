@@ -1,5 +1,119 @@
 import SwiftUI
 import UIKit
+import CoreText
+
+// MARK: - Font Registration
+
+/// Registers custom Geist fonts on app startup
+enum FontRegistration {
+    static var isRegistered = false
+
+    static func registerFonts() {
+        guard !isRegistered else { return }
+
+        let fontNames = [
+            "Geist-Regular",
+            "Geist-Medium",
+            "Geist-SemiBold",
+            "Geist-Bold",
+            "Geist-Light",
+            "GeistMono-Regular",
+            "GeistMono-Medium",
+            "GeistMono-SemiBold",
+            "GeistMono-Bold",
+            "GeistMono-Light"
+        ]
+
+        for fontName in fontNames {
+            if let fontURL = Bundle.main.url(forResource: fontName, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, nil)
+            }
+        }
+
+        isRegistered = true
+    }
+}
+
+// MARK: - Geist Font Helper
+
+enum GeistFont {
+    /// Creates a Geist Sans font, falling back to system font if not available
+    static func sans(size: CGFloat, weight: Font.Weight) -> Font {
+        FontRegistration.registerFonts()
+
+        let fontName: String
+        switch weight {
+        case .light:
+            fontName = "Geist-Light"
+        case .regular:
+            fontName = "Geist-Regular"
+        case .medium:
+            fontName = "Geist-Medium"
+        case .semibold:
+            fontName = "Geist-SemiBold"
+        case .bold, .heavy, .black:
+            fontName = "Geist-Bold"
+        default:
+            fontName = "Geist-Regular"
+        }
+
+        // Try custom font, fall back to system
+        if UIFont(name: fontName, size: size) != nil {
+            return Font.custom(fontName, size: size)
+        }
+        return Font.system(size: size, weight: weight, design: .default)
+    }
+
+    /// Creates a Geist Mono font, falling back to system monospaced if not available
+    static func mono(size: CGFloat, weight: Font.Weight) -> Font {
+        FontRegistration.registerFonts()
+
+        let fontName: String
+        switch weight {
+        case .light:
+            fontName = "GeistMono-Light"
+        case .regular:
+            fontName = "GeistMono-Regular"
+        case .medium:
+            fontName = "GeistMono-Medium"
+        case .semibold:
+            fontName = "GeistMono-SemiBold"
+        case .bold, .heavy, .black:
+            fontName = "GeistMono-Bold"
+        default:
+            fontName = "GeistMono-Regular"
+        }
+
+        // Try custom font, fall back to system monospaced
+        if UIFont(name: fontName, size: size) != nil {
+            return Font.custom(fontName, size: size)
+        }
+        return Font.system(size: size, weight: weight, design: .monospaced)
+    }
+}
+
+// MARK: - Typography
+
+enum Typography {
+    // Display
+    static let largeTitle = GeistFont.sans(size: 34, weight: .bold)
+    static let title = GeistFont.sans(size: 28, weight: .bold)
+    static let title2 = GeistFont.sans(size: 22, weight: .bold)
+    static let title3 = GeistFont.sans(size: 20, weight: .semibold)
+
+    // Body
+    static let headline = GeistFont.sans(size: 17, weight: .semibold)
+    static let body = GeistFont.sans(size: 17, weight: .regular)
+    static let callout = GeistFont.sans(size: 16, weight: .regular)
+    static let subheadline = GeistFont.sans(size: 15, weight: .regular)
+    static let footnote = GeistFont.sans(size: 13, weight: .regular)
+    static let caption = GeistFont.sans(size: 12, weight: .regular)
+    static let caption2 = GeistFont.sans(size: 11, weight: .regular)
+
+    // Code
+    static let code = GeistFont.mono(size: 14, weight: .regular)
+    static let codeSmall = GeistFont.mono(size: 12, weight: .regular)
+}
 
 enum AppTheme {
     // MARK: - Primary Accent (Black & White theme)

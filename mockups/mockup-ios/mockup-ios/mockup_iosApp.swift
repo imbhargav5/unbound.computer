@@ -10,6 +10,11 @@ import SwiftUI
 struct mockup_iosApp: App {
     @State private var navigationManager = NavigationManager()
 
+    init() {
+        // Register Geist fonts on app startup
+        FontRegistration.registerFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
             NavigationStack(path: $navigationManager.path) {

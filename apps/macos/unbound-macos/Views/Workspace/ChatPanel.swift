@@ -182,9 +182,6 @@ struct ChatPanel: View {
                                         ForEach(toolHistory.filter { $0.afterMessageIndex == index }) { entry in
                                             ToolHistoryEntryView(entry: entry)
                                         }
-
-                                        ShadcnDivider()
-                                            .padding(.horizontal, Spacing.lg)
                                     }
 
                                     // Render active sub-agent (if running)

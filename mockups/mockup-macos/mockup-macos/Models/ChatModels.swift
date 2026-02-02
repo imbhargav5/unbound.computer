@@ -152,5 +152,5 @@ struct AIModel: Identifiable, Hashable {
         supportsThinking: false
     )
 
-    static let allModels: [AIModel] = [.defaultModel, .opus, .sonnet, .haiku]
+    static let allModels: [AIModel] = [.opus, .sonnet, .haiku]
 }

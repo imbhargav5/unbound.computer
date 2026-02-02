@@ -29,6 +29,8 @@ struct unbound_iosApp: App {
     @State private var showTrustOnboarding = false
 
     init() {
+        // Register Geist fonts on app startup
+        FontRegistration.registerFonts()
         LoggingService.bootstrap()
     }
 
