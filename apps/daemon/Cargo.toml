@@ -9,8 +9,8 @@ members = [
     "crates/daemon-relay",
     "crates/daemon-outbox",
     "crates/daemon-ipc",
-    "crates/daemon-stream",
     "crates/daemon-bin",
+    "crates/falco",
 ]
 
 [workspace.package]
@@ -84,4 +84,7 @@ daemon-auth = { path = "crates/daemon-auth" }
 daemon-relay = { path = "crates/daemon-relay" }
 daemon-outbox = { path = "crates/daemon-outbox" }
 daemon-ipc = { path = "crates/daemon-ipc" }
-daemon-stream = { path = "crates/daemon-stream" }
+falco = { path = "crates/falco" }
+
+# Redis
+redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

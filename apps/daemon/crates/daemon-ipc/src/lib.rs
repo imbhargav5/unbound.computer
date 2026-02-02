@@ -11,4 +11,4 @@ mod server;
 
 pub use error::{IpcError, IpcResult};
 pub use protocol::{error_codes, Event, EventType, Method, Request, Response};
-pub use server::{IpcClient, IpcServer, Subscription, SubscriptionManager};
+pub use server::{IpcClient, IpcServer, StreamingSubscription, SubscriptionManager};

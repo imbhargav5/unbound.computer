@@ -7,8 +7,9 @@ use super::app::{
 use super::claude_events::ClaudeCodeMessage;
 use anyhow::Result;
 use daemon_core::Paths;
-use daemon_ipc::{IpcClient, Method};
+use daemon_ipc::{Event as DaemonEvent, IpcClient, Method, StreamingSubscription};
 use std::collections::HashMap;
+use tokio::sync::mpsc;
 
 impl App {
     /// Refresh all data from the daemon.
@@ -135,7 +136,7 @@ impl App {
             self.sessions.insert(repo_id, sessions);
         }
 
-        // Remove per-session state (drops subscription if any)
+        // Remove per-session state
         self.session_states.remove(&session_id);
 
         self.selected_session_id = None;
@@ -178,33 +179,22 @@ impl App {
         Ok(())
     }
 
-    /// Subscribe to a session's events for real-time updates.
-    pub async fn subscribe_to_session(&mut self, session_id: &str) -> Result<()> {
+    /// Load a session's messages from the daemon.
+    pub async fn fetch_session_data(&mut self, session_id: &str) -> Result<()> {
         // Clear tool state from previous session
         self.clear_tool_state();
 
-        // First fetch current messages
+        // Fetch current messages
         self.fetch_messages().await?;
 
-        // Then subscribe for real-time updates
-        let client = get_ipc_client()?;
-        match client.subscribe(session_id).await {
-            Ok(subscription) => {
-                self.subscription = Some(subscription);
+        // Ensure session state exists in map and sync running flag
+        let state = self
+            .session_states
+            .entry(session_id.to_string())
+            .or_insert_with(SessionState::default);
+        state.claude_running = self.claude_running;
+        state.needs_message_refresh = false;
 
-                // Ensure session state exists in map and sync running flag
-                let state = self
-                    .session_states
-                    .entry(session_id.to_string())
-                    .or_insert_with(SessionState::default);
-                state.claude_running = self.claude_running;
-                state.needs_message_refresh = false;
-            }
-            Err(e) => {
-                // Subscription failed but we have messages, so continue without streaming
-                tracing::warn!("Failed to subscribe to session: {}", e);
-            }
-        }
         Ok(())
     }
 
@@ -539,6 +529,132 @@ impl App {
         self.auth_status = AuthStatus::default();
 
         Ok(())
+    }
+
+    /// Start a streaming subscription for the current session.
+    /// Events will be sent to the event_receiver channel.
+    pub async fn start_subscription(&mut self) -> Result<()> {
+        let session_id = self
+            .selected_session_id
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("No session selected"))?;
+
+        // Stop any existing subscription
+        self.stop_subscription().await;
+
+        let client = get_ipc_client()?;
+        let subscription = client.subscribe(&session_id).await?;
+
+        // Create channel for events
+        let (tx, rx) = mpsc::channel::<DaemonEvent>(100);
+        self.event_receiver = Some(rx);
+
+        // Spawn task to forward events from subscription to channel
+        let task = tokio::spawn(async move {
+            forward_subscription_events(subscription, tx).await;
+        });
+        self.subscription_task = Some(task);
+
+        Ok(())
+    }
+
+    /// Stop the current streaming subscription.
+    pub async fn stop_subscription(&mut self) {
+        // Cancel the forwarding task
+        if let Some(task) = self.subscription_task.take() {
+            task.abort();
+        }
+        // Drop the receiver (sender will be dropped when task ends)
+        self.event_receiver = None;
+    }
+
+    /// Handle a daemon event from the streaming subscription.
+    pub fn handle_daemon_event(&mut self, event: DaemonEvent) {
+        use daemon_ipc::EventType;
+
+        match event.event_type {
+            EventType::ClaudeEvent => {
+                // Parse the raw JSON data from the event
+                if let Some(raw_json) = event.data.get("raw_json").and_then(|v| v.as_str()) {
+                    self.handle_claude_event(raw_json);
+                }
+            }
+            EventType::StatusChange => {
+                // Update running status - status is a string: "idle", "running", "waiting", "error"
+                if let Some(status) = event.data.get("status").and_then(|v| v.as_str()) {
+                    let is_running = status == "running";
+                    self.claude_running = is_running;
+                    if !is_running {
+                        // Agent stopped - clear streaming state
+                        self.streaming_content = None;
+                        // Move active tools to history
+                        if !self.active_tools.is_empty() || self.active_sub_agent.is_some() {
+                            self.tool_history.push(ToolHistoryEntry {
+                                tools: std::mem::take(&mut self.active_tools),
+                                sub_agent: self.active_sub_agent.take(),
+                                after_message_idx: self.messages.len().saturating_sub(1),
+                            });
+                        }
+                    }
+                }
+            }
+            EventType::Message => {
+                // New message was added - parse and add to UI
+                if let Some(raw_json) = event.data.get("raw_json").and_then(|v| v.as_str()) {
+                    self.handle_claude_event(raw_json);
+                }
+            }
+            EventType::StreamingChunk => {
+                // Real-time streaming content
+                if let Some(content) = event.data.get("content").and_then(|v| v.as_str()) {
+                    if let Some(ref mut streaming) = self.streaming_content {
+                        streaming.push_str(content);
+                    } else {
+                        self.streaming_content = Some(content.to_string());
+                    }
+                }
+            }
+            EventType::TerminalOutput => {
+                // Terminal output chunk
+                if let Some(output) = event.data.get("output").and_then(|v| v.as_str()) {
+                    self.terminal_output.push(output.to_string());
+                }
+            }
+            EventType::TerminalFinished => {
+                // Terminal command finished
+                self.terminal_running = false;
+                if let Some(exit_code) = event.data.get("exit_code").and_then(|v| v.as_i64()) {
+                    self.terminal_exit_code = Some(exit_code as i32);
+                }
+            }
+            EventType::SessionCreated | EventType::SessionDeleted => {
+                // Session lifecycle events - could refresh session list
+            }
+            EventType::InitialState | EventType::Ping | EventType::AuthStateChanged => {
+                // Handled by subscription setup or ignored
+            }
+        }
+    }
+}
+
+/// Forward events from a streaming subscription to an mpsc channel.
+async fn forward_subscription_events(
+    mut subscription: StreamingSubscription,
+    tx: mpsc::Sender<DaemonEvent>,
+) {
+    loop {
+        match subscription.recv().await {
+            Some(event) => {
+                if tx.send(event).await.is_err() {
+                    // Receiver dropped, stop forwarding
+                    break;
+                }
+            }
+            None => {
+                // Subscription closed
+                break;
+            }
+        }
     }
 }
 

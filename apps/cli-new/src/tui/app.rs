@@ -4,8 +4,9 @@
 
 use super::claude_events::{AssistantMessage, ClaudeCodeMessage, ToolUseBlock};
 use super::theme::{Theme, ThemeMode};
-use daemon_ipc::{EventType, Subscription};
+use daemon_ipc::Event as DaemonEvent;
 use std::collections::{HashMap, HashSet};
+use tokio::sync::mpsc;
 
 /// Per-session state that gets saved/restored on session switch.
 pub struct SessionState {
@@ -13,7 +14,6 @@ pub struct SessionState {
     pub streaming_content: Option<String>,
     pub claude_running: bool,
     pub spinner_frame: usize,
-    pub subscription: Option<Subscription>,
     pub active_tools: Vec<ActiveTool>,
     pub active_sub_agent: Option<ActiveSubAgent>,
     pub pending_prompt: Option<PendingPrompt>,
@@ -36,7 +36,6 @@ impl Default for SessionState {
             streaming_content: None,
             claude_running: false,
             spinner_frame: 0,
-            subscription: None,
             active_tools: Vec::new(),
             active_sub_agent: None,
             pending_prompt: None,
@@ -154,9 +153,6 @@ pub struct App {
     pub claude_running: bool,
     pub spinner_frame: usize,
 
-    // Streaming subscription
-    pub subscription: Option<Subscription>,
-
     // Streaming content (in-progress assistant response)
     pub streaming_content: Option<String>,
 
@@ -180,6 +176,10 @@ pub struct App {
     // Account dialog
     pub show_account_dialog: bool,
     pub account_dialog_selected: usize,
+
+    // Streaming subscription
+    pub event_receiver: Option<mpsc::Receiver<DaemonEvent>>,
+    pub subscription_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 /// Active panel in the UI.
@@ -380,7 +380,6 @@ impl App {
             spinner_frame: 0,
 
             // Streaming
-            subscription: None,
             streaming_content: None,
 
             // Tool activity
@@ -401,87 +400,21 @@ impl App {
             // Account dialog
             show_account_dialog: false,
             account_dialog_selected: 0,
+
+            // Streaming subscription
+            event_receiver: None,
+            subscription_task: None,
         }
     }
 
-    /// Poll subscription for new events.
-    /// Returns true if new messages were received (caller should fetch messages).
-    pub fn poll_subscription(&mut self) -> bool {
-        let mut has_new_messages = false;
-
-        // Collect events first to avoid borrow issues
-        let events: Vec<_> = if let Some(ref mut sub) = self.subscription {
-            let mut collected = Vec::new();
-            while let Some(event) = sub.try_recv() {
-                collected.push(event);
-            }
-            collected
-        } else {
-            Vec::new()
-        };
-
-        // Process events
-        for event in events {
-            match event.event_type {
-                EventType::StreamingChunk => {
-                    // Update streaming content for real-time display
-                    if let Some(content) = event.data.get("content").and_then(|c| c.as_str()) {
-                        self.streaming_content = Some(content.to_string());
-                    }
-                    has_new_messages = true;
-                }
-                EventType::Message => {
-                    // Complete message arrived - clear streaming content
-                    // Note: tools are preserved and moved to history on Result
-                    self.streaming_content = None;
-                    has_new_messages = true;
-                }
-                EventType::InitialState => {
-                    // Initial state events contain historical messages
-                    has_new_messages = true;
-                }
-                EventType::TerminalOutput => {
-                    // Terminal output line
-                    if let Some(content) = event.data.get("content").and_then(|c| c.as_str()) {
-                        self.terminal_output.push(content.to_string());
-                    }
-                }
-                EventType::TerminalFinished => {
-                    // Terminal command finished
-                    self.terminal_running = false;
-                    if let Some(code) = event.data.get("exit_code").and_then(|c| c.as_i64()) {
-                        self.terminal_exit_code = Some(code as i32);
-                    }
-                }
-                EventType::ClaudeEvent => {
-                    // Raw Claude NDJSON event - parse using typed structs
-                    if let Some(raw) = event.data.get("raw").and_then(|r| r.as_str()) {
-                        self.handle_claude_event(raw);
-                    }
-                    has_new_messages = true;
-                }
-                _ => {
-                    // Other events (StatusChange, Ping)
-                    has_new_messages = true;
-                }
-            }
-        }
-
-        // Update preview for active session when messages change
-        if has_new_messages {
-            if let Some(ref session_id) = self.selected_session_id.clone() {
-                let preview = self.get_session_preview(session_id, 40);
-                if let Some(state) = self.session_states.get_mut(session_id) {
-                    state.last_message_preview = preview;
-                }
-            }
-        }
-
-        has_new_messages
+    /// Check if we should poll for new messages.
+    /// Returns true if Claude is running and we should fetch messages.
+    pub fn should_poll_messages(&self) -> bool {
+        self.claude_running
     }
 
     /// Handle a raw Claude event JSON string by parsing it into typed messages.
-    fn handle_claude_event(&mut self, raw_json: &str) {
+    pub fn handle_claude_event(&mut self, raw_json: &str) {
         let msg = match ClaudeCodeMessage::from_json(raw_json) {
             Ok(m) => m,
             Err(_) => return, // Skip unparseable events
@@ -864,7 +797,6 @@ impl App {
             state.streaming_content = self.streaming_content.take();
             state.claude_running = self.claude_running;
             state.spinner_frame = self.spinner_frame;
-            state.subscription = self.subscription.take();
             state.active_tools = std::mem::take(&mut self.active_tools);
             state.active_sub_agent = self.active_sub_agent.take();
             state.pending_prompt = self.pending_prompt.take();
@@ -888,7 +820,6 @@ impl App {
             self.streaming_content = state.streaming_content.take();
             self.claude_running = state.claude_running;
             self.spinner_frame = state.spinner_frame;
-            self.subscription = state.subscription.take();
             self.active_tools = std::mem::take(&mut state.active_tools);
             self.active_sub_agent = state.active_sub_agent.take();
             self.pending_prompt = state.pending_prompt.take();
@@ -911,7 +842,6 @@ impl App {
             self.streaming_content = None;
             self.claude_running = false;
             self.spinner_frame = 0;
-            self.subscription = None;
             self.active_tools.clear();
             self.active_sub_agent = None;
             self.pending_prompt = None;
@@ -973,59 +903,6 @@ impl App {
             .and_then(|s| s.last_message_preview.clone())
     }
 
-
-    /// Poll all background (non-active) session subscriptions.
-    /// Updates claude_running, needs_message_refresh, and last_message_preview flags.
-    pub fn drain_background_subscriptions(&mut self) {
-        let active_id = self.selected_session_id.clone();
-        for (session_id, state) in &mut self.session_states {
-            // Skip the active session (handled by poll_subscription)
-            if Some(session_id.as_str()) == active_id.as_deref() {
-                continue;
-            }
-            let mut had_events = false;
-            if let Some(ref mut sub) = state.subscription {
-                while let Some(event) = sub.try_recv() {
-                    had_events = true;
-                    match event.event_type {
-                        EventType::ClaudeEvent => {
-                            if let Some(raw) = event.data.get("raw").and_then(|r| r.as_str()) {
-                                if let Ok(msg) = ClaudeCodeMessage::from_json(raw) {
-                                    if matches!(msg, ClaudeCodeMessage::Result(_)) {
-                                        state.claude_running = false;
-                                    }
-                                }
-                            }
-                            state.needs_message_refresh = true;
-                        }
-                        EventType::StreamingChunk => {
-                            // Update streaming content for background session
-                            if let Some(content) = event.data.get("content").and_then(|c| c.as_str())
-                            {
-                                state.streaming_content = Some(content.to_string());
-                            }
-                            state.needs_message_refresh = true;
-                        }
-                        EventType::StatusChange | EventType::Message | EventType::InitialState => {
-                            state.needs_message_refresh = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            // Update preview for background session after processing events
-            if had_events {
-                state.last_message_preview = compute_session_preview(
-                    &state.active_sub_agent,
-                    &state.active_tools,
-                    state.streaming_content.as_deref(),
-                    &state.messages,
-                    40,
-                );
-            }
-        }
-    }
 }
 
 impl FileStatus {

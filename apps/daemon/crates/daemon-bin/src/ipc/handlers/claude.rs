@@ -3,8 +3,7 @@
 use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_process;
 use crate::utils::shell_escape;
-use armin::{NewMessage, SessionId, SessionWriter};
-use daemon_database::queries;
+use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use std::process::Stdio;
 use tokio::process::Command;
@@ -56,20 +55,10 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
 
                 // Get session and repository to find working directory
                 let (working_dir, claude_session_id) = {
-                    let conn = match state.db.get() {
-                        Ok(c) => c,
-                        Err(e) => {
-                            error!("\x1b[31m[CLAUDE]\x1b[0m Database connection error: {}", e);
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            );
-                        }
-                    };
-                    let session = match queries::get_session(&conn, &session_id) {
-                        Ok(Some(s)) => s,
-                        Ok(None) => {
+                    let armin_session_id = SessionId::from_string(&session_id);
+                    let session = match state.armin.get_session(&armin_session_id) {
+                        Some(s) => s,
+                        None => {
                             error!("\x1b[31m[CLAUDE]\x1b[0m Session not found: {}", session_id);
                             return Response::error(
                                 &req.id,
@@ -77,40 +66,24 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                                 "Session not found",
                             );
                         }
-                        Err(e) => {
-                            error!("\x1b[31m[CLAUDE]\x1b[0m Database error: {}", e);
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            );
-                        }
                     };
 
                     info!(
                         "\x1b[36m[CLAUDE]\x1b[0m Found session: {} (repo: {})",
-                        session.title, session.repository_id
+                        session.title, session.repository_id.as_str()
                     );
 
-                    let repo = match queries::get_repository(&conn, &session.repository_id) {
-                        Ok(Some(r)) => r,
-                        Ok(None) => {
+                    let repo = match state.armin.get_repository(&session.repository_id) {
+                        Some(r) => r,
+                        None => {
                             error!(
                                 "\x1b[31m[CLAUDE]\x1b[0m Repository not found: {}",
-                                session.repository_id
+                                session.repository_id.as_str()
                             );
                             return Response::error(
                                 &req.id,
                                 error_codes::NOT_FOUND,
                                 "Repository not found",
-                            );
-                        }
-                        Err(e) => {
-                            error!("\x1b[31m[CLAUDE]\x1b[0m Database error: {}", e);
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
                             );
                         }
                     };
@@ -254,17 +227,11 @@ async fn register_claude_status(server: &IpcServer, state: DaemonState) {
                     processes.contains_key(&session_id)
                 };
 
-                // Get agent status from database
-                let agent_status = {
-                    match state.db.get() {
-                        Ok(conn) => queries::get_session_state(&conn, &session_id)
-                            .ok()
-                            .flatten()
-                            .map(|s| s.agent_status.as_str().to_string())
-                            .unwrap_or_else(|| "idle".to_string()),
-                        Err(_) => "idle".to_string(),
-                    }
-                };
+                // Get agent status from Armin
+                let armin_session_id = SessionId::from_string(&session_id);
+                let agent_status = state.armin.get_session_state(&armin_session_id)
+                    .map(|s| s.agent_status.as_str().to_string())
+                    .unwrap_or_else(|| "idle".to_string());
 
                 Response::success(
                     &req.id,

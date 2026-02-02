@@ -354,9 +354,9 @@ struct SharedMemoryEventSequence: AsyncSequence {
     typealias Element = SharedMemoryEvent
 
     private let consumer: SharedMemoryConsumer
-    private let pollInterval: Duration
+    private let pollInterval: Swift.Duration
 
-    init(consumer: SharedMemoryConsumer, pollInterval: Duration = .milliseconds(1)) {
+    init(consumer: SharedMemoryConsumer, pollInterval: Swift.Duration = .milliseconds(1)) {
         self.consumer = consumer
         self.pollInterval = pollInterval
     }
@@ -367,9 +367,9 @@ struct SharedMemoryEventSequence: AsyncSequence {
 
     struct AsyncIterator: AsyncIteratorProtocol {
         private let consumer: SharedMemoryConsumer
-        private let pollInterval: Duration
+        private let pollInterval: Swift.Duration
 
-        init(consumer: SharedMemoryConsumer, pollInterval: Duration) {
+        init(consumer: SharedMemoryConsumer, pollInterval: Swift.Duration) {
             self.consumer = consumer
             self.pollInterval = pollInterval
         }
@@ -399,7 +399,7 @@ extension SharedMemoryConsumer {
     ///
     /// - Parameter pollInterval: How often to poll when no events available
     /// - Returns: An async sequence of events
-    func events(pollInterval: Duration = .milliseconds(1)) -> SharedMemoryEventSequence {
+    func events(pollInterval: Swift.Duration = .milliseconds(1)) -> SharedMemoryEventSequence {
         SharedMemoryEventSequence(consumer: self, pollInterval: pollInterval)
     }
 }

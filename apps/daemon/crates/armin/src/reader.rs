@@ -11,12 +11,48 @@
 use crate::delta::DeltaView;
 use crate::live::LiveSubscription;
 use crate::snapshot::SnapshotView;
-use crate::types::SessionId;
+use crate::types::{
+    OutboxEvent, Repository, RepositoryId, Session, SessionId, SessionSecret, SessionState,
+};
 
 /// A reader for session data.
 ///
 /// Provides access to snapshots, deltas, and live subscriptions.
 pub trait SessionReader {
+    // ========================================================================
+    // Repository operations
+    // ========================================================================
+
+    /// Lists all repositories.
+    fn list_repositories(&self) -> Vec<Repository>;
+
+    /// Gets a repository by ID.
+    fn get_repository(&self, id: &RepositoryId) -> Option<Repository>;
+
+    /// Gets a repository by path.
+    fn get_repository_by_path(&self, path: &str) -> Option<Repository>;
+
+    // ========================================================================
+    // Session operations (full metadata)
+    // ========================================================================
+
+    /// Lists sessions for a repository.
+    fn list_sessions(&self, repository_id: &RepositoryId) -> Vec<Session>;
+
+    /// Gets a session by ID.
+    fn get_session(&self, id: &SessionId) -> Option<Session>;
+
+    // ========================================================================
+    // Session state operations
+    // ========================================================================
+
+    /// Gets the session state (agent status, etc.).
+    fn get_session_state(&self, session: &SessionId) -> Option<SessionState>;
+
+    // ========================================================================
+    // Message snapshot/delta/live operations
+    // ========================================================================
+
     /// Returns a snapshot view of all sessions.
     fn snapshot(&self) -> SnapshotView;
 
@@ -29,4 +65,21 @@ pub trait SessionReader {
     ///
     /// Returns a subscription that yields new messages as they are appended.
     fn subscribe(&self, session: &SessionId) -> LiveSubscription;
+
+    // ========================================================================
+    // Session secrets operations
+    // ========================================================================
+
+    /// Gets the session secret (encrypted).
+    fn get_session_secret(&self, session: &SessionId) -> Option<SessionSecret>;
+
+    /// Checks if a session has a stored secret.
+    fn has_session_secret(&self, session: &SessionId) -> bool;
+
+    // ========================================================================
+    // Outbox operations
+    // ========================================================================
+
+    /// Gets pending outbox events for a session.
+    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Vec<OutboxEvent>;
 }

@@ -18,15 +18,56 @@ pub use theme::ThemeMode;
 
 use anyhow::Result;
 use crossterm::{
+    cursor::Show,
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io;
+use std::{io, panic};
+
+/// Restore terminal to normal state.
+/// This is called both on normal exit and on panic.
+/// Ignores errors to be safe when terminal is already restored or partially setup.
+fn restore_terminal() {
+    // Try each restoration step independently - don't let one failure prevent others
+    let _ = disable_raw_mode();
+    let _ = execute!(
+        io::stdout(),
+        LeaveAlternateScreen,
+        DisableMouseCapture,
+        Show
+    );
+}
+
+/// Install a panic hook that restores the terminal before displaying the panic message.
+/// This prevents panic output from corrupting the terminal display.
+fn install_panic_hook() {
+    let original_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        restore_terminal();
+        original_hook(panic_info);
+    }));
+}
 
 /// Run the TUI application with the specified theme mode.
 pub async fn run(theme_mode: ThemeMode) -> Result<()> {
+    // Install panic hook BEFORE terminal setup to ensure cleanup on panic
+    install_panic_hook();
+
+    // Run the TUI and capture result (don't propagate errors yet)
+    let result = run_with_terminal(theme_mode).await;
+
+    // ALWAYS restore terminal, even if setup or run failed partway through.
+    // This is safe because crossterm handles already-restored state gracefully.
+    restore_terminal();
+
+    result
+}
+
+/// Inner function that sets up terminal and runs the app.
+/// Separated so that `run()` can guarantee cleanup via restore_terminal().
+async fn run_with_terminal(theme_mode: ThemeMode) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -36,18 +77,7 @@ pub async fn run(theme_mode: ThemeMode) -> Result<()> {
 
     // Create app and run
     let mut app = App::new(theme_mode).await;
-    let result = run_app(&mut terminal, &mut app).await;
-
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    result
+    run_app(&mut terminal, &mut app).await
 }
 
 /// Main application loop.
@@ -60,32 +90,25 @@ async fn run_app(
         app.set_status_message(format!("Failed to connect to daemon: {}", e));
     }
 
-    let mut last_status_check = std::time::Instant::now();
-    let status_check_interval = std::time::Duration::from_millis(500);
-
     loop {
         // Advance spinner animation if Claude is running
         if app.claude_running {
             app.advance_spinner();
         }
 
-        // Poll subscription for new events (non-blocking)
-        if app.poll_subscription() {
-            // New message received via subscription - refresh from daemon
-            let _ = app.fetch_messages().await;
-        }
-
-        // Poll background session subscriptions (updates claude_running flags)
-        app.drain_background_subscriptions();
-
-        // Check Claude status periodically
-        if app.claude_running && last_status_check.elapsed() >= status_check_interval {
-            if let Ok(is_running) = app.check_claude_status().await {
-                if !is_running {
-                    app.claude_running = false;
+        // Process any pending daemon events from the streaming subscription
+        while let Some(ref mut rx) = app.event_receiver {
+            match rx.try_recv() {
+                Ok(event) => {
+                    app.handle_daemon_event(event);
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    // Subscription closed unexpectedly
+                    app.event_receiver = None;
+                    break;
                 }
             }
-            last_status_check = std::time::Instant::now();
         }
 
         // Render
@@ -96,6 +119,9 @@ async fn run_app(
             break;
         }
     }
+
+    // Clean up subscription on exit
+    app.stop_subscription().await;
 
     Ok(())
 }

@@ -64,12 +64,22 @@ pub async fn run_daemon(
     std::fs::write(paths.pid_file(), pid.to_string())?;
     info!(pid = pid, "Daemon started");
 
-    // Initialize database with connection pool
-    let db = DatabasePool::open(&paths.database_file(), PoolConfig::default())?;
+    // Create IPC server first (we need subscriptions for Armin)
+    let ipc_server = IpcServer::new(&paths.socket_file().to_string_lossy());
+
+    // Initialize Armin session engine with the daemon database
+    // Armin now manages the complete schema (repositories, sessions, messages, etc.)
+    let armin = create_daemon_armin(&paths.database_file(), ipc_server.subscriptions().clone())
+        .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
     info!(
         path = %paths.database_file().display(),
-        "Database pool initialized"
+        "Armin session engine initialized"
     );
+
+    // Legacy database pool for operations not yet migrated to Armin
+    // This will be removed once all operations use Armin
+    let db = DatabasePool::open(&paths.database_file(), PoolConfig::default())?;
+    info!("Legacy database pool initialized (will be deprecated)");
 
     // Initialize secure storage
     let secrets = create_secrets_manager()?;
@@ -130,9 +140,6 @@ pub async fn run_daemon(
     ));
     info!("Supabase client initialized");
 
-    // Start IPC server (create first to get subscription manager)
-    let ipc_server = IpcServer::new(&paths.socket_file().to_string_lossy());
-
     // Create shared Arc values for reuse
     let db_arc = Arc::new(db);
     let secrets_arc = Arc::new(Mutex::new(secrets));
@@ -152,11 +159,8 @@ pub async fn run_daemon(
         session_secret_cache.inner(),
     ));
 
-    // Initialize Armin session engine for fast in-memory reads
-    // Armin uses its own SQLite database separate from the main daemon database
-    let armin_db_path = paths.base_dir().join("armin.db");
-    let armin = create_daemon_armin(&armin_db_path, ipc_server.subscriptions().clone())
-        .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
+    // Note: Armin was already initialized above with paths.database_file()
+    // The old armin.db path is no longer used - all data is in daemon.db
 
     // Create shared state (Clone-able with internal Arc)
     let state = DaemonState {
@@ -173,7 +177,6 @@ pub async fn run_daemon(
         device_id: device_id_arc,
         device_private_key: device_private_key_arc,
         session_sync,
-        stream_producers: Arc::new(Mutex::new(HashMap::new())),
         armin,
     };
 

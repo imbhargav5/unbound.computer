@@ -10,20 +10,46 @@
 //! - Tests assert emission, not behavior
 //! - Recovery emits nothing
 
-use crate::types::{MessageId, SessionId};
+use crate::types::{AgentStatus, MessageId, RepositoryId, SessionId};
 
 /// A side-effect emitted by Armin after committing a fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SideEffect {
+    // Repository side-effects
+    /// A new repository was created.
+    RepositoryCreated { repository_id: RepositoryId },
+    /// A repository was deleted.
+    RepositoryDeleted { repository_id: RepositoryId },
+
+    // Session side-effects
+    /// A new session was created.
+    SessionCreated { session_id: SessionId },
+    /// A session was closed.
+    SessionClosed { session_id: SessionId },
+    /// A session was deleted.
+    SessionDeleted { session_id: SessionId },
+    /// Session metadata was updated (title, claude_session_id, etc.).
+    SessionUpdated { session_id: SessionId },
+
+    // Message side-effects
     /// A message was appended to a session.
     MessageAppended {
         session_id: SessionId,
         message_id: MessageId,
     },
-    /// A session was closed.
-    SessionClosed { session_id: SessionId },
-    /// A new session was created.
-    SessionCreated { session_id: SessionId },
+
+    // Session state side-effects
+    /// Agent status changed.
+    AgentStatusChanged {
+        session_id: SessionId,
+        status: AgentStatus,
+    },
+
+    // Outbox side-effects
+    /// Outbox events were sent.
+    OutboxEventsSent { batch_id: String },
+    /// Outbox events were acknowledged.
+    OutboxEventsAcked { batch_id: String },
 }
 
 /// A sink that receives side-effects from Armin.

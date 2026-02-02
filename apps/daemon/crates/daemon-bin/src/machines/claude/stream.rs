@@ -1,23 +1,25 @@
 //! Claude process output streaming and event handling.
 
 use crate::app::DaemonState;
-use armin::{NewMessage, SessionId, SessionWriter};
-use daemon_database::{queries, AgentStatus};
-use daemon_stream::{EventType as StreamEventType, StreamProducer};
+use armin::{AgentStatus, NewMessage, SessionId, SessionWriter};
+use daemon_ipc::{Event, EventType};
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+/// Global sequence counter for streaming events.
+static STREAM_SEQUENCE: AtomicI64 = AtomicI64::new(0);
+
 /// Handle Claude process output, storing raw JSON as messages via Armin.
 ///
-/// This simplified handler:
+/// This handler:
 /// 1. Validates each line is parseable JSON
 /// 2. Extracts `type` field for logging
 /// 3. Stores raw JSON as plain text via Armin
-/// 4. Streams events via shared memory for clients to consume
+/// 4. Armin emits MessageAppended side-effects for client notifications
 pub async fn handle_claude_process(
     mut child: Child,
     session_id: String,
@@ -25,8 +27,8 @@ pub async fn handle_claude_process(
     stop_tx: broadcast::Sender<()>,
 ) {
     info!(
-        "\x1b[35m[PROCESS]\x1b[0m Starting to handle Claude process for session: {}",
-        session_id
+        session_id = %session_id,
+        "Starting to handle Claude process"
     );
 
     let mut stop_rx = stop_tx.subscribe();
@@ -34,62 +36,17 @@ pub async fn handle_claude_process(
     // ANSI escape code regex
     let ansi_regex = Regex::new(r"\x1B(?:\[[0-9;?]*[A-Za-z~]|\][^\x07]*\x07)").unwrap();
 
-    // Create shared memory stream producer for event delivery.
-    // First remove any existing producer to ensure clean shared memory.
-    {
-        let mut producers = state.stream_producers.lock().unwrap();
-        if let Some(old_producer) = producers.remove(&session_id) {
-            // Drop the old producer, which will unlink the stale shared memory
-            drop(old_producer);
-            debug!(
-                "\x1b[35m[PROCESS]\x1b[0m Removed stale stream producer for session: {}",
-                session_id
-            );
-        }
-    }
-
-    let stream_producer: Option<Arc<StreamProducer>> = match StreamProducer::new(&session_id) {
-        Ok(producer) => {
-            let producer = Arc::new(producer);
-            // Store in state for client discovery
-            state
-                .stream_producers
-                .lock()
-                .unwrap()
-                .insert(session_id.clone(), producer.clone());
-            info!(
-                "\x1b[35m[PROCESS]\x1b[0m Created shared memory stream for session: {}",
-                session_id
-            );
-            Some(producer)
-        }
-        Err(e) => {
-            error!(
-                "\x1b[31m[PROCESS]\x1b[0m Failed to create shared memory stream: {}. Clients will not receive events.",
-                e
-            );
-            None
-        }
-    };
-
-    // Set agent status to running
-    {
-        let conn = match state.db.get() {
-            Ok(c) => c,
-            Err(e) => {
-                error!("\x1b[31m[PROCESS]\x1b[0m Database connection error: {}", e);
-                return;
-            }
-        };
-        let _ = queries::get_or_create_session_state(&conn, &session_id);
-        let _ = queries::update_agent_status(&conn, &session_id, AgentStatus::Running);
-        info!("\x1b[35m[PROCESS]\x1b[0m Agent status set to RUNNING");
-    }
+    // Set agent status to running via Armin
+    let armin_session_id = SessionId::from_string(&session_id);
+    state
+        .armin
+        .update_agent_status(&armin_session_id, AgentStatus::Running);
+    info!("Agent status set to RUNNING");
 
     let stdout = match child.stdout.take() {
         Some(s) => s,
         None => {
-            error!("\x1b[31m[PROCESS]\x1b[0m Failed to get stdout from Claude process");
+            error!("Failed to get stdout from Claude process");
             return;
         }
     };
@@ -99,16 +56,13 @@ pub async fn handle_claude_process(
     let mut reader = BufReader::new(stdout).lines();
     let mut event_count = 0;
 
-    // Convert session_id to Armin's SessionId
-    let armin_session_id = SessionId::from_string(&session_id);
-
-    info!("\x1b[35m[PROCESS]\x1b[0m Starting to read Claude stdout...");
+    info!("Starting to read Claude stdout...");
 
     loop {
         tokio::select! {
             // Check for stop signal
             _ = stop_rx.recv() => {
-                info!("\x1b[33m[PROCESS]\x1b[0m Stop signal received - killing process");
+                info!("Stop signal received - killing process");
                 let _ = child.kill().await;
                 break;
             }
@@ -127,8 +81,10 @@ pub async fn handle_claude_process(
 
                         // Only process lines that look like JSON
                         if !clean_line.trim_start().starts_with('{') {
-                            debug!("\x1b[90m[PROCESS]\x1b[0m Skipping non-JSON line: {}",
-                                if clean_line.len() > 80 { &clean_line[..80] } else { &clean_line });
+                            debug!(
+                                line = %if clean_line.len() > 80 { &clean_line[..80] } else { &clean_line },
+                                "Skipping non-JSON line"
+                            );
                             continue;
                         }
 
@@ -136,7 +92,7 @@ pub async fn handle_claude_process(
                         let json = match serde_json::from_str::<serde_json::Value>(&clean_line) {
                             Ok(j) => j,
                             Err(e) => {
-                                warn!("\x1b[33m[PROCESS]\x1b[0m Failed to parse JSON: {}", e);
+                                warn!(error = %e, "Failed to parse JSON");
                                 continue;
                             }
                         };
@@ -145,74 +101,76 @@ pub async fn handle_claude_process(
                         let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                         // Store raw JSON via Armin (sequence number assigned atomically)
-                        let message = state.armin.append(
+                        // This triggers MessageAppended side-effect for client notification
+                        let _message = state.armin.append(
                             &armin_session_id,
                             NewMessage {
                                 content: clean_line.clone(),
                             },
                         );
-                        let sequence = message.sequence_number;
+
+                        // Broadcast raw JSON to streaming subscribers for real-time display
+                        let seq = STREAM_SEQUENCE.fetch_add(1, Ordering::SeqCst);
+                        let event = Event::new(
+                            EventType::ClaudeEvent,
+                            &session_id,
+                            serde_json::json!({ "raw_json": clean_line }),
+                            seq,
+                        );
+                        let subscriptions = state.subscriptions.clone();
+                        let session_id_for_broadcast = session_id.clone();
+                        tokio::spawn(async move {
+                            subscriptions.broadcast_or_create(&session_id_for_broadcast, event).await;
+                        });
 
                         // Log the event
                         match event_type {
                             "system" => {
                                 if let Some(new_session_id) = json.get("session_id").and_then(|v| v.as_str()) {
-                                    if let Ok(conn) = state.db.get() {
-                                        let _ = queries::update_session_claude_id(&conn, &session_id, new_session_id);
-                                    }
-                                    info!("\x1b[32m[EVENT #{}]\x1b[0m \x1b[1msystem\x1b[0m - Claude session: {}", event_count, new_session_id);
+                                    // Update claude_session_id via Armin
+                                    state.armin.update_session_claude_id(&armin_session_id, new_session_id);
+                                    info!(
+                                        event_num = event_count,
+                                        claude_session = %new_session_id,
+                                        "system event - Claude session ID"
+                                    );
                                 } else {
                                     let subtype = json.get("subtype").and_then(|v| v.as_str());
-                                    info!("\x1b[32m[EVENT #{}]\x1b[0m \x1b[1msystem\x1b[0m {:?}", event_count, subtype);
+                                    info!(
+                                        event_num = event_count,
+                                        subtype = ?subtype,
+                                        "system event"
+                                    );
                                 }
                             }
                             "assistant" => {
-                                info!("\x1b[34m[EVENT #{}]\x1b[0m \x1b[1massistant\x1b[0m", event_count);
+                                debug!(event_num = event_count, "assistant event");
                             }
                             "user" => {
-                                info!("\x1b[33m[EVENT #{}]\x1b[0m \x1b[1muser\x1b[0m", event_count);
+                                debug!(event_num = event_count, "user event");
                             }
                             "result" => {
                                 let is_error = json.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
                                 if is_error {
-                                    warn!("\x1b[31m[EVENT #{}]\x1b[0m \x1b[1mresult\x1b[0m (error)", event_count);
+                                    warn!(event_num = event_count, "result event (error)");
                                 } else {
-                                    info!("\x1b[32m[EVENT #{}]\x1b[0m \x1b[1mresult\x1b[0m (success)", event_count);
+                                    info!(event_num = event_count, "result event (success)");
                                 }
+                                // Update agent status to idle
+                                state.armin.update_agent_status(&armin_session_id, AgentStatus::Idle);
                             }
                             _ => {
-                                debug!("\x1b[90m[EVENT #{}]\x1b[0m {}", event_count, event_type);
-                            }
-                        }
-
-                        // Write to shared memory stream for clients
-                        if let Some(ref producer) = stream_producer {
-                            if let Err(e) = producer.write_event(
-                                StreamEventType::ClaudeEvent,
-                                sequence,
-                                clean_line.as_bytes(),
-                            ) {
-                                warn!(
-                                    "\x1b[33m[PROCESS]\x1b[0m Shared memory write failed: {}",
-                                    e
-                                );
-                            }
-                        }
-
-                        // Handle result event - update agent status
-                        if event_type == "result" {
-                            if let Ok(conn) = state.db.get() {
-                                let _ = queries::update_agent_status(&conn, &session_id, AgentStatus::Idle);
+                                debug!(event_num = event_count, event_type = %event_type, "event");
                             }
                         }
                     }
                     Ok(None) => {
                         // EOF - process finished
-                        info!("\x1b[35m[PROCESS]\x1b[0m Claude stdout closed (EOF)");
+                        info!("Claude stdout closed (EOF)");
                         break;
                     }
                     Err(e) => {
-                        error!("\x1b[31m[PROCESS]\x1b[0m Error reading Claude stdout: {}", e);
+                        error!(error = %e, "Error reading Claude stdout");
                         break;
                     }
                 }
@@ -220,16 +178,13 @@ pub async fn handle_claude_process(
         }
     }
 
-    info!(
-        "\x1b[35m[PROCESS]\x1b[0m Processed {} events total",
-        event_count
-    );
+    info!(event_count = event_count, "Processed events total");
 
     // Read any remaining stderr
     if let Some(stderr) = stderr {
         let mut stderr_reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = stderr_reader.next_line().await {
-            warn!("\x1b[31m[STDERR]\x1b[0m {}", line);
+            warn!(stderr = %line, "Claude stderr");
         }
     }
 
@@ -237,53 +192,26 @@ pub async fn handle_claude_process(
     match child.wait().await {
         Ok(status) => {
             if status.success() {
-                info!("\x1b[32m[PROCESS]\x1b[0m Claude process finished successfully");
+                info!("Claude process finished successfully");
             } else {
-                warn!(
-                    "\x1b[33m[PROCESS]\x1b[0m Claude process exited with status: {:?}",
-                    status
-                );
+                warn!(status = ?status, "Claude process exited with non-zero status");
             }
         }
         Err(e) => {
-            error!(
-                "\x1b[31m[PROCESS]\x1b[0m Error waiting for Claude process: {}",
-                e
-            );
+            error!(error = %e, "Error waiting for Claude process");
         }
     }
 
-    // Update agent status to idle
-    {
-        if let Ok(conn) = state.db.get() {
-            let _ = queries::update_agent_status(&conn, &session_id, AgentStatus::Idle);
-        }
-        info!("\x1b[35m[PROCESS]\x1b[0m Agent status set to IDLE");
-    }
+    // Update agent status to idle via Armin
+    state
+        .armin
+        .update_agent_status(&armin_session_id, AgentStatus::Idle);
+    info!("Agent status set to IDLE");
 
     // Remove from running processes
     {
         let mut processes = state.claude_processes.lock().unwrap();
         processes.remove(&session_id);
-        info!(
-            "\x1b[35m[PROCESS]\x1b[0m Cleaned up process for session: {}",
-            session_id
-        );
+        info!(session_id = %session_id, "Cleaned up Claude process");
     }
-
-    // Signal shutdown to consumers but keep the producer alive.
-    // The shared memory will be cleaned up when a new message is sent (which
-    // recreates the producer) or when the daemon shuts down.
-    // This ensures consumers have time to read all events.
-    if let Some(ref producer) = stream_producer {
-        producer.shutdown();
-        info!(
-            "\x1b[35m[PROCESS]\x1b[0m Signaled shutdown to consumers for session: {}",
-            session_id
-        );
-    }
-
-    // Note: We keep the producer in state.stream_producers so consumers can
-    // finish reading. The stale shm cleanup in create_shm() will handle
-    // removing old shared memory when a new message is sent.
 }

@@ -6,8 +6,8 @@
 //  Manages message state, streaming content, tool state, and daemon subscription
 //  for a single session. Replaces ChatPanelViewModel with per-session isolation.
 //
-//  Each instance owns a SessionSubscription (shared memory consumer)
-//  so multiple sessions can stream events concurrently with low latency.
+//  Uses IPC streaming subscription for real-time updates. The daemon pushes
+//  events over the Unix socket connection.
 //
 
 import Foundation
@@ -19,7 +19,7 @@ private let logger = Logger(label: "app.ui.chat")
 
 enum SubscriptionState: Equatable {
     case idle
-    case subscribing
+    case connecting
     case subscribed
     case disconnected
 }
@@ -104,7 +104,6 @@ class SessionLiveState {
 
     // MARK: - Private
 
-    private var subscription: SessionSubscription?
     private var subscriptionTask: Task<Void, Never>?
     private var fetchDebounceTask: Task<Void, Never>?
 
@@ -119,21 +118,20 @@ class SessionLiveState {
         logger.info("SessionLiveState deinit for session \(sessionId)")
         subscriptionTask?.cancel()
         fetchDebounceTask?.cancel()
-        subscription?.disconnect()
     }
 
     // MARK: - Lifecycle
 
-    /// Activate this session: subscribe for events and load messages.
+    /// Activate this session: load messages and subscribe for real-time updates.
     /// Idempotent - returns immediately if already subscribed.
     func activate() async {
         let activateStart = CFAbsoluteTimeGetCurrent()
 
-        guard subscriptionState != .subscribed, subscriptionState != .subscribing else {
+        guard subscriptionState != .subscribed, subscriptionState != .connecting else {
             return
         }
 
-        subscriptionState = .subscribing
+        subscriptionState = .connecting
 
         // Load messages first
         let loadStart = CFAbsoluteTimeGetCurrent()
@@ -141,39 +139,54 @@ class SessionLiveState {
         let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
         logger.info("loadMessages took \(String(format: "%.3f", loadDuration))s")
 
-        // Then subscribe for real-time updates (lazy connection - waits for stream to be created)
-        let subStart = CFAbsoluteTimeGetCurrent()
-        let sub = SessionSubscription(
+        // Check initial Claude status
+        await checkClaudeStatus()
+
+        // Subscribe for real-time updates via IPC streaming
+        let streamingClient = SessionStreamingClient(
             sessionId: sessionId.uuidString.lowercased()
         )
-        self.subscription = sub
 
-        let eventStream = await sub.subscribe()
-        let subDuration = CFAbsoluteTimeGetCurrent() - subStart
-        logger.info("subscribe took \(String(format: "%.3f", subDuration))s")
+        do {
+            let eventStream = try await streamingClient.subscribe()
+            subscriptionState = .subscribed
 
-        subscriptionState = .subscribed
+            let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
+            logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
 
-        let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
-        logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
+            // Start event handling task
+            subscriptionTask = Task { [weak self] in
+                logger.debug("Event loop started for session \(sessionId)")
+                for await event in eventStream {
+                    await MainActor.run {
+                        self?.handleDaemonEvent(event)
+                    }
+                }
 
-        // Start polling events (will connect to shared memory when daemon creates it)
-        subscriptionTask = Task { [weak self] in
-            logger.debug("Event loop started for session \(sessionId)")
-            for await event in eventStream {
+                // Stream ended
+                logger.info("Event stream ended for session \(sessionId)")
                 await MainActor.run {
-                    self?.handleDaemonEvent(event)
+                    if self?.subscriptionState == .subscribed {
+                        self?.subscriptionState = .disconnected
+                        logger.warning("Session \(sessionId) disconnected (stream ended)")
+                    }
                 }
             }
+        } catch {
+            logger.error("Failed to subscribe: \(error)")
+            subscriptionState = .disconnected
+        }
+    }
 
-            // Stream ended
-            logger.info("Event stream ended for session \(sessionId)")
-            await MainActor.run {
-                if self?.subscriptionState == .subscribed {
-                    self?.subscriptionState = .disconnected
-                    logger.warning("Session \(sessionId) disconnected (stream ended)")
-                }
-            }
+    /// Check Claude status from daemon.
+    private func checkClaudeStatus() async {
+        do {
+            let status = try await daemonClient.getClaudeStatus(
+                sessionId: sessionId.uuidString.lowercased()
+            )
+            claudeRunning = status.isRunning
+        } catch {
+            logger.debug("Failed to check Claude status: \(error)")
         }
     }
 
@@ -184,8 +197,6 @@ class SessionLiveState {
         subscriptionTask = nil
         fetchDebounceTask?.cancel()
         fetchDebounceTask = nil
-        subscription?.disconnect()
-        subscription = nil
         subscriptionState = .idle
     }
 
@@ -361,7 +372,7 @@ class SessionLiveState {
     private func handleDaemonEvent(_ event: DaemonEvent) {
         switch event.type {
         case .streamingChunk, .claudeStreaming:
-            if let content = event.streamingContent {
+            if let content: String = event.dataValue(for: "content") ?? event.dataValue(for: "chunk") {
                 logger.debug("Received streaming chunk (\(content.count) chars) for session \(sessionId)")
                 streamingContent = content
             }
@@ -372,12 +383,11 @@ class SessionLiveState {
             debouncedFetchMessages()
 
         case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
-            // All Claude events contain raw JSON that needs to be parsed
-            if let raw = event.rawClaudeEvent {
+            // Claude events contain raw JSON that needs to be parsed
+            if let raw: String = event.dataValue(for: "raw") {
                 handleClaudeEvent(raw)
             } else {
                 // For new event types, the data IS the parsed JSON already
-                // Convert it back to JSON string for handleClaudeEvent
                 if let jsonData = try? JSONSerialization.data(withJSONObject: event.data.mapValues { $0.value }),
                    let jsonString = String(data: jsonData, encoding: .utf8) {
                     handleClaudeEvent(jsonString)
@@ -385,18 +395,18 @@ class SessionLiveState {
             }
 
         case .statusChange:
-            if let status = event.statusValue {
+            if let status: String = event.dataValue(for: "status") {
                 logger.info("Received status change: \(status) for session \(sessionId)")
                 claudeRunning = (status == "running")
                 if !claudeRunning {
                     moveToolsToHistory()
                     streamingContent = nil
+                    debouncedFetchMessages()
                 }
             }
 
         case .terminalOutput, .terminalFinished:
             logger.debug("Received terminal event for session \(sessionId)")
-            break
 
         case .initialState:
             logger.info("Received initial state for session \(sessionId)")
@@ -404,10 +414,12 @@ class SessionLiveState {
 
         case .ping:
             break
+
+        case .authStateChanged, .sessionCreated, .sessionDeleted:
+            // Global events, not relevant for per-session state
+            break
         }
     }
-
-    // MARK: - Private: Claude Event Parsing
 
     private func handleClaudeEvent(_ json: String) {
         guard let data = json.data(using: .utf8),
@@ -430,7 +442,6 @@ class SessionLiveState {
             handleSystemEvent(parsed)
         default:
             logger.debug("Unhandled claude event type=\(type) for session \(sessionId)")
-            break
         }
     }
 
@@ -479,7 +490,6 @@ class SessionLiveState {
 
         // Check for Task (sub-agent)
         if name == "Task" {
-            // Don't recreate sub-agent if it's already archived in history
             if toolHistory.contains(where: { $0.subAgent?.id == id }) {
                 logger.debug("Sub-agent \(id) already in history, skipping creation")
                 return
@@ -608,6 +618,8 @@ class SessionLiveState {
             return
         }
     }
+
+    // MARK: - Private: Tool History
 
     private func moveToolsToHistory() {
         guard !activeTools.isEmpty || activeSubAgent != nil else { return }

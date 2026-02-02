@@ -43,6 +43,16 @@ impl std::fmt::Debug for DaemonSideEffectSink {
 impl SideEffectSink for DaemonSideEffectSink {
     fn emit(&self, effect: SideEffect) {
         match effect {
+            SideEffect::RepositoryCreated { repository_id } => {
+                debug!(repository_id = %repository_id, "Armin repository created");
+                // Repository events are not currently broadcast
+            }
+
+            SideEffect::RepositoryDeleted { repository_id } => {
+                debug!(repository_id = %repository_id, "Armin repository deleted");
+                // Repository events are not currently broadcast
+            }
+
             SideEffect::SessionCreated { session_id } => {
                 debug!(session_id = %session_id, "Armin session created");
                 let seq = self.next_sequence();
@@ -54,20 +64,6 @@ impl SideEffectSink for DaemonSideEffectSink {
                 ));
             }
 
-            SideEffect::MessageAppended {
-                session_id,
-                message_id,
-            } => {
-                debug!(
-                    session_id = %session_id,
-                    message_id = %message_id,
-                    "Armin message appended"
-                );
-                // Message events are typically streamed via shared memory (daemon-stream)
-                // rather than socket-based broadcasts for better performance.
-                // This side effect can be used for other purposes like triggering sync.
-            }
-
             SideEffect::SessionClosed { session_id } => {
                 debug!(session_id = %session_id, "Armin session closed");
                 let seq = self.next_sequence();
@@ -77,6 +73,84 @@ impl SideEffectSink for DaemonSideEffectSink {
                     serde_json::json!({ "session_id": session_id.as_str() }),
                     seq,
                 ));
+            }
+
+            SideEffect::SessionDeleted { session_id } => {
+                debug!(session_id = %session_id, "Armin session deleted");
+                let seq = self.next_sequence();
+                self.subscriptions.broadcast_global(Event::new(
+                    EventType::SessionDeleted,
+                    session_id.as_str(),
+                    serde_json::json!({ "session_id": session_id.as_str() }),
+                    seq,
+                ));
+            }
+
+            SideEffect::SessionUpdated { session_id } => {
+                debug!(session_id = %session_id, "Armin session updated");
+                // Session updates are not currently broadcast
+            }
+
+            SideEffect::MessageAppended {
+                session_id,
+                message_id,
+            } => {
+                debug!(
+                    session_id = %session_id,
+                    message_id = %message_id,
+                    "Armin message appended"
+                );
+                // Broadcast to session subscribers so clients get notified
+                let seq = self.next_sequence();
+                let event = Event::new(
+                    EventType::Message,
+                    session_id.as_str(),
+                    serde_json::json!({
+                        "session_id": session_id.as_str(),
+                        "message_id": message_id.as_str(),
+                    }),
+                    seq,
+                );
+                let subscriptions = self.subscriptions.clone();
+                let session_id_str = session_id.as_str().to_string();
+                // Spawn async task since broadcast_or_create is async
+                tokio::spawn(async move {
+                    subscriptions.broadcast_or_create(&session_id_str, event).await;
+                });
+            }
+
+            SideEffect::AgentStatusChanged { session_id, status } => {
+                debug!(
+                    session_id = %session_id,
+                    status = %status.as_str(),
+                    "Armin agent status changed"
+                );
+                // Broadcast status change so clients know when Claude starts/stops
+                let seq = self.next_sequence();
+                let event = Event::new(
+                    EventType::StatusChange,
+                    session_id.as_str(),
+                    serde_json::json!({
+                        "session_id": session_id.as_str(),
+                        "status": status.as_str(),
+                    }),
+                    seq,
+                );
+                let subscriptions = self.subscriptions.clone();
+                let session_id_str = session_id.as_str().to_string();
+                tokio::spawn(async move {
+                    subscriptions.broadcast_or_create(&session_id_str, event).await;
+                });
+            }
+
+            SideEffect::OutboxEventsSent { batch_id } => {
+                debug!(batch_id = %batch_id, "Armin outbox events sent");
+                // Outbox events are not currently broadcast
+            }
+
+            SideEffect::OutboxEventsAcked { batch_id } => {
+                debug!(batch_id = %batch_id, "Armin outbox events acked");
+                // Outbox events are not currently broadcast
             }
         }
     }

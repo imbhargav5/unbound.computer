@@ -9,7 +9,10 @@
 //! - Side-effects are emitted after derived state is updated
 //! - If SQLite write fails, nothing else happens
 
-use crate::types::{Message, NewMessage, SessionId};
+use crate::types::{
+    AgentStatus, Message, NewMessage, NewOutboxEvent, NewRepository, NewSession,
+    NewSessionSecret, OutboxEvent, Repository, RepositoryId, Session, SessionId, SessionUpdate,
+};
 
 /// A writer for session data.
 ///
@@ -18,9 +21,59 @@ use crate::types::{Message, NewMessage, SessionId};
 /// 2. Update derived state
 /// 3. Emit side-effect
 pub trait SessionWriter {
-    /// Creates a new session.
+    // ========================================================================
+    // Repository operations
+    // ========================================================================
+
+    /// Creates a new repository.
     ///
-    /// Returns the ID of the newly created session.
+    /// Returns the created repository.
+    fn create_repository(&self, repo: NewRepository) -> Repository;
+
+    /// Deletes a repository.
+    ///
+    /// Returns true if the repository was deleted.
+    fn delete_repository(&self, id: &RepositoryId) -> bool;
+
+    // ========================================================================
+    // Session operations (full metadata)
+    // ========================================================================
+
+    /// Creates a new session with full metadata.
+    ///
+    /// This is the primary method for creating sessions with repository association,
+    /// title, worktree configuration, etc.
+    fn create_session_with_metadata(&self, session: NewSession) -> Session;
+
+    /// Updates a session's metadata.
+    ///
+    /// Use this to update title, claude_session_id, status, etc.
+    fn update_session(&self, id: &SessionId, update: SessionUpdate) -> bool;
+
+    /// Updates the Claude session ID for a session.
+    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> bool;
+
+    /// Deletes a session.
+    ///
+    /// Returns true if the session was deleted.
+    fn delete_session(&self, id: &SessionId) -> bool;
+
+    // ========================================================================
+    // Session state operations
+    // ========================================================================
+
+    /// Updates the agent status for a session.
+    ///
+    /// Creates the session state row if it doesn't exist.
+    fn update_agent_status(&self, session: &SessionId, status: AgentStatus);
+
+    // ========================================================================
+    // Message operations
+    // ========================================================================
+
+    /// Creates a new session (legacy - creates minimal session record).
+    ///
+    /// Prefer `create_session_with_metadata` for new code.
     fn create_session(&self) -> SessionId;
 
     /// Appends a message to a session.
@@ -39,4 +92,29 @@ pub trait SessionWriter {
     ///
     /// After closing, no more messages can be appended to the session.
     fn close(&self, session: &SessionId);
+
+    // ========================================================================
+    // Session secrets operations
+    // ========================================================================
+
+    /// Sets a session secret.
+    ///
+    /// The secret should be encrypted before calling this method.
+    fn set_session_secret(&self, secret: NewSessionSecret);
+
+    /// Deletes a session secret.
+    fn delete_session_secret(&self, session: &SessionId) -> bool;
+
+    // ========================================================================
+    // Outbox operations
+    // ========================================================================
+
+    /// Inserts a new outbox event.
+    fn insert_outbox_event(&self, event: NewOutboxEvent) -> OutboxEvent;
+
+    /// Marks outbox events as sent.
+    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]);
+
+    /// Marks outbox events as acknowledged.
+    fn mark_outbox_acked(&self, batch_id: &str);
 }

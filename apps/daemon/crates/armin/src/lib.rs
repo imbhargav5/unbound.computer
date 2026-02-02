@@ -76,7 +76,11 @@ mod tests;
 pub use crate::armin::Armin;
 pub use reader::SessionReader;
 pub use side_effect::{NullSink, RecordingSink, SideEffect, SideEffectSink};
-pub use types::{Message, MessageId, NewMessage, SessionId};
+pub use types::{
+    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
+    NewSessionSecret, OutboxEvent, OutboxStatus, Repository, RepositoryId, Session, SessionId,
+    SessionSecret, SessionState, SessionStatus, SessionUpdate, UserSetting,
+};
 pub use writer::SessionWriter;
 
 /// Errors that can occur in Armin.

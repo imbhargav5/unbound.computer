@@ -201,7 +201,12 @@ impl SupabaseClient {
         worktree_branch: Option<&str>,
         access_token: &str,
     ) -> AuthResult<()> {
-        let url = self.rest_url("repositories");
+        // Use on_conflict to upsert based on the unique constraint (device_id, local_path)
+        // rather than the primary key (id)
+        let url = format!(
+            "{}?on_conflict=device_id,local_path",
+            self.rest_url("repositories")
+        );
 
         let mut body = serde_json::json!({
             "id": id,

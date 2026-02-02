@@ -1,14 +1,27 @@
 //! IPC server implementation.
+//!
+//! Supports both request/response and streaming subscriptions.
+//!
+//! ## Streaming Subscriptions
+//!
+//! When a client sends `session.subscribe`, the connection stays open and
+//! receives events as NDJSON lines. The client should:
+//!
+//! 1. Send `session.subscribe` with `session_id` param
+//! 2. Receive success response
+//! 3. Block reading events (NDJSON lines)
+//! 4. Send `session.unsubscribe` or close connection to stop
 
-use crate::{error_codes, Event, EventType, IpcError, IpcResult, Method, Request, Response};
+use crate::{error_codes, Event, IpcError, IpcResult, Method, Request, Response};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::unix::OwnedWriteHalf;
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// Handler function type for IPC methods.
@@ -221,8 +234,8 @@ impl IpcServer {
 async fn handle_connection(
     stream: UnixStream,
     handlers: Arc<RwLock<HashMap<Method, HandlerFn>>>,
-    _subscriptions: SubscriptionManager,
-    _initial_state_fn: Arc<RwLock<Option<InitialStateFn>>>,
+    subscriptions: SubscriptionManager,
+    initial_state_fn: Arc<RwLock<Option<InitialStateFn>>>,
 ) -> IpcResult<()> {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -262,14 +275,65 @@ async fn handle_connection(
         let request_id = request.id.clone();
         let method = request.method.clone();
 
-        // Legacy socket subscription - deprecated in favor of shared memory.
-        // Clients should use IpcClient::subscribe() which opens shared memory directly.
-        if method == Method::SessionSubscribe || method == Method::SessionUnsubscribe {
-            let response = Response::error(
-                &request_id,
-                error_codes::METHOD_NOT_FOUND,
-                "Socket-based subscriptions are deprecated. Use shared memory via IpcClient::subscribe() instead.",
-            );
+        // Handle streaming subscription
+        if method == Method::SessionSubscribe {
+            let session_id = request
+                .params
+                .as_ref()
+                .and_then(|p| p.get("session_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            let session_id = match session_id {
+                Some(id) => id,
+                None => {
+                    let response = Response::error(
+                        &request_id,
+                        error_codes::INVALID_PARAMS,
+                        "session_id is required",
+                    );
+                    let response_json = response.to_json()?;
+                    writer.write_all(response_json.as_bytes()).await?;
+                    writer.write_all(b"\n").await?;
+                    writer.flush().await?;
+                    continue;
+                }
+            };
+
+            // Send success response first
+            let response = Response::success(&request_id, serde_json::json!({
+                "subscribed": true,
+                "session_id": session_id,
+            }));
+            let response_json = response.to_json()?;
+            writer.write_all(response_json.as_bytes()).await?;
+            writer.write_all(b"\n").await?;
+            writer.flush().await?;
+
+            // Send initial state if handler is registered
+            if let Some(handler) = initial_state_fn.read().await.as_ref() {
+                if let Some((events, _last_seq)) = handler(session_id.clone()).await {
+                    for event in events {
+                        if let Ok(event_json) = event.to_json() {
+                            let _ = writer.write_all(event_json.as_bytes()).await;
+                            let _ = writer.write_all(b"\n").await;
+                        }
+                    }
+                    let _ = writer.flush().await;
+                }
+            }
+
+            // Enter streaming mode - this consumes the connection
+            info!(session_id = %session_id, "Client subscribed, entering streaming mode");
+            handle_streaming_subscription(reader, writer, &subscriptions, &session_id).await?;
+            return Ok(());
+        }
+
+        // Handle unsubscribe (no-op in request/response mode, handled in streaming)
+        if method == Method::SessionUnsubscribe {
+            let response = Response::success(&request_id, serde_json::json!({
+                "unsubscribed": true,
+            }));
             let response_json = response.to_json()?;
             writer.write_all(response_json.as_bytes()).await?;
             writer.write_all(b"\n").await?;
@@ -298,6 +362,98 @@ async fn handle_connection(
         writer.write_all(b"\n").await?;
         writer.flush().await?;
     }
+
+    Ok(())
+}
+
+/// Handle streaming subscription mode.
+///
+/// The connection stays open and events are pushed to the client.
+/// The client can send `session.unsubscribe` to exit, or close the connection.
+async fn handle_streaming_subscription(
+    mut reader: BufReader<tokio::net::unix::OwnedReadHalf>,
+    mut writer: OwnedWriteHalf,
+    subscriptions: &SubscriptionManager,
+    session_id: &str,
+) -> IpcResult<()> {
+    // Subscribe to events for this session
+    let mut event_rx = subscriptions.subscribe(session_id).await;
+    let mut line = String::new();
+
+    loop {
+        tokio::select! {
+            // Forward events to client
+            event_result = event_rx.recv() => {
+                match event_result {
+                    Ok(event) => {
+                        match event.to_json() {
+                            Ok(event_json) => {
+                                if writer.write_all(event_json.as_bytes()).await.is_err() {
+                                    debug!("Failed to write event, client disconnected");
+                                    break;
+                                }
+                                if writer.write_all(b"\n").await.is_err() {
+                                    break;
+                                }
+                                if writer.flush().await.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "Failed to serialize event");
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        debug!("Event channel closed");
+                        break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        warn!(skipped = n, "Client lagged, skipped events");
+                        // Continue receiving - client will catch up
+                    }
+                }
+            }
+
+            // Handle client commands (unsubscribe or disconnect)
+            read_result = reader.read_line(&mut line) => {
+                match read_result {
+                    Ok(0) => {
+                        debug!("Client disconnected from subscription");
+                        break;
+                    }
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            if let Ok(request) = Request::from_json(trimmed) {
+                                if request.method == Method::SessionUnsubscribe {
+                                    debug!("Client unsubscribed");
+                                    let response = Response::success(&request.id, serde_json::json!({
+                                        "unsubscribed": true,
+                                    }));
+                                    if let Ok(json) = response.to_json() {
+                                        let _ = writer.write_all(json.as_bytes()).await;
+                                        let _ = writer.write_all(b"\n").await;
+                                        let _ = writer.flush().await;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        line.clear();
+                    }
+                    Err(e) => {
+                        debug!(error = %e, "Read error in subscription");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Cleanup subscription
+    subscriptions.cleanup(session_id).await;
+    info!(session_id = %session_id, "Streaming subscription ended");
 
     Ok(())
 }
@@ -360,117 +516,108 @@ impl IpcClient {
         self.call_method(Method::Health).await.is_ok()
     }
 
-    /// Subscribe to a session's events using shared memory.
-    /// This is the preferred method for low-latency streaming (~1-5μs vs ~35-130μs for sockets).
-    pub async fn subscribe(&self, session_id: &str) -> IpcResult<SharedMemorySubscription> {
-        // Open shared memory consumer
-        let mut consumer = daemon_stream::StreamConsumer::open(session_id)
-            .map_err(|e| IpcError::Socket(format!(
-                "Shared memory stream not available for session {}: {}",
-                session_id, e
-            )))?;
+    /// Subscribe to session events.
+    ///
+    /// Returns a `StreamingSubscription` that yields events as they arrive.
+    /// The connection stays open until unsubscribed or dropped.
+    pub async fn subscribe(&self, session_id: &str) -> IpcResult<StreamingSubscription> {
+        let stream = UnixStream::connect(&self.socket_path).await
+            .map_err(|e| IpcError::Socket(format!("Failed to connect: {}", e)))?;
 
-        // Create channel for events
-        let (event_tx, event_rx) = mpsc::channel(100);
+        let (reader, mut writer) = stream.into_split();
+        let mut reader = BufReader::new(reader);
 
-        // Spawn task to poll shared memory and forward events
-        let session_id_clone = session_id.to_string();
-        tokio::spawn(async move {
-            loop {
-                // Non-blocking read
-                match consumer.try_read() {
-                    Some(shm_event) => {
-                        // Convert shared memory event to IPC event
-                        if let Some(event) = convert_shm_event(&session_id_clone, shm_event) {
-                            if event_tx.send(event).await.is_err() {
-                                break;
-                            }
-                        }
-                    }
-                    None => {
-                        // Check for shutdown
-                        if consumer.is_shutdown() {
-                            debug!("Shared memory stream shutdown for session {}", session_id_clone);
-                            break;
-                        }
-                        // No events available, sleep briefly
-                        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-                    }
-                }
-            }
-        });
+        // Send subscribe request
+        let request = Request::with_params(
+            Method::SessionSubscribe,
+            serde_json::json!({ "session_id": session_id }),
+        );
+        let request_json = request.to_json()?;
+        writer.write_all(request_json.as_bytes()).await?;
+        writer.write_all(b"\n").await?;
+        writer.flush().await?;
 
-        Ok(SharedMemorySubscription {
+        // Read response
+        let mut line = String::new();
+        reader.read_line(&mut line).await?;
+
+        if line.is_empty() {
+            return Err(IpcError::ConnectionClosed);
+        }
+
+        let response = Response::from_json(line.trim())?;
+        if !response.is_success() {
+            return Err(IpcError::Protocol(format!(
+                "Subscribe failed: {}",
+                response.error.map(|e| e.message).unwrap_or_default()
+            )));
+        }
+
+        Ok(StreamingSubscription {
             session_id: session_id.to_string(),
-            event_rx,
+            reader,
+            writer,
+            line_buffer: String::new(),
         })
     }
 }
 
-/// Convert a shared memory event to an IPC event.
-fn convert_shm_event(session_id: &str, shm_event: daemon_stream::StreamEvent) -> Option<Event> {
-    let event_type = match shm_event.event_type {
-        daemon_stream::EventType::ClaudeEvent => EventType::ClaudeEvent,
-        daemon_stream::EventType::TerminalOutput => EventType::TerminalOutput,
-        daemon_stream::EventType::TerminalFinished => EventType::TerminalFinished,
-        daemon_stream::EventType::StreamingChunk => EventType::StreamingChunk,
-        daemon_stream::EventType::Ping => return None, // Internal, don't forward
-    };
-
-    // Parse payload as JSON if possible, otherwise wrap as raw string
-    let data = match String::from_utf8(shm_event.payload.clone()) {
-        Ok(s) => {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&s) {
-                json
-            } else {
-                serde_json::json!({ "raw": s })
-            }
-        }
-        Err(_) => {
-            // Binary data - for terminal finished, this is the exit code
-            if shm_event.event_type == daemon_stream::EventType::TerminalFinished && shm_event.payload.len() >= 4 {
-                let exit_code = i32::from_le_bytes([
-                    shm_event.payload[0],
-                    shm_event.payload[1],
-                    shm_event.payload[2],
-                    shm_event.payload[3],
-                ]);
-                serde_json::json!({ "exit_code": exit_code })
-            } else {
-                serde_json::json!({ "raw_bytes": shm_event.payload.len() })
-            }
-        }
-    };
-
-    Some(Event::new(event_type, session_id, data, shm_event.sequence))
-}
-
-/// A subscription to a session's events via shared memory.
-/// Provides low-latency access to streaming events (~1-5μs per event).
-pub struct SharedMemorySubscription {
+/// A streaming subscription to session events.
+///
+/// Events are received by calling `recv()` which blocks until an event arrives.
+/// Drop the subscription or call `unsubscribe()` to close.
+pub struct StreamingSubscription {
     session_id: String,
-    event_rx: mpsc::Receiver<Event>,
+    reader: BufReader<tokio::net::unix::OwnedReadHalf>,
+    writer: OwnedWriteHalf,
+    line_buffer: String,
 }
 
-impl SharedMemorySubscription {
+impl StreamingSubscription {
     /// Get the session ID this subscription is for.
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
 
-    /// Receive the next event. Returns None if the subscription is closed.
+    /// Receive the next event, blocking until one arrives.
+    ///
+    /// Returns `None` if the subscription is closed.
     pub async fn recv(&mut self) -> Option<Event> {
-        self.event_rx.recv().await
+        self.line_buffer.clear();
+        match self.reader.read_line(&mut self.line_buffer).await {
+            Ok(0) => None, // Connection closed
+            Ok(_) => {
+                let trimmed = self.line_buffer.trim();
+                if trimmed.is_empty() {
+                    // Empty line, try again
+                    return Box::pin(self.recv()).await;
+                }
+                match Event::from_json(trimmed) {
+                    Ok(event) => Some(event),
+                    Err(e) => {
+                        warn!(error = %e, "Failed to parse event");
+                        // Try again on parse error
+                        Box::pin(self.recv()).await
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Read error in subscription");
+                None
+            }
+        }
     }
 
-    /// Try to receive an event without blocking. Returns None if no event available or closed.
-    pub fn try_recv(&mut self) -> Option<Event> {
-        self.event_rx.try_recv().ok()
+    /// Unsubscribe and close the connection.
+    pub async fn unsubscribe(mut self) -> IpcResult<()> {
+        let request = Request::new(Method::SessionUnsubscribe);
+        let request_json = request.to_json()?;
+        self.writer.write_all(request_json.as_bytes()).await?;
+        self.writer.write_all(b"\n").await?;
+        self.writer.flush().await?;
+        Ok(())
     }
 }
-
-// Keep the old Subscription type as an alias for backward compatibility
-pub type Subscription = SharedMemorySubscription;
 
 #[cfg(test)]
 mod tests {

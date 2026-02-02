@@ -17,6 +17,14 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
+    /// Launch the interactive terminal UI
+    #[arg(long)]
+    ui: bool,
+
+    /// Use terminal-adaptive colors instead of Unbound theme (only with --ui)
+    #[arg(long)]
+    terminal_colors: bool,
+
     /// Output format (text or json)
     #[arg(short, long, default_value = "text", global = true)]
     format: output::OutputFormat,
@@ -28,13 +36,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Launch the interactive terminal UI
-    Tui {
-        /// Use terminal-adaptive colors instead of Unbound theme
-        #[arg(long)]
-        terminal_colors: bool,
-    },
-
     /// Login with email and password
     Login,
 
@@ -331,53 +332,69 @@ async fn main() {
         .with(fmt::layer().with_target(false))
         .init();
 
-    // Default to TUI when no command provided
-    let command = cli.command.unwrap_or(Commands::Tui {
-        terminal_colors: false,
-    });
-
-    let result = match command {
-        Commands::Tui { terminal_colors } => {
-            // Check authentication before starting TUI
-            if let Err(e) = ensure_authenticated().await {
-                eprintln!("Error: {}", e);
-                return;
-            }
-
-            // Auto-add current repo if in a git directory
-            let _repo_id = ensure_repo_added().await;
-            let theme_mode = if terminal_colors {
-                tui::ThemeMode::Terminal
-            } else {
-                tui::ThemeMode::Unbound
-            };
-            tui::run(theme_mode).await
+    // Handle --ui flag or explicit tui command
+    let result = if cli.ui && cli.command.is_none() {
+        // --ui flag: launch TUI
+        if let Err(e) = ensure_authenticated().await {
+            eprintln!("Error: {}", e);
+            return;
         }
-        Commands::Login => commands::login(&cli.format).await,
-        Commands::Logout => commands::logout(&cli.format).await,
-        Commands::Status => commands::status(&cli.format).await,
-        Commands::Daemon { command } => match command {
-            DaemonCommands::Start { foreground } => commands::daemon_start(foreground).await,
-            DaemonCommands::Stop => commands::daemon_stop(&cli.format).await,
-            DaemonCommands::Status => commands::daemon_status(&cli.format).await,
-            DaemonCommands::Logs { lines, follow } => commands::daemon_logs(lines, follow).await,
-        },
-        Commands::Sessions { command } => match command {
-            SessionCommands::List { repository } => {
-                commands::sessions_list(repository.as_deref(), &cli.format).await
-            }
-            SessionCommands::Show { id } => commands::sessions_show(&id, &cli.format).await,
-            SessionCommands::Create { repository, title } => {
-                commands::sessions_create(&repository, title.as_deref(), &cli.format).await
-            }
-            SessionCommands::Delete { id } => commands::sessions_delete(&id, &cli.format).await,
-            SessionCommands::Messages { id } => commands::sessions_messages(&id, &cli.format).await,
-        },
-        Commands::Repos { command } => match command {
-            RepoCommands::List => commands::repos_list(&cli.format).await,
-            RepoCommands::Add { path } => commands::repos_add(&path, &cli.format).await,
-            RepoCommands::Remove { id } => commands::repos_remove(&id, &cli.format).await,
-        },
+        let _repo_id = ensure_repo_added().await;
+        let theme_mode = if cli.terminal_colors {
+            tui::ThemeMode::Terminal
+        } else {
+            tui::ThemeMode::Unbound
+        };
+        tui::run(theme_mode).await
+    } else if let Some(command) = cli.command {
+        match command {
+            Commands::Login => commands::login(&cli.format).await,
+            Commands::Logout => commands::logout(&cli.format).await,
+            Commands::Status => commands::status(&cli.format).await,
+            Commands::Daemon { command } => match command {
+                DaemonCommands::Start { foreground } => commands::daemon_start(foreground).await,
+                DaemonCommands::Stop => commands::daemon_stop(&cli.format).await,
+                DaemonCommands::Status => commands::daemon_status(&cli.format).await,
+                DaemonCommands::Logs { lines, follow } => {
+                    commands::daemon_logs(lines, follow).await
+                }
+            },
+            Commands::Sessions { command } => match command {
+                SessionCommands::List { repository } => {
+                    commands::sessions_list(repository.as_deref(), &cli.format).await
+                }
+                SessionCommands::Show { id } => commands::sessions_show(&id, &cli.format).await,
+                SessionCommands::Create { repository, title } => {
+                    commands::sessions_create(&repository, title.as_deref(), &cli.format).await
+                }
+                SessionCommands::Delete { id } => {
+                    commands::sessions_delete(&id, &cli.format).await
+                }
+                SessionCommands::Messages { id } => {
+                    commands::sessions_messages(&id, &cli.format).await
+                }
+            },
+            Commands::Repos { command } => match command {
+                RepoCommands::List => commands::repos_list(&cli.format).await,
+                RepoCommands::Add { path } => commands::repos_add(&path, &cli.format).await,
+                RepoCommands::Remove { id } => commands::repos_remove(&id, &cli.format).await,
+            },
+        }
+    } else {
+        // Default: no command, no --ui flag
+        // Just ensure daemon is running, check auth, and add repo
+        if let Err(e) = ensure_authenticated().await {
+            eprintln!("Error: {}", e);
+            return;
+        }
+        let repo_id = ensure_repo_added().await;
+        if let Some(id) = repo_id {
+            println!("Repository ready. Use 'unbound --ui' to launch the terminal UI.");
+            debug!(repo_id = %id, "Repository ready");
+        } else if find_git_root().is_none() {
+            println!("Not in a git repository. Use 'unbound --ui' to launch the terminal UI.");
+        }
+        Ok(())
     };
 
     if let Err(e) = result {

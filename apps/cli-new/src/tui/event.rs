@@ -327,6 +327,12 @@ async fn handle_edit_mode(app: &mut App, key: KeyEvent) -> bool {
 
                 match app.send_message(&content).await {
                     Ok(()) => {
+                        // Ensure subscription is active for receiving events
+                        if app.event_receiver.is_none() {
+                            if let Err(e) = app.start_subscription().await {
+                                app.set_status_message(format!("Stream error: {}", e));
+                            }
+                        }
                         app.set_status_message("Message sent".to_string());
                     }
                     Err(e) => {
@@ -354,7 +360,7 @@ async fn handle_down(app: &mut App) {
         Panel::Sidebar => {
             app.sidebar_down();
             // Auto-select session on navigation
-            auto_subscribe_sidebar_session(app).await;
+            auto_load_sidebar_session(app).await;
         }
         Panel::Chat => {
             // Scroll down - show later content (increase offset)
@@ -382,7 +388,7 @@ async fn handle_up(app: &mut App) {
         Panel::Sidebar => {
             app.sidebar_up();
             // Auto-select session on navigation
-            auto_subscribe_sidebar_session(app).await;
+            auto_load_sidebar_session(app).await;
         }
         Panel::Chat => {
             // Scroll up - show earlier content (decrease offset)
@@ -429,18 +435,19 @@ async fn handle_enter(app: &mut App) {
             if app.selected_session_idx == 0 {
                 app.toggle_repo_expansion();
             } else {
-                // Session selected - subscribe to it for real-time updates
+                // Session selected - load its messages
                 if let Some(session_id) = app.selected_session_id.clone() {
-                    match app.subscribe_to_session(&session_id).await {
+                    match app.fetch_session_data(&session_id).await {
                         Ok(()) => {
-                            app.set_status_message("Subscribed to session".to_string());
+                            // Start streaming subscription for this session
+                            if let Err(e) = app.start_subscription().await {
+                                app.set_status_message(format!("Failed to connect to session stream: {}", e));
+                            } else {
+                                app.set_status_message("Session loaded".to_string());
+                            }
                         }
                         Err(e) => {
-                            app.set_status_message(format!("Failed to subscribe: {}", e));
-                            // Fall back to fetching messages
-                            if let Err(e) = app.fetch_messages().await {
-                                app.set_status_message(format!("Failed to fetch messages: {}", e));
-                            }
+                            app.set_status_message(format!("Failed to load session: {}", e));
                         }
                     }
                 }
@@ -473,32 +480,12 @@ async fn handle_new(app: &mut App, is_worktree: bool) {
     if app.active_panel == Panel::Sidebar {
         match app.create_session(None, is_worktree).await {
             Ok(()) => {
-                // Subscribe to the new session for real-time updates
-                if let Some(session_id) = app.selected_session_id.clone() {
-                    match app.subscribe_to_session(&session_id).await {
-                        Ok(()) => {
-                            let msg = if is_worktree {
-                                "Worktree session created"
-                            } else {
-                                "Session created"
-                            };
-                            app.set_status_message(msg.to_string());
-                        }
-                        Err(e) => {
-                            app.set_status_message(format!(
-                                "Session created but failed to subscribe: {}",
-                                e
-                            ));
-                        }
-                    }
+                let msg = if is_worktree {
+                    "Worktree session created"
                 } else {
-                    let msg = if is_worktree {
-                        "Worktree session created"
-                    } else {
-                        "Session created"
-                    };
-                    app.set_status_message(msg.to_string());
-                }
+                    "Session created"
+                };
+                app.set_status_message(msg.to_string());
             }
             Err(e) => {
                 app.set_status_message(format!("Failed to create session: {}", e));
@@ -507,23 +494,21 @@ async fn handle_new(app: &mut App, is_worktree: bool) {
     }
 }
 
-/// Auto-subscribe to the currently selected sidebar session.
+/// Load the currently selected sidebar session.
 /// Called after sidebar_up() / sidebar_down() to load the session immediately.
-async fn auto_subscribe_sidebar_session(app: &mut App) {
+async fn auto_load_sidebar_session(app: &mut App) {
     if let Some(session_id) = app.selected_session_id.clone() {
         let needs_refresh = app.switch_session(&session_id);
 
-        // Check if this session already has an active subscription
-        let has_subscription = app.subscription.is_some();
-
-        if !has_subscription {
-            // Not yet subscribed — subscribe and fetch messages
-            if let Err(e) = app.subscribe_to_session(&session_id).await {
-                app.set_status_message(format!("Failed to subscribe: {}", e));
+        if needs_refresh {
+            if let Err(e) = app.fetch_session_data(&session_id).await {
+                app.set_status_message(format!("Failed to load session: {}", e));
             }
-        } else if needs_refresh {
-            // Has subscription but needs a message refresh (e.g. background events arrived)
-            let _ = app.fetch_messages().await;
+
+            // Start streaming subscription for this session
+            if let Err(e) = app.start_subscription().await {
+                app.set_status_message(format!("Failed to connect to session stream: {}", e));
+            }
         }
     }
 }
