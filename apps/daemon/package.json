@@ -1,6 +1,6 @@
 {
   "name": "@unbound/daemon",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "scripts": {
     "test": "./scripts/test.sh",
