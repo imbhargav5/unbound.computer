@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - ".releases/*.md"
 
 concurrency:
   group: release-pr-${{ github.ref }}
@@ -35,12 +33,6 @@ jobs:
           RELEASE_TYPE=$(pnpm tsx scripts/release/detect-release-type.ts)
           echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "Detected release type: $RELEASE_TYPE"
-
-      - name: Exit if no release needed
-        if: steps.detect.outputs.release_type == 'none'
-        run: |
-          echo "No release files found, skipping"
-          exit 0
 
       - name: Get current version
         if: steps.detect.outputs.release_type != 'none'
