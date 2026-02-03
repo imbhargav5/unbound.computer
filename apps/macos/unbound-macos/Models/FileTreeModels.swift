@@ -139,8 +139,10 @@ enum VersionControlTab: String, CaseIterable, Identifiable {
 // MARK: - Terminal Tab
 
 enum TerminalTab: String, CaseIterable, Identifiable {
-    case run = "Run"
     case terminal = "Terminal"
+    case output = "Output"
+    case problems = "Problems"
+    case scripts = "Scripts"
 
     var id: String { rawValue }
 }

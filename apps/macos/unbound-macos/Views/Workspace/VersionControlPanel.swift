@@ -17,7 +17,6 @@ struct VersionControlPanel: View {
     /// ViewModel for file tree state (optional for preview compatibility)
     var viewModel: FileTreeViewModel?
     @Binding var selectedTab: VersionControlTab
-    @Binding var selectedTerminalTab: TerminalTab
     let workingDirectory: String?
 
     // Diff viewing state
@@ -180,45 +179,6 @@ struct VersionControlPanel: View {
                 .background(colors.card)
             }
 
-            // Bottom section - Terminal
-            VStack(spacing: 0) {
-                ShadcnDivider()
-
-                // Terminal tabs header
-                HStack(spacing: 0) {
-                    ForEach(TerminalTab.allCases) { tab in
-                        Button {
-                            selectedTerminalTab = tab
-                        } label: {
-                            Text(tab.rawValue)
-                                .font(Typography.bodySmall)
-                                .foregroundStyle(selectedTerminalTab == tab ? colors.foreground : colors.mutedForeground)
-                                .padding(.horizontal, Spacing.sm)
-                                .padding(.vertical, Spacing.xs)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    IconButton(systemName: "plus", size: IconSize.xs, action: {})
-
-                    Spacer()
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-
-                ShadcnDivider()
-
-                // SwiftTerm terminal
-                if let path = workingDirectory {
-                    TerminalContainer(workingDirectory: path)
-                } else {
-                    Text("No workspace selected")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(minHeight: 100)
         }
         .background(colors.background)
     }
@@ -510,7 +470,6 @@ struct FileTreeRowWithDiff: View {
     VersionControlPanel(
         viewModel: nil,
         selectedTab: .constant(.allFiles),
-        selectedTerminalTab: .constant(.terminal),
         workingDirectory: "/Users/test/project"
     )
     .frame(width: 280, height: 600)

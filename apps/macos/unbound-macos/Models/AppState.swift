@@ -101,6 +101,7 @@ class AppState {
     let localSettings = LocalSettings.shared
 
     var showSettings: Bool = false
+    var showCommandPalette: Bool = false
     var selectedSessionId: UUID?
     var selectedRepositoryId: UUID?
 

@@ -69,7 +69,6 @@ struct RightSidebarPanel: View {
 
     // State bindings
     @Binding var selectedTab: RightSidebarTab
-    @Binding var selectedTerminalTab: TerminalTab
 
     // Working directory
     let workingDirectory: String?
@@ -109,9 +108,6 @@ struct RightSidebarPanel: View {
             if showDiffPanel {
                 diffPanel
             }
-
-            // Bottom section - Terminal
-            terminalSection
 
             // Footer (empty, 20px height)
             ShadcnDivider()
@@ -303,49 +299,6 @@ struct RightSidebarPanel: View {
         .background(colors.card)
     }
 
-    // MARK: - Terminal Section
-
-    private var terminalSection: some View {
-        VStack(spacing: 0) {
-            ShadcnDivider()
-
-            // Terminal tabs header
-            HStack(spacing: 0) {
-                ForEach(TerminalTab.allCases) { tab in
-                    Button {
-                        selectedTerminalTab = tab
-                    } label: {
-                        Text(tab.rawValue)
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(selectedTerminalTab == tab ? colors.foreground : colors.mutedForeground)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                IconButton(systemName: "plus", size: IconSize.xs, action: {})
-
-                Spacer()
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-
-            ShadcnDivider()
-
-            // SwiftTerm terminal
-            if let path = workingDirectory {
-                TerminalContainer(workingDirectory: path)
-            } else {
-                Text("No workspace selected")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(minHeight: 100)
-    }
-
     // MARK: - Actions
 
     private func selectFile(_ file: GitStatusFile) {
@@ -391,7 +344,6 @@ struct RightSidebarPanel: View {
         fileTreeViewModel: nil,
         gitViewModel: GitViewModel(),
         selectedTab: .constant(.changes),
-        selectedTerminalTab: .constant(.terminal),
         workingDirectory: "/Users/test/project"
     )
     .frame(width: 300, height: 600)

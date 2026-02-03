@@ -417,3 +417,97 @@ struct TypingDotsIndicator: View {
         }
     }
 }
+
+// MARK: - Window Toolbar (Custom Title Bar)
+
+/// A custom toolbar that works with macOS transparent titlebar.
+/// The titlebar still exists (~28pt) with traffic lights, but is transparent.
+///
+/// Requirements for this to work:
+/// - Window must have `.fullSizeContentView` in styleMask
+/// - Window must have `titlebarAppearsTransparent = true`
+/// - Window must have `titleVisibility = .hidden`
+struct WindowToolbar<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            content()
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+        .background(WindowDragView())
+    }
+}
+
+/// NSView that enables window dragging and double-click to zoom
+struct WindowDragView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        WindowDragNSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+/// Custom NSView that handles window dragging and double-click zoom
+class WindowDragNSView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.isMovableByWindowBackground = true
+    }
+
+    override var mouseDownCanMoveWindow: Bool {
+        true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if event.clickCount == 2 {
+            window?.zoom(nil)
+        }
+        super.mouseUp(with: event)
+    }
+}
+
+/// A draggable spacer that fills available space in the toolbar
+struct ToolbarDraggableSpacer: View {
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Makes this view a window drag area (for custom toolbars)
+    func windowDraggable() -> some View {
+        background(WindowDragView())
+    }
+}
+
+// MARK: - Window Titlebar Configuration
+
+/// Configures the NSWindow to allow custom titlebar content.
+struct WindowTitlebarConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { [weak view] in
+            configureWindow(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configureWindow(for: nsView)
+    }
+
+    private func configureWindow(for view: NSView?) {
+        guard let window = view?.window else { return }
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
+        }
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+    }
+}

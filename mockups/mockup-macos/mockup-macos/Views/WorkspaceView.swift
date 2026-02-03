@@ -19,7 +19,6 @@ struct WorkspaceView: View {
 
     // Version control state
     @State private var selectedSidebarTab: RightSidebarTab = .changes
-    @State private var selectedTerminalTab: TerminalTab = .terminal
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -62,12 +61,59 @@ struct WorkspaceView: View {
     private let titlebarHeight: CGFloat = 28
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .top) {
+            // Main content area with split panels
+            HSplitView {
+                // Left sidebar - Sessions
+                WorkspacesSidebar(
+                    onOpenSettings: {
+                        appState.showSettings = true
+                    },
+                    onAddRepository: {
+                        // Mock add repository action
+                    },
+                    onCreateSessionForRepository: { _, _ in
+                        // Mock create session action
+                    }
+                )
+                .frame(minWidth: 120, idealWidth: 168, maxWidth: 240)
+
+                // Center - Chat Panel
+                if selectedSession != nil {
+                    ChatPanel(
+                        session: selectedSession,
+                        repository: selectedRepository,
+                        chatInput: $chatInput,
+                        selectedModel: $selectedModel,
+                        selectedThinkMode: $selectedThinkMode,
+                        isPlanMode: $isPlanMode
+                    )
+                    .frame(minWidth: 400)
+                } else {
+                    WorkspaceEmptyState(
+                        hasRepositories: !sessions.isEmpty,
+                        onAddRepository: {}
+                    )
+                    .frame(minWidth: 400)
+                }
+
+                // Right sidebar - Git Operations
+                RightSidebarPanel(
+                    selectedTab: $selectedSidebarTab,
+                    workingDirectory: workingDirectoryPath
+                )
+                .frame(minWidth: 250, idealWidth: 450)
+            }
+            .padding(.top, titlebarHeight)
+
             // Custom titlebar row (same line as traffic lights)
             WindowToolbar(content: {
-                HStack(spacing: Spacing.sm) {
-                    Color.clear
-                        .frame(width: trafficLightWidth)
+                ZStack {
+                    HStack(spacing: 0) {
+                        Color.clear
+                            .frame(width: trafficLightWidth)
+                        Spacer()
+                    }
 
                     Button {
                         withAnimation(.easeOut(duration: Duration.fast)) {
@@ -104,58 +150,14 @@ struct WorkspaceView: View {
                         )
                     }
                     .buttonStyle(.plain)
-
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .padding(.horizontal, Spacing.lg)
             }, height: titlebarHeight)
-
-            // Main content area with split panels
-            HSplitView {
-                // Left sidebar - Sessions
-                WorkspacesSidebar(
-                    onOpenSettings: {
-                        appState.showSettings = true
-                    },
-                    onAddRepository: {
-                        // Mock add repository action
-                    },
-                    onCreateSessionForRepository: { _, _ in
-                        // Mock create session action
-                    }
-                )
-                .frame(minWidth: 200, idealWidth: 280, maxWidth: 400)
-
-                // Center - Chat Panel
-                if selectedSession != nil {
-                    ChatPanel(
-                        session: selectedSession,
-                        repository: selectedRepository,
-                        chatInput: $chatInput,
-                        selectedModel: $selectedModel,
-                        selectedThinkMode: $selectedThinkMode,
-                        isPlanMode: $isPlanMode
-                    )
-                    .frame(minWidth: 400)
-                } else {
-                    WorkspaceEmptyState(
-                        hasRepositories: !sessions.isEmpty,
-                        onAddRepository: {}
-                    )
-                    .frame(minWidth: 400)
-                }
-
-                // Right sidebar - Git Operations
-                RightSidebarPanel(
-                    selectedTab: $selectedSidebarTab,
-                    selectedTerminalTab: $selectedTerminalTab,
-                    workingDirectory: workingDirectoryPath
-                )
-                .frame(minWidth: 200, idealWidth: 300, maxWidth: 500)
-            }
         }
         .background(colors.background)
         .background(WindowTitlebarConfigurator())
+        .ignoresSafeArea(.container, edges: .top)
     }
 }
 

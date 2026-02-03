@@ -6,6 +6,7 @@
 //  Delegates all business logic to daemon via AppState.
 //
 
+import AppKit
 import Logging
 import SwiftUI
 
@@ -25,7 +26,6 @@ struct WorkspaceView: View {
     @State private var fileTreeViewModel: FileTreeViewModel?
     @State private var gitViewModel = GitViewModel()
     @State private var selectedSidebarTab: RightSidebarTab = .changes
-    @State private var selectedTerminalTab: TerminalTab = .terminal
 
     // State
     @State private var isAddingRepository = false
@@ -65,52 +65,153 @@ struct WorkspaceView: View {
         return selectedRepository?.path
     }
 
-    var body: some View {
-        HSplitView {
-            // Left sidebar - Sessions
-            WorkspacesSidebar(
-                onOpenSettings: {
-                    appState.showSettings = true
-                },
-                onAddRepository: {
-                    addRepository()
-                },
-                onCreateSessionForRepository: { repository, locationType in
-                    createSession(for: repository, locationType: locationType)
-                }
-            )
-            .frame(minWidth: 200, idealWidth: 280, maxWidth: 400)
+    /// Space needed for traffic lights (close, minimize, zoom)
+    private let trafficLightWidth: CGFloat = 78
 
-            // Center - Chat Panel
-            if selectedSession != nil {
-                ChatPanel(
-                    session: selectedSession,
-                    repository: selectedRepository,
-                    chatInput: $chatInput,
-                    selectedModel: $selectedModel,
-                    selectedThinkMode: $selectedThinkMode,
-                    isPlanMode: $isPlanMode
-                )
-                .frame(minWidth: 400)
-            } else {
-                WorkspaceEmptyState(
-                    hasRepositories: !sessions.isEmpty,
-                    onAddRepository: { addRepository() }
-                )
-                .frame(minWidth: 400)
+    /// Titlebar height (standard macOS titlebar)
+    private let titlebarHeight: CGFloat = 28
+
+    /// Commands available in the command palette
+    private var commandPaletteCommands: [CommandItem] {
+        [
+            CommandItem(
+                icon: "folder.badge.plus",
+                title: "Add Repository",
+                shortcut: "⌘⇧A"
+            ) {
+                addRepository()
+            },
+            CommandItem(
+                icon: "gearshape",
+                title: "Settings",
+                shortcut: "⌘,"
+            ) {
+                appState.showSettings = true
+            },
+        ]
+    }
+
+    var body: some View {
+        ZStack {
+            ZStack(alignment: .top) {
+                HSplitView {
+                    // Left sidebar - Sessions
+                    WorkspacesSidebar(
+                        onOpenSettings: {
+                            appState.showSettings = true
+                        },
+                        onAddRepository: {
+                            addRepository()
+                        },
+                        onCreateSessionForRepository: { repository, locationType in
+                            createSession(for: repository, locationType: locationType)
+                        }
+                    )
+                    .frame(minWidth: 120, idealWidth: 168, maxWidth: 240)
+
+                    // Center - Chat Panel
+                    if selectedSession != nil {
+                        ChatPanel(
+                            session: selectedSession,
+                            repository: selectedRepository,
+                            chatInput: $chatInput,
+                            selectedModel: $selectedModel,
+                            selectedThinkMode: $selectedThinkMode,
+                            isPlanMode: $isPlanMode
+                        )
+                        .frame(minWidth: 400)
+                    } else {
+                        WorkspaceEmptyState(
+                            hasRepositories: !sessions.isEmpty,
+                            onAddRepository: { addRepository() }
+                        )
+                        .frame(minWidth: 400)
+                    }
+
+                    // Right sidebar - Git Operations
+                    RightSidebarPanel(
+                        fileTreeViewModel: fileTreeViewModel,
+                        gitViewModel: gitViewModel,
+                        selectedTab: $selectedSidebarTab,
+                        workingDirectory: workingDirectoryPath
+                    )
+                    .frame(minWidth: 250, idealWidth: 450)
+                }
+                .padding(.top, titlebarHeight)
+
+                // Custom titlebar row (same line as traffic lights)
+                WindowToolbar(content: {
+                    ZStack {
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .frame(width: trafficLightWidth)
+                            Spacer()
+                        }
+
+                        Button {
+                            withAnimation(.easeOut(duration: Duration.fast)) {
+                                appState.showCommandPalette = true
+                            }
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: IconSize.xs))
+                                    .foregroundStyle(colors.mutedForeground)
+
+                                Text("Search...")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(colors.mutedForeground)
+
+                                Spacer()
+
+                                Text("⌘K")
+                                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
+                                    .padding(.horizontal, Spacing.xs)
+                                    .padding(.vertical, 2)
+                                    .background(colors.muted)
+                                    .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+                            }
+                            .frame(width: 200)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(colors.muted.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.md)
+                                    .stroke(colors.border.opacity(0.3), lineWidth: BorderWidth.hairline)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                }, height: titlebarHeight)
             }
 
-            // Right sidebar - Git Operations
-            RightSidebarPanel(
-                fileTreeViewModel: fileTreeViewModel,
-                gitViewModel: gitViewModel,
-                selectedTab: $selectedSidebarTab,
-                selectedTerminalTab: $selectedTerminalTab,
-                workingDirectory: workingDirectoryPath
-            )
-            .frame(minWidth: 200, idealWidth: 300, maxWidth: 500)
+            if appState.showCommandPalette {
+                CommandPaletteOverlay(
+                    isPresented: Binding(
+                        get: { appState.showCommandPalette },
+                        set: { appState.showCommandPalette = $0 }
+                    ),
+                    commands: commandPaletteCommands
+                )
+            }
         }
         .background(colors.background)
+        .background(WindowTitlebarConfigurator())
+        .ignoresSafeArea(.container, edges: .top)
+        .background(
+            KeyboardShortcutHandler(
+                key: "k",
+                modifiers: .command
+            ) {
+                withAnimation(.easeOut(duration: Duration.fast)) {
+                    appState.showCommandPalette.toggle()
+                }
+            }
+        )
         .task {
             await autoSelectFirstSessionIfNeeded()
         }
@@ -192,6 +293,65 @@ struct WorkspaceView: View {
                 logger.error("Failed to add repository: \(error)")
             }
             isAddingRepository = false
+        }
+    }
+}
+
+// MARK: - Keyboard Shortcut Handler
+
+struct KeyboardShortcutHandler: NSViewRepresentable {
+    let key: String
+    let modifiers: NSEvent.ModifierFlags
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = KeyCaptureView()
+        view.key = key
+        view.modifiers = modifiers
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? KeyCaptureView {
+            view.action = action
+        }
+    }
+
+    class KeyCaptureView: NSView {
+        var key: String = ""
+        var modifiers: NSEvent.ModifierFlags = []
+        var action: (() -> Void)?
+
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+
+            if window != nil && monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self else { return event }
+
+                    let eventModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+                    let requiredModifiers = self.modifiers.intersection([.command, .shift, .option, .control])
+
+                    if event.charactersIgnoringModifiers?.lowercased() == self.key.lowercased(),
+                       eventModifiers == requiredModifiers
+                    {
+                        self.action?()
+                        return nil // Consume the event
+                    }
+                    return event
+                }
+            }
+        }
+
+        override func removeFromSuperview() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+            monitor = nil
+            super.removeFromSuperview()
         }
     }
 }
