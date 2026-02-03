@@ -18,6 +18,7 @@ daemon-auth = { workspace = true }
 daemon-relay = { workspace = true }
 daemon-outbox = { workspace = true }
 daemon-ipc = { workspace = true }
+deku = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

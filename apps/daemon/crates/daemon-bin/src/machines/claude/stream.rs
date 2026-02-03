@@ -1,206 +1,133 @@
-//! Claude process output streaming and event handling.
+//! Claude event handling - bridges Deku events to Armin and IPC.
 
 use crate::app::DaemonState;
 use armin::{AgentStatus, NewMessage, SessionId, SessionWriter};
 use daemon_ipc::{Event, EventType};
-use regex::Regex;
+use deku::{ClaudeEvent, ClaudeEventStream};
 use std::sync::atomic::{AtomicI64, Ordering};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Child;
-use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Global sequence counter for streaming events.
 static STREAM_SEQUENCE: AtomicI64 = AtomicI64::new(0);
 
-/// Handle Claude process output, storing raw JSON as messages via Armin.
+/// Handle Claude events from a Deku event stream.
 ///
-/// This handler:
-/// 1. Validates each line is parseable JSON
-/// 2. Extracts `type` field for logging
-/// 3. Stores raw JSON as plain text via Armin
-/// 4. Armin emits MessageAppended side-effects for client notifications
-pub async fn handle_claude_process(
-    mut child: Child,
+/// This handler bridges Deku's Claude events to Armin and IPC:
+/// 1. Stores raw JSON as messages via Armin
+/// 2. Updates Claude session ID when received
+/// 3. Broadcasts events to IPC subscribers
+/// 4. Manages agent status
+pub async fn handle_claude_events(
+    mut stream: ClaudeEventStream,
     session_id: String,
     state: DaemonState,
-    stop_tx: broadcast::Sender<()>,
 ) {
     info!(
         session_id = %session_id,
-        "Starting to handle Claude process"
+        "Starting to handle Claude events"
     );
 
-    let mut stop_rx = stop_tx.subscribe();
-
-    // ANSI escape code regex
-    let ansi_regex = Regex::new(r"\x1B(?:\[[0-9;?]*[A-Za-z~]|\][^\x07]*\x07)").unwrap();
+    let armin_session_id = SessionId::from_string(&session_id);
+    let mut event_count = 0;
 
     // Set agent status to running via Armin
-    let armin_session_id = SessionId::from_string(&session_id);
     state
         .armin
         .update_agent_status(&armin_session_id, AgentStatus::Running);
     info!("Agent status set to RUNNING");
 
-    let stdout = match child.stdout.take() {
-        Some(s) => s,
-        None => {
-            error!("Failed to get stdout from Claude process");
-            return;
-        }
-    };
+    // Process events from the stream
+    while let Some(event) = stream.next().await {
+        match &event {
+            ClaudeEvent::Json { event_type, raw, .. } => {
+                event_count += 1;
 
-    let stderr = child.stderr.take();
+                // Store raw JSON via Armin
+                let _message = state.armin.append(
+                    &armin_session_id,
+                    NewMessage {
+                        content: raw.clone(),
+                    },
+                );
 
-    let mut reader = BufReader::new(stdout).lines();
-    let mut event_count = 0;
+                // Broadcast to streaming subscribers
+                broadcast_event(&state, &session_id, raw);
 
-    info!("Starting to read Claude stdout...");
-
-    loop {
-        tokio::select! {
-            // Check for stop signal
-            _ = stop_rx.recv() => {
-                info!("Stop signal received - killing process");
-                let _ = child.kill().await;
-                break;
+                debug!(event_num = event_count, event_type = %event_type, "event");
             }
 
-            // Read next line from stdout
-            line_result = reader.next_line() => {
-                match line_result {
-                    Ok(Some(line)) => {
-                        // Strip ANSI escape codes
-                        let clean_line = ansi_regex.replace_all(&line, "").to_string();
+            ClaudeEvent::SystemWithSessionId { claude_session_id, raw } => {
+                event_count += 1;
 
-                        // Skip empty lines
-                        if clean_line.trim().is_empty() {
-                            continue;
-                        }
+                // Store raw JSON via Armin
+                let _message = state.armin.append(
+                    &armin_session_id,
+                    NewMessage {
+                        content: raw.clone(),
+                    },
+                );
 
-                        // Only process lines that look like JSON
-                        if !clean_line.trim_start().starts_with('{') {
-                            debug!(
-                                line = %if clean_line.len() > 80 { &clean_line[..80] } else { &clean_line },
-                                "Skipping non-JSON line"
-                            );
-                            continue;
-                        }
+                // Update claude_session_id via Armin
+                state.armin.update_session_claude_id(&armin_session_id, claude_session_id);
 
-                        // Try to parse as JSON
-                        let json = match serde_json::from_str::<serde_json::Value>(&clean_line) {
-                            Ok(j) => j,
-                            Err(e) => {
-                                warn!(error = %e, "Failed to parse JSON");
-                                continue;
-                            }
-                        };
+                // Broadcast to streaming subscribers
+                broadcast_event(&state, &session_id, raw);
 
-                        event_count += 1;
-                        let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
+                info!(
+                    event_num = event_count,
+                    claude_session = %claude_session_id,
+                    "system event - Claude session ID"
+                );
+            }
 
-                        // Store raw JSON via Armin (sequence number assigned atomically)
-                        // This triggers MessageAppended side-effect for client notification
-                        let _message = state.armin.append(
-                            &armin_session_id,
-                            NewMessage {
-                                content: clean_line.clone(),
-                            },
-                        );
+            ClaudeEvent::Result { is_error, raw } => {
+                event_count += 1;
 
-                        // Broadcast raw JSON to streaming subscribers for real-time display
-                        let seq = STREAM_SEQUENCE.fetch_add(1, Ordering::SeqCst);
-                        let event = Event::new(
-                            EventType::ClaudeEvent,
-                            &session_id,
-                            serde_json::json!({ "raw_json": clean_line }),
-                            seq,
-                        );
-                        let subscriptions = state.subscriptions.clone();
-                        let session_id_for_broadcast = session_id.clone();
-                        tokio::spawn(async move {
-                            subscriptions.broadcast_or_create(&session_id_for_broadcast, event).await;
-                        });
+                // Store raw JSON via Armin
+                let _message = state.armin.append(
+                    &armin_session_id,
+                    NewMessage {
+                        content: raw.clone(),
+                    },
+                );
 
-                        // Log the event
-                        match event_type {
-                            "system" => {
-                                if let Some(new_session_id) = json.get("session_id").and_then(|v| v.as_str()) {
-                                    // Update claude_session_id via Armin
-                                    state.armin.update_session_claude_id(&armin_session_id, new_session_id);
-                                    info!(
-                                        event_num = event_count,
-                                        claude_session = %new_session_id,
-                                        "system event - Claude session ID"
-                                    );
-                                } else {
-                                    let subtype = json.get("subtype").and_then(|v| v.as_str());
-                                    info!(
-                                        event_num = event_count,
-                                        subtype = ?subtype,
-                                        "system event"
-                                    );
-                                }
-                            }
-                            "assistant" => {
-                                debug!(event_num = event_count, "assistant event");
-                            }
-                            "user" => {
-                                debug!(event_num = event_count, "user event");
-                            }
-                            "result" => {
-                                let is_error = json.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
-                                if is_error {
-                                    warn!(event_num = event_count, "result event (error)");
-                                } else {
-                                    info!(event_num = event_count, "result event (success)");
-                                }
-                                // Update agent status to idle
-                                state.armin.update_agent_status(&armin_session_id, AgentStatus::Idle);
-                            }
-                            _ => {
-                                debug!(event_num = event_count, event_type = %event_type, "event");
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        // EOF - process finished
-                        info!("Claude stdout closed (EOF)");
-                        break;
-                    }
-                    Err(e) => {
-                        error!(error = %e, "Error reading Claude stdout");
-                        break;
-                    }
+                // Broadcast to streaming subscribers
+                broadcast_event(&state, &session_id, raw);
+
+                if *is_error {
+                    warn!(event_num = event_count, "result event (error)");
+                } else {
+                    info!(event_num = event_count, "result event (success)");
+                }
+
+                // Update agent status to idle
+                state.armin.update_agent_status(&armin_session_id, AgentStatus::Idle);
+            }
+
+            ClaudeEvent::Stderr { line } => {
+                warn!(stderr = %line, "Claude stderr");
+            }
+
+            ClaudeEvent::Finished { success, exit_code } => {
+                if *success {
+                    info!(exit_code = ?exit_code, "Claude process finished successfully");
+                } else {
+                    warn!(exit_code = ?exit_code, "Claude process exited with non-zero status");
                 }
             }
+
+            ClaudeEvent::Stopped => {
+                info!("Claude process was stopped");
+            }
+        }
+
+        // Break on terminal events
+        if event.is_terminal() {
+            break;
         }
     }
 
     info!(event_count = event_count, "Processed events total");
-
-    // Read any remaining stderr
-    if let Some(stderr) = stderr {
-        let mut stderr_reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = stderr_reader.next_line().await {
-            warn!(stderr = %line, "Claude stderr");
-        }
-    }
-
-    // Wait for process to finish
-    match child.wait().await {
-        Ok(status) => {
-            if status.success() {
-                info!("Claude process finished successfully");
-            } else {
-                warn!(status = ?status, "Claude process exited with non-zero status");
-            }
-        }
-        Err(e) => {
-            error!(error = %e, "Error waiting for Claude process");
-        }
-    }
 
     // Update agent status to idle via Armin
     state
@@ -214,4 +141,20 @@ pub async fn handle_claude_process(
         processes.remove(&session_id);
         info!(session_id = %session_id, "Cleaned up Claude process");
     }
+}
+
+/// Broadcast a raw JSON event to IPC subscribers.
+fn broadcast_event(state: &DaemonState, session_id: &str, raw_json: &str) {
+    let seq = STREAM_SEQUENCE.fetch_add(1, Ordering::SeqCst);
+    let event = Event::new(
+        EventType::ClaudeEvent,
+        session_id,
+        serde_json::json!({ "raw_json": raw_json }),
+        seq,
+    );
+    let subscriptions = state.subscriptions.clone();
+    let session_id_for_broadcast = session_id.to_string();
+    tokio::spawn(async move {
+        subscriptions.broadcast_or_create(&session_id_for_broadcast, event).await;
+    });
 }

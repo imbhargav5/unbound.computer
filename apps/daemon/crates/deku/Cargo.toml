@@ -1,0 +1,26 @@
+[package]
+name = "deku"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Claude CLI process manager for the Unbound daemon"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true, features = ["process", "io-util", "sync"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+regex = "1.10"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
