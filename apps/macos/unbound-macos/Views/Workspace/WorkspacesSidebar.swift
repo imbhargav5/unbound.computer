@@ -161,7 +161,24 @@ struct WorkspacesSidebar: View {
     }
 }
 
-// MARK: - Repository Group
+// MARK: - Timeline Constants
+
+private enum TimelineMetrics {
+    /// Width of the timeline spine area (left gutter)
+    static let spineAreaWidth: CGFloat = 16
+    /// Horizontal offset of the spine line from left edge
+    static let spineOffset: CGFloat = 6
+    /// Width of the spine line
+    static let spineWidth: CGFloat = 1
+    /// Length of horizontal connector lines
+    static let connectorLength: CGFloat = 8
+    /// Vertical padding for connectors at group level
+    static let groupConnectorY: CGFloat = 10
+    /// Content left padding after spine area
+    static let contentPadding: CGFloat = 4
+}
+
+// MARK: - Repository Group (Timeline Style)
 
 struct RepositoryGroup: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -183,88 +200,124 @@ struct RepositoryGroup: View {
 
     @State private var isHoveringAdd: Bool = false
 
+    /// Spine color - visible but not dominant
+    private var spineColor: Color {
+        colors.border
+    }
+
+    /// All sessions flat for counting
+    private var allSessions: [Session] {
+        locations.mainDirectorySessions + locations.worktreeSessions.flatMap { $0.sessions }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Repository header
-            HStack(spacing: Spacing.sm) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
+            // Repository header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (extends down if expanded)
+                    if isExpanded && !allSessions.isEmpty {
+                        Rectangle()
+                            .fill(spineColor)
+                            .frame(width: TimelineMetrics.spineWidth)
+                            .padding(.leading, TimelineMetrics.spineOffset)
+                            .padding(.top, TimelineMetrics.groupConnectorY)
                     }
-                } label: {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: IconSize.xs, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: IconSize.sm)
-
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: IconSize.sm))
-                            .foregroundStyle(colors.info)
-
-                        Text(repository.name)
-                            .font(Typography.bodySmall)
-                            .fontWeight(.medium)
-                            .foregroundStyle(colors.foreground)
-                    }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .frame(width: TimelineMetrics.spineAreaWidth)
 
-                Spacer()
+                // Repository header content
+                HStack(spacing: Spacing.xs) {
+                    Button {
+                        withAnimation(.easeInOut(duration: Duration.fast)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(colors.mutedForeground)
+                                .frame(width: 10)
 
-                // New session button (inline +)
-                Button {
-                    showNewSessionDialog = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: IconSize.xs, weight: .medium))
-                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
-                        .frame(width: IconSize.md, height: IconSize.md)
+                            Text(repository.name)
+                                .font(Typography.bodySmall)
+                                .fontWeight(.medium)
+                                .foregroundStyle(colors.mutedForeground)
+                        }
                         .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    // Session count badge
+                    if !allSessions.isEmpty {
+                        Text("\(allSessions.count)")
+                            .font(Typography.micro)
+                            .foregroundStyle(colors.mutedForeground)
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(colors.muted.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                    }
+
+                    // New session button
+                    Button {
+                        showNewSessionDialog = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                            .frame(width: IconSize.sm, height: IconSize.sm)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
                         isHoveringAdd = hovering
                     }
+                    .popover(isPresented: $showNewSessionDialog, arrowEdge: .trailing) {
+                        NewSessionDialog(
+                            isPresented: $showNewSessionDialog,
+                            repository: repository,
+                            onCreateSession: { locationType in
+                                onCreateSession(repository, locationType)
+                            }
+                        )
+                    }
                 }
-                .popover(isPresented: $showNewSessionDialog, arrowEdge: .trailing) {
-                    NewSessionDialog(
-                        isPresented: $showNewSessionDialog,
-                        repository: repository,
-                        onCreateSession: { locationType in
-                            onCreateSession(repository, locationType)
-                        }
-                    )
-                }
+                .padding(.trailing, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.sm)
 
-            // Sessions under this repository
+            // Expanded content with timeline - Main Directory section first, then worktrees
             if isExpanded {
-
-                // Main Directory section (always show for + button)
-                MainDirectorySection(
-                    repository: repository,
-                    sessions: locations.mainDirectorySessions,
-                    selectedSessionId: selectedSessionId,
-                    onSelectSession: onSelectSession,
-                    onCreateSession: { onCreateSession(repository, .mainDirectory) },
-                    onArchiveSession: onArchiveSession,
-                    onDeleteSession: onDeleteSession
-                )
-
-                // Worktree sections
-                ForEach(locations.worktreeSessions, id: \.name) { worktreeGroup in
-                    WorktreeSection(
-                        name: worktreeGroup.name,
-                        sessions: worktreeGroup.sessions,
+                // Main Directory section
+                if !locations.mainDirectorySessions.isEmpty {
+                    MainDirectorySection(
+                        sessions: locations.mainDirectorySessions,
                         selectedSessionId: selectedSessionId,
                         onSelectSession: onSelectSession,
+                        onCreateSession: { onCreateSession(repository, .mainDirectory) },
                         onArchiveSession: onArchiveSession,
-                        onDeleteSession: onDeleteSession
+                        onDeleteSession: onDeleteSession,
+                        spineColor: spineColor,
+                        isLastSection: locations.worktreeSessions.isEmpty
+                    )
+                }
+
+                // Worktree sections
+                ForEach(Array(locations.worktreeSessions.enumerated()), id: \.element.name) { index, worktree in
+                    WorktreeSection(
+                        name: worktree.name,
+                        sessions: worktree.sessions,
+                        selectedSessionId: selectedSessionId,
+                        onSelectSession: onSelectSession,
+                        onCreateSession: { onCreateSession(repository, .worktree) },
+                        onArchiveSession: onArchiveSession,
+                        onDeleteSession: onDeleteSession,
+                        spineColor: spineColor,
+                        isLastSection: index == locations.worktreeSessions.count - 1
                     )
                 }
             }
@@ -274,87 +327,89 @@ struct RepositoryGroup: View {
 
 // MARK: - Main Directory Section
 
+/// Shows the "Main Directory" label and its sessions with timeline styling
 struct MainDirectorySection: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let repository: Repository
     let sessions: [Session]
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
-    var onCreateSession: () -> Void
+    var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
+    let spineColor: Color
+    let isLastSection: Bool
 
-    @State private var isExpanded: Bool = true
     @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    /// Row height for section header
+    private let headerHeight: CGFloat = 24
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Section header
-            HStack(spacing: Spacing.sm) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: IconSize.xs)
+            // Section header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (continues down through sessions)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                        Image(systemName: "house.fill")
-                            .font(.system(size: IconSize.xs))
-                            .foregroundStyle(colors.mutedForeground)
-
-                        Text("Main Directory")
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                    .contentShape(Rectangle())
+                    // Horizontal connector to section label
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, headerHeight / 2)
                 }
-                .buttonStyle(.plain)
+                .frame(width: TimelineMetrics.spineAreaWidth, height: headerHeight)
 
-                Spacer()
+                // Section label and add button
+                HStack(spacing: Spacing.xs) {
+                    Text("Main Directory")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
 
-                // New session button (inline +)
-                Button {
-                    onCreateSession()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
-                        .frame(width: IconSize.sm, height: IconSize.sm)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isHoveringAdd = hovering
+                    Spacer()
+
+                    // New session button
+                    if let onCreateSession = onCreateSession {
+                        Button(action: onCreateSession) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                                .frame(width: IconSize.xs, height: IconSize.xs)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            isHoveringAdd = hovering
+                        }
                     }
                 }
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
             }
-            .padding(.leading, Spacing.xl)
-            .padding(.trailing, Spacing.md)
-            .padding(.vertical, Spacing.xs)
 
-            // Sessions
-            if isExpanded {
-                ForEach(sessions) { session in
-                    SessionRowInGroup(
-                        session: session,
-                        isSelected: selectedSessionId == session.id,
-                        onSelect: { onSelectSession(session) },
-                        onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
-                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
-                        indentLevel: 2
-                    )
-                }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessions.map(\.id))
+            // Sessions in this section
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                let isLastInSection = index == sessions.count - 1
+                TimelineSessionRow(
+                    session: session,
+                    isSelected: selectedSessionId == session.id,
+                    isLast: isLastInSection && isLastSection,
+                    continueSpine: !(isLastInSection && isLastSection),
+                    onSelect: { onSelectSession(session) },
+                    onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
+                    onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
+                    spineColor: spineColor
+                )
             }
         }
     }
@@ -362,6 +417,7 @@ struct MainDirectorySection: View {
 
 // MARK: - Worktree Section
 
+/// Shows a worktree name label and its sessions with timeline styling
 struct WorktreeSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -369,74 +425,107 @@ struct WorktreeSection: View {
     let sessions: [Session]
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
+    var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
+    let spineColor: Color
+    let isLastSection: Bool
 
-    @State private var isExpanded: Bool = true
+    @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    /// Row height for section header
+    private let headerHeight: CGFloat = 24
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Section header
-            Button {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(width: IconSize.xs)
+            // Section header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (continues down through sessions)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.success)
+                    // Horizontal connector to section label
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, headerHeight / 2)
+                }
+                .frame(width: TimelineMetrics.spineAreaWidth, height: headerHeight)
+
+                // Section label with folder icon and add button
+                HStack(spacing: Spacing.xxs) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                        .foregroundStyle(colors.mutedForeground)
 
                     Text(name)
-                        .font(Typography.caption)
+                        .font(Typography.micro)
                         .foregroundStyle(colors.mutedForeground)
-                }
-                .padding(.leading, Spacing.xl)
-                .padding(.trailing, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+                        .lineLimit(1)
 
-            // Sessions
-            if isExpanded {
-                ForEach(sessions) { session in
-                    SessionRowInGroup(
-                        session: session,
-                        isSelected: selectedSessionId == session.id,
-                        onSelect: { onSelectSession(session) },
-                        onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
-                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
-                        indentLevel: 2
-                    )
+                    Spacer()
+
+                    // New session button
+                    if let onCreateSession = onCreateSession {
+                        Button(action: onCreateSession) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                                .frame(width: IconSize.xs, height: IconSize.xs)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            isHoveringAdd = hovering
+                        }
+                    }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessions.map(\.id))
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
+            }
+
+            // Sessions in this section
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                let isLastInSection = index == sessions.count - 1
+                TimelineSessionRow(
+                    session: session,
+                    isSelected: selectedSessionId == session.id,
+                    isLast: isLastInSection && isLastSection,
+                    continueSpine: !(isLastInSection && isLastSection),
+                    onSelect: { onSelectSession(session) },
+                    onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
+                    onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
+                    spineColor: spineColor
+                )
             }
         }
     }
 }
 
-// MARK: - Session Row In Group (simplified, no binding needed)
+// MARK: - Timeline Session Row
 
-struct SessionRowInGroup: View {
+/// A session row with timeline spine and horizontal connector
+struct TimelineSessionRow: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppState.self) private var appState
 
     let session: Session
     let isSelected: Bool
+    let isLast: Bool
+    var continueSpine: Bool = true
     var onSelect: () -> Void
     var onArchive: (() -> Void)?
     var onDelete: (() -> Void)?
-    var indentLevel: Int = 1  // 1 = under repository, 2 = under section (main dir / worktree)
+    let spineColor: Color
 
     @State private var gitStatus: DaemonGitStatus?
     @State private var isHovered = false
@@ -447,66 +536,68 @@ struct SessionRowInGroup: View {
         ThemeColors(colorScheme)
     }
 
-    /// Calculate leading padding based on indent level
-    private var leadingPadding: CGFloat {
-        switch indentLevel {
-        case 1: return Spacing.xl
-        case 2: return Spacing.xl + Spacing.lg
-        default: return Spacing.xl + (CGFloat(indentLevel - 1) * Spacing.lg)
-        }
-    }
-
-    /// Check if session is actively running (Claude streaming)
-    private var isSessionActive: Bool {
-        appState.sessionStateManager.stateIfExists(for: session.id)?.claudeRunning ?? false
-    }
+    /// Row height for calculating spine
+    private let rowHeight: CGFloat = 28
 
     /// Get the working path for this session (worktree path or repo path)
     private var workingPath: String? {
-        // If session is a worktree, use its worktree path
         if session.isWorktree, let worktreePath = session.worktreePath {
             return worktreePath
         }
-
-        // Otherwise use the repository path
         return appState.repositories.first(where: { $0.id == session.repositoryId })?.path
     }
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: Spacing.sm) {
-                // Workspace icon - morphs to loader when session is active
-                SessionIcon(isActive: isSessionActive, size: IconSize.sm)
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (full height if continuing, half height to connector if last)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth, height: continueSpine ? rowHeight : rowHeight / 2)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                // Session title
-                Text(session.displayTitle)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(colors.foreground)
-                    .lineLimit(1)
-
-                Spacer()
-
-                // Clean/dirty indicator
-                if let status = gitStatus {
-                    Circle()
-                        .fill(status.isClean ? colors.success : colors.warning)
-                        .frame(width: 8, height: 8)
+                    // Horizontal connector
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, rowHeight / 2)
                 }
+                .frame(width: TimelineMetrics.spineAreaWidth, height: rowHeight)
+
+                // Session content
+                HStack(spacing: Spacing.xs) {
+                    // Session title
+                    Text(session.displayTitle)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    // Status indicator
+                    if let status = gitStatus {
+                        Circle()
+                            .fill(status.isClean ? colors.success : colors.warning)
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .frame(height: rowHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.sm)
+                        .fill(isSelected ? colors.accent.opacity(0.3) : (isHovered ? colors.muted.opacity(0.5) : Color.clear))
+                )
             }
-            .padding(.leading, leadingPadding)
-            .padding(.trailing, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHovered = hovering
-            }
+            isHovered = hovering
         }
         .task {
             await loadGitStatus()
@@ -563,90 +654,9 @@ struct SessionRowInGroup: View {
     }
 }
 
-// MARK: - Session Row
-
-struct SessionRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(AppState.self) private var appState
-
-    let session: Session
-    let isSelected: Bool
-    var onSelect: () -> Void
-
-    @State private var gitStatus: DaemonGitStatus?
-    @State private var isHovered = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    /// Check if session is actively running (Claude streaming)
-    private var isSessionActive: Bool {
-        appState.sessionStateManager.stateIfExists(for: session.id)?.claudeRunning ?? false
-    }
-
-    /// Get the working path for this session (worktree path or repo path)
-    private var workingPath: String? {
-        // If session is a worktree, use its worktree path
-        if session.isWorktree, let worktreePath = session.worktreePath {
-            return worktreePath
-        }
-
-        // Otherwise use the repository path
-        return appState.repositories.first(where: { $0.id == session.repositoryId })?.path
-    }
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: Spacing.sm) {
-                // Workspace icon - morphs to loader when session is active
-                SessionIcon(isActive: isSessionActive, size: IconSize.sm)
-
-                // Session title
-                Text(session.displayTitle)
-                    .font(Typography.bodySmall)
-                    .fontWeight(.medium)
-                    .foregroundStyle(colors.foreground)
-                    .lineLimit(1)
-
-                Spacer()
-
-                // Clean/dirty indicator
-                if let status = gitStatus {
-                    Circle()
-                        .fill(status.isClean ? colors.success : colors.warning)
-                        .frame(width: 8, height: 8)
-                }
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHovered = hovering
-            }
-        }
-        .task {
-            await loadGitStatus()
-        }
-    }
-
-    private func loadGitStatus() async {
-        guard let path = workingPath else { return }
-
-        do {
-            gitStatus = try await appState.daemonClient.getGitStatus(path: path)
-        } catch {
-            gitStatus = nil
-        }
-    }
-}
+// MARK: - Removed Components
+// MainDirectorySection, WorktreeSection, SessionRowInGroup, SessionRow
+// These are replaced by the timeline components above
 
 #Preview {
     WorkspacesSidebar(

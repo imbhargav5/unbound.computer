@@ -62,7 +62,54 @@ struct WorkspaceView: View {
     private let titlebarHeight: CGFloat = 28
 
     var body: some View {
-        ZStack(alignment: .top) {
+        VStack(spacing: 0) {
+            // Custom titlebar row (same line as traffic lights)
+            WindowToolbar(content: {
+                HStack(spacing: Spacing.sm) {
+                    Color.clear
+                        .frame(width: trafficLightWidth)
+
+                    Button {
+                        withAnimation(.easeOut(duration: Duration.fast)) {
+                            appState.showCommandPalette = true
+                        }
+                    } label: {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: IconSize.xs))
+                                .foregroundStyle(colors.mutedForeground)
+
+                            Text("Search...")
+                                .font(Typography.caption)
+                                .foregroundStyle(colors.mutedForeground)
+
+                            Spacer()
+
+                            Text("⌘K")
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(colors.mutedForeground.opacity(0.7))
+                                .padding(.horizontal, Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(colors.muted)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+                        }
+                        .frame(width: 200)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(colors.muted.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.md)
+                                .stroke(colors.border.opacity(0.3), lineWidth: BorderWidth.hairline)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.lg)
+            }, height: titlebarHeight)
+
             // Main content area with split panels
             HSplitView {
                 // Left sidebar - Sessions
@@ -106,46 +153,9 @@ struct WorkspaceView: View {
                 )
                 .frame(minWidth: 200, idealWidth: 300, maxWidth: 500)
             }
-
-            // Command palette trigger - overlaid in titlebar area, centered
-            Button {
-                withAnimation(.easeOut(duration: Duration.fast)) {
-                    appState.showCommandPalette = true
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Text("Search...")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Spacer()
-
-                    Text("⌘K")
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundStyle(colors.mutedForeground.opacity(0.7))
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, 2)
-                        .background(colors.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
-                }
-                .frame(width: 200)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(colors.muted.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(colors.border.opacity(0.3), lineWidth: BorderWidth.hairline)
-                )
-            }
-            .buttonStyle(.plain)
-            .padding(.top, (titlebarHeight - 24) / 2) // Center vertically in titlebar
         }
         .background(colors.background)
+        .background(WindowTitlebarConfigurator())
     }
 }
 

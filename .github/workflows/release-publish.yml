@@ -42,14 +42,34 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create and push git tag
+      - name: Check if release already exists
+        id: check_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
 
-          # Check if tag already exists
+          # Check if release already exists on GitHub
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping entire release process"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push git tag
+        if: steps.check_release.outputs.exists != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # Fetch tags from remote to ensure we have the latest
+          git fetch --tags
+
+          # Check if tag already exists (locally or remotely)
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists, skipping tag creation"
           else
@@ -59,34 +79,33 @@ jobs:
           fi
 
       - name: Generate release notes
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           pnpm tsx scripts/release/generate-release-notes.ts ${{ steps.version.outputs.version }} > /tmp/release-notes.md
           echo "Generated release notes:"
           cat /tmp/release-notes.md
 
       - name: Create GitHub Release
+        if: steps.check_release.outputs.exists != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
 
-          # Check if release already exists
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists, skipping"
-          else
-            gh release create "$TAG" \
-              --title "$TAG" \
-              --notes-file /tmp/release-notes.md \
-              --latest
-            echo "Created GitHub Release: $TAG"
-          fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/release-notes.md \
+            --latest
+          echo "Created GitHub Release: $TAG"
 
       - name: Cleanup release files
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           pnpm tsx scripts/release/cleanup-releases.ts
 
       - name: Commit cleanup
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           # Check if there are changes to commit
           if git diff --quiet .releases/; then

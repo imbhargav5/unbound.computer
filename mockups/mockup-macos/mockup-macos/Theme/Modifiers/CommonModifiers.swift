@@ -430,10 +430,7 @@ struct TypingDotsIndicator: View {
 /// - Window must have `titleVisibility = .hidden`
 struct WindowToolbar<Content: View>: View {
     @ViewBuilder let content: () -> Content
-
-    /// Total toolbar height (includes space that overlaps with titlebar)
-    /// macOS titlebar is ~28pt, we add extra for our content
-    private let toolbarHeight: CGFloat = 52
+    let height: CGFloat
 
     var body: some View {
         HStack(spacing: 0) {
@@ -441,7 +438,7 @@ struct WindowToolbar<Content: View>: View {
             // since titlebar handles that
             content()
         }
-        .frame(height: toolbarHeight)
+        .frame(height: height)
         .frame(maxWidth: .infinity)
         .background(WindowDragView())
     }
@@ -493,5 +490,32 @@ extension View {
     /// Makes this view a window drag area (for custom toolbars)
     func windowDraggable() -> some View {
         background(WindowDragView())
+    }
+}
+
+// MARK: - Window Titlebar Configuration
+
+/// Configures the NSWindow to allow custom titlebar content.
+struct WindowTitlebarConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { [weak view] in
+            configureWindow(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configureWindow(for: nsView)
+    }
+
+    private func configureWindow(for view: NSView?) {
+        guard let window = view?.window else { return }
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
+        }
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
     }
 }

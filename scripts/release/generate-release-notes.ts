@@ -1,10 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * Generates release notes from commits between the last tag and HEAD.
+ * Generates release notes from commits between two tags.
  * Groups commits by type (feat, fix, chore, etc.) and formats them for GitHub releases.
  *
  * Usage:
- *   tsx generate-release-notes.ts [new-version]
+ *   tsx generate-release-notes.ts <new-version> [previous-tag]
+ *
+ * If previous-tag is not provided, it will use the second-most-recent tag
+ * (assuming the new version tag already exists).
  *
  * Output (stdout):
  *   Markdown-formatted release notes
@@ -36,19 +39,59 @@ const COMMIT_TYPES: Record<string, string> = {
   revert: "Reverts",
 };
 
-function getLastTag(): string | null {
+function getPreviousTag(currentTag: string | null): string | null {
   try {
-    const tag = execSync("git describe --tags --abbrev=0 2>/dev/null", {
-      encoding: "utf-8",
-    }).trim();
+    if (currentTag) {
+      // Get the tag before the current one
+      // Only consider v* tags (semver releases), sorted by version (newest first)
+      const tags = execSync("git tag -l 'v*' --sort=-version:refname", {
+        encoding: "utf-8",
+      })
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+      // Find the current tag and return the next one (which is the previous release)
+      const currentIndex = tags.indexOf(currentTag);
+      if (currentIndex !== -1 && currentIndex + 1 < tags.length) {
+        return tags[currentIndex + 1];
+      }
+
+      // Fallback: if current tag not found in list, try to get tag before it by commit ancestry
+      const prevTag = execSync(
+        `git describe --tags --abbrev=0 --match 'v*' ${currentTag}^ 2>/dev/null`,
+        { encoding: "utf-8" }
+      ).trim();
+      return prevTag || null;
+    }
+
+    // No current tag, get the most recent v* tag
+    const tag = execSync(
+      "git describe --tags --abbrev=0 --match 'v*' 2>/dev/null",
+      {
+        encoding: "utf-8",
+      }
+    ).trim();
     return tag || null;
   } catch {
     return null;
   }
 }
 
-function getCommitsSinceTag(tag: string | null): Commit[] {
-  const range = tag ? `${tag}..HEAD` : "HEAD";
+function getCommitsBetweenTags(
+  fromTag: string | null,
+  toTag: string | null
+): Commit[] {
+  let range: string;
+  if (fromTag && toTag) {
+    range = `${fromTag}..${toTag}`;
+  } else if (fromTag) {
+    range = `${fromTag}..HEAD`;
+  } else if (toTag) {
+    range = toTag;
+  } else {
+    range = "HEAD";
+  }
 
   // Format: hash|shortHash|subject|author
   const format = "%H|%h|%s|%an";
@@ -203,11 +246,15 @@ function formatReleaseNotes(
 
 function main() {
   const newVersion = process.argv[2] || null;
+  const explicitPreviousTag = process.argv[3] || null;
 
-  const lastTag = getLastTag();
-  const commits = getCommitsSinceTag(lastTag);
+  const currentTag = newVersion ? `v${newVersion}` : null;
+  const previousTag = explicitPreviousTag || getPreviousTag(currentTag);
 
-  const releaseNotes = formatReleaseNotes(commits, newVersion, lastTag);
+  // Get commits between the previous tag and the current tag (or HEAD if no current tag)
+  const commits = getCommitsBetweenTags(previousTag, currentTag);
+
+  const releaseNotes = formatReleaseNotes(commits, newVersion, previousTag);
 
   console.log(releaseNotes);
 }

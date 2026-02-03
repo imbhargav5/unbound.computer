@@ -36,31 +36,64 @@ struct FakeData {
 
     // MARK: - Sessions
 
+    /// Main directory sessions (not in worktrees)
     static let sessions: [Session] = [
+        // unbound - main directory sessions
         Session(
             repositoryId: sampleRepositoryId1,
             title: "Feature development",
-            status: .active
+            status: .active,
+            isWorktree: false
         ),
         Session(
             repositoryId: sampleRepositoryId1,
             title: "Bug fix discussion",
-            status: .active
+            status: .active,
+            isWorktree: false
+        ),
+        // unbound - worktree sessions (happy-giraffe)
+        Session(
+            repositoryId: sampleRepositoryId1,
+            title: "OAuth implementation",
+            status: .active,
+            isWorktree: true,
+            worktreePath: "/Users/developer/projects/unbound/happy-giraffe-08a54f"
         ),
         Session(
             repositoryId: sampleRepositoryId1,
-            title: "Refactoring ideas",
-            status: .active
+            title: "Token refresh logic",
+            status: .active,
+            isWorktree: true,
+            worktreePath: "/Users/developer/projects/unbound/happy-giraffe-08a54f"
         ),
+        // unbound - worktree sessions (clever-penguin)
+        Session(
+            repositoryId: sampleRepositoryId1,
+            title: "Dark mode styling",
+            status: .active,
+            isWorktree: true,
+            worktreePath: "/Users/developer/projects/unbound/clever-penguin-3b21cd"
+        ),
+        // awesome-app - main directory sessions
         Session(
             repositoryId: sampleRepositoryId2,
             title: "API integration",
-            status: .active
+            status: .active,
+            isWorktree: false
         ),
         Session(
             repositoryId: sampleRepositoryId2,
             title: "UI improvements",
-            status: .active
+            status: .active,
+            isWorktree: false
+        ),
+        // awesome-app - worktree sessions
+        Session(
+            repositoryId: sampleRepositoryId2,
+            title: "Performance tuning",
+            status: .active,
+            isWorktree: true,
+            worktreePath: "/Users/developer/projects/awesome-app/swift-fox-9e82ab"
         )
     ]
 

@@ -119,7 +119,24 @@ struct WorkspacesSidebar: View {
     }
 }
 
-// MARK: - Repository Group
+// MARK: - Timeline Constants
+
+private enum TimelineMetrics {
+    /// Width of the timeline spine area (left gutter)
+    static let spineAreaWidth: CGFloat = 16
+    /// Horizontal offset of the spine line from left edge
+    static let spineOffset: CGFloat = 6
+    /// Width of the spine line
+    static let spineWidth: CGFloat = 1
+    /// Length of horizontal connector lines
+    static let connectorLength: CGFloat = 8
+    /// Vertical padding for connectors at group level
+    static let groupConnectorY: CGFloat = 10
+    /// Content left padding after spine area
+    static let contentPadding: CGFloat = 4
+}
+
+// MARK: - Repository Group (Timeline Style)
 
 struct RepositoryGroup: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -131,7 +148,6 @@ struct RepositoryGroup: View {
     var onCreateSession: (Repository, SessionLocationType) -> Void
 
     @State private var isExpanded: Bool = true
-    @State private var showNewSessionDialog: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -139,75 +155,111 @@ struct RepositoryGroup: View {
 
     @State private var isHoveringAdd: Bool = false
 
+    /// Spine color - visible but not dominant
+    private var spineColor: Color {
+        colors.border
+    }
+
+    /// All sessions flat for counting
+    private var allSessions: [Session] {
+        locations.mainDirectorySessions + locations.worktreeSessions.flatMap { $0.sessions }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Repository header
-            HStack(spacing: Spacing.sm) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
+            // Repository header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (extends down if expanded)
+                    if isExpanded && !allSessions.isEmpty {
+                        Rectangle()
+                            .fill(spineColor)
+                            .frame(width: TimelineMetrics.spineWidth)
+                            .padding(.leading, TimelineMetrics.spineOffset)
+                            .padding(.top, TimelineMetrics.groupConnectorY)
                     }
-                } label: {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: IconSize.xs, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: IconSize.sm)
-
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: IconSize.sm))
-                            .foregroundStyle(colors.info)
-
-                        Text(repository.name)
-                            .font(Typography.bodySmall)
-                            .fontWeight(.medium)
-                            .foregroundStyle(colors.foreground)
-                    }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .frame(width: TimelineMetrics.spineAreaWidth)
 
-                Spacer()
+                // Repository header content
+                HStack(spacing: Spacing.xs) {
+                    Button {
+                        withAnimation(.easeInOut(duration: Duration.fast)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(colors.mutedForeground)
+                                .frame(width: 10)
 
-                // New session button (inline +)
-                Button {
-                    onCreateSession(repository, .mainDirectory)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: IconSize.xs, weight: .medium))
-                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
-                        .frame(width: IconSize.md, height: IconSize.md)
+                            Text(repository.name)
+                                .font(Typography.bodySmall)
+                                .fontWeight(.medium)
+                                .foregroundStyle(colors.mutedForeground)
+                        }
                         .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    // Session count badge
+                    if !allSessions.isEmpty {
+                        Text("\(allSessions.count)")
+                            .font(Typography.micro)
+                            .foregroundStyle(colors.mutedForeground)
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(colors.muted.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                    }
+
+                    // New session button
+                    Button {
+                        onCreateSession(repository, .mainDirectory)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                            .frame(width: IconSize.sm, height: IconSize.sm)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
                         isHoveringAdd = hovering
                     }
                 }
+                .padding(.trailing, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.sm)
 
-            // Sessions under this repository
+            // Expanded content with timeline - Main Directory section first, then worktrees
             if isExpanded {
-
-                // Main Directory section (always show for + button)
-                MainDirectorySection(
-                    repository: repository,
-                    sessions: locations.mainDirectorySessions,
-                    selectedSessionId: selectedSessionId,
-                    onSelectSession: onSelectSession,
-                    onCreateSession: { onCreateSession(repository, .mainDirectory) }
-                )
+                // Main Directory section
+                if !locations.mainDirectorySessions.isEmpty {
+                    MainDirectorySection(
+                        sessions: locations.mainDirectorySessions,
+                        selectedSessionId: selectedSessionId,
+                        onSelectSession: onSelectSession,
+                        onCreateSession: { onCreateSession(repository, .mainDirectory) },
+                        spineColor: spineColor,
+                        isLastSection: locations.worktreeSessions.isEmpty
+                    )
+                }
 
                 // Worktree sections
-                ForEach(locations.worktreeSessions, id: \.name) { worktreeGroup in
+                ForEach(Array(locations.worktreeSessions.enumerated()), id: \.element.name) { index, worktree in
                     WorktreeSection(
-                        name: worktreeGroup.name,
-                        sessions: worktreeGroup.sessions,
+                        name: worktree.name,
+                        sessions: worktree.sessions,
                         selectedSessionId: selectedSessionId,
-                        onSelectSession: onSelectSession
+                        onSelectSession: onSelectSession,
+                        onCreateSession: { onCreateSession(repository, .newWorktree) },
+                        spineColor: spineColor,
+                        isLastSection: index == locations.worktreeSessions.count - 1
                     )
                 }
             }
@@ -217,83 +269,85 @@ struct RepositoryGroup: View {
 
 // MARK: - Main Directory Section
 
+/// Shows the "Main Directory" label and its sessions with timeline styling
 struct MainDirectorySection: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let repository: Repository
     let sessions: [Session]
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
-    var onCreateSession: () -> Void
+    var onCreateSession: (() -> Void)?
+    let spineColor: Color
+    let isLastSection: Bool
 
-    @State private var isExpanded: Bool = true
     @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    /// Row height for section header
+    private let headerHeight: CGFloat = 24
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Section header
-            HStack(spacing: Spacing.sm) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: IconSize.xs)
+            // Section header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (continues down through sessions)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                        Image(systemName: "house.fill")
-                            .font(.system(size: IconSize.xs))
-                            .foregroundStyle(colors.mutedForeground)
-
-                        Text("Main Directory")
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                    .contentShape(Rectangle())
+                    // Horizontal connector to section label
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, headerHeight / 2)
                 }
-                .buttonStyle(.plain)
+                .frame(width: TimelineMetrics.spineAreaWidth, height: headerHeight)
 
-                Spacer()
+                // Section label and add button
+                HStack(spacing: Spacing.xs) {
+                    Text("Main Directory")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
 
-                // New session button (inline +)
-                Button {
-                    onCreateSession()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
-                        .frame(width: IconSize.sm, height: IconSize.sm)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isHoveringAdd = hovering
+                    Spacer()
+
+                    // New session button
+                    if let onCreateSession = onCreateSession {
+                        Button(action: onCreateSession) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                                .frame(width: IconSize.xs, height: IconSize.xs)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            isHoveringAdd = hovering
+                        }
                     }
                 }
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
             }
-            .padding(.leading, Spacing.xl)
-            .padding(.trailing, Spacing.md)
-            .padding(.vertical, Spacing.xs)
 
-            // Sessions
-            if isExpanded {
-                ForEach(sessions) { session in
-                    SessionRowInGroup(
-                        session: session,
-                        isSelected: selectedSessionId == session.id,
-                        onSelect: { onSelectSession(session) },
-                        indentLevel: 2
-                    )
-                }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessions.map(\.id))
+            // Sessions in this section
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                let isLastInSection = index == sessions.count - 1
+                TimelineSessionRow(
+                    session: session,
+                    isSelected: selectedSessionId == session.id,
+                    isLast: isLastInSection && isLastSection,
+                    continueSpine: !(isLastInSection && isLastSection),
+                    onSelect: { onSelectSession(session) },
+                    spineColor: spineColor
+                )
             }
         }
     }
@@ -301,6 +355,7 @@ struct MainDirectorySection: View {
 
 // MARK: - Worktree Section
 
+/// Shows a worktree name label and its sessions with timeline styling
 struct WorktreeSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -308,67 +363,105 @@ struct WorktreeSection: View {
     let sessions: [Session]
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
+    var onCreateSession: (() -> Void)?
+    let spineColor: Color
+    let isLastSection: Bool
 
-    @State private var isExpanded: Bool = true
+    @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    /// Row height for section header
+    private let headerHeight: CGFloat = 24
+
+    /// Extract worktree display name (e.g., "happy-giraffe-08a54f" from full path)
+    private var worktreeDisplayName: String {
+        name
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Section header
-            Button {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(width: IconSize.xs)
+            // Section header row
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (continues down through sessions)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.success)
-
-                    Text(name)
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
+                    // Horizontal connector to section label
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, headerHeight / 2)
                 }
-                .padding(.leading, Spacing.xl)
-                .padding(.trailing, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .contentShape(Rectangle())
+                .frame(width: TimelineMetrics.spineAreaWidth, height: headerHeight)
+
+                // Section label with folder icon and add button
+                HStack(spacing: Spacing.xxs) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                        .foregroundStyle(colors.mutedForeground)
+
+                    Text(worktreeDisplayName)
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    // New session button
+                    if let onCreateSession = onCreateSession {
+                        Button(action: onCreateSession) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                                .frame(width: IconSize.xs, height: IconSize.xs)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            isHoveringAdd = hovering
+                        }
+                    }
+                }
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
             }
-            .buttonStyle(.plain)
 
-            // Sessions
-            if isExpanded {
-                ForEach(sessions) { session in
-                    SessionRowInGroup(
-                        session: session,
-                        isSelected: selectedSessionId == session.id,
-                        onSelect: { onSelectSession(session) },
-                        indentLevel: 2
-                    )
-                }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessions.map(\.id))
+            // Sessions in this section
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                let isLastInSection = index == sessions.count - 1
+                TimelineSessionRow(
+                    session: session,
+                    isSelected: selectedSessionId == session.id,
+                    isLast: isLastInSection && isLastSection,
+                    continueSpine: !(isLastInSection && isLastSection),
+                    onSelect: { onSelectSession(session) },
+                    spineColor: spineColor
+                )
             }
         }
     }
 }
 
-// MARK: - Session Row In Group
+// MARK: - Timeline Session Row
 
-struct SessionRowInGroup: View {
+/// A session row with timeline spine and horizontal connector
+struct TimelineSessionRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let session: Session
     let isSelected: Bool
+    let isLast: Bool
+    var continueSpine: Bool = true
     var onSelect: () -> Void
-    var indentLevel: Int = 1
+    let spineColor: Color
 
     @State private var isHovered = false
 
@@ -376,51 +469,64 @@ struct SessionRowInGroup: View {
         ThemeColors(colorScheme)
     }
 
-    /// Calculate leading padding based on indent level
-    private var leadingPadding: CGFloat {
-        switch indentLevel {
-        case 1: return Spacing.xl
-        case 2: return Spacing.xl + Spacing.lg
-        default: return Spacing.xl + (CGFloat(indentLevel - 1) * Spacing.lg)
-        }
-    }
+    /// Row height for calculating spine
+    private let rowHeight: CGFloat = 28
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: Spacing.sm) {
-                // Session icon
-                SessionIcon(isActive: false, size: IconSize.sm)
+            HStack(spacing: 0) {
+                // Spine area with vertical line and horizontal connector
+                ZStack(alignment: .topLeading) {
+                    // Vertical spine (full height if continuing, half height to connector if last)
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.spineWidth, height: continueSpine ? rowHeight : rowHeight / 2)
+                        .padding(.leading, TimelineMetrics.spineOffset)
 
-                // Session title
-                Text(session.displayTitle)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(colors.foreground)
-                    .lineLimit(1)
+                    // Horizontal connector
+                    Rectangle()
+                        .fill(spineColor)
+                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
+                        .padding(.leading, TimelineMetrics.spineOffset)
+                        .padding(.top, rowHeight / 2)
+                }
+                .frame(width: TimelineMetrics.spineAreaWidth, height: rowHeight)
 
-                Spacer()
+                // Session content
+                HStack(spacing: Spacing.xs) {
+                    // Session title
+                    Text(session.displayTitle)
+                        .font(Typography.bodySmall)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
 
-                // Clean indicator (mock)
-                Circle()
-                    .fill(colors.success)
-                    .frame(width: 8, height: 8)
+                    Spacer()
+
+                    // Status indicator
+                    Circle()
+                        .fill(colors.success)
+                        .frame(width: 6, height: 6)
+                }
+                .padding(.leading, TimelineMetrics.contentPadding)
+                .padding(.trailing, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .frame(height: rowHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.sm)
+                        .fill(isSelected ? colors.accent.opacity(0.3) : (isHovered ? colors.muted.opacity(0.5) : Color.clear))
+                )
             }
-            .padding(.leading, leadingPadding)
-            .padding(.trailing, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHovered = hovering
-            }
+            isHovered = hovering
         }
     }
 }
+
+// MARK: - Removed Components (No longer needed with flat timeline)
+// MainDirectorySection and WorktreeSection removed - sessions now in flat list
 
 #Preview {
     WorkspacesSidebar(

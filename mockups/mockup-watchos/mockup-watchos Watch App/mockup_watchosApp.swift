@@ -6,12 +6,22 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
-struct mockup_watchos_Watch_AppApp: App {
+struct UnboundWatchApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
+                .onAppear {
+                    setupNotifications()
+                }
+        }
+    }
+
+    private func setupNotifications() {
+        Task {
+            _ = await NotificationManager.shared.requestAuthorization()
         }
     }
 }
