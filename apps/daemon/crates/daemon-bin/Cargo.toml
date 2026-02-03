@@ -19,6 +19,7 @@ daemon-relay = { workspace = true }
 daemon-outbox = { workspace = true }
 daemon-ipc = { workspace = true }
 deku = { workspace = true }
+yagami = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

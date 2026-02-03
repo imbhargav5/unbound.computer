@@ -607,6 +607,7 @@ dependencies = [
  "tracing",
  "urlencoding",
  "uuid",
+ "yagami",
 ]
 
 [[package]]
@@ -3924,6 +3925,14 @@ checksum = "ec1cdab258fb55c0da61328dc52c8764709b249011b2cad0454c72f0bf10a1f6"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "yagami"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

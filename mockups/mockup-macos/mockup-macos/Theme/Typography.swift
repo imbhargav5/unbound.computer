@@ -178,6 +178,23 @@ enum Typography {
 
     /// 12pt Semibold - Tab labels
     static let tab = GeistFont.sans(size: FontSize.sm, weight: .semibold)
+
+    // MARK: - Sidebar Typography
+
+    /// 13pt Medium - Sidebar section headers ("Agents")
+    static let sidebarHeader = GeistFont.sans(size: FontSize.smMd, weight: .medium)
+
+    /// 12pt Medium - Project/repository names (highest hierarchy)
+    static let sidebarProject = GeistFont.sans(size: FontSize.sm, weight: .medium)
+
+    /// 10pt Medium - Directory labels (uppercase recommended)
+    static let sidebarSection = GeistFont.sans(size: FontSize.xxs, weight: .medium)
+
+    /// 12pt Regular - Session/item titles
+    static let sidebarItem = GeistFont.sans(size: FontSize.sm, weight: .regular)
+
+    /// 10pt Regular - Counts, timestamps, metadata
+    static let sidebarMeta = GeistFont.sans(size: FontSize.xxs, weight: .regular)
 }
 
 // MARK: - Text Style View Modifier

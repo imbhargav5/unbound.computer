@@ -286,6 +286,44 @@ extension DaemonClient {
     func removeRepository(repositoryId: String) async throws {
         _ = try await call(method: .repositoryRemove, params: ["repository_id": repositoryId])
     }
+
+    /// List files for a session root or subdirectory (relative path).
+    func listRepositoryFiles(
+        sessionId: String,
+        relativePath: String = "",
+        includeHidden: Bool = false
+    ) async throws -> [DaemonFileEntry] {
+        var params: [String: Any] = ["session_id": sessionId]
+        if !relativePath.isEmpty {
+            params["relative_path"] = relativePath
+        }
+        if includeHidden {
+            params["include_hidden"] = true
+        }
+
+        let response = try await call(method: .repositoryListFiles, params: params)
+
+        guard let result = response.resultAsDict(),
+              let entriesData = result["entries"] as? [[String: Any]] else {
+            logger.debug("No file entries in response or invalid format")
+            return []
+        }
+
+        let decoder = JSONDecoder()
+
+        return entriesData.compactMap { dict in
+            guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
+                logger.warning("Failed to serialize file entry dict: \(dict)")
+                return nil
+            }
+            do {
+                return try decoder.decode(DaemonFileEntry.self, from: data)
+            } catch {
+                logger.warning("Failed to decode file entry: \(error), dict: \(dict)")
+                return nil
+            }
+        }
+    }
 }
 
 // MARK: - Git

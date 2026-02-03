@@ -13,6 +13,7 @@ members = [
     "crates/falco",
     "crates/toshinori",
     "crates/deku",
+    "crates/yagami",
 ]
 
 [workspace.package]
@@ -90,6 +91,7 @@ daemon-ipc = { path = "crates/daemon-ipc" }
 falco = { path = "crates/falco" }
 toshinori = { path = "crates/toshinori" }
 deku = { path = "crates/deku" }
+yagami = { path = "crates/yagami" }
 
 # Redis
 redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

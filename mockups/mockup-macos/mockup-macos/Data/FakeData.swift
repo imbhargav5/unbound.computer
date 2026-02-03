@@ -7,6 +7,14 @@
 
 import Foundation
 
+// MARK: - Editor File Seed
+
+struct EditorFileSeed: Hashable {
+    let path: String
+    let content: String
+    let language: String
+}
+
 // MARK: - Fake Data Provider
 
 struct FakeData {
@@ -161,6 +169,96 @@ struct FakeData {
         FileItem(name: "turbo.json", type: .json)
     ]
 
+    // MARK: - Editor Seeds
+
+    static let editorFileSeeds: [EditorFileSeed] = [
+        EditorFileSeed(
+            path: "src/auth/login.swift",
+            content: """
+            import Foundation
+
+            class AuthManager {
+                static let shared = AuthManager()
+
+                private var currentUser: User?
+                private let tokenStore = TokenStore()
+
+                func authenticate(email: String, password: String) async throws -> User {
+                    let credentials = Credentials(email: email, password: password)
+                    let response = try await apiClient.post("/auth/login", body: credentials)
+                    let user = try response.decode(User.self)
+
+                    // Store the token
+                    try await tokenStore.save(response.token)
+
+                    currentUser = user
+                    return user
+                }
+
+                func logout() async {
+                    currentUser = nil
+                    await tokenStore.clear()
+                }
+
+                var isAuthenticated: Bool {
+                    currentUser != nil
+                }
+            }
+            """,
+            language: "swift"
+        ),
+        EditorFileSeed(
+            path: "src/models/User.swift",
+            content: """
+            import Foundation
+
+            struct User: Codable, Identifiable {
+                let id: UUID
+                let email: String
+                let name: String
+                let avatarURL: URL?
+                let createdAt: Date
+
+                var initials: String {
+                    name.split(separator: " ")
+                        .prefix(2)
+                        .compactMap { $0.first }
+                        .map(String.init)
+                        .joined()
+                }
+            }
+            """,
+            language: "swift"
+        ),
+        EditorFileSeed(
+            path: "src/api/endpoints.swift",
+            content: """
+            import Foundation
+
+            enum APIEndpoint {
+                case login
+                case logout
+                case user(id: UUID)
+                case users
+
+                var path: String {
+                    switch self {
+                    case .login: return "/auth/login"
+                    case .logout: return "/auth/logout"
+                    case .user(let id): return "/users/\\(id)"
+                    case .users: return "/users"
+                    }
+                }
+            }
+            """,
+            language: "swift"
+        )
+    ]
+
+    static func editorFileSeed(for path: String) -> EditorFileSeed? {
+        editorFileSeeds.first { $0.path == path }
+    }
+
     // MARK: - Git Status Files
     // Diverse set of file statuses to demonstrate the Changes view
 
@@ -183,6 +281,75 @@ struct FakeData {
         // Untracked files (gray U indicator) - no stats for untracked
         GitStatusFile(path: "notes.txt", status: .untracked),
         GitStatusFile(path: ".env.local", status: .untracked)
+    ]
+
+    // MARK: - Sample Diffs
+
+    static let fileDiffsByPath: [String: FileDiff] = [
+        "src/auth/login.swift": FileDiff(
+            filePath: "src/auth/login.swift",
+            changeType: .modified,
+            hunks: [
+                DiffHunk(
+                    oldStart: 12,
+                    oldCount: 5,
+                    newStart: 12,
+                    newCount: 6,
+                    context: "func authenticate",
+                    lines: [
+                        DiffLine(type: .context, content: "    let response = try await apiClient.post(\"/auth/login\", body: credentials)", oldLineNumber: 12, newLineNumber: 12),
+                        DiffLine(type: .deletion, content: "    let user = try response.decode(User.self)", oldLineNumber: 13, newLineNumber: nil),
+                        DiffLine(type: .addition, content: "    let user = try response.decode(User.self)", oldLineNumber: nil, newLineNumber: 13),
+                        DiffLine(type: .addition, content: "    logger.info(\"Login success\")", oldLineNumber: nil, newLineNumber: 14),
+                        DiffLine(type: .context, content: "    currentUser = user", oldLineNumber: 14, newLineNumber: 15)
+                    ]
+                )
+            ],
+            linesAdded: 2,
+            linesRemoved: 1
+        ),
+        "src/models/User.swift": FileDiff(
+            filePath: "src/models/User.swift",
+            changeType: .modified,
+            hunks: [
+                DiffHunk(
+                    oldStart: 6,
+                    oldCount: 4,
+                    newStart: 6,
+                    newCount: 5,
+                    context: "struct User",
+                    lines: [
+                        DiffLine(type: .context, content: "    let id: UUID", oldLineNumber: 6, newLineNumber: 6),
+                        DiffLine(type: .context, content: "    let email: String", oldLineNumber: 7, newLineNumber: 7),
+                        DiffLine(type: .addition, content: "    let username: String", oldLineNumber: nil, newLineNumber: 8),
+                        DiffLine(type: .context, content: "    let name: String", oldLineNumber: 8, newLineNumber: 9)
+                    ]
+                )
+            ],
+            linesAdded: 1,
+            linesRemoved: 0
+        ),
+        "src/api/endpoints.swift": FileDiff(
+            filePath: "src/api/endpoints.swift",
+            changeType: .created,
+            hunks: [
+                DiffHunk(
+                    oldStart: 0,
+                    oldCount: 0,
+                    newStart: 1,
+                    newCount: 6,
+                    context: "enum APIEndpoint",
+                    lines: [
+                        DiffLine(type: .addition, content: "enum APIEndpoint {", oldLineNumber: nil, newLineNumber: 1),
+                        DiffLine(type: .addition, content: "    case login", oldLineNumber: nil, newLineNumber: 2),
+                        DiffLine(type: .addition, content: "    case logout", oldLineNumber: nil, newLineNumber: 3),
+                        DiffLine(type: .addition, content: "}", oldLineNumber: nil, newLineNumber: 4)
+                    ]
+                )
+            ],
+            linesAdded: 4,
+            linesRemoved: 0
+        )
     ]
 
     // MARK: - Git Commits

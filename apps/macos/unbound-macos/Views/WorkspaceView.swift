@@ -26,6 +26,7 @@ struct WorkspaceView: View {
     @State private var fileTreeViewModel: FileTreeViewModel?
     @State private var gitViewModel = GitViewModel()
     @State private var selectedSidebarTab: RightSidebarTab = .changes
+    @State private var editorState = EditorState()
 
     // State
     @State private var isAddingRepository = false
@@ -117,7 +118,8 @@ struct WorkspaceView: View {
                             chatInput: $chatInput,
                             selectedModel: $selectedModel,
                             selectedThinkMode: $selectedThinkMode,
-                            isPlanMode: $isPlanMode
+                            isPlanMode: $isPlanMode,
+                            editorState: editorState
                         )
                         .frame(minWidth: 400)
                     } else {
@@ -132,6 +134,7 @@ struct WorkspaceView: View {
                     RightSidebarPanel(
                         fileTreeViewModel: fileTreeViewModel,
                         gitViewModel: gitViewModel,
+                        editorState: editorState,
                         selectedTab: $selectedSidebarTab,
                         workingDirectory: workingDirectoryPath
                     )
@@ -219,8 +222,11 @@ struct WorkspaceView: View {
             // Initialize FileTreeViewModel
             initializeFileTreeViewModelIfNeeded()
         }
-        .task(id: workingDirectoryPath) {
-            await loadFileTree()
+        .onChange(of: selectedSession?.id) { _, newSessionId in
+            fileTreeViewModel?.setSessionId(newSessionId)
+            if selectedSidebarTab == .files {
+                Task { await fileTreeViewModel?.loadRoot() }
+            }
         }
     }
 
@@ -228,9 +234,8 @@ struct WorkspaceView: View {
 
     private func initializeFileTreeViewModelIfNeeded() {
         guard fileTreeViewModel == nil else { return }
-        fileTreeViewModel = FileTreeViewModel(
-            fileSystemService: FileSystemService()
-        )
+        fileTreeViewModel = FileTreeViewModel()
+        fileTreeViewModel?.setSessionId(selectedSession?.id)
     }
 
     /// Auto-select first session if none is selected
@@ -238,15 +243,6 @@ struct WorkspaceView: View {
         if appState.selectedSessionId == nil, let first = sessions.first {
             appState.selectSession(first.id)
         }
-    }
-
-    private func loadFileTree() async {
-        guard let path = workingDirectoryPath else {
-            fileTreeViewModel?.clearFileTree()
-            return
-        }
-
-        await fileTreeViewModel?.loadFileTree(at: path)
     }
 
     private func createSession(for repository: Repository, locationType: SessionLocationType) {

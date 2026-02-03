@@ -165,7 +165,10 @@ struct VersionControlPanel: View {
                             } else if diff.hunks.isEmpty {
                                 EmptyDiffView()
                             } else {
-                                UnifiedDiffView(hunks: diff.hunks)
+                                UnifiedDiffView(
+                                    hunks: diff.hunks,
+                                    language: SyntaxHighlighter.languageIdentifier(forFilePath: diff.filePath)
+                                )
                             }
                         }
                     } else if !isLoadingDiff {
@@ -186,9 +189,9 @@ struct VersionControlPanel: View {
     // MARK: - Actions
 
     private func selectFile(_ file: FileItem) {
-        guard file.type == .file else { return }
+        guard !file.isDirectory else { return }
 
-        viewModel?.selectFile(file.id)
+        viewModel?.selectFile(file.path)
         showDiffPanel = true
 
         Task {
@@ -299,21 +302,27 @@ struct FileTreeRowWithViewModel: View {
     }
 
     private var isSelected: Bool {
-        viewModel?.selectedFileId == item.id
+        viewModel?.selectedFilePath == item.path
     }
 
     private var isExpanded: Bool {
-        viewModel?.isExpanded(item.id) ?? false
+        viewModel?.isExpanded(item.path) ?? false
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 if item.hasChildren {
+                    let willExpand = !(viewModel?.isExpanded(item.path) ?? false)
                     withAnimation(.easeInOut(duration: Duration.default)) {
-                        viewModel?.toggleExpanded(item.id)
+                        viewModel?.toggleExpanded(item.path)
                     }
-                } else if item.type == .file && item.gitStatus != .unchanged {
+                    if willExpand && item.isDirectory && !item.childrenLoaded {
+                        Task {
+                            await viewModel?.loadChildren(for: item.path)
+                        }
+                    }
+                } else if !item.isDirectory && item.gitStatus != .unchanged {
                     // Only select files with changes
                     onFileSelected(item)
                 }
@@ -403,7 +412,7 @@ struct FileTreeRowWithDiff: View {
                     withAnimation(.easeInOut(duration: Duration.default)) {
                         item.isExpanded.toggle()
                     }
-                } else if item.type == .file && item.gitStatus != .unchanged {
+                } else if !item.isDirectory && item.gitStatus != .unchanged {
                     // Only select files with changes
                     onFileSelected(item)
                 }

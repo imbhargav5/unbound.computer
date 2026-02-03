@@ -19,6 +19,7 @@ struct WorkspaceView: View {
 
     // Version control state
     @State private var selectedSidebarTab: RightSidebarTab = .changes
+    @State private var editorState = EditorState()
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -86,7 +87,8 @@ struct WorkspaceView: View {
                         chatInput: $chatInput,
                         selectedModel: $selectedModel,
                         selectedThinkMode: $selectedThinkMode,
-                        isPlanMode: $isPlanMode
+                        isPlanMode: $isPlanMode,
+                        editorState: editorState
                     )
                     .frame(minWidth: 400)
                 } else {
@@ -100,6 +102,7 @@ struct WorkspaceView: View {
                 // Right sidebar - Git Operations
                 RightSidebarPanel(
                     selectedTab: $selectedSidebarTab,
+                    editorState: editorState,
                     workingDirectory: workingDirectoryPath
                 )
                 .frame(minWidth: 250, idealWidth: 450)

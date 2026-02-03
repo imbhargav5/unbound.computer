@@ -89,21 +89,27 @@ struct FilesTreeRow: View {
     }
 
     private var isSelected: Bool {
-        viewModel?.selectedFileId == item.id
+        viewModel?.selectedFilePath == item.path
     }
 
     private var isExpanded: Bool {
-        viewModel?.isExpanded(item.id) ?? false
+        viewModel?.isExpanded(item.path) ?? false
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 if item.hasChildren {
+                    let willExpand = !(viewModel?.isExpanded(item.path) ?? false)
                     withAnimation(.easeInOut(duration: Duration.default)) {
-                        viewModel?.toggleExpanded(item.id)
+                        viewModel?.toggleExpanded(item.path)
                     }
-                } else if item.type == .file {
+                    if willExpand && item.isDirectory && !item.childrenLoaded {
+                        Task {
+                            await viewModel?.loadChildren(for: item.path)
+                        }
+                    }
+                } else if !item.isDirectory {
                     onFileSelected(item)
                 }
             } label: {

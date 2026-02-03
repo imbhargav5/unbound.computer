@@ -14,6 +14,23 @@ import AppKit
 private class CommandReturnNSTextView: NSTextView {
     var onCommandReturn: (() -> Void)?
     var onShiftTab: (() -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecome = super.becomeFirstResponder()
+        if didBecome {
+            onFocusChange?(true)
+        }
+        return didBecome
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let didResign = super.resignFirstResponder()
+        if didResign {
+            onFocusChange?(false)
+        }
+        return didResign
+    }
 
     override func keyDown(with event: NSEvent) {
         // Check for Cmd+Return (keyCode 36 is Return)
@@ -33,6 +50,7 @@ private class CommandReturnNSTextView: NSTextView {
 /// A TextEditor wrapper that intercepts Cmd+Return and Shift+Tab
 struct CommandReturnTextEditor: NSViewRepresentable {
     @Binding var text: String
+    @Binding var isFocused: Bool
     var onCommandReturn: () -> Void
     var onShiftTab: (() -> Void)?
 
@@ -40,6 +58,9 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         let textView = CommandReturnNSTextView()
         textView.onCommandReturn = onCommandReturn
         textView.onShiftTab = onShiftTab
+        textView.onFocusChange = { isFocused in
+            context.coordinator.isFocused.wrappedValue = isFocused
+        }
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.allowsUndo = true
@@ -81,17 +102,30 @@ struct CommandReturnTextEditor: NSViewRepresentable {
 
         textView.onCommandReturn = onCommandReturn
         textView.onShiftTab = onShiftTab
+        textView.onFocusChange = { isFocused in
+            context.coordinator.isFocused.wrappedValue = isFocused
+        }
+
+        if let window = textView.window {
+            if isFocused && window.firstResponder !== textView {
+                window.makeFirstResponder(textView)
+            } else if !isFocused && window.firstResponder === textView {
+                window.makeFirstResponder(nil)
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, isFocused: $isFocused)
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        var isFocused: Binding<Bool>
 
-        init(text: Binding<String>) {
+        init(text: Binding<String>, isFocused: Binding<Bool>) {
             self.text = text
+            self.isFocused = isFocused
         }
 
         func textDidChange(_ notification: Notification) {
@@ -114,7 +148,7 @@ struct ChatInputField: View {
     var onSend: () -> Void
     var onCancel: (() -> Void)?
 
-    @FocusState private var isFocused: Bool
+    @State private var isFocused: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -144,6 +178,7 @@ struct ChatInputField: View {
             // Text input area
             CommandReturnTextEditor(
                 text: $text,
+                isFocused: $isFocused,
                 onCommandReturn: {
                     if !isStreaming && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         onSend()
@@ -154,7 +189,6 @@ struct ChatInputField: View {
                 }
             )
                 .font(Typography.body)
-                .focused($isFocused)
                 .frame(minHeight: 60, maxHeight: 120)
                 .padding(.horizontal, Spacing.md)
                 .padding(.top, isPlanMode ? Spacing.xs : Spacing.md)
@@ -197,10 +231,13 @@ struct ChatInputField: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : Color.clear), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
+                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : colors.border), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
         )
         .animation(.easeInOut(duration: Duration.fast), value: isFocused)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
+        .onAppear {
+            isFocused = true
+        }
     }
 }
 
@@ -927,7 +964,7 @@ struct WelcomeChatView: View {
 struct ChatHeader: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let projectName: String
+    let sessionTitle: String
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -935,13 +972,14 @@ struct ChatHeader: View {
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            // Branch icon and name
+            // Session title
             HStack(spacing: Spacing.sm) {
-                Image(systemName: "arrow.triangle.branch")
+                Image(systemName: "bubble.left.and.bubble.right")
                     .font(.system(size: IconSize.sm))
 
-                Text("/\(projectName)")
+                Text(sessionTitle)
                     .font(Typography.bodySmall)
+                    .lineLimit(1)
             }
             .foregroundStyle(colors.mutedForeground)
 

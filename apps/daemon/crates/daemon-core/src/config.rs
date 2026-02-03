@@ -23,6 +23,9 @@ pub const DEFAULT_SUPABASE_PUBLISHABLE_KEY: &str = match option_env!("SUPABASE_P
     None => "random-key",
 };
 
+/// Default Ably API key (can be overridden at compile time via ABLY_API_KEY env var).
+pub const DEFAULT_ABLY_API_KEY: Option<&str> = option_env!("ABLY_API_KEY");
+
 /// Default log level.
 pub const DEFAULT_LOG_LEVEL: &str = "info";
 
@@ -86,6 +89,9 @@ pub struct Config {
     /// Supabase publishable API key (public, safe to expose).
     #[serde(default = "default_supabase_publishable_key")]
     pub supabase_publishable_key: String,
+    /// Ably API key (optional, for realtime messaging).
+    #[serde(default = "default_ably_api_key")]
+    pub ably_api_key: Option<String>,
 }
 
 fn default_supabase_url() -> String {
@@ -96,6 +102,10 @@ fn default_supabase_publishable_key() -> String {
     DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string()
 }
 
+fn default_ably_api_key() -> Option<String> {
+    DEFAULT_ABLY_API_KEY.map(|s| s.to_string())
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -103,6 +113,7 @@ impl Default for Config {
             log_level: DEFAULT_LOG_LEVEL.to_string(),
             supabase_url: DEFAULT_SUPABASE_URL.to_string(),
             supabase_publishable_key: DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string(),
+            ably_api_key: DEFAULT_ABLY_API_KEY.map(|s| s.to_string()),
         }
     }
 }
@@ -132,6 +143,7 @@ impl Config {
         config.relay.url = DEFAULT_RELAY_URL.to_string();
         config.supabase_url = DEFAULT_SUPABASE_URL.to_string();
         config.supabase_publishable_key = DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string();
+        config.ably_api_key = DEFAULT_ABLY_API_KEY.map(|s| s.to_string());
 
         // Environment variables can only override log_level
         config.load_from_env();
@@ -297,6 +309,9 @@ mod tests {
         assert!(!DEFAULT_SUPABASE_PUBLISHABLE_KEY.is_empty());
         assert!(DEFAULT_RELAY_URL.starts_with("wss://"));
         assert!(DEFAULT_SUPABASE_URL.starts_with("https://"));
+        // ABLY_API_KEY is optional (None if not set at compile time)
+        // Just verify the constant exists
+        let _ = DEFAULT_ABLY_API_KEY;
     }
 
     #[test]

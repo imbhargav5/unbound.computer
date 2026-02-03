@@ -88,9 +88,12 @@ struct FileChangeView: View {
                 ShadcnDivider()
 
                 if let parsed = parsedDiff, !parsed.hunks.isEmpty {
-                    // Use DiffViewer for parsed diffs
+                    // Use unified diff view for parsed diffs
                     ScrollView {
-                        UnifiedDiffView(hunks: parsed.hunks)
+                        UnifiedDiffView(
+                            hunks: parsed.hunks,
+                            language: SyntaxHighlighter.languageIdentifier(forFilePath: fileChange.filePath)
+                        )
                     }
                     .frame(maxHeight: 300)
                 } else {

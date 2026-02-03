@@ -24,10 +24,7 @@ struct ChatPanel: View {
     @Binding var selectedModel: AIModel
     @Binding var selectedThinkMode: ThinkMode
     @Binding var isPlanMode: Bool
-
-    // File editor state - multiple open files with tabs
-    @State private var openFiles: [OpenFile] = []
-    @State private var selectedFileId: UUID?
+    @Bindable var editorState: EditorState
 
     // Footer panel state
     @State private var selectedTerminalTab: TerminalTab = .terminal
@@ -40,8 +37,8 @@ struct ChatPanel: View {
     }
 
     private enum FooterConstants {
-        static let barHeight: CGFloat = 32
-        static let handleHeight: CGFloat = 16
+        static let barHeight: CGFloat = 40  // Match ChatHeader and FileEditorTabBar
+        static let handleHeight: CGFloat = 12
         static let minExpandedHeight: CGFloat = 160
         static let defaultExpandedRatio: CGFloat = 0.4
         static let maxExpandedRatio: CGFloat = 0.8
@@ -191,8 +188,8 @@ struct ChatPanel: View {
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
-            // Header with project name
-            ChatHeader(projectName: repository?.name ?? "No Repository")
+            // Header with session title
+            ChatHeader(sessionTitle: session?.displayTitle ?? "New conversation")
 
             ShadcnDivider()
 
@@ -286,12 +283,12 @@ struct ChatPanel: View {
         .frame(minWidth: 300)
     }
 
-    /// Currently selected file for display
-    private var selectedFile: OpenFile? {
-        if let id = selectedFileId {
-            return openFiles.first { $0.id == id }
+    /// Currently selected editor tab
+    private var selectedTab: EditorTab? {
+        if let id = editorState.selectedTabId {
+            return editorState.tabs.first { $0.id == id }
         }
-        return openFiles.first
+        return editorState.tabs.first
     }
 
     // MARK: - File Editor Column
@@ -300,21 +297,33 @@ struct ChatPanel: View {
         VStack(spacing: 0) {
             // Editor header with file tabs
             FileEditorTabBar(
-                files: openFiles,
-                selectedFileId: selectedFileId ?? openFiles.first?.id,
+                files: editorState.tabs,
+                selectedFileId: editorState.selectedTabId ?? editorState.tabs.first?.id,
                 onSelectFile: { id in
-                    selectedFileId = id
+                    editorState.selectTab(id: id)
                 },
                 onCloseFile: { id in
-                    closeFile(id: id)
+                    editorState.closeTab(id: id)
                 }
             )
 
             ShadcnDivider()
 
             // Editor content
-            if let file = selectedFile {
-                FileEditorView(filePath: file.path)
+            if let tab = selectedTab {
+                switch tab.kind {
+                case .file:
+                    if let fullPath = tab.fullPath {
+                        FileEditorView(filePath: fullPath)
+                    } else {
+                        fileLoadErrorView("Missing file path for editor tab.")
+                    }
+                case .diff:
+                    DiffEditorView(
+                        path: tab.path,
+                        diffState: editorState.diffStates[tab.path]
+                    )
+                }
             } else {
                 // No file open
                 VStack(spacing: Spacing.md) {
@@ -338,6 +347,22 @@ struct ChatPanel: View {
         .frame(minWidth: 300)
     }
 
+    private func fileLoadErrorView(_ message: String) -> some View {
+        VStack(spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24))
+                .foregroundStyle(colors.destructive)
+            Text("Unable to open file")
+                .font(Typography.body)
+                .foregroundStyle(colors.foreground)
+            Text(message)
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.background)
+    }
+
     // MARK: - Footer Panel
 
     private func footerPanel(availableHeight: CGFloat) -> some View {
@@ -345,26 +370,22 @@ struct ChatPanel: View {
             footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight,
             availableHeight: availableHeight
         )
-        let panelHeight = isFooterExpanded ? expandedHeight : FooterConstants.barHeight
+        let panelHeight = isFooterExpanded ? expandedHeight : 40
 
         return VStack(spacing: 0) {
-            if isFooterExpanded {
-                footerHandle(availableHeight: availableHeight)
-                ShadcnDivider()
-            }
-
             footerTabBar(availableHeight: availableHeight)
 
             if isFooterExpanded {
                 ShadcnDivider()
+                footerHandle(availableHeight: availableHeight)
+                ShadcnDivider()
 
                 footerContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .background(colors.card)
             }
         }
-        .frame(height: panelHeight)
-        .frame(maxWidth: .infinity)
+        .frame(width: .infinity, height: panelHeight, alignment: .top)
+        .clipped()
         .background(colors.card)
         .overlay(alignment: .top) {
             ShadcnDivider()
@@ -385,7 +406,7 @@ struct ChatPanel: View {
                     handleFooterTabTap(tab, availableHeight: availableHeight)
                 } label: {
                     Text(tab.rawValue)
-                        .font(Typography.bodySmall)
+                        .font(Typography.caption)
                         .foregroundStyle(selectedTerminalTab == tab ? colors.foreground : colors.mutedForeground)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
@@ -395,8 +416,8 @@ struct ChatPanel: View {
 
             Spacer()
         }
-        .padding(.horizontal, Spacing.md)
-        .frame(height: FooterConstants.barHeight)
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: 40)
         .background(colors.card)
     }
 
@@ -409,6 +430,7 @@ struct ChatPanel: View {
             .gesture(resizeGesture(availableHeight: availableHeight))
     }
 
+    @ViewBuilder
     private var footerContent: some View {
         switch selectedTerminalTab {
         case .terminal:
@@ -463,14 +485,14 @@ struct ChatPanel: View {
 
     private func expandFooter(availableHeight: CGFloat) {
         let targetHeight = footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             isFooterExpanded = true
             footerHeight = clampedFooterHeight(targetHeight, availableHeight: availableHeight)
         }
     }
 
     private func collapseFooter() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             isFooterExpanded = false
         }
     }
@@ -502,23 +524,6 @@ struct ChatPanel: View {
             .onEnded { _ in
                 footerDragStartHeight = 0
             }
-    }
-
-    private func closeFile(id: UUID) {
-        // If closing the selected file, select another one
-        if selectedFileId == id {
-            if let index = openFiles.firstIndex(where: { $0.id == id }) {
-                // Try to select the next file, or previous if at end
-                if index < openFiles.count - 1 {
-                    selectedFileId = openFiles[index + 1].id
-                } else if index > 0 {
-                    selectedFileId = openFiles[index - 1].id
-                } else {
-                    selectedFileId = nil
-                }
-            }
-        }
-        openFiles.removeAll { $0.id == id }
     }
 
     // MARK: - Actions
@@ -577,27 +582,12 @@ struct ChatPanel: View {
     }
 }
 
-// MARK: - Open File Model
-
-struct OpenFile: Identifiable {
-    let id = UUID()
-    let path: String
-
-    var filename: String {
-        URL(fileURLWithPath: path).lastPathComponent
-    }
-
-    var fileExtension: String {
-        URL(fileURLWithPath: path).pathExtension.lowercased()
-    }
-}
-
 // MARK: - File Editor Tab Bar
 
 struct FileEditorTabBar: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let files: [OpenFile]
+    let files: [EditorTab]
     let selectedFileId: UUID?
     var onSelectFile: (UUID) -> Void
     var onCloseFile: (UUID) -> Void
@@ -641,7 +631,7 @@ struct FileEditorTabBar: View {
 struct FileTab: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let file: OpenFile
+    let file: EditorTab
     let isSelected: Bool
     var onSelect: () -> Void
     var onClose: () -> Void
@@ -657,7 +647,7 @@ struct FileTab: View {
         Button(action: onSelect) {
             HStack(spacing: Spacing.xs) {
                 // File icon
-                Image(systemName: fileIcon(for: file.fileExtension))
+                Image(systemName: fileIcon(for: file))
                     .font(.system(size: 10))
                     .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
 
@@ -666,6 +656,16 @@ struct FileTab: View {
                     .font(Typography.caption)
                     .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
                     .lineLimit(1)
+
+                if file.kind == .diff {
+                    Text("Diff")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.info)
+                        .padding(.horizontal, Spacing.xxs)
+                        .padding(.vertical, 2)
+                        .background(colors.info.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+                }
 
                 // Close button
                 Button(action: onClose) {
@@ -699,8 +699,11 @@ struct FileTab: View {
         }
     }
 
-    private func fileIcon(for ext: String) -> String {
-        switch ext {
+    private func fileIcon(for tab: EditorTab) -> String {
+        if tab.kind == .diff {
+            return "doc.text.magnifyingglass"
+        }
+        switch tab.fileExtension {
         case "swift": return "swift"
         case "js", "javascript": return "curlybraces"
         case "ts", "typescript": return "curlybraces"
@@ -735,6 +738,8 @@ struct FileEditorView: View {
     }
 
     var body: some View {
+        let language = SyntaxHighlighter.languageIdentifier(forFilePath: filePath)
+        let highlighter = SyntaxHighlighter(language: language, colorScheme: colorScheme)
         Group {
             if isLoading {
                 ProgressView("Loading file...")
@@ -753,34 +758,37 @@ struct FileEditorView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView([.horizontal, .vertical]) {
-                    HStack(alignment: .top, spacing: 0) {
-                        // Line numbers gutter
-                        VStack(alignment: .trailing, spacing: 0) {
-                            ForEach(Array(lines.enumerated()), id: \.offset) { index, _ in
-                                Text("\(index + 1)")
-                                    .font(.system(size: FontSize.sm, design: .monospaced))
-                                    .foregroundStyle(colors.mutedForeground.opacity(0.5))
-                                    .frame(height: 20)
+                GeometryReader { proxy in
+                    ScrollView([.horizontal, .vertical]) {
+                        HStack(alignment: .top, spacing: 0) {
+                            // Line numbers gutter
+                            VStack(alignment: .trailing, spacing: 0) {
+                                ForEach(Array(lines.enumerated()), id: \.offset) { index, _ in
+                                    Text("\(index + 1)")
+                                        .font(.system(size: FontSize.sm, design: .monospaced))
+                                        .foregroundStyle(colors.mutedForeground.opacity(0.5))
+                                        .frame(height: 20)
+                                }
                             }
-                        }
-                        .padding(.horizontal, Spacing.sm)
-                        .background(colors.card.opacity(0.5))
+                            .padding(.horizontal, Spacing.sm)
+                            .background(colors.card.opacity(0.5))
 
-                        // Code content
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                                Text(line.isEmpty ? " " : line)
-                                    .font(.system(size: FontSize.sm, design: .monospaced))
-                                    .foregroundStyle(colors.foreground)
-                                    .frame(height: 20, alignment: .leading)
+                            // Code content
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                    let content = line.isEmpty ? " " : line
+                                    Text(highlighter.highlight(content))
+                                        .font(.system(size: FontSize.sm, design: .monospaced))
+                                        .frame(height: 20, alignment: .leading)
+                                }
                             }
-                        }
-                        .padding(.horizontal, Spacing.sm)
+                            .padding(.horizontal, Spacing.sm)
 
-                        Spacer(minLength: 0)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, Spacing.sm)
+                        .frame(minHeight: proxy.size.height, alignment: .topLeading)
                     }
-                    .padding(.vertical, Spacing.sm)
                 }
             }
         }
@@ -805,6 +813,57 @@ struct FileEditorView: View {
     }
 }
 
+// MARK: - Diff Editor View
+
+struct DiffEditorView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let path: String
+    let diffState: DiffLoadState?
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        Group {
+            if let state = diffState {
+                if state.isLoading {
+                    ProgressView("Loading diff...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = state.errorMessage {
+                    VStack(spacing: Spacing.sm) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 24))
+                            .foregroundStyle(colors.destructive)
+                        Text("Failed to load diff")
+                            .font(Typography.body)
+                            .foregroundStyle(colors.foreground)
+                        Text(error)
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.mutedForeground)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let diff = state.diff {
+                    DiffViewer(diff: diff)
+                        .padding(Spacing.md)
+                } else {
+                    Text("No diff available for \(path)")
+                        .font(Typography.body)
+                        .foregroundStyle(colors.mutedForeground)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                Text("No diff loaded for \(path)")
+                    .font(Typography.body)
+                    .foregroundStyle(colors.mutedForeground)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(colors.background)
+    }
+}
+
 #Preview {
     ChatPanel(
         session: FakeData.sessions.first,
@@ -812,7 +871,8 @@ struct FileEditorView: View {
         chatInput: .constant(""),
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
-        isPlanMode: .constant(false)
+        isPlanMode: .constant(false),
+        editorState: EditorState()
     )
     .environment(AppState())
     .frame(width: 900, height: 600)

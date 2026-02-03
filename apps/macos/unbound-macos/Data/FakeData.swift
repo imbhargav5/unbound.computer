@@ -47,31 +47,63 @@ struct FakeData {
     // MARK: - File Tree
 
     static let fileTree: [FileItem] = [
-        FileItem(name: "apps", type: .folder, children: [
-            FileItem(name: "web", type: .folder),
-            FileItem(name: "mobile", type: .folder),
-            FileItem(name: "desktop", type: .folder)
-        ]),
-        FileItem(name: "docs", type: .folder, children: [
-            FileItem(name: "README.md", type: .markdown),
-            FileItem(name: "CONTRIBUTING.md", type: .markdown)
-        ]),
-        FileItem(name: "packages", type: .folder, children: [
-            FileItem(name: "core", type: .folder),
-            FileItem(name: "utils", type: .folder),
-            FileItem(name: "ui", type: .folder)
-        ]),
-        FileItem(name: "scripts", type: .folder, children: [
-            FileItem(name: "build.sh", type: .file),
-            FileItem(name: "deploy.sh", type: .file)
-        ]),
-        FileItem(name: ".git", type: .gitFolder),
-        FileItem(name: ".gitignore", type: .gitIgnore),
-        FileItem(name: "LICENSE", type: .license),
-        FileItem(name: "package.json", type: .json),
-        FileItem(name: "pnpm-lock.yaml", type: .yaml),
-        FileItem(name: "pnpm-workspace.yaml", type: .yaml),
-        FileItem(name: "turbo.json", type: .json)
+        FileItem(
+            path: "apps",
+            name: "apps",
+            type: .folder,
+            children: [
+                FileItem(path: "apps/web", name: "web", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "apps/mobile", name: "mobile", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "apps/desktop", name: "desktop", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false)
+            ],
+            isDirectory: true,
+            childrenLoaded: true,
+            hasChildrenHint: true
+        ),
+        FileItem(
+            path: "docs",
+            name: "docs",
+            type: .folder,
+            children: [
+                FileItem(path: "docs/README.md", name: "README.md", type: .markdown, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "docs/CONTRIBUTING.md", name: "CONTRIBUTING.md", type: .markdown, isDirectory: false, childrenLoaded: true, hasChildrenHint: false)
+            ],
+            isDirectory: true,
+            childrenLoaded: true,
+            hasChildrenHint: true
+        ),
+        FileItem(
+            path: "packages",
+            name: "packages",
+            type: .folder,
+            children: [
+                FileItem(path: "packages/core", name: "core", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "packages/utils", name: "utils", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "packages/ui", name: "ui", type: .folder, isDirectory: true, childrenLoaded: true, hasChildrenHint: false)
+            ],
+            isDirectory: true,
+            childrenLoaded: true,
+            hasChildrenHint: true
+        ),
+        FileItem(
+            path: "scripts",
+            name: "scripts",
+            type: .folder,
+            children: [
+                FileItem(path: "scripts/build.sh", name: "build.sh", type: .file, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+                FileItem(path: "scripts/deploy.sh", name: "deploy.sh", type: .file, isDirectory: false, childrenLoaded: true, hasChildrenHint: false)
+            ],
+            isDirectory: true,
+            childrenLoaded: true,
+            hasChildrenHint: true
+        ),
+        FileItem(path: ".git", name: ".git", type: .gitFolder, isDirectory: true, childrenLoaded: false, hasChildrenHint: false),
+        FileItem(path: ".gitignore", name: ".gitignore", type: .gitIgnore, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+        FileItem(path: "LICENSE", name: "LICENSE", type: .license, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+        FileItem(path: "package.json", name: "package.json", type: .json, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+        FileItem(path: "pnpm-lock.yaml", name: "pnpm-lock.yaml", type: .yaml, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+        FileItem(path: "pnpm-workspace.yaml", name: "pnpm-workspace.yaml", type: .yaml, isDirectory: false, childrenLoaded: true, hasChildrenHint: false),
+        FileItem(path: "turbo.json", name: "turbo.json", type: .json, isDirectory: false, childrenLoaded: true, hasChildrenHint: false)
     ]
 
     // MARK: - Welcome Message

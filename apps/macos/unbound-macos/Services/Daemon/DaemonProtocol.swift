@@ -39,6 +39,7 @@ enum DaemonMethod: String, Codable {
     case repositoryList = "repository.list"
     case repositoryAdd = "repository.add"
     case repositoryRemove = "repository.remove"
+    case repositoryListFiles = "repository.list_files"
 
     // Claude CLI
     case claudeSend = "claude.send"
@@ -445,6 +446,39 @@ struct DaemonRepository: Codable, Identifiable {
             addedAt: lastAccessed,  // Daemon doesn't send created_at, use last_accessed
             isGitRepository: isGitRepository ?? true
         )
+    }
+}
+
+/// File entry from daemon file listing.
+struct DaemonFileEntry: Codable, Identifiable {
+    let id: String
+    let name: String
+    let path: String
+    let isDir: Bool
+    let hasChildren: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case path
+        case isDir = "is_dir"
+        case hasChildren = "has_children"
+    }
+
+    init(name: String, path: String, isDir: Bool, hasChildren: Bool) {
+        self.name = name
+        self.path = path
+        self.isDir = isDir
+        self.hasChildren = hasChildren
+        self.id = path
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        path = try container.decode(String.self, forKey: .path)
+        isDir = try container.decode(Bool.self, forKey: .isDir)
+        hasChildren = try container.decode(Bool.self, forKey: .hasChildren)
+        id = path
     }
 }
 

@@ -180,8 +180,8 @@ struct RepositoryGroup: View {
                             .frame(width: 10)
 
                         Text(repository.name)
-                            .font(Typography.bodySmall)
-                            .foregroundStyle(colors.mutedForeground)
+                            .font(Typography.sidebarProject)
+                            .foregroundStyle(colors.foreground.opacity(0.9))
                     }
                     .contentShape(Rectangle())
                 }
@@ -192,8 +192,8 @@ struct RepositoryGroup: View {
                 // Session count badge
                 if !allSessions.isEmpty {
                     Text("\(allSessions.count)")
-                        .font(Typography.micro)
-                        .foregroundStyle(colors.mutedForeground)
+                        .font(Typography.sidebarMeta)
+                        .foregroundStyle(colors.sidebarMeta)
                         .padding(.horizontal, Spacing.xs)
                         .padding(.vertical, 2)
                         .background(colors.muted.opacity(0.5))
@@ -288,9 +288,10 @@ struct MainDirectorySection: View {
                             .foregroundStyle(colors.mutedForeground)
                             .frame(width: 10)
 
-                        Text("Main Directory")
-                            .font(Typography.micro)
+                        Text("MAIN DIRECTORY")
+                            .font(Typography.sidebarSection)
                             .foregroundStyle(colors.mutedForeground)
+                            .tracking(0.5)
                     }
                     .contentShape(Rectangle())
                 }
@@ -372,9 +373,10 @@ struct WorktreeSection: View {
                             .font(.system(size: 9))
                             .foregroundStyle(colors.mutedForeground)
 
-                        Text(name)
-                            .font(Typography.micro)
+                        Text(name.uppercased())
+                            .font(Typography.sidebarSection)
                             .foregroundStyle(colors.mutedForeground)
+                            .tracking(0.5)
                             .lineLimit(1)
                     }
                     .contentShape(Rectangle())
@@ -467,8 +469,8 @@ struct TimelineSessionRow: View {
                 HStack(spacing: Spacing.xs) {
                     // Session title
                     Text(session.displayTitle)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.mutedForeground)
+                        .font(Typography.sidebarItem)
+                        .foregroundStyle(isSelected ? colors.foreground : colors.sidebarText)
                         .lineLimit(1)
 
                     Spacer()

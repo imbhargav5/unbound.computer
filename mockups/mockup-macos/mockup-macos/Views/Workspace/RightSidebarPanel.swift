@@ -91,6 +91,7 @@ struct RightSidebarPanel: View {
 
     // State bindings
     @Binding var selectedTab: RightSidebarTab
+    @Bindable var editorState: EditorState
 
     // Working directory
     let workingDirectory: String?
@@ -211,9 +212,17 @@ struct RightSidebarPanel: View {
     private var tabContent: some View {
         switch selectedTab {
         case .changes:
-            ChangesTabView()
+            ChangesTabView(
+                onFileSelected: { file in
+                    editorState.openDiffTab(relativePath: file.path)
+                }
+            )
         case .files:
-            FilesTabView()
+            FilesTabView(
+                onFileSelected: { file in
+                    editorState.openFileTab(relativePath: file.name)
+                }
+            )
         case .commits:
             CommitsTabView()
         }
@@ -229,6 +238,7 @@ struct ChangesTabView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedFileId: UUID?
+    var onFileSelected: (GitStatusFile) -> Void
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -244,7 +254,10 @@ struct ChangesTabView: View {
                         VSCodeChangeRow(
                             file: file,
                             isSelected: selectedFileId == file.id,
-                            onSelect: { selectedFileId = file.id }
+                            onSelect: {
+                                selectedFileId = file.id
+                                onFileSelected(file)
+                            }
                         )
                     }
                 }
@@ -346,6 +359,7 @@ struct VSCodeChangeRow: View {
 
 struct FilesTabView: View {
     @Environment(\.colorScheme) private var colorScheme
+    var onFileSelected: (FileItem) -> Void
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -355,7 +369,7 @@ struct FilesTabView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(FakeData.fileTree) { item in
-                    FileTreeRow(item: item, level: 0)
+                    FileTreeRow(item: item, level: 0, onFileSelected: onFileSelected)
                 }
             }
             .padding(.vertical, Spacing.sm)
@@ -370,6 +384,7 @@ struct FileTreeRow: View {
 
     let item: FileItem
     let level: Int
+    var onFileSelected: (FileItem) -> Void
 
     @State private var isExpanded: Bool = false
 
@@ -384,6 +399,8 @@ struct FileTreeRow: View {
                     withAnimation(.easeInOut(duration: Duration.fast)) {
                         isExpanded.toggle()
                     }
+                } else {
+                    onFileSelected(item)
                 }
             } label: {
                 HStack(spacing: Spacing.sm) {
@@ -417,7 +434,7 @@ struct FileTreeRow: View {
 
             if isExpanded, let children = item.children {
                 ForEach(children) { child in
-                    FileTreeRow(item: child, level: level + 1)
+                    FileTreeRow(item: child, level: level + 1, onFileSelected: onFileSelected)
                 }
             }
         }
@@ -648,6 +665,7 @@ private struct TimelineNode: View {
 #Preview {
     RightSidebarPanel(
         selectedTab: .constant(.changes),
+        editorState: EditorState(),
         workingDirectory: "/Users/test/project"
     )
     .environment(MockAppState())

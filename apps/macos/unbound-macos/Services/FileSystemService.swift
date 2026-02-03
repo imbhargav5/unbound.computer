@@ -43,10 +43,30 @@ class FileSystemService {
 
             if isDirectory {
                 let children = scanDirectory(url: itemURL, currentDepth: currentDepth + 1, maxDepth: maxDepth)
-                return FileItem(name: name, type: .folder, children: children)
+                return FileItem(
+                    path: itemURL.path,
+                    name: name,
+                    type: .folder,
+                    children: children,
+                    isExpanded: false,
+                    gitStatus: .unchanged,
+                    isDirectory: true,
+                    childrenLoaded: true,
+                    hasChildrenHint: !children.isEmpty
+                )
             } else {
                 let type = FileItemType.fromExtension(itemURL.pathExtension)
-                return FileItem(name: name, type: type)
+                return FileItem(
+                    path: itemURL.path,
+                    name: name,
+                    type: type,
+                    children: [],
+                    isExpanded: false,
+                    gitStatus: .unchanged,
+                    isDirectory: false,
+                    childrenLoaded: true,
+                    hasChildrenHint: false
+                )
             }
         }
     }

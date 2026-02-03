@@ -37,31 +37,46 @@ enum GitFileStatus: String, Hashable {
 // MARK: - File Item
 
 struct FileItem: Identifiable, Hashable {
-    let id: UUID
+    let id: String
+    let path: String
     let name: String
     let type: FileItemType
     var children: [FileItem]
     var isExpanded: Bool
     var gitStatus: GitFileStatus
+    let isDirectory: Bool
+    var childrenLoaded: Bool
+    var hasChildrenHint: Bool
 
     init(
-        id: UUID = UUID(),
+        path: String,
         name: String,
         type: FileItemType,
         children: [FileItem] = [],
         isExpanded: Bool = false,
-        gitStatus: GitFileStatus = .unchanged
+        gitStatus: GitFileStatus = .unchanged,
+        isDirectory: Bool,
+        childrenLoaded: Bool = false,
+        hasChildrenHint: Bool = false
     ) {
-        self.id = id
+        self.id = path
+        self.path = path
         self.name = name
         self.type = type
         self.children = children
         self.isExpanded = isExpanded
         self.gitStatus = gitStatus
+        self.isDirectory = isDirectory
+        self.childrenLoaded = childrenLoaded
+        self.hasChildrenHint = hasChildrenHint
     }
 
     var hasChildren: Bool {
-        !children.isEmpty
+        guard isDirectory else { return false }
+        if childrenLoaded {
+            return !children.isEmpty
+        }
+        return hasChildrenHint
     }
 }
 

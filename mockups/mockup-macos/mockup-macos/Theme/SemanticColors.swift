@@ -59,9 +59,13 @@ struct ShadcnColors {
         static let destructive = Color(hex: "ef4444")
         static let destructiveForeground = Zinc._50
 
-        static let border = Zinc._800
+        static let border = Zinc._700
         static let input = Zinc._800
         static let ring = Zinc._300
+
+        // Sidebar text hierarchy (foreground → sidebarText → sidebarMeta → mutedForeground)
+        static let sidebarText = Zinc._200          // Session titles, main content
+        static let sidebarMeta = Zinc._500          // Metadata, counts, timestamps
 
         // Additional semantic colors
         static let success = Color(hex: "22c55e")
@@ -106,6 +110,10 @@ struct ShadcnColors {
         static let border = Zinc._200
         static let input = Zinc._200
         static let ring = Zinc._950
+
+        // Sidebar text hierarchy (foreground → sidebarText → sidebarMeta → mutedForeground)
+        static let sidebarText = Zinc._700          // Session titles, main content
+        static let sidebarMeta = Zinc._400          // Metadata, counts, timestamps
 
         // Additional semantic colors
         static let success = Color(hex: "22c55e")
@@ -232,6 +240,15 @@ struct ThemeColors {
 
     var primaryActionForeground: Color {
         colorScheme == .dark ? ShadcnColors.Dark.primaryActionForeground : ShadcnColors.Light.primaryActionForeground
+    }
+
+    // Sidebar text hierarchy
+    var sidebarText: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.sidebarText : ShadcnColors.Light.sidebarText
+    }
+
+    var sidebarMeta: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.sidebarMeta : ShadcnColors.Light.sidebarMeta
     }
 }
 

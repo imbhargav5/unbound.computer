@@ -66,17 +66,13 @@ struct RightSidebarPanel: View {
     // View models
     var fileTreeViewModel: FileTreeViewModel?
     @Bindable var gitViewModel: GitViewModel
+    @Bindable var editorState: EditorState
 
     // State bindings
     @Binding var selectedTab: RightSidebarTab
 
     // Working directory
     let workingDirectory: String?
-
-    // Diff viewing state
-    @State private var selectedFileDiff: FileDiff?
-    @State private var isLoadingDiff: Bool = false
-    @State private var showDiffPanel: Bool = false
 
     // Editor mode state
     @State private var selectedEditorMode: EditorMode = .agent
@@ -104,11 +100,6 @@ struct RightSidebarPanel: View {
             }
             .frame(minHeight: 150)
 
-            // Middle section - Diff viewer (if file selected)
-            if showDiffPanel {
-                diffPanel
-            }
-
             // Footer (empty, 20px height)
             ShadcnDivider()
 
@@ -117,6 +108,11 @@ struct RightSidebarPanel: View {
                 .background(colors.card)
         }
         .background(colors.background)
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab == .files {
+                Task { await fileTreeViewModel?.loadRoot() }
+            }
+        }
         .onChange(of: workingDirectory) { _, newPath in
             Task {
                 await gitViewModel.setRepository(path: newPath)
@@ -126,6 +122,9 @@ struct RightSidebarPanel: View {
             gitViewModel.setDaemonClient(appState.daemonClient)
             Task {
                 await gitViewModel.setRepository(path: workingDirectory)
+                if selectedTab == .files {
+                    await fileTreeViewModel?.loadRoot()
+                }
             }
         }
     }
@@ -232,107 +231,39 @@ struct RightSidebarPanel: View {
         }
     }
 
-    // MARK: - Diff Panel
-
-    private var diffPanel: some View {
-        VStack(spacing: 0) {
-            ShadcnDivider()
-
-            // Diff header
-            HStack {
-                if let path = gitViewModel.selectedFilePath {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: IconSize.sm))
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Text((path as NSString).lastPathComponent)
-                        .font(Typography.bodySmall)
-                        .fontWeight(.medium)
-                        .foregroundStyle(colors.foreground)
-                }
-
-                Spacer()
-
-                if isLoadingDiff {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                }
-
-                // Close button
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        showDiffPanel = false
-                        gitViewModel.selectFile(nil)
-                        selectedFileDiff = nil
-                    }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-
-            ShadcnDivider()
-
-            // Diff content
-            if let diff = selectedFileDiff {
-                ScrollView {
-                    if diff.isBinary {
-                        BinaryDiffView()
-                    } else if diff.hunks.isEmpty {
-                        EmptyDiffView()
-                    } else {
-                        UnifiedDiffView(hunks: diff.hunks)
-                    }
-                }
-            } else if !isLoadingDiff {
-                Text("Select a file to view diff")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(minHeight: 150, maxHeight: 300)
-        .background(colors.card)
-    }
-
     // MARK: - Actions
 
     private func selectFile(_ file: GitStatusFile) {
         gitViewModel.selectFile(file.path)
-        showDiffPanel = true
+        editorState.openDiffTab(relativePath: file.path)
         Task {
             await loadDiffForFile(file.path)
         }
     }
 
     private func selectFile(_ file: FileItem) {
-        guard file.type == .file else { return }
-        fileTreeViewModel?.selectFile(file.id)
-        // For file tree, we'd need to get the path
-        // This is a simplified version
-        showDiffPanel = true
+        guard !file.isDirectory else { return }
+        fileTreeViewModel?.selectFile(file.path)
+        // Avoid loading file contents on click to keep UI responsive.
+        // File content can be opened via explicit action later.
     }
 
     private func loadDiffForFile(_ path: String) async {
         guard let workDir = workingDirectory else { return }
 
-        isLoadingDiff = true
-        defer { isLoadingDiff = false }
+        editorState.setDiffLoading(for: path, isLoading: true)
+        defer { editorState.setDiffLoading(for: path, isLoading: false) }
 
         do {
             let diffContent = try await appState.daemonClient.getGitDiff(path: workDir, filePath: path)
             if !diffContent.isEmpty {
-                selectedFileDiff = FileDiff.parse(from: diffContent, filePath: path)
+                editorState.setDiff(for: path, diff: FileDiff.parse(from: diffContent, filePath: path))
             } else {
-                selectedFileDiff = nil
+                editorState.setDiff(for: path, diff: nil)
             }
         } catch {
             logger.warning("Failed to load diff: \(error.localizedDescription)")
-            selectedFileDiff = nil
+            editorState.setDiffError(for: path, message: error.localizedDescription)
         }
     }
 }
@@ -343,6 +274,7 @@ struct RightSidebarPanel: View {
     RightSidebarPanel(
         fileTreeViewModel: nil,
         gitViewModel: GitViewModel(),
+        editorState: EditorState(),
         selectedTab: .constant(.changes),
         workingDirectory: "/Users/test/project"
     )

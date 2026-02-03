@@ -250,6 +250,38 @@ enum Typography {
     static var tab: Font {
         GeistFont.sans(size: FontSize.sm, weight: .semibold)
     }
+
+    // MARK: - Sidebar Typography
+
+    /// 13pt Medium - Sidebar section headers ("Agents")
+    @MainActor
+    static var sidebarHeader: Font {
+        GeistFont.sans(size: FontSize.base, weight: .medium)
+    }
+
+    /// 12pt Medium - Project/repository names (highest hierarchy)
+    @MainActor
+    static var sidebarProject: Font {
+        GeistFont.sans(size: FontSize.smMd, weight: .medium)
+    }
+
+    /// 10pt Medium - Directory labels (uppercase recommended)
+    @MainActor
+    static var sidebarSection: Font {
+        GeistFont.sans(size: FontSize.xs, weight: .medium)
+    }
+
+    /// 12pt Regular - Session/item titles
+    @MainActor
+    static var sidebarItem: Font {
+        GeistFont.sans(size: FontSize.smMd, weight: .regular)
+    }
+
+    /// 10pt Regular - Counts, timestamps, metadata
+    @MainActor
+    static var sidebarMeta: Font {
+        GeistFont.sans(size: FontSize.xs, weight: .regular)
+    }
 }
 
 // MARK: - Text Style View Modifier

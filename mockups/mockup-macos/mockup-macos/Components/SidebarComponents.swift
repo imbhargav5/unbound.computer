@@ -22,7 +22,7 @@ struct SidebarHeader: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(Typography.h4)
+                .font(Typography.sidebarHeader)
                 .foregroundStyle(colors.foreground)
 
             Spacer()
@@ -69,8 +69,8 @@ struct ExpandableGroup<Content: View>: View {
                         .frame(width: Spacing.md)
 
                     Text(title)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
+                        .font(Typography.sidebarProject)
+                        .foregroundStyle(colors.foreground.opacity(0.9))
 
                     Spacer()
 
@@ -110,7 +110,7 @@ struct NewWorkspaceButton: View {
                 Image(systemName: "plus")
                     .font(.system(size: IconSize.sm))
                 Text("New workspace")
-                    .font(Typography.bodySmall)
+                    .font(Typography.sidebarItem)
             }
             .foregroundStyle(colors.mutedForeground)
             .padding(.horizontal, Spacing.md)
@@ -138,7 +138,7 @@ struct AddRepositoryButton: View {
                 Image(systemName: "folder.badge.plus")
                     .font(.system(size: IconSize.md))
                 Text("Add repository")
-                    .font(Typography.bodySmall)
+                    .font(Typography.sidebarItem)
             }
             .foregroundStyle(colors.mutedForeground)
         }
@@ -236,8 +236,8 @@ struct WorkspaceGitInfoRow: View {
                     .foregroundStyle(colors.mutedForeground)
 
                 Text(branch)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(colors.foreground)
+                    .font(Typography.sidebarItem)
+                    .foregroundStyle(colors.sidebarText)
                     .lineLimit(1)
 
                 Spacer()
