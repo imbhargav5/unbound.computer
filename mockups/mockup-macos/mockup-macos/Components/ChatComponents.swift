@@ -345,6 +345,102 @@ struct ChatMessageView: View {
         message.role == .user
     }
 
+    /// Group tool_use blocks under sub-agent containers when parent ids are present.
+    private var displayContent: [MessageContent] {
+        var grouped: [MessageContent] = []
+        var subAgentIndexById: [String: Int] = [:]
+        var pendingToolsByParent: [String: [ToolUse]] = [:]
+        var pendingOrder: [ToolUse] = []
+
+        for content in message.content {
+            switch content {
+            case .subAgentActivity(let activity):
+                grouped.append(content)
+                subAgentIndexById[activity.parentToolUseId] = grouped.count - 1
+
+            case .toolUse(let toolUse):
+                if toolUse.toolName == "Task", let toolUseId = toolUse.toolUseId {
+                    let (subagentType, description) = taskDetails(from: toolUse.input)
+                    var subAgent = SubAgentActivity(
+                        parentToolUseId: toolUseId,
+                        subagentType: subagentType,
+                        description: description,
+                        tools: [],
+                        status: toolUse.status
+                    )
+
+                    if let pendingTools = pendingToolsByParent.removeValue(forKey: toolUseId) {
+                        subAgent.tools.append(contentsOf: pendingTools)
+                    }
+
+                    grouped.append(.subAgentActivity(subAgent))
+                    subAgentIndexById[toolUseId] = grouped.count - 1
+                    continue
+                }
+
+                if let parentId = toolUse.parentToolUseId {
+                    if let index = subAgentIndexById[parentId],
+                       case .subAgentActivity(var subAgent) = grouped[index] {
+                        subAgent.tools.append(toolUse)
+                        grouped[index] = .subAgentActivity(subAgent)
+                    } else {
+                        pendingToolsByParent[parentId, default: []].append(toolUse)
+                        pendingOrder.append(toolUse)
+                    }
+                } else {
+                    grouped.append(content)
+                }
+
+            default:
+                grouped.append(content)
+            }
+        }
+
+        if !pendingOrder.isEmpty {
+            for tool in pendingOrder {
+                guard let parentId = tool.parentToolUseId,
+                      pendingToolsByParent[parentId] != nil else {
+                    continue
+                }
+                grouped.append(.toolUse(tool))
+            }
+        }
+
+        return grouped
+    }
+
+    private var fileChanges: [FileChange] {
+        displayContent.compactMap { content in
+            if case .fileChange(let fileChange) = content {
+                return fileChange
+            }
+            return nil
+        }
+    }
+
+    private var nonFileContent: [MessageContent] {
+        if isUser {
+            return displayContent
+        }
+        return displayContent.filter { content in
+            if case .fileChange = content {
+                return false
+            }
+            return true
+        }
+    }
+
+    private func taskDetails(from input: String?) -> (String, String) {
+        guard let input,
+              let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ("unknown", "")
+        }
+        let subagentType = json["subagent_type"] as? String ?? "unknown"
+        let description = json["description"] as? String ?? ""
+        return (subagentType, description)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
             if isUser {
@@ -359,8 +455,12 @@ struct ChatMessageView: View {
                 }
 
                 // Render content blocks
-                ForEach(message.content) { content in
+                ForEach(nonFileContent) { content in
                     MessageContentView(content: content)
+                }
+
+                if !isUser && !fileChanges.isEmpty {
+                    FileChangeSummaryView(fileChanges: fileChanges)
                 }
             }
             .padding(isUser ? Spacing.md : 0)
@@ -512,48 +612,123 @@ struct ToolUseView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let toolUse: ToolUse
+    @State private var isExpanded = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    private var actionText: String {
+        ToolActivitySummary.actionLines(for: [toolUse]).first?.text ?? toolUse.toolName
+    }
+
+    private var hasDetails: Bool {
+        (toolUse.input?.isEmpty == false) || (toolUse.output?.isEmpty == false)
+    }
+
     var body: some View {
-        HStack(spacing: Spacing.sm) {
-            // Status indicator
-            Group {
-                switch toolUse.status {
-                case .running:
-                    ProgressView()
-                        .scaleEffect(0.6)
-                case .completed:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(colors.success)
-                case .failed:
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(colors.destructive)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if hasDetails {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isExpanded.toggle()
+                    }
                 }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    Text(actionText)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer()
+
+                    Text(statusName)
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(statusColor)
+
+                    if hasDetails {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: IconSize.xs))
+                            .foregroundStyle(colors.mutedForeground)
+                    }
+                }
+                .padding(.vertical, Spacing.xs)
+                .contentShape(Rectangle())
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: IconSize.md)
+            .buttonStyle(.plain)
 
-            // Tool name
-            Text(toolUse.toolName)
-                .font(Typography.bodySmall)
-                .fontWeight(.medium)
-                .foregroundStyle(colors.foreground)
+            if isExpanded && hasDetails {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    ShadcnDivider()
 
-            // Input preview
-            if let input = toolUse.input {
-                Text(input)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                    .lineLimit(1)
+                    if let input = toolUse.input, !input.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text("Input")
+                                .font(Typography.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(colors.mutedForeground)
+
+                            ScrollView {
+                                Text(input)
+                                    .font(Typography.code)
+                                    .foregroundStyle(colors.foreground)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 100)
+                            .padding(Spacing.sm)
+                            .background(colors.muted)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        }
+                        .padding(.horizontal, Spacing.md)
+                    }
+
+                    if let output = toolUse.output, !output.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text("Output")
+                                .font(Typography.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(colors.mutedForeground)
+
+                            ScrollView {
+                                Text(output)
+                                    .font(Typography.code)
+                                    .foregroundStyle(colors.foreground)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 150)
+                            .padding(Spacing.sm)
+                            .background(colors.muted)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        }
+                        .padding(.horizontal, Spacing.md)
+                    }
+                }
+                .padding(.bottom, Spacing.md)
             }
-
-            Spacer()
         }
-        .padding(Spacing.sm)
-        .background(colors.muted)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var statusName: String {
+        switch toolUse.status {
+        case .running: return "Running"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
+        }
+    }
+
+    private var statusColor: Color {
+        switch toolUse.status {
+        case .running: return colors.info
+        case .completed: return colors.success
+        case .failed: return colors.destructive
+        }
     }
 }
 
@@ -667,6 +842,132 @@ struct FileChangeView: View {
     }
 }
 
+// MARK: - File Change Summary View
+
+struct FileChangeSummaryView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let fileChanges: [FileChange]
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var totalAdditions: Int {
+        fileChanges.reduce(0) { $0 + $1.linesAdded }
+    }
+
+    private var totalDeletions: Int {
+        fileChanges.reduce(0) { $0 + $1.linesRemoved }
+    }
+
+    private var headerTitle: String {
+        let count = fileChanges.count
+        return "\(count) file\(count == 1 ? "" : "s") changed"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(Spacing.md)
+
+            if !fileChanges.isEmpty {
+                ShadcnDivider()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(fileChanges) { fileChange in
+                        FileChangeSummaryRow(fileChange: fileChange)
+
+                        if fileChange.id != fileChanges.last?.id {
+                            ShadcnDivider()
+                        }
+                    }
+                }
+            }
+        }
+        .background(colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .stroke(colors.border, lineWidth: BorderWidth.default)
+        )
+    }
+
+    private var header: some View {
+        HStack(spacing: Spacing.sm) {
+            Text(headerTitle)
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.foreground)
+
+            if totalAdditions > 0 || totalDeletions > 0 {
+                HStack(spacing: Spacing.xs) {
+                    if totalAdditions > 0 {
+                        Text("+\(totalAdditions)")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.success)
+                    }
+                    if totalDeletions > 0 {
+                        Text("-\(totalDeletions)")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.destructive)
+                    }
+                }
+            }
+
+            Spacer()
+
+            Button(action: {}) {
+                HStack(spacing: Spacing.xs) {
+                    Text("Undo")
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct FileChangeSummaryRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let fileChange: FileChange
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Text(fileChange.filePath)
+                .font(Typography.code)
+                .foregroundStyle(colors.foreground)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            if fileChange.linesAdded > 0 || fileChange.linesRemoved > 0 {
+                HStack(spacing: Spacing.xs) {
+                    if fileChange.linesAdded > 0 {
+                        Text("+\(fileChange.linesAdded)")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.success)
+                    }
+                    if fileChange.linesRemoved > 0 {
+                        Text("-\(fileChange.linesRemoved)")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.destructive)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+    }
+}
+
 // MARK: - Error Content View
 
 struct ErrorContentView: View {
@@ -707,37 +1008,211 @@ struct ErrorContentView: View {
     }
 }
 
+// MARK: - Tool Activity Summary
+
+private struct ToolActionLine: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+private enum ToolActivitySummary {
+    static func summary(for activity: SubAgentActivity) -> String {
+        let counts = categoryCounts(toolNames: activity.tools.map { $0.toolName })
+        let countsText = formatCounts(counts)
+        guard let verb = verbForSubagent(type: activity.subagentType, status: activity.status) else {
+            return "\(activity.subagentType) activity"
+        }
+        if countsText.isEmpty {
+            return verb
+        }
+        return "\(verb) \(countsText)"
+    }
+
+    static func actionLines(for tools: [ToolUse]) -> [ToolActionLine] {
+        tools.map { tool in
+            let text: String
+            let filePath = inputValue(tool.input, key: "file_path") ?? tool.input
+            let pattern = inputValue(tool.input, key: "pattern") ?? tool.input ?? ""
+            let command = inputValue(tool.input, key: "command") ?? tool.input ?? ""
+            let query = inputValue(tool.input, key: "query") ?? tool.input ?? ""
+            let url = inputValue(tool.input, key: "url") ?? tool.input
+            switch tool.toolName {
+            case "Read":
+                text = "Read \(fileLabel(filePath))"
+            case "Write":
+                text = "Wrote \(fileLabel(filePath))"
+            case "Edit":
+                text = "Edited \(fileLabel(filePath))"
+            case "Grep":
+                text = "Searched for \(pattern)"
+            case "Glob":
+                text = "Searched files by \(pattern)"
+            case "Bash":
+                text = "Ran \(command)"
+            case "WebSearch":
+                text = "Searched the web for \(query)"
+            case "WebFetch":
+                text = "Fetched \(hostLabel(url))"
+            default:
+                text = fallbackText(toolName: tool.toolName, preview: tool.input ?? "")
+            }
+            return ToolActionLine(text: text.trimmingCharacters(in: .whitespaces))
+        }
+        .filter { !$0.text.isEmpty }
+    }
+
+    private static func verbForSubagent(type: String, status: ToolStatus) -> String? {
+        let lower = type.lowercased()
+        let isRunning = status == .running
+        switch lower {
+        case "explore":
+            return isRunning ? "Exploring" : "Explored"
+        case "plan":
+            return isRunning ? "Planning" : "Planned"
+        case "bash":
+            return isRunning ? "Running" : "Ran"
+        case "general-purpose":
+            return isRunning ? "Working" : "Worked"
+        default:
+            return nil
+        }
+    }
+
+    private static func categoryCounts(toolNames: [String]) -> (files: Int, searches: Int, commands: Int, web: Int) {
+        var files = 0
+        var searches = 0
+        var commands = 0
+        var web = 0
+
+        for name in toolNames {
+            switch name {
+            case "Read", "Write", "Edit":
+                files += 1
+            case "Grep", "Glob":
+                searches += 1
+            case "Bash":
+                commands += 1
+            case "WebSearch", "WebFetch":
+                web += 1
+            default:
+                break
+            }
+        }
+        return (files, searches, commands, web)
+    }
+
+    private static func formatCounts(_ counts: (files: Int, searches: Int, commands: Int, web: Int)) -> String {
+        var parts: [String] = []
+        if counts.files > 0 {
+            parts.append(formatCount(counts.files, singular: "file", plural: "files"))
+        }
+        if counts.searches > 0 {
+            parts.append(formatCount(counts.searches, singular: "search", plural: "searches"))
+        }
+        if counts.commands > 0 {
+            parts.append(formatCount(counts.commands, singular: "command", plural: "commands"))
+        }
+        if counts.web > 0 {
+            parts.append(formatCount(counts.web, singular: "web request", plural: "web requests"))
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private static func formatCount(_ count: Int, singular: String, plural: String) -> String {
+        if count == 1 {
+            return "1 \(singular)"
+        }
+        return "\(count) \(plural)"
+    }
+
+    private static func inputValue(_ input: String?, key: String) -> String? {
+        guard let input, let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json[key] as? String
+    }
+
+    private static func fileLabel(_ path: String?) -> String {
+        guard let path, !path.isEmpty else { return "" }
+        return path.split(separator: "/").last.map(String.init) ?? path
+    }
+
+    private static func hostLabel(_ urlString: String?) -> String {
+        guard let urlString, !urlString.isEmpty else { return "" }
+        if let url = URL(string: urlString), let host = url.host {
+            return host
+        }
+        return urlString
+    }
+
+    private static func fallbackText(toolName: String, preview: String) -> String {
+        if preview.isEmpty {
+            return toolName
+        }
+        return "\(toolName) \(preview)"
+    }
+}
+
 // MARK: - Sub-Agent Activity View
 
-/// Displays a sub-agent's activity with grouped tools - simple button-like UI with borders
 struct SubAgentActivityView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let activity: SubAgentActivity
 
-    @State private var isExpanded = false
+    @State private var isExpanded = true
     @State private var hasAppeared = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
+    private var summaryText: String {
+        ToolActivitySummary.summary(for: activity)
+    }
+
+    private var actionLines: [ToolActionLine] {
+        ToolActivitySummary.actionLines(for: activity.tools)
+    }
+
+    private var hasDetails: Bool {
+        !actionLines.isEmpty || (activity.result?.isEmpty == false)
+    }
+
+    private var detailPaddingLeading: CGFloat {
+        Spacing.md + IconSize.sm + Spacing.sm
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            agentHeader
+            header
 
-            // Expandable content
-            if isExpanded {
-                expandedContent
+            if isExpanded && hasDetails {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    ShadcnDivider()
+                        .padding(.horizontal, Spacing.md)
+
+                    ForEach(actionLines) { line in
+                        Text(line.text)
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.mutedForeground)
+                            .padding(.leading, detailPaddingLeading)
+                            .padding(.trailing, Spacing.md)
+                    }
+
+                    if let result = activity.result, !result.isEmpty {
+                        Text(result)
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.foreground)
+                            .padding(.leading, detailPaddingLeading)
+                            .padding(.trailing, Spacing.md)
+                            .padding(.top, Spacing.xs)
+                    }
+                }
+                .padding(.vertical, Spacing.sm)
             }
         }
-        .background(colors.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(colors.border, lineWidth: BorderWidth.default)
-        )
         .scaleFade(isVisible: hasAppeared)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -746,167 +1221,53 @@ struct SubAgentActivityView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var agentHeader: some View {
+    private var header: some View {
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                isExpanded.toggle()
+            if hasDetails {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
             }
         } label: {
             HStack(spacing: Spacing.sm) {
-                // Agent type label
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: IconSize.xs))
+                statusIcon
 
-                    Text(activity.subagentType)
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundStyle(colors.foreground)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(colors.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.sm)
-                        .stroke(colors.border, lineWidth: BorderWidth.default)
-                )
-
-                // Status indicator
-                if activity.status == .running {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: IconSize.sm, height: IconSize.sm)
-                } else if activity.status == .completed {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                } else if activity.status == .failed {
-                    Image(systemName: "xmark")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.destructive)
-                }
+                Text(summaryText)
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
 
                 Spacer()
 
-                // Tool count
-                if !activity.tools.isEmpty {
-                    Text("\(activity.tools.count) tools")
-                        .font(Typography.micro)
+                if hasDetails {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: IconSize.xs))
                         .foregroundStyle(colors.mutedForeground)
                 }
-
-                // Expand/collapse chevron
-                Image(systemName: "chevron.right")
-                    .font(.system(size: IconSize.xs))
-                    .foregroundStyle(colors.mutedForeground)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
             }
-            .padding(Spacing.sm)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Expanded Content
-
-    private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            ShadcnDivider()
-
-            // Description
-            if !activity.description.isEmpty {
-                Text(activity.description)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.top, Spacing.xs)
-            }
-
-            // Tools list
-            if !activity.tools.isEmpty {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    ForEach(activity.tools) { tool in
-                        SubAgentToolRow(tool: tool)
-                    }
-                }
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-            }
-
-            // Result (if completed)
-            if let result = activity.result, activity.status == .completed {
-                ShadcnDivider()
-
-                Text(result)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.foreground)
-                    .padding(Spacing.sm)
-            }
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch activity.status {
+        case .running:
+            ProgressView()
+                .scaleEffect(0.6)
+                .frame(width: IconSize.sm, height: IconSize.sm)
+        case .completed:
+            Image(systemName: "checkmark")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(colors.mutedForeground)
+        case .failed:
+            Image(systemName: "xmark")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(colors.destructive)
         }
-        .transition(.asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .top)),
-            removal: .opacity
-        ))
-    }
-}
-
-// MARK: - Sub-Agent Tool Row
-
-struct SubAgentToolRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let tool: ToolUse
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            // Tool name
-            Text(tool.toolName)
-                .font(Typography.caption)
-                .foregroundStyle(colors.foreground)
-
-            // Input preview (truncated)
-            if let input = tool.input {
-                Text(input)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            // Status indicator
-            Group {
-                switch tool.status {
-                case .running:
-                    ProgressView()
-                        .scaleEffect(0.4)
-                case .completed:
-                    Image(systemName: "checkmark")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                case .failed:
-                    Image(systemName: "xmark")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.destructive)
-                }
-            }
-            .frame(width: IconSize.sm)
-        }
-        .padding(.vertical, Spacing.xs)
-        .padding(.horizontal, Spacing.sm)
-        .background(colors.muted)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.sm)
-                .stroke(colors.border, lineWidth: BorderWidth.default)
-        )
     }
 }
 

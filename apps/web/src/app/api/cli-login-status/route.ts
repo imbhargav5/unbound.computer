@@ -22,15 +22,18 @@ import { createSupabaseAdminRouteHandlerClient } from "@/supabase-clients/admin/
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
-    const loginId = searchParams.get("login_id");
+    const loginIdParam = searchParams.get("login_id");
 
     // Validate login_id parameter
-    if (!loginId) {
+    if (!loginIdParam) {
       return NextResponse.json(
         { error: "login_id parameter is required" },
         { status: 400 }
       );
     }
+
+    // Store validated login_id for type safety
+    const loginId = loginIdParam;
 
     // Use admin client with service role key to query cli_logins
     // SECURITY: Service role key only used server-side, never sent to CLI

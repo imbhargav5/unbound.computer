@@ -490,6 +490,9 @@ importers:
       '@unbound/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@unbound/redis':
+        specifier: workspace:*
+        version: link:../../packages/redis
       '@unkey/api':
         specifier: ^2.0.5
         version: 2.2.0

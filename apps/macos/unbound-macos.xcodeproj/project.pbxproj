@@ -16,9 +16,12 @@
 		CDD0B52D2F07B6A8002D09F7 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B52C2F07B6A8002D09F7 /* Storage */; };
 		CDD0B52F2F07B6A8002D09F7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B52E2F07B6A8002D09F7 /* Supabase */; };
 		CDD0BA552F097D07002D09F7 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0BA542F097D07002D09F7 /* GRDB */; };
+		5A9648B9B2E168F13ADB91B4 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BEC16D518A64A1A32B1C155 /* XCTest.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0BEC16D518A64A1A32B1C155 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "unbound-macosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "unbound-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -26,6 +29,11 @@
 		CDD3C1562EFFB85C00CDEC43 /* unbound-macos */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "unbound-macos";
+			sourceTree = "<group>";
+		};
+		0116ED91ED9D93FFC27748DA /* unbound-macosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "unbound-macosTests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -47,6 +55,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D16F9DDCD323D2795343F116 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A9648B9B2E168F13ADB91B4 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -54,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				CDD3C1562EFFB85C00CDEC43 /* unbound-macos */,
+				0116ED91ED9D93FFC27748DA /* unbound-macosTests */,
 				CDD3C1552EFFB85C00CDEC43 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */,
+				8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,6 +118,27 @@
 			productReference = CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E1BE1886348460F6E6A9BAEE /* unbound-macosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1BE07CD2B3B168A8BBD95810 /* Build configuration list for PBXNativeTarget "unbound-macosTests" */;
+			buildPhases = (
+				1E1A73B35E5EDED09EE66ED4 /* Sources */,
+				D16F9DDCD323D2795343F116 /* Frameworks */,
+				49B399626D682F46C893EE1B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6CFBFEEF21C517D7F0EEC672 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0116ED91ED9D93FFC27748DA /* unbound-macosTests */,
+			);
+			name = "unbound-macosTests";
+			productName = "unbound-macosTests";
+			productReference = 8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -112,6 +151,10 @@
 				TargetAttributes = {
 					CDD3C1532EFFB85C00CDEC43 = {
 						CreatedOnToolsVersion = 26.1.1;
+					};
+					E1BE1886348460F6E6A9BAEE = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = CDD3C1532EFFB85C00CDEC43;
 					};
 				};
 			};
@@ -136,12 +179,30 @@
 			projectRoot = "";
 			targets = (
 				CDD3C1532EFFB85C00CDEC43 /* unbound-macos */,
+				E1BE1886348460F6E6A9BAEE /* unbound-macosTests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXContainerItemProxy section */
+		8BA9B8F5197A9BFB25D3592B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CDD3C14C2EFFB85C00CDEC43 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CDD3C1532EFFB85C00CDEC43 /* unbound-macos */;
+			remoteInfo = "unbound-macos";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXResourcesBuildPhase section */
 		CDD3C1522EFFB85C00CDEC43 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		49B399626D682F46C893EE1B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -158,9 +219,65 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1E1A73B35E5EDED09EE66ED4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		6CFBFEEF21C517D7F0EEC672 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CDD3C1532EFFB85C00CDEC43 /* unbound-macos */;
+			targetProxy = 8BA9B8F5197A9BFB25D3592B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		BC4A7098996F0AAF18159FF3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = LLC6TV7P6M;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-macosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/unbound-macos.app/Contents/MacOS/unbound-macos";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		258CB57A656F89A5B7B9ABD1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = LLC6TV7P6M;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-macosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/unbound-macos.app/Contents/MacOS/unbound-macos";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		CDD3C15D2EFFB85D00CDEC43 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -355,6 +472,15 @@
 			buildConfigurations = (
 				CDD3C15D2EFFB85D00CDEC43 /* Debug */,
 				CDD3C15E2EFFB85D00CDEC43 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1BE07CD2B3B168A8BBD95810 /* Build configuration list for PBXNativeTarget "unbound-macosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC4A7098996F0AAF18159FF3 /* Debug */,
+				258CB57A656F89A5B7B9ABD1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

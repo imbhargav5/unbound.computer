@@ -1,5 +1,5 @@
-import type { Database } from "@repo/database";
-import { createRedisClient, xread } from "@repo/redis";
+import type { Database } from "database/types";
+import { createRedisClient, xread } from "@unbound/redis";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -91,19 +91,16 @@ async function processSessionStream(
     const messages = results[0].messages;
 
     // Prepare batch insert for new schema with encrypted content
+    // Note: Supabase accepts base64 strings for BYTEA columns
     const messagesToInsert = messages.map((msg) => {
       const data = msg.data as unknown as RedisMessageData;
       return {
         session_id: sessionId,
         sequence_number: Number.parseInt(data.sequenceNumber, 10),
         role: data.role || "assistant",
-        // Decode base64 to binary for BYTEA columns
-        content_encrypted: data.contentEncrypted
-          ? Buffer.from(data.contentEncrypted, "base64")
-          : null,
-        content_nonce: data.contentNonce
-          ? Buffer.from(data.contentNonce, "base64")
-          : null,
+        // Keep as base64 strings - Supabase handles the conversion
+        content_encrypted: data.contentEncrypted || null,
+        content_nonce: data.contentNonce || null,
       };
     });
 

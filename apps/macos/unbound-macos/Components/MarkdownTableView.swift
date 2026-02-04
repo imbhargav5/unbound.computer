@@ -244,28 +244,29 @@ enum InlineMarkdownParser {
                 var attr = AttributedString(match)
                 attr.font = Typography.code
                 attr.backgroundColor = colors.muted
+                attr.foregroundColor = colors.foreground
                 return attr
             }),
             // Bold (double asterisks or underscores)
             (#"\*\*([^*]+)\*\*"#, { match, font, colors in
                 var attr = AttributedString(match)
-                attr.font = Typography.bodyMedium
+                attr.font = font.weight(.semibold)
                 return attr
             }),
             (#"__([^_]+)__"#, { match, font, colors in
                 var attr = AttributedString(match)
-                attr.font = Typography.bodyMedium
+                attr.font = font.weight(.semibold)
                 return attr
             }),
             // Italic (single asterisk or underscore)
             (#"(?<!\*)\*([^*]+)\*(?!\*)"#, { match, font, colors in
                 var attr = AttributedString(match)
-                attr.font = Font.system(size: FontSize.base, weight: .regular, design: .monospaced).italic()
+                attr.font = font.italic()
                 return attr
             }),
             (#"(?<!_)_([^_]+)_(?!_)"#, { match, font, colors in
                 var attr = AttributedString(match)
-                attr.font = Font.system(size: FontSize.base, weight: .regular, design: .monospaced).italic()
+                attr.font = font.italic()
                 return attr
             })
         ]
@@ -413,6 +414,7 @@ private struct TableCell: View {
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
             .textSelection(.enabled)
+            .lineSpacing(Spacing.xxs)
     }
 }
 

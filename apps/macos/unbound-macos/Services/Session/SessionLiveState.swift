@@ -92,7 +92,7 @@ class SessionLiveState {
     // MARK: - Tool State
 
     private(set) var activeTools: [ActiveTool] = []
-    private(set) var activeSubAgent: ActiveSubAgent?
+    private(set) var activeSubAgents: [ActiveSubAgent] = []
     private(set) var pendingPrompt: PendingPrompt?
     private(set) var toolHistory: [ToolHistoryEntry] = []
 
@@ -106,6 +106,7 @@ class SessionLiveState {
 
     private var subscriptionTask: Task<Void, Never>?
     private var fetchDebounceTask: Task<Void, Never>?
+    private var pendingSubAgentTools: [String: [ActiveTool]] = [:]
 
     // MARK: - Initialization
 
@@ -217,7 +218,8 @@ class SessionLiveState {
             logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
 
             let parseStart = CFAbsoluteTimeGetCurrent()
-            messages = daemonMessages.compactMap { parseMessage($0) }
+            let parsedMessages = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+            messages = ChatMessageGrouper.groupSubAgentTools(messages: parsedMessages)
             let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
             logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(messages.count) parsed messages")
         } catch {
@@ -290,14 +292,29 @@ class SessionLiveState {
                         activeTools[i].status = .failed
                     }
                 }
-                if var subAgent = activeSubAgent {
-                    for i in subAgent.childTools.indices {
-                        if subAgent.childTools[i].status == .running {
-                            subAgent.childTools[i].status = .failed
+                for i in activeSubAgents.indices {
+                    for j in activeSubAgents[i].childTools.indices {
+                        if activeSubAgents[i].childTools[j].status == .running {
+                            activeSubAgents[i].childTools[j].status = .failed
                         }
                     }
-                    subAgent.status = .failed
-                    activeSubAgent = subAgent
+                    if activeSubAgents[i].status == .running {
+                        activeSubAgents[i].status = .failed
+                    }
+                }
+
+                // Mark pending sub-agent tools as failed and flush to standalone tools
+                if !pendingSubAgentTools.isEmpty {
+                    for (_, tools) in pendingSubAgentTools {
+                        var failedTools = tools
+                        for index in failedTools.indices {
+                            if failedTools[index].status == .running {
+                                failedTools[index].status = .failed
+                            }
+                        }
+                        activeTools.append(contentsOf: failedTools)
+                    }
+                    pendingSubAgentTools.removeAll()
                 }
 
                 moveToolsToHistory()
@@ -338,7 +355,8 @@ class SessionLiveState {
 
     func clearToolState() {
         activeTools.removeAll()
-        activeSubAgent = nil
+        activeSubAgents.removeAll()
+        pendingSubAgentTools.removeAll()
         toolHistory.removeAll()
         streamingContent = nil
         pendingPrompt = nil
@@ -361,7 +379,8 @@ class SessionLiveState {
             let daemonMessages = try await daemonClient.listMessages(
                 sessionId: sessionId.uuidString.lowercased()
             )
-            messages = daemonMessages.compactMap { parseMessage($0) }
+            let parsedMessages = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+            messages = ChatMessageGrouper.groupSubAgentTools(messages: parsedMessages)
         } catch {
             logger.error("Failed to fetch messages: \(error)")
         }
@@ -445,6 +464,13 @@ class SessionLiveState {
         }
     }
 
+#if DEBUG
+    /// Testing hook: ingest a raw Claude JSON event string and update tool state.
+    func ingestClaudeEventForTests(_ json: String) {
+        handleClaudeEvent(json)
+    }
+#endif
+
     private func handleAssistantEvent(_ json: [String: Any]) {
         // Detect externally-triggered Claude run (e.g. from TUI)
         if !claudeRunning {
@@ -457,6 +483,7 @@ class SessionLiveState {
             return
         }
 
+        let messageParent = json["parent_tool_use_id"] as? String
         var textParts: [String] = []
         for block in contentBlocks {
             if let blockType = block["type"] as? String {
@@ -466,7 +493,7 @@ class SessionLiveState {
                         textParts.append(text)
                     }
                 case "tool_use":
-                    handleToolUseBlock(block)
+                    handleToolUseBlock(block, parentOverride: messageParent)
                 default:
                     break
                 }
@@ -478,7 +505,7 @@ class SessionLiveState {
         }
     }
 
-    private func handleToolUseBlock(_ block: [String: Any]) {
+    private func handleToolUseBlock(_ block: [String: Any], parentOverride: String? = nil) {
         guard let id = block["id"] as? String,
               let name = block["name"] as? String else {
             return
@@ -487,6 +514,7 @@ class SessionLiveState {
         logger.debug("Tool use: \(name) (id=\(id)) for session \(sessionId)")
 
         let input = block["input"] as? [String: Any]
+        let parentToolUseId = (block["parent_tool_use_id"] as? String) ?? parentOverride
 
         // Check for Task (sub-agent)
         if name == "Task" {
@@ -498,13 +526,19 @@ class SessionLiveState {
             let subagentType = input?["subagent_type"] as? String ?? "unknown"
             let description = input?["description"] as? String ?? ""
 
-            activeSubAgent = ActiveSubAgent(
+            var subAgent = ActiveSubAgent(
                 id: id,
                 subagentType: subagentType,
                 description: description,
                 childTools: [],
                 status: .running
             )
+
+            if let pendingTools = pendingSubAgentTools.removeValue(forKey: id) {
+                subAgent.childTools.append(contentsOf: pendingTools)
+            }
+
+            activeSubAgents.append(subAgent)
             return
         }
 
@@ -540,8 +574,12 @@ class SessionLiveState {
         let inputPreview = createToolInputPreview(name: name, input: input)
         let tool = ActiveTool(id: id, name: name, inputPreview: inputPreview, status: .running)
 
-        if activeSubAgent != nil {
-            activeSubAgent?.childTools.append(tool)
+        if let parentToolUseId {
+            if let index = activeSubAgents.firstIndex(where: { $0.id == parentToolUseId }) {
+                activeSubAgents[index].childTools.append(tool)
+            } else {
+                pendingSubAgentTools[parentToolUseId, default: []].append(tool)
+            }
         } else {
             activeTools.append(tool)
         }
@@ -608,146 +646,70 @@ class SessionLiveState {
             return
         }
 
-        if let subAgent = activeSubAgent,
-           let index = subAgent.childTools.firstIndex(where: { $0.id == toolUseId }) {
-            activeSubAgent?.childTools[index].status = status
-
-            if toolUseId == subAgent.id {
-                activeSubAgent?.status = status
+        for subAgentIndex in activeSubAgents.indices {
+            if let childIndex = activeSubAgents[subAgentIndex].childTools.firstIndex(where: { $0.id == toolUseId }) {
+                activeSubAgents[subAgentIndex].childTools[childIndex].status = status
+                return
             }
-            return
+
+            if toolUseId == activeSubAgents[subAgentIndex].id {
+                activeSubAgents[subAgentIndex].status = status
+                return
+            }
+        }
+
+        if !pendingSubAgentTools.isEmpty {
+            for (parentId, tools) in pendingSubAgentTools {
+                if let toolIndex = tools.firstIndex(where: { $0.id == toolUseId }) {
+                    var updatedTools = tools
+                    updatedTools[toolIndex].status = status
+                    pendingSubAgentTools[parentId] = updatedTools
+                    return
+                }
+            }
         }
     }
 
     // MARK: - Private: Tool History
 
     private func moveToolsToHistory() {
-        guard !activeTools.isEmpty || activeSubAgent != nil else { return }
+        let hasPendingTools = !pendingSubAgentTools.isEmpty
+        guard !activeTools.isEmpty || !activeSubAgents.isEmpty || hasPendingTools else { return }
 
-        // Check if this sub-agent is already in history (prevents duplicate entries
-        // when both statusChange and result events trigger moveToolsToHistory)
-        if let subAgent = activeSubAgent,
-           toolHistory.contains(where: { $0.subAgent?.id == subAgent.id }) {
-            logger.debug("Sub-agent \(subAgent.id) already in history, clearing active state only")
-            activeTools.removeAll()
-            activeSubAgent = nil
-            return
+        // Flush any pending sub-agent tools into standalone tools
+        if hasPendingTools {
+            for (_, tools) in pendingSubAgentTools {
+                activeTools.append(contentsOf: tools)
+            }
+            pendingSubAgentTools.removeAll()
         }
 
-        toolHistory.append(ToolHistoryEntry(
-            tools: activeTools,
-            subAgent: activeSubAgent,
-            afterMessageIndex: messages.count.advanced(by: -1)
-        ))
+        let afterIndex = messages.count.advanced(by: -1)
+
+        for subAgent in activeSubAgents {
+            if toolHistory.contains(where: { $0.subAgent?.id == subAgent.id }) {
+                logger.debug("Sub-agent \(subAgent.id) already in history, skipping")
+                continue
+            }
+
+            toolHistory.append(ToolHistoryEntry(
+                tools: [],
+                subAgent: subAgent,
+                afterMessageIndex: afterIndex
+            ))
+        }
+
+        if !activeTools.isEmpty {
+            toolHistory.append(ToolHistoryEntry(
+                tools: activeTools,
+                subAgent: nil,
+                afterMessageIndex: afterIndex
+            ))
+        }
+
         activeTools.removeAll()
-        activeSubAgent = nil
+        activeSubAgents.removeAll()
     }
 
     // MARK: - Private: Message Parsing
-
-    private func parseMessage(_ daemonMessage: DaemonMessage) -> ChatMessage? {
-        guard let content = daemonMessage.content, !content.isEmpty else { return nil }
-
-        let messageDate = daemonMessage.date ?? Date()
-
-        guard let contentData = content.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any],
-              let type = json["type"] as? String else {
-            return ChatMessage(
-                id: UUID(uuidString: daemonMessage.id) ?? UUID(),
-                role: .user,
-                text: content,
-                timestamp: messageDate,
-                sequenceNumber: daemonMessage.sequenceNumber
-            )
-        }
-
-        switch type {
-        case "assistant":
-            guard let messageContent = parseClaudeContent(json) else { return nil }
-            return ChatMessage(
-                id: UUID(uuidString: daemonMessage.id) ?? UUID(),
-                role: .assistant,
-                content: messageContent,
-                timestamp: messageDate,
-                sequenceNumber: daemonMessage.sequenceNumber
-            )
-        case "result":
-            let isError = json["is_error"] as? Bool ?? false
-            if isError, let errorText = json["result"] as? String {
-                return ChatMessage(
-                    id: UUID(uuidString: daemonMessage.id) ?? UUID(),
-                    role: .system,
-                    text: "Error: \(errorText)",
-                    timestamp: messageDate,
-                    sequenceNumber: daemonMessage.sequenceNumber
-                )
-            }
-            return nil
-        case "system", "user":
-            return nil
-        default:
-            return nil
-        }
-    }
-
-    private func parseClaudeContent(_ json: [String: Any]) -> [MessageContent]? {
-        guard let type = json["type"] as? String else { return nil }
-
-        switch type {
-        case "assistant":
-            guard let message = json["message"] as? [String: Any],
-                  let contentBlocks = message["content"] as? [[String: Any]] else {
-                return nil
-            }
-
-            var content: [MessageContent] = []
-            for block in contentBlocks {
-                if let blockType = block["type"] as? String {
-                    switch blockType {
-                    case "text":
-                        if let text = block["text"] as? String {
-                            content.append(.text(TextContent(text: text)))
-                        }
-                    case "tool_use":
-                        if let id = block["id"] as? String,
-                           let name = block["name"] as? String {
-                            let inputJson = (block["input"] as? [String: Any]).flatMap { dict in
-                                try? JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted)
-                            }.flatMap { String(data: $0, encoding: .utf8) }
-
-                            content.append(.toolUse(ToolUse(
-                                toolUseId: id,
-                                toolName: name,
-                                input: inputJson,
-                                status: .completed
-                            )))
-                        }
-                    default:
-                        break
-                    }
-                }
-            }
-            return content.isEmpty ? nil : content
-
-        case "user":
-            guard let message = json["message"] as? [String: Any],
-                  let contentBlocks = message["content"] as? [[String: Any]] else {
-                return nil
-            }
-
-            var content: [MessageContent] = []
-            for block in contentBlocks {
-                if let blockType = block["type"] as? String, blockType == "tool_result" {
-                    if let toolContent = block["content"] as? String {
-                        content.append(.text(TextContent(text: toolContent)))
-                    }
-                }
-            }
-            return content.isEmpty ? nil : content
-
-        default:
-            return nil
-        }
-    }
 }

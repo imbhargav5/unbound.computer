@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/supabase-clients/anon/create-supabase-anon-browser-client";
 
 /**
@@ -26,6 +26,31 @@ import { createClient } from "@/supabase-clients/anon/create-supabase-anon-brows
  * 6. CLI polls and retrieves session
  */
 export default function CLIAuthPage() {
+  return (
+    <Suspense fallback={<CLIAuthLoading />}>
+      <CLIAuthContent />
+    </Suspense>
+  );
+}
+
+function CLIAuthLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-lg dark:bg-gray-800">
+        <div className="text-center">
+          <h1 className="font-bold text-3xl text-gray-900 dark:text-white">
+            Unbound CLI
+          </h1>
+          <p className="mt-2 text-gray-600 text-sm dark:text-gray-400">
+            Loading...
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CLIAuthContent() {
   const searchParams = useSearchParams();
   const loginId = searchParams.get("login_id");
   const [error, setError] = useState<string | null>(null);

@@ -97,8 +97,8 @@ struct ChatPanel: View {
     }
 
     /// Currently active sub-agent (if any)
-    private var activeSubAgent: ActiveSubAgent? {
-        liveState?.activeSubAgent
+    private var activeSubAgents: [ActiveSubAgent] {
+        liveState?.activeSubAgents ?? []
     }
 
     /// Currently active standalone tools (not in a sub-agent)
@@ -108,7 +108,7 @@ struct ChatPanel: View {
 
     /// Whether there's any active tool state to display
     private var hasActiveToolState: Bool {
-        activeSubAgent != nil || !activeTools.isEmpty || !toolHistory.isEmpty
+        !activeSubAgents.isEmpty || !activeTools.isEmpty || !toolHistory.isEmpty
     }
 
     /// Coalesced scroll identity - combines factors that should trigger auto-scroll
@@ -117,8 +117,9 @@ struct ChatPanel: View {
         var hasher = Hasher()
         hasher.combine(messages.count)
         hasher.combine(toolHistory.count)
-        hasher.combine(activeSubAgent?.childTools.count ?? 0)
-        hasher.combine(activeTools.count)
+        hasher.combine(activeSubAgents.last?.id)
+        hasher.combine(activeSubAgents.last?.childTools.last?.id)
+        hasher.combine(activeTools.last?.id)
         if let last = messages.last {
             hasher.combine(last.content.count)
             // Include text length for smooth streaming scroll
@@ -233,15 +234,19 @@ struct ChatPanel: View {
                                         }
                                     }
 
-                                    // Render active sub-agent (if running)
-                                    if let subAgent = activeSubAgent {
-                                        ActiveSubAgentView(subAgent: subAgent)
-                                            .padding(.horizontal, Spacing.lg)
-                                            .padding(.vertical, Spacing.sm)
+                                    // Render active sub-agents (if running)
+                                    if !activeSubAgents.isEmpty {
+                                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                                            ForEach(activeSubAgents) { subAgent in
+                                                ActiveSubAgentView(subAgent: subAgent)
+                                            }
+                                        }
+                                        .padding(.horizontal, Spacing.lg)
+                                        .padding(.vertical, Spacing.sm)
                                     }
 
-                                    // Render active standalone tools (if no sub-agent is running)
-                                    if activeSubAgent == nil && !activeTools.isEmpty {
+                                    // Render active standalone tools (if any)
+                                    if !activeTools.isEmpty {
                                         ActiveToolsView(tools: activeTools)
                                             .padding(.horizontal, Spacing.lg)
                                             .padding(.vertical, Spacing.sm)

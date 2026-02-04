@@ -17,41 +17,7 @@ struct ToolViewRouter: View {
     let toolUse: ToolUse
 
     var body: some View {
-        switch toolUse.toolName {
-        case "Bash":
-            BashToolView(toolUse: toolUse)
-
-        case "Read":
-            ReadToolView(toolUse: toolUse)
-
-        case "Write":
-            WriteToolView(toolUse: toolUse)
-
-        case "Edit":
-            EditToolView(toolUse: toolUse)
-
-        case "Glob":
-            GlobToolView(toolUse: toolUse)
-
-        case "Grep":
-            GrepToolView(toolUse: toolUse)
-
-        case "WebFetch":
-            WebFetchToolView(toolUse: toolUse)
-
-        case "WebSearch":
-            WebSearchToolView(toolUse: toolUse)
-
-        case "Task":
-            TaskToolView(toolUse: toolUse)
-
-        case "TaskCreate", "TaskUpdate", "TaskList", "TaskGet":
-            TaskToolView(toolUse: toolUse)
-
-        default:
-            // Fall back to generic ToolUseView for unknown tools
-            ToolUseView(toolUse: toolUse)
-        }
+        ToolUseView(toolUse: toolUse)
     }
 }
 

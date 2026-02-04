@@ -396,6 +396,27 @@ struct ChatMessageView: View {
         return finalResult
     }
 
+    private var fileChanges: [FileChange] {
+        displayContent.compactMap { content in
+            if case .fileChange(let fileChange) = content {
+                return fileChange
+            }
+            return nil
+        }
+    }
+
+    private var nonFileContent: [MessageContent] {
+        if isUser {
+            return displayContent
+        }
+        return displayContent.filter { content in
+            if case .fileChange = content {
+                return false
+            }
+            return true
+        }
+    }
+
     /// Get all copyable text from the message
     private var copyableText: String {
         displayContent.compactMap { content in
@@ -447,11 +468,15 @@ struct ChatMessageView: View {
                 }
 
                 // Render content blocks (deduplicated for display)
-                ForEach(displayContent) { content in
+                ForEach(nonFileContent) { content in
                     MessageContentView(
                         content: content,
                         onQuestionSubmit: onQuestionSubmit
                     )
+                }
+
+                if !isUser && !fileChanges.isEmpty {
+                    FileChangeSummaryView(fileChanges: fileChanges)
                 }
 
                 // Action row (copy button on hover)

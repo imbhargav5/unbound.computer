@@ -260,13 +260,14 @@ private struct InlineMarkdownText: View {
     init(_ text: String, colors: ThemeColors, baseFont: Font? = nil) {
         self.text = text
         self.colors = colors
-        self.baseFont = baseFont ?? .system(size: FontSize.base, weight: .regular, design: .monospaced)
+        self.baseFont = baseFont ?? Typography.body
     }
 
     var body: some View {
         Text(parse())
             .font(baseFont)
             .textSelection(.enabled)
+            .lineSpacing(Spacing.xs)
     }
 
     private func parse() -> AttributedString {
@@ -276,9 +277,9 @@ private struct InlineMarkdownText: View {
             // Bold + Code: **`text`**
             (#"\*\*`([^`]+)`\*\*"#, { match in
                 var attr = AttributedString(match)
-                attr.font = .system(size: FontSize.base, weight: .semibold, design: .monospaced)
+                attr.font = Typography.code.weight(.semibold)
                 attr.backgroundColor = colors.muted
-                attr.foregroundColor = Color(colors.primary)
+                attr.foregroundColor = colors.foreground
                 return attr
             }),
             // Code (backticks) - use foreground color for readability
@@ -286,31 +287,31 @@ private struct InlineMarkdownText: View {
                 var attr = AttributedString(match)
                 attr.font = Typography.code
                 attr.backgroundColor = colors.muted
-                attr.foregroundColor = Color(colors.foreground)
+                attr.foregroundColor = colors.foreground
                 return attr
             }),
             // Bold (double asterisks)
             (#"\*\*([^*]+)\*\*"#, { match in
                 var attr = AttributedString(match)
-                attr.font = Typography.bodyMedium
+                attr.font = baseFont.weight(.semibold)
                 return attr
             }),
             // Bold (double underscores)
             (#"__([^_]+)__"#, { match in
                 var attr = AttributedString(match)
-                attr.font = Typography.bodyMedium
+                attr.font = baseFont.weight(.semibold)
                 return attr
             }),
             // Italic (single asterisk)
             (#"(?<!\*)\*([^*]+)\*(?!\*)"#, { match in
                 var attr = AttributedString(match)
-                attr.font = Font.system(size: FontSize.base).italic()
+                attr.font = baseFont.italic()
                 return attr
             }),
             // Italic (single underscore)
             (#"(?<!_)_([^_]+)_(?!_)"#, { match in
                 var attr = AttributedString(match)
-                attr.font = Font.system(size: FontSize.base).italic()
+                attr.font = baseFont.italic()
                 return attr
             })
         ]
@@ -400,17 +401,21 @@ private struct MarkdownCodeBlockView: View {
             }
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
-            .background(colors.muted.opacity(0.5))
+            .background(colors.muted)
 
             // Code content with syntax highlighting
             ScrollView(.horizontal, showsIndicators: false) {
                 HighlightedCodeText(code: code, language: language)
                     .padding(Spacing.md)
             }
+            .background(colors.card)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.muted)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .stroke(colors.border, lineWidth: BorderWidth.default)
+        )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: Duration.fast)) {
                 isHovered = hovering
@@ -450,7 +455,7 @@ struct MarkdownTextView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             ForEach(blocks) { block in
                 blockView(for: block)
             }
@@ -464,7 +469,7 @@ struct MarkdownTextView: View {
             headingView(level: level, text: text)
 
         case .paragraph(let text):
-            InlineMarkdownText(text, colors: colors)
+            InlineMarkdownText(text, colors: colors, baseFont: Typography.body)
                 .foregroundStyle(colors.foreground)
 
         case .bulletList(let items):
@@ -497,7 +502,8 @@ struct MarkdownTextView: View {
 
         InlineMarkdownText(text, colors: colors, baseFont: font)
             .foregroundStyle(colors.foreground)
-            .padding(.top, level <= 2 ? Spacing.md : Spacing.sm)
+            .padding(.top, level <= 2 ? Spacing.lg : Spacing.md)
+            .padding(.bottom, Spacing.xs)
     }
 
     @ViewBuilder
@@ -508,9 +514,9 @@ struct MarkdownTextView: View {
                     Text("•")
                         .font(Typography.body)
                         .foregroundStyle(colors.mutedForeground)
-                        .padding(.leading, CGFloat(item.indent) * Spacing.lg)
+                        .padding(.leading, CGFloat(item.indent) * Spacing.md)
 
-                    InlineMarkdownText(item.text, colors: colors)
+                    InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
                         .foregroundStyle(colors.foreground)
                 }
             }
@@ -526,9 +532,9 @@ struct MarkdownTextView: View {
                         .font(Typography.body)
                         .foregroundStyle(colors.mutedForeground)
                         .frame(minWidth: 20, alignment: .trailing)
-                        .padding(.leading, CGFloat(item.indent) * Spacing.lg)
+                        .padding(.leading, CGFloat(item.indent) * Spacing.md)
 
-                    InlineMarkdownText(item.text, colors: colors)
+                    InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
                         .foregroundStyle(colors.foreground)
                 }
             }

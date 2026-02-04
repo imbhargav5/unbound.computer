@@ -17,53 +17,52 @@ struct ToolUseView: View {
         ThemeColors(colorScheme)
     }
 
+    private var actionText: String {
+        ToolActivitySummary.actionLine(for: toolUse)?.text ?? toolUse.toolName
+    }
+
+    private var hasDetails: Bool {
+        (toolUse.input?.isEmpty == false) || (toolUse.output?.isEmpty == false)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             Button {
-                if toolUse.input != nil || toolUse.output != nil {
+                if hasDetails {
                     withAnimation(.easeInOut(duration: Duration.fast)) {
                         isExpanded.toggle()
                     }
                 }
             } label: {
-                HStack(spacing: Spacing.md) {
-                    // Status indicator
-                    statusIcon
-
-                    // Tool name
-                    Text(toolUse.toolName)
-                        .font(Typography.code)
-                        .foregroundStyle(colors.foreground)
+                HStack(spacing: Spacing.sm) {
+                    Text(actionText)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
                     Spacer()
 
-                    // Status badge
                     Text(statusName)
                         .font(Typography.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(statusColor)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(
-                            RoundedRectangle(cornerRadius: Radius.sm)
-                                .fill(statusColor.opacity(0.1))
-                        )
 
-                    // Expand indicator
-                    if toolUse.input != nil || toolUse.output != nil {
+                    if hasDetails {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: IconSize.sm))
+                            .font(.system(size: IconSize.xs))
                             .foregroundStyle(colors.mutedForeground)
                     }
                 }
-                .padding(Spacing.md)
+                .padding(.vertical, Spacing.xs)
                 .contentShape(Rectangle())
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 
             // Details (if expanded)
-            if isExpanded {
+            if isExpanded && hasDetails {
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     ShadcnDivider()
 
@@ -116,46 +115,7 @@ struct ToolUseView: View {
                 .padding(.bottom, Spacing.md)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(colors.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .stroke(colors.border, lineWidth: BorderWidth.default)
-        )
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch toolUse.status {
-        case .running:
-            ProgressView()
-                .scaleEffect(0.7)
-                .frame(width: 18, height: 18)
-
-        case .completed:
-            ZStack {
-                Circle()
-                    .fill(colors.success)
-                    .frame(width: 18, height: 18)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-
-        case .failed:
-            ZStack {
-                Circle()
-                    .fill(colors.destructive)
-                    .frame(width: 18, height: 18)
-
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusName: String {

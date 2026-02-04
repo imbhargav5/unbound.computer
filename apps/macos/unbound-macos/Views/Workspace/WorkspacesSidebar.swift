@@ -31,6 +31,8 @@ struct WorkspacesSidebar: View {
     var onAddRepository: () -> Void
     var onCreateSessionForRepository: (Repository, SessionLocationType) -> Void
 
+    @State private var showKeyboardShortcuts = false
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -108,9 +110,13 @@ struct WorkspacesSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             // Agents header (top bar with fixed 64px height)
-            SidebarHeader(title: "Agents") {
-                // Menu action
-            }
+            SidebarHeader(
+                title: "Agents",
+                onOpenKeyboardShortcuts: {
+                    showKeyboardShortcuts = true
+                },
+                onOpenSettings: onOpenSettings
+            )
 
             ShadcnDivider()
 
@@ -158,6 +164,12 @@ struct WorkspacesSidebar: View {
                 .background(colors.card)
         }
         .background(colors.background)
+        .overlay {
+            if showKeyboardShortcuts {
+                KeyboardShortcutsOverlay(isPresented: $showKeyboardShortcuts)
+            }
+        }
+        .animation(.easeInOut(duration: Duration.fast), value: showKeyboardShortcuts)
     }
 }
 

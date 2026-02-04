@@ -55,7 +55,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Use edge runtime for faster cold starts
- */
-export const runtime = "edge";

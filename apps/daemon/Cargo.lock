@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "armin"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -564,7 +564,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-auth"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "base64",
  "chrono",
@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-bin"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "armin",
  "base64",
@@ -612,7 +612,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-core"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chacha20poly1305",
  "dirs",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-database"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chacha20poly1305",
  "chrono",
@@ -654,7 +654,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "daemon-core",
  "interprocess",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-outbox"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chrono",
  "daemon-core",
@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-relay"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chrono",
  "daemon-core",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-storage"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "base64",
  "chrono",
@@ -727,7 +727,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
 name = "deku"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "regex",
  "serde",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "falco"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1877,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "chrono",
  "dirs",

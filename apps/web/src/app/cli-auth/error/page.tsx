@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 /**
  * CLI Authentication Error Page
@@ -9,6 +10,24 @@ import { useSearchParams } from "next/navigation";
  * Displays error details and instructions.
  */
 export default function CLIAuthErrorPage() {
+  return (
+    <Suspense fallback={<CLIAuthErrorLoading />}>
+      <CLIAuthErrorContent />
+    </Suspense>
+  );
+}
+
+function CLIAuthErrorLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 text-center shadow-lg dark:bg-gray-800">
+        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+function CLIAuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const description = searchParams.get("description");

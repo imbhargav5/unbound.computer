@@ -176,6 +176,8 @@ struct ToolUse: Identifiable, Hashable {
     let id: UUID
     /// The tool_use_id from Claude CLI, used to match with tool_result
     let toolUseId: String?
+    /// The parent tool_use_id for sub-agent child tools (if any)
+    let parentToolUseId: String?
     let toolName: String
     let input: String?
     var output: String?
@@ -184,6 +186,7 @@ struct ToolUse: Identifiable, Hashable {
     init(
         id: UUID = UUID(),
         toolUseId: String? = nil,
+        parentToolUseId: String? = nil,
         toolName: String,
         input: String? = nil,
         output: String? = nil,
@@ -191,6 +194,7 @@ struct ToolUse: Identifiable, Hashable {
     ) {
         self.id = id
         self.toolUseId = toolUseId
+        self.parentToolUseId = parentToolUseId
         self.toolName = toolName
         self.input = input
         self.output = output

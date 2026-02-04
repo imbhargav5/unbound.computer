@@ -217,7 +217,11 @@ export const sendLoginLinkAction = adminActionClient
           throw userProfileError;
         }
 
-        const userEmail = userProfile.user_application_settings?.email_readonly;
+        // user_application_settings is a 1:1 relation but types as array due to Supabase typing
+        const userSettings = Array.isArray(userProfile.user_application_settings)
+          ? userProfile.user_application_settings[0]
+          : userProfile.user_application_settings;
+        const userEmail = userSettings?.email_readonly;
         const userName = userProfile.full_name;
 
         if (!userEmail) {

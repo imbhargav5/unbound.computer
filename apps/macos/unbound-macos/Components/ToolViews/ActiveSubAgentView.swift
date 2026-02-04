@@ -2,8 +2,7 @@
 //  ActiveSubAgentView.swift
 //  unbound-macos
 //
-//  Collapsible container for an ActiveSubAgent (runtime state).
-//  Shows the sub-agent header with child tools listed below.
+//  Lightweight container for an ActiveSubAgent (runtime state).
 //
 
 import SwiftUI
@@ -18,133 +17,76 @@ struct ActiveSubAgentView: View {
         ThemeColors(colorScheme)
     }
 
-    private var agentTypeColor: Color {
-        switch subAgent.subagentType.lowercased() {
-        case "explore":
-            return colors.info
-        case "plan":
-            return colors.warning
-        case "bash":
-            return colors.success
-        default:
-            return colors.primary
+    private var summaryText: String {
+        let toolUses = subAgent.childTools.map {
+            ToolUse(toolName: $0.name, input: $0.inputPreview, status: $0.status)
         }
+        return ToolActivitySummary.summary(for: subAgent.subagentType, tools: toolUses, status: subAgent.status)
     }
 
-    private var agentIcon: String {
-        switch subAgent.subagentType.lowercased() {
-        case "explore":
-            return "magnifyingglass.circle"
-        case "plan":
-            return "map"
-        case "bash":
-            return "terminal"
-        case "general-purpose":
-            return "gearshape.2"
-        default:
-            return "sparkles"
-        }
+    private var actionLines: [ToolActionLine] {
+        ToolActivitySummary.actionLines(for: subAgent.childTools)
+    }
+
+    private var hasDetails: Bool {
+        !actionLines.isEmpty
+    }
+
+    private var detailPaddingLeading: CGFloat {
+        Spacing.md + IconSize.sm + Spacing.sm
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            Button {
+            header
+
+            if isExpanded && hasDetails {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    ShadcnDivider()
+                        .padding(.horizontal, Spacing.md)
+
+                    ForEach(actionLines) { line in
+                        Text(line.text)
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.mutedForeground)
+                            .padding(.leading, detailPaddingLeading)
+                            .padding(.trailing, Spacing.md)
+                    }
+                }
+                .padding(.vertical, Spacing.sm)
+            }
+        }
+    }
+
+    private var header: some View {
+        Button {
+            if hasDetails {
                 withAnimation(.easeInOut(duration: Duration.fast)) {
                     isExpanded.toggle()
                 }
-            } label: {
-                HStack(spacing: Spacing.md) {
-                    statusIcon
+            }
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                statusIcon
 
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: agentIcon)
-                            .font(.system(size: IconSize.sm))
+                Text(summaryText)
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
 
-                        Text(subAgent.subagentType)
-                            .font(Typography.label)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(agentTypeColor)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(agentTypeColor.opacity(0.1))
-                    )
+                Spacer()
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(subAgent.description)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.foreground)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-
-                        if !subAgent.childTools.isEmpty && !isExpanded {
-                            Text("\(subAgent.childTools.count) tool\(subAgent.childTools.count == 1 ? "" : "s")")
-                                .font(Typography.micro)
-                                .foregroundStyle(colors.mutedForeground)
-                        }
-                    }
-
-                    Spacer()
-
-                    Text(statusName)
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(statusColor)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(
-                            RoundedRectangle(cornerRadius: Radius.sm)
-                                .fill(statusColor.opacity(0.1))
-                        )
-
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: IconSize.sm))
+                if hasDetails {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: IconSize.xs))
                         .foregroundStyle(colors.mutedForeground)
                 }
-                .padding(Spacing.md)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-
-            // Expandable content
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    ShadcnDivider()
-
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        ForEach(subAgent.childTools, id: \.id) { tool in
-                            ActiveToolRow(tool: tool)
-                        }
-
-                        if subAgent.childTools.isEmpty && subAgent.status == .running {
-                            HStack(spacing: Spacing.sm) {
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                                Text("Starting sub-agent...")
-                                    .font(Typography.caption)
-                                    .foregroundStyle(colors.mutedForeground)
-                            }
-                            .padding(Spacing.md)
-                        }
-                    }
-                    .padding(.vertical, Spacing.sm)
-                }
-            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .contentShape(Rectangle())
         }
-        .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(colors.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .stroke(
-                    subAgent.status == .running ? agentTypeColor.opacity(0.5) : colors.border,
-                    lineWidth: subAgent.status == .running ? BorderWidth.thick : BorderWidth.default
-                )
-        )
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -152,46 +94,16 @@ struct ActiveSubAgentView: View {
         switch subAgent.status {
         case .running:
             ProgressView()
-                .scaleEffect(0.7)
-                .frame(width: 18, height: 18)
-
+                .scaleEffect(0.6)
+                .frame(width: IconSize.sm, height: IconSize.sm)
         case .completed:
-            ZStack {
-                Circle()
-                    .fill(colors.success)
-                    .frame(width: 18, height: 18)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-
+            Image(systemName: "checkmark")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(colors.mutedForeground)
         case .failed:
-            ZStack {
-                Circle()
-                    .fill(colors.destructive)
-                    .frame(width: 18, height: 18)
-
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-
-    private var statusName: String {
-        switch subAgent.status {
-        case .running: return "Running"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        }
-    }
-
-    private var statusColor: Color {
-        switch subAgent.status {
-        case .running: return colors.info
-        case .completed: return colors.success
-        case .failed: return colors.destructive
+            Image(systemName: "xmark")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(colors.destructive)
         }
     }
 }
@@ -220,15 +132,7 @@ struct ActiveSubAgentView: View {
             ],
             status: .completed
         ))
-
-        ActiveSubAgentView(subAgent: ActiveSubAgent(
-            id: "task-3",
-            subagentType: "general-purpose",
-            description: "Analyzing codebase structure",
-            childTools: [],
-            status: .running
-        ))
     }
-    .frame(width: 500)
+    .frame(width: 520)
     .padding()
 }

@@ -13,7 +13,10 @@ struct SidebarHeader: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let title: String
-    var action: (() -> Void)?
+    var onOpenKeyboardShortcuts: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
+
+    @State private var showMenu = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -27,18 +30,204 @@ struct SidebarHeader: View {
 
             Spacer()
 
-            if let action = action {
-                Button(action: action) {
+            if onOpenKeyboardShortcuts != nil || onOpenSettings != nil {
+                Button {
+                    showMenu = true
+                } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: IconSize.sm))
                         .foregroundStyle(colors.mutedForeground)
                 }
                 .buttonGhost(size: .icon)
+                .popover(isPresented: $showMenu, arrowEdge: .bottom) {
+                    SidebarHeaderMenu(
+                        onOpenKeyboardShortcuts: {
+                            showMenu = false
+                            onOpenKeyboardShortcuts?()
+                        },
+                        onOpenSettings: {
+                            showMenu = false
+                            onOpenSettings?()
+                        }
+                    )
+                }
             }
         }
         .padding(.horizontal, Spacing.md)
         .frame(height: 40)
         .background(colors.card)
+    }
+}
+
+// MARK: - Sidebar Header Menu
+
+struct SidebarHeaderMenu: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var onOpenKeyboardShortcuts: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let onOpenKeyboardShortcuts {
+                Button(action: onOpenKeyboardShortcuts) {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.mutedForeground)
+                            .frame(width: IconSize.md)
+
+                        Text("Keyboard Shortcuts")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.foreground)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverEffect()
+            }
+
+            if let onOpenSettings {
+                Button(action: onOpenSettings) {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.mutedForeground)
+                            .frame(width: IconSize.md)
+
+                        Text("Settings")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.foreground)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverEffect()
+            }
+        }
+        .padding(.vertical, Spacing.xs)
+        .frame(minWidth: 180)
+        .background(colors.card)
+    }
+}
+
+// MARK: - Keyboard Shortcuts Dialog
+
+struct KeyboardShortcutsDialog: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Binding var isPresented: Bool
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Keyboard Shortcuts")
+                    .font(Typography.h4)
+                    .foregroundStyle(colors.foreground)
+
+                Spacer()
+
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: IconSize.sm))
+                        .foregroundStyle(colors.mutedForeground)
+                }
+                .buttonGhost(size: .icon)
+            }
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.md)
+
+            ShadcnDivider()
+
+            // Shortcuts list
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                KeyboardShortcutRow(
+                    title: "Open Command Menu",
+                    shortcut: "⌘K"
+                )
+            }
+            .padding(Spacing.lg)
+        }
+        .frame(width: 320)
+        .background(colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .stroke(colors.border, lineWidth: BorderWidth.default)
+        )
+    }
+}
+
+// MARK: - Keyboard Shortcut Row
+
+struct KeyboardShortcutRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let title: String
+    let shortcut: String
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(Typography.body)
+                .foregroundStyle(colors.foreground)
+
+            Spacer()
+
+            Text(shortcut)
+                .font(Typography.mono)
+                .foregroundStyle(colors.mutedForeground)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xxs)
+                .background(colors.muted)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+    }
+}
+
+// MARK: - Keyboard Shortcuts Dialog Overlay
+
+struct KeyboardShortcutsOverlay: View {
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        ZStack {
+            // Backdrop
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+
+            // Dialog centered
+            KeyboardShortcutsDialog(isPresented: $isPresented)
+        }
+        .transition(.opacity)
     }
 }
 
