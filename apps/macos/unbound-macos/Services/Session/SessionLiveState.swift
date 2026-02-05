@@ -217,11 +217,16 @@ class SessionLiveState {
             let fetchDuration = CFAbsoluteTimeGetCurrent() - fetchStart
             logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
 
+            // Parse messages on background thread to avoid blocking UI
             let parseStart = CFAbsoluteTimeGetCurrent()
-            let parsedMessages = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
-            messages = ChatMessageGrouper.groupSubAgentTools(messages: parsedMessages)
+            let parsedMessages = await Task.detached(priority: .userInitiated) {
+                let parsed = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+                return ChatMessageGrouper.groupSubAgentTools(messages: parsed)
+            }.value
             let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
-            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(messages.count) parsed messages")
+            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(parsedMessages.count) parsed messages")
+
+            messages = parsedMessages
         } catch {
             logger.error("Failed to load messages: \(error)")
             messages = []
@@ -379,8 +384,12 @@ class SessionLiveState {
             let daemonMessages = try await daemonClient.listMessages(
                 sessionId: sessionId.uuidString.lowercased()
             )
-            let parsedMessages = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
-            messages = ChatMessageGrouper.groupSubAgentTools(messages: parsedMessages)
+            // Parse messages on background thread to avoid blocking UI
+            let parsedMessages = await Task.detached(priority: .userInitiated) {
+                let parsed = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+                return ChatMessageGrouper.groupSubAgentTools(messages: parsed)
+            }.value
+            messages = parsedMessages
         } catch {
             logger.error("Failed to fetch messages: \(error)")
         }

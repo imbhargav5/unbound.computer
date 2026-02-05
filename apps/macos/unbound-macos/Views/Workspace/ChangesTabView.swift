@@ -119,12 +119,12 @@ struct VSCodeChangeRow: View {
             if let additions = file.additions, additions > 0 {
                 Text("+\(additions)")
                     .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
-                    .foregroundStyle(colors.success)
+                    .foregroundStyle(colors.diffAddition)
             }
             if let deletions = file.deletions, deletions > 0 {
                 Text("-\(deletions)")
                     .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
-                    .foregroundStyle(colors.destructive)
+                    .foregroundStyle(colors.diffDeletion)
             }
         }
     }
@@ -132,15 +132,15 @@ struct VSCodeChangeRow: View {
     private var statusColor: Color {
         switch file.status {
         case .added:
-            return colors.success
+            return colors.diffAddition
         case .modified:
-            return colors.warning
+            return colors.fileModified
         case .deleted:
-            return colors.destructive
+            return colors.diffDeletion
         case .renamed, .copied:
             return colors.info
         case .untracked:
-            return colors.mutedForeground
+            return colors.fileUntracked
         case .conflicted:
             return colors.destructive
         default:

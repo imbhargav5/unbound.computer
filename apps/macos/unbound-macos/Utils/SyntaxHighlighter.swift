@@ -444,12 +444,40 @@ struct HighlightedCodeText: View {
     let code: String
     let language: String?
 
+    @State private var highlightedText: AttributedString?
+
     var body: some View {
-        let highlighter = SyntaxHighlighter(language: language, colorScheme: colorScheme)
-        Text(highlighter.highlight(code))
-            .font(Typography.code)
-            .textSelection(.enabled)
+        Group {
+            if let highlightedText {
+                Text(highlightedText)
+            } else {
+                // Show plain text while highlighting in background
+                Text(code)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .font(Typography.code)
+        .textSelection(.enabled)
+        .task(id: HighlightTaskId(code: code, language: language, colorScheme: colorScheme)) {
+            let codeCopy = code
+            let languageCopy = language
+            let schemeCopy = colorScheme
+
+            let result = await Task.detached(priority: .userInitiated) {
+                let highlighter = SyntaxHighlighter(language: languageCopy, colorScheme: schemeCopy)
+                return highlighter.highlight(codeCopy)
+            }.value
+
+            highlightedText = result
+        }
     }
+}
+
+/// Hashable identifier for the highlight task to re-run when inputs change
+private struct HighlightTaskId: Hashable {
+    let code: String
+    let language: String?
+    let colorScheme: ColorScheme
 }
 
 // MARK: - Language Helper

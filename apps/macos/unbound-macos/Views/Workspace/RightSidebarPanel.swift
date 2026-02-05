@@ -212,6 +212,8 @@ struct RightSidebarPanel: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
+        case .spec:
+            SpecTasksTabView()
         case .changes:
             ChangesTabView(
                 gitViewModel: gitViewModel,

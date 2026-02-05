@@ -356,6 +356,7 @@ struct CommitGraphNode: Identifiable {
 
 /// Tabs for the right sidebar panel.
 enum RightSidebarTab: String, CaseIterable, Identifiable {
+    case spec = "Spec"
     case changes = "Changes"
     case files = "Files"
     case commits = "Commits"
@@ -364,6 +365,7 @@ enum RightSidebarTab: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
+        case .spec: return "doc.text"
         case .changes: return "plus.forwardslash.minus"
         case .files: return "folder"
         case .commits: return "clock.arrow.circlepath"

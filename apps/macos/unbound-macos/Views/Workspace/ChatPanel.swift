@@ -234,11 +234,11 @@ struct ChatPanel: View {
                                         }
                                     }
 
-                                    // Render active sub-agents (if running)
+                                    // Render active sub-agents with new AgentCardView
                                     if !activeSubAgents.isEmpty {
-                                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                                        VStack(alignment: .leading, spacing: Spacing.md) {
                                             ForEach(activeSubAgents) { subAgent in
-                                                ActiveSubAgentView(subAgent: subAgent)
+                                                AgentCardView(subAgent: subAgent)
                                             }
                                         }
                                         .padding(.horizontal, Spacing.lg)
