@@ -68,7 +68,6 @@ struct RemoveRepositoryDialog: View {
                     .foregroundStyle(colors.mutedForeground)
 
                 ShadcnTextField("confirm", text: $confirmationText, variant: .filled)
-                    .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .disabled(isRemoving)
                     .focused($isConfirmationFocused)

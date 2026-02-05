@@ -16,7 +16,7 @@ enum ChatPerformanceSignposts {
     struct IntervalToken {
         #if DEBUG
         fileprivate let name: StaticString
-        fileprivate let state: OSSignposter.IntervalState
+        fileprivate let state: OSSignpostIntervalState
         #endif
     }
 
