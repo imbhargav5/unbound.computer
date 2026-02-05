@@ -20,36 +20,52 @@ pub struct SnapshotView {
 }
 
 impl SnapshotView {
-    /// Creates a new empty snapshot.
+    /// Creates a new empty snapshot with no sessions.
+    ///
+    /// Returns a SnapshotView backed by an empty Arc-wrapped HashMap,
+    /// representing a state with no existing sessions.
     pub fn empty() -> Self {
         Self {
             sessions: Arc::new(HashMap::new()),
         }
     }
 
-    /// Creates a snapshot from a map of sessions.
+    /// Creates a snapshot from an existing map of session snapshots.
+    ///
+    /// Wraps the provided HashMap in an Arc for efficient cloning and sharing
+    /// across threads without copying the underlying data.
     pub fn new(sessions: HashMap<SessionId, SessionSnapshot>) -> Self {
         Self {
             sessions: Arc::new(sessions),
         }
     }
 
-    /// Gets a session by ID.
+    /// Retrieves a reference to a session snapshot by its ID.
+    ///
+    /// Returns Some reference to the SessionSnapshot if found, or None if the
+    /// session doesn't exist in this snapshot.
     pub fn session(&self, id: &SessionId) -> Option<&SessionSnapshot> {
         self.sessions.get(id)
     }
 
-    /// Returns an iterator over all session IDs.
+    /// Returns an iterator over all session IDs in the snapshot.
+    ///
+    /// Provides a way to enumerate available sessions without loading their
+    /// full snapshot data.
     pub fn session_ids(&self) -> impl Iterator<Item = &SessionId> + '_ {
         self.sessions.keys()
     }
 
-    /// Returns the number of sessions in the snapshot.
+    /// Returns the total number of sessions in the snapshot.
+    ///
+    /// Provides a quick count without iterating through all sessions.
     pub fn len(&self) -> usize {
         self.sessions.len()
     }
 
-    /// Returns true if the snapshot is empty.
+    /// Checks if the snapshot contains no sessions.
+    ///
+    /// Returns true for a fresh or empty state, useful for early-exit checks.
     pub fn is_empty(&self) -> bool {
         self.sessions.is_empty()
     }
@@ -64,7 +80,10 @@ pub struct SessionSnapshot {
 }
 
 impl SessionSnapshot {
-    /// Creates a new session snapshot.
+    /// Creates a new immutable session snapshot.
+    ///
+    /// Captures the session's state at a point in time including all messages
+    /// and the closed status. Once created, the snapshot cannot be modified.
     pub fn new(id: SessionId, messages: Vec<Message>, closed: bool) -> Self {
         Self {
             id,
@@ -73,22 +92,31 @@ impl SessionSnapshot {
         }
     }
 
-    /// Returns the session ID.
+    /// Returns a reference to the session's unique identifier.
+    ///
+    /// Provides access to the ID without cloning for comparisons and lookups.
     pub fn id(&self) -> &SessionId {
         &self.id
     }
 
-    /// Returns all messages in the session.
+    /// Returns a slice of all messages captured in this snapshot.
+    ///
+    /// Messages are ordered by their sequence number as they were at snapshot time.
     pub fn messages(&self) -> &[Message] {
         &self.messages
     }
 
-    /// Returns true if the session is closed.
+    /// Checks if the session was closed at snapshot time.
+    ///
+    /// Returns true if the session had a non-active status (archived/deleted)
+    /// when the snapshot was taken.
     pub fn is_closed(&self) -> bool {
         self.closed
     }
 
-    /// Returns the number of messages in the session.
+    /// Returns the count of messages in the session snapshot.
+    ///
+    /// Provides a quick way to check message volume without iterating.
     pub fn message_count(&self) -> usize {
         self.messages.len()
     }

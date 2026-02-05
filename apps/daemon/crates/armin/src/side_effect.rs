@@ -72,6 +72,10 @@ pub trait SideEffectSink: Send + Sync {
 pub struct NullSink;
 
 impl SideEffectSink for NullSink {
+    /// Silently discards the side-effect without any action.
+    ///
+    /// Used during recovery to rebuild state without triggering external
+    /// notifications, or in testing when side-effects are not relevant.
     fn emit(&self, _effect: SideEffect) {
         // Intentionally empty - discard all side-effects
     }
@@ -84,33 +88,51 @@ pub struct RecordingSink {
 }
 
 impl RecordingSink {
-    /// Creates a new recording sink.
+    /// Creates a new empty recording sink for capturing side-effects.
+    ///
+    /// Initializes with an empty effect vector wrapped in a mutex for
+    /// thread-safe recording from concurrent operations.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns all recorded side-effects.
+    /// Returns a cloned vector of all recorded side-effects.
+    ///
+    /// Acquires the mutex lock and clones the entire effect history. The
+    /// returned vector is independent and won't reflect subsequent emissions.
     pub fn effects(&self) -> Vec<SideEffect> {
         self.effects.lock().expect("lock poisoned").clone()
     }
 
-    /// Clears all recorded side-effects.
+    /// Removes all recorded side-effects from the sink.
+    ///
+    /// Useful in tests to reset state between test phases or to verify
+    /// side-effects emitted during a specific operation.
     pub fn clear(&self) {
         self.effects.lock().expect("lock poisoned").clear();
     }
 
-    /// Returns the number of recorded side-effects.
+    /// Returns the count of recorded side-effects.
+    ///
+    /// Useful for quick assertions in tests without examining individual effects.
     pub fn len(&self) -> usize {
         self.effects.lock().expect("lock poisoned").len()
     }
 
-    /// Returns true if no side-effects have been recorded.
+    /// Checks if no side-effects have been recorded.
+    ///
+    /// Returns true when the recording is empty, useful for asserting that
+    /// certain operations don't produce side-effects.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
 impl SideEffectSink for RecordingSink {
+    /// Records the side-effect by appending it to the internal vector.
+    ///
+    /// Thread-safe recording via mutex lock. Effects are stored in emission
+    /// order for later inspection during test assertions.
     fn emit(&self, effect: SideEffect) {
         self.effects.lock().expect("lock poisoned").push(effect);
     }

@@ -1,9 +1,51 @@
-//! Session synchronization service for syncing local sessions to Supabase.
+//! # Session Synchronization Service
 //!
-//! This service handles:
-//! - Syncing repositories to Supabase (dependency for sessions)
-//! - Syncing coding sessions to Supabase
-//! - Distributing session secrets to all user devices
+//! This module provides [`SessionSyncService`] for syncing local coding sessions
+//! and their associated data to Supabase for cross-device access.
+//!
+//! ## Responsibilities
+//!
+//! - **Repository Sync**: Syncs repository metadata to Supabase (required before sessions)
+//! - **Session Sync**: Syncs coding session metadata with status tracking
+//! - **Secret Distribution**: Encrypts and distributes session secrets to all user devices
+//!
+//! ## Cross-Device Secret Sharing
+//!
+//! Session secrets are encrypted using hybrid encryption (ECDH + XChaCha20-Poly1305):
+//!
+//! ```text
+//! ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+//! │  Device A       │    │   Supabase   │    │   Device B      │
+//! │  (Session Owner)│    │   (Cloud)    │    │   (Recipient)   │
+//! └────────┬────────┘    └──────┬───────┘    └────────┬────────┘
+//!          │                    │                     │
+//!          │  Encrypt secret    │                     │
+//!          │  for each device   │                     │
+//!          │  public key        │                     │
+//!          │                    │                     │
+//!          │  ─────────────────▶│                     │
+//!          │  Store encrypted   │                     │
+//!          │  secrets           │                     │
+//!          │                    │  ────────────────▶  │
+//!          │                    │  Fetch & decrypt    │
+//!          │                    │  with private key   │
+//! ```
+//!
+//! ## Usage
+//!
+//! ```ignore
+//! let service = SessionSyncService::new(
+//!     supabase_client,
+//!     db_pool,
+//!     secrets_manager,
+//!     device_id,
+//!     device_private_key,
+//!     secrets_cache,
+//! );
+//!
+//! // Sync a new session (handles repository, session, and secrets)
+//! service.sync_new_session(session_id, repository_id, session_secret).await?;
+//! ```
 
 use base64::Engine;
 use daemon_auth::{CodingSessionSecretRecord, SupabaseClient};
@@ -13,23 +55,45 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
+/// Base64 encoding engine for keys and encrypted data.
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
 
-/// Result type for sync operations.
+/// Result type alias for sync operations.
 pub type SyncResult<T> = Result<T, SyncError>;
 
-/// Errors that can occur during sync operations.
+/// Errors that can occur during session synchronization.
+///
+/// These errors indicate why a sync operation failed and help callers
+/// decide whether to retry or handle the error differently.
 #[derive(Debug)]
 pub enum SyncError {
-    /// No authenticated session available.
+    /// User is not authenticated with Supabase.
+    ///
+    /// The user must log in before syncing. Check for valid access token.
     NotAuthenticated,
-    /// No device identity configured.
+
+    /// Device identity has not been configured.
+    ///
+    /// Device registration must complete before syncing sessions.
+    /// This includes generating and storing device keypair.
     NoDeviceIdentity,
-    /// Repository not found locally.
+
+    /// Referenced repository was not found in local database.
+    ///
+    /// The repository must exist locally before it can be synced.
+    /// Contains the repository ID that was not found.
     RepositoryNotFound(String),
-    /// Supabase API error.
+
+    /// Supabase API request failed.
+    ///
+    /// Could be network error, authentication expired, or server error.
+    /// Contains the error message from the API.
     Supabase(String),
-    /// Encryption error.
+
+    /// Cryptographic operation failed.
+    ///
+    /// Could be key derivation, encryption, or encoding failure.
+    /// Contains the error description.
     Encryption(String),
 }
 
@@ -47,20 +111,54 @@ impl std::fmt::Display for SyncError {
 
 impl std::error::Error for SyncError {}
 
-/// Service for syncing sessions and secrets to Supabase.
+/// Service for synchronizing sessions and secrets to Supabase.
+///
+/// Handles the complete lifecycle of syncing a coding session:
+/// 1. Sync the repository (foreign key dependency)
+/// 2. Sync the session metadata
+/// 3. Distribute encrypted session secrets to all user devices
+///
+/// ## Thread Safety
+///
+/// All fields are wrapped in `Arc<Mutex<_>>` for safe concurrent access.
+/// The service can be cloned and shared across async tasks.
+///
+/// ## Authentication
+///
+/// All operations require valid Supabase authentication. The service
+/// retrieves credentials from [`SecretsManager`] and will fail with
+/// [`SyncError::NotAuthenticated`] if not logged in.
 pub struct SessionSyncService {
+    /// Supabase HTTP client for API calls.
     supabase_client: Arc<SupabaseClient>,
+    /// Local database pool for repository queries.
     db: Arc<DatabasePool>,
+    /// Secrets manager for authentication credentials.
     secrets: Arc<Mutex<SecretsManager>>,
+    /// This device's unique identifier.
     device_id: Arc<Mutex<Option<String>>>,
+    /// This device's private key for cryptographic operations.
     device_private_key: Arc<Mutex<Option<[u8; 32]>>>,
-    /// In-memory cache of session secrets for distribution.
+    /// In-memory cache of session secrets (for potential local fast access).
     #[allow(dead_code)]
     session_secrets_cache: Arc<Mutex<HashMap<String, Vec<u8>>>>,
 }
 
 impl SessionSyncService {
-    /// Create a new session sync service.
+    /// Creates a new session sync service.
+    ///
+    /// # Arguments
+    ///
+    /// * `supabase_client` - Shared Supabase HTTP client
+    /// * `db` - Database connection pool for local queries
+    /// * `secrets` - Secrets manager for authentication credentials
+    /// * `device_id` - This device's unique identifier
+    /// * `device_private_key` - This device's X25519 private key for encryption
+    /// * `session_secrets_cache` - Shared cache for session secrets
+    ///
+    /// # Returns
+    ///
+    /// A new `SessionSyncService` instance ready to sync sessions.
     pub fn new(
         supabase_client: Arc<SupabaseClient>,
         db: Arc<DatabasePool>,
@@ -79,7 +177,22 @@ impl SessionSyncService {
         }
     }
 
-    /// Get authentication context (user_id, device_id, access_token).
+    /// Retrieves authentication context required for Supabase API calls.
+    ///
+    /// Collects all necessary identifiers and tokens:
+    /// - `user_id`: The authenticated user's Supabase ID
+    /// - `device_id`: This device's unique identifier
+    /// - `access_token`: Current Supabase JWT access token
+    ///
+    /// # Returns
+    ///
+    /// A tuple of `(user_id, device_id, access_token)`.
+    ///
+    /// # Errors
+    ///
+    /// - [`SyncError::NotAuthenticated`] if no valid session exists
+    /// - [`SyncError::NoDeviceIdentity`] if device ID is not set
+    /// - [`SyncError::Supabase`] if secrets manager fails
     fn get_auth_context(&self) -> SyncResult<(String, String, String)> {
         let secrets = self.secrets.lock().unwrap();
 
@@ -103,9 +216,22 @@ impl SessionSyncService {
         Ok((meta.user_id, device_id, access_token))
     }
 
-    /// Sync a repository to Supabase.
+    /// Syncs a repository to Supabase.
     ///
-    /// This must be called before syncing a session that references this repository.
+    /// Uploads repository metadata to the cloud for cross-device visibility.
+    /// This must be called before syncing any sessions that reference this
+    /// repository (foreign key constraint).
+    ///
+    /// # Arguments
+    ///
+    /// * `repository_id` - UUID of the local repository to sync
+    ///
+    /// # Errors
+    ///
+    /// - [`SyncError::NotAuthenticated`] if user is not logged in
+    /// - [`SyncError::NoDeviceIdentity`] if device is not registered
+    /// - [`SyncError::RepositoryNotFound`] if repository doesn't exist locally
+    /// - [`SyncError::Supabase`] if API call fails
     pub async fn sync_repository(&self, repository_id: &str) -> SyncResult<()> {
         let (user_id, device_id, access_token) = self.get_auth_context()?;
 
@@ -140,9 +266,22 @@ impl SessionSyncService {
         Ok(())
     }
 
-    /// Sync a coding session to Supabase.
+    /// Syncs a coding session to Supabase.
     ///
-    /// The repository must already be synced (call `sync_repository` first).
+    /// Uploads session metadata with current status. The referenced repository
+    /// must already exist in Supabase (call [`sync_repository`](Self::sync_repository) first).
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - UUID of the coding session
+    /// * `repository_id` - UUID of the parent repository
+    /// * `status` - Current session status (e.g., "active", "completed")
+    ///
+    /// # Errors
+    ///
+    /// - [`SyncError::NotAuthenticated`] if user is not logged in
+    /// - [`SyncError::NoDeviceIdentity`] if device is not registered
+    /// - [`SyncError::Supabase`] if API call fails (including FK violation)
     pub async fn sync_session(
         &self,
         session_id: &str,
@@ -171,12 +310,43 @@ impl SessionSyncService {
         Ok(())
     }
 
-    /// Distribute a session secret to all user devices.
+    /// Distributes a session secret to all user devices.
     ///
-    /// Encrypts the secret for each device using hybrid encryption and stores
-    /// in Supabase for cross-device access.
+    /// Enables cross-device access by encrypting the session secret for each
+    /// device's public key and storing the encrypted secrets in Supabase.
     ///
-    /// Returns the number of devices the secret was distributed to.
+    /// ## Encryption Process
+    ///
+    /// For each device (including this one):
+    /// 1. Generate ephemeral X25519 keypair
+    /// 2. Perform ECDH with device's public key
+    /// 3. Derive symmetric key using HKDF
+    /// 4. Encrypt secret with XChaCha20-Poly1305
+    /// 5. Store ephemeral public key + ciphertext in Supabase
+    ///
+    /// This provides forward secrecy - compromise of a device's private key
+    /// doesn't reveal secrets encrypted with previous ephemeral keys.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - UUID of the coding session
+    /// * `session_secret` - The plaintext session secret to distribute
+    ///
+    /// # Returns
+    ///
+    /// The number of devices the secret was successfully distributed to.
+    ///
+    /// # Errors
+    ///
+    /// - [`SyncError::NotAuthenticated`] if user is not logged in
+    /// - [`SyncError::NoDeviceIdentity`] if device private key is not available
+    /// - [`SyncError::Encryption`] if encryption fails for this device
+    /// - [`SyncError::Supabase`] if fetching devices or storing secrets fails
+    ///
+    /// # Notes
+    ///
+    /// Encryption failures for other devices are logged and skipped (not fatal).
+    /// This ensures a single misconfigured device doesn't block the entire operation.
     pub async fn distribute_secret(
         &self,
         session_id: &str,
@@ -265,9 +435,31 @@ impl SessionSyncService {
         Ok(count)
     }
 
-    /// Sync a new session: repository, session, and secrets all at once.
+    /// Syncs a new session with all associated data.
     ///
-    /// This is the main entry point for syncing a newly created session.
+    /// This is the **main entry point** for syncing a newly created session.
+    /// It orchestrates the complete sync process in the correct order:
+    ///
+    /// 1. **Repository sync** - Ensures the parent repository exists in Supabase
+    /// 2. **Session sync** - Creates/updates the session record with "active" status
+    /// 3. **Secret distribution** - Encrypts and shares secrets with all devices
+    ///
+    /// ## Error Handling
+    ///
+    /// This method is resilient - failures in early steps don't prevent later steps:
+    /// - If repository sync fails, session sync is still attempted (repo may already exist)
+    /// - If session sync fails, secret distribution is still attempted
+    /// - Errors are logged as warnings but the method returns `Ok(())` to not block callers
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - UUID of the coding session to sync
+    /// * `repository_id` - UUID of the parent repository
+    /// * `session_secret` - The session's symmetric encryption key to distribute
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Ok(())` - check logs for any sync failures.
     pub async fn sync_new_session(
         &self,
         session_id: &str,
@@ -312,14 +504,30 @@ impl SessionSyncService {
         Ok(())
     }
 
-    /// Cache a session secret in memory (for local fast access).
+    /// Caches a session secret in memory for fast local access.
+    ///
+    /// Useful for avoiding repeated decryption when accessing the same
+    /// session secret multiple times.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - UUID of the coding session
+    /// * `secret_key` - The decrypted 32-byte symmetric key
     #[allow(dead_code)]
     pub fn cache_secret(&self, session_id: &str, secret_key: Vec<u8>) {
         let mut cache = self.session_secrets_cache.lock().unwrap();
         cache.insert(session_id.to_string(), secret_key);
     }
 
-    /// Get a cached session secret.
+    /// Retrieves a cached session secret if available.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - UUID of the coding session
+    ///
+    /// # Returns
+    ///
+    /// The cached secret key, or `None` if not in cache.
     #[allow(dead_code)]
     pub fn get_cached_secret(&self, session_id: &str) -> Option<Vec<u8>> {
         let cache = self.session_secrets_cache.lock().unwrap();

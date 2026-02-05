@@ -21,7 +21,10 @@ pub struct LiveSubscription {
 }
 
 impl LiveSubscription {
-    /// Creates a new subscription with the given receiver.
+    /// Creates a new subscription instance with the given MPSC receiver.
+    ///
+    /// Internal constructor used by LiveHub to wrap the receiver end of a
+    /// channel. The session_id is stored for potential future use (debugging, filtering).
     fn new(session_id: SessionId, receiver: Receiver<Message>) -> Self {
         Self {
             receiver,
@@ -29,21 +32,29 @@ impl LiveSubscription {
         }
     }
 
-    /// Receives the next message, blocking until one is available.
+    /// Blocks the current thread until a new message is available.
     ///
-    /// Returns `None` if the subscription has been closed.
+    /// Returns the next message when it arrives, or None if the subscription
+    /// has been closed (all senders dropped or session closed). Useful for
+    /// worker threads that process messages as they arrive.
     pub fn recv(&self) -> Option<Message> {
         self.receiver.recv().ok()
     }
 
-    /// Tries to receive the next message without blocking.
+    /// Attempts to receive a message without blocking the current thread.
     ///
-    /// Returns `None` if no message is available or the subscription has been closed.
+    /// Returns Some(Message) if a message is immediately available, or None
+    /// if the queue is empty or the subscription has been closed. Useful for
+    /// polling in event loops or non-blocking contexts.
     pub fn try_recv(&self) -> Option<Message> {
         self.receiver.try_recv().ok()
     }
 
-    /// Returns an iterator over messages as they arrive.
+    /// Creates a blocking iterator that yields messages as they arrive.
+    ///
+    /// The iterator will block waiting for each message and terminate when
+    /// the subscription is closed. Enables idiomatic for-loop consumption
+    /// of the message stream.
     pub fn iter(&self) -> impl Iterator<Item = Message> + '_ {
         std::iter::from_fn(|| self.recv())
     }
@@ -57,17 +68,21 @@ pub struct LiveHub {
 }
 
 impl LiveHub {
-    /// Creates a new empty live hub.
+    /// Creates a new empty hub with no active subscriptions.
+    ///
+    /// Initializes the subscriber map wrapped in a RwLock for thread-safe
+    /// access from multiple concurrent sessions and notification sources.
     pub fn new() -> Self {
         Self {
             subscribers: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Creates a subscription for a session.
+    /// Creates a new subscription for receiving live updates on a session.
     ///
-    /// The subscription will receive all messages appended to the session
-    /// after the subscription is created.
+    /// Sets up an MPSC channel and registers the sender with the hub. The
+    /// returned LiveSubscription receives all messages appended to the session
+    /// after this call. Messages sent before subscription are not received.
     pub fn subscribe(&self, session: &SessionId) -> LiveSubscription {
         let (sender, receiver) = mpsc::channel();
 
@@ -80,10 +95,11 @@ impl LiveHub {
         LiveSubscription::new(session.clone(), receiver)
     }
 
-    /// Notifies all subscribers of a session about a new message.
+    /// Broadcasts a message to all subscribers of a session.
     ///
-    /// This should be called after the message is committed to SQLite.
-    /// Dead subscribers (those whose receivers have been dropped) are automatically removed.
+    /// Clones the message and sends it to each registered subscriber. Dead
+    /// subscribers (where the receiver has been dropped) are automatically
+    /// removed during this operation. Must be called after SQLite commit.
     pub fn notify(&self, session: &SessionId, message: Message) {
         let mut subscribers = self.subscribers.write().expect("lock poisoned");
 
@@ -93,15 +109,19 @@ impl LiveHub {
         }
     }
 
-    /// Removes all subscribers for a session.
+    /// Removes all subscribers for a session and closes their channels.
     ///
-    /// This is typically called when a session is closed.
+    /// Called when a session is closed to clean up resources. All pending
+    /// receives on subscriptions will return None after this call.
     pub fn close_session(&self, session: &SessionId) {
         let mut subscribers = self.subscribers.write().expect("lock poisoned");
         subscribers.remove(session);
     }
 
-    /// Returns the number of active subscribers for a session.
+    /// Returns the count of currently registered subscribers for a session.
+    ///
+    /// Useful for debugging and testing. Note that this count may include
+    /// dead subscribers that haven't been cleaned up by a notify() call yet.
     pub fn subscriber_count(&self, session: &SessionId) -> usize {
         let subscribers = self.subscribers.read().expect("lock poisoned");
         subscribers.get(session).map(|s| s.len()).unwrap_or(0)
@@ -109,6 +129,9 @@ impl LiveHub {
 }
 
 impl Default for LiveHub {
+    /// Returns a new empty LiveHub as the default value.
+    ///
+    /// Delegates to `LiveHub::new()` for consistent initialization.
     fn default() -> Self {
         Self::new()
     }

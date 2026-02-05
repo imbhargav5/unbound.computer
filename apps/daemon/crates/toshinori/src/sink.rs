@@ -1,7 +1,7 @@
 //! Toshinori SideEffectSink implementation.
 //!
 //! This module provides the main `SideEffectSink` that syncs Armin's
-//! side-effects to Supabase.
+//! side-effects to Supabase for cross-device visibility.
 
 use crate::client::SupabaseClient;
 use armin::{SideEffect, SideEffectSink};
@@ -9,43 +9,73 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-/// Context required for Supabase sync operations.
+/// Authentication and identity context required for Supabase sync operations.
+///
+/// Contains the credentials and identifiers needed to attribute synced data
+/// to the correct user and device.
 #[derive(Clone)]
 pub struct SyncContext {
-    /// Supabase access token for API authentication.
+    /// JWT access token for Supabase API authentication.
     pub access_token: String,
-    /// User ID for ownership tracking.
+    /// User ID for ownership tracking in multi-user scenarios.
     pub user_id: String,
-    /// Device ID for this daemon instance.
+    /// Device ID identifying this daemon instance for multi-device sync.
     pub device_id: String,
 }
 
-/// Metadata required to upsert a session in Supabase.
+/// Additional metadata required to sync a session to Supabase.
+///
+/// Contains repository and git-related information that isn't available
+/// in the core SideEffect but is needed for the Supabase schema.
 #[derive(Clone, Debug)]
 pub struct SessionMetadata {
+    /// The repository this session belongs to.
     pub repository_id: String,
+    /// The git branch being worked on (if applicable).
     pub current_branch: Option<String>,
+    /// The working directory path within the repository.
     pub working_directory: Option<String>,
+    /// Whether this session operates in a git worktree.
     pub is_worktree: bool,
+    /// The worktree path if is_worktree is true.
     pub worktree_path: Option<String>,
 }
 
-/// Provider for session metadata needed by Supabase sync.
+/// Trait for providing session metadata required by Supabase sync.
+///
+/// Implementors (typically the daemon's state manager) provide access to
+/// session metadata that isn't included in the core SideEffect payloads.
 pub trait SessionMetadataProvider: Send + Sync {
+    /// Retrieves metadata for a session by its ID.
+    ///
+    /// Returns None if the session doesn't exist or metadata is unavailable.
     fn get_session_metadata(&self, session_id: &str) -> Option<SessionMetadata>;
 }
 
-/// A message sync request to be sent to Supabase.
+/// Represents a message that needs to be synced to Supabase.
+///
+/// Encapsulates all the information needed to enqueue a message for
+/// async sync processing by the message syncer component.
 #[derive(Clone, Debug)]
 pub struct MessageSyncRequest {
+    /// The session this message belongs to.
     pub session_id: String,
+    /// Unique identifier for this message.
     pub message_id: String,
+    /// The message's position in the session sequence.
     pub sequence_number: i64,
+    /// The raw message content to be encrypted and synced.
     pub content: String,
 }
 
-/// Message syncer interface (e.g., Levi).
+/// Trait for async message sync processing.
+///
+/// Implementors (e.g., Levi) handle the actual encryption and upload
+/// of messages to Supabase, potentially with batching and retry logic.
 pub trait MessageSyncer: Send + Sync {
+    /// Enqueues a message for async sync to Supabase.
+    ///
+    /// The implementation should handle encryption, batching, and retries.
     fn enqueue(&self, request: MessageSyncRequest);
 }
 
@@ -92,60 +122,81 @@ impl ToshinoriSink {
         }
     }
 
-    /// Set the sync context (call after authentication).
+    /// Configures the sync context with authentication credentials.
     ///
-    /// Until this is called, side-effects will be logged but not synced.
+    /// Must be called after user authentication before side-effects will be
+    /// synced. Until this is called, side-effects are logged but not sent.
     pub async fn set_context(&self, context: SyncContext) {
         let mut ctx = self.context.write().await;
         *ctx = Some(context);
         info!("Toshinori sync context set");
     }
 
-    /// Clear the sync context (call on logout).
+    /// Removes the sync context, disabling Supabase sync.
+    ///
+    /// Call this on user logout to stop syncing and clear credentials.
+    /// Pending syncs in flight may still complete.
     pub async fn clear_context(&self) {
         let mut ctx = self.context.write().await;
         *ctx = None;
         info!("Toshinori sync context cleared");
     }
 
-    /// Set the session metadata provider.
+    /// Registers a provider for session metadata lookups.
+    ///
+    /// Required for SessionCreated and SessionUpdated side-effects to
+    /// include full metadata in Supabase sync.
     pub async fn set_metadata_provider(&self, provider: Arc<dyn SessionMetadataProvider>) {
         let mut guard = self.metadata_provider.write().await;
         *guard = Some(provider);
     }
 
-    /// Clear the session metadata provider.
+    /// Removes the metadata provider reference.
+    ///
+    /// After calling, session syncs will be skipped with a warning.
     pub async fn clear_metadata_provider(&self) {
         let mut guard = self.metadata_provider.write().await;
         *guard = None;
     }
 
-    /// Set the message syncer.
+    /// Registers a message syncer for handling MessageAppended side-effects.
+    ///
+    /// The syncer (e.g., Levi) handles encryption, batching, and upload
+    /// of messages to Supabase asynchronously.
     pub async fn set_message_syncer(&self, syncer: Arc<dyn MessageSyncer>) {
         let mut guard = self.message_syncer.write().await;
         *guard = Some(syncer);
     }
 
-    /// Clear the message syncer.
+    /// Removes the message syncer reference.
+    ///
+    /// After calling, message appends will be logged but not synced.
     pub async fn clear_message_syncer(&self) {
         let mut guard = self.message_syncer.write().await;
         *guard = None;
     }
 
-    /// Check if sync is enabled (context is set).
+    /// Checks if Supabase sync is currently enabled.
+    ///
+    /// Returns true if a sync context has been set (user is authenticated).
     pub async fn is_enabled(&self) -> bool {
         self.context.read().await.is_some()
     }
 
-    /// Handle a side-effect asynchronously.
+    /// Spawns an async task to process a side-effect.
+    ///
+    /// Clones necessary references and spawns on the Tokio runtime to avoid
+    /// blocking the synchronous emit() call. Handles each effect type with
+    /// appropriate Supabase operations and logs errors without failing.
     fn handle_effect(&self, effect: SideEffect) {
+        // Clone Arc references for the spawned task
         let client = self.client.clone();
         let context = self.context.clone();
         let metadata_provider = self.metadata_provider.clone();
         let message_syncer = self.message_syncer.clone();
 
         self.runtime.spawn(async move {
-            // Get context (if not set, just log and return)
+            // Early exit if no sync context is configured
             let ctx = {
                 let guard = context.read().await;
                 match guard.as_ref() {
@@ -157,7 +208,7 @@ impl ToshinoriSink {
                 }
             };
 
-            // Sync based on effect type
+            // Dispatch to appropriate handler based on effect type
             let result = match &effect {
                 SideEffect::RepositoryCreated { repository_id } => {
                     warn!(
@@ -307,12 +358,21 @@ impl ToshinoriSink {
 }
 
 impl std::fmt::Debug for ToshinoriSink {
+    /// Provides minimal debug output without exposing internal state.
+    ///
+    /// Uses finish_non_exhaustive to indicate internal fields are omitted
+    /// for security (credentials) and brevity.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ToshinoriSink").finish_non_exhaustive()
     }
 }
 
 impl SideEffectSink for ToshinoriSink {
+    /// Receives a side-effect from Armin and queues it for async sync.
+    ///
+    /// Logs the effect for debugging and delegates to handle_effect() which
+    /// spawns an async task. This method returns immediately without waiting
+    /// for the sync to complete (fire-and-forget).
     fn emit(&self, effect: SideEffect) {
         debug!(?effect, "Toshinori: received side-effect");
         self.handle_effect(effect);

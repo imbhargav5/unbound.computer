@@ -10,41 +10,62 @@ use uuid::Uuid;
 pub struct SessionId(pub String);
 
 impl SessionId {
-    /// Creates a new random session ID.
+    /// Creates a new random session ID using UUID v4.
+    ///
+    /// Generates a cryptographically random UUID and converts it to a string
+    /// representation for use as a unique session identifier.
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
 
-    /// Creates a session ID from an existing string.
+    /// Creates a session ID from an existing string value.
+    ///
+    /// Accepts any type that can be converted into a String, allowing
+    /// flexibility when constructing IDs from various string sources.
     pub fn from_string(s: impl Into<String>) -> Self {
         Self(s.into())
     }
 
-    /// Returns the session ID as a string slice.
+    /// Returns the session ID as a string slice reference.
+    ///
+    /// Provides a borrowed view of the underlying string without allocation,
+    /// useful for comparisons and passing to APIs that accept string slices.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 impl Default for SessionId {
+    /// Returns a new random SessionId as the default value.
+    ///
+    /// Delegates to `SessionId::new()` to generate a unique UUID-based identifier.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl std::fmt::Display for SessionId {
+    /// Formats the session ID for display by writing its underlying string value.
+    ///
+    /// Enables using SessionId with format macros like `format!()` and `println!()`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 impl From<String> for SessionId {
+    /// Converts an owned String into a SessionId.
+    ///
+    /// Wraps the String directly without additional allocation.
     fn from(s: String) -> Self {
         Self(s)
     }
 }
 
 impl From<&str> for SessionId {
+    /// Converts a string slice into a SessionId.
+    ///
+    /// Clones the string slice into an owned String for the SessionId.
     fn from(s: &str) -> Self {
         Self(s.to_string())
     }
@@ -56,41 +77,62 @@ impl From<&str> for SessionId {
 pub struct MessageId(pub String);
 
 impl MessageId {
-    /// Creates a new random message ID.
+    /// Creates a new random message ID using UUID v4.
+    ///
+    /// Generates a cryptographically random UUID and converts it to a string
+    /// representation for use as a unique message identifier within a session.
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
 
-    /// Creates a message ID from an existing string.
+    /// Creates a message ID from an existing string value.
+    ///
+    /// Accepts any type that can be converted into a String, allowing
+    /// flexibility when constructing IDs from database results or external sources.
     pub fn from_string(s: impl Into<String>) -> Self {
         Self(s.into())
     }
 
-    /// Returns the message ID as a string slice.
+    /// Returns the message ID as a string slice reference.
+    ///
+    /// Provides a borrowed view of the underlying string without allocation,
+    /// useful for database queries and API calls.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 impl Default for MessageId {
+    /// Returns a new random MessageId as the default value.
+    ///
+    /// Delegates to `MessageId::new()` to generate a unique UUID-based identifier.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl std::fmt::Display for MessageId {
+    /// Formats the message ID for display by writing its underlying string value.
+    ///
+    /// Enables using MessageId with format macros like `format!()` and `println!()`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 impl From<String> for MessageId {
+    /// Converts an owned String into a MessageId.
+    ///
+    /// Wraps the String directly without additional allocation.
     fn from(s: String) -> Self {
         Self(s)
     }
 }
 
 impl From<&str> for MessageId {
+    /// Converts a string slice into a MessageId.
+    ///
+    /// Clones the string slice into an owned String for the MessageId.
     fn from(s: &str) -> Self {
         Self(s.to_string())
     }
@@ -108,7 +150,10 @@ pub struct Message {
 }
 
 impl Message {
-    /// Creates a new message for insertion.
+    /// Creates a new message payload for insertion into a session.
+    ///
+    /// Returns a `NewMessage` struct containing only the content. The ID and
+    /// sequence number are assigned atomically by Armin during the actual insertion.
     pub fn new(content: impl Into<String>) -> NewMessage {
         NewMessage {
             content: content.into(),
@@ -135,41 +180,62 @@ pub struct NewMessage {
 pub struct RepositoryId(pub String);
 
 impl RepositoryId {
-    /// Creates a new random repository ID.
+    /// Creates a new random repository ID using UUID v4.
+    ///
+    /// Generates a cryptographically random UUID and converts it to a string
+    /// representation for use as a unique repository identifier.
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
 
-    /// Creates a repository ID from an existing string.
+    /// Creates a repository ID from an existing string value.
+    ///
+    /// Accepts any type that can be converted into a String, allowing
+    /// flexibility when constructing IDs from database results or file paths.
     pub fn from_string(s: impl Into<String>) -> Self {
         Self(s.into())
     }
 
-    /// Returns the repository ID as a string slice.
+    /// Returns the repository ID as a string slice reference.
+    ///
+    /// Provides a borrowed view of the underlying string without allocation,
+    /// useful for database queries and file system operations.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 impl Default for RepositoryId {
+    /// Returns a new random RepositoryId as the default value.
+    ///
+    /// Delegates to `RepositoryId::new()` to generate a unique UUID-based identifier.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl std::fmt::Display for RepositoryId {
+    /// Formats the repository ID for display by writing its underlying string value.
+    ///
+    /// Enables using RepositoryId with format macros like `format!()` and `println!()`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 impl From<String> for RepositoryId {
+    /// Converts an owned String into a RepositoryId.
+    ///
+    /// Wraps the String directly without additional allocation.
     fn from(s: String) -> Self {
         Self(s)
     }
 }
 
 impl From<&str> for RepositoryId {
+    /// Converts a string slice into a RepositoryId.
+    ///
+    /// Clones the string slice into an owned String for the RepositoryId.
     fn from(s: &str) -> Self {
         Self(s.to_string())
     }
@@ -204,7 +270,11 @@ pub struct NewRepository {
 }
 
 impl NewRepository {
-    /// Creates a new repository with a generated ID.
+    /// Creates a new repository instance with an auto-generated UUID.
+    ///
+    /// Initializes a repository with the provided path, name, and git status.
+    /// Optional fields (sessions_path, default_branch, default_remote) are set to None
+    /// and can be configured separately after creation.
     pub fn new(path: impl Into<String>, name: impl Into<String>, is_git_repository: bool) -> Self {
         Self {
             id: RepositoryId::new(),
@@ -233,6 +303,10 @@ pub enum SessionStatus {
 }
 
 impl SessionStatus {
+    /// Converts the session status to its string representation.
+    ///
+    /// Returns a static string slice matching the database/API representation
+    /// of each status variant (lowercase).
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Active => "active",
@@ -241,6 +315,10 @@ impl SessionStatus {
         }
     }
 
+    /// Parses a string into a SessionStatus variant.
+    ///
+    /// Performs case-insensitive matching. Returns `Active` as the default
+    /// for any unrecognized string values (fail-safe behavior).
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "archived" => Self::Archived,
@@ -277,7 +355,11 @@ pub struct NewSession {
 }
 
 impl NewSession {
-    /// Creates a new session with a generated ID.
+    /// Creates a new session instance with an auto-generated UUID.
+    ///
+    /// Initializes a standard (non-worktree) session associated with the given
+    /// repository. The session starts without a Claude session ID, which can
+    /// be set later when the Claude CLI process is spawned.
     pub fn new(repository_id: impl Into<RepositoryId>, title: impl Into<String>) -> Self {
         Self {
             id: SessionId::new(),
@@ -289,7 +371,11 @@ impl NewSession {
         }
     }
 
-    /// Creates a new worktree session.
+    /// Creates a new worktree session with an auto-generated UUID.
+    ///
+    /// Worktree sessions operate in a separate git worktree directory,
+    /// allowing isolated work without affecting the main repository state.
+    /// The worktree_path specifies the filesystem location of the worktree.
     pub fn new_worktree(
         repository_id: impl Into<RepositoryId>,
         title: impl Into<String>,
@@ -331,6 +417,10 @@ pub enum AgentStatus {
 }
 
 impl AgentStatus {
+    /// Converts the agent status to its string representation.
+    ///
+    /// Returns a static string slice matching the database/API representation
+    /// of each status variant (lowercase).
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Idle => "idle",
@@ -340,6 +430,10 @@ impl AgentStatus {
         }
     }
 
+    /// Parses a string into an AgentStatus variant.
+    ///
+    /// Performs case-insensitive matching. Returns `Idle` as the default
+    /// for any unrecognized string values (fail-safe behavior).
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "running" => Self::Running,
@@ -397,6 +491,10 @@ pub enum OutboxStatus {
 }
 
 impl OutboxStatus {
+    /// Converts the outbox status to its string representation.
+    ///
+    /// Returns a static string slice matching the database representation
+    /// of each status variant (lowercase).
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
@@ -406,6 +504,10 @@ impl OutboxStatus {
         }
     }
 
+    /// Parses a string into an OutboxStatus variant.
+    ///
+    /// Performs case-insensitive matching. Returns `Pending` as the default
+    /// for any unrecognized string values (fail-safe behavior for retry logic).
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "sent" => Self::Sent,
@@ -442,7 +544,11 @@ pub struct NewOutboxEvent {
 }
 
 impl NewOutboxEvent {
-    /// Creates a new outbox event with a generated ID.
+    /// Creates a new outbox event with an auto-generated UUID.
+    ///
+    /// Constructs an outbox entry linking a message to its session with a
+    /// sequence number for ordering. The event_id is generated automatically
+    /// to ensure uniqueness for relay sync tracking.
     pub fn new(session_id: impl Into<SessionId>, sequence_number: i64, message_id: impl Into<MessageId>) -> Self {
         Self {
             event_id: Uuid::new_v4().to_string(),

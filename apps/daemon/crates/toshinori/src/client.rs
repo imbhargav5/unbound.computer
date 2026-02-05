@@ -1,26 +1,44 @@
 //! Supabase REST API client for Toshinori.
+//!
+//! Provides a typed HTTP client for interacting with Supabase PostgREST API
+//! to sync Armin's local state with the cloud database.
 
 use crate::error::{ToshinoriError, ToshinoriResult};
 use serde::Serialize;
 use tracing::{debug, error, warn};
 
-/// Message payload for Supabase upsert.
+/// Represents a message payload formatted for Supabase upsert operations.
+///
+/// Contains the encrypted message content and metadata required for
+/// inserting or updating messages in the remote database. Optional fields
+/// are omitted from serialization when None.
 #[derive(Debug, Serialize)]
 pub struct MessageUpsert {
+    /// The session this message belongs to.
     pub session_id: String,
+    /// The message's position in the session's message sequence.
     pub sequence_number: i64,
+    /// The message role (e.g., "user", "assistant").
     pub role: String,
+    /// Base64-encoded encrypted message content (omitted if None).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_encrypted: Option<String>,
+    /// Base64-encoded nonce used for encryption (omitted if None).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_nonce: Option<String>,
 }
 
-/// Supabase REST API client for syncing Armin data.
+/// HTTP client for Supabase REST API operations.
+///
+/// Handles authentication, request building, and error handling for all
+/// Supabase sync operations. Cloneable for sharing across async tasks.
 #[derive(Clone)]
 pub struct SupabaseClient {
+    /// The underlying HTTP client for making requests.
     http_client: reqwest::Client,
+    /// The Supabase project API URL (e.g., https://xyz.supabase.co).
     api_url: String,
+    /// The Supabase anonymous API key for public access.
     anon_key: String,
 }
 
@@ -38,12 +56,18 @@ impl SupabaseClient {
         }
     }
 
-    /// Build the REST API URL for a table.
+    /// Constructs the full REST API URL for a given table name.
+    ///
+    /// Combines the base API URL with the PostgREST path to form the
+    /// complete endpoint URL for table operations.
     fn rest_url(&self, table: &str) -> String {
         format!("{}/rest/v1/{}", self.api_url, table)
     }
 
-    /// Upsert a repository to Supabase.
+    /// Creates or updates a repository record in Supabase.
+    ///
+    /// Performs an upsert operation that either creates a new repository entry
+    /// or updates an existing one if the ID matches. Sets the status to "active".
     pub async fn upsert_repository(
         &self,
         repository_id: &str,
@@ -68,7 +92,10 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Delete a repository from Supabase.
+    /// Removes a repository record from Supabase.
+    ///
+    /// Deletes the repository with the given ID. Does not fail if the
+    /// repository doesn't exist (idempotent delete behavior).
     pub async fn delete_repository(
         &self,
         repository_id: &str,
@@ -84,7 +111,11 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Upsert a coding session to Supabase.
+    /// Creates or updates a coding session record in Supabase.
+    ///
+    /// Performs an upsert with full session metadata including worktree info,
+    /// branch, and working directory. Updates the heartbeat timestamp to track
+    /// session liveness.
     pub async fn upsert_session(
         &self,
         session_id: &str,
@@ -100,8 +131,10 @@ impl SupabaseClient {
     ) -> ToshinoriResult<()> {
         let url = self.rest_url("agent_coding_sessions");
 
+        // Set current timestamp for heartbeat tracking
         let now = chrono::Utc::now().to_rfc3339();
 
+        // Build the base JSON payload with required fields
         let mut body = serde_json::json!({
             "id": session_id,
             "user_id": user_id,
@@ -112,6 +145,7 @@ impl SupabaseClient {
             "last_heartbeat_at": now
         });
 
+        // Add optional fields only if provided
         if let Some(branch) = current_branch {
             body["current_branch"] = serde_json::json!(branch);
         }
@@ -130,7 +164,11 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Update session status in Supabase.
+    /// Updates only the status field of an existing session.
+    ///
+    /// Performs a PATCH operation to update the session status without
+    /// touching other fields. Converts "closed" status to "ended" for
+    /// Supabase schema compatibility. Also updates the heartbeat timestamp.
     pub async fn update_session_status(
         &self,
         session_id: &str,
@@ -144,6 +182,7 @@ impl SupabaseClient {
         );
 
         let now = chrono::Utc::now().to_rfc3339();
+        // Map "closed" to "ended" for Supabase schema compatibility
         let status = if status == "closed" { "ended" } else { status };
 
         let body = serde_json::json!({
@@ -159,7 +198,10 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Delete a session from Supabase.
+    /// Removes a session record from Supabase.
+    ///
+    /// Deletes the session with the given ID. Does not fail if the session
+    /// doesn't exist (idempotent delete behavior for crash recovery).
     pub async fn delete_session(
         &self,
         session_id: &str,
@@ -179,7 +221,10 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Upsert a message to Supabase.
+    /// Creates or updates a single message in Supabase.
+    ///
+    /// Convenience wrapper around upsert_messages_batch for single-message
+    /// operations. The message is identified by session_id + sequence_number.
     pub async fn upsert_message(
         &self,
         session_id: &str,
@@ -200,7 +245,11 @@ impl SupabaseClient {
         self.upsert_messages_batch(&[message], access_token).await
     }
 
-    /// Upsert a batch of messages to Supabase.
+    /// Creates or updates multiple messages in a single request.
+    ///
+    /// Performs a batch upsert using on_conflict for the (session_id, sequence_number)
+    /// compound key. Empty batches are handled as no-ops. More efficient than
+    /// individual upserts for bulk sync operations.
     pub async fn upsert_messages_batch(
         &self,
         messages: &[MessageUpsert],
@@ -211,6 +260,7 @@ impl SupabaseClient {
             self.rest_url("agent_coding_session_messages")
         );
 
+        // Early return for empty batches to avoid unnecessary network calls
         if messages.is_empty() {
             return Ok(());
         }
@@ -223,7 +273,11 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Update agent status in Supabase.
+    /// Placeholder for agent status updates (not yet implemented in Supabase schema).
+    ///
+    /// Currently logs a warning and returns Ok. The agent_status column does not
+    /// exist in the current Supabase schema, so this is a no-op that allows the
+    /// calling code to remain forward-compatible.
     pub async fn update_agent_status(
         &self,
         session_id: &str,
@@ -242,7 +296,10 @@ impl SupabaseClient {
     // HTTP helpers
     // =========================================================================
 
-    /// Perform an upsert (POST with merge-duplicates).
+    /// Performs a POST request with merge-duplicates conflict resolution.
+    ///
+    /// Sends the body as JSON with Supabase-specific headers for authentication
+    /// and upsert behavior. Returns an error if the response indicates failure.
     async fn upsert<T: Serialize + ?Sized>(
         &self,
         url: &str,
@@ -263,7 +320,10 @@ impl SupabaseClient {
         self.check_response(response).await
     }
 
-    /// Perform a PATCH update.
+    /// Performs a PATCH request to update existing records.
+    ///
+    /// Sends the body as JSON to update matching records (filtered by URL query).
+    /// Returns an error if the response indicates failure.
     async fn patch<T: Serialize>(
         &self,
         url: &str,
@@ -283,7 +343,10 @@ impl SupabaseClient {
         self.check_response(response).await
     }
 
-    /// Perform a DELETE.
+    /// Performs a DELETE request to remove matching records.
+    ///
+    /// Uses lenient error handling - logs failures but returns Ok to support
+    /// idempotent deletes where the resource may already be gone.
     async fn delete(&self, url: &str, access_token: &str) -> ToshinoriResult<()> {
         let response = self
             .http_client
@@ -293,7 +356,7 @@ impl SupabaseClient {
             .send()
             .await?;
 
-        // Don't fail on delete errors (resource may not exist)
+        // Log but don't fail on delete errors for idempotency
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
@@ -303,7 +366,10 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Check HTTP response for errors.
+    /// Validates HTTP response and converts errors to ToshinoriError.
+    ///
+    /// Reads the response body for error details and logs failures before
+    /// returning a structured error with status code and message.
     async fn check_response(&self, response: reqwest::Response) -> ToshinoriResult<()> {
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -319,6 +385,10 @@ impl SupabaseClient {
 }
 
 impl std::fmt::Debug for SupabaseClient {
+    /// Provides debug output that includes the API URL but omits sensitive keys.
+    ///
+    /// Uses finish_non_exhaustive to indicate that some fields are intentionally
+    /// hidden (anon_key, http_client) for security and brevity.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SupabaseClient")
             .field("api_url", &self.api_url)
