@@ -1,0 +1,60 @@
+# yamcha
+
+Session title generation using Groq's Llama 3.1 8B Instant model.
+
+## Purpose
+
+Generates concise, descriptive session titles based on the first user message in a coding session. This runs only once per session - on the very first user message.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GROQ_API_KEY` | Yes | API key for Groq. Get one at https://console.groq.com/keys |
+
+## Usage
+
+```rust
+use yamcha::SessionTitleGenerator;
+
+// Create generator (requires GROQ_API_KEY env var)
+let generator = SessionTitleGenerator::from_env()?;
+
+// Generate title on first message only
+let title = generator.generate_title(
+    "session-123",
+    "Help me refactor this React component to use hooks"
+).await?;
+// Returns: "Refactor React Component to Hooks"
+```
+
+### Background Task
+
+For non-blocking title generation:
+
+```rust
+use yamcha::spawn_title_generation_from_env;
+
+let handle = spawn_title_generation_from_env(
+    "session-123".to_string(),
+    "How do I implement authentication?".to_string(),
+);
+
+// Continue with other work...
+
+// Later, get the result
+let title = handle.await??;
+```
+
+## Model
+
+Uses Groq's `llama-3.1-8b-instant` model with 128k context for fast inference.
+
+## Error Handling
+
+The crate returns `YamchaError` for various failure cases:
+
+- `MissingApiKey` - `GROQ_API_KEY` environment variable not set
+- `ApiError` - Groq API returned an error response
+- `Http` - Network/connection error
+- `InvalidResponse` - Unexpected response format

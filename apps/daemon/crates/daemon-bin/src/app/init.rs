@@ -3,7 +3,7 @@
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
-use crate::outbox::SessionSyncService;
+use levi::SessionSyncService;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use daemon_auth::{SessionManager, SupabaseClient};
 use daemon_core::{Config, Paths};

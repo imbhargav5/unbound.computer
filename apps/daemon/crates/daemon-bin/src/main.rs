@@ -5,7 +5,6 @@ mod armin_adapter;
 mod auth;
 mod ipc;
 mod machines;
-mod outbox;
 mod types;
 mod utils;
 

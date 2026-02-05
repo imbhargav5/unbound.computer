@@ -1,7 +1,7 @@
 //! Daemon state definition.
 
 use crate::armin_adapter::DaemonArmin;
-use crate::outbox::SessionSyncService;
+use levi::SessionSyncService;
 use crate::utils::SessionSecretCache;
 use daemon_auth::SupabaseClient;
 use daemon_core::{Config, Paths};

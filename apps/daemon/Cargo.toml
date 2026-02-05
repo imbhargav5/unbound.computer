@@ -15,6 +15,7 @@ members = [
     "crates/levi",
     "crates/deku",
     "crates/yagami",
+    "crates/yamcha",
 ]
 
 [workspace.package]
@@ -94,6 +95,7 @@ toshinori = { path = "crates/toshinori" }
 levi = { path = "crates/levi" }
 deku = { path = "crates/deku" }
 yagami = { path = "crates/yagami" }
+yamcha = { path = "crates/yamcha" }
 
 # Redis
 redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

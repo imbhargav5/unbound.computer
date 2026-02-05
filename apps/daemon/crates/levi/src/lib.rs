@@ -3,6 +3,10 @@
 //! Batches message writes to Supabase, encrypts content, and tracks retries via
 //! SQLite outbox entries.
 
+mod session_sync;
+
+pub use session_sync::{SessionSyncService, SyncError, SyncResult};
+
 use armin::{MessageId, PendingSupabaseMessage, SessionId, SessionReader, SessionWriter};
 use base64::Engine;
 use chrono::{DateTime, Utc};
