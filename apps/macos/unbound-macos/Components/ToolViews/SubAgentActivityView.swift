@@ -70,20 +70,20 @@ struct SubAgentActivityView: View {
             }
         } label: {
             HStack(spacing: Spacing.sm) {
-                // Amber circular icon
+                // Agent-colored circular icon
                 Circle()
-                    .fill(colors.accentAmberMuted)
+                    .fill(colors.agentAccentMutedColor(for: activity.subagentType))
                     .frame(width: 24, height: 24)
                     .overlay(
                         Image(systemName: agentIcon)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(colors.accentAmber)
+                            .foregroundStyle(colors.agentAccentColor(for: activity.subagentType))
                     )
 
-                // Agent name (amber)
+                // Agent name (agent color)
                 Text(agentDisplayName)
                     .font(Typography.bodyMedium)
-                    .foregroundStyle(colors.accentAmber)
+                    .foregroundStyle(colors.agentAccentColor(for: activity.subagentType))
 
                 // Separator dot and description
                 if !activity.description.isEmpty {
@@ -115,20 +115,24 @@ struct SubAgentActivityView: View {
 
     // MARK: - Status Badge
 
+    private var agentColor: Color {
+        colors.agentAccentColor(for: activity.subagentType)
+    }
+
     @ViewBuilder
     private var statusBadge: some View {
         switch activity.status {
         case .running:
             HStack(spacing: Spacing.xs) {
                 Circle()
-                    .fill(colors.accentAmber)
+                    .fill(agentColor)
                     .frame(width: 6, height: 6)
                 Text("Running")
                     .font(Typography.caption)
-                    .foregroundStyle(colors.accentAmber)
+                    .foregroundStyle(agentColor)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(colors.accentAmber)
+                    .foregroundStyle(agentColor)
             }
 
         case .completed:
@@ -155,7 +159,8 @@ struct SubAgentActivityView: View {
             ForEach(Array(activity.tools.enumerated()), id: \.element.toolUseId) { index, tool in
                 SubAgentToolRow(
                     tool: tool,
-                    isLast: index == activity.tools.count - 1
+                    isLast: index == activity.tools.count - 1,
+                    agentType: activity.subagentType
                 )
             }
         }
@@ -170,6 +175,7 @@ private struct SubAgentToolRow: View {
 
     let tool: ToolUse
     let isLast: Bool
+    var agentType: String = "bash"
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -204,19 +210,23 @@ private struct SubAgentToolRow: View {
         }
     }
 
+    private var connectorColor: Color {
+        colors.agentAccentColor(for: agentType).opacity(0.3)
+    }
+
     private var connectorView: some View {
         HStack(spacing: 0) {
             // Vertical line
             GeometryReader { geometry in
                 Rectangle()
-                    .fill(colors.accentAmber)
+                    .fill(connectorColor)
                     .frame(width: 1, height: isLast ? min(12, geometry.size.height) : geometry.size.height)
             }
             .frame(width: 1)
 
             // Horizontal connector
             Rectangle()
-                .fill(colors.accentAmber)
+                .fill(connectorColor)
                 .frame(width: Spacing.md, height: 1)
                 .padding(.top, 10)
         }

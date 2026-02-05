@@ -2,7 +2,8 @@
 //  RightSidebarPanel.swift
 //  unbound-macos
 //
-//  Main right sidebar panel with Changes, Files, and Commits tabs.
+//  Right panel with integrated file editor (top) and Changes/Files/Commits (bottom).
+//  Matches design: file tabs + editor content + changes section in a single column.
 //
 
 import Logging
@@ -45,6 +46,15 @@ private struct GitToolbarActionButton: View {
         ThemeColors(colorScheme)
     }
 
+    private var buttonBackground: Color {
+        switch action {
+        case .commit:
+            return colors.success
+        case .push:
+            return colors.primaryAction
+        }
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: Spacing.xs) {
@@ -56,7 +66,7 @@ private struct GitToolbarActionButton: View {
             .foregroundStyle(colors.primaryActionForeground)
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
-            .background(colors.primaryAction)
+            .background(buttonBackground)
             .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
         }
         .buttonStyle(.plain)
@@ -110,19 +120,43 @@ struct RightSidebarPanel: View {
         return nil
     }
 
+    /// Currently selected editor tab
+    private var selectedEditorTab: EditorTab? {
+        if let id = editorState.selectedTabId {
+            return editorState.tabs.first { $0.id == id }
+        }
+        return editorState.tabs.first
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            topToolbarRow
-
-            ShadcnDivider()
-
             VSplitView {
-                // Top section - Spec/Tasks panel
+                // Top section - File editor
                 VStack(spacing: 0) {
-                    SpecTasksTabView()
+                    FileEditorTabBar(
+                        files: editorState.tabs,
+                        selectedFileId: editorState.selectedTabId ?? editorState.tabs.first?.id,
+                        onSelectFile: { id in
+                            editorState.selectTab(id: id)
+                        },
+                        onCloseFile: { id in
+                            editorState.closeTab(id: id)
+                        }
+                    ) {
+                        HStack(spacing: Spacing.sm) {
+                            branchSelector
+                            if let action = gitToolbarAction {
+                                GitToolbarActionButton(action: action, onTap: {})
+                            }
+                        }
+                    }
+
+                    ShadcnDivider()
+
+                    editorContent
                 }
-                .frame(minHeight: 220)
-                .background(colors.background)
+                .frame(minHeight: 200)
+                .background(colors.editorBackground)
 
                 // Bottom section - Changes/Files/Commits
                 VStack(spacing: 0) {
@@ -134,13 +168,6 @@ struct RightSidebarPanel: View {
                 }
                 .frame(minHeight: 200)
             }
-
-            ShadcnDivider()
-
-            // Footer (empty, 20px height)
-            Color.clear
-                .frame(height: 20)
-                .background(colors.card)
         }
         .background(colors.background)
         .onChange(of: selectedTab) { _, newTab in
@@ -167,37 +194,85 @@ struct RightSidebarPanel: View {
         }
     }
 
-    // MARK: - Top Toolbar Row
+    // MARK: - Editor Content
 
-    private var topToolbarRow: some View {
-        HStack(spacing: Spacing.md) {
-            // Open selector on the left
-            Button(action: {
-                // Open action placeholder
-            }) {
-                HStack(spacing: Spacing.xs) {
-                    Text("Open")
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: IconSize.xs))
+    @ViewBuilder
+    private var editorContent: some View {
+        if let tab = selectedEditorTab {
+            switch tab.kind {
+            case .file:
+                if let fullPath = tab.fullPath {
+                    FileEditorView(
+                        sessionId: tab.sessionId,
+                        relativePath: tab.path,
+                        filePath: fullPath
+                    )
+                } else {
+                    editorErrorView("Missing file path for editor tab.")
                 }
-                .font(Typography.toolbar)
-                .foregroundStyle(colors.mutedForeground)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(colors.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            case .diff:
+                DiffEditorView(
+                    path: tab.path,
+                    diffState: editorState.diffStates[tab.path]
+                )
             }
-            .buttonStyle(.plain)
+        } else {
+            VStack(spacing: Spacing.md) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 32))
+                    .foregroundStyle(colors.mutedForeground)
 
-            Spacer()
+                Text("No file open")
+                    .font(Typography.body)
+                    .foregroundStyle(colors.mutedForeground)
 
-            if let action = gitToolbarAction {
-                GitToolbarActionButton(action: action, onTap: {})
+                Text("Select a file from the chat or file tree")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(colors.editorBackground)
         }
-        .padding(.horizontal, Spacing.lg)
-        .frame(height: LayoutMetrics.toolbarHeight)
-        .background(colors.toolbarBackground)
+    }
+
+    private func editorErrorView(_ message: String) -> some View {
+        VStack(spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24))
+                .foregroundStyle(colors.destructive)
+            Text("Unable to open file")
+                .font(Typography.body)
+                .foregroundStyle(colors.foreground)
+            Text(message)
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.editorBackground)
+    }
+
+    // MARK: - Branch Selector
+
+    private var branchSelector: some View {
+        Button(action: {
+            // Branch selection placeholder
+        }) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: IconSize.xs))
+                Text(gitViewModel.currentBranch ?? "main")
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8))
+            }
+            .font(Typography.toolbar)
+            .foregroundStyle(colors.mutedForeground)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(colors.muted)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Changes Header

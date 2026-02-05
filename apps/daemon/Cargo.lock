@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "armin"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -554,7 +554,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-auth"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "base64",
  "chrono",
@@ -572,7 +572,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-bin"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "armin",
  "base64",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-core"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "chacha20poly1305",
  "dirs",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-database"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "chacha20poly1305",
  "chrono",
@@ -643,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "daemon-core",
  "interprocess",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-storage"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "base64",
  "chrono",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "deku"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "regex",
  "serde",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "falco"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1481,7 +1481,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "levi"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "armin",
  "base64",
@@ -1753,7 +1753,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "chrono",
  "dirs",
@@ -1855,7 +1855,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "piccolo"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "git2",
  "serde",
@@ -3659,7 +3659,7 @@ dependencies = [
 
 [[package]]
 name = "yamcha"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "reqwest",
  "serde",

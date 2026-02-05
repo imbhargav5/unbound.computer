@@ -79,20 +79,21 @@ struct AgentCardView: View {
             }
         } label: {
             HStack(spacing: Spacing.sm) {
-                // Amber circular icon
+                // Agent-colored circular icon
                 Circle()
-                    .fill(colors.accentAmberMuted)
+                    .fill(colors.agentAccentMutedColor(for: subAgent.subagentType))
                     .frame(width: 22, height: 22)
                     .overlay(
                         Image(systemName: agentIcon)
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(colors.accentAmber)
+                            .foregroundStyle(colors.agentAccentColor(for: subAgent.subagentType))
                     )
 
-                // Agent name (bold, amber)
+                // Agent name (bold, agent color)
                 Text(agentDisplayName)
                     .font(Typography.bodySmall)
-                    .foregroundStyle(colors.accentAmber)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(colors.agentAccentColor(for: subAgent.subagentType))
 
                 // Separator dot
                 if !subAgent.description.isEmpty {
@@ -123,21 +124,29 @@ struct AgentCardView: View {
         .buttonStyle(.plain)
     }
 
+    private var agentColor: Color {
+        colors.agentAccentColor(for: subAgent.subagentType)
+    }
+
     @ViewBuilder
     private var statusIndicator: some View {
         switch subAgent.status {
         case .running:
             HStack(spacing: Spacing.xs) {
                 Circle()
-                    .fill(colors.accentAmber)
+                    .fill(agentColor)
                     .frame(width: 6, height: 6)
                 Text("Running")
                     .font(Typography.micro)
-                    .foregroundStyle(colors.accentAmber)
+                    .foregroundStyle(agentColor)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(colors.accentAmber)
+                    .foregroundStyle(agentColor)
             }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xxs)
+            .background(agentColor.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.full))
 
         case .completed:
             HStack(spacing: Spacing.xs) {
@@ -203,6 +212,11 @@ struct AgentToolRow: View {
         isLast && tool.status != .running
     }
 
+    /// Agent-specific connector color at 30% opacity
+    private var connectorColor: Color {
+        colors.agentAccentColor(for: agentType).opacity(0.3)
+    }
+
     /// Connector view with vertical and horizontal lines
     @ViewBuilder
     private var connectorView: some View {
@@ -210,14 +224,14 @@ struct AgentToolRow: View {
             // Vertical line - use GeometryReader to properly constrain height
             GeometryReader { geometry in
                 Rectangle()
-                    .fill(colors.panelDivider)
+                    .fill(connectorColor)
                     .frame(width: 1, height: shouldTruncateLine ? min(12, geometry.size.height) : geometry.size.height)
             }
             .frame(width: 1)
 
             // Horizontal connector
             Rectangle()
-                .fill(colors.panelDivider)
+                .fill(connectorColor)
                 .frame(width: Spacing.md, height: 1)
                 .padding(.top, 10)
         }
@@ -440,7 +454,8 @@ struct HistoricalAgentCardView: View {
                     ForEach(Array(activity.tools.enumerated()), id: \.element.id) { index, tool in
                         HistoricalToolRow(
                             tool: tool,
-                            isLast: index == activity.tools.count - 1
+                            isLast: index == activity.tools.count - 1,
+                            agentType: activity.subagentType
                         )
                     }
                 }
@@ -456,20 +471,21 @@ struct HistoricalAgentCardView: View {
             }
         } label: {
             HStack(spacing: Spacing.sm) {
-                // Amber circular icon (slightly muted for completed)
+                // Agent-colored circular icon (slightly muted for completed)
                 Circle()
-                    .fill(colors.accentAmberSubtle)
+                    .fill(colors.agentAccentMutedColor(for: activity.subagentType).opacity(0.75))
                     .frame(width: 24, height: 24)
                     .overlay(
                         Image(systemName: agentIcon)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(colors.accentAmber.opacity(0.7))
+                            .foregroundStyle(colors.agentAccentColor(for: activity.subagentType).opacity(0.7))
                     )
 
-                // Agent name (amber)
+                // Agent name (agent color, slightly muted)
                 Text(agentDisplayName)
                     .font(Typography.bodyMedium)
-                    .foregroundStyle(colors.accentAmber.opacity(0.8))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(colors.agentAccentColor(for: activity.subagentType).opacity(0.8))
 
                 // Separator dot
                 if !activity.description.isEmpty {
@@ -512,6 +528,7 @@ struct HistoricalToolRow: View {
 
     let tool: ToolUse
     let isLast: Bool
+    var agentType: String = "bash"
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -531,6 +548,11 @@ struct HistoricalToolRow: View {
         }
     }
 
+    /// Agent-specific connector color at 20% opacity (muted for historical)
+    private var connectorColor: Color {
+        colors.agentAccentColor(for: agentType).opacity(0.2)
+    }
+
     /// Connector view with vertical and horizontal lines
     @ViewBuilder
     private var connectorView: some View {
@@ -538,14 +560,14 @@ struct HistoricalToolRow: View {
             // Vertical line - use GeometryReader to properly constrain height
             GeometryReader { geometry in
                 Rectangle()
-                    .fill(colors.border.opacity(0.5))
+                    .fill(connectorColor)
                     .frame(width: 1, height: isLast ? min(12, geometry.size.height) : geometry.size.height)
             }
             .frame(width: 1)
 
             // Horizontal connector
             Rectangle()
-                .fill(colors.border.opacity(0.5))
+                .fill(connectorColor)
                 .frame(width: Spacing.md, height: 1)
                 .padding(.top, 10)
         }

@@ -3,7 +3,7 @@
 //  unbound-macos
 //
 //  Shadcn-styled chat panel with Claude CLI integration.
-//  Split into two columns: chat on left, file editor on right.
+//  Single-column chat view with messages and input.
 //  Works with a single Session (= Claude conversation).
 //  Reads state from SessionLiveState via SessionStateManager,
 //  enabling instant session switching and background streaming.
@@ -24,7 +24,6 @@ struct ChatPanel: View {
     @Binding var selectedModel: AIModel
     @Binding var selectedThinkMode: ThinkMode
     @Binding var isPlanMode: Bool
-    @Bindable var editorState: EditorState
 
     // Footer panel state
     @State private var selectedTerminalTab: TerminalTab = .terminal
@@ -121,7 +120,9 @@ struct ChatPanel: View {
         var hasher = Hasher()
         hasher.combine(messages.count)
         hasher.combine(toolHistory.count)
+        hasher.combine(activeSubAgents.count)
         hasher.combine(activeSubAgents.last?.id)
+        hasher.combine(activeSubAgents.last?.childTools.count)
         hasher.combine(activeSubAgents.last?.childTools.last?.id)
         hasher.combine(activeTools.last?.id)
         if let last = messages.last {
@@ -159,14 +160,8 @@ struct ChatPanel: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                HSplitView {
-                    // Left side - Chat conversation
-                    chatColumn
-
-                    // Right side - File editor
-                    fileEditorColumn
-                }
-                .padding(.bottom, FooterConstants.barHeight)
+                chatColumn
+                    .padding(.bottom, FooterConstants.barHeight)
 
                 footerPanel(availableHeight: geometry.size.height)
             }
@@ -357,113 +352,6 @@ struct ChatPanel: View {
             .background(colors.chatBackground)
         }
         .frame(minWidth: 300)
-    }
-
-    /// Currently selected editor tab
-    private var selectedTab: EditorTab? {
-        if let id = editorState.selectedTabId {
-            return editorState.tabs.first { $0.id == id }
-        }
-        return editorState.tabs.first
-    }
-
-    // MARK: - File Editor Column
-
-    private var fileEditorColumn: some View {
-        VStack(spacing: 0) {
-            // Editor toolbar row
-            editorToolbarRow
-
-            ShadcnDivider()
-
-            // Editor header with file tabs
-            FileEditorTabBar(
-                files: editorState.tabs,
-                selectedFileId: editorState.selectedTabId ?? editorState.tabs.first?.id,
-                onSelectFile: { id in
-                    editorState.selectTab(id: id)
-                },
-                onCloseFile: { id in
-                    editorState.closeTab(id: id)
-                }
-            )
-
-            ShadcnDivider()
-
-            // Editor content
-            if let tab = selectedTab {
-                switch tab.kind {
-                case .file:
-                    if let fullPath = tab.fullPath {
-                        FileEditorView(
-                            sessionId: tab.sessionId,
-                            relativePath: tab.path,
-                            filePath: fullPath
-                        )
-                    } else {
-                        fileLoadErrorView("Missing file path for editor tab.")
-                    }
-                case .diff:
-                    DiffEditorView(
-                        path: tab.path,
-                        diffState: editorState.diffStates[tab.path]
-                    )
-                }
-            } else {
-                // No file open
-                VStack(spacing: Spacing.md) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 32))
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Text("No file open")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Text("Select a file from the chat or file tree")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground.opacity(0.7))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(colors.editorBackground)
-            }
-
-        }
-        .frame(minWidth: 300)
-    }
-
-    private var editorToolbarRow: some View {
-        HStack(spacing: Spacing.md) {
-            Text("Editor")
-                .font(Typography.toolbarMuted)
-                .foregroundStyle(colors.mutedForeground)
-
-            Spacer()
-
-            HStack(spacing: Spacing.sm) {
-                ToolbarIconButton(systemName: "doc.text.magnifyingglass", action: {})
-                ToolbarIconButton(systemName: "square.and.pencil", action: {})
-            }
-        }
-        .padding(.horizontal, Spacing.lg)
-        .frame(height: LayoutMetrics.toolbarHeight)
-        .background(colors.toolbarBackground)
-    }
-
-    private func fileLoadErrorView(_ message: String) -> some View {
-        VStack(spacing: Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24))
-                .foregroundStyle(colors.destructive)
-            Text("Unable to open file")
-                .font(Typography.body)
-                .foregroundStyle(colors.foreground)
-            Text(message)
-                .font(Typography.caption)
-                .foregroundStyle(colors.mutedForeground)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.editorBackground)
     }
 
     // MARK: - Footer Panel
@@ -687,16 +575,31 @@ struct ChatPanel: View {
 
 // MARK: - File Editor Tab Bar
 
-struct FileEditorTabBar: View {
+struct FileEditorTabBar<Trailing: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let files: [EditorTab]
     let selectedFileId: UUID?
     var onSelectFile: (UUID) -> Void
     var onCloseFile: (UUID) -> Void
+    let trailing: Trailing
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
+    }
+
+    init(
+        files: [EditorTab],
+        selectedFileId: UUID?,
+        onSelectFile: @escaping (UUID) -> Void,
+        onCloseFile: @escaping (UUID) -> Void,
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+    ) {
+        self.files = files
+        self.selectedFileId = selectedFileId
+        self.onSelectFile = onSelectFile
+        self.onCloseFile = onCloseFile
+        self.trailing = trailing()
     }
 
     var body: some View {
@@ -720,39 +623,12 @@ struct FileEditorTabBar: View {
             }
 
             Spacer(minLength: 0)
+
+            trailing
+                .padding(.trailing, Spacing.sm)
         }
         .frame(height: LayoutMetrics.compactToolbarHeight)
         .background(colors.toolbarBackground)
-    }
-}
-
-// MARK: - Toolbar Icon Button
-
-private struct ToolbarIconButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let systemName: String
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: IconSize.sm))
-                .foregroundStyle(colors.mutedForeground)
-                .frame(width: 24, height: 24)
-                .background(isHovering ? colors.hoverBackground : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
-        }
     }
 }
 
@@ -1056,8 +932,7 @@ private struct ChatMessageRow: View, Equatable {
         chatInput: .constant(""),
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
-        isPlanMode: .constant(false),
-        editorState: EditorState()
+        isPlanMode: .constant(false)
     )
     .environment(AppState())
     .frame(width: 900, height: 600)

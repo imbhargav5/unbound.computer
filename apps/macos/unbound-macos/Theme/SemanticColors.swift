@@ -73,6 +73,16 @@ struct ShadcnColors {
         static let accentAmberBorder = Color(hex: "F59E0B40")   // 40% opacity
         static let accentAmberHalf = Color(hex: "F59E0B50")     // 50% for connectors
 
+        // MARK: - Green Accent Variants (Explore Agent)
+        static let accentGreen = Color(hex: "22C55E")
+        static let accentGreenMuted = Color(hex: "22C55E20")    // 20% opacity
+        static let accentGreenSubtle = Color(hex: "22C55E15")   // 15% opacity
+
+        // MARK: - Purple Accent Variants (Plan Agent)
+        static let accentPurple = Color(hex: "A855F7")
+        static let accentPurpleMuted = Color(hex: "A855F720")   // 20% opacity
+        static let accentPurpleSubtle = Color(hex: "A855F715")  // 15% opacity
+
         // MARK: - Extended Gray Palette
         static let gray333 = Color(hex: "333333")         // Button backgrounds
         static let gray404 = Color(hex: "404040")         // UI elements
@@ -335,6 +345,26 @@ struct ThemeColors {
         colorScheme == .dark ? ShadcnColors.Dark.accentAmberHalf : ShadcnColors.Light.primaryAction.opacity(0.5)
     }
 
+    // MARK: - Green Accent Colors (Explore agents)
+
+    var accentGreen: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentGreen : ShadcnColors.Dark.accentGreen
+    }
+
+    var accentGreenMuted: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentGreenMuted : ShadcnColors.Dark.accentGreen.opacity(0.2)
+    }
+
+    // MARK: - Purple Accent Colors (Plan agents)
+
+    var accentPurple: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentPurple : ShadcnColors.Dark.accentPurple
+    }
+
+    var accentPurpleMuted: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentPurpleMuted : ShadcnColors.Dark.accentPurple.opacity(0.2)
+    }
+
     // MARK: - Git/Diff Colors
 
     var fileModified: Color {
@@ -435,6 +465,40 @@ struct ThemeColors {
 
     var editorBackground: Color {
         colorScheme == .dark ? ShadcnColors.Dark.editorBackground : ShadcnColors.Light.editorBackground
+    }
+
+    // MARK: - Agent Type Colors
+
+    /// Returns the accent color for a given agent type
+    func agentAccentColor(for agentType: String) -> Color {
+        switch agentType.lowercased() {
+        case "explore":
+            return accentGreen
+        case "plan":
+            return accentPurple
+        case "bash":
+            return accentAmber
+        case "general-purpose":
+            return accentAmber
+        default:
+            return accentAmber
+        }
+    }
+
+    /// Returns the muted background color for a given agent type
+    func agentAccentMutedColor(for agentType: String) -> Color {
+        switch agentType.lowercased() {
+        case "explore":
+            return accentGreenMuted
+        case "plan":
+            return accentPurpleMuted
+        case "bash":
+            return accentAmberMuted
+        case "general-purpose":
+            return accentAmberMuted
+        default:
+            return accentAmberMuted
+        }
     }
 }
 

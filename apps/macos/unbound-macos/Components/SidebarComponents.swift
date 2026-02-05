@@ -24,9 +24,17 @@ struct SidebarHeader: View {
 
     var body: some View {
         HStack {
-            Text(title)
-                .font(Typography.sidebarHeader)
-                .foregroundStyle(colors.foreground)
+            HStack(spacing: Spacing.xs) {
+                Text(title)
+                    .font(Typography.sidebarHeader)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(colors.mutedForeground)
+            }
 
             Spacer()
 

@@ -134,8 +134,7 @@ struct WorkspaceView: View {
                             chatInput: $chatInput,
                             selectedModel: $selectedModel,
                             selectedThinkMode: $selectedThinkMode,
-                            isPlanMode: $isPlanMode,
-                            editorState: editorState
+                            isPlanMode: $isPlanMode
                         )
                         .frame(minWidth: 400)
                     } else {

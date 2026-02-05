@@ -110,9 +110,9 @@ struct WorkspacesSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Agents header (top bar with fixed 64px height)
+            // Machine name header (top bar with fixed 64px height)
             SidebarHeader(
-                title: "Agents",
+                title: Host.current().localizedName ?? "My Mac",
                 onOpenKeyboardShortcuts: {
                     showKeyboardShortcuts = true
                 },
