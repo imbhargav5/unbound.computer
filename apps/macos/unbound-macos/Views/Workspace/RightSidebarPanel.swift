@@ -39,13 +39,13 @@ struct EditorModeToggle: View {
                     }
                 } label: {
                     Text(mode.rawValue)
-                        .font(Typography.bodySmall)
+                        .font(Typography.toolbar)
                         .foregroundStyle(selection == mode ? colors.foreground : colors.mutedForeground)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
                         .background(
                             selection == mode ?
-                            colors.card :
+                            colors.selectionBackground :
                             Color.clear
                         )
                         .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
@@ -81,28 +81,42 @@ struct RightSidebarPanel: View {
         ThemeColors(colorScheme)
     }
 
+    private var effectiveTab: RightSidebarTab {
+        selectedTab == .spec ? .changes : selectedTab
+    }
+
+    private var bottomTabs: [RightSidebarTab] {
+        [.changes, .files, .commits]
+    }
+
     var body: some View {
-        VSplitView {
-            // Top section - Tab content
-            VStack(spacing: 0) {
-                // Top toolbar row (matches main content area top bar height)
-                topToolbarRow
+        VStack(spacing: 0) {
+            topToolbarRow
 
-                ShadcnDivider()
-
-                // Tab header
-                tabHeader
-
-                ShadcnDivider()
-
-                // Tab content
-                tabContent
-            }
-            .frame(minHeight: 150)
-
-            // Footer (empty, 20px height)
             ShadcnDivider()
 
+            VSplitView {
+                // Top section - Spec/Tasks panel
+                VStack(spacing: 0) {
+                    SpecTasksTabView()
+                }
+                .frame(minHeight: 220)
+                .background(colors.background)
+
+                // Bottom section - Changes/Files/Commits
+                VStack(spacing: 0) {
+                    changesHeader
+                    ShadcnDivider()
+                    bottomTabHeader
+                    ShadcnDivider()
+                    bottomTabContent
+                }
+                .frame(minHeight: 200)
+            }
+
+            ShadcnDivider()
+
+            // Footer (empty, 20px height)
             Color.clear
                 .frame(height: 20)
                 .background(colors.card)
@@ -120,6 +134,9 @@ struct RightSidebarPanel: View {
         }
         .onAppear {
             gitViewModel.setDaemonClient(appState.daemonClient)
+            if selectedTab == .spec {
+                selectedTab = .changes
+            }
             Task {
                 await gitViewModel.setRepository(path: workingDirectory)
                 if selectedTab == .files {
@@ -142,7 +159,7 @@ struct RightSidebarPanel: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: IconSize.xs))
                 }
-                .font(Typography.bodySmall)
+                .font(Typography.toolbar)
                 .foregroundStyle(colors.mutedForeground)
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, Spacing.xs)
@@ -157,16 +174,48 @@ struct RightSidebarPanel: View {
             EditorModeToggle(selection: $selectedEditorMode)
         }
         .padding(.horizontal, Spacing.lg)
-        .frame(height: 40)
-        .background(colors.card)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 
-    // MARK: - Tab Header
+    // MARK: - Changes Header
 
-    private var tabHeader: some View {
+    private var changesHeader: some View {
         HStack(spacing: Spacing.sm) {
-            // Tab buttons
-            ForEach(RightSidebarTab.allCases) { tab in
+            Text("Changes")
+                .font(Typography.toolbar)
+                .foregroundStyle(colors.foreground)
+
+            if gitViewModel.changesCount > 0 {
+                Text("\(gitViewModel.changesCount)")
+                    .font(Typography.micro)
+                    .foregroundStyle(colors.mutedForeground)
+                    .padding(.horizontal, Spacing.xs)
+                    .padding(.vertical, Spacing.xxs)
+                    .background(colors.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .stroke(colors.border, lineWidth: BorderWidth.hairline)
+                    )
+            }
+
+            Spacer()
+
+            IconButton(systemName: "arrow.triangle.2.circlepath", action: {
+                Task { await gitViewModel.refreshAll() }
+            })
+        }
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
+    }
+
+    // MARK: - Bottom Tab Header
+
+    private var bottomTabHeader: some View {
+        HStack(spacing: Spacing.sm) {
+            ForEach(bottomTabs) { tab in
                 Button {
                     selectedTab = tab
                 } label: {
@@ -175,45 +224,26 @@ struct RightSidebarPanel: View {
                             .font(.system(size: IconSize.xs))
 
                         Text(tab.rawValue)
-                            .font(Typography.bodySmall)
-                            .fontWeight(selectedTab == tab ? .semibold : .regular)
-
-                        // Badge for changes count
-                        if tab == .changes, gitViewModel.changesCount > 0 {
-                            Text("\(gitViewModel.changesCount)")
-                                .font(Typography.micro)
-                                .foregroundStyle(colors.mutedForeground)
-                                .padding(.horizontal, Spacing.xs)
-                                .padding(.vertical, Spacing.xxs)
-                                .background(colors.muted)
-                                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                        }
+                            .font(Typography.toolbarMuted)
+                            .fontWeight(effectiveTab == tab ? .semibold : .regular)
                     }
-                    .foregroundStyle(selectedTab == tab ? colors.foreground : colors.mutedForeground)
+                    .foregroundStyle(effectiveTab == tab ? colors.foreground : colors.mutedForeground)
                 }
                 .buttonStyle(.plain)
             }
 
             Spacer()
-
-            // Action buttons
-            HStack(spacing: Spacing.xs) {
-                IconButton(systemName: "arrow.triangle.2.circlepath", action: {
-                    Task { await gitViewModel.refreshAll() }
-                })
-            }
         }
-        .padding(.horizontal, Spacing.compact)
+        .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.xs)
+        .background(colors.background)
     }
 
-    // MARK: - Tab Content
+    // MARK: - Bottom Tab Content
 
     @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case .spec:
-            SpecTasksTabView()
+    private var bottomTabContent: some View {
+        switch effectiveTab {
         case .changes:
             ChangesTabView(
                 gitViewModel: gitViewModel,
@@ -230,6 +260,13 @@ struct RightSidebarPanel: View {
             )
         case .commits:
             CommitsTabView(gitViewModel: gitViewModel)
+        case .spec:
+            ChangesTabView(
+                gitViewModel: gitViewModel,
+                onFileSelected: { file in
+                    selectFile(file)
+                }
+            )
         }
     }
 

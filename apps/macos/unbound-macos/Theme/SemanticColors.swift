@@ -36,10 +36,10 @@ struct ShadcnColors {
 
     struct Dark {
         // Core backgrounds - Amber theme dark palette
-        static let background = Color(hex: "0D0D0D")      // Main background
+        static let background = Color(hex: "0C0C0C")      // Main background
         static let foreground = Color(hex: "FFFFFF")      // Primary text
 
-        static let card = Color(hex: "0A0A0A")            // Sidebar, headers, footers
+        static let card = Color(hex: "0F0F10")            // Sidebar, headers, footers
         static let cardForeground = Color(hex: "FFFFFF")
 
         static let popover = Color(hex: "0A0A0A")
@@ -51,7 +51,7 @@ struct ShadcnColors {
         static let secondary = Color(hex: "1A1A1A")       // Active tabs, buttons
         static let secondaryForeground = Color(hex: "FFFFFF")
 
-        static let muted = Color(hex: "1A1A1A")
+        static let muted = Color(hex: "161616")
         static let mutedForeground = Color(hex: "A3A3A3") // Muted text
 
         static let accent = Color(hex: "1A1A1A")          // Accent background
@@ -74,9 +74,9 @@ struct ShadcnColors {
         static let info = Color(hex: "3b82f6")
 
         // Surface hierarchy (layered backgrounds for depth)
-        static let surface0 = Color(hex: "0D0D0D")        // Window/root background
-        static let surface1 = Color(hex: "0A0A0A")        // Primary content areas
-        static let surface2 = Color(hex: "111111")        // Elevated/nested content
+        static let surface0 = Color(hex: "0C0C0C")        // Window/root background
+        static let surface1 = Color(hex: "0F0F10")        // Primary content areas
+        static let surface2 = Color(hex: "141414")        // Elevated/nested content
 
         // Primary action color - AMBER accent
         static let primaryAction = Color(hex: "F59E0B")   // Amber accent
@@ -121,6 +121,14 @@ struct ShadcnColors {
         static let placeholder = Color(hex: "7A7A7A")     // Placeholder text
         static let textDimmed = Color(hex: "737373")      // Dimmed file paths
         static let inactive = Color(hex: "5A5A5A")        // Inactive tabs
+
+        // MARK: - Workspace-Specific UI
+        static let toolbarBackground = Color(hex: "0F0F10")
+        static let panelDivider = Color(hex: "1A1A1A")
+        static let selectionBackground = Color(hex: "F59E0B1A") // 10% amber
+        static let selectionBorder = Color(hex: "F59E0B55")     // 35% amber
+        static let hoverBackground = Color(hex: "141414")
+        static let editorBackground = Color(hex: "0E0E0F")
     }
 
     struct Light {
@@ -169,6 +177,14 @@ struct ShadcnColors {
         // Primary action color (blue for CTAs that need to stand out from Zinc)
         static let primaryAction = Color(hex: "3b82f6")
         static let primaryActionForeground = Color.white
+
+        // Workspace-specific UI (light defaults)
+        static let toolbarBackground = Color.white
+        static let panelDivider = Zinc._200
+        static let selectionBackground = Color(hex: "3b82f61A")
+        static let selectionBorder = Color(hex: "3b82f655")
+        static let hoverBackground = Zinc._100
+        static let editorBackground = Zinc._50
     }
 }
 
@@ -368,6 +384,32 @@ struct ThemeColors {
 
     var textInactive: Color {
         colorScheme == .dark ? ShadcnColors.Dark.textInactive : Color(hex: "9CA3AF")
+    }
+
+    // MARK: - Workspace-Specific UI
+
+    var toolbarBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.toolbarBackground : ShadcnColors.Light.toolbarBackground
+    }
+
+    var panelDivider: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.panelDivider : ShadcnColors.Light.panelDivider
+    }
+
+    var selectionBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.selectionBackground : ShadcnColors.Light.selectionBackground
+    }
+
+    var selectionBorder: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.selectionBorder : ShadcnColors.Light.selectionBorder
+    }
+
+    var hoverBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.hoverBackground : ShadcnColors.Light.hoverBackground
+    }
+
+    var editorBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.editorBackground : ShadcnColors.Light.editorBackground
     }
 }
 

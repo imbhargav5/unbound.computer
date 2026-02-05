@@ -83,6 +83,12 @@ struct ActiveToolsView: View {
                 .padding(.vertical, Spacing.sm)
             }
         }
+        .background(colors.surface1)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.sm)
+                .stroke(colors.panelDivider, lineWidth: BorderWidth.hairline)
+        )
     }
 }
 

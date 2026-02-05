@@ -32,6 +32,7 @@ struct ActiveTool: Identifiable {
     let name: String
     let inputPreview: String?
     var status: ToolStatus
+    var output: String?  // Live output for streaming display (e.g., Bash)
 }
 
 /// A sub-agent (Task tool) that is running with child tools.
@@ -218,6 +219,10 @@ class SessionLiveState {
             logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
 
             // Parse messages on background thread to avoid blocking UI
+            let parseSignpost = ChatPerformanceSignposts.beginInterval(
+                "chat.loadMessages.parse",
+                "incoming=\(daemonMessages.count)"
+            )
             let parseStart = CFAbsoluteTimeGetCurrent()
             let parsedMessages = await Task.detached(priority: .userInitiated) {
                 let parsed = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
@@ -225,6 +230,7 @@ class SessionLiveState {
             }.value
             let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
             logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(parsedMessages.count) parsed messages")
+            ChatPerformanceSignposts.endInterval(parseSignpost, "parsed=\(parsedMessages.count)")
 
             messages = parsedMessages
         } catch {
@@ -380,6 +386,10 @@ class SessionLiveState {
     }
 
     private func fetchMessages() async {
+        let fetchSignpost = ChatPerformanceSignposts.beginInterval(
+            "chat.fetchMessages",
+            "session=\(sessionId.uuidString)"
+        )
         do {
             let daemonMessages = try await daemonClient.listMessages(
                 sessionId: sessionId.uuidString.lowercased()
@@ -390,8 +400,10 @@ class SessionLiveState {
                 return ChatMessageGrouper.groupSubAgentTools(messages: parsed)
             }.value
             messages = parsedMessages
+            ChatPerformanceSignposts.endInterval(fetchSignpost, "parsed=\(parsedMessages.count)")
         } catch {
             logger.error("Failed to fetch messages: \(error)")
+            ChatPerformanceSignposts.endInterval(fetchSignpost, "error")
         }
     }
 
@@ -412,13 +424,29 @@ class SessionLiveState {
 
         case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
             // Claude events contain raw JSON that needs to be parsed
-            if let raw: String = event.dataValue(for: "raw") {
+            if let raw = event.rawClaudeEvent {
                 handleClaudeEvent(raw)
             } else {
                 // For new event types, the data IS the parsed JSON already
-                if let jsonData = try? JSONSerialization.data(withJSONObject: event.data.mapValues { $0.value }),
-                   let jsonString = String(data: jsonData, encoding: .utf8) {
-                    handleClaudeEvent(jsonString)
+                // Convert AnyCodableValue map to plain values for serialization
+                var plainData: [String: Any] = [:]
+                for (key, value) in event.data {
+                    plainData[key] = value.value
+                }
+
+                // Check if this is an empty event or ping
+                if plainData.isEmpty {
+                    logger.debug("Received empty claude event data for session \(sessionId), type=\(event.type)")
+                    return
+                }
+
+                do {
+                    let jsonData = try JSONSerialization.data(withJSONObject: plainData)
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        handleClaudeEvent(jsonString)
+                    }
+                } catch {
+                    logger.warning("Failed to serialize claude event data for session \(sessionId): \(error.localizedDescription)")
                 }
             }
 
@@ -450,10 +478,25 @@ class SessionLiveState {
     }
 
     private func handleClaudeEvent(_ json: String) {
-        guard let data = json.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = parsed["type"] as? String else {
-            logger.warning("Failed to parse claude event JSON for session \(sessionId)")
+        guard let data = json.data(using: .utf8) else {
+            logger.warning("Failed to convert claude event to data for session \(sessionId)")
+            return
+        }
+
+        let parsed: [String: Any]
+        do {
+            guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                logger.warning("Claude event is not a dictionary for session \(sessionId): \(json.prefix(200))")
+                return
+            }
+            parsed = dict
+        } catch {
+            logger.warning("Failed to parse claude event JSON for session \(sessionId): \(error.localizedDescription), raw: \(json.prefix(200))")
+            return
+        }
+
+        guard let type = parsed["type"] as? String else {
+            logger.warning("Claude event missing 'type' field for session \(sessionId): \(json.prefix(200))")
             return
         }
 

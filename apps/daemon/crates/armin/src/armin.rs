@@ -34,7 +34,8 @@ use crate::sqlite::SqliteStore;
 use crate::types::{
     AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
     NewSessionSecret, OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session,
-    SessionId, SessionSecret, SessionState, SessionStatus, SessionUpdate,
+    SessionId, SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
+    SupabaseSyncState,
 };
 use crate::writer::SessionWriter;
 use crate::ArminError;
@@ -354,9 +355,8 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             .insert_agent_message(session, &message)
             .expect("failed to insert message");
 
-        self.sqlite
-            .insert_supabase_message_outbox(&inserted.id)
-            .expect("failed to insert supabase message outbox");
+        // Note: We no longer insert into per-message outbox. Levi uses cursor-based
+        // sync state (agent_coding_session_supabase_sync_state) to track sync progress.
 
         let full_message = Message {
             id: inserted.id.clone(),
@@ -507,6 +507,22 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             .delete_supabase_message_outbox(message_ids)
             .expect("failed to delete supabase message outbox");
     }
+
+    // ========================================================================
+    // Supabase sync state operations (cursor-based)
+    // ========================================================================
+
+    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) {
+        self.sqlite
+            .mark_supabase_sync_success(session, up_to_sequence)
+            .expect("failed to mark supabase sync success");
+    }
+
+    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) {
+        self.sqlite
+            .mark_supabase_sync_failed(session, error)
+            .expect("failed to mark supabase sync failed");
+    }
 }
 
 impl<S: SideEffectSink> SessionReader for Armin<S> {
@@ -604,6 +620,22 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
         self.sqlite
             .get_pending_supabase_messages(limit)
             .expect("failed to get pending supabase messages")
+    }
+
+    // ========================================================================
+    // Supabase sync state operations (cursor-based)
+    // ========================================================================
+
+    fn get_supabase_sync_state(&self, session: &SessionId) -> Option<SupabaseSyncState> {
+        self.sqlite
+            .get_supabase_sync_state(session)
+            .expect("failed to get supabase sync state")
+    }
+
+    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Vec<SessionPendingSync> {
+        self.sqlite
+            .get_sessions_pending_sync(limit_per_session)
+            .expect("failed to get sessions pending sync")
     }
 }
 

@@ -133,4 +133,14 @@ pub trait SessionWriter {
 
     /// Delete messages from the Supabase outbox.
     fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]);
+
+    // ========================================================================
+    // Supabase sync state operations (cursor-based)
+    // ========================================================================
+
+    /// Marks sync as successful for a session up to a sequence number.
+    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64);
+
+    /// Marks sync as failed for a session (increments retry count).
+    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str);
 }

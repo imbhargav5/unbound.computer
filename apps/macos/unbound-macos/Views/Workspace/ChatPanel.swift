@@ -31,6 +31,10 @@ struct ChatPanel: View {
     @State private var isFooterExpanded: Bool = false
     @State private var footerHeight: CGFloat = 0
     @State private var footerDragStartHeight: CGFloat = 0
+    @State private var isAtBottom: Bool = true
+    @State private var seenMessageIds: Set<UUID> = []
+    @State private var animateMessageIds: Set<UUID> = []
+    @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -173,6 +177,12 @@ struct ChatPanel: View {
                 await state.activate()
             }
         }
+        .onChange(of: session?.id) { _, _ in
+            seenMessageIds.removeAll()
+            animateMessageIds.removeAll()
+            renderInterval = nil
+            isAtBottom = true
+        }
         .alert(
             liveState?.errorAlertTitle ?? "Error",
             isPresented: showErrorAlertBinding
@@ -219,17 +229,35 @@ struct ChatPanel: View {
                     } else {
                         // Messages list with interleaved tool history
                         ScrollViewReader { proxy in
+                            let toolHistoryByIndex = Dictionary(grouping: toolHistory, by: \.afterMessageIndex)
+                            let animateIdsInOrder = messages.filter { animateMessageIds.contains($0.id) }.map(\.id)
+                            let animateIndexById = Dictionary(uniqueKeysWithValues: animateIdsInOrder.enumerated().map { ($0.element, $0.offset) })
+
                             ScrollView {
                                 LazyVStack(spacing: 0) {
                                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                                        ChatMessageView(
+                                        let shouldAnimate = animateMessageIds.contains(message.id) && isAtBottom
+                                        let animationIndex = shouldAnimate ? (animateIndexById[message.id] ?? 0) : 0
+                                        let isLastMessage = index == messages.count - 1
+
+                                        ChatMessageRow(
                                             message: message,
-                                            onQuestionSubmit: handleQuestionSubmit
+                                            animationIndex: animationIndex,
+                                            shouldAnimate: shouldAnimate,
+                                            onQuestionSubmit: handleQuestionSubmit,
+                                            onRowAppear: isLastMessage ? {
+                                                if let activeInterval = renderInterval {
+                                                    ChatPerformanceSignposts.endInterval(activeInterval, "lastRowAppear")
+                                                    renderInterval = nil
+                                                }
+                                                ChatPerformanceSignposts.event("chat.lastRowAppear", "id=\(message.id.uuidString)")
+                                            } : nil
                                         )
+                                        .equatable()
                                         .id(message.id)
 
                                         // Render tool history entries that belong after this message
-                                        ForEach(toolHistory.filter { $0.afterMessageIndex == index }) { entry in
+                                        ForEach(toolHistoryByIndex[index] ?? []) { entry in
                                             ToolHistoryEntryView(entry: entry)
                                         }
                                     }
@@ -253,11 +281,54 @@ struct ChatPanel: View {
                                     }
 
                                     // Invisible scroll anchor at bottom for reliable scrolling
-                                    Color.clear.frame(height: 1).id("bottomAnchor")
+                                    Color.clear
+                                        .frame(height: 1)
+                                        .id("bottomAnchor")
+                                        .onAppear {
+                                            isAtBottom = true
+                                            if let activeInterval = renderInterval {
+                                                ChatPerformanceSignposts.endInterval(activeInterval, "bottomAnchorVisible")
+                                                renderInterval = nil
+                                            }
+                                        }
+                                        .onDisappear {
+                                            isAtBottom = false
+                                        }
                                 }
                             }
                             .onChange(of: scrollIdentity) { _, _ in
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                if let activeInterval = renderInterval {
+                                    ChatPerformanceSignposts.endInterval(activeInterval, "superseded")
+                                }
+                                if isAtBottom {
+                                    renderInterval = ChatPerformanceSignposts.beginInterval(
+                                        "chat.render",
+                                        "messages=\(messages.count) tools=\(toolHistory.count)"
+                                    )
+                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                } else {
+                                    renderInterval = nil
+                                }
+                            }
+                            .onChange(of: messages.map(\.id)) { _, newIds in
+                                let currentIds = Set(newIds)
+
+                                if seenMessageIds.isEmpty {
+                                    seenMessageIds = currentIds
+                                    return
+                                }
+
+                                let inserted = currentIds.subtracting(seenMessageIds)
+                                guard !inserted.isEmpty else { return }
+
+                                seenMessageIds.formUnion(inserted)
+
+                                if isAtBottom {
+                                    animateMessageIds.formUnion(inserted)
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                        animateMessageIds.subtract(inserted)
+                                    }
+                                }
                             }
                         }
                     }
@@ -283,7 +354,7 @@ struct ChatPanel: View {
                     )
                 }
             }
-            .background(colors.background)
+            .background(colors.chatBackground)
         }
         .frame(minWidth: 300)
     }
@@ -300,6 +371,11 @@ struct ChatPanel: View {
 
     private var fileEditorColumn: some View {
         VStack(spacing: 0) {
+            // Editor toolbar row
+            editorToolbarRow
+
+            ShadcnDivider()
+
             // Editor header with file tabs
             FileEditorTabBar(
                 files: editorState.tabs,
@@ -349,11 +425,44 @@ struct ChatPanel: View {
                         .foregroundStyle(colors.mutedForeground.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(colors.background)
+                .background(colors.editorBackground)
             }
 
         }
         .frame(minWidth: 300)
+    }
+
+    private var editorToolbarRow: some View {
+        HStack(spacing: Spacing.md) {
+            Text("Editor")
+                .font(Typography.toolbarMuted)
+                .foregroundStyle(colors.mutedForeground)
+
+            Spacer()
+
+            HStack(spacing: Spacing.sm) {
+                ToolbarIconButton(systemName: "doc.text.magnifyingglass", action: {})
+                ToolbarIconButton(systemName: "square.and.pencil", action: {})
+
+                Button(action: {}) {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: IconSize.xs))
+                        Text("Commit")
+                            .font(Typography.toolbar)
+                    }
+                    .foregroundStyle(colors.primaryActionForeground)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(colors.primaryAction)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 
     private func fileLoadErrorView(_ message: String) -> some View {
@@ -369,7 +478,7 @@ struct ChatPanel: View {
                 .foregroundStyle(colors.mutedForeground)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
+        .background(colors.editorBackground)
     }
 
     // MARK: - Footer Panel
@@ -609,7 +718,7 @@ struct FileEditorTabBar: View {
         HStack(spacing: 0) {
             if files.isEmpty {
                 Text("Editor")
-                    .font(Typography.bodySmall)
+                    .font(Typography.toolbarMuted)
                     .foregroundStyle(colors.mutedForeground)
                     .padding(.horizontal, Spacing.md)
             } else {
@@ -630,8 +739,38 @@ struct FileEditorTabBar: View {
 
             Spacer(minLength: 0)
         }
-        .frame(height: 40)
-        .background(colors.card)
+        .frame(height: LayoutMetrics.compactToolbarHeight)
+        .background(colors.toolbarBackground)
+    }
+}
+
+// MARK: - Toolbar Icon Button
+
+private struct ToolbarIconButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let systemName: String
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: IconSize.sm))
+                .foregroundStyle(colors.mutedForeground)
+                .frame(width: 24, height: 24)
+                .background(isHovering ? colors.hoverBackground : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }
 
@@ -682,7 +821,7 @@ struct FileTab: View {
                         .font(.system(size: 8, weight: .medium))
                         .foregroundStyle(isCloseHovered ? colors.foreground : colors.mutedForeground)
                         .frame(width: 14, height: 14)
-                        .background(isCloseHovered ? colors.muted : Color.clear)
+                        .background(isCloseHovered ? colors.hoverBackground : Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
                 }
                 .buttonStyle(.plain)
@@ -694,11 +833,11 @@ struct FileTab: View {
             .padding(.vertical, Spacing.xs)
             .background(
                 RoundedRectangle(cornerRadius: Radius.sm)
-                    .fill(isSelected ? colors.muted : (isHovered ? colors.muted.opacity(0.5) : Color.clear))
+                    .fill(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.sm)
-                    .stroke(isSelected ? colors.border : Color.clear, lineWidth: BorderWidth.hairline)
+                    .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
             )
             .contentShape(Rectangle())
         }
@@ -783,7 +922,7 @@ struct FileEditorView: View {
                                 }
                             }
                             .padding(.horizontal, Spacing.sm)
-                            .background(colors.card.opacity(0.5))
+                            .background(colors.surface2)
 
                             // Code content
                             VStack(alignment: .leading, spacing: 0) {
@@ -804,7 +943,7 @@ struct FileEditorView: View {
                 }
             }
         }
-        .background(colors.background)
+        .background(colors.editorBackground)
         .task(id: filePath) {
             await loadFile()
         }
@@ -898,7 +1037,33 @@ struct DiffEditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(colors.background)
+        .background(colors.editorBackground)
+    }
+}
+
+// MARK: - Chat Message Row (Equatable Wrapper)
+
+private struct ChatMessageRow: View, Equatable {
+    let message: ChatMessage
+    let animationIndex: Int
+    let shouldAnimate: Bool
+    let onQuestionSubmit: ((AskUserQuestion) -> Void)?
+    let onRowAppear: (() -> Void)?
+
+    static func == (lhs: ChatMessageRow, rhs: ChatMessageRow) -> Bool {
+        lhs.message == rhs.message &&
+        lhs.animationIndex == rhs.animationIndex &&
+        lhs.shouldAnimate == rhs.shouldAnimate
+    }
+
+    var body: some View {
+        ChatMessageView(
+            message: message,
+            animationIndex: animationIndex,
+            onQuestionSubmit: onQuestionSubmit,
+            shouldAnimate: shouldAnimate,
+            onRowAppear: onRowAppear
+        )
     }
 }
 

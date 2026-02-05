@@ -24,12 +24,15 @@
 //!                                │
 //!                         ┌──────▼──────┐
 //!                         │   SQLite    │
-//!                         │   Outbox    │
-//!                         │  (Retries)  │
+//!                         │ Sync State  │
+//!                         │  (Cursor)   │
 //!                         └─────────────┘
 //! ```
 //!
 //! ## Key Features
+//!
+//! - **Cursor-based sync**: Tracks last synced sequence number per session,
+//!   eliminating the need for per-message outbox entries.
 //!
 //! - **Batching**: Collects messages until batch size (default 50) or flush
 //!   interval (default 500ms) is reached for efficient network usage.
@@ -37,8 +40,8 @@
 //! - **Encryption**: Messages are encrypted using XChaCha20-Poly1305 with
 //!   session-specific symmetric keys before transmission.
 //!
-//! - **Retry Queue**: Failed messages are stored in a SQLite outbox and retried
-//!   with exponential backoff (2s → 4s → 8s → ... → 300s max).
+//! - **Retry Queue**: Failed syncs are retried with exponential backoff
+//!   (2s → 4s → 8s → ... → 300s max) per session.
 //!
 //! - **Secret Caching**: Decrypted session keys are cached in memory to avoid
 //!   repeated decryption operations.
@@ -55,7 +58,7 @@
 //! // Set authentication context
 //! levi.set_context(SyncContext { access_token }).await;
 //!
-//! // Messages are automatically batched and synced
+//! // Messages are automatically batched and synced via cursor-based tracking
 //! levi.enqueue(MessageSyncRequest { ... });
 //! ```
 
@@ -63,7 +66,7 @@ mod session_sync;
 
 pub use session_sync::{SessionSyncService, SyncError, SyncResult};
 
-use armin::{MessageId, PendingSupabaseMessage, SessionId, SessionReader, SessionWriter};
+use armin::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use daemon_database::{encrypt_content, generate_nonce};
@@ -146,10 +149,10 @@ impl Default for LeviConfig {
 /// The main message synchronization engine that:
 /// - Receives messages via MPSC channel
 /// - Batches messages for efficient network usage
-/// - Fills batches from SQLite outbox (retry queue) respecting backoff
+/// - Uses cursor-based sync state to track progress per session
 /// - Encrypts message content with session-specific symmetric keys
 /// - Syncs batches to Supabase
-/// - Tracks message sync status in Armin
+/// - Tracks sync state in Armin
 ///
 /// # Lifecycle
 ///
@@ -173,7 +176,7 @@ pub struct Levi {
     armin: ArminHandle,
     /// Authentication context containing access token.
     context: Arc<RwLock<Option<SyncContext>>>,
-    /// Channel sender for enqueuing new messages.
+    /// Channel sender for enqueuing new messages (triggers sync check).
     sender: mpsc::Sender<MessageSyncRequest>,
     /// Channel receiver (taken by worker on start).
     receiver: Mutex<Option<mpsc::Receiver<MessageSyncRequest>>>,
@@ -220,11 +223,11 @@ impl Levi {
     /// Starts the background worker loop.
     ///
     /// Spawns an async task that:
-    /// 1. Receives messages from the channel
-    /// 2. Buffers until batch_size or flush_interval is reached
-    /// 3. Fills remaining capacity from SQLite outbox (respecting retry backoff)
+    /// 1. Receives message notifications from the channel
+    /// 2. On flush interval or batch triggers, queries SQLite for pending messages
+    /// 3. Respects exponential backoff per session
     /// 4. Encrypts and sends batch to Supabase
-    /// 5. Updates message status in Armin (sent/failed)
+    /// 5. Updates sync state in Armin (cursor position or failure)
     ///
     /// # Panics
     ///
@@ -245,8 +248,8 @@ impl Levi {
         let db_encryption_key = self.db_encryption_key.clone();
 
         tokio::spawn(async move {
-            let mut buffer: Vec<QueuedMessage> = Vec::new();
-            let mut buffer_ids: HashSet<String> = HashSet::new();
+            // Track sessions that have pending messages from channel notifications
+            let mut pending_session_ids: HashSet<String> = HashSet::new();
             let mut ticker = interval(config.flush_interval);
 
             loop {
@@ -256,10 +259,9 @@ impl Levi {
                     maybe_msg = receiver.recv() => {
                         match maybe_msg {
                             Some(msg) => {
-                                if buffer_ids.insert(msg.message_id.clone()) {
-                                    buffer.push(QueuedMessage::from_request(msg));
-                                }
-                                if buffer.len() >= config.batch_size {
+                                // Track that this session has pending messages
+                                pending_session_ids.insert(msg.session_id.clone());
+                                if pending_session_ids.len() >= config.batch_size {
                                     flush_now = true;
                                 }
                             }
@@ -272,29 +274,35 @@ impl Levi {
                 }
 
                 if flush_now {
-                    fill_from_outbox(&armin, &config, &mut buffer, &mut buffer_ids);
+                    pending_session_ids.clear();
 
-                    if buffer.is_empty() {
-                        continue;
-                    }
+                    // Query SQLite for all sessions with pending messages
+                    let sessions_to_sync = armin.get_sessions_pending_sync(config.batch_size);
+                    let now = Utc::now();
 
-                    let batch_size = std::cmp::min(buffer.len(), config.batch_size);
-                    let batch: Vec<QueuedMessage> = buffer.drain(..batch_size).collect();
-                    for msg in &batch {
-                        buffer_ids.remove(&msg.message_id);
-                    }
+                    for session_pending in sessions_to_sync {
+                        // Check if this session is due for retry based on backoff
+                        if !is_session_due(
+                            session_pending.last_attempt_at,
+                            session_pending.retry_count,
+                            now,
+                            &config,
+                        ) {
+                            continue;
+                        }
 
-                    if let Err(err) = send_batch(
-                        &client,
-                        &armin,
-                        &context,
-                        &secret_cache,
-                        &db_encryption_key,
-                        batch,
-                    )
-                    .await
-                    {
-                        warn!(error = %err, "Levi batch failed");
+                        if let Err(err) = send_session_batch(
+                            &client,
+                            &armin,
+                            &context,
+                            &secret_cache,
+                            &db_encryption_key,
+                            session_pending,
+                        )
+                        .await
+                        {
+                            warn!(error = %err, "Levi session batch failed");
+                        }
                     }
                 }
             }
@@ -326,14 +334,13 @@ impl Levi {
 impl MessageSyncer for Levi {
     /// Enqueues a message for synchronization.
     ///
-    /// Messages are buffered in the in-memory channel and batched for
-    /// efficient network transmission. If the channel is full, the message
-    /// is dropped and a debug log is emitted.
+    /// This notifies Levi that messages are available to sync. The actual
+    /// sync is cursor-based - Levi will query SQLite for all messages
+    /// beyond the last synced sequence number.
     ///
     /// # Arguments
     ///
-    /// * `request` - The message sync request containing message ID, session ID,
-    ///               sequence number, and content
+    /// * `request` - The message sync request (used as a notification trigger)
     fn enqueue(&self, request: MessageSyncRequest) {
         if let Err(err) = self.sender.try_send(request) {
             debug!(error = %err, "Levi enqueue failed");
@@ -341,91 +348,9 @@ impl MessageSyncer for Levi {
     }
 }
 
-/// Internal representation of a message queued for sync.
+/// Sends a batch of messages for a single session to Supabase.
 ///
-/// Unifies messages from two sources:
-/// - New messages from the MPSC channel (via `from_request`)
-/// - Retry messages from the SQLite outbox (via `from_pending`)
-#[derive(Debug, Clone)]
-struct QueuedMessage {
-    /// Unique message identifier.
-    message_id: String,
-    /// Session this message belongs to.
-    session_id: String,
-    /// Message ordering within the session.
-    sequence_number: i64,
-    /// Plaintext message content (encrypted before sending).
-    content: String,
-}
-
-impl QueuedMessage {
-    /// Creates a queued message from a new sync request.
-    fn from_request(req: MessageSyncRequest) -> Self {
-        Self {
-            message_id: req.message_id,
-            session_id: req.session_id,
-            sequence_number: req.sequence_number,
-            content: req.content,
-        }
-    }
-
-    /// Creates a queued message from a pending outbox entry.
-    fn from_pending(pending: PendingSupabaseMessage) -> Self {
-        Self {
-            message_id: pending.message_id.as_str().to_string(),
-            session_id: pending.session_id.as_str().to_string(),
-            sequence_number: pending.sequence_number,
-            content: pending.content,
-        }
-    }
-}
-
-/// Fills the message buffer from the SQLite outbox (retry queue).
-///
-/// Retrieves pending messages from Armin's outbox and adds them to the
-/// buffer, respecting:
-/// - Batch size limits
-/// - Exponential backoff timing
-/// - Deduplication (messages already in buffer are skipped)
-///
-/// # Arguments
-///
-/// * `armin` - Handle to local session storage
-/// * `config` - Configuration with batch size and backoff settings
-/// * `buffer` - Message buffer to fill
-/// * `buffer_ids` - Set of message IDs already in buffer (for deduplication)
-fn fill_from_outbox(
-    armin: &ArminHandle,
-    config: &LeviConfig,
-    buffer: &mut Vec<QueuedMessage>,
-    buffer_ids: &mut HashSet<String>,
-) {
-    if buffer.len() >= config.batch_size {
-        return;
-    }
-
-    let pending = armin.get_pending_supabase_messages(config.batch_size * 2);
-    let now = Utc::now();
-
-    for entry in pending {
-        if buffer.len() >= config.batch_size {
-            break;
-        }
-        let message_id = entry.message_id.as_str().to_string();
-        if buffer_ids.contains(&message_id) {
-            continue;
-        }
-        if !is_due(entry.last_attempt_at, entry.retry_count, now, config) {
-            continue;
-        }
-        buffer_ids.insert(message_id);
-        buffer.push(QueuedMessage::from_pending(entry));
-    }
-}
-
-/// Sends a batch of messages to Supabase.
-///
-/// For each message in the batch:
+/// For each message in the session's pending list:
 /// 1. Encrypts content using the session's symmetric key
 /// 2. Builds an upsert payload with encrypted content and nonce
 ///
@@ -433,13 +358,13 @@ fn fill_from_outbox(
 ///
 /// # Success Path
 ///
-/// - Marks messages as sent in Armin
-/// - Deletes messages from the outbox (they're synced, no retry needed)
+/// - Updates sync state cursor to the highest synced sequence number
+/// - Resets retry count to 0
 ///
-/// # Failure Paths
+/// # Failure Path
 ///
-/// - **Encryption failure**: Message is marked failed individually (won't block others)
-/// - **API failure**: All messages in batch are marked failed (will be retried via outbox)
+/// - Increments retry count for the session
+/// - Stores error message for debugging
 ///
 /// # Arguments
 ///
@@ -448,18 +373,18 @@ fn fill_from_outbox(
 /// * `context` - Authentication context with access token
 /// * `secret_cache` - Cache of decrypted session keys
 /// * `db_encryption_key` - Key for decrypting session secrets from storage
-/// * `batch` - Messages to send
+/// * `session_pending` - Session with pending messages to sync
 ///
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(String)` with error message on API failure.
-async fn send_batch(
+async fn send_session_batch(
     client: &SupabaseClient,
     armin: &ArminHandle,
     context: &Arc<RwLock<Option<SyncContext>>>,
     secret_cache: &Arc<Mutex<HashMap<String, Vec<u8>>>>,
     db_encryption_key: &Arc<Mutex<Option<[u8; 32]>>>,
-    batch: Vec<QueuedMessage>,
+    session_pending: SessionPendingSync,
 ) -> Result<(), String> {
     let ctx = {
         let guard = context.read().await;
@@ -470,30 +395,36 @@ async fn send_batch(
         return Ok(());
     };
 
-    let mut payloads: Vec<MessageUpsert> = Vec::new();
-    let mut send_ids: Vec<MessageId> = Vec::new();
+    if session_pending.messages.is_empty() {
+        return Ok(());
+    }
 
-    for message in &batch {
+    let session_id = &session_pending.session_id;
+    let mut payloads: Vec<MessageUpsert> = Vec::new();
+    let mut max_sequence: i64 = session_pending.last_synced_sequence_number;
+
+    for message in &session_pending.messages {
         match encrypt_message(
             armin,
             secret_cache,
             db_encryption_key,
-            &message.session_id,
+            session_id.as_str(),
             message.content.as_bytes(),
         ) {
             Ok((cipher_b64, nonce_b64)) => {
                 payloads.push(MessageUpsert {
-                    session_id: message.session_id.clone(),
+                    session_id: session_id.as_str().to_string(),
                     sequence_number: message.sequence_number,
                     role: DEFAULT_ROLE.to_string(),
                     content_encrypted: Some(cipher_b64),
                     content_nonce: Some(nonce_b64),
                 });
-                send_ids.push(MessageId::from_string(message.message_id.clone()));
+                max_sequence = max_sequence.max(message.sequence_number);
             }
             Err(err) => {
-                let id = MessageId::from_string(message.message_id.clone());
-                armin.mark_supabase_messages_failed(&[id], &err);
+                // If encryption fails for any message, fail the whole session batch
+                armin.mark_supabase_sync_failed(session_id, &err);
+                return Err(err);
             }
         }
     }
@@ -504,13 +435,12 @@ async fn send_batch(
 
     match client.upsert_messages_batch(&payloads, &ctx.access_token).await {
         Ok(()) => {
-            armin.mark_supabase_messages_sent(&send_ids);
-            armin.delete_supabase_message_outbox(&send_ids);
+            armin.mark_supabase_sync_success(session_id, max_sequence);
             Ok(())
         }
         Err(err) => {
             let error = err.to_string();
-            armin.mark_supabase_messages_failed(&send_ids, &error);
+            armin.mark_supabase_sync_failed(session_id, &error);
             Err(error)
         }
     }
@@ -634,9 +564,9 @@ fn get_session_secret_key(
     Ok(key)
 }
 
-/// Determines if a message is due for retry based on exponential backoff.
+/// Determines if a session is due for sync based on exponential backoff.
 ///
-/// A message is due if:
+/// A session is due if:
 /// - It has never been attempted (first sync attempt), OR
 /// - Enough time has passed since the last attempt based on retry count
 ///
@@ -649,8 +579,8 @@ fn get_session_secret_key(
 ///
 /// # Returns
 ///
-/// `true` if the message should be included in the next batch.
-fn is_due(
+/// `true` if the session should be included in the next sync batch.
+fn is_session_due(
     last_attempt_at: Option<DateTime<Utc>>,
     retry_count: i32,
     now: DateTime<Utc>,
@@ -708,7 +638,7 @@ fn compute_backoff(retry_count: i32, config: &LeviConfig) -> chrono::Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::{RecordingSink, Armin, NewMessage, NewSessionSecret};
+    use armin::{Armin, NewMessage, NewSessionSecret, RecordingSink};
     use daemon_database::{encrypt_content, generate_nonce};
 
     fn setup_armin_with_secret() -> (ArminHandle, SessionId, Arc<Mutex<Option<[u8; 32]>>>) {
@@ -727,7 +657,11 @@ mod tests {
             nonce: nonce.to_vec(),
         });
 
-        (armin as ArminHandle, session_id, Arc::new(Mutex::new(Some(db_key))))
+        (
+            armin as ArminHandle,
+            session_id,
+            Arc::new(Mutex::new(Some(db_key))),
+        )
     }
 
     #[test]
@@ -747,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    fn is_due_respects_backoff() {
+    fn is_session_due_respects_backoff() {
         let config = LeviConfig {
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(10),
@@ -755,11 +689,16 @@ mod tests {
         };
 
         let now = Utc::now();
-        assert!(is_due(None, 0, now, &config));
+        assert!(is_session_due(None, 0, now, &config));
 
         let last_attempt = now;
-        assert!(!is_due(Some(last_attempt), 1, now, &config));
-        assert!(is_due(Some(last_attempt), 1, now + chrono::Duration::seconds(3), &config));
+        assert!(!is_session_due(Some(last_attempt), 1, now, &config));
+        assert!(is_session_due(
+            Some(last_attempt),
+            1,
+            now + chrono::Duration::seconds(3),
+            &config
+        ));
     }
 
     #[test]
@@ -767,41 +706,11 @@ mod tests {
         let (armin, session_id, db_key) = setup_armin_with_secret();
         let cache = Arc::new(Mutex::new(HashMap::new()));
 
-        let result = encrypt_message(
-            &armin,
-            &cache,
-            &db_key,
-            session_id.as_str(),
-            b"hello",
-        );
+        let result = encrypt_message(&armin, &cache, &db_key, session_id.as_str(), b"hello");
         assert!(result.is_ok());
 
         let cached = cache.lock().unwrap();
         assert!(cached.contains_key(session_id.as_str()));
-    }
-
-    #[test]
-    fn fill_from_outbox_skips_not_due() {
-        let (armin, session_id, _db_key) = setup_armin_with_secret();
-
-        let msg1 = armin.append(&session_id, NewMessage { content: "first".to_string() });
-        let msg2 = armin.append(&session_id, NewMessage { content: "second".to_string() });
-
-        armin.mark_supabase_messages_failed(&[msg1.id.clone()], "err");
-
-        let config = LeviConfig {
-            batch_size: 10,
-            backoff_base: Duration::from_secs(60),
-            backoff_max: Duration::from_secs(300),
-            ..LeviConfig::default()
-        };
-
-        let mut buffer = Vec::new();
-        let mut buffer_ids = HashSet::new();
-        fill_from_outbox(&armin, &config, &mut buffer, &mut buffer_ids);
-
-        assert_eq!(buffer.len(), 1);
-        assert_eq!(buffer[0].message_id, msg2.id.as_str());
     }
 
     #[test]
@@ -817,5 +726,48 @@ mod tests {
         let err = get_session_secret_key(&armin_handle, &cache, &db_key, session_id.as_str())
             .expect_err("expected missing session secret error");
         assert!(err.contains("missing session secret"));
+    }
+
+    #[test]
+    fn cursor_based_sync_state() {
+        let sink = RecordingSink::new();
+        let armin = Arc::new(Armin::in_memory(sink).unwrap());
+        let session_id = armin.create_session();
+
+        // Initially no sync state
+        let state = armin.get_supabase_sync_state(&session_id);
+        assert!(state.is_none());
+
+        // Append some messages
+        armin.append(&session_id, NewMessage { content: "msg1".to_string() });
+        armin.append(&session_id, NewMessage { content: "msg2".to_string() });
+        armin.append(&session_id, NewMessage { content: "msg3".to_string() });
+
+        // Check pending sync
+        let pending = armin.get_sessions_pending_sync(100);
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].messages.len(), 3);
+        assert_eq!(pending[0].last_synced_sequence_number, 0);
+
+        // Mark sync success up to sequence 2
+        armin.mark_supabase_sync_success(&session_id, 2);
+
+        // Check state updated
+        let state = armin.get_supabase_sync_state(&session_id).unwrap();
+        assert_eq!(state.last_synced_sequence_number, 2);
+        assert_eq!(state.retry_count, 0);
+
+        // Only message 3 should be pending now
+        let pending = armin.get_sessions_pending_sync(100);
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].messages.len(), 1);
+        assert_eq!(pending[0].messages[0].sequence_number, 3);
+
+        // Mark sync failed
+        armin.mark_supabase_sync_failed(&session_id, "test error");
+
+        let state = armin.get_supabase_sync_state(&session_id).unwrap();
+        assert_eq!(state.retry_count, 1);
+        assert_eq!(state.last_error.as_deref(), Some("test error"));
     }
 }

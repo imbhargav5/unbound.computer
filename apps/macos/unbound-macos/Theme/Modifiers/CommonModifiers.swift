@@ -79,7 +79,7 @@ struct HoverEffectModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(isHovering ? colors.accent : Color.clear)
+            .background(isHovering ? colors.hoverBackground : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: Duration.fast)) {
@@ -102,7 +102,7 @@ struct SelectionModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(isSelected ? colors.accent : Color.clear)
+            .background(isSelected ? colors.selectionBackground : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
     }
 }
@@ -131,11 +131,11 @@ struct ShadcnDivider: View {
         switch orientation {
         case .horizontal:
             Rectangle()
-                .fill(colors.border)
+                .fill(colors.panelDivider)
                 .frame(height: BorderWidth.default)
         case .vertical:
             Rectangle()
-                .fill(colors.border)
+                .fill(colors.panelDivider)
                 .frame(width: BorderWidth.default)
         }
     }

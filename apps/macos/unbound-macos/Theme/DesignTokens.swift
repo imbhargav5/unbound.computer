@@ -129,6 +129,17 @@ enum Duration {
     static let staggerInterval: Double = 0.05
 }
 
+// MARK: - Layout Metrics
+
+enum LayoutMetrics {
+    /// Standard toolbar height across panels
+    static let toolbarHeight: CGFloat = 40
+    /// Compact toolbar height for dense headers
+    static let compactToolbarHeight: CGFloat = 36
+    /// Session row height in sidebar timeline
+    static let sidebarRowHeight: CGFloat = 30
+}
+
 // MARK: - Elevation (Shadow/Depth)
 
 struct ElevationValue: Equatable {

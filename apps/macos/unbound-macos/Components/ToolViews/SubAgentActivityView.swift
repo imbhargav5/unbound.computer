@@ -2,7 +2,9 @@
 //  SubAgentActivityView.swift
 //  unbound-macos
 //
-//  Lightweight container for sub-agent (Task tool) activity.
+//  Sub-agent activity view matching Claude Code design.
+//  Shows agent with amber icon, name, description, status badge,
+//  and nested tools with amber vertical connector line.
 //
 
 import SwiftUI
@@ -17,129 +19,285 @@ struct SubAgentActivityView: View {
         ThemeColors(colorScheme)
     }
 
-    private var summaryText: String {
-        ToolActivitySummary.summary(for: activity.subagentType, tools: activity.tools, status: activity.status)
+    private var agentDisplayName: String {
+        switch activity.subagentType.lowercased() {
+        case "explore":
+            return "Explore Agent"
+        case "plan":
+            return "Plan Agent"
+        case "bash":
+            return "Bash Agent"
+        case "general-purpose":
+            return "General Purpose Agent"
+        default:
+            return "\(activity.subagentType) Agent"
+        }
     }
 
-    private var actionLines: [ToolActionLine] {
-        ToolActivitySummary.actionLines(for: activity.tools)
-    }
-
-    private var hasDetails: Bool {
-        !actionLines.isEmpty || (activity.result?.isEmpty == false)
-    }
-
-    private var detailPaddingLeading: CGFloat {
-        Spacing.md + IconSize.sm + Spacing.sm
+    private var agentIcon: String {
+        switch activity.subagentType.lowercased() {
+        case "explore":
+            return "binoculars.fill"
+        case "plan":
+            return "list.bullet.clipboard.fill"
+        case "bash":
+            return "terminal.fill"
+        case "general-purpose":
+            return "cpu.fill"
+        default:
+            return "cpu.fill"
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Header row
             header
 
-            if isExpanded && hasDetails {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    ShadcnDivider()
-                        .padding(.horizontal, Spacing.md)
-
-                    ForEach(actionLines) { line in
-                        Text(line.text)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                            .padding(.leading, detailPaddingLeading)
-                            .padding(.trailing, Spacing.md)
-                    }
-
-                    if let result = activity.result, !result.isEmpty {
-                        Text(result)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.foreground)
-                            .padding(.leading, detailPaddingLeading)
-                            .padding(.trailing, Spacing.md)
-                            .padding(.top, Spacing.xs)
-                    }
-                }
-                .padding(.vertical, Spacing.sm)
+            // Expanded content with nested tools
+            if isExpanded && !activity.tools.isEmpty {
+                toolsList
             }
         }
     }
 
+    // MARK: - Header
+
     private var header: some View {
         Button {
-            if hasDetails {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
-                }
+            withAnimation(.easeInOut(duration: Duration.fast)) {
+                isExpanded.toggle()
             }
         } label: {
             HStack(spacing: Spacing.sm) {
-                statusIcon
+                // Amber circular icon
+                Circle()
+                    .fill(colors.accentAmberMuted)
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Image(systemName: agentIcon)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(colors.accentAmber)
+                    )
 
-                Text(summaryText)
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(colors.foreground)
-                    .lineLimit(1)
+                // Agent name (amber)
+                Text(agentDisplayName)
+                    .font(Typography.bodyMedium)
+                    .foregroundStyle(colors.accentAmber)
+
+                // Separator dot and description
+                if !activity.description.isEmpty {
+                    Text("·")
+                        .font(Typography.body)
+                        .foregroundStyle(colors.mutedForeground)
+
+                    Text(activity.description)
+                        .font(Typography.body)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                }
 
                 Spacer()
 
-                if hasDetails {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                }
+                // Status badge
+                statusBadge
+
+                // Expand/collapse chevron
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(colors.mutedForeground)
             }
-            .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
+    // MARK: - Status Badge
+
     @ViewBuilder
-    private var statusIcon: some View {
+    private var statusBadge: some View {
         switch activity.status {
         case .running:
-            ProgressView()
-                .scaleEffect(0.6)
-                .frame(width: IconSize.sm, height: IconSize.sm)
+            HStack(spacing: Spacing.xs) {
+                Circle()
+                    .fill(colors.accentAmber)
+                    .frame(width: 6, height: 6)
+                Text("Running")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.accentAmber)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(colors.accentAmber)
+            }
+
         case .completed:
             Image(systemName: "checkmark")
-                .font(.system(size: IconSize.xs))
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(colors.success)
+
+        case .failed:
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(colors.destructive)
+                Text("Failed")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.destructive)
+            }
+        }
+    }
+
+    // MARK: - Tools List with Connector Lines
+
+    private var toolsList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(activity.tools.enumerated()), id: \.element.toolUseId) { index, tool in
+                SubAgentToolRow(
+                    tool: tool,
+                    isLast: index == activity.tools.count - 1
+                )
+            }
+        }
+        .padding(.leading, Spacing.md + 12) // Align with icon center
+    }
+}
+
+// MARK: - Tool Row with Connector
+
+private struct SubAgentToolRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let tool: ToolUse
+    let isLast: Bool
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var toolIcon: String {
+        switch tool.toolName {
+        case "Read": return "doc.text"
+        case "Write": return "square.and.pencil"
+        case "Edit": return "pencil"
+        case "Glob": return "folder.badge.gearshape"
+        case "Grep": return "magnifyingglass"
+        case "Bash": return "terminal"
+        case "WebFetch": return "globe"
+        case "WebSearch": return "magnifyingglass.circle"
+        default: return "wrench"
+        }
+    }
+
+    private var toolPreview: String? {
+        let parser = ToolInputParser(tool.input)
+        return parser.filePath ?? parser.pattern ?? parser.command ?? parser.query ?? parser.url
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Connector lines
+            connectorView
+
+            // Tool content
+            toolContent
+        }
+    }
+
+    private var connectorView: some View {
+        HStack(spacing: 0) {
+            // Vertical line
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(colors.accentAmber)
+                    .frame(width: 1, height: isLast ? min(12, geometry.size.height) : geometry.size.height)
+            }
+            .frame(width: 1)
+
+            // Horizontal connector
+            Rectangle()
+                .fill(colors.accentAmber)
+                .frame(width: Spacing.md, height: 1)
+                .padding(.top, 10)
+        }
+        .frame(width: Spacing.lg)
+    }
+
+    private var toolContent: some View {
+        HStack(spacing: Spacing.sm) {
+            // Tool icon
+            Image(systemName: toolIcon)
+                .font(.system(size: 11))
                 .foregroundStyle(colors.mutedForeground)
+                .frame(width: 16, height: 16)
+
+            // Tool name
+            Text(tool.toolName)
+                .font(Typography.body)
+                .foregroundStyle(colors.foreground)
+
+            // Preview/metadata
+            if let preview = toolPreview {
+                Text(preview)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Status indicator
+            toolStatusIndicator
+        }
+        .padding(.vertical, Spacing.xs)
+    }
+
+    @ViewBuilder
+    private var toolStatusIndicator: some View {
+        switch tool.status {
+        case .running:
+            ProgressView()
+                .scaleEffect(0.5)
+                .frame(width: 14, height: 14)
+        case .completed:
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(colors.success)
         case .failed:
             Image(systemName: "xmark")
-                .font(.system(size: IconSize.xs))
+                .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(colors.destructive)
         }
     }
 }
 
+// MARK: - Preview
+
 #Preview {
-    VStack(spacing: Spacing.lg) {
+    VStack(alignment: .leading, spacing: Spacing.lg) {
         SubAgentActivityView(activity: SubAgentActivity(
             parentToolUseId: "task-1",
-            subagentType: "Explore",
-            description: "Search for authentication endpoints",
+            subagentType: "Plan",
+            description: "designing implementation plan",
             tools: [
-                ToolUse(toolUseId: "t1", toolName: "Glob", input: "{\"pattern\": \"**/*.ts\"}", status: .completed),
-                ToolUse(toolUseId: "t2", toolName: "Grep", input: "{\"pattern\": \"authenticate\"}", status: .completed),
-                ToolUse(toolUseId: "t3", toolName: "Read", input: "{\"file_path\": \"src/auth/login.ts\"}", status: .running)
+                ToolUse(toolUseId: "t1", toolName: "Read", input: "{\"file_path\": \"ARCHITECTURE.md\"}", status: .completed),
+                ToolUse(toolUseId: "t2", toolName: "Edit", input: "{\"file_path\": \"plan.md\"}", status: .running)
             ],
             status: .running
         ))
 
         SubAgentActivityView(activity: SubAgentActivity(
             parentToolUseId: "task-2",
-            subagentType: "Plan",
-            description: "Design implementation approach",
+            subagentType: "Explore",
+            description: "searching codebase",
             tools: [
-                ToolUse(toolUseId: "t4", toolName: "Read", input: "{\"file_path\": \"README.md\"}", output: "# Project", status: .completed),
-                ToolUse(toolUseId: "t5", toolName: "Glob", input: "{\"pattern\": \"src/**/*.swift\"}", output: "5 files", status: .completed)
+                ToolUse(toolUseId: "t3", toolName: "Glob", input: "{\"pattern\": \"**/*.rs\"}", status: .completed),
+                ToolUse(toolUseId: "t4", toolName: "Read", input: "{\"file_path\": \"src/lib.rs\"}", status: .completed)
             ],
-            status: .completed,
-            result: "Implementation plan created successfully. Found 5 relevant files to modify."
+            status: .completed
         ))
     }
-    .frame(width: 520)
-    .padding()
+    .padding(Spacing.lg)
+    .frame(width: 500)
+    .background(Color(hex: "0D0D0D"))
 }

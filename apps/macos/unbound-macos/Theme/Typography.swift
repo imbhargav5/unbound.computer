@@ -253,34 +253,48 @@ enum Typography {
 
     // MARK: - Sidebar Typography
 
-    /// 13pt Medium - Sidebar section headers ("Agents")
+    /// 12pt Medium - Sidebar section headers ("Agents")
     @MainActor
     static var sidebarHeader: Font {
-        GeistFont.sans(size: FontSize.base, weight: .medium)
+        GeistFont.sans(size: FontSize.smMd, weight: .medium)
     }
 
     /// 12pt Medium - Project/repository names (highest hierarchy)
     @MainActor
     static var sidebarProject: Font {
-        GeistFont.sans(size: FontSize.smMd, weight: .medium)
+        GeistFont.sans(size: FontSize.sm, weight: .medium)
     }
 
-    /// 10pt Medium - Directory labels (uppercase recommended)
+    /// 10pt Semibold - Directory labels (uppercase recommended)
     @MainActor
     static var sidebarSection: Font {
-        GeistFont.sans(size: FontSize.xs, weight: .medium)
+        GeistFont.sans(size: FontSize.xs, weight: .semibold)
     }
 
     /// 12pt Regular - Session/item titles
     @MainActor
     static var sidebarItem: Font {
-        GeistFont.sans(size: FontSize.smMd, weight: .regular)
+        GeistFont.sans(size: FontSize.sm, weight: .regular)
     }
 
     /// 10pt Regular - Counts, timestamps, metadata
     @MainActor
     static var sidebarMeta: Font {
         GeistFont.sans(size: FontSize.xs, weight: .regular)
+    }
+
+    // MARK: - Toolbar Typography
+
+    /// 12pt Medium - Toolbar labels
+    @MainActor
+    static var toolbar: Font {
+        GeistFont.sans(size: FontSize.sm, weight: .medium)
+    }
+
+    /// 12pt Regular - Toolbar secondary text
+    @MainActor
+    static var toolbarMuted: Font {
+        GeistFont.sans(size: FontSize.sm, weight: .regular)
     }
 }
 

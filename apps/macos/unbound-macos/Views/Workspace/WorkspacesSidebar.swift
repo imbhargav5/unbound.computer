@@ -30,6 +30,7 @@ struct WorkspacesSidebar: View {
     var onOpenSettings: () -> Void
     var onAddRepository: () -> Void
     var onCreateSessionForRepository: (Repository, SessionLocationType) -> Void
+    var onRequestRemoveRepository: (Repository) -> Void
 
     @State private var showKeyboardShortcuts = false
 
@@ -135,6 +136,9 @@ struct WorkspacesSidebar: View {
                                     appState.selectedSessionId = session.id
                                 },
                                 onCreateSession: onCreateSessionForRepository,
+                                onRequestRemoveRepository: { repository in
+                                    onRequestRemoveRepository(repository)
+                                },
                                 onArchiveSession: archiveSession,
                                 onDeleteSession: deleteSession
                             )
@@ -200,6 +204,7 @@ struct RepositoryGroup: View {
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
     var onCreateSession: (Repository, SessionLocationType) -> Void
+    var onRequestRemoveRepository: ((Repository) -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
@@ -213,7 +218,7 @@ struct RepositoryGroup: View {
 
     /// Spine color - visible but not dominant
     private var spineColor: Color {
-        colors.border
+        colors.panelDivider
     }
 
     /// All sessions flat for counting
@@ -253,8 +258,12 @@ struct RepositoryGroup: View {
                         .foregroundStyle(colors.sidebarMeta)
                         .padding(.horizontal, Spacing.xs)
                         .padding(.vertical, 2)
-                        .background(colors.muted.opacity(0.5))
+                        .background(colors.surface2)
                         .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .stroke(colors.border, lineWidth: BorderWidth.hairline)
+                        )
                 }
 
                 // New session button
@@ -283,6 +292,14 @@ struct RepositoryGroup: View {
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
+            .contentShape(Rectangle())
+            .contextMenu {
+                Button(role: .destructive) {
+                    onRequestRemoveRepository?(repository)
+                } label: {
+                    Label("Remove Repository...", systemImage: "trash")
+                }
+            }
 
             // Expanded content - directories with their own spines
             if isExpanded {
@@ -362,8 +379,8 @@ struct MainDirectorySection: View {
 
                         Text("MAIN DIRECTORY")
                             .font(Typography.sidebarSection)
-                            .foregroundStyle(colors.mutedForeground)
-                            .tracking(0.5)
+                            .foregroundStyle(colors.sidebarMeta)
+                            .tracking(0.6)
                     }
                     .contentShape(Rectangle())
                 }
@@ -447,12 +464,12 @@ struct WorktreeSection: View {
 
                         Image(systemName: "folder")
                             .font(.system(size: 9))
-                            .foregroundStyle(colors.mutedForeground)
+                            .foregroundStyle(colors.sidebarMeta)
 
                         Text(name.uppercased())
                             .font(Typography.sidebarSection)
-                            .foregroundStyle(colors.mutedForeground)
-                            .tracking(0.5)
+                            .foregroundStyle(colors.sidebarMeta)
+                            .tracking(0.6)
                             .lineLimit(1)
                     }
                     .contentShape(Rectangle())
@@ -523,7 +540,7 @@ struct TimelineSessionRow: View {
     }
 
     /// Row height for calculating spine
-    private let rowHeight: CGFloat = 28
+    private let rowHeight: CGFloat = LayoutMetrics.sidebarRowHeight
 
     /// Get the working path for this session (worktree path or repo path)
     private var workingPath: String? {
@@ -579,7 +596,11 @@ struct TimelineSessionRow: View {
                 .frame(height: rowHeight)
                 .background(
                     RoundedRectangle(cornerRadius: Radius.sm)
-                        .fill(isSelected ? colors.accent.opacity(0.3) : (isHovered ? colors.muted.opacity(0.5) : Color.clear))
+                        .fill(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.sm)
+                        .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
                 )
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -652,7 +673,8 @@ struct TimelineSessionRow: View {
     WorkspacesSidebar(
         onOpenSettings: {},
         onAddRepository: {},
-        onCreateSessionForRepository: { _, _ in }
+        onCreateSessionForRepository: { _, _ in },
+        onRequestRemoveRepository: { _ in }
     )
     .environment(AppState())
     .frame(width: 168, height: 600)

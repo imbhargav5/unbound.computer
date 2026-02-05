@@ -71,7 +71,7 @@ struct ActiveSubAgentView: View {
 
                 Text(summaryText)
                     .font(Typography.bodySmall)
-                    .foregroundStyle(colors.foreground)
+                    .foregroundStyle(colors.accentAmber)
                     .lineLimit(1)
 
                 Spacer()

@@ -8,7 +8,7 @@ use rusqlite::Connection;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 9;
+pub const CURRENT_VERSION: i32 = 10;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -58,6 +58,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 9 {
         migrate_v9_supabase_message_outbox(conn)?;
+    }
+    if current_version < 10 {
+        migrate_v10_supabase_sync_state(conn)?;
     }
 
     info!("Migrations complete");
@@ -465,6 +468,31 @@ fn migrate_v9_supabase_message_outbox(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+/// V10: Supabase sync state table (cursor-based sync per session).
+/// Replaces per-message outbox with per-session sync tracking.
+fn migrate_v10_supabase_sync_state(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v10: supabase_sync_state");
+
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS agent_coding_session_supabase_sync_state (
+            session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            last_synced_sequence_number INTEGER NOT NULL DEFAULT 0,
+            last_sync_at TEXT,
+            last_error TEXT,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            last_attempt_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_supabase_sync_state_last_attempt_at
+            ON agent_coding_session_supabase_sync_state(last_attempt_at);
+        ",
+    )?;
+
+    record_migration(conn, 10, "supabase_sync_state")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -506,7 +534,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 9);
+        assert_eq!(version, 10);
     }
 
     #[test]

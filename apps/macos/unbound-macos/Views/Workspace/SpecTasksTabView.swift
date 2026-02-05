@@ -44,7 +44,7 @@ struct SpecTasksTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Section tabs
+            // Section tabs + Approve
             sectionTabs
 
             ShadcnDivider()
@@ -70,20 +70,43 @@ struct SpecTasksTabView: View {
                     }
                 } label: {
                     Text(section.rawValue)
-                        .font(Typography.bodySmall)
+                        .font(Typography.toolbar)
                         .fontWeight(selectedSection == section ? .semibold : .regular)
                         .foregroundStyle(selectedSection == section ? colors.foreground : colors.mutedForeground)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
+                        .overlay(alignment: .bottom) {
+                            if selectedSection == section {
+                                Rectangle()
+                                    .fill(colors.accentAmber)
+                                    .frame(height: 2)
+                                    .offset(y: 6)
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
             }
 
             Spacer()
+
+            Button(action: {}) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: IconSize.xs))
+                    Text("Approve")
+                        .font(Typography.toolbar)
+                }
+                .foregroundStyle(colors.primaryActionForeground)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(colors.primaryAction)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, Spacing.compact)
-        .padding(.vertical, Spacing.xs)
-        .background(colors.card)
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 
     // MARK: - Spec Content
@@ -95,15 +118,15 @@ struct SpecTasksTabView: View {
                 HStack(spacing: Spacing.sm) {
                     Circle()
                         .fill(colors.accentAmberMuted)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .overlay(
                             Image(systemName: "doc.text")
-                                .font(.system(size: 10))
+                                .font(.system(size: 9))
                                 .foregroundStyle(colors.accentAmber)
                         )
 
                     Text("Implementation Plan")
-                        .font(Typography.label)
+                        .font(Typography.bodySmall)
                         .foregroundStyle(colors.foreground)
                 }
 
@@ -118,8 +141,8 @@ struct SpecTasksTabView: View {
                 // Key objectives
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text("Key Objectives")
-                        .font(Typography.caption)
-                        .fontWeight(.semibold)
+                        .font(Typography.bodySmall)
+                        .fontWeight(.medium)
                         .foregroundStyle(colors.sidebarText)
 
                     specBullet("Implement amber (#F59E0B) as primary accent color")
@@ -153,7 +176,7 @@ struct SpecTasksTabView: View {
                 // Progress header
                 HStack(spacing: Spacing.sm) {
                     Text("\(completedCount)/\(demoTasks.count) completed")
-                        .font(Typography.caption)
+                        .font(Typography.bodySmall)
                         .foregroundStyle(colors.mutedForeground)
 
                     Spacer()
@@ -172,7 +195,7 @@ struct SpecTasksTabView: View {
                     }
                     .frame(width: 80, height: 4)
                 }
-                .padding(.horizontal, Spacing.md)
+                .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.sm)
 
                 ShadcnDivider()

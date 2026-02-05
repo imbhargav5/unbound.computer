@@ -584,6 +584,43 @@ pub struct PendingSupabaseMessage {
 }
 
 // ============================================================================
+// Supabase sync state types (cursor-based sync per session)
+// ============================================================================
+
+/// Supabase sync state for a session (cursor-based sync tracking).
+///
+/// Tracks the last synced sequence number per session, replacing
+/// the per-message outbox approach with a more efficient cursor-based model.
+#[derive(Debug, Clone)]
+pub struct SupabaseSyncState {
+    pub session_id: SessionId,
+    pub last_synced_sequence_number: i64,
+    pub last_sync_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
+    pub retry_count: i32,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+}
+
+/// A message pending sync to Supabase (derived from sync state cursor).
+#[derive(Debug, Clone)]
+pub struct PendingSyncMessage {
+    pub session_id: SessionId,
+    pub message_id: MessageId,
+    pub sequence_number: i64,
+    pub content: String,
+}
+
+/// Sessions with pending messages to sync, along with their sync state.
+#[derive(Debug, Clone)]
+pub struct SessionPendingSync {
+    pub session_id: SessionId,
+    pub last_synced_sequence_number: i64,
+    pub retry_count: i32,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub messages: Vec<PendingSyncMessage>,
+}
+
+// ============================================================================
 // User settings types
 // ============================================================================
 

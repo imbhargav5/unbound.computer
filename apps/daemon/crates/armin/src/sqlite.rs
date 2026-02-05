@@ -95,6 +95,9 @@ impl SqliteStore {
         // Ensure Supabase message outbox table exists for existing databases
         self.ensure_supabase_message_outbox(&conn)?;
 
+        // Ensure Supabase sync state table exists for existing databases
+        self.ensure_supabase_sync_state(&conn)?;
+
         Ok(())
     }
 
@@ -258,7 +261,7 @@ impl SqliteStore {
             "#,
         )?;
 
-        // Supabase message outbox table
+        // Supabase message outbox table (legacy, kept for compatibility)
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS agent_coding_session_message_supabase_outbox (
@@ -274,6 +277,23 @@ impl SqliteStore {
                 ON agent_coding_session_message_supabase_outbox(sent_at);
             CREATE INDEX IF NOT EXISTS idx_supabase_outbox_last_attempt_at
                 ON agent_coding_session_message_supabase_outbox(last_attempt_at);
+            "#,
+        )?;
+
+        // Supabase sync state table (cursor-based sync per session)
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_coding_session_supabase_sync_state (
+                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+                last_synced_sequence_number INTEGER NOT NULL DEFAULT 0,
+                last_sync_at TEXT,
+                last_error TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_supabase_sync_state_last_attempt_at
+                ON agent_coding_session_supabase_sync_state(last_attempt_at);
             "#,
         )?;
 
@@ -1046,6 +1066,190 @@ impl SqliteStore {
         }
 
         conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // Supabase sync state operations (cursor-based sync per session)
+    // ========================================================================
+
+    /// Ensures the sync state table exists (for existing databases).
+    fn ensure_supabase_sync_state(&self, conn: &Connection) -> SqliteResult<()> {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_coding_session_supabase_sync_state (
+                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+                last_synced_sequence_number INTEGER NOT NULL DEFAULT 0,
+                last_sync_at TEXT,
+                last_error TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_supabase_sync_state_last_attempt_at
+                ON agent_coding_session_supabase_sync_state(last_attempt_at);
+            "#,
+        )?;
+        Ok(())
+    }
+
+    /// Get sync state for a session.
+    pub fn get_supabase_sync_state(&self, session_id: &SessionId) -> SqliteResult<Option<crate::types::SupabaseSyncState>> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let mut stmt = conn.prepare_cached(
+            "SELECT session_id, last_synced_sequence_number, last_sync_at, last_error, retry_count, last_attempt_at
+             FROM agent_coding_session_supabase_sync_state WHERE session_id = ?1",
+        )?;
+
+        let result = stmt.query_row(params![session_id.as_str()], |row| {
+            Ok(crate::types::SupabaseSyncState {
+                session_id: SessionId::from_string(row.get::<_, String>(0)?),
+                last_synced_sequence_number: row.get(1)?,
+                last_sync_at: row.get::<_, Option<String>>(2)?.map(Self::parse_datetime),
+                last_error: row.get(3)?,
+                retry_count: row.get(4)?,
+                last_attempt_at: row.get::<_, Option<String>>(5)?.map(Self::parse_datetime),
+            })
+        });
+
+        match result {
+            Ok(state) => Ok(Some(state)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get or create sync state for a session.
+    #[allow(dead_code)]
+    pub fn get_or_create_supabase_sync_state(&self, session_id: &SessionId) -> SqliteResult<crate::types::SupabaseSyncState> {
+        if let Some(state) = self.get_supabase_sync_state(session_id)? {
+            return Ok(state);
+        }
+
+        let conn = self.conn.lock().expect("lock poisoned");
+        conn.execute(
+            "INSERT INTO agent_coding_session_supabase_sync_state (session_id, last_synced_sequence_number)
+             VALUES (?1, 0)",
+            params![session_id.as_str()],
+        )?;
+        drop(conn);
+
+        self.get_supabase_sync_state(session_id)?
+            .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    /// Get sessions with pending messages to sync (messages with sequence > last_synced).
+    pub fn get_sessions_pending_sync(&self, limit_per_session: usize) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
+        let conn = self.conn.lock().expect("lock poisoned");
+
+        // First, get all sessions that have messages beyond their sync cursor
+        let mut stmt = conn.prepare_cached(
+            r#"
+            SELECT DISTINCT m.session_id
+            FROM agent_coding_session_messages m
+            LEFT JOIN agent_coding_session_supabase_sync_state s ON m.session_id = s.session_id
+            WHERE m.sequence_number > COALESCE(s.last_synced_sequence_number, 0)
+            "#,
+        )?;
+
+        let session_ids: Vec<SessionId> = stmt
+            .query_map([], |row| Ok(SessionId::from_string(row.get::<_, String>(0)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        drop(stmt);
+
+        let mut results = Vec::new();
+
+        for session_id in session_ids {
+            // Get sync state for this session
+            let sync_state = {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT last_synced_sequence_number, retry_count, last_attempt_at
+                     FROM agent_coding_session_supabase_sync_state WHERE session_id = ?1",
+                )?;
+
+                stmt.query_row(params![session_id.as_str()], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i32>(1)?,
+                        row.get::<_, Option<String>>(2)?.map(Self::parse_datetime),
+                    ))
+                })
+                .unwrap_or((0, 0, None))
+            };
+
+            let (last_synced_sequence_number, retry_count, last_attempt_at) = sync_state;
+
+            // Get pending messages for this session
+            let mut msg_stmt = conn.prepare_cached(
+                "SELECT id, session_id, sequence_number, content
+                 FROM agent_coding_session_messages
+                 WHERE session_id = ?1 AND sequence_number > ?2
+                 ORDER BY sequence_number ASC
+                 LIMIT ?3",
+            )?;
+
+            let messages: Vec<crate::types::PendingSyncMessage> = msg_stmt
+                .query_map(
+                    params![session_id.as_str(), last_synced_sequence_number, limit_per_session as i64],
+                    |row| {
+                        Ok(crate::types::PendingSyncMessage {
+                            session_id: SessionId::from_string(row.get::<_, String>(1)?),
+                            message_id: MessageId::from_string(row.get::<_, String>(0)?),
+                            sequence_number: row.get(2)?,
+                            content: row.get(3)?,
+                        })
+                    },
+                )?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            if !messages.is_empty() {
+                results.push(crate::types::SessionPendingSync {
+                    session_id,
+                    last_synced_sequence_number,
+                    retry_count,
+                    last_attempt_at,
+                    messages,
+                });
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Mark sync as successful for a session up to a sequence number.
+    pub fn mark_supabase_sync_success(&self, session_id: &SessionId, up_to_sequence: i64) -> SqliteResult<()> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_coding_session_supabase_sync_state
+                (session_id, last_synced_sequence_number, last_sync_at, retry_count, last_error, last_attempt_at)
+             VALUES (?1, ?2, ?3, 0, NULL, ?3)
+             ON CONFLICT(session_id) DO UPDATE SET
+                last_synced_sequence_number = ?2,
+                last_sync_at = ?3,
+                retry_count = 0,
+                last_error = NULL,
+                last_attempt_at = ?3",
+            params![session_id.as_str(), up_to_sequence, now],
+        )?;
+        Ok(())
+    }
+
+    /// Mark sync as failed for a session (increments retry count).
+    pub fn mark_supabase_sync_failed(&self, session_id: &SessionId, error: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_coding_session_supabase_sync_state
+                (session_id, last_synced_sequence_number, retry_count, last_error, last_attempt_at)
+             VALUES (?1, 0, 1, ?2, ?3)
+             ON CONFLICT(session_id) DO UPDATE SET
+                retry_count = retry_count + 1,
+                last_error = ?2,
+                last_attempt_at = ?3",
+            params![session_id.as_str(), error, now],
+        )?;
         Ok(())
     }
 

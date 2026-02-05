@@ -12,7 +12,8 @@ use crate::delta::DeltaView;
 use crate::live::LiveSubscription;
 use crate::snapshot::SnapshotView;
 use crate::types::{
-    OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId, SessionSecret, SessionState,
+    OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
+    SessionPendingSync, SessionSecret, SessionState, SupabaseSyncState,
 };
 
 /// A reader for session data.
@@ -85,4 +86,14 @@ pub trait SessionReader {
 
     /// Gets pending Supabase message outbox entries (joined with message content).
     fn get_pending_supabase_messages(&self, limit: usize) -> Vec<PendingSupabaseMessage>;
+
+    // ========================================================================
+    // Supabase sync state operations (cursor-based)
+    // ========================================================================
+
+    /// Gets the Supabase sync state for a session.
+    fn get_supabase_sync_state(&self, session: &SessionId) -> Option<SupabaseSyncState>;
+
+    /// Gets sessions with pending messages to sync (cursor-based).
+    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Vec<SessionPendingSync>;
 }

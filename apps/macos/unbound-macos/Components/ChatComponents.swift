@@ -230,11 +230,11 @@ struct ChatInputField: View {
             .padding(.horizontal, Spacing.md)
             .padding(.bottom, Spacing.md)
         }
-        .background(isPlanMode ? colors.info.opacity(0.05) : colors.card)
+        .background(isPlanMode ? colors.info.opacity(0.08) : colors.input)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : colors.border), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
+                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : colors.borderInput), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
         )
         .animation(.easeInOut(duration: Duration.fast), value: isFocused)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
@@ -332,8 +332,10 @@ struct ChatMessageView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let message: ChatMessage
-    var index: Int = 0  // For stagger animation
+    var animationIndex: Int = 0  // For stagger animation
     var onQuestionSubmit: ((AskUserQuestion) -> Void)?
+    var shouldAnimate: Bool = false
+    var onRowAppear: (() -> Void)?
 
     @State private var isHovered = false
     @State private var hasAppeared = false
@@ -344,7 +346,7 @@ struct ChatMessageView: View {
 
     /// Stagger delay based on index
     private var staggerDelay: Double {
-        Double(index) * Duration.staggerInterval
+        Double(animationIndex) * Duration.staggerInterval
     }
 
     /// Get deduplicated content for display - tools with the same toolUseId show only the latest state
@@ -494,7 +496,7 @@ struct ChatMessageView: View {
         message.role == .user
     }
 
-    var body: some View {
+    private var messageRow: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
             if isUser {
                 Spacer(minLength: 60)
@@ -556,11 +558,25 @@ struct ChatMessageView: View {
                 copyToClipboard()
             }
         }
-        .slideIn(isVisible: hasAppeared, from: .bottom, delay: staggerDelay)
-        .onAppear {
-            // Small delay to ensure the view is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                hasAppeared = true
+    }
+
+    var body: some View {
+        Group {
+            if shouldAnimate {
+                messageRow
+                    .slideIn(isVisible: hasAppeared, from: .bottom, delay: staggerDelay)
+                    .onAppear {
+                        onRowAppear?()
+                        // Small delay to ensure the view is ready
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            hasAppeared = true
+                        }
+                    }
+            } else {
+                messageRow
+                    .onAppear {
+                        onRowAppear?()
+                    }
             }
         }
     }
@@ -866,7 +882,7 @@ struct ChatHeader: View {
                     .font(.system(size: IconSize.sm))
 
                 Text(sessionTitle)
-                    .font(Typography.bodySmall)
+                    .font(Typography.toolbar)
                     .lineLimit(1)
             }
             .foregroundStyle(colors.mutedForeground)
@@ -874,7 +890,7 @@ struct ChatHeader: View {
             Spacer()
         }
         .padding(.horizontal, Spacing.lg)
-        .frame(height: 40)
-        .background(colors.card)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 }

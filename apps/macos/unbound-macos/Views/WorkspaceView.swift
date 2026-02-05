@@ -31,6 +31,9 @@ struct WorkspaceView: View {
     // State
     @State private var isAddingRepository = false
     @State private var hasMigratedOrphans = false
+    @State private var repositoryPendingRemoval: Repository?
+    @State private var isRemovingRepository = false
+    @State private var removeRepoError: String?
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -93,6 +96,16 @@ struct WorkspaceView: View {
     }
 
     var body: some View {
+        let removeDialogBinding = Binding<Bool>(
+            get: { repositoryPendingRemoval != nil },
+            set: { isPresented in
+                if !isPresented {
+                    repositoryPendingRemoval = nil
+                    removeRepoError = nil
+                }
+            }
+        )
+
         ZStack {
             ZStack(alignment: .top) {
                 HSplitView {
@@ -106,6 +119,9 @@ struct WorkspaceView: View {
                         },
                         onCreateSessionForRepository: { repository, locationType in
                             createSession(for: repository, locationType: locationType)
+                        },
+                        onRequestRemoveRepository: { repository in
+                            requestRemoveRepository(repository)
                         }
                     )
                     .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
@@ -155,6 +171,18 @@ struct WorkspaceView: View {
                         set: { appState.showCommandPalette = $0 }
                     ),
                     commands: commandPaletteCommands
+                )
+            }
+
+            if let repository = repositoryPendingRemoval {
+                RemoveRepositoryOverlay(
+                    isPresented: removeDialogBinding,
+                    repository: repository,
+                    isRemoving: isRemovingRepository,
+                    errorMessage: removeRepoError,
+                    onConfirm: {
+                        confirmRemoveRepository(repository)
+                    }
                 )
             }
         }
@@ -213,6 +241,29 @@ struct WorkspaceView: View {
             } catch {
                 logger.error("Failed to create session: \(error)")
             }
+        }
+    }
+
+    private func requestRemoveRepository(_ repository: Repository) {
+        removeRepoError = nil
+        repositoryPendingRemoval = repository
+    }
+
+    private func confirmRemoveRepository(_ repository: Repository) {
+        guard !isRemovingRepository else { return }
+        isRemovingRepository = true
+
+        Task {
+            do {
+                try await appState.removeRepository(repository.id)
+                repositoryPendingRemoval = nil
+                removeRepoError = nil
+            } catch {
+                logger.error("Failed to remove repository: \(error)")
+                removeRepoError = "Failed to remove repository. Please try again."
+            }
+
+            isRemovingRepository = false
         }
     }
 

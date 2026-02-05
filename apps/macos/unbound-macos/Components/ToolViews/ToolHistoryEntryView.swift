@@ -93,7 +93,7 @@ private struct ToolHistoryAgentCard: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(colors.border, lineWidth: 1)
+                .stroke(colors.panelDivider, lineWidth: BorderWidth.hairline)
         )
     }
 
@@ -118,7 +118,7 @@ private struct ToolHistoryAgentCard: View {
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(agentDisplayName)
                         .font(Typography.label)
-                        .foregroundStyle(colors.sidebarText)
+                        .foregroundStyle(colors.accentAmber)
 
                     if !subAgent.description.isEmpty {
                         Text(subAgent.description)

@@ -104,7 +104,11 @@ struct VSCodeChangeRow: View {
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
-            .background(isSelected ? colors.accent.opacity(0.3) : (isHovered ? colors.muted.opacity(0.5) : Color.clear))
+            .background(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.sm)
+                    .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

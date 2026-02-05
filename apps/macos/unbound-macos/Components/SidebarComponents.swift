@@ -55,8 +55,8 @@ struct SidebarHeader: View {
             }
         }
         .padding(.horizontal, Spacing.md)
-        .frame(height: 40)
-        .background(colors.card)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 }
 
