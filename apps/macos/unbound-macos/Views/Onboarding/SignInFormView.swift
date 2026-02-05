@@ -12,6 +12,7 @@ private let logger = Logger(label: "app.auth")
 
 struct SignInFormView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var email = ""
     @State private var password = ""
@@ -28,13 +29,17 @@ struct SignInFormView: View {
         case email, password
     }
 
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             // Email field
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Email")
                     .font(Typography.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
 
                 emailField
             }
@@ -43,7 +48,7 @@ struct SignInFormView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Password")
                     .font(Typography.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
 
                 passwordField
             }
@@ -52,7 +57,7 @@ struct SignInFormView: View {
             if let error = errorMessage {
                 Text(error)
                     .font(Typography.caption)
-                    .foregroundStyle(Color(hex: "ef4444"))
+                    .foregroundStyle(colors.destructive)
             }
 
             // Sign in button
@@ -74,12 +79,12 @@ struct SignInFormView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .padding(.horizontal, Spacing.lg)
-                .background(Color.white.opacity(0.05))
-                .foregroundStyle(.white)
+                .background(colors.surface2)
+                .foregroundStyle(colors.foreground)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .overlay(
                     RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        .stroke(colors.border, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -93,7 +98,7 @@ struct SignInFormView: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.caption)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(colors.mutedForeground)
 
                 Spacer()
 
@@ -102,7 +107,7 @@ struct SignInFormView: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.caption)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(colors.mutedForeground)
             }
         }
     }
@@ -111,12 +116,12 @@ struct SignInFormView: View {
         HStack(spacing: Spacing.sm) {
             Image(systemName: "envelope")
                 .font(.system(size: IconSize.md))
-                .foregroundStyle(focusedField == .email ? .white.opacity(0.6) : .white.opacity(0.3))
+                .foregroundStyle(focusedField == .email ? colors.sidebarText : colors.inactive)
 
             TextField("you@example.com", text: $email)
                 .textFieldStyle(.plain)
                 .font(Typography.body)
-                .foregroundStyle(.white)
+                .foregroundStyle(colors.foreground)
                 .focused($focusedField, equals: .email)
                 .textContentType(.emailAddress)
                 .autocorrectionDisabled()
@@ -126,12 +131,12 @@ struct SignInFormView: View {
         }
         .frame(height: 44)
         .padding(.horizontal, Spacing.md)
-        .background(Color.white.opacity(0.02))
+        .background(colors.surface2.opacity(0.3))
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
                 .stroke(
-                    focusedField == .email ? Color.white.opacity(0.2) : Color.white.opacity(0.1),
+                    focusedField == .email ? colors.borderSecondary : colors.border,
                     lineWidth: 1
                 )
         )
@@ -141,7 +146,7 @@ struct SignInFormView: View {
         HStack(spacing: Spacing.sm) {
             Image(systemName: "lock")
                 .font(.system(size: IconSize.md))
-                .foregroundStyle(focusedField == .password ? .white.opacity(0.6) : .white.opacity(0.3))
+                .foregroundStyle(focusedField == .password ? colors.sidebarText : colors.inactive)
 
             Group {
                 if showPassword {
@@ -152,7 +157,7 @@ struct SignInFormView: View {
             }
             .textFieldStyle(.plain)
             .font(Typography.body)
-            .foregroundStyle(.white)
+            .foregroundStyle(colors.foreground)
             .focused($focusedField, equals: .password)
             .onSubmit {
                 if !email.isEmpty && !password.isEmpty {
@@ -165,18 +170,18 @@ struct SignInFormView: View {
             } label: {
                 Image(systemName: showPassword ? "eye.slash" : "eye")
                     .font(.system(size: IconSize.md))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(colors.inactive)
             }
             .buttonStyle(.plain)
         }
         .frame(height: 44)
         .padding(.horizontal, Spacing.md)
-        .background(Color.white.opacity(0.02))
+        .background(colors.surface2.opacity(0.3))
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
                 .stroke(
-                    focusedField == .password ? Color.white.opacity(0.2) : Color.white.opacity(0.1),
+                    focusedField == .password ? colors.borderSecondary : colors.border,
                     lineWidth: 1
                 )
         )

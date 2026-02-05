@@ -12,6 +12,7 @@ private let logger = Logger(label: "app.auth")
 
 struct MagicLinkFormView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var email = ""
     @State private var isLoading = false
@@ -21,13 +22,17 @@ struct MagicLinkFormView: View {
 
     var onSuccess: (String) -> Void
 
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             // Email field
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Email")
                     .font(Typography.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
 
                 emailField
             }
@@ -36,7 +41,7 @@ struct MagicLinkFormView: View {
             if let error = errorMessage {
                 Text(error)
                     .font(Typography.caption)
-                    .foregroundStyle(Color(hex: "ef4444"))
+                    .foregroundStyle(colors.destructive)
             }
 
             // Send button
@@ -58,12 +63,12 @@ struct MagicLinkFormView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .padding(.horizontal, Spacing.lg)
-                .background(Color.white.opacity(0.05))
-                .foregroundStyle(.white)
+                .background(colors.surface2)
+                .foregroundStyle(colors.foreground)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 .overlay(
                     RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        .stroke(colors.border, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -76,12 +81,12 @@ struct MagicLinkFormView: View {
         HStack(spacing: Spacing.sm) {
             Image(systemName: "envelope")
                 .font(.system(size: IconSize.md))
-                .foregroundStyle(isFocused ? .white.opacity(0.6) : .white.opacity(0.3))
+                .foregroundStyle(isFocused ? colors.sidebarText : colors.inactive)
 
             TextField("you@example.com", text: $email)
                 .textFieldStyle(.plain)
                 .font(Typography.body)
-                .foregroundStyle(.white)
+                .foregroundStyle(colors.foreground)
                 .focused($isFocused)
                 .textContentType(.emailAddress)
                 .autocorrectionDisabled()
@@ -93,12 +98,12 @@ struct MagicLinkFormView: View {
         }
         .frame(height: 44)
         .padding(.horizontal, Spacing.md)
-        .background(Color.white.opacity(0.02))
+        .background(colors.surface2.opacity(0.3))
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
                 .stroke(
-                    isFocused ? Color.white.opacity(0.2) : Color.white.opacity(0.1),
+                    isFocused ? colors.borderSecondary : colors.border,
                     lineWidth: 1
                 )
         )
@@ -127,6 +132,6 @@ struct MagicLinkFormView: View {
     }
     .environment(AppState())
     .padding(Spacing.xxxxl)
-    .background(Color.black)
+    .background(Color(red: 0.05, green: 0.05, blue: 0.05))
     .frame(width: 400)
 }

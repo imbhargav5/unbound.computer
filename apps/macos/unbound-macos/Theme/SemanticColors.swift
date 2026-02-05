@@ -35,51 +35,92 @@ struct ShadcnColors {
     // Light mode variants provided as well
 
     struct Dark {
-        static let background = Zinc._950
-        static let foreground = Zinc._50
+        // Core backgrounds - Amber theme dark palette
+        static let background = Color(hex: "0D0D0D")      // Main background
+        static let foreground = Color(hex: "FFFFFF")      // Primary text
 
-        static let card = Zinc._900
-        static let cardForeground = Zinc._50
+        static let card = Color(hex: "0A0A0A")            // Sidebar, headers, footers
+        static let cardForeground = Color(hex: "FFFFFF")
 
-        static let popover = Zinc._900
-        static let popoverForeground = Zinc._50
+        static let popover = Color(hex: "0A0A0A")
+        static let popoverForeground = Color(hex: "FFFFFF")
 
-        static let primary = Zinc._50
-        static let primaryForeground = Zinc._900
+        static let primary = Color(hex: "FFFFFF")
+        static let primaryForeground = Color(hex: "0D0D0D")
 
-        static let secondary = Zinc._800
-        static let secondaryForeground = Zinc._50
+        static let secondary = Color(hex: "1A1A1A")       // Active tabs, buttons
+        static let secondaryForeground = Color(hex: "FFFFFF")
 
-        static let muted = Zinc._800
-        static let mutedForeground = Zinc._400
+        static let muted = Color(hex: "1A1A1A")
+        static let mutedForeground = Color(hex: "A3A3A3") // Muted text
 
-        static let accent = Zinc._800
-        static let accentForeground = Zinc._50
+        static let accent = Color(hex: "1A1A1A")          // Accent background
+        static let accentForeground = Color(hex: "FFFFFF")
 
-        static let destructive = Color(hex: "ef4444")
-        static let destructiveForeground = Zinc._50
+        static let destructive = Color(hex: "F85149")     // Deletion/error color
+        static let destructiveForeground = Color(hex: "FFFFFF")
 
-        static let border = Zinc._700
-        static let input = Zinc._800
-        static let ring = Zinc._300
+        static let border = Color(hex: "1F1F1F")          // Primary borders
+        static let input = Color(hex: "111111")           // Input containers
+        static let ring = Color(hex: "F59E0B")            // Focus ring - amber
 
         // Sidebar text hierarchy (foreground → sidebarText → sidebarMeta → mutedForeground)
-        static let sidebarText = Zinc._200          // Session titles, main content
-        static let sidebarMeta = Zinc._500          // Metadata, counts, timestamps
+        static let sidebarText = Color(hex: "E5E5E5")     // Secondary text
+        static let sidebarMeta = Color(hex: "6B6B6B")     // Muted labels
 
         // Additional semantic colors
-        static let success = Color(hex: "22c55e")
-        static let warning = Color(hex: "eab308")
+        static let success = Color(hex: "22C55E")
+        static let warning = Color(hex: "F59E0B")         // Amber for warning
         static let info = Color(hex: "3b82f6")
 
         // Surface hierarchy (layered backgrounds for depth)
-        static let surface0 = Zinc._950  // Window/root background
-        static let surface1 = Zinc._900  // Primary content areas
-        static let surface2 = Zinc._800  // Elevated/nested content
+        static let surface0 = Color(hex: "0D0D0D")        // Window/root background
+        static let surface1 = Color(hex: "0A0A0A")        // Primary content areas
+        static let surface2 = Color(hex: "111111")        // Elevated/nested content
 
-        // Primary action color (blue for CTAs that need to stand out from Zinc)
-        static let primaryAction = Color(hex: "3b82f6")
-        static let primaryActionForeground = Zinc._50
+        // Primary action color - AMBER accent
+        static let primaryAction = Color(hex: "F59E0B")   // Amber accent
+        static let primaryActionForeground = Color(hex: "0D0D0D")
+
+        // MARK: - Amber Accent Variants
+        static let accentAmber = Color(hex: "F59E0B")
+        static let accentAmberMuted = Color(hex: "F59E0B20")    // 20% opacity
+        static let accentAmberSubtle = Color(hex: "F59E0B15")   // 15% opacity
+        static let accentAmberBorder = Color(hex: "F59E0B40")   // 40% opacity
+        static let accentAmberHalf = Color(hex: "F59E0B50")     // 50% for connectors
+
+        // MARK: - Extended Gray Palette
+        static let gray333 = Color(hex: "333333")         // Button backgrounds
+        static let gray404 = Color(hex: "404040")         // UI elements
+        static let gray4A4 = Color(hex: "4A4A4A")         // Icons
+        static let gray525 = Color(hex: "525252")         // Muted elements
+        static let gray5A5 = Color(hex: "5A5A5A")         // Inactive icons
+        static let gray666 = Color(hex: "666666")         // UI elements
+        static let gray7A7 = Color(hex: "7A7A7A")         // Icons, placeholder
+        static let gray8A8 = Color(hex: "8A8A8A")         // Icons
+
+        // MARK: - Git/Diff Colors
+        static let fileModified = Color(hex: "E2C08D")    // Gold for M status
+        static let fileUntracked = Color(hex: "73C991")   // Green for U status
+        static let diffAddition = Color(hex: "3FB950")    // Green for +
+        static let diffDeletion = Color(hex: "F85149")    // Red for -
+
+        // MARK: - Chat-specific
+        static let chatBackground = Color(hex: "0F0F0F")  // Chat panel background
+
+        // MARK: - Border Variants
+        static let borderSecondary = Color(hex: "252525") // Terminal border
+        static let borderInput = Color(hex: "2A2A2A")     // Input borders
+        static let borderButton = Color(hex: "333333")    // Button borders
+        static let borderUI = Color(hex: "3A3A3A")        // UI borders
+
+        // MARK: - Text Color Variants
+        static let textSecondary = Color(hex: "E5E5E5")   // Secondary text
+        static let textMuted = Color(hex: "B3B3B3")       // File names
+        static let textInactive = Color(hex: "8A8A8A")    // Inactive text
+        static let placeholder = Color(hex: "7A7A7A")     // Placeholder text
+        static let textDimmed = Color(hex: "737373")      // Dimmed file paths
+        static let inactive = Color(hex: "5A5A5A")        // Inactive tabs
     }
 
     struct Light {
@@ -249,6 +290,84 @@ struct ThemeColors {
 
     var sidebarMeta: Color {
         colorScheme == .dark ? ShadcnColors.Dark.sidebarMeta : ShadcnColors.Light.sidebarMeta
+    }
+
+    // MARK: - Amber Accent Colors
+
+    var accentAmber: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentAmber : ShadcnColors.Light.primaryAction
+    }
+
+    var accentAmberMuted: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentAmberMuted : ShadcnColors.Light.primaryAction.opacity(0.2)
+    }
+
+    var accentAmberSubtle: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentAmberSubtle : ShadcnColors.Light.primaryAction.opacity(0.15)
+    }
+
+    var accentAmberBorder: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentAmberBorder : ShadcnColors.Light.primaryAction.opacity(0.4)
+    }
+
+    var accentAmberHalf: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.accentAmberHalf : ShadcnColors.Light.primaryAction.opacity(0.5)
+    }
+
+    // MARK: - Git/Diff Colors
+
+    var fileModified: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.fileModified : Color(hex: "B8860B")
+    }
+
+    var fileUntracked: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.fileUntracked : Color(hex: "228B22")
+    }
+
+    var diffAddition: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.diffAddition : Color(hex: "228B22")
+    }
+
+    var diffDeletion: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.diffDeletion : Color(hex: "DC143C")
+    }
+
+    // MARK: - Extended UI Colors
+
+    var chatBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.chatBackground : ShadcnColors.Light.background
+    }
+
+    var borderSecondary: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.borderSecondary : ShadcnColors.Light.border
+    }
+
+    var borderInput: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.borderInput : ShadcnColors.Light.input
+    }
+
+    var placeholder: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.placeholder : Color(hex: "9CA3AF")
+    }
+
+    var inactive: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.inactive : Color(hex: "9CA3AF")
+    }
+
+    var gray333: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray333 : Color(hex: "E5E5E5")
+    }
+
+    var textSecondary: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.textSecondary : ShadcnColors.Light.sidebarText
+    }
+
+    var textMuted: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.textMuted : Color(hex: "6B7280")
+    }
+
+    var textInactive: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.textInactive : Color(hex: "9CA3AF")
     }
 }
 

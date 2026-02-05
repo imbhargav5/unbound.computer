@@ -73,9 +73,13 @@ final class DaemonClient {
         self.socketPath = socketPath
     }
 
+    // MARK: - Connection Timeout
+
+    private let connectionTimeout: TimeInterval = 10.0
+
     // MARK: - Connection Management
 
-    /// Connect to the daemon.
+    /// Connect to the daemon with timeout protection.
     func connect() async throws {
         guard connectionState != .connected else { return }
 
@@ -88,6 +92,34 @@ final class DaemonClient {
             throw DaemonError.socketNotFound
         }
 
+        // Connect with timeout to prevent indefinite hangs
+        try await connectWithTimeout()
+    }
+
+    /// Connect with a timeout wrapper.
+    private func connectWithTimeout() async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await self.rawConnect()
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(self.connectionTimeout))
+                throw DaemonError.requestTimeout
+            }
+
+            // Wait for first to complete
+            do {
+                try await group.next()
+                group.cancelAll()
+            } catch {
+                group.cancelAll()
+                throw error
+            }
+        }
+    }
+
+    /// Raw connection logic without timeout.
+    private func rawConnect() async throws {
         // Create Unix socket endpoint
         let endpoint = NWEndpoint.unix(path: socketPath)
         let parameters = NWParameters()
@@ -95,13 +127,17 @@ final class DaemonClient {
 
         connection = NWConnection(to: endpoint, using: parameters)
 
-        // Wait for connection
+        // Wait for connection with proper handling of ALL states
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // Track whether we've already resumed to prevent multiple resumptions
+            var hasResumed = false
+
             connection?.stateUpdateHandler = { [weak self] state in
-                guard let self else { return }
+                guard let self, !hasResumed else { return }
 
                 switch state {
                 case .ready:
+                    hasResumed = true
                     logger.info("Connected to daemon")
                     self.connectionState = .connected
                     self.reconnectAttempt = 0
@@ -109,18 +145,32 @@ final class DaemonClient {
                     continuation.resume()
 
                 case .failed(let error):
+                    hasResumed = true
                     logger.error("Connection failed: \(error)")
                     self.connectionState = .failed(error.localizedDescription)
                     continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
 
                 case .cancelled:
+                    hasResumed = true
                     logger.info("Connection cancelled")
                     self.connectionState = .disconnected
+                    continuation.resume(throwing: DaemonError.disconnected)
 
                 case .waiting(let error):
-                    logger.warning("Connection waiting: \(error)")
+                    // Connection is waiting - daemon socket exists but nothing listening
+                    // This happens when daemon crashed and left stale socket
+                    hasResumed = true
+                    logger.warning("Connection waiting (daemon not responding): \(error)")
+                    self.connectionState = .failed("Daemon not responding")
+                    continuation.resume(throwing: DaemonError.connectionFailed("Daemon not responding: \(error)"))
 
-                default:
+                case .preparing:
+                    logger.debug("Connection preparing")
+
+                case .setup:
+                    logger.debug("Connection setup")
+
+                @unknown default:
                     break
                 }
             }
@@ -151,9 +201,48 @@ final class DaemonClient {
         }
     }
 
-    /// Check if daemon is running (socket exists).
+    /// Check if daemon socket exists (quick check).
+    /// Note: This only checks if the socket file exists, not if daemon is responsive.
+    /// Use `isDaemonAlive()` for a proper health check.
     func isDaemonRunning() -> Bool {
         FileManager.default.fileExists(atPath: socketPath)
+    }
+
+    /// Check if daemon is actually alive and responsive (async health check).
+    /// This attempts a real connection with a short timeout.
+    func isDaemonAlive() async -> Bool {
+        // First check socket exists
+        guard FileManager.default.fileExists(atPath: socketPath) else {
+            return false
+        }
+
+        // If already connected, verify connection is still good
+        if connectionState.isConnected {
+            return true
+        }
+
+        // Try a quick health check with timeout
+        do {
+            return try await withThrowingTaskGroup(of: Bool.self) { group in
+                group.addTask {
+                    // Try to connect and call health endpoint
+                    try await self.connect()
+                    _ = try await self.call(method: .health)
+                    return true
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(3.0))
+                    return false
+                }
+
+                let result = try await group.next() ?? false
+                group.cancelAll()
+                return result
+            }
+        } catch {
+            logger.debug("Health check failed: \(error)")
+            return false
+        }
     }
 
     // MARK: - Request/Response

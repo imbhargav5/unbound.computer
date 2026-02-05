@@ -47,7 +47,7 @@ struct OnboardingView: View {
             AuthIllustrationView()
                 .frame(maxWidth: .infinity)
         }
-        .background(Color.black)
+        .background(colors.background)
     }
 
     // MARK: - Auth Form Panel
@@ -82,7 +82,7 @@ struct OnboardingView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .background(Color.black)
+        .background(colors.background)
     }
 
     // MARK: - Logo Section
@@ -91,17 +91,17 @@ struct OnboardingView: View {
         HStack(spacing: Spacing.md) {
             // Terminal icon
             RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                .stroke(colors.borderSecondary, lineWidth: 1)
                 .frame(width: 36, height: 36)
                 .overlay(
                     Image(systemName: "terminal.fill")
                         .font(.system(size: IconSize.lg))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(colors.foreground)
                 )
 
             Text("Unbound")
                 .font(Typography.h3)
-                .foregroundStyle(.white)
+                .foregroundStyle(colors.foreground)
         }
     }
 
@@ -113,11 +113,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Welcome back")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("Sign in to continue to Unbound")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
 
             // OAuth buttons
@@ -137,7 +137,7 @@ struct OnboardingView: View {
             HStack(spacing: Spacing.xs) {
                 Text("Don't have an account?")
                     .font(Typography.bodySmall)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(colors.inactive)
 
                 Button("Sign up") {
                     withAnimation(.easeInOut(duration: Duration.default)) {
@@ -147,7 +147,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.bodySmall)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(colors.sidebarText)
                 .onHover { hovering in
                     // Hover effect handled by cursor
                 }
@@ -163,11 +163,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Create account")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("Get started with Unbound")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
 
             // OAuth buttons
@@ -183,7 +183,7 @@ struct OnboardingView: View {
             HStack(spacing: Spacing.xs) {
                 Text("Already have an account?")
                     .font(Typography.bodySmall)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(colors.inactive)
 
                 Button("Sign in") {
                     withAnimation(.easeInOut(duration: Duration.default)) {
@@ -193,7 +193,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.bodySmall)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(colors.sidebarText)
             }
         }
     }
@@ -211,7 +211,7 @@ struct OnboardingView: View {
                     Text("Back")
                 }
                 .font(Typography.bodySmall)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(colors.mutedForeground)
             }
             .buttonStyle(.plain)
 
@@ -219,11 +219,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Magic link")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("We'll send you a magic link to sign in")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
 
             // Magic link form
@@ -241,27 +241,27 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: Spacing.xl) {
             // Success icon
             Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                .stroke(colors.borderSecondary, lineWidth: 1)
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: "checkmark")
                         .font(.system(size: IconSize.xxl, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(colors.foreground)
                 )
 
             // Header
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Check your email")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("We sent a magic link to")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
 
                 Text(email)
                     .font(Typography.bodyMedium)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
             }
 
             // Instructions
@@ -270,11 +270,11 @@ struct OnboardingView: View {
                 instructionRow(number: "2", text: "Click the magic link to sign in")
             }
             .padding(Spacing.lg)
-            .background(Color.white.opacity(0.02))
+            .background(colors.surface2.opacity(0.3))
             .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(colors.border, lineWidth: 1)
             )
 
             // Back link
@@ -283,7 +283,7 @@ struct OnboardingView: View {
             } label: {
                 Text("Back to sign in")
                     .font(Typography.bodySmall)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
             .buttonStyle(.plain)
         }
@@ -302,7 +302,7 @@ struct OnboardingView: View {
                     Text("Back")
                 }
                 .font(Typography.bodySmall)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(colors.mutedForeground)
             }
             .buttonStyle(.plain)
 
@@ -310,11 +310,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Reset password")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("Enter your email to receive a reset link")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
 
             // Reset password form
@@ -332,27 +332,27 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: Spacing.xl) {
             // Success icon
             Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                .stroke(colors.borderSecondary, lineWidth: 1)
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: "envelope")
                         .font(.system(size: IconSize.xxl, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(colors.foreground)
                 )
 
             // Header
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Check your email")
                     .font(Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
 
                 Text("We sent a password reset link to")
                     .font(Typography.body)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
 
                 Text(email)
                     .font(Typography.bodyMedium)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colors.foreground)
             }
 
             // Back link
@@ -361,7 +361,7 @@ struct OnboardingView: View {
             } label: {
                 Text("Back to sign in")
                     .font(Typography.bodySmall)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(colors.mutedForeground)
             }
             .buttonStyle(.plain)
         }
@@ -372,16 +372,16 @@ struct OnboardingView: View {
     private func dividerWithText(_ text: String) -> some View {
         HStack(spacing: Spacing.lg) {
             Rectangle()
-                .fill(Color.white.opacity(0.1))
+                .fill(colors.border)
                 .frame(height: 1)
 
             Text(text)
                 .font(Typography.caption)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(colors.inactive)
                 .fixedSize()
 
             Rectangle()
-                .fill(Color.white.opacity(0.1))
+                .fill(colors.border)
                 .frame(height: 1)
         }
     }
@@ -389,17 +389,17 @@ struct OnboardingView: View {
     private func instructionRow(number: String, text: String) -> some View {
         HStack(spacing: Spacing.md) {
             Circle()
-                .fill(Color.white.opacity(0.1))
+                .fill(colors.surface2)
                 .frame(width: 24, height: 24)
                 .overlay(
                     Text(number)
                         .font(Typography.caption)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(colors.sidebarText)
                 )
 
             Text(text)
                 .font(Typography.bodySmall)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(colors.sidebarText)
         }
     }
 }

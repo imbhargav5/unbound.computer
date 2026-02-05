@@ -34,6 +34,10 @@ struct OAuthButtonsView: View {
     @State private var loadingProvider: OAuthProvider?
     @State private var hoveredProvider: OAuthProvider?
 
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
     var body: some View {
         VStack(spacing: Spacing.md) {
             // GitHub Button (Primary style - white bg)
@@ -65,20 +69,20 @@ struct OAuthButtonsView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .padding(.horizontal, Spacing.lg)
-            .background(isPrimary ? Color.white : Color.clear)
-            .foregroundStyle(isPrimary ? Color.black : Color.white)
+            .background(isPrimary ? colors.foreground : Color.clear)
+            .foregroundStyle(isPrimary ? colors.background : colors.foreground)
             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.md)
                     .stroke(
-                        isPrimary ? Color.clear : Color.white.opacity(0.1),
+                        isPrimary ? Color.clear : colors.border,
                         lineWidth: 1
                     )
             )
             .opacity(hoveredProvider == provider ? (isPrimary ? 0.9 : 1) : 1)
             .background(
                 hoveredProvider == provider && !isPrimary ?
-                    Color.white.opacity(0.05) : Color.clear
+                    colors.surface2 : Color.clear
             )
         }
         .buttonStyle(.plain)

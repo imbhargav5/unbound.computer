@@ -214,13 +214,13 @@ struct FileDiffStats: Identifiable, Hashable {
 // MARK: - Diff Colors Extension
 
 extension DiffLineType {
-    /// Background color for this line type
+    /// Background color for this line type - using amber theme diff colors
     func backgroundColor(colors: ThemeColors) -> Color {
         switch self {
         case .addition:
-            return colors.success.opacity(0.15)
+            return colors.diffAddition.opacity(0.15)
         case .deletion:
-            return colors.destructive.opacity(0.15)
+            return colors.diffDeletion.opacity(0.15)
         case .header:
             return colors.info.opacity(0.1)
         case .context:
@@ -232,9 +232,9 @@ extension DiffLineType {
     func gutterColor(colors: ThemeColors) -> Color {
         switch self {
         case .addition:
-            return colors.success
+            return colors.diffAddition
         case .deletion:
-            return colors.destructive
+            return colors.diffDeletion
         case .header:
             return colors.info
         case .context:

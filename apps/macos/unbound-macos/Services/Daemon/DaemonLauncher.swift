@@ -4,6 +4,7 @@
 //
 //  Service for launching and managing the Unbound daemon lifecycle.
 //  Ensures the daemon is running before the app tries to connect.
+//  Uses async process execution to avoid blocking the main thread.
 //
 
 import Foundation
@@ -29,8 +30,9 @@ enum DaemonLauncher {
         "~/.cargo/bin/daemon-bin"
     ]
 
-    /// Find the daemon binary path.
-    private static func findDaemonBinary() -> String? {
+    /// Find the daemon binary path (async, non-blocking).
+    private static func findDaemonBinary() async -> String? {
+        // First check known paths synchronously (fast file system check)
         for path in daemonPaths {
             let expandedPath = NSString(string: path).expandingTildeInPath
             if FileManager.default.isExecutableFile(atPath: expandedPath) {
@@ -38,47 +40,57 @@ enum DaemonLauncher {
             }
         }
 
-        // Try which command as fallback
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["unbound-daemon"]
+        // Try which command as fallback (async to avoid blocking)
+        return await findDaemonBinaryViaWhich()
+    }
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
+    /// Use `which` command to find daemon binary (async, non-blocking).
+    private static func findDaemonBinaryViaWhich() async -> String? {
+        await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+            process.arguments = ["unbound-daemon"]
 
-        do {
-            try process.run()
-            process.waitUntilExit()
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
 
-            if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    return path
+            // Use terminationHandler instead of blocking waitUntilExit()
+            process.terminationHandler = { terminatedProcess in
+                if terminatedProcess.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !path.isEmpty {
+                        continuation.resume(returning: path)
+                        return
+                    }
                 }
+                continuation.resume(returning: nil)
             }
-        } catch {
-            logger.debug("which command failed: \(error)")
-        }
 
-        return nil
+            do {
+                try process.run()
+            } catch {
+                logger.debug("which command failed: \(error)")
+                continuation.resume(returning: nil)
+            }
+        }
     }
 
     // MARK: - Launch Methods
 
     /// Ensure the daemon is running, starting it if necessary.
     static func ensureDaemonRunning() async throws {
-        // Check if already running
+        // Check if already running (quick socket file check)
         if DaemonClient.shared.isDaemonRunning() {
-            logger.info("Daemon is already running")
+            logger.info("Daemon socket exists, assuming running")
             return
         }
 
         logger.info("Daemon not running, attempting to start")
 
-        // Find daemon binary
-        guard let daemonPath = findDaemonBinary() else {
+        // Find daemon binary (async to avoid blocking)
+        guard let daemonPath = await findDaemonBinary() else {
             logger.error("Could not find unbound-daemon binary")
             throw DaemonLauncherError.binaryNotFound
         }
@@ -140,9 +152,21 @@ enum DaemonLauncher {
         }
     }
 
-    /// Check if daemon is installed.
-    static func isDaemonInstalled() -> Bool {
-        findDaemonBinary() != nil
+    /// Check if daemon is installed (async).
+    static func isDaemonInstalled() async -> Bool {
+        await findDaemonBinary() != nil
+    }
+
+    /// Check if daemon is installed (sync, only checks known paths).
+    /// For a complete check including PATH lookup, use the async version.
+    static func isDaemonInstalledSync() -> Bool {
+        for path in daemonPaths {
+            let expandedPath = NSString(string: path).expandingTildeInPath
+            if FileManager.default.isExecutableFile(atPath: expandedPath) {
+                return true
+            }
+        }
+        return false
     }
 }
 

@@ -4,6 +4,7 @@
 //
 //  Main app entry with shadcn design system.
 //  Thin client that connects to daemon for all business logic.
+//  Uses non-blocking initialization to show UI immediately.
 //
 
 import SwiftUI
@@ -12,10 +13,26 @@ import Logging
 private let logger = Logger(label: "app.main")
 
 /// Initialization state for the app
-enum InitializationState {
+enum InitializationState: Equatable {
     case loading(message: String, progress: Double)
     case ready
-    case failed(Error)
+    case readyOffline  // UI ready but daemon not connected
+    case failed(String)
+
+    static func == (lhs: InitializationState, rhs: InitializationState) -> Bool {
+        switch (lhs, rhs) {
+        case (.loading(let m1, let p1), .loading(let m2, let p2)):
+            return m1 == m2 && p1 == p2
+        case (.ready, .ready):
+            return true
+        case (.readyOffline, .readyOffline):
+            return true
+        case (.failed(let e1), .failed(let e2)):
+            return e1 == e2
+        default:
+            return false
+        }
+    }
 }
 
 @main
@@ -37,17 +54,35 @@ struct unbound_macosApp: App {
                     SplashView(statusMessage: message, progress: progress)
                         .frame(minWidth: 900, minHeight: 600)
 
-                case .ready:
+                case .ready, .readyOffline:
                     if let appState {
                         ContentView()
                             .environment(appState)
                             .environment(\.themeColors, ThemeColors(appState.themeMode.colorScheme ?? .dark))
                             .preferredColorScheme(appState.themeMode.colorScheme)
                             .frame(minWidth: 900, minHeight: 600)
+                            .overlay(alignment: .top) {
+                                // Show connection status banner when offline
+                                if initializationState == .readyOffline || !appState.isDaemonConnected {
+                                    DaemonConnectionBanner(
+                                        state: appState.daemonConnectionState,
+                                        onRetry: {
+                                            Task {
+                                                await appState.retryDaemonConnection()
+                                                if appState.isDaemonConnected {
+                                                    initializationState = .ready
+                                                }
+                                            }
+                                        }
+                                    )
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                }
+                            }
+                            .animation(.easeInOut(duration: 0.3), value: appState.isDaemonConnected)
                     }
 
-                case .failed(let error):
-                    InitializationErrorView(error: error) {
+                case .failed(let errorMessage):
+                    InitializationErrorView(error: DaemonError.connectionFailed(errorMessage)) {
                         // Retry initialization
                         Task {
                             await initialize()
@@ -89,56 +124,67 @@ struct unbound_macosApp: App {
         }
     }
 
-    /// Initialize the app asynchronously
+    /// Initialize the app asynchronously with non-blocking UI.
+    /// Shows UI immediately and connects to daemon in background.
     private func initialize() async {
         logger.info("App initialize() called")
 
         // Reset to loading state
         initializationState = .loading(message: "Starting...", progress: 0)
 
-        do {
-            // Update progress: Creating state
-            await MainActor.run {
-                initializationState = .loading(message: "Initializing...", progress: 0.2)
+        // Create AppState immediately so UI can render
+        logger.info("Creating AppState...")
+        let state = AppState()
+        logger.info("AppState created")
+
+        // Show UI immediately with "connecting" state
+        await MainActor.run {
+            self.appState = state
+            initializationState = .loading(message: "Connecting to daemon...", progress: 0.5)
+        }
+
+        // Connect to daemon in background - don't block UI
+        await connectToDaemonNonBlocking(state: state)
+    }
+
+    /// Connect to daemon without blocking UI initialization.
+    /// If connection fails, show UI in offline mode instead of error screen.
+    private func connectToDaemonNonBlocking(state: AppState) async {
+        logger.info("Connecting to daemon (non-blocking)...")
+
+        // Use a timeout for the entire connection process
+        let connectionSucceeded = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { @MainActor in
+                await state.connectToDaemon()
+                return state.daemonConnectionState.isConnected
             }
 
-            // Create AppState
-            logger.info("Creating AppState...")
-            let state = AppState()
-            logger.info("AppState created")
-
-            // Update progress: Connecting to daemon
-            await MainActor.run {
-                initializationState = .loading(message: "Connecting to daemon...", progress: 0.4)
+            group.addTask {
+                // Timeout after 15 seconds total
+                try? await Task.sleep(for: .seconds(15))
+                return false
             }
 
-            // Connect to daemon (this handles auth check and data loading)
-            logger.info("Connecting to daemon...")
-            await state.connectToDaemon()
-            logger.info("Daemon connection complete")
+            // Return first result
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
+        }
 
-            // Check if connection succeeded
-            if case .failed(let reason) = state.daemonConnectionState {
-                throw DaemonError.connectionFailed(reason)
-            }
-
-            // Update progress: Ready
-            await MainActor.run {
-                initializationState = .loading(message: "Ready", progress: 1.0)
-            }
-
-            logger.info("Updating UI state to ready...")
-            await MainActor.run {
-                self.appState = state
+        await MainActor.run {
+            if connectionSucceeded {
+                logger.info("Daemon connected successfully")
                 self.initializationState = .ready
-            }
-            logger.info("UI state updated to ready")
-
-        } catch {
-            logger.error("Initialization failed: \(error.localizedDescription)")
-            await MainActor.run {
-                self.initializationState = .failed(error)
+            } else if case .failed(let reason) = state.daemonConnectionState {
+                logger.warning("Daemon connection failed: \(reason), showing UI in offline mode")
+                // Show UI anyway - user can retry connection
+                self.initializationState = .readyOffline
+            } else {
+                logger.warning("Daemon connection timed out, showing UI in offline mode")
+                self.initializationState = .readyOffline
             }
         }
+
+        logger.info("UI state updated, connection status: \(connectionSucceeded ? "connected" : "offline")")
     }
 }

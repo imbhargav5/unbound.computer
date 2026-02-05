@@ -123,15 +123,15 @@ struct FileListItem: View {
         }
     }
 
-    /// Get icon color based on file type
+    /// Get icon color based on file type - using amber theme colors
     private var iconColor: Color {
         switch fileExtension {
-        case "swift": return Color.orange
-        case "ts", "tsx": return Color.blue
-        case "js", "jsx": return Color.yellow
-        case "py": return Color.green
-        case "json": return Color.purple
-        case "md": return Color.gray
+        case "swift": return colors.accentAmber           // Amber for Swift
+        case "ts", "tsx": return colors.info              // Blue for TypeScript
+        case "js", "jsx": return colors.accentAmber.opacity(0.8) // Amber variant for JS
+        case "py": return colors.success                  // Green for Python
+        case "json": return colors.info.opacity(0.7)      // Blue variant for JSON
+        case "md": return colors.mutedForeground          // Muted for markdown
         default: return colors.mutedForeground
         }
     }

@@ -2,14 +2,15 @@
 //  ShellService.swift
 //  unbound-macos
 //
-//  Low-level Process wrapper for executing shell commands
+//  Low-level Process wrapper for executing shell commands.
+//  Uses non-blocking terminationHandler instead of waitUntilExit().
 //
 
 import Foundation
 
 // MARK: - Process Output
 
-struct ProcessOutput {
+struct ProcessOutput: Sendable {
     let stdout: String
     let stderr: String
     let exitCode: Int32
@@ -17,7 +18,7 @@ struct ProcessOutput {
 
 // MARK: - Process Error
 
-enum ProcessError: Error, LocalizedError {
+enum ProcessError: Error, LocalizedError, Sendable {
     case commandNotFound(String)
     case executionFailed(String, Int32)
     case timeout
@@ -43,57 +44,96 @@ enum ProcessError: Error, LocalizedError {
 class ShellService {
     private var runningProcesses: [UUID: Process] = [:]
 
-    /// Execute a command and return the result
+    /// Execute a command and return the result (non-blocking).
+    /// Uses terminationHandler instead of waitUntilExit() to avoid blocking threads.
     func execute(
         _ command: String,
         arguments: [String] = [],
         workingDirectory: String? = nil,
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        timeout: TimeInterval? = nil
     ) async throws -> ProcessOutput {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
+        let processId = UUID()
 
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            // Use -l (login shell) to load user's profile and PATH (includes Homebrew, etc.)
-            process.arguments = ["-l", "-c", ([command] + arguments).joined(separator: " ")]
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
+        // Create the execution task
+        let executeTask: () async throws -> ProcessOutput = {
+            try await withCheckedThrowingContinuation { continuation in
+                let process = Process()
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
 
-            if let workingDirectory = workingDirectory {
-                process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
-            }
+                process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                // Use -l (login shell) to load user's profile and PATH (includes Homebrew, etc.)
+                process.arguments = ["-l", "-c", ([command] + arguments).joined(separator: " ")]
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
 
-            // Merge current environment with custom environment
-            var env = ProcessInfo.processInfo.environment
-            if let customEnv = environment {
-                for (key, value) in customEnv {
-                    env[key] = value
+                if let workingDirectory {
+                    process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+                }
+
+                // Merge current environment with custom environment
+                var env = ProcessInfo.processInfo.environment
+                if let customEnv = environment {
+                    for (key, value) in customEnv {
+                        env[key] = value
+                    }
+                }
+                process.environment = env
+
+                // Track the process
+                self.runningProcesses[processId] = process
+
+                // Use terminationHandler instead of blocking waitUntilExit()
+                process.terminationHandler = { [weak self] terminatedProcess in
+                    self?.runningProcesses.removeValue(forKey: processId)
+
+                    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+                    let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+                    let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+
+                    let output = ProcessOutput(
+                        stdout: stdout,
+                        stderr: stderr,
+                        exitCode: terminatedProcess.terminationStatus
+                    )
+
+                    continuation.resume(returning: output)
+                }
+
+                do {
+                    try process.run()
+                } catch {
+                    self.runningProcesses.removeValue(forKey: processId)
+                    continuation.resume(throwing: ProcessError.executionFailed(error.localizedDescription, -1))
                 }
             }
-            process.environment = env
+        }
 
-            do {
-                try process.run()
-                process.waitUntilExit()
+        // If timeout specified, race against it
+        if let timeout {
+            return try await withThrowingTaskGroup(of: ProcessOutput.self) { group in
+                group.addTask {
+                    try await executeTask()
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(timeout))
+                    // Terminate the process if it's still running
+                    if let process = self.runningProcesses[processId] {
+                        process.terminate()
+                        self.runningProcesses.removeValue(forKey: processId)
+                    }
+                    throw ProcessError.timeout
+                }
 
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-                let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-                let output = ProcessOutput(
-                    stdout: stdout,
-                    stderr: stderr,
-                    exitCode: process.terminationStatus
-                )
-
-                continuation.resume(returning: output)
-            } catch {
-                continuation.resume(throwing: ProcessError.executionFailed(error.localizedDescription, -1))
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
             }
+        } else {
+            return try await executeTask()
         }
     }
 
@@ -186,11 +226,21 @@ class ShellService {
         return (stream, processId)
     }
 
-    /// Check if a command exists in PATH
-    func commandExists(_ command: String) -> Bool {
+    /// Check if a command exists in PATH (async, non-blocking).
+    func commandExists(_ command: String) async -> Bool {
+        do {
+            let result = try await execute("which \(command)", timeout: 5.0)
+            return result.exitCode == 0
+        } catch {
+            return false
+        }
+    }
+
+    /// Check if a command exists in PATH (synchronous fallback for compatibility).
+    /// Prefer using the async version when possible.
+    func commandExistsSync(_ command: String) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        // Use login shell to load user's PATH (includes Homebrew, etc.)
         process.arguments = ["-l", "-c", "which \(command)"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice

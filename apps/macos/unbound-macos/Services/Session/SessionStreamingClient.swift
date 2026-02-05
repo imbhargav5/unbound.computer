@@ -59,19 +59,43 @@ final class SessionStreamingClient: Sendable {
         let conn = NWConnection(to: endpoint, using: parameters)
         self.connection = conn
 
-        // Wait for connection
+        // Wait for connection with proper handling of ALL states
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // Track whether we've already resumed to prevent multiple resumptions
+            var hasResumed = false
+
             conn.stateUpdateHandler = { [weak self] state in
+                guard !hasResumed else { return }
+
                 switch state {
                 case .ready:
+                    hasResumed = true
                     logger.info("Connected to daemon for session \(self?.sessionId ?? "?")")
                     continuation.resume()
+
                 case .failed(let error):
+                    hasResumed = true
                     logger.error("Connection failed: \(error)")
                     continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
+
                 case .cancelled:
+                    hasResumed = true
                     logger.info("Connection cancelled")
-                default:
+                    continuation.resume(throwing: DaemonError.disconnected)
+
+                case .waiting(let error):
+                    // Connection is waiting - daemon socket exists but nothing listening
+                    hasResumed = true
+                    logger.warning("Connection waiting (daemon not responding): \(error)")
+                    continuation.resume(throwing: DaemonError.connectionFailed("Daemon not responding: \(error)"))
+
+                case .preparing:
+                    logger.debug("Connection preparing for session \(self?.sessionId ?? "?")")
+
+                case .setup:
+                    logger.debug("Connection setup for session \(self?.sessionId ?? "?")")
+
+                @unknown default:
                     break
                 }
             }

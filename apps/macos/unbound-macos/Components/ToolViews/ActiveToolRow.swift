@@ -21,6 +21,7 @@ struct ActiveToolRow: View {
         ToolIcon.icon(for: tool.name)
     }
 
+    /// Icon color based on tool type - using amber theme colors
     private var iconColor: Color {
         switch tool.name {
         case "Bash":
@@ -28,15 +29,15 @@ struct ActiveToolRow: View {
         case "Read":
             return colors.info
         case "Write":
-            return Color.orange
+            return colors.accentAmber              // Amber for write operations
         case "Edit":
-            return Color.purple
+            return colors.info.opacity(0.8)        // Blue variant for edit
         case "Glob":
-            return Color.cyan
+            return colors.success                  // Green for file search
         case "Grep":
-            return Color.yellow
+            return colors.accentAmber.opacity(0.8) // Amber variant for text search
         case "WebFetch", "WebSearch":
-            return Color.blue
+            return colors.info                     // Blue for web operations
         default:
             return colors.mutedForeground
         }
@@ -115,5 +116,5 @@ struct ActiveToolRow: View {
     }
     .frame(width: 450)
     .padding()
-    .background(Color.gray.opacity(0.1))
+    .background(Color(red: 0.07, green: 0.07, blue: 0.07)) // surface1
 }
