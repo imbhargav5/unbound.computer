@@ -49,7 +49,7 @@
 
 use base64::Engine;
 use daemon_auth::{CodingSessionSecretRecord, SupabaseClient};
-use daemon_database::{queries, DatabasePool};
+use daemon_database::{queries, AsyncDatabase};
 use daemon_storage::SecretsManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -131,8 +131,8 @@ impl std::error::Error for SyncError {}
 pub struct SessionSyncService {
     /// Supabase HTTP client for API calls.
     supabase_client: Arc<SupabaseClient>,
-    /// Local database pool for repository queries.
-    db: Arc<DatabasePool>,
+    /// Async database for repository queries.
+    db: AsyncDatabase,
     /// Secrets manager for authentication credentials.
     secrets: Arc<Mutex<SecretsManager>>,
     /// This device's unique identifier.
@@ -161,7 +161,7 @@ impl SessionSyncService {
     /// A new `SessionSyncService` instance ready to sync sessions.
     pub fn new(
         supabase_client: Arc<SupabaseClient>,
-        db: Arc<DatabasePool>,
+        db: AsyncDatabase,
         secrets: Arc<Mutex<SecretsManager>>,
         device_id: Arc<Mutex<Option<String>>>,
         device_private_key: Arc<Mutex<Option<[u8; 32]>>>,
@@ -236,15 +236,12 @@ impl SessionSyncService {
         let (user_id, device_id, access_token) = self.get_auth_context()?;
 
         // Get repository from local database
-        let repo = {
-            let conn = self
-                .db
-                .get()
-                .map_err(|e| SyncError::Supabase(e.to_string()))?;
-            queries::get_repository(&conn, repository_id)
-                .map_err(|e| SyncError::Supabase(e.to_string()))?
-                .ok_or_else(|| SyncError::RepositoryNotFound(repository_id.to_string()))?
-        };
+        let repo_id_owned = repository_id.to_string();
+        let repo = self.db.call(move |conn| {
+            queries::get_repository(conn, &repo_id_owned)
+        }).await
+            .map_err(|e| SyncError::Supabase(e.to_string()))?
+            .ok_or_else(|| SyncError::RepositoryNotFound(repository_id.to_string()))?;
 
         self.supabase_client
             .upsert_repository(

@@ -32,17 +32,10 @@ async fn register_git_status(server: &IpcServer, state: DaemonState) {
                     .map(|s| s.to_lowercase())
                 {
                     // Look up repository path from database
-                    let conn = match state.db.get() {
-                        Ok(c) => c,
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            )
-                        }
-                    };
-                    match queries::get_repository(&conn, &repo_id) {
+                    let repo_id_owned = repo_id.clone();
+                    match state.db.call(move |conn| {
+                        queries::get_repository(conn, &repo_id_owned)
+                    }).await {
                         Ok(Some(repo)) => repo.path,
                         Ok(None) => {
                             return Response::error(
@@ -104,17 +97,10 @@ async fn register_git_diff_file(server: &IpcServer, state: DaemonState) {
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_lowercase())
                 {
-                    let conn = match state.db.get() {
-                        Ok(c) => c,
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            )
-                        }
-                    };
-                    match queries::get_repository(&conn, &repo_id) {
+                    let repo_id_owned = repo_id.clone();
+                    match state.db.call(move |conn| {
+                        queries::get_repository(conn, &repo_id_owned)
+                    }).await {
                         Ok(Some(repo)) => repo.path,
                         Ok(None) => {
                             return Response::error(
@@ -190,7 +176,7 @@ async fn register_git_diff_file(server: &IpcServer, state: DaemonState) {
 }
 
 /// Helper to extract repository path from request params.
-fn extract_repo_path(
+async fn extract_repo_path(
     state: &DaemonState,
     params: &Option<serde_json::Value>,
 ) -> Result<String, (i32, String)> {
@@ -200,11 +186,10 @@ fn extract_repo_path(
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase())
     {
-        let conn = state
-            .db
-            .get()
-            .map_err(|e| (error_codes::INTERNAL_ERROR, e.to_string()))?;
-        match queries::get_repository(&conn, &repo_id) {
+        let repo_id_owned = repo_id.clone();
+        match state.db.call(move |conn| {
+            queries::get_repository(conn, &repo_id_owned)
+        }).await {
             Ok(Some(repo)) => Ok(repo.path),
             Ok(None) => Err((error_codes::NOT_FOUND, "Repository not found".to_string())),
             Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
@@ -228,7 +213,7 @@ async fn register_git_log(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitLog, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params) {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
                     Ok(p) => p,
                     Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
@@ -279,7 +264,7 @@ async fn register_git_branches(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitBranches, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params) {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
                     Ok(p) => p,
                     Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
@@ -305,7 +290,7 @@ async fn register_git_stage(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitStage, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params) {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
                     Ok(p) => p,
                     Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
@@ -346,7 +331,7 @@ async fn register_git_unstage(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitUnstage, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params) {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
                     Ok(p) => p,
                     Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
@@ -387,7 +372,7 @@ async fn register_git_discard(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitDiscard, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params) {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
                     Ok(p) => p,
                     Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };

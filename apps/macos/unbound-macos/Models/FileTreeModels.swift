@@ -15,11 +15,11 @@ enum GitFileStatus: String, Hashable {
     case untracked
     case unchanged
 
-    var color: Color {
+    func color(_ colors: ThemeColors) -> Color {
         switch self {
-        case .staged: return .green
-        case .modified: return .orange
-        case .untracked: return .gray
+        case .staged: return colors.diffAddition
+        case .modified: return colors.fileModified
+        case .untracked: return colors.fileUntracked
         case .unchanged: return .clear
         }
     }
@@ -111,19 +111,19 @@ enum FileItemType: String, Hashable {
         }
     }
 
-    var iconColor: Color {
+    func iconColor(_ colors: ThemeColors) -> Color {
         switch self {
-        case .folder: return .blue
-        case .file: return .secondary
-        case .gitFolder: return .gray
-        case .gitIgnore: return .red
-        case .license: return .secondary
-        case .json: return .yellow
-        case .yaml: return .red
-        case .typescript: return .blue
-        case .javascript: return .yellow
-        case .swift: return .orange
-        case .markdown: return .purple
+        case .folder: return colors.gray666
+        case .file: return colors.gray4A4
+        case .gitFolder: return colors.gray666
+        case .gitIgnore: return colors.textInactive
+        case .license: return colors.gray4A4
+        case .json: return colors.accentAmber
+        case .yaml: return colors.textInactive
+        case .typescript: return colors.accentAmber
+        case .javascript: return colors.accentAmber
+        case .swift: return colors.fileModified
+        case .markdown: return colors.gray7A7
         }
     }
 

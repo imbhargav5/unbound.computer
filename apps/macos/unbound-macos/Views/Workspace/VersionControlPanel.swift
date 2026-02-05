@@ -251,7 +251,7 @@ struct FileTreeRowSimple: View {
 
                     Image(systemName: item.type.iconName)
                         .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor)
+                        .foregroundStyle(item.type.iconColor(colors))
 
                     Text(item.name)
                         .font(Typography.bodySmall)
@@ -264,7 +264,7 @@ struct FileTreeRowSimple: View {
                     if item.gitStatus != .unchanged {
                         Text(item.gitStatus.indicator)
                             .font(Typography.micro)
-                            .foregroundStyle(item.gitStatus.color)
+                            .foregroundStyle(item.gitStatus.color(colors))
                             .padding(.trailing, Spacing.xs)
                     }
                 }
@@ -340,7 +340,7 @@ struct FileTreeRowWithViewModel: View {
 
                     Image(systemName: item.type.iconName)
                         .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor)
+                        .foregroundStyle(item.type.iconColor(colors))
 
                     Text(item.name)
                         .font(Typography.bodySmall)
@@ -353,7 +353,7 @@ struct FileTreeRowWithViewModel: View {
                     if item.gitStatus != .unchanged {
                         Text(item.gitStatus.indicator)
                             .font(Typography.micro)
-                            .foregroundStyle(item.gitStatus.color)
+                            .foregroundStyle(item.gitStatus.color(colors))
                             .padding(.trailing, Spacing.xs)
                     }
                 }
@@ -430,7 +430,7 @@ struct FileTreeRowWithDiff: View {
 
                     Image(systemName: item.type.iconName)
                         .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor)
+                        .foregroundStyle(item.type.iconColor(colors))
 
                     Text(item.name)
                         .font(Typography.bodySmall)
@@ -443,7 +443,7 @@ struct FileTreeRowWithDiff: View {
                     if item.gitStatus != .unchanged {
                         Text(item.gitStatus.indicator)
                             .font(Typography.micro)
-                            .foregroundStyle(item.gitStatus.color)
+                            .foregroundStyle(item.gitStatus.color(colors))
                             .padding(.trailing, Spacing.xs)
                     }
                 }

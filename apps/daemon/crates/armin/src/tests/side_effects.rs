@@ -24,7 +24,7 @@ use tempfile::NamedTempFile;
 fn rule_11_side_effect_for_every_append() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
     let append_count = 10;
@@ -34,7 +34,7 @@ fn rule_11_side_effect_for_every_append() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     let effects = armin.sink().effects();
@@ -56,7 +56,7 @@ fn rule_11_side_effect_for_every_append() {
 fn rule_12_exactly_one_side_effect_per_append() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
     let message = armin.append(
@@ -64,7 +64,7 @@ fn rule_12_exactly_one_side_effect_per_append() {
         NewMessage {
             content: "Single message".to_string(),
         },
-    );
+    ).unwrap();
 
     let effects = armin.sink().effects();
     let matching: Vec<_> = effects
@@ -94,13 +94,13 @@ fn rule_13_side_effects_after_sqlite_commit() {
     let (session_id, message) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         let message = armin.append(
             &session_id,
             NewMessage {
                 content: "Test".to_string(),
             },
-        );
+        ).unwrap();
 
         // Verify side-effect was emitted
         assert!(armin.sink().effects().iter().any(|e| matches!(
@@ -126,8 +126,8 @@ fn rule_14_side_effects_contain_correct_session_id() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
     armin.sink().clear();
 
     armin.append(
@@ -135,13 +135,13 @@ fn rule_14_side_effects_contain_correct_session_id() {
         NewMessage {
             content: "S1".to_string(),
         },
-    );
+    ).unwrap();
     armin.append(
         &session2,
         NewMessage {
             content: "S2".to_string(),
         },
-    );
+    ).unwrap();
 
     let effects = armin.sink().effects();
 
@@ -167,7 +167,7 @@ fn rule_14_side_effects_contain_correct_session_id() {
 fn rule_15_side_effects_contain_correct_message_id() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
     let msg1 = armin.append(
@@ -175,13 +175,13 @@ fn rule_15_side_effects_contain_correct_message_id() {
         NewMessage {
             content: "M1".to_string(),
         },
-    );
+    ).unwrap();
     let msg2 = armin.append(
         &session_id,
         NewMessage {
             content: "M2".to_string(),
         },
-    );
+    ).unwrap();
 
     let effects = armin.sink().effects();
 
@@ -205,7 +205,7 @@ fn rule_15_side_effects_contain_correct_message_id() {
 fn rule_16_side_effects_preserve_append_order() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
     let mut messages = Vec::new();
@@ -215,7 +215,7 @@ fn rule_16_side_effects_preserve_append_order() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        ));
+        ).unwrap());
     }
 
     let effects = armin.sink().effects();
@@ -240,21 +240,19 @@ fn rule_16_side_effects_preserve_append_order() {
 fn rule_17_no_side_effect_on_failed_write() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
-    armin.close(&session_id);
+    let session_id = armin.create_session().unwrap();
+    armin.close(&session_id).unwrap();
     armin.sink().clear();
 
-    // Attempt to append to closed session (will panic)
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Should fail".to_string(),
-            },
-        );
-    }));
+    // Attempt to append to closed session (will return Err)
+    let result = armin.append(
+        &session_id,
+        NewMessage {
+            content: "Should fail".to_string(),
+        },
+    );
 
-    assert!(result.is_err(), "Should panic on closed session");
+    assert!(result.is_err(), "Should return error on closed session");
     assert!(
         armin.sink().is_empty(),
         "No side-effect should be emitted for failed write"
@@ -271,14 +269,14 @@ fn rule_18_no_side_effects_during_recovery() {
     {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         for i in 0..50 {
             armin.append(
                 &session_id,
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
     }
 
@@ -298,7 +296,7 @@ fn rule_18_no_side_effects_during_recovery() {
 fn rule_19_no_side_effects_during_snapshot_rebuild() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..10 {
         armin.append(
@@ -306,7 +304,7 @@ fn rule_19_no_side_effects_during_snapshot_rebuild() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     armin.sink().clear();
@@ -325,14 +323,14 @@ fn rule_19_no_side_effects_during_snapshot_rebuild() {
 fn rule_20_reads_never_emit_side_effects() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     armin.sink().clear();
 
@@ -370,7 +368,7 @@ fn session_created_emits_side_effect() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
@@ -382,10 +380,10 @@ fn session_closed_emits_side_effect() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
@@ -397,7 +395,7 @@ fn closing_nonexistent_session_emits_nothing() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    armin.close(&SessionId::from_string("nonexistent-session-9999"));
+    armin.close(&SessionId::from_string("nonexistent-session-9999")).unwrap();
 
     assert!(armin.sink().is_empty());
 }
@@ -407,11 +405,11 @@ fn closing_already_closed_session_emits_nothing() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session_id = armin.create_session();
-    armin.close(&session_id);
+    let session_id = armin.create_session().unwrap();
+    armin.close(&session_id).unwrap();
     armin.sink().clear();
 
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     assert!(armin.sink().is_empty());
 }
@@ -421,21 +419,21 @@ fn multiple_sessions_emit_independent_side_effects() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
 
     armin.append(
         &session1,
         NewMessage {
             content: "Session 1".to_string(),
         },
-    );
+    ).unwrap();
     armin.append(
         &session2,
         NewMessage {
             content: "Session 2".to_string(),
         },
-    );
+    ).unwrap();
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 4); // 2 SessionCreated + 2 MessageAppended

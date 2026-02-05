@@ -75,7 +75,7 @@ struct RepositorySettingsView: View {
             isPresented: $showRemoveConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Remove", role: .destructive) {
+            Button("Remove") {
                 removeRepository()
             }
             Button("Cancel", role: .cancel) {}
@@ -302,7 +302,7 @@ struct RepositorySettingsView: View {
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                Button(role: .destructive) {
+                Button {
                     showRemoveConfirmation = true
                 } label: {
                     HStack(spacing: Spacing.sm) {

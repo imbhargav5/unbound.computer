@@ -1,1 +1,231 @@
 # Unbound
+
+A local-first AI coding assistant with native clients, a background daemon, and optional cloud sync.
+
+## What is Unbound?
+
+Unbound is a development tool that pairs a background Rust daemon with native client applications to provide AI-assisted coding sessions. The daemon manages Claude CLI processes, tracks sessions in a local SQLite database, handles authentication, and orchestrates git operations -- all through a Unix socket IPC interface that any client can connect to.
+
+The system follows a local-first architecture: all session data lives in SQLite on your machine, and the daemon operates fully offline. When signed in, sessions optionally sync to Supabase with end-to-end encryption (X25519 + ChaCha20-Poly1305), enabling cross-device access through the web app.
+
+A WebSocket relay server enables real-time streaming between the daemon and web clients, while a Redis-backed command courier (Falco) delivers encrypted remote commands to the daemon for web-initiated sessions.
+
+## Architecture
+
+```
+macOS App (SwiftUI) ──┐
+                      ├── Unix Socket (NDJSON) ──> Daemon (Rust)
+CLI (Rust/ratatui) ───┘                              |
+                                                 ┌───┴───┐
+                                              SQLite   Supabase
+                                              (local)  (cloud sync)
+                                                 |
+                                           ┌─────┼──────┐
+                                        Claude  libgit2  Groq
+                                         CLI    (git)   (titles)
+```
+
+Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages Claude CLI processes, persists all session data to SQLite, and optionally syncs encrypted messages to Supabase.
+
+## Project Structure
+
+```
+unbound.computer/
+├── apps/
+│   ├── daemon/          # Rust daemon (14 crates)
+│   ├── macos/           # macOS native app (SwiftUI)
+│   ├── cli-new/         # Terminal client (Rust/ratatui)
+│   ├── web/             # Web app (Next.js)
+│   ├── relay/           # WebSocket relay server (Node.js)
+│   ├── database/        # Supabase schema and migrations
+│   ├── email/           # Transactional email templates
+│   └── ios/             # iOS app (placeholder)
+├── packages/
+│   ├── protocol/        # Shared message protocol types
+│   ├── crypto/          # E2E encryption (TypeScript)
+│   ├── redis/           # Redis client utilities
+│   ├── session/         # Session management helpers
+│   ├── transport-reliability/  # Reliable message delivery
+│   ├── observability/   # Shared logging (Rust + TS)
+│   ├── agent-runtime/   # Agent execution runtime
+│   ├── git-worktree/    # Git worktree utilities
+│   ├── web-session/     # Web session management
+│   └── typescript-config/ # Shared TS config
+├── supabase/            # Supabase project configuration
+├── docs/                # Internal documentation
+└── scripts/             # Build and release scripts
+```
+
+## Daemon Crates
+
+The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
+
+| Crate | Description |
+|-------|-------------|
+| `daemon-bin` | Binary entry point, CLI parsing, daemon lifecycle |
+| `daemon-core` | Shared config, paths, logging, hybrid encryption |
+| `daemon-ipc` | Unix socket server, NDJSON protocol, request routing |
+| `daemon-auth` | OAuth flow, token refresh, FSM-based auth state |
+| `daemon-database` | Async SQLite executor, migrations, model types |
+| `daemon-storage` | Platform-specific secure storage (Keychain, Secret Service, Credential Vault) |
+| `armin` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
+| `deku` | Claude CLI process manager: spawning, streaming, event parsing |
+| `piccolo` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
+| `levi` | Supabase message sync worker with batching and retries |
+| `toshinori` | Supabase sync sink for Armin side-effects |
+| `falco` | Encrypted remote command courier (Redis Streams to daemon) |
+| `yamcha` | Session title generation via Groq Llama 3.1 8B |
+| `yagami` | Safe directory listing with path traversal protection |
+
+## Tech Stack
+
+**Daemon (Rust)**
+- Tokio async runtime
+- SQLite via rusqlite (WAL mode, async executor)
+- libgit2 via git2 crate
+- ChaCha20-Poly1305 + X25519 encryption
+- Unix domain sockets via interprocess
+- clap for CLI, tracing for logging
+
+**macOS App (Swift)**
+- SwiftUI with MVVM architecture
+- Unix socket IPC to daemon
+- swift-log for structured logging
+- Keychain integration for secure storage
+
+**Web App (TypeScript)**
+- Next.js (App Router)
+- Supabase client for auth and data
+- Sentry for error tracking
+- Biome for linting/formatting
+
+**Relay Server (TypeScript)**
+- WebSocket server (uWebSockets)
+- Supabase for auth verification
+- Redis for pub/sub and streams
+- Deployed on Fly.io
+
+**Infrastructure**
+- Supabase (Postgres, Auth, Realtime)
+- Redis (command queuing via Streams)
+- pnpm workspaces + Turborepo
+- AGPL-3.0 license
+
+## Prerequisites
+
+- **Rust** (stable toolchain)
+- **Node.js** v20+
+- **pnpm** v9+
+- **Xcode** (for macOS app)
+- **Supabase CLI** (for local database development)
+
+## Getting Started
+
+### 1. Install dependencies
+
+```sh
+pnpm install
+```
+
+### 2. Build the daemon
+
+```sh
+cd apps/daemon && cargo build --release
+```
+
+Or from the repo root:
+
+```sh
+pnpm daemon:build
+```
+
+### 3. Run the daemon
+
+```sh
+# Background mode
+pnpm daemon:start
+
+# Foreground with debug logging
+pnpm daemon:foreground
+
+# Check status
+pnpm daemon:status
+
+# Stop
+pnpm daemon:stop
+```
+
+### 4. Build and run the CLI
+
+```sh
+pnpm cli:build
+pnpm cli
+```
+
+### 5. Run the web app
+
+```sh
+pnpm web#dev
+```
+
+### 6. Open the macOS app
+
+Open `apps/macos/unbound-macos.xcodeproj` in Xcode and build/run.
+
+## Development
+
+### Daemon
+
+```sh
+cd apps/daemon
+
+# Build
+cargo build
+
+# Run tests
+cargo test
+
+# Run with trace logging
+RUST_LOG=trace cargo run -- start --foreground
+```
+
+### Web App
+
+```sh
+cd apps/web
+cp .env.local.example .env.local  # Configure environment
+pnpm dev
+```
+
+### Relay Server
+
+```sh
+cd apps/relay
+cp .env.example .env  # Configure environment
+pnpm dev
+```
+
+### Database
+
+```sh
+cd apps/database
+pnpm supabase start   # Start local Supabase
+pnpm supabase db push # Apply migrations
+```
+
+### Code Quality
+
+```sh
+# Lint and format (TypeScript/JavaScript)
+npx ultracite fix
+
+# Check for issues
+npx ultracite check
+
+# Rust
+cd apps/daemon && cargo clippy
+```
+
+## License
+
+AGPL-3.0 -- see [LICENSE](LICENSE) for details.

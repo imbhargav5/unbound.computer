@@ -54,10 +54,12 @@ pub async fn handle_terminal_process(
                 })
                 .to_string();
 
-                armin_for_stderr.append(
+                if let Err(e) = armin_for_stderr.append(
                     &session_id_for_stderr,
                     NewMessage { content },
-                );
+                ) {
+                    tracing::warn!(error = %e, "Failed to store terminal stderr output");
+                }
             }
         }))
     } else {
@@ -84,10 +86,12 @@ pub async fn handle_terminal_process(
                             "content": line,
                         }).to_string();
 
-                        state.armin.append(
+                        if let Err(e) = state.armin.append(
                             &armin_session_id,
                             NewMessage { content },
-                        );
+                        ) {
+                            warn!(error = %e, "Failed to store terminal stdout output");
+                        }
                     }
                     Ok(None) => {
                         // EOF - process finished
@@ -132,10 +136,12 @@ pub async fn handle_terminal_process(
     })
     .to_string();
 
-    state.armin.append(
+    if let Err(e) = state.armin.append(
         &armin_session_id,
         NewMessage { content },
-    );
+    ) {
+        warn!(error = %e, "Failed to store terminal finished event");
+    }
 
     // Remove from running processes
     {

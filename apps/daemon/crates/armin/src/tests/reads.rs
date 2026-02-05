@@ -24,14 +24,14 @@ use std::thread;
 fn rule_51_reads_never_emit_side_effects() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     armin.sink().clear();
 
@@ -72,13 +72,13 @@ fn rule_52_reads_never_write_sqlite() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.append(
             &session_id,
             NewMessage {
                 content: "Original".to_string(),
             },
-        );
+        ).unwrap();
         session_id
     };
 
@@ -108,14 +108,14 @@ fn rule_52_reads_never_write_sqlite() {
 fn rule_53_reads_never_modify_delta() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     // Many reads
     for _ in 0..100 {
@@ -133,7 +133,7 @@ fn rule_53_reads_never_modify_delta() {
 fn rule_54_reads_never_notify_subscribers() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -155,7 +155,7 @@ fn rule_54_reads_never_notify_subscribers() {
 fn rule_55_reads_are_deterministic() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..10 {
         armin.append(
@@ -163,7 +163,7 @@ fn rule_55_reads_are_deterministic() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Multiple reads should return identical results
@@ -181,14 +181,14 @@ fn rule_55_reads_are_deterministic() {
 fn rule_56_reads_are_repeatable() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Repeat same read many times
@@ -207,7 +207,7 @@ fn rule_57_concurrent_reads_safe() {
 
     let sink = RecordingSink::new();
     let armin = Arc::new(Armin::in_memory(sink).unwrap());
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..10 {
         armin.append(
@@ -215,7 +215,7 @@ fn rule_57_concurrent_reads_safe() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Note: Armin is not Sync due to rusqlite::Connection
@@ -247,14 +247,14 @@ fn rule_57_concurrent_reads_safe() {
 fn rule_58_reads_tolerate_snapshot_replacement() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "V1".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Take snapshot
@@ -266,7 +266,7 @@ fn rule_58_reads_tolerate_snapshot_replacement() {
         NewMessage {
             content: "V2".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Old snapshot still works
@@ -285,7 +285,7 @@ fn rule_58_reads_tolerate_snapshot_replacement() {
 fn rule_59_reads_tolerate_delta_growth() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Take initial delta
     let delta_before = armin.delta(&session_id);
@@ -298,7 +298,7 @@ fn rule_59_reads_tolerate_delta_growth() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Old delta reference is still valid (it's a clone)
@@ -314,7 +314,7 @@ fn rule_59_reads_tolerate_delta_growth() {
 fn rule_60_reads_do_not_block_writes() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Hold onto read references
     let _snapshot = armin.snapshot();
@@ -328,7 +328,7 @@ fn rule_60_reads_do_not_block_writes() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Verify writes succeeded
@@ -343,7 +343,7 @@ fn rule_60_reads_do_not_block_writes() {
 fn reading_empty_session() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.refresh_snapshot().unwrap();
 
@@ -371,15 +371,15 @@ fn reading_nonexistent_session() {
 fn reading_closed_session() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Before close".to_string(),
         },
-    );
-    armin.close(&session_id);
+    ).unwrap();
+    armin.close(&session_id).unwrap();
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
@@ -392,20 +392,20 @@ fn reading_closed_session() {
 fn reading_message_ids() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let msg1 = armin.append(
         &session_id,
         NewMessage {
             content: "One".to_string(),
         },
-    );
+    ).unwrap();
     let msg2 = armin.append(
         &session_id,
         NewMessage {
             content: "Two".to_string(),
         },
-    );
+    ).unwrap();
 
     let delta = armin.delta(&session_id);
     assert_eq!(delta.messages()[0].id, msg1.id);

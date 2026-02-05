@@ -356,7 +356,7 @@ struct ElevationModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? elevation.opacity * 1.5 : elevation.opacity),
+                color: Color(hex: "0D0D0D").opacity(colorScheme == .dark ? elevation.opacity * 1.5 : elevation.opacity),
                 radius: elevation.radius,
                 x: 0,
                 y: elevation.y

@@ -443,21 +443,6 @@ struct ChatPanel: View {
             HStack(spacing: Spacing.sm) {
                 ToolbarIconButton(systemName: "doc.text.magnifyingglass", action: {})
                 ToolbarIconButton(systemName: "square.and.pencil", action: {})
-
-                Button(action: {}) {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: IconSize.xs))
-                        Text("Commit")
-                            .font(Typography.toolbar)
-                    }
-                    .foregroundStyle(colors.primaryActionForeground)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(colors.primaryAction)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, Spacing.lg)
@@ -717,10 +702,7 @@ struct FileEditorTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             if files.isEmpty {
-                Text("Editor")
-                    .font(Typography.toolbarMuted)
-                    .foregroundStyle(colors.mutedForeground)
-                    .padding(.horizontal, Spacing.md)
+                Spacer(minLength: 0)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Spacing.xs) {
@@ -938,7 +920,7 @@ struct FileEditorView: View {
                             Spacer(minLength: 0)
                         }
                         .padding(.vertical, Spacing.sm)
-                        .frame(minHeight: proxy.size.height, alignment: .topLeading)
+                        .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
                     }
                 }
             }

@@ -43,7 +43,7 @@ struct AccountSettings: View {
             isPresented: $showSignOutConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Sign Out", role: .destructive) {
+            Button("Sign Out") {
                 signOut()
             }
             Button("Cancel", role: .cancel) {}

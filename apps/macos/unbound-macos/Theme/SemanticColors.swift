@@ -2,7 +2,7 @@
 //  SemanticColors.swift
 //  unbound-macos
 //
-//  Shadcn-inspired Zinc color palette with semantic naming
+//  Amber/gray palette with semantic naming
 //
 
 import SwiftUI
@@ -13,22 +13,6 @@ struct ShadcnColors {
     // Environment to detect color scheme
     @Environment(\.colorScheme) private var colorScheme
 
-    // MARK: - Zinc Palette (Raw Values)
-
-    private enum Zinc {
-        static let _50 = Color(hex: "fafafa")
-        static let _100 = Color(hex: "f4f4f5")
-        static let _200 = Color(hex: "e4e4e7")
-        static let _300 = Color(hex: "d4d4d8")
-        static let _400 = Color(hex: "a1a1aa")
-        static let _500 = Color(hex: "71717a")
-        static let _600 = Color(hex: "52525b")
-        static let _700 = Color(hex: "3f3f46")
-        static let _800 = Color(hex: "27272a")
-        static let _900 = Color(hex: "18181b")
-        static let _950 = Color(hex: "09090b")
-    }
-
     // MARK: - Semantic Colors (Static for simplicity)
 
     // These are designed for dark mode by default (dev tool aesthetic)
@@ -36,29 +20,29 @@ struct ShadcnColors {
 
     struct Dark {
         // Core backgrounds - Amber theme dark palette
-        static let background = Color(hex: "0C0C0C")      // Main background
+        static let background = Color(hex: "0D0D0D")      // Main background
         static let foreground = Color(hex: "FFFFFF")      // Primary text
 
-        static let card = Color(hex: "0F0F10")            // Sidebar, headers, footers
+        static let card = Color(hex: "0A0A0A")            // Sidebar, headers, footers
         static let cardForeground = Color(hex: "FFFFFF")
 
         static let popover = Color(hex: "0A0A0A")
         static let popoverForeground = Color(hex: "FFFFFF")
 
-        static let primary = Color(hex: "FFFFFF")
+        static let primary = Color(hex: "F59E0B")
         static let primaryForeground = Color(hex: "0D0D0D")
 
         static let secondary = Color(hex: "1A1A1A")       // Active tabs, buttons
         static let secondaryForeground = Color(hex: "FFFFFF")
 
-        static let muted = Color(hex: "161616")
+        static let muted = Color(hex: "111111")
         static let mutedForeground = Color(hex: "A3A3A3") // Muted text
 
-        static let accent = Color(hex: "1A1A1A")          // Accent background
+        static let accent = Color(hex: "F59E0B15")        // Accent background
         static let accentForeground = Color(hex: "FFFFFF")
 
-        static let destructive = Color(hex: "F85149")     // Deletion/error color
-        static let destructiveForeground = Color(hex: "FFFFFF")
+        static let destructive = Color(hex: "F59E0B")     // Deletion/error color (amber)
+        static let destructiveForeground = Color(hex: "0D0D0D")
 
         static let border = Color(hex: "1F1F1F")          // Primary borders
         static let input = Color(hex: "111111")           // Input containers
@@ -71,12 +55,12 @@ struct ShadcnColors {
         // Additional semantic colors
         static let success = Color(hex: "22C55E")
         static let warning = Color(hex: "F59E0B")         // Amber for warning
-        static let info = Color(hex: "3b82f6")
+        static let info = Color(hex: "F59E0B")
 
         // Surface hierarchy (layered backgrounds for depth)
-        static let surface0 = Color(hex: "0C0C0C")        // Window/root background
-        static let surface1 = Color(hex: "0F0F10")        // Primary content areas
-        static let surface2 = Color(hex: "141414")        // Elevated/nested content
+        static let surface0 = Color(hex: "0D0D0D")        // Window/root background
+        static let surface1 = Color(hex: "0F0F0F")        // Primary content areas
+        static let surface2 = Color(hex: "111111")        // Elevated/nested content
 
         // Primary action color - AMBER accent
         static let primaryAction = Color(hex: "F59E0B")   // Amber accent
@@ -103,7 +87,7 @@ struct ShadcnColors {
         static let fileModified = Color(hex: "E2C08D")    // Gold for M status
         static let fileUntracked = Color(hex: "73C991")   // Green for U status
         static let diffAddition = Color(hex: "3FB950")    // Green for +
-        static let diffDeletion = Color(hex: "F85149")    // Red for -
+        static let diffDeletion = Color(hex: "F59E0B")    // Amber for -
 
         // MARK: - Chat-specific
         static let chatBackground = Color(hex: "0F0F0F")  // Chat panel background
@@ -123,68 +107,89 @@ struct ShadcnColors {
         static let inactive = Color(hex: "5A5A5A")        // Inactive tabs
 
         // MARK: - Workspace-Specific UI
-        static let toolbarBackground = Color(hex: "0F0F10")
+        static let toolbarBackground = Color(hex: "0F0F0F")
         static let panelDivider = Color(hex: "1A1A1A")
-        static let selectionBackground = Color(hex: "F59E0B1A") // 10% amber
-        static let selectionBorder = Color(hex: "F59E0B55")     // 35% amber
-        static let hoverBackground = Color(hex: "141414")
-        static let editorBackground = Color(hex: "0E0E0F")
+        static let selectionBackground = Color(hex: "F59E0B15") // 15% amber
+        static let selectionBorder = Color(hex: "F59E0B40")     // 40% amber
+        static let hoverBackground = Color(hex: "1A1A1A")
+        static let editorBackground = Color(hex: "111111")
     }
 
     struct Light {
-        static let background = Color.white
-        static let foreground = Zinc._950
+        static let background = Color(hex: "FFFFFF")
+        static let foreground = Color(hex: "0D0D0D")
 
-        static let card = Color.white
-        static let cardForeground = Zinc._950
+        static let card = Color(hex: "FFFFFF")
+        static let cardForeground = Color(hex: "0D0D0D")
 
-        static let popover = Color.white
-        static let popoverForeground = Zinc._950
+        static let popover = Color(hex: "FFFFFF")
+        static let popoverForeground = Color(hex: "0D0D0D")
 
-        static let primary = Zinc._900
-        static let primaryForeground = Zinc._50
+        static let primary = Color(hex: "F59E0B")
+        static let primaryForeground = Color(hex: "0D0D0D")
 
-        static let secondary = Zinc._100
-        static let secondaryForeground = Zinc._900
+        static let secondary = Color(hex: "E5E5E5")
+        static let secondaryForeground = Color(hex: "0D0D0D")
 
-        static let muted = Zinc._100
-        static let mutedForeground = Zinc._500
+        static let muted = Color(hex: "E5E5E5")
+        static let mutedForeground = Color(hex: "737373")
 
-        static let accent = Zinc._100
-        static let accentForeground = Zinc._900
+        static let accent = Color(hex: "F59E0B15")
+        static let accentForeground = Color(hex: "0D0D0D")
 
-        static let destructive = Color(hex: "ef4444")
-        static let destructiveForeground = Zinc._50
+        static let destructive = Color(hex: "F59E0B")
+        static let destructiveForeground = Color(hex: "0D0D0D")
 
-        static let border = Zinc._200
-        static let input = Zinc._200
-        static let ring = Zinc._950
+        static let border = Color(hex: "B3B3B3")
+        static let input = Color(hex: "E5E5E5")
+        static let ring = Color(hex: "F59E0B")
 
         // Sidebar text hierarchy (foreground → sidebarText → sidebarMeta → mutedForeground)
-        static let sidebarText = Zinc._700          // Session titles, main content
-        static let sidebarMeta = Zinc._400          // Metadata, counts, timestamps
+        static let sidebarText = Color(hex: "0D0D0D")     // Session titles, main content
+        static let sidebarMeta = Color(hex: "737373")     // Metadata, counts, timestamps
 
         // Additional semantic colors
-        static let success = Color(hex: "22c55e")
-        static let warning = Color(hex: "eab308")
-        static let info = Color(hex: "3b82f6")
+        static let success = Color(hex: "22C55E")
+        static let warning = Color(hex: "F59E0B")
+        static let info = Color(hex: "F59E0B")
 
         // Surface hierarchy (layered backgrounds for depth)
-        static let surface0 = Color.white        // Window/root background
-        static let surface1 = Zinc._50           // Primary content areas
-        static let surface2 = Zinc._100          // Elevated/nested content
+        static let surface0 = Color(hex: "FFFFFF")        // Window/root background
+        static let surface1 = Color(hex: "E5E5E5")        // Primary content areas
+        static let surface2 = Color(hex: "B3B3B3")        // Elevated/nested content
 
-        // Primary action color (blue for CTAs that need to stand out from Zinc)
-        static let primaryAction = Color(hex: "3b82f6")
-        static let primaryActionForeground = Color.white
+        // Primary action color
+        static let primaryAction = Color(hex: "F59E0B")
+        static let primaryActionForeground = Color(hex: "0D0D0D")
+
+        // MARK: - Git/Diff Colors
+        static let fileModified = Color(hex: "E2C08D")
+        static let fileUntracked = Color(hex: "73C991")
+        static let diffAddition = Color(hex: "3FB950")
+        static let diffDeletion = Color(hex: "F59E0B")
+
+        // MARK: - Text Color Variants
+        static let textSecondary = Color(hex: "0D0D0D")
+        static let textMuted = Color(hex: "737373")
+        static let textInactive = Color(hex: "8A8A8A")
+        static let textDimmed = Color(hex: "737373")
+        static let placeholder = Color(hex: "7A7A7A")
+        static let inactive = Color(hex: "5A5A5A")
+
+        // MARK: - Extended Gray Palette
+        static let gray333 = Color(hex: "E5E5E5")
+        static let gray4A4 = Color(hex: "4A4A4A")
+        static let gray666 = Color(hex: "666666")
+        static let gray7A7 = Color(hex: "7A7A7A")
+        static let gray8A8 = Color(hex: "8A8A8A")
 
         // Workspace-specific UI (light defaults)
-        static let toolbarBackground = Color.white
-        static let panelDivider = Zinc._200
-        static let selectionBackground = Color(hex: "3b82f61A")
-        static let selectionBorder = Color(hex: "3b82f655")
-        static let hoverBackground = Zinc._100
-        static let editorBackground = Zinc._50
+        static let toolbarBackground = Color(hex: "FFFFFF")
+        static let panelDivider = Color(hex: "B3B3B3")
+        static let selectionBackground = Color(hex: "F59E0B15")
+        static let selectionBorder = Color(hex: "F59E0B40")
+        static let hoverBackground = Color(hex: "E5E5E5")
+        static let editorBackground = Color(hex: "FFFFFF")
     }
 }
 
@@ -333,19 +338,19 @@ struct ThemeColors {
     // MARK: - Git/Diff Colors
 
     var fileModified: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.fileModified : Color(hex: "B8860B")
+        colorScheme == .dark ? ShadcnColors.Dark.fileModified : ShadcnColors.Light.fileModified
     }
 
     var fileUntracked: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.fileUntracked : Color(hex: "228B22")
+        colorScheme == .dark ? ShadcnColors.Dark.fileUntracked : ShadcnColors.Light.fileUntracked
     }
 
     var diffAddition: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.diffAddition : Color(hex: "228B22")
+        colorScheme == .dark ? ShadcnColors.Dark.diffAddition : ShadcnColors.Light.diffAddition
     }
 
     var diffDeletion: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.diffDeletion : Color(hex: "DC143C")
+        colorScheme == .dark ? ShadcnColors.Dark.diffDeletion : ShadcnColors.Light.diffDeletion
     }
 
     // MARK: - Extended UI Colors
@@ -363,27 +368,47 @@ struct ThemeColors {
     }
 
     var placeholder: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.placeholder : Color(hex: "9CA3AF")
+        colorScheme == .dark ? ShadcnColors.Dark.placeholder : ShadcnColors.Light.placeholder
     }
 
     var inactive: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.inactive : Color(hex: "9CA3AF")
+        colorScheme == .dark ? ShadcnColors.Dark.inactive : ShadcnColors.Light.inactive
     }
 
     var gray333: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.gray333 : Color(hex: "E5E5E5")
+        colorScheme == .dark ? ShadcnColors.Dark.gray333 : ShadcnColors.Light.gray333
+    }
+
+    var gray4A4: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray4A4 : ShadcnColors.Light.gray4A4
+    }
+
+    var gray666: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray666 : ShadcnColors.Light.gray666
+    }
+
+    var gray7A7: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray7A7 : ShadcnColors.Light.gray7A7
     }
 
     var textSecondary: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.textSecondary : ShadcnColors.Light.sidebarText
+        colorScheme == .dark ? ShadcnColors.Dark.textSecondary : ShadcnColors.Light.textSecondary
     }
 
     var textMuted: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.textMuted : Color(hex: "6B7280")
+        colorScheme == .dark ? ShadcnColors.Dark.textMuted : ShadcnColors.Light.textMuted
     }
 
     var textInactive: Color {
-        colorScheme == .dark ? ShadcnColors.Dark.textInactive : Color(hex: "9CA3AF")
+        colorScheme == .dark ? ShadcnColors.Dark.textInactive : ShadcnColors.Light.textInactive
+    }
+
+    var textDimmed: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.textDimmed : ShadcnColors.Light.textDimmed
+    }
+
+    var gray8A8: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray8A8 : ShadcnColors.Light.gray8A8
     }
 
     // MARK: - Workspace-Specific UI
@@ -439,8 +464,8 @@ extension Color {
             (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
         case 6: // RGB (24-bit)
             (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // RGBA (32-bit)
+            (r, g, b, a) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
         default:
             (a, r, g, b) = (1, 1, 1, 0)
         }

@@ -277,7 +277,13 @@ impl Levi {
                     pending_session_ids.clear();
 
                     // Query SQLite for all sessions with pending messages
-                    let sessions_to_sync = armin.get_sessions_pending_sync(config.batch_size);
+                    let sessions_to_sync = match armin.get_sessions_pending_sync(config.batch_size) {
+                        Ok(sessions) => sessions,
+                        Err(e) => {
+                            warn!(error = %e, "Levi failed to query pending sessions");
+                            continue;
+                        }
+                    };
                     let now = Utc::now();
 
                     for session_pending in sessions_to_sync {
@@ -423,7 +429,7 @@ async fn send_session_batch(
             }
             Err(err) => {
                 // If encryption fails for any message, fail the whole session batch
-                armin.mark_supabase_sync_failed(session_id, &err);
+                let _ = armin.mark_supabase_sync_failed(session_id, &err);
                 return Err(err);
             }
         }
@@ -435,12 +441,12 @@ async fn send_session_batch(
 
     match client.upsert_messages_batch(&payloads, &ctx.access_token).await {
         Ok(()) => {
-            armin.mark_supabase_sync_success(session_id, max_sequence);
+            let _ = armin.mark_supabase_sync_success(session_id, max_sequence);
             Ok(())
         }
         Err(err) => {
             let error = err.to_string();
-            armin.mark_supabase_sync_failed(session_id, &error);
+            let _ = armin.mark_supabase_sync_failed(session_id, &error);
             Err(error)
         }
     }
@@ -543,6 +549,7 @@ fn get_session_secret_key(
 
     let session_secret = armin
         .get_session_secret(&SessionId::from_string(session_id))
+        .map_err(|e| format!("failed to get session secret: {}", e))?
         .ok_or_else(|| "missing session secret".to_string())?;
 
     let plaintext = daemon_database::decrypt_content(
@@ -644,7 +651,7 @@ mod tests {
     fn setup_armin_with_secret() -> (ArminHandle, SessionId, Arc<Mutex<Option<[u8; 32]>>>) {
         let sink = RecordingSink::new();
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let session_secret = SecretsManager::generate_session_secret();
         let db_key = [42u8; 32];
@@ -655,7 +662,7 @@ mod tests {
             session_id: session_id.clone(),
             encrypted_secret: encrypted,
             nonce: nonce.to_vec(),
-        });
+        }).unwrap();
 
         (
             armin as ArminHandle,
@@ -717,7 +724,7 @@ mod tests {
     fn get_session_secret_key_errors_without_secret() {
         let sink = RecordingSink::new();
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let cache = Arc::new(Mutex::new(HashMap::new()));
         let db_key = Arc::new(Mutex::new(Some([7u8; 32])));
@@ -732,41 +739,41 @@ mod tests {
     fn cursor_based_sync_state() {
         let sink = RecordingSink::new();
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         // Initially no sync state
-        let state = armin.get_supabase_sync_state(&session_id);
+        let state = armin.get_supabase_sync_state(&session_id).unwrap();
         assert!(state.is_none());
 
         // Append some messages
-        armin.append(&session_id, NewMessage { content: "msg1".to_string() });
-        armin.append(&session_id, NewMessage { content: "msg2".to_string() });
-        armin.append(&session_id, NewMessage { content: "msg3".to_string() });
+        armin.append(&session_id, NewMessage { content: "msg1".to_string() }).unwrap();
+        armin.append(&session_id, NewMessage { content: "msg2".to_string() }).unwrap();
+        armin.append(&session_id, NewMessage { content: "msg3".to_string() }).unwrap();
 
         // Check pending sync
-        let pending = armin.get_sessions_pending_sync(100);
+        let pending = armin.get_sessions_pending_sync(100).unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].messages.len(), 3);
         assert_eq!(pending[0].last_synced_sequence_number, 0);
 
         // Mark sync success up to sequence 2
-        armin.mark_supabase_sync_success(&session_id, 2);
+        armin.mark_supabase_sync_success(&session_id, 2).unwrap();
 
         // Check state updated
-        let state = armin.get_supabase_sync_state(&session_id).unwrap();
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.last_synced_sequence_number, 2);
         assert_eq!(state.retry_count, 0);
 
         // Only message 3 should be pending now
-        let pending = armin.get_sessions_pending_sync(100);
+        let pending = armin.get_sessions_pending_sync(100).unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].messages.len(), 1);
         assert_eq!(pending[0].messages[0].sequence_number, 3);
 
         // Mark sync failed
-        armin.mark_supabase_sync_failed(&session_id, "test error");
+        armin.mark_supabase_sync_failed(&session_id, "test error").unwrap();
 
-        let state = armin.get_supabase_sync_state(&session_id).unwrap();
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.retry_count, 1);
         assert_eq!(state.last_error.as_deref(), Some("test error"));
     }

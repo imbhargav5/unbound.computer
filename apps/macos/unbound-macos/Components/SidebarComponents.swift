@@ -170,7 +170,7 @@ struct KeyboardShortcutsDialog: View {
         .frame(width: 320)
         .background(colors.card)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+        .shadow(color: Color(hex: "0D0D0D").opacity(0.2), radius: 16, y: 8)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.lg)
                 .stroke(colors.border, lineWidth: BorderWidth.default)
@@ -219,7 +219,7 @@ struct KeyboardShortcutsOverlay: View {
     var body: some View {
         ZStack {
             // Backdrop
-            Color.black.opacity(0.4)
+            Color(hex: "0D0D0D").opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
                     isPresented = false

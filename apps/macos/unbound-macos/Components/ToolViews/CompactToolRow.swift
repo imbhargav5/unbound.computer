@@ -229,5 +229,5 @@ struct CompactToolRow: View {
     }
     .frame(width: 450)
     .padding()
-    .background(Color(red: 0.07, green: 0.07, blue: 0.07)) // surface1
+    .background(ThemeColors(.dark).surface1)
 }

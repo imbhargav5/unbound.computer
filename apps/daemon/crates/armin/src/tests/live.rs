@@ -24,7 +24,7 @@ use tempfile::NamedTempFile;
 fn rule_31_subscribers_receive_new_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -33,7 +33,7 @@ fn rule_31_subscribers_receive_new_messages() {
         NewMessage {
             content: "Hello".to_string(),
         },
-    );
+    ).unwrap();
 
     let msg = sub.try_recv().expect("Should receive message");
     assert_eq!(msg.content, "Hello");
@@ -44,7 +44,7 @@ fn rule_31_subscribers_receive_new_messages() {
 fn rule_32_subscribers_receive_in_order() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -55,7 +55,7 @@ fn rule_32_subscribers_receive_in_order() {
             NewMessage {
                 content: content.to_string(),
             },
-        );
+        ).unwrap();
     }
 
     for expected in &contents {
@@ -69,7 +69,7 @@ fn rule_32_subscribers_receive_in_order() {
 fn rule_33_no_historical_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Add messages before subscription
     armin.append(
@@ -77,7 +77,7 @@ fn rule_33_no_historical_messages() {
         NewMessage {
             content: "Historical".to_string(),
         },
-    );
+    ).unwrap();
 
     // Subscribe after
     let sub = armin.subscribe(&session_id);
@@ -94,7 +94,7 @@ fn rule_33_no_historical_messages() {
         NewMessage {
             content: "New".to_string(),
         },
-    );
+    ).unwrap();
 
     let msg = sub.try_recv().expect("Should receive new message");
     assert_eq!(msg.content, "New");
@@ -106,7 +106,7 @@ fn rule_33_no_historical_messages() {
 fn rule_34_subscribers_block_semantics() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -119,7 +119,7 @@ fn rule_34_subscribers_block_semantics() {
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     // Now it should be available
     assert!(sub.try_recv().is_some());
@@ -130,7 +130,7 @@ fn rule_34_subscribers_block_semantics() {
 fn rule_35_multiple_subscribers_same_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub1 = armin.subscribe(&session_id);
     let sub2 = armin.subscribe(&session_id);
@@ -141,7 +141,7 @@ fn rule_35_multiple_subscribers_same_messages() {
         NewMessage {
             content: "Broadcast".to_string(),
         },
-    );
+    ).unwrap();
 
     // All subscribers should receive the message
     assert_eq!(sub1.try_recv().unwrap().content, "Broadcast");
@@ -154,7 +154,7 @@ fn rule_35_multiple_subscribers_same_messages() {
 fn rule_36_slow_subscribers_no_blocking() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -166,7 +166,7 @@ fn rule_36_slow_subscribers_no_blocking() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Verify all writes completed
@@ -189,7 +189,7 @@ fn rule_38_notifications_after_commit() {
     let (session_id, message_content) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let sub = armin.subscribe(&session_id);
 
@@ -198,7 +198,7 @@ fn rule_38_notifications_after_commit() {
             NewMessage {
                 content: "Committed".to_string(),
             },
-        );
+        ).unwrap();
 
         // Received via live subscription
         let msg = sub.try_recv().expect("Should receive message");
@@ -219,8 +219,8 @@ fn rule_40_subscriptions_session_scoped() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
 
     let sub1 = armin.subscribe(&session1);
     let sub2 = armin.subscribe(&session2);
@@ -231,7 +231,7 @@ fn rule_40_subscriptions_session_scoped() {
         NewMessage {
             content: "For session 1".to_string(),
         },
-    );
+    ).unwrap();
 
     // Message to session2
     armin.append(
@@ -239,7 +239,7 @@ fn rule_40_subscriptions_session_scoped() {
         NewMessage {
             content: "For session 2".to_string(),
         },
-    );
+    ).unwrap();
 
     // Each subscriber only gets their session's messages
     assert_eq!(sub1.try_recv().unwrap().content, "For session 1");
@@ -261,13 +261,13 @@ fn subscription_after_recovery_receives_new_messages() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.append(
             &session_id,
             NewMessage {
                 content: "Before restart".to_string(),
             },
-        );
+        ).unwrap();
         session_id
     };
 
@@ -285,7 +285,7 @@ fn subscription_after_recovery_receives_new_messages() {
         NewMessage {
             content: "After restart".to_string(),
         },
-    );
+    ).unwrap();
 
     assert_eq!(sub.try_recv().unwrap().content, "After restart");
 }
@@ -294,7 +294,7 @@ fn subscription_after_recovery_receives_new_messages() {
 fn dropped_subscription_cleaned_up() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Create and drop subscription
     {
@@ -307,7 +307,7 @@ fn dropped_subscription_cleaned_up() {
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     assert_eq!(armin.delta(&session_id).len(), 1);
 }
@@ -316,7 +316,7 @@ fn dropped_subscription_cleaned_up() {
 fn closed_session_stops_notifications() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -325,9 +325,9 @@ fn closed_session_stops_notifications() {
         NewMessage {
             content: "Before close".to_string(),
         },
-    );
+    ).unwrap();
 
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     // Should still receive the message that was sent
     assert_eq!(sub.try_recv().unwrap().content, "Before close");
@@ -340,7 +340,7 @@ fn closed_session_stops_notifications() {
 fn subscription_iterator() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -349,13 +349,13 @@ fn subscription_iterator() {
         NewMessage {
             content: "One".to_string(),
         },
-    );
+    ).unwrap();
     armin.append(
         &session_id,
         NewMessage {
             content: "Two".to_string(),
         },
-    );
+    ).unwrap();
 
     // Collect via try_recv (iter() would block)
     let mut messages = Vec::new();
@@ -370,7 +370,7 @@ fn subscription_iterator() {
 fn many_subscribers_performance() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Create many subscribers
     let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
@@ -381,7 +381,7 @@ fn many_subscribers_performance() {
         NewMessage {
             content: "Broadcast to many".to_string(),
         },
-    );
+    ).unwrap();
 
     // All should receive it
     for (i, sub) in subscribers.iter().enumerate() {

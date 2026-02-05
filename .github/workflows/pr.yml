@@ -1,4 +1,4 @@
-name: Node CI Pull request
+name: CI Pull Request
 concurrency:
   group: pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -17,3 +17,24 @@ jobs:
       - uses: ./.github/actions/ci-setup
       - name: test
         run: pnpm run test
+
+  rust:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/daemon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/daemon -> target
+      - name: fmt
+        run: cargo fmt --check
+      - name: clippy
+        run: cargo clippy --workspace -- -D warnings
+      - name: test
+        run: cargo test --workspace

@@ -15,6 +15,7 @@ use crate::types::{
     OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
     SessionPendingSync, SessionSecret, SessionState, SupabaseSyncState,
 };
+use crate::ArminError;
 
 /// A reader for session data.
 ///
@@ -25,30 +26,30 @@ pub trait SessionReader {
     // ========================================================================
 
     /// Lists all repositories.
-    fn list_repositories(&self) -> Vec<Repository>;
+    fn list_repositories(&self) -> Result<Vec<Repository>, ArminError>;
 
     /// Gets a repository by ID.
-    fn get_repository(&self, id: &RepositoryId) -> Option<Repository>;
+    fn get_repository(&self, id: &RepositoryId) -> Result<Option<Repository>, ArminError>;
 
     /// Gets a repository by path.
-    fn get_repository_by_path(&self, path: &str) -> Option<Repository>;
+    fn get_repository_by_path(&self, path: &str) -> Result<Option<Repository>, ArminError>;
 
     // ========================================================================
     // Session operations (full metadata)
     // ========================================================================
 
     /// Lists sessions for a repository.
-    fn list_sessions(&self, repository_id: &RepositoryId) -> Vec<Session>;
+    fn list_sessions(&self, repository_id: &RepositoryId) -> Result<Vec<Session>, ArminError>;
 
     /// Gets a session by ID.
-    fn get_session(&self, id: &SessionId) -> Option<Session>;
+    fn get_session(&self, id: &SessionId) -> Result<Option<Session>, ArminError>;
 
     // ========================================================================
     // Session state operations
     // ========================================================================
 
     /// Gets the session state (agent status, etc.).
-    fn get_session_state(&self, session: &SessionId) -> Option<SessionState>;
+    fn get_session_state(&self, session: &SessionId) -> Result<Option<SessionState>, ArminError>;
 
     // ========================================================================
     // Message snapshot/delta/live operations
@@ -72,28 +73,28 @@ pub trait SessionReader {
     // ========================================================================
 
     /// Gets the session secret (encrypted).
-    fn get_session_secret(&self, session: &SessionId) -> Option<SessionSecret>;
+    fn get_session_secret(&self, session: &SessionId) -> Result<Option<SessionSecret>, ArminError>;
 
     /// Checks if a session has a stored secret.
-    fn has_session_secret(&self, session: &SessionId) -> bool;
+    fn has_session_secret(&self, session: &SessionId) -> Result<bool, ArminError>;
 
     // ========================================================================
     // Outbox operations
     // ========================================================================
 
     /// Gets pending outbox events for a session.
-    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Vec<OutboxEvent>;
+    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Result<Vec<OutboxEvent>, ArminError>;
 
     /// Gets pending Supabase message outbox entries (joined with message content).
-    fn get_pending_supabase_messages(&self, limit: usize) -> Vec<PendingSupabaseMessage>;
+    fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError>;
 
     // ========================================================================
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
     /// Gets the Supabase sync state for a session.
-    fn get_supabase_sync_state(&self, session: &SessionId) -> Option<SupabaseSyncState>;
+    fn get_supabase_sync_state(&self, session: &SessionId) -> Result<Option<SupabaseSyncState>, ArminError>;
 
     /// Gets sessions with pending messages to sync (cursor-based).
-    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Vec<SessionPendingSync>;
+    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError>;
 }

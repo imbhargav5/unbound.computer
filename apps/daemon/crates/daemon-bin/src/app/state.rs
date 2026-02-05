@@ -5,7 +5,7 @@ use levi::SessionSyncService;
 use crate::utils::SessionSecretCache;
 use daemon_auth::SupabaseClient;
 use daemon_core::{Config, Paths};
-use daemon_database::DatabasePool;
+use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
 use levi::Levi;
@@ -21,8 +21,8 @@ pub struct DaemonState {
     pub config: Arc<Config>,
     #[allow(dead_code)]
     pub paths: Arc<Paths>,
-    /// Database connection pool (allows concurrent reads via WAL mode).
-    pub db: Arc<DatabasePool>,
+    /// Async database executor with dedicated SQLite thread.
+    pub db: AsyncDatabase,
     pub secrets: Arc<Mutex<SecretsManager>>,
     /// Currently running Claude processes by session_id.
     pub claude_processes: Arc<Mutex<HashMap<String, broadcast::Sender<()>>>>,

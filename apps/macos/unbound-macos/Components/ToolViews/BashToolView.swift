@@ -79,7 +79,7 @@ struct BashToolView: View {
                         }
                     }
                     .padding(Spacing.md)
-                    .background(Color.black.opacity(0.3))
+                    .background(Color(hex: "0D0D0D").opacity(0.3))
                 }
             }
         }

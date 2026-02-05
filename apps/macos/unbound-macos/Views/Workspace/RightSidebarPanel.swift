@@ -10,52 +10,56 @@ import SwiftUI
 
 private let logger = Logger(label: "app.ui.sidebar")
 
-// MARK: - Editor Mode
+// MARK: - Git Toolbar Action
 
-enum EditorMode: String, CaseIterable, Identifiable, Hashable {
-    case agent = "Agent"
-    case editor = "Editor"
+private enum GitToolbarAction: Hashable {
+    case commit
+    case push
 
-    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .commit:
+            return "Commit"
+        case .push:
+            return "Push"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .commit:
+            return "checkmark.circle.fill"
+        case .push:
+            return "arrow.up.circle.fill"
+        }
+    }
 }
 
-// MARK: - Editor Mode Toggle
-
-struct EditorModeToggle: View {
+private struct GitToolbarActionButton: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    @Binding var selection: EditorMode
+    let action: GitToolbarAction
+    let onTap: () -> Void
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(EditorMode.allCases) { mode in
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        selection = mode
-                    }
-                } label: {
-                    Text(mode.rawValue)
-                        .font(Typography.toolbar)
-                        .foregroundStyle(selection == mode ? colors.foreground : colors.mutedForeground)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(
-                            selection == mode ?
-                            colors.selectionBackground :
-                            Color.clear
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                }
-                .buttonStyle(.plain)
+        Button(action: onTap) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: action.systemImage)
+                    .font(.system(size: IconSize.xs))
+                Text(action.title)
+                    .font(Typography.toolbar)
             }
+            .foregroundStyle(colors.primaryActionForeground)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(colors.primaryAction)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
         }
-        .padding(Spacing.xxs)
-        .background(colors.muted)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .buttonStyle(.plain)
     }
 }
 
@@ -74,9 +78,6 @@ struct RightSidebarPanel: View {
     // Working directory
     let workingDirectory: String?
 
-    // Editor mode state
-    @State private var selectedEditorMode: EditorMode = .agent
-
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -87,6 +88,26 @@ struct RightSidebarPanel: View {
 
     private var bottomTabs: [RightSidebarTab] {
         [.changes, .files, .commits]
+    }
+
+    private var currentLocalBranch: GitBranch? {
+        if let currentName = gitViewModel.currentBranch,
+           let branch = gitViewModel.localBranches.first(where: { $0.name == currentName }) {
+            return branch
+        }
+        return gitViewModel.localBranches.first(where: { $0.isCurrent })
+    }
+
+    private var gitToolbarAction: GitToolbarAction? {
+        if gitViewModel.changesCount > 0 {
+            return .commit
+        }
+        if let branch = currentLocalBranch,
+           branch.upstream != nil,
+           branch.ahead > 0 {
+            return .push
+        }
+        return nil
     }
 
     var body: some View {
@@ -170,8 +191,9 @@ struct RightSidebarPanel: View {
 
             Spacer()
 
-            // Agent Mode / Editor Mode toggle on the right
-            EditorModeToggle(selection: $selectedEditorMode)
+            if let action = gitToolbarAction {
+                GitToolbarActionButton(action: action, onTap: {})
+            }
         }
         .padding(.horizontal, Spacing.lg)
         .frame(height: LayoutMetrics.toolbarHeight)

@@ -28,7 +28,7 @@ use std::thread;
 fn rule_83_concurrent_reads_no_blocking() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Take many read references
     let _snapshots: Vec<_> = (0..100).map(|_| armin.snapshot()).collect();
@@ -41,7 +41,7 @@ fn rule_83_concurrent_reads_no_blocking() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Verify writes succeeded
@@ -58,7 +58,7 @@ fn rule_83_concurrent_reads_no_blocking() {
 fn rule_85_concurrent_subscribers_isolated() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Create many subscribers
     let subscribers: Vec<_> = (0..50).map(|_| armin.subscribe(&session_id)).collect();
@@ -70,7 +70,7 @@ fn rule_85_concurrent_subscribers_isolated() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Each subscriber should receive all messages independently
@@ -88,7 +88,7 @@ fn rule_85_concurrent_subscribers_isolated() {
 fn rule_86_side_effects_sequential() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
     // Append many messages
@@ -98,7 +98,7 @@ fn rule_86_side_effects_sequential() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     let effects = armin.sink().effects();
@@ -122,8 +122,8 @@ fn rule_87_side_effects_no_interleave() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
     armin.sink().clear();
 
     // Alternate between sessions
@@ -133,13 +133,13 @@ fn rule_87_side_effects_no_interleave() {
             NewMessage {
                 content: format!("S1-{}", i),
             },
-        );
+        ).unwrap();
         armin.append(
             &session2,
             NewMessage {
                 content: format!("S2-{}", i),
             },
-        );
+        ).unwrap();
     }
 
     let effects = armin.sink().effects();
@@ -165,7 +165,7 @@ fn rule_87_side_effects_no_interleave() {
 fn rule_88_delta_thread_safe_reads() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..100 {
         armin.append(
@@ -173,7 +173,7 @@ fn rule_88_delta_thread_safe_reads() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Get delta (it's Clone)
@@ -202,7 +202,7 @@ fn rule_88_delta_thread_safe_reads() {
 fn rule_89_live_hub_thread_safe() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Subscribe
     let sub = armin.subscribe(&session_id);
@@ -214,7 +214,7 @@ fn rule_89_live_hub_thread_safe() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Receive in a different context (simulating thread safety)
@@ -239,7 +239,7 @@ fn rule_90_sqlite_synchronized() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         for i in 0..100 {
             armin.append(
@@ -247,7 +247,7 @@ fn rule_90_sqlite_synchronized() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         session_id
@@ -293,14 +293,14 @@ fn recording_sink_is_send_sync() {
 fn multiple_snapshot_clones_independent() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Original".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     let snap1 = armin.snapshot();
@@ -328,7 +328,7 @@ fn multiple_snapshot_clones_independent() {
 fn delta_clones_independent() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..50 {
         armin.append(
@@ -336,7 +336,7 @@ fn delta_clones_independent() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     let delta1 = armin.delta(&session_id);
@@ -354,7 +354,7 @@ fn delta_clones_independent() {
 fn many_subscribers_single_message() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
 
@@ -363,7 +363,7 @@ fn many_subscribers_single_message() {
         NewMessage {
             content: "Broadcast".to_string(),
         },
-    );
+    ).unwrap();
 
     // All should receive
     for (i, sub) in subscribers.iter().enumerate() {

@@ -39,36 +39,20 @@ struct SyntaxTheme {
     let background: Color
 
     static func forColorScheme(_ colorScheme: ColorScheme) -> SyntaxTheme {
-        if colorScheme == .dark {
-            // Amber theme dark mode syntax colors
-            return SyntaxTheme(
-                keyword: Color(red: 0.78, green: 0.47, blue: 0.87),      // Purple #C778DD
-                string: Color(red: 0.90, green: 0.66, blue: 0.56),       // Warm orange #E5A88E
-                comment: Color(red: 0.42, green: 0.42, blue: 0.42),      // Muted gray #6B6B6B
-                number: Color(red: 0.96, green: 0.62, blue: 0.04),       // Amber #F59E0B
-                type: Color(red: 0.40, green: 0.75, blue: 0.82),         // Cyan #66C0D1
-                function: Color(red: 0.47, green: 0.68, blue: 0.91),     // Blue #79ADE8
-                property: Color(red: 0.45, green: 0.79, blue: 0.57),     // Green #73C991
-                operator: Color(red: 0.78, green: 0.47, blue: 0.87),     // Purple #C778DD
-                punctuation: Color(red: 0.54, green: 0.54, blue: 0.54),  // Gray #8A8A8A
-                plain: Color(red: 0.90, green: 0.90, blue: 0.90),        // Secondary text #E5E5E5
-                background: Color(red: 0.06, green: 0.06, blue: 0.06)    // Chat background #0F0F0F
-            )
-        } else {
-            return SyntaxTheme(
-                keyword: Color(red: 0.55, green: 0.22, blue: 0.66),      // Purple
-                string: Color(red: 0.76, green: 0.24, blue: 0.20),       // Red
-                comment: Color(red: 0.45, green: 0.50, blue: 0.55),      // Gray
-                number: Color(red: 0.68, green: 0.45, blue: 0.15),       // Brown/Gold
-                type: Color(red: 0.10, green: 0.50, blue: 0.55),         // Teal
-                function: Color(red: 0.20, green: 0.40, blue: 0.70),     // Blue
-                property: Color(red: 0.25, green: 0.55, blue: 0.30),     // Green
-                operator: Color(red: 0.55, green: 0.22, blue: 0.66),     // Purple
-                punctuation: Color(red: 0.40, green: 0.40, blue: 0.40),  // Dark gray
-                plain: Color(red: 0.15, green: 0.15, blue: 0.15),        // Near black
-                background: Color(red: 0.97, green: 0.97, blue: 0.97)    // Light
-            )
-        }
+        let colors = ThemeColors(colorScheme)
+        return SyntaxTheme(
+            keyword: colors.accentAmber,
+            string: colors.fileUntracked,
+            comment: colors.textDimmed,
+            number: colors.fileModified,
+            type: colors.textMuted,
+            function: colors.textSecondary,
+            property: colors.textInactive,
+            operator: colors.textInactive,
+            punctuation: colors.gray8A8,
+            plain: colors.textSecondary,
+            background: colors.chatBackground
+        )
     }
 
     func color(for tokenType: SyntaxTokenType) -> Color {
@@ -453,7 +437,7 @@ struct HighlightedCodeText: View {
             } else {
                 // Show plain text while highlighting in background
                 Text(code)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(ThemeColors(colorScheme).textMuted)
             }
         }
         .font(Typography.code)

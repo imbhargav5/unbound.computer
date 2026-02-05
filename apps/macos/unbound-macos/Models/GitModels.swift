@@ -239,24 +239,19 @@ enum GitFileStatusType: String, Codable, Hashable {
         }
     }
 
-    /// Semantic color following Git conventions:
-    /// - Green: Added (new files)
-    /// - Yellow: Modified (changes to existing files)
-    /// - Red: Deleted/Destructive
-    /// - Gray: Untracked/Unknown
-    /// - Blue: Renamed/Moved
-    var color: Color {
+    /// Semantic color aligned to the app palette.
+    func color(_ colors: ThemeColors) -> Color {
         switch self {
-        case .modified: return .yellow       // Yellow - warning/attention
-        case .added: return .green           // Green - success/new
-        case .deleted: return .red           // Red - destructive
-        case .renamed: return .blue          // Blue - info/movement
-        case .copied: return .cyan           // Cyan - similar to renamed
-        case .untracked: return .gray        // Gray - unknown/pending
-        case .ignored: return .secondary     // Darker gray - de-emphasized
-        case .typechange: return .purple     // Purple - type change
-        case .unreadable: return .red        // Red - error
-        case .conflicted: return .orange     // Orange - urgent attention
+        case .modified: return colors.fileModified
+        case .added: return colors.diffAddition
+        case .deleted: return colors.diffDeletion
+        case .renamed: return colors.accentAmber
+        case .copied: return colors.accentAmber
+        case .untracked: return colors.fileUntracked
+        case .ignored: return colors.textInactive
+        case .typechange: return colors.accentAmber
+        case .unreadable: return colors.destructive
+        case .conflicted: return colors.destructive
         case .unchanged: return .clear
         }
     }

@@ -128,7 +128,7 @@ struct FilesTreeRow: View {
                     // File/folder icon
                     Image(systemName: item.type.iconName)
                         .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor)
+                        .foregroundStyle(item.type.iconColor(colors))
 
                     // Name
                     Text(item.name)
@@ -142,7 +142,7 @@ struct FilesTreeRow: View {
                     if item.gitStatus != .unchanged {
                         Text(item.gitStatus.indicator)
                             .font(Typography.micro)
-                            .foregroundStyle(item.gitStatus.color)
+                            .foregroundStyle(item.gitStatus.color(colors))
                             .padding(.trailing, Spacing.xs)
                     }
                 }

@@ -105,7 +105,7 @@ struct NewSessionDialog: View {
         .frame(width: 280)
         .background(colors.card)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-        .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 6)
+        .shadow(color: Color(hex: "0D0D0D").opacity(0.2), radius: 12, x: 0, y: 6)
     }
 }
 
@@ -178,5 +178,5 @@ struct LocationOption: View {
         onCreateSession: { _ in }
     )
     .padding()
-    .background(Color.gray.opacity(0.3))
+    .background(ThemeColors(.dark).muted.opacity(0.3))
 }

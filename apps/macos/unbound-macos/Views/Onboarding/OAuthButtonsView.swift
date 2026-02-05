@@ -125,6 +125,6 @@ struct OAuthButtonsView: View {
     OAuthButtonsView()
         .environment(AppState())
         .padding(Spacing.xxxxl)
-        .background(Color.black)
+        .background(ThemeColors(.dark).background)
         .frame(width: 400)
 }

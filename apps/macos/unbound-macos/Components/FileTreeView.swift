@@ -62,7 +62,7 @@ struct FileTreeRow: View {
                     // File/folder icon
                     Image(systemName: item.type.iconName)
                         .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor)
+                        .foregroundStyle(item.type.iconColor(colors))
 
                     // Name
                     Text(item.name)
@@ -126,7 +126,7 @@ struct SimpleFileRow: View {
             HStack(spacing: Spacing.sm) {
                 Image(systemName: item.type.iconName)
                     .font(.system(size: IconSize.sm))
-                    .foregroundStyle(item.type.iconColor)
+                    .foregroundStyle(item.type.iconColor(colors))
 
                 Text(item.name)
                     .font(Typography.bodySmall)

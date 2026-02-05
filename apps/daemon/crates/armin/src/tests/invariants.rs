@@ -20,7 +20,6 @@ use crate::types::{NewMessage, SessionId};
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use std::collections::HashSet;
-use std::panic;
 use tempfile::NamedTempFile;
 
 /// Rule 101: No message exists without a session
@@ -30,14 +29,12 @@ fn rule_101_no_message_without_session() {
     let armin = Armin::in_memory(sink).unwrap();
 
     // Can't append without creating session first
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &SessionId::from_string("nonexistent-session-1"),
-            NewMessage {
-                content: "Orphan".to_string(),
-            },
-        );
-    }));
+    let result = armin.append(
+        &SessionId::from_string("nonexistent-session-1"),
+        NewMessage {
+            content: "Orphan".to_string(),
+        },
+    );
 
     assert!(result.is_err(), "Should fail to append to non-existent session");
 }
@@ -51,8 +48,8 @@ fn rule_102_session_closure_permanent() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
-        armin.close(&session_id);
+        let session_id = armin.create_session().unwrap();
+        armin.close(&session_id).unwrap();
         session_id
     };
 
@@ -66,14 +63,12 @@ fn rule_102_session_closure_permanent() {
     assert!(session.is_closed());
 
     // Should not be able to append
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Should fail".to_string(),
-            },
-        );
-    }));
+    let result = armin.append(
+        &session_id,
+        NewMessage {
+            content: "Should fail".to_string(),
+        },
+    );
     assert!(result.is_err());
 }
 
@@ -82,17 +77,17 @@ fn rule_102_session_closure_permanent() {
 fn rule_103_closure_exactly_one_side_effect() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.sink().clear();
 
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
     assert_eq!(effects[0], SideEffect::SessionClosed { session_id: session_id.clone() });
 
     // Second close should emit nothing
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
     assert_eq!(armin.sink().effects().len(), 1);
 }
 
@@ -102,14 +97,14 @@ fn rule_104_closed_sessions_in_snapshot() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.append(
         &session_id,
         NewMessage {
             content: "Before close".to_string(),
         },
-    );
-    armin.close(&session_id);
+    ).unwrap();
+    armin.close(&session_id).unwrap();
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
@@ -124,7 +119,7 @@ fn rule_104_closed_sessions_in_snapshot() {
 fn rule_105_closed_session_subscriptions() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let sub = armin.subscribe(&session_id);
 
@@ -133,8 +128,8 @@ fn rule_105_closed_session_subscriptions() {
         NewMessage {
             content: "Before close".to_string(),
         },
-    );
-    armin.close(&session_id);
+    ).unwrap();
+    armin.close(&session_id).unwrap();
 
     // Should receive the message sent before close
     assert_eq!(sub.try_recv().unwrap().content, "Before close");
@@ -148,7 +143,7 @@ fn rule_105_closed_session_subscriptions() {
 fn rule_106_empty_sessions() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.refresh_snapshot().unwrap();
 
@@ -169,7 +164,7 @@ fn rule_106_empty_sessions() {
         NewMessage {
             content: "First".to_string(),
         },
-    );
+    ).unwrap();
     assert_eq!(armin.delta(&session_id).len(), 1);
 }
 
@@ -178,14 +173,14 @@ fn rule_106_empty_sessions() {
 fn rule_107_single_message_sessions() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let msg = armin.append(
         &session_id,
         NewMessage {
             content: "Only message".to_string(),
         },
-    );
+    ).unwrap();
 
     // Delta
     let delta = armin.delta(&session_id);
@@ -206,7 +201,7 @@ fn rule_107_single_message_sessions() {
 fn rule_108_large_sessions() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let message_count = 1000;
     let mut messages = Vec::with_capacity(message_count);
@@ -217,7 +212,7 @@ fn rule_108_large_sessions() {
             NewMessage {
                 content: format!("Message {} with some content to make it longer", i),
             },
-        ));
+        ).unwrap());
     }
 
     // Verify delta
@@ -245,14 +240,14 @@ fn rule_109_memory_grows_predictably() {
 
     // Create multiple sessions with many messages
     for _ in 0..10 {
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         for i in 0..100 {
             armin.append(
                 &session_id,
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
     }
 
@@ -261,14 +256,14 @@ fn rule_109_memory_grows_predictably() {
 
     // Create more sessions (verify delta cleared)
     for _ in 0..10 {
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         for i in 0..100 {
             armin.append(
                 &session_id,
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
     }
 
@@ -288,7 +283,7 @@ fn rule_110_invariants_under_stress() {
 
     // Create many sessions with various operations
     for session_num in 0..20 {
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         all_session_ids.push(session_id.clone());
 
         // Some messages
@@ -298,7 +293,7 @@ fn rule_110_invariants_under_stress() {
                 NewMessage {
                     content: format!("S{}-M{}", session_num, i),
                 },
-            );
+            ).unwrap();
 
             // No duplicate message IDs
             assert!(
@@ -310,7 +305,7 @@ fn rule_110_invariants_under_stress() {
 
         // Close some sessions
         if session_num % 3 == 0 {
-            armin.close(&session_id);
+            armin.close(&session_id).unwrap();
         }
 
         // Refresh snapshot periodically
@@ -347,13 +342,13 @@ fn tests_use_in_memory_sqlite() {
     let armin = Armin::in_memory(sink).unwrap();
 
     // This test itself uses in-memory SQLite
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 }
 
 /// Rule 113-114: Tests don't rely on timing
@@ -363,7 +358,7 @@ fn tests_deterministic() {
     for _ in 0..10 {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let ids: Vec<_> = (0..10)
             .map(|i| {
@@ -372,7 +367,7 @@ fn tests_deterministic() {
                     NewMessage {
                         content: format!("Message {}", i),
                     },
-                )
+                ).unwrap()
             })
             .collect();
 
@@ -387,20 +382,18 @@ fn tests_deterministic() {
 fn invariant_violation_detected() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
-    armin.close(&session_id);
+    let session_id = armin.create_session().unwrap();
+    armin.close(&session_id).unwrap();
 
-    // This should fail (and our test catches it)
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Violation".to_string(),
-            },
-        );
-    }));
+    // This should fail (returns Err for closed session)
+    let result = armin.append(
+        &session_id,
+        NewMessage {
+            content: "Violation".to_string(),
+        },
+    );
 
-    assert!(result.is_err(), "Invariant violation should panic");
+    assert!(result.is_err(), "Invariant violation should return error");
 }
 
 #[test]
@@ -411,14 +404,14 @@ fn message_ids_globally_unique() {
     let mut all_ids = HashSet::new();
 
     for _ in 0..5 {
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         for i in 0..20 {
             let msg = armin.append(
                 &session_id,
                 NewMessage {
                     content: format!("Msg {}", i),
                 },
-            );
+            ).unwrap();
             assert!(all_ids.insert(msg.id), "Duplicate message ID");
         }
     }
@@ -432,7 +425,7 @@ fn session_ids_globally_unique() {
     let mut all_ids = HashSet::new();
 
     for _ in 0..100 {
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         assert!(all_ids.insert(session_id), "Duplicate session ID");
     }
 }
@@ -441,7 +434,7 @@ fn session_ids_globally_unique() {
 fn unicode_content_preserved() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let contents = vec![
         "Hello 👋",
@@ -459,7 +452,7 @@ fn unicode_content_preserved() {
             NewMessage {
                 content: content.to_string(),
             },
-        );
+        ).unwrap();
     }
 
     let delta = armin.delta(&session_id);
@@ -472,14 +465,14 @@ fn unicode_content_preserved() {
 fn empty_content_allowed() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: String::new(),
         },
-    );
+    ).unwrap();
 
     let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
@@ -490,7 +483,7 @@ fn empty_content_allowed() {
 fn very_long_content_preserved() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let long_content = "A".repeat(100_000);
 
@@ -499,7 +492,7 @@ fn very_long_content_preserved() {
         NewMessage {
             content: long_content.clone(),
         },
-    );
+    ).unwrap();
 
     let delta = armin.delta(&session_id);
     assert_eq!(delta.messages()[0].content.len(), 100_000);

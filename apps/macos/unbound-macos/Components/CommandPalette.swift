@@ -132,7 +132,7 @@ struct CommandPalette: View {
         .frame(width: 500)
         .background(colors.card)
         .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-        .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
+        .shadow(color: Color(hex: "0D0D0D").opacity(0.3), radius: 20, y: 10)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.xl)
                 .stroke(colors.border, lineWidth: BorderWidth.default)
@@ -252,7 +252,7 @@ struct CommandPaletteOverlay: View {
     var body: some View {
         ZStack {
             // Backdrop
-            Color.black.opacity(0.4)
+            Color(hex: "0D0D0D").opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
                     isPresented = false
@@ -277,7 +277,7 @@ struct CommandPaletteOverlay: View {
 
 #Preview {
     ZStack {
-        Color.black.opacity(0.8)
+        Color(hex: "0D0D0D").opacity(0.8)
             .ignoresSafeArea()
 
         CommandPalette(

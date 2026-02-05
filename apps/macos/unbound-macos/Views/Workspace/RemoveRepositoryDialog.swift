@@ -145,7 +145,7 @@ struct RemoveRepositoryOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
+            Color(hex: "0D0D0D").opacity(0.45)
                 .ignoresSafeArea()
                 .onTapGesture {
                     if !isRemoving {

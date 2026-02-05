@@ -104,12 +104,17 @@ async fn register_message_send(server: &IpcServer, state: DaemonState) {
                 let armin_session_id = SessionId::from_string(&session_id);
 
                 // Append message via Armin (sequence number assigned atomically)
-                let message = armin.append(
+                let message = match armin.append(
                     &armin_session_id,
                     NewMessage {
                         content: content.clone(),
                     },
-                );
+                ) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to append message: {}", e));
+                    }
+                };
 
                 Response::success(
                     &req.id,

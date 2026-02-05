@@ -294,7 +294,7 @@ struct RepositoryGroup: View {
             .padding(.vertical, Spacing.xs)
             .contentShape(Rectangle())
             .contextMenu {
-                Button(role: .destructive) {
+                Button {
                     onRequestRemoveRepository?(repository)
                 } label: {
                     Label("Remove Repository...", systemImage: "trash")
@@ -622,7 +622,7 @@ struct TimelineSessionRow: View {
 
             Divider()
 
-            Button(role: .destructive) {
+            Button {
                 showDeleteConfirmation = true
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -645,7 +645,7 @@ struct TimelineSessionRow: View {
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button("Delete") {
                 onDelete?()
             }
             Button("Cancel", role: .cancel) {}

@@ -250,6 +250,6 @@ struct SignUpFormView: View {
     SignUpFormView(errorMessage: nil)
         .environment(AppState())
         .padding(Spacing.xxxxl)
-        .background(Color.black)
+        .background(ThemeColors(.dark).background)
         .frame(width: 400)
 }

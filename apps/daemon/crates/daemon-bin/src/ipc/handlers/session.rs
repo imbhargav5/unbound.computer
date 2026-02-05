@@ -37,7 +37,16 @@ async fn register_session_list(server: &IpcServer, state: DaemonState) {
                 };
 
                 let repository_id = RepositoryId::from_string(&repo_id);
-                let sessions = armin.list_sessions(&repository_id);
+                let sessions = match armin.list_sessions(&repository_id) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to list sessions: {}", e),
+                        );
+                    }
+                };
 
                 let session_data: Vec<serde_json::Value> = sessions
                     .iter()
@@ -120,12 +129,19 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     // Get repository from Armin
                     let repo_id = RepositoryId::from_string(&repository_id);
                     let repo = match state.armin.get_repository(&repo_id) {
-                        Some(r) => r,
-                        None => {
+                        Ok(Some(r)) => r,
+                        Ok(None) => {
                             return Response::error(
                                 &req.id,
                                 error_codes::NOT_FOUND,
                                 "Repository not found",
+                            );
+                        }
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to get repository: {}", e),
                             );
                         }
                     };
@@ -162,7 +178,16 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     worktree_path,
                 };
 
-                let created_session = state.armin.create_session_with_metadata(new_session);
+                let created_session = match state.armin.create_session_with_metadata(new_session) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to create session: {}", e),
+                        );
+                    }
+                };
 
                 // Cache the parsed secret key in memory
                 if let Ok(key) = SecretsManager::parse_session_secret(&session_secret) {
@@ -191,7 +216,13 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                                         encrypted_secret: encrypted,
                                         nonce: nonce.to_vec(),
                                     };
-                                    state.armin.set_session_secret(secret);
+                                    if let Err(e) = state.armin.set_session_secret(secret) {
+                                        warn!(
+                                            session_id = %session_id.as_str(),
+                                            "Failed to store session secret: {}",
+                                            e
+                                        );
+                                    }
                                     debug!(
                                         session_id = %session_id.as_str(),
                                         "Stored session secret via Armin"
@@ -272,7 +303,7 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
 
                 let session_id = SessionId::from_string(&id);
                 match armin.get_session(&session_id) {
-                    Some(s) => Response::success(
+                    Ok(Some(s)) => Response::success(
                         &req.id,
                         serde_json::json!({
                             "session": {
@@ -285,8 +316,11 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                             }
                         }),
                     ),
-                    None => {
+                    Ok(None) => {
                         Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
+                    }
+                    Err(e) => {
+                        Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e))
                     }
                 }
             }
@@ -317,9 +351,12 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                 // First, get the session to check if it's a worktree
                 let session_id = SessionId::from_string(&id);
                 let session = match state.armin.get_session(&session_id) {
-                    Some(s) => s,
-                    None => {
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
                         return Response::error(&req.id, error_codes::NOT_FOUND, "Session not found");
+                    }
+                    Err(e) => {
+                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e));
                     }
                 };
 
@@ -327,7 +364,7 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                 if session.is_worktree {
                     if let Some(worktree_path) = &session.worktree_path {
                         // Get repository path for worktree cleanup
-                        if let Some(repo) = state.armin.get_repository(&session.repository_id) {
+                        if let Ok(Some(repo)) = state.armin.get_repository(&session.repository_id) {
                             // Try to remove the worktree, but don't fail the deletion if this fails
                             if let Err(e) = remove_worktree(
                                 Path::new(&repo.path),
@@ -351,7 +388,12 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                 }
 
                 // Delete the session via Armin
-                let deleted = state.armin.delete_session(&session_id);
+                let deleted = match state.armin.delete_session(&session_id) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to delete session: {}", e));
+                    }
+                };
 
                 if deleted {
                     Response::success(&req.id, serde_json::json!({ "deleted": true }))

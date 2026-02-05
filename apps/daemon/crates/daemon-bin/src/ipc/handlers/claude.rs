@@ -5,7 +5,7 @@ use crate::machines::claude::handle_claude_events;
 use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use deku::{ClaudeConfig, ClaudeProcess};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Register Claude handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -54,14 +54,18 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                 let (working_dir, claude_session_id) = {
                     let armin_session_id = SessionId::from_string(&session_id);
                     let session = match state.armin.get_session(&armin_session_id) {
-                        Some(s) => s,
-                        None => {
+                        Ok(Some(s)) => s,
+                        Ok(None) => {
                             error!("\x1b[31m[CLAUDE]\x1b[0m Session not found: {}", session_id);
                             return Response::error(
                                 &req.id,
                                 error_codes::NOT_FOUND,
                                 "Session not found",
                             );
+                        }
+                        Err(e) => {
+                            error!("\x1b[31m[CLAUDE]\x1b[0m Failed to get session: {}", e);
+                            return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e));
                         }
                     };
 
@@ -71,8 +75,8 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                     );
 
                     let repo = match state.armin.get_repository(&session.repository_id) {
-                        Some(r) => r,
-                        None => {
+                        Ok(Some(r)) => r,
+                        Ok(None) => {
                             error!(
                                 "\x1b[31m[CLAUDE]\x1b[0m Repository not found: {}",
                                 session.repository_id.as_str()
@@ -82,6 +86,10 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                                 error_codes::NOT_FOUND,
                                 "Repository not found",
                             );
+                        }
+                        Err(e) => {
+                            error!("\x1b[31m[CLAUDE]\x1b[0m Failed to get repository: {}", e);
+                            return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get repository: {}", e));
                         }
                     };
 
@@ -100,16 +108,22 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                 // Store the user message via Armin
                 {
                     let armin_session_id = SessionId::from_string(&session_id);
-                    let message = state.armin.append(
+                    match state.armin.append(
                         &armin_session_id,
                         NewMessage {
                             content: content.clone(),
                         },
-                    );
-                    info!(
-                        "\x1b[32m[CLAUDE]\x1b[0m Stored user message via Armin (seq: {})",
-                        message.sequence_number
-                    );
+                    ) {
+                        Ok(message) => {
+                            info!(
+                                "\x1b[32m[CLAUDE]\x1b[0m Stored user message via Armin (seq: {})",
+                                message.sequence_number
+                            );
+                        }
+                        Err(e) => {
+                            warn!("\x1b[31m[CLAUDE]\x1b[0m Failed to store user message: {}", e);
+                        }
+                    }
                 }
 
                 // Build Claude configuration using Deku
@@ -217,6 +231,8 @@ async fn register_claude_status(server: &IpcServer, state: DaemonState) {
                 // Get agent status from Armin
                 let armin_session_id = SessionId::from_string(&session_id);
                 let agent_status = state.armin.get_session_state(&armin_session_id)
+                    .ok()
+                    .flatten()
                     .map(|s| s.agent_status.as_str().to_string())
                     .unwrap_or_else(|| "idle".to_string());
 

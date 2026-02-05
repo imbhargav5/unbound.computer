@@ -25,7 +25,7 @@ use tempfile::NamedTempFile;
 fn rule_61_order_consistent_across_views() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Subscribe before appending
     let sub = armin.subscribe(&session_id);
@@ -38,7 +38,7 @@ fn rule_61_order_consistent_across_views() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
         expected_order.push(msg.id);
     }
 
@@ -52,7 +52,7 @@ fn rule_61_order_consistent_across_views() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
         expected_order.push(msg.id);
     }
 
@@ -80,7 +80,7 @@ fn rule_61_order_consistent_across_views() {
 fn rule_62_message_ids_are_unique() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let mut all_ids = std::collections::HashSet::new();
     for i in 0..100 {
@@ -89,7 +89,7 @@ fn rule_62_message_ids_are_unique() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
         assert!(
             all_ids.insert(msg.id.as_str().to_string()),
             "ID {} should be unique",
@@ -103,7 +103,7 @@ fn rule_62_message_ids_are_unique() {
 fn rule_63_no_duplicate_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     for i in 0..50 {
         armin.append(
@@ -111,7 +111,7 @@ fn rule_63_no_duplicate_messages() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     armin.refresh_snapshot().unwrap();
@@ -122,7 +122,7 @@ fn rule_63_no_duplicate_messages() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Check snapshot for duplicates
@@ -151,7 +151,7 @@ fn rule_64_no_message_disappears() {
     let (session_id, messages) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let mut msgs = Vec::new();
         for i in 0..100 {
@@ -160,7 +160,7 @@ fn rule_64_no_message_disappears() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            ));
+            ).unwrap());
         }
         (session_id, msgs)
     };
@@ -182,14 +182,14 @@ fn rule_64_no_message_disappears() {
 fn rule_65_stale_snapshots_allowed() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "V1".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Take snapshot (V1)
@@ -201,7 +201,7 @@ fn rule_65_stale_snapshots_allowed() {
         NewMessage {
             content: "V2".to_string(),
         },
-    );
+    ).unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Stale snapshot still shows V1 only
@@ -220,7 +220,7 @@ fn rule_65_stale_snapshots_allowed() {
 fn rule_66_no_torn_messages() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let long_content = "A".repeat(10000);
 
@@ -229,7 +229,7 @@ fn rule_66_no_torn_messages() {
         NewMessage {
             content: long_content.clone(),
         },
-    );
+    ).unwrap();
 
     let delta = armin.delta(&session_id);
     let msg = &delta.messages()[0];
@@ -248,7 +248,7 @@ fn rule_67_side_effects_match_sqlite_order() {
     let (session_id, effect_ids) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.sink().clear();
 
         for i in 0..10 {
@@ -257,7 +257,7 @@ fn rule_67_side_effects_match_sqlite_order() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         let ids: Vec<_> = armin
@@ -292,7 +292,7 @@ fn rule_68_live_matches_sqlite_order() {
     let (session_id, live_ids) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let sub = armin.subscribe(&session_id);
 
@@ -302,7 +302,7 @@ fn rule_68_live_matches_sqlite_order() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         let mut ids = Vec::new();
@@ -332,7 +332,7 @@ fn rule_69_delta_matches_sqlite_order() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         for i in 0..10 {
             armin.append(
@@ -340,7 +340,7 @@ fn rule_69_delta_matches_sqlite_order() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         session_id
@@ -359,7 +359,7 @@ fn rule_69_delta_matches_sqlite_order() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     let delta = armin.delta(&session_id);
@@ -379,7 +379,7 @@ fn rule_70_snapshot_matches_sqlite_order() {
     let (session_id, original_messages) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let mut msgs = Vec::new();
         for i in 0..20 {
@@ -388,7 +388,7 @@ fn rule_70_snapshot_matches_sqlite_order() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            ));
+            ).unwrap());
         }
 
         (session_id, msgs)
@@ -414,8 +414,8 @@ fn interleaved_sessions_maintain_global_order() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
 
     let mut all_messages = Vec::new();
 
@@ -426,7 +426,7 @@ fn interleaved_sessions_maintain_global_order() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        ));
+        ).unwrap());
     }
 
     // Global IDs should be unique
@@ -438,7 +438,7 @@ fn interleaved_sessions_maintain_global_order() {
 fn message_content_preserved_in_order() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     let contents: Vec<_> = (0..20).map(|i| format!("Content-{}", i)).collect();
     for (i, content) in contents.iter().enumerate() {
@@ -447,7 +447,7 @@ fn message_content_preserved_in_order() {
             NewMessage {
                 content: content.clone(),
             },
-        );
+        ).unwrap();
     }
 
     let delta = armin.delta(&session_id);

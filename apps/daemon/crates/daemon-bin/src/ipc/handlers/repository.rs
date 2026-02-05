@@ -23,7 +23,16 @@ async fn register_repository_list(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::RepositoryList, move |req| {
             let armin = state.armin.clone();
             async move {
-                let repos = armin.list_repositories();
+                let repos = match armin.list_repositories() {
+                    Ok(repos) => repos,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to list repositories: {}", e),
+                        );
+                    }
+                };
                 let repo_data: Vec<serde_json::Value> = repos
                     .iter()
                     .map(|r| {
@@ -89,7 +98,16 @@ async fn register_repository_add(server: &IpcServer, state: DaemonState) {
                     default_remote: None,
                 };
 
-                let created = armin.create_repository(repo);
+                let created = match armin.create_repository(repo) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to create repository: {}", e),
+                        );
+                    }
+                };
 
                 Response::success(
                     &req.id,
@@ -126,7 +144,16 @@ async fn register_repository_remove(server: &IpcServer, state: DaemonState) {
                 };
 
                 let repo_id = RepositoryId::from_string(&id);
-                let deleted = armin.delete_repository(&repo_id);
+                let deleted = match armin.delete_repository(&repo_id) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to delete repository: {}", e),
+                        );
+                    }
+                };
 
                 if deleted {
                     Response::success(&req.id, serde_json::json!({ "deleted": true }))
@@ -171,7 +198,7 @@ async fn register_repository_list_files(server: &IpcServer, state: DaemonState) 
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
-                let root_path = match resolve_session_root(&state, session_id) {
+                let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
                     Err((code, message)) => return Response::error(&req.id, code, &message),
                 };
@@ -257,7 +284,7 @@ async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
                     .filter(|v| *v > 0)
                     .unwrap_or(1_000_000);
 
-                let root_path = match resolve_session_root(&state, session_id) {
+                let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
                     Err((code, message)) => return Response::error(&req.id, code, &message),
                 };
@@ -365,33 +392,28 @@ async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
         .await;
 }
 
-fn resolve_session_root(state: &DaemonState, session_id: &str) -> Result<String, (i32, String)> {
-    let conn = state
-        .db
-        .get()
-        .map_err(|e| (error_codes::INTERNAL_ERROR, e.to_string()))?;
+async fn resolve_session_root(state: &DaemonState, session_id: &str) -> Result<String, (i32, String)> {
+    let session_id_owned = session_id.to_string();
+    let result = state.db.call(move |conn| {
+        let session = queries::get_session(conn, &session_id_owned)?
+            .ok_or_else(|| daemon_database::DatabaseError::NotFound("Session not found".to_string()))?;
+        let repo = queries::get_repository(conn, &session.repository_id)?
+            .ok_or_else(|| daemon_database::DatabaseError::NotFound("Repository not found".to_string()))?;
+        let root_path = if session.is_worktree {
+            session.worktree_path.unwrap_or(repo.path)
+        } else {
+            repo.path
+        };
+        Ok(root_path)
+    }).await;
 
-    let session = queries::get_session(&conn, session_id)
-        .map_err(|e| (error_codes::INTERNAL_ERROR, e.to_string()))?;
-
-    let Some(session) = session else {
-        return Err((error_codes::NOT_FOUND, "Session not found".to_string()));
-    };
-
-    let repo = queries::get_repository(&conn, &session.repository_id)
-        .map_err(|e| (error_codes::INTERNAL_ERROR, e.to_string()))?;
-
-    let Some(repo) = repo else {
-        return Err((error_codes::NOT_FOUND, "Repository not found".to_string()));
-    };
-
-    let root_path = if session.is_worktree {
-        session.worktree_path.unwrap_or(repo.path)
-    } else {
-        repo.path
-    };
-
-    Ok(root_path)
+    match result {
+        Ok(path) => Ok(path),
+        Err(daemon_database::DatabaseError::NotFound(msg)) => {
+            Err((error_codes::NOT_FOUND, msg))
+        }
+        Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
+    }
 }
 
 fn map_yagami_error(err: YagamiError) -> (i32, String) {

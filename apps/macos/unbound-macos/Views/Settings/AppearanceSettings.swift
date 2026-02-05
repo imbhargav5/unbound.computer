@@ -125,37 +125,20 @@ struct ThemeCard: View {
 struct ThemePreview: View {
     let mode: ThemeMode
 
+    private var previewColors: ThemeColors {
+        ThemeColors(mode == .light ? .light : .dark)
+    }
+
     private var backgroundColor: Color {
-        switch mode {
-        case .system:
-            return Color(hex: "18181b") // Zinc 900
-        case .light:
-            return Color.white
-        case .dark:
-            return Color(hex: "09090b") // Zinc 950
-        }
+        previewColors.background
     }
 
     private var sidebarColor: Color {
-        switch mode {
-        case .system:
-            return Color(hex: "27272a") // Zinc 800
-        case .light:
-            return Color(hex: "f4f4f5") // Zinc 100
-        case .dark:
-            return Color(hex: "18181b") // Zinc 900
-        }
+        previewColors.card
     }
 
     private var textColor: Color {
-        switch mode {
-        case .system:
-            return Color(hex: "fafafa") // Zinc 50
-        case .light:
-            return Color(hex: "09090b") // Zinc 950
-        case .dark:
-            return Color(hex: "fafafa") // Zinc 50
-        }
+        previewColors.foreground
     }
 
     var body: some View {

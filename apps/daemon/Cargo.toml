@@ -6,8 +6,6 @@ members = [
     "crates/daemon-storage",
     "crates/daemon-database",
     "crates/daemon-auth",
-    "crates/daemon-relay",
-    "crates/daemon-outbox",
     "crates/daemon-ipc",
     "crates/daemon-bin",
     "crates/falco",
@@ -36,8 +34,6 @@ serde_json = "1.0"
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled", "modern_sqlite"] }
-r2d2 = "0.8"
-r2d2_sqlite = "0.25"
 tokio-rusqlite = "0.6"  # Async SQLite executor with dedicated thread
 
 # Encryption
@@ -88,8 +84,6 @@ daemon-core = { path = "crates/daemon-core" }
 daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }
 daemon-auth = { path = "crates/daemon-auth" }
-daemon-relay = { path = "crates/daemon-relay" }
-daemon-outbox = { path = "crates/daemon-outbox" }
 daemon-ipc = { path = "crates/daemon-ipc" }
 falco = { path = "crates/falco" }
 toshinori = { path = "crates/toshinori" }

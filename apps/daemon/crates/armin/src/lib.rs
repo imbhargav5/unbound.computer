@@ -34,12 +34,12 @@
 //! let engine = Armin::in_memory(sink).unwrap();
 //!
 //! // Create a session
-//! let session_id = engine.create_session();
+//! let session_id = engine.create_session().unwrap();
 //!
 //! // Append messages
 //! engine.append(&session_id, NewMessage {
 //!     content: "Hello!".to_string(),
-//! });
+//! }).unwrap();
 //!
 //! // Read via delta
 //! let delta = engine.delta(&session_id);
@@ -90,4 +90,8 @@ pub enum ArminError {
     /// SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+
+    /// Session not found or closed.
+    #[error("session not found or closed: {0}")]
+    SessionNotFound(String),
 }

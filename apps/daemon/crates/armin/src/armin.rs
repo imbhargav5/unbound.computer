@@ -163,12 +163,9 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     // Repository operations
     // ========================================================================
 
-    fn create_repository(&self, repo: NewRepository) -> Repository {
+    fn create_repository(&self, repo: NewRepository) -> Result<Repository, ArminError> {
         // 1. Commit fact to SQLite
-        let repository = self
-            .sqlite
-            .insert_repository(&repo)
-            .expect("failed to create repository");
+        let repository = self.sqlite.insert_repository(&repo)?;
 
         // 2. No derived state for repositories
 
@@ -177,15 +174,12 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             repository_id: repository.id.clone(),
         });
 
-        repository
+        Ok(repository)
     }
 
-    fn delete_repository(&self, id: &RepositoryId) -> bool {
+    fn delete_repository(&self, id: &RepositoryId) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let deleted = self
-            .sqlite
-            .delete_repository(id)
-            .expect("failed to delete repository");
+        let deleted = self.sqlite.delete_repository(id)?;
 
         if deleted {
             // 3. Emit side-effect
@@ -194,19 +188,16 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             });
         }
 
-        deleted
+        Ok(deleted)
     }
 
     // ========================================================================
     // Session operations (full metadata)
     // ========================================================================
 
-    fn create_session_with_metadata(&self, session: NewSession) -> Session {
+    fn create_session_with_metadata(&self, session: NewSession) -> Result<Session, ArminError> {
         // 1. Commit fact to SQLite
-        let created = self
-            .sqlite
-            .insert_agent_session(&session)
-            .expect("failed to create session");
+        let created = self.sqlite.insert_agent_session(&session)?;
 
         // 2. Update derived state
         self.delta.init_session(created.id.clone(), None);
@@ -216,15 +207,12 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             session_id: created.id.clone(),
         });
 
-        created
+        Ok(created)
     }
 
-    fn update_session(&self, id: &SessionId, update: SessionUpdate) -> bool {
+    fn update_session(&self, id: &SessionId, update: SessionUpdate) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let updated = self
-            .sqlite
-            .update_agent_session(id, &update)
-            .expect("failed to update session");
+        let updated = self.sqlite.update_agent_session(id, &update)?;
 
         if updated {
             // 3. Emit side-effect
@@ -233,15 +221,12 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             });
         }
 
-        updated
+        Ok(updated)
     }
 
-    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> bool {
+    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let updated = self
-            .sqlite
-            .update_agent_session_claude_id(id, claude_session_id)
-            .expect("failed to update claude session id");
+        let updated = self.sqlite.update_agent_session_claude_id(id, claude_session_id)?;
 
         if updated {
             // 3. Emit side-effect
@@ -250,15 +235,12 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             });
         }
 
-        updated
+        Ok(updated)
     }
 
-    fn delete_session(&self, id: &SessionId) -> bool {
+    fn delete_session(&self, id: &SessionId) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let deleted = self
-            .sqlite
-            .delete_agent_session(id)
-            .expect("failed to delete session");
+        let deleted = self.sqlite.delete_agent_session(id)?;
 
         if deleted {
             // 2. Update derived state
@@ -271,22 +253,18 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             });
         }
 
-        deleted
+        Ok(deleted)
     }
 
     // ========================================================================
     // Session state operations
     // ========================================================================
 
-    fn update_agent_status(&self, session: &SessionId, status: AgentStatus) {
+    fn update_agent_status(&self, session: &SessionId, status: AgentStatus) -> Result<(), ArminError> {
         // 1. Ensure session state exists, then update
-        let _ = self.sqlite.get_or_create_session_state(session)
-            .expect("failed to get or create session state");
+        let _ = self.sqlite.get_or_create_session_state(session)?;
 
-        let updated = self
-            .sqlite
-            .update_agent_status(session, status)
-            .expect("failed to update agent status");
+        let updated = self.sqlite.update_agent_status(session, status)?;
 
         if updated {
             // 3. Emit side-effect
@@ -295,13 +273,15 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
                 status,
             });
         }
+
+        Ok(())
     }
 
     // ========================================================================
     // Simple session operations (for tests - creates default repository)
     // ========================================================================
 
-    fn create_session(&self) -> SessionId {
+    fn create_session(&self) -> Result<SessionId, ArminError> {
         // Ensure default repository exists for simple session creation
         let default_repo_id = RepositoryId::from_string("default-test-repo");
         if self.sqlite.get_repository(&default_repo_id).is_err()
@@ -329,9 +309,7 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             worktree_path: None,
         };
 
-        let created = self.sqlite
-            .insert_agent_session(&session)
-            .expect("failed to create session");
+        let created = self.sqlite.insert_agent_session(&session)?;
 
         // 2. Update derived state
         self.delta.init_session(created.id.clone(), None);
@@ -339,24 +317,18 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         // 3. Emit side-effect
         self.sink.emit(SideEffect::SessionCreated { session_id: created.id.clone() });
 
-        created.id
+        Ok(created.id)
     }
 
-    fn append(&self, session: &SessionId, message: NewMessage) -> Message {
+    fn append(&self, session: &SessionId, message: NewMessage) -> Result<Message, ArminError> {
         // Verify session exists and is active
         match self.sqlite.get_agent_session(session) {
             Ok(Some(s)) if s.status == SessionStatus::Active => {}
-            Ok(Some(_)) => panic!("session {} does not exist or is closed", session.0),
-            _ => panic!("session {} does not exist or is closed", session.0),
+            _ => return Err(ArminError::SessionNotFound(session.0.clone())),
         }
 
         // 1. Commit fact to SQLite (atomic sequence assignment)
-        let inserted = self.sqlite
-            .insert_agent_message(session, &message)
-            .expect("failed to insert message");
-
-        // Note: We no longer insert into per-message outbox. Levi uses cursor-based
-        // sync state (agent_coding_session_supabase_sync_state) to track sync progress.
+        let inserted = self.sqlite.insert_agent_message(session, &message)?;
 
         let full_message = Message {
             id: inserted.id.clone(),
@@ -376,19 +348,19 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             content: full_message.content.clone(),
         });
 
-        full_message
+        Ok(full_message)
     }
 
-    fn close(&self, session: &SessionId) {
+    fn close(&self, session: &SessionId) -> Result<(), ArminError> {
         // Check if session exists and is currently active
         let current_session = match self.sqlite.get_agent_session(session) {
             Ok(Some(s)) => s,
-            _ => return, // Session doesn't exist
+            _ => return Ok(()), // Session doesn't exist - not an error
         };
 
         // Only close if currently active
         if current_session.status != SessionStatus::Active {
-            return; // Already closed
+            return Ok(()); // Already closed - not an error
         }
 
         // 1. Update session status to Archived
@@ -398,50 +370,45 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             claude_session_id: None,
             last_accessed_at: None,
         };
-        self.sqlite
-            .update_agent_session(session, &update)
-            .expect("failed to close session");
+        self.sqlite.update_agent_session(session, &update)?;
 
         // 2. Update derived state
         self.live.close_session(session);
 
         // 3. Emit side-effect
         self.sink.emit(SideEffect::SessionClosed { session_id: session.clone() });
+
+        Ok(())
     }
 
     // ========================================================================
     // Session secrets operations
     // ========================================================================
 
-    fn set_session_secret(&self, secret: NewSessionSecret) {
+    fn set_session_secret(&self, secret: NewSessionSecret) -> Result<(), ArminError> {
         // 1. Commit fact to SQLite
-        self.sqlite
-            .set_session_secret(&secret)
-            .expect("failed to set session secret");
+        self.sqlite.set_session_secret(&secret)?;
 
         // 2. No derived state for secrets
         // 3. No side-effect for secrets (security consideration)
+        Ok(())
     }
 
-    fn delete_session_secret(&self, session: &SessionId) -> bool {
+    fn delete_session_secret(&self, session: &SessionId) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        self.sqlite
-            .delete_session_secret(session)
-            .expect("failed to delete session secret")
+        Ok(self.sqlite.delete_session_secret(session)?)
     }
 
     // ========================================================================
     // Outbox operations
     // ========================================================================
 
-    fn insert_outbox_event(&self, event: NewOutboxEvent) -> OutboxEvent {
+    fn insert_outbox_event(&self, event: NewOutboxEvent) -> Result<OutboxEvent, ArminError> {
         // 1. Commit fact to SQLite
-        self.sqlite
-            .insert_outbox_event(&event)
-            .expect("failed to insert outbox event");
+        self.sqlite.insert_outbox_event(&event)?;
 
         // Return a constructed OutboxEvent
-        OutboxEvent {
+        Ok(OutboxEvent {
             event_id: event.event_id,
             session_id: event.session_id,
             sequence_number: event.sequence_number,
@@ -453,75 +420,69 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             created_at: chrono::Utc::now(),
             sent_at: None,
             acked_at: None,
-        }
+        })
     }
 
-    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]) {
+    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]) -> Result<(), ArminError> {
         // 1. Commit fact to SQLite
-        self.sqlite
-            .mark_outbox_events_sent(event_ids, batch_id)
-            .expect("failed to mark outbox events sent");
+        self.sqlite.mark_outbox_events_sent(event_ids, batch_id)?;
 
         // 3. Emit side-effect
         self.sink.emit(SideEffect::OutboxEventsSent {
             batch_id: batch_id.to_string(),
         });
+
+        Ok(())
     }
 
-    fn mark_outbox_acked(&self, batch_id: &str) {
+    fn mark_outbox_acked(&self, batch_id: &str) -> Result<(), ArminError> {
         // 1. Commit fact to SQLite
-        self.sqlite
-            .mark_outbox_batch_acked(batch_id)
-            .expect("failed to mark outbox batch acked");
+        self.sqlite.mark_outbox_batch_acked(batch_id)?;
 
         // 3. Emit side-effect
         self.sink.emit(SideEffect::OutboxEventsAcked {
             batch_id: batch_id.to_string(),
         });
+
+        Ok(())
     }
 
     // ========================================================================
     // Supabase message outbox operations
     // ========================================================================
 
-    fn insert_supabase_message_outbox(&self, message_id: &MessageId) {
-        self.sqlite
-            .insert_supabase_message_outbox(message_id)
-            .expect("failed to insert supabase message outbox");
+    fn insert_supabase_message_outbox(&self, message_id: &MessageId) -> Result<(), ArminError> {
+        self.sqlite.insert_supabase_message_outbox(message_id)?;
+        Ok(())
     }
 
-    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) {
-        self.sqlite
-            .mark_supabase_messages_sent(message_ids)
-            .expect("failed to mark supabase messages sent");
+    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> Result<(), ArminError> {
+        self.sqlite.mark_supabase_messages_sent(message_ids)?;
+        Ok(())
     }
 
-    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) {
-        self.sqlite
-            .mark_supabase_messages_failed(message_ids, error)
-            .expect("failed to mark supabase messages failed");
+    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> Result<(), ArminError> {
+        self.sqlite.mark_supabase_messages_failed(message_ids, error)?;
+        Ok(())
     }
 
-    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) {
-        self.sqlite
-            .delete_supabase_message_outbox(message_ids)
-            .expect("failed to delete supabase message outbox");
+    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> Result<(), ArminError> {
+        self.sqlite.delete_supabase_message_outbox(message_ids)?;
+        Ok(())
     }
 
     // ========================================================================
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
-    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) {
-        self.sqlite
-            .mark_supabase_sync_success(session, up_to_sequence)
-            .expect("failed to mark supabase sync success");
+    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError> {
+        self.sqlite.mark_supabase_sync_success(session, up_to_sequence)?;
+        Ok(())
     }
 
-    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) {
-        self.sqlite
-            .mark_supabase_sync_failed(session, error)
-            .expect("failed to mark supabase sync failed");
+    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError> {
+        self.sqlite.mark_supabase_sync_failed(session, error)?;
+        Ok(())
     }
 }
 
@@ -530,48 +491,36 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // Repository operations
     // ========================================================================
 
-    fn list_repositories(&self) -> Vec<Repository> {
-        self.sqlite
-            .list_repositories()
-            .expect("failed to list repositories")
+    fn list_repositories(&self) -> Result<Vec<Repository>, ArminError> {
+        Ok(self.sqlite.list_repositories()?)
     }
 
-    fn get_repository(&self, id: &RepositoryId) -> Option<Repository> {
-        self.sqlite
-            .get_repository(id)
-            .expect("failed to get repository")
+    fn get_repository(&self, id: &RepositoryId) -> Result<Option<Repository>, ArminError> {
+        Ok(self.sqlite.get_repository(id)?)
     }
 
-    fn get_repository_by_path(&self, path: &str) -> Option<Repository> {
-        self.sqlite
-            .get_repository_by_path(path)
-            .expect("failed to get repository by path")
+    fn get_repository_by_path(&self, path: &str) -> Result<Option<Repository>, ArminError> {
+        Ok(self.sqlite.get_repository_by_path(path)?)
     }
 
     // ========================================================================
     // Session operations (full metadata)
     // ========================================================================
 
-    fn list_sessions(&self, repository_id: &RepositoryId) -> Vec<Session> {
-        self.sqlite
-            .list_agent_sessions_for_repository(repository_id)
-            .expect("failed to list sessions")
+    fn list_sessions(&self, repository_id: &RepositoryId) -> Result<Vec<Session>, ArminError> {
+        Ok(self.sqlite.list_agent_sessions_for_repository(repository_id)?)
     }
 
-    fn get_session(&self, id: &SessionId) -> Option<Session> {
-        self.sqlite
-            .get_agent_session(id)
-            .expect("failed to get session")
+    fn get_session(&self, id: &SessionId) -> Result<Option<Session>, ArminError> {
+        Ok(self.sqlite.get_agent_session(id)?)
     }
 
     // ========================================================================
     // Session state operations
     // ========================================================================
 
-    fn get_session_state(&self, session: &SessionId) -> Option<SessionState> {
-        self.sqlite
-            .get_session_state(session)
-            .expect("failed to get session state")
+    fn get_session_state(&self, session: &SessionId) -> Result<Option<SessionState>, ArminError> {
+        Ok(self.sqlite.get_session_state(session)?)
     }
 
     // ========================================================================
@@ -594,48 +543,36 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // Session secrets operations
     // ========================================================================
 
-    fn get_session_secret(&self, session: &SessionId) -> Option<SessionSecret> {
-        self.sqlite
-            .get_session_secret(session)
-            .expect("failed to get session secret")
+    fn get_session_secret(&self, session: &SessionId) -> Result<Option<SessionSecret>, ArminError> {
+        Ok(self.sqlite.get_session_secret(session)?)
     }
 
-    fn has_session_secret(&self, session: &SessionId) -> bool {
-        self.sqlite
-            .has_session_secret(session)
-            .expect("failed to check session secret")
+    fn has_session_secret(&self, session: &SessionId) -> Result<bool, ArminError> {
+        Ok(self.sqlite.has_session_secret(session)?)
     }
 
     // ========================================================================
     // Outbox operations
     // ========================================================================
 
-    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Vec<OutboxEvent> {
-        self.sqlite
-            .get_pending_outbox_events(session, limit)
-            .expect("failed to get pending outbox events")
+    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Result<Vec<OutboxEvent>, ArminError> {
+        Ok(self.sqlite.get_pending_outbox_events(session, limit)?)
     }
 
-    fn get_pending_supabase_messages(&self, limit: usize) -> Vec<PendingSupabaseMessage> {
-        self.sqlite
-            .get_pending_supabase_messages(limit)
-            .expect("failed to get pending supabase messages")
+    fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
+        Ok(self.sqlite.get_pending_supabase_messages(limit)?)
     }
 
     // ========================================================================
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
-    fn get_supabase_sync_state(&self, session: &SessionId) -> Option<SupabaseSyncState> {
-        self.sqlite
-            .get_supabase_sync_state(session)
-            .expect("failed to get supabase sync state")
+    fn get_supabase_sync_state(&self, session: &SessionId) -> Result<Option<SupabaseSyncState>, ArminError> {
+        Ok(self.sqlite.get_supabase_sync_state(session)?)
     }
 
-    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Vec<SessionPendingSync> {
-        self.sqlite
-            .get_sessions_pending_sync(limit_per_session)
-            .expect("failed to get sessions pending sync")
+    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError> {
+        Ok(self.sqlite.get_sessions_pending_sync(limit_per_session)?)
     }
 }
 
@@ -649,7 +586,7 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
@@ -661,7 +598,7 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.sink().clear();
 
         let message = armin.append(
@@ -669,7 +606,7 @@ mod tests {
             NewMessage {
                 content: "Hello".to_string(),
             },
-        );
+        ).unwrap();
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
@@ -689,10 +626,10 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.sink().clear();
 
-        armin.close(&session_id);
+        armin.close(&session_id).unwrap();
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
@@ -704,19 +641,19 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         let msg1 = armin.append(
             &session_id,
             NewMessage {
                 content: "First".to_string(),
             },
-        );
+        ).unwrap();
         let msg2 = armin.append(
             &session_id,
             NewMessage {
                 content: "Second".to_string(),
             },
-        );
+        ).unwrap();
 
         // Verify sequence numbers are assigned correctly
         assert_eq!(msg1.sequence_number, 1);
@@ -733,7 +670,7 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         let sub = armin.subscribe(&session_id);
 
         armin.append(
@@ -741,27 +678,27 @@ mod tests {
             NewMessage {
                 content: "Hello".to_string(),
             },
-        );
+        ).unwrap();
 
         let msg = sub.try_recv().unwrap();
         assert_eq!(msg.content, "Hello");
     }
 
     #[test]
-    #[should_panic(expected = "does not exist or is closed")]
-    fn append_to_closed_session_panics() {
+    fn append_to_closed_session_returns_error() {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
-        armin.close(&session_id);
+        let session_id = armin.create_session().unwrap();
+        armin.close(&session_id).unwrap();
 
-        armin.append(
+        let result = armin.append(
             &session_id,
             NewMessage {
                 content: "Should fail".to_string(),
             },
         );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -769,13 +706,13 @@ mod tests {
         let sink = RecordingSink::new();
         let armin = Armin::in_memory(sink).unwrap();
 
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
         armin.append(
             &session_id,
             NewMessage {
                 content: "Message".to_string(),
             },
-        );
+        ).unwrap();
 
         // Before refresh, snapshot doesn't include the new session
         // (it was created after initial recovery)

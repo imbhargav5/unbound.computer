@@ -7,7 +7,7 @@ use levi::SessionSyncService;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use daemon_auth::{SessionManager, SupabaseClient};
 use daemon_core::{Config, Paths};
-use daemon_database::{DatabasePool, PoolConfig};
+use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
 use daemon_storage::create_secrets_manager;
 use levi::{Levi, LeviConfig};
@@ -89,10 +89,10 @@ pub async fn run_daemon(
         "Armin session engine initialized"
     );
 
-    // Legacy database pool for operations not yet migrated to Armin
-    // This will be removed once all operations use Armin
-    let db = DatabasePool::open(&paths.database_file(), PoolConfig::default())?;
-    info!("Legacy database pool initialized (will be deprecated)");
+    // Async database for operations not yet migrated to Armin
+    let db = AsyncDatabase::open(&paths.database_file()).await
+        .map_err(|e| format!("Failed to open async database: {}", e))?;
+    info!("Async database initialized");
 
     // Initialize secure storage
     let secrets = create_secrets_manager()?;
@@ -156,7 +156,6 @@ pub async fn run_daemon(
     info!("Supabase client initialized");
 
     // Create shared Arc values for reuse
-    let db_arc = Arc::new(db);
     let secrets_arc = Arc::new(Mutex::new(secrets));
     let device_id_arc = Arc::new(Mutex::new(device_id));
     let device_private_key_arc = Arc::new(Mutex::new(device_private_key));
@@ -167,7 +166,7 @@ pub async fn run_daemon(
     // Create session sync service (shares cache via inner Arc)
     let session_sync = Arc::new(SessionSyncService::new(
         supabase_client.clone(),
-        db_arc.clone(),
+        db.clone(),
         secrets_arc.clone(),
         device_id_arc.clone(),
         device_private_key_arc.clone(),
@@ -199,7 +198,7 @@ pub async fn run_daemon(
     let state = DaemonState {
         config: Arc::new(config),
         paths: Arc::new(paths.clone()),
-        db: db_arc,
+        db,
         secrets: secrets_arc,
         claude_processes: Arc::new(Mutex::new(HashMap::new())),
         terminal_processes: Arc::new(Mutex::new(HashMap::new())),

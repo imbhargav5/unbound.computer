@@ -42,6 +42,7 @@ struct UnifiedDiffView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 

@@ -16,8 +16,6 @@ daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
 piccolo = { workspace = true }
 daemon-auth = { workspace = true }
-daemon-relay = { workspace = true }
-daemon-outbox = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }
 levi = { workspace = true }

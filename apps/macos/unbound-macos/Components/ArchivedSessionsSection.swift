@@ -201,7 +201,7 @@ struct ArchivedSessionRow: View {
 
             Divider()
 
-            Button(role: .destructive) {
+            Button {
                 showDeleteConfirmation = true
             } label: {
                 Label("Delete Permanently", systemImage: "trash")
@@ -224,7 +224,7 @@ struct ArchivedSessionRow: View {
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button("Delete") {
                 onDelete()
             }
             Button("Cancel", role: .cancel) {}

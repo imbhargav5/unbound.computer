@@ -48,6 +48,7 @@ struct SplitDiffView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     /// Build paired lines for split view

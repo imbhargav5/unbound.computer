@@ -16,7 +16,7 @@ echo "Total tests: $total"
 
 echo ""
 echo "=== Coverage by Crate ==="
-for crate in daemon-core daemon-storage daemon-database daemon-auth daemon-relay daemon-outbox daemon-ipc; do
+for crate in daemon-core daemon-storage daemon-database daemon-auth daemon-ipc armin deku piccolo levi toshinori falco yamcha yagami; do
     count=$(cargo test -p $crate -- --list 2>/dev/null | grep -c "test$" || echo "0")
     echo "  $crate: $count tests"
 done

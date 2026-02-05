@@ -21,7 +21,6 @@ use crate::side_effect::RecordingSink;
 use crate::types::{NewMessage, SessionId};
 use crate::writer::SessionWriter;
 use crate::Armin;
-use std::panic;
 use tempfile::NamedTempFile;
 
 /// Rule 91: Failed write prevents side-effects
@@ -30,19 +29,17 @@ use tempfile::NamedTempFile;
 fn rule_91_failed_write_no_side_effects() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
-    armin.close(&session_id);
+    let session_id = armin.create_session().unwrap();
+    armin.close(&session_id).unwrap();
     armin.sink().clear();
 
-    // Attempt to append (will fail)
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Should fail".to_string(),
-            },
-        );
-    }));
+    // Attempt to append (will fail with Err)
+    let result = armin.append(
+        &session_id,
+        NewMessage {
+            content: "Should fail".to_string(),
+        },
+    );
 
     assert!(result.is_err());
     assert!(
@@ -70,14 +67,14 @@ fn rule_92_side_effect_failure_sqlite_safe() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         armin.append(
             &session_id,
             NewMessage {
                 content: "Test".to_string(),
             },
-        );
+        ).unwrap();
 
         session_id
     };
@@ -97,14 +94,14 @@ fn rule_93_side_effect_failure_delta_safe() {
 
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     armin.append(
         &session_id,
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     // Delta should have the message regardless of side-effect status
     let delta = armin.delta(&session_id);
@@ -120,7 +117,7 @@ fn rule_94_live_failure_sqlite_safe() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         // Create and immediately drop subscriber (simulating dead subscriber)
         {
@@ -133,7 +130,7 @@ fn rule_94_live_failure_sqlite_safe() {
             NewMessage {
                 content: "Test".to_string(),
             },
-        );
+        ).unwrap();
 
         session_id
     };
@@ -151,7 +148,7 @@ fn rule_94_live_failure_sqlite_safe() {
 fn rule_95_live_failure_side_effects_safe() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Create and drop subscriber
     {
@@ -166,7 +163,7 @@ fn rule_95_live_failure_side_effects_safe() {
         NewMessage {
             content: "Test".to_string(),
         },
-    );
+    ).unwrap();
 
     let effects = armin.sink().effects();
     assert_eq!(effects.len(), 1);
@@ -183,11 +180,11 @@ fn rule_97_partial_failures_contained() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let session1 = armin.create_session();
-    let session2 = armin.create_session();
+    let session1 = armin.create_session().unwrap();
+    let session2 = armin.create_session().unwrap();
 
     // Close session1
-    armin.close(&session1);
+    armin.close(&session1).unwrap();
 
     // Session2 should still work
     armin.append(
@@ -195,19 +192,17 @@ fn rule_97_partial_failures_contained() {
         NewMessage {
             content: "Works".to_string(),
         },
-    );
+    ).unwrap();
 
     assert_eq!(armin.delta(&session2).len(), 1);
 
     // Session1 operations should fail
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session1,
-            NewMessage {
-                content: "Fails".to_string(),
-            },
-        );
-    }));
+    let result = armin.append(
+        &session1,
+        NewMessage {
+            content: "Fails".to_string(),
+        },
+    );
     assert!(result.is_err());
 
     // Session2 still works after session1 failure
@@ -216,7 +211,7 @@ fn rule_97_partial_failures_contained() {
         NewMessage {
             content: "Still works".to_string(),
         },
-    );
+    ).unwrap();
 
     assert_eq!(armin.delta(&session2).len(), 2);
 }
@@ -227,20 +222,19 @@ fn rule_98_system_continues_after_failures() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let working_session = armin.create_session();
-    let closed_session = armin.create_session();
-    armin.close(&closed_session);
+    let working_session = armin.create_session().unwrap();
+    let closed_session = armin.create_session().unwrap();
+    armin.close(&closed_session).unwrap();
 
     // Try many failed writes
     for _ in 0..10 {
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            armin.append(
-                &closed_session,
-                NewMessage {
-                    content: "Fails".to_string(),
-                },
-            );
-        }));
+        let result = armin.append(
+            &closed_session,
+            NewMessage {
+                content: "Fails".to_string(),
+            },
+        );
+        assert!(result.is_err());
     }
 
     // System should still work
@@ -250,7 +244,7 @@ fn rule_98_system_continues_after_failures() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     assert_eq!(armin.delta(&working_session).len(), 10);
@@ -265,7 +259,7 @@ fn rule_99_state_rebuildable_after_failure() {
     let (session_id, message_count) = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         for i in 0..50 {
             armin.append(
@@ -273,7 +267,7 @@ fn rule_99_state_rebuildable_after_failure() {
                 NewMessage {
                     content: format!("Message {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         // Simulate crash (just drop)
@@ -294,8 +288,8 @@ fn rule_100_no_corrupted_reads() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let good_session = armin.create_session();
-    let bad_session = armin.create_session();
+    let good_session = armin.create_session().unwrap();
+    let bad_session = armin.create_session().unwrap();
 
     // Write to good session
     for i in 0..20 {
@@ -304,20 +298,18 @@ fn rule_100_no_corrupted_reads() {
             NewMessage {
                 content: format!("Good-{}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Close and try to write to bad session
-    armin.close(&bad_session);
+    armin.close(&bad_session).unwrap();
     for _ in 0..10 {
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            armin.append(
-                &bad_session,
-                NewMessage {
-                    content: "Bad".to_string(),
-                },
-            );
-        }));
+        let _ = armin.append(
+            &bad_session,
+            NewMessage {
+                content: "Bad".to_string(),
+            },
+        );
     }
 
     // Reads should be clean
@@ -340,14 +332,12 @@ fn write_to_nonexistent_session_fails() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &SessionId::from_string("nonexistent-session-9999"),
-            NewMessage {
-                content: "Should fail".to_string(),
-            },
-        );
-    }));
+    let result = armin.append(
+        &SessionId::from_string("nonexistent-session-9999"),
+        NewMessage {
+            content: "Should fail".to_string(),
+        },
+    );
 
     assert!(result.is_err());
 }
@@ -356,16 +346,16 @@ fn write_to_nonexistent_session_fails() {
 fn multiple_close_is_idempotent() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // First close
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     // Second close - should not panic
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     // Third close - should not panic
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 }
 
 #[test]
@@ -374,9 +364,9 @@ fn close_nonexistent_session_is_safe() {
     let armin = Armin::in_memory(sink).unwrap();
 
     // Should not panic for valid session IDs that don't exist
-    armin.close(&SessionId::from_string("nonexistent-session-9999"));
-    armin.close(&SessionId::from_string("nonexistent-session-0"));
-    armin.close(&SessionId::from_string("nonexistent-session-1000000"));
+    armin.close(&SessionId::from_string("nonexistent-session-9999")).unwrap();
+    armin.close(&SessionId::from_string("nonexistent-session-0")).unwrap();
+    armin.close(&SessionId::from_string("nonexistent-session-1000000")).unwrap();
 }
 
 #[test]
@@ -387,7 +377,7 @@ fn recovery_after_crash_during_write() {
     let session_id = {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
-        let session_id = armin.create_session();
+        let session_id = armin.create_session().unwrap();
 
         // Write some messages
         for i in 0..10 {
@@ -396,7 +386,7 @@ fn recovery_after_crash_during_write() {
                 NewMessage {
                     content: format!("Before crash {}", i),
                 },
-            );
+            ).unwrap();
         }
 
         session_id
@@ -417,7 +407,7 @@ fn recovery_after_crash_during_write() {
 fn read_after_failed_write() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
-    let session_id = armin.create_session();
+    let session_id = armin.create_session().unwrap();
 
     // Write some messages
     for i in 0..5 {
@@ -426,21 +416,19 @@ fn read_after_failed_write() {
             NewMessage {
                 content: format!("Message {}", i),
             },
-        );
+        ).unwrap();
     }
 
     // Close session
-    armin.close(&session_id);
+    armin.close(&session_id).unwrap();
 
     // Try to write (will fail)
-    let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Fails".to_string(),
-            },
-        );
-    }));
+    let _ = armin.append(
+        &session_id,
+        NewMessage {
+            content: "Fails".to_string(),
+        },
+    );
 
     // Read should still work
     let delta = armin.delta(&session_id);

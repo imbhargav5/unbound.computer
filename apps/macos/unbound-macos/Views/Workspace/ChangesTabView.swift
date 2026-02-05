@@ -134,22 +134,7 @@ struct VSCodeChangeRow: View {
     }
 
     private var statusColor: Color {
-        switch file.status {
-        case .added:
-            return colors.diffAddition
-        case .modified:
-            return colors.fileModified
-        case .deleted:
-            return colors.diffDeletion
-        case .renamed, .copied:
-            return colors.info
-        case .untracked:
-            return colors.fileUntracked
-        case .conflicted:
-            return colors.destructive
-        default:
-            return colors.mutedForeground
-        }
+        file.status.color(colors)
     }
 }
 

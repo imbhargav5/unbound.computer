@@ -54,6 +54,7 @@ private class CommandReturnNSTextView: NSTextView {
 struct CommandReturnTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    let colorScheme: ColorScheme
     var onCommandReturn: () -> Void
     var onShiftTab: (() -> Void)?
 
@@ -68,7 +69,7 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         textView.isRichText = false
         textView.allowsUndo = true
         textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        textView.textColor = NSColor.labelColor
+        textView.textColor = NSColor(hex: colorScheme == .dark ? "E5E5E5" : "0D0D0D")
         textView.backgroundColor = .clear
         textView.drawsBackground = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -116,6 +117,8 @@ struct CommandReturnTextEditor: NSViewRepresentable {
                 window.makeFirstResponder(nil)
             }
         }
+
+        textView.textColor = NSColor(hex: colorScheme == .dark ? "E5E5E5" : "0D0D0D")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -182,6 +185,7 @@ struct ChatInputField: View {
             CommandReturnTextEditor(
                 text: $text,
                 isFocused: $isFocused,
+                colorScheme: colorScheme,
                 onCommandReturn: {
                     if !isStreaming && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         onSend()
@@ -299,7 +303,7 @@ struct ModelSelector: View {
                                     Text(mode.name)
                                     Text(mode.description)
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(colors.mutedForeground)
                                 }
                             } icon: {
                                 Image(systemName: mode.iconName)
@@ -892,5 +896,31 @@ struct ChatHeader: View {
         .padding(.horizontal, Spacing.lg)
         .frame(height: LayoutMetrics.toolbarHeight)
         .background(colors.toolbarBackground)
+    }
+}
+
+private extension NSColor {
+    convenience init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (r, g, b, a) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            red: CGFloat(r) / 255,
+            green: CGFloat(g) / 255,
+            blue: CGFloat(b) / 255,
+            alpha: CGFloat(a) / 255
+        )
     }
 }

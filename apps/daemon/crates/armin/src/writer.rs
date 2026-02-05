@@ -13,6 +13,7 @@ use crate::types::{
     AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
     NewSessionSecret, OutboxEvent, Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
+use crate::ArminError;
 
 /// A writer for session data.
 ///
@@ -28,12 +29,12 @@ pub trait SessionWriter {
     /// Creates a new repository.
     ///
     /// Returns the created repository.
-    fn create_repository(&self, repo: NewRepository) -> Repository;
+    fn create_repository(&self, repo: NewRepository) -> Result<Repository, ArminError>;
 
     /// Deletes a repository.
     ///
     /// Returns true if the repository was deleted.
-    fn delete_repository(&self, id: &RepositoryId) -> bool;
+    fn delete_repository(&self, id: &RepositoryId) -> Result<bool, ArminError>;
 
     // ========================================================================
     // Session operations (full metadata)
@@ -43,20 +44,20 @@ pub trait SessionWriter {
     ///
     /// This is the primary method for creating sessions with repository association,
     /// title, worktree configuration, etc.
-    fn create_session_with_metadata(&self, session: NewSession) -> Session;
+    fn create_session_with_metadata(&self, session: NewSession) -> Result<Session, ArminError>;
 
     /// Updates a session's metadata.
     ///
     /// Use this to update title, claude_session_id, status, etc.
-    fn update_session(&self, id: &SessionId, update: SessionUpdate) -> bool;
+    fn update_session(&self, id: &SessionId, update: SessionUpdate) -> Result<bool, ArminError>;
 
     /// Updates the Claude session ID for a session.
-    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> bool;
+    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> Result<bool, ArminError>;
 
     /// Deletes a session.
     ///
     /// Returns true if the session was deleted.
-    fn delete_session(&self, id: &SessionId) -> bool;
+    fn delete_session(&self, id: &SessionId) -> Result<bool, ArminError>;
 
     // ========================================================================
     // Session state operations
@@ -65,7 +66,7 @@ pub trait SessionWriter {
     /// Updates the agent status for a session.
     ///
     /// Creates the session state row if it doesn't exist.
-    fn update_agent_status(&self, session: &SessionId, status: AgentStatus);
+    fn update_agent_status(&self, session: &SessionId, status: AgentStatus) -> Result<(), ArminError>;
 
     // ========================================================================
     // Message operations
@@ -74,7 +75,7 @@ pub trait SessionWriter {
     /// Creates a new session (legacy - creates minimal session record).
     ///
     /// Prefer `create_session_with_metadata` for new code.
-    fn create_session(&self) -> SessionId;
+    fn create_session(&self) -> Result<SessionId, ArminError>;
 
     /// Appends a message to a session.
     ///
@@ -83,15 +84,16 @@ pub trait SessionWriter {
     ///
     /// Returns the full message with assigned ID and sequence number.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the session does not exist or is closed.
-    fn append(&self, session: &SessionId, message: NewMessage) -> Message;
+    /// Returns an error if the session does not exist, is closed, or if
+    /// the SQLite write fails.
+    fn append(&self, session: &SessionId, message: NewMessage) -> Result<Message, ArminError>;
 
     /// Closes a session.
     ///
     /// After closing, no more messages can be appended to the session.
-    fn close(&self, session: &SessionId);
+    fn close(&self, session: &SessionId) -> Result<(), ArminError>;
 
     // ========================================================================
     // Session secrets operations
@@ -100,47 +102,47 @@ pub trait SessionWriter {
     /// Sets a session secret.
     ///
     /// The secret should be encrypted before calling this method.
-    fn set_session_secret(&self, secret: NewSessionSecret);
+    fn set_session_secret(&self, secret: NewSessionSecret) -> Result<(), ArminError>;
 
     /// Deletes a session secret.
-    fn delete_session_secret(&self, session: &SessionId) -> bool;
+    fn delete_session_secret(&self, session: &SessionId) -> Result<bool, ArminError>;
 
     // ========================================================================
     // Outbox operations
     // ========================================================================
 
     /// Inserts a new outbox event.
-    fn insert_outbox_event(&self, event: NewOutboxEvent) -> OutboxEvent;
+    fn insert_outbox_event(&self, event: NewOutboxEvent) -> Result<OutboxEvent, ArminError>;
 
     /// Marks outbox events as sent.
-    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]);
+    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]) -> Result<(), ArminError>;
 
     /// Marks outbox events as acknowledged.
-    fn mark_outbox_acked(&self, batch_id: &str);
+    fn mark_outbox_acked(&self, batch_id: &str) -> Result<(), ArminError>;
 
     // ========================================================================
     // Supabase message outbox operations
     // ========================================================================
 
     /// Insert a message into the Supabase message outbox.
-    fn insert_supabase_message_outbox(&self, message_id: &MessageId);
+    fn insert_supabase_message_outbox(&self, message_id: &MessageId) -> Result<(), ArminError>;
 
     /// Mark messages as sent to Supabase.
-    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]);
+    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
 
     /// Mark messages as failed to sync (updates retry count and last error).
-    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str);
+    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> Result<(), ArminError>;
 
     /// Delete messages from the Supabase outbox.
-    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]);
+    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
 
     // ========================================================================
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
     /// Marks sync as successful for a session up to a sequence number.
-    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64);
+    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError>;
 
     /// Marks sync as failed for a session (increments retry count).
-    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str);
+    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;
 }

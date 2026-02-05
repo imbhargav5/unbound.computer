@@ -9,10 +9,16 @@
 import SwiftUI
 
 struct DaemonConnectionBanner: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let state: DaemonConnectionState
     let onRetry: () -> Void
 
     @State private var isRetrying = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -50,7 +56,7 @@ struct DaemonConnectionBanner: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.2))
+                    .background(colors.foreground.opacity(0.2))
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
@@ -60,7 +66,7 @@ struct DaemonConnectionBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(backgroundColor)
-        .foregroundColor(.white)
+        .foregroundColor(colors.foreground)
     }
 
     @ViewBuilder
@@ -95,13 +101,13 @@ struct DaemonConnectionBanner: View {
     private var backgroundColor: Color {
         switch state {
         case .disconnected:
-            return Color.orange.opacity(0.9)
+            return colors.muted
         case .connecting:
-            return Color.blue.opacity(0.9)
+            return colors.accentAmber
         case .connected:
-            return Color.green.opacity(0.9)
+            return colors.success
         case .failed:
-            return Color.red.opacity(0.9)
+            return colors.destructive
         }
     }
 

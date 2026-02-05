@@ -25,3 +25,4 @@ rand = { workspace = true }
 piccolo = { workspace = true }
 
 [dev-dependencies]
+tempfile = "3"

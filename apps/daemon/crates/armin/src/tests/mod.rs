@@ -38,7 +38,7 @@ fn basic_workflow() {
     let engine = Armin::in_memory(sink).unwrap();
 
     // Create session
-    let session_id = engine.create_session();
+    let session_id = engine.create_session().unwrap();
 
     // Append messages
     let _msg1 = engine.append(
@@ -46,13 +46,13 @@ fn basic_workflow() {
         NewMessage {
             content: "Hello".to_string(),
         },
-    );
+    ).unwrap();
     let _msg2 = engine.append(
         &session_id,
         NewMessage {
             content: "Hi there!".to_string(),
         },
-    );
+    ).unwrap();
 
     // Verify delta
     let delta = engine.delta(&session_id);
@@ -66,6 +66,6 @@ fn basic_workflow() {
     assert!(matches!(effects[2], SideEffect::MessageAppended { .. }));
 
     // Close session
-    engine.close(&session_id);
+    engine.close(&session_id).unwrap();
     assert_eq!(engine.sink().len(), 4);
 }
