@@ -40,6 +40,7 @@ enum DaemonMethod: String, Codable {
     case repositoryAdd = "repository.add"
     case repositoryRemove = "repository.remove"
     case repositoryListFiles = "repository.list_files"
+    case repositoryReadFile = "repository.read_file"
 
     // Claude CLI
     case claudeSend = "claude.send"
@@ -479,6 +480,17 @@ struct DaemonFileEntry: Codable, Identifiable {
         isDir = try container.decode(Bool.self, forKey: .isDir)
         hasChildren = try container.decode(Bool.self, forKey: .hasChildren)
         id = path
+    }
+}
+
+/// File content response from daemon.
+struct DaemonFileContent: Codable {
+    let content: String
+    let isTruncated: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case isTruncated = "is_truncated"
     }
 }
 

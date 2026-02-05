@@ -21,7 +21,7 @@ mod backpressure;
 mod content;
 mod crash_safety;
 mod forwarding;
-mod harness;
+pub(crate) mod harness;
 mod invariants;
 mod ordering;
 mod timeout;

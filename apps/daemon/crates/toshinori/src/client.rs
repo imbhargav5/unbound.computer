@@ -4,6 +4,18 @@ use crate::error::{ToshinoriError, ToshinoriResult};
 use serde::Serialize;
 use tracing::{debug, error, warn};
 
+/// Message payload for Supabase upsert.
+#[derive(Debug, Serialize)]
+pub struct MessageUpsert {
+    pub session_id: String,
+    pub sequence_number: i64,
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_encrypted: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_nonce: Option<String>,
+}
+
 /// Supabase REST API client for syncing Armin data.
 #[derive(Clone)]
 pub struct SupabaseClient {
@@ -78,20 +90,37 @@ impl SupabaseClient {
         session_id: &str,
         user_id: &str,
         device_id: &str,
+        repository_id: &str,
         status: &str,
+        current_branch: Option<&str>,
+        working_directory: Option<&str>,
+        is_worktree: bool,
+        worktree_path: Option<&str>,
         access_token: &str,
     ) -> ToshinoriResult<()> {
         let url = self.rest_url("agent_coding_sessions");
 
         let now = chrono::Utc::now().to_rfc3339();
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "id": session_id,
             "user_id": user_id,
             "device_id": device_id,
+            "repository_id": repository_id,
             "status": status,
+            "is_worktree": is_worktree,
             "last_heartbeat_at": now
         });
+
+        if let Some(branch) = current_branch {
+            body["current_branch"] = serde_json::json!(branch);
+        }
+        if let Some(dir) = working_directory {
+            body["working_directory"] = serde_json::json!(dir);
+        }
+        if let Some(path) = worktree_path {
+            body["worktree_path"] = serde_json::json!(path);
+        }
 
         debug!(session_id, status, "Syncing session to Supabase");
 
@@ -115,6 +144,7 @@ impl SupabaseClient {
         );
 
         let now = chrono::Utc::now().to_rfc3339();
+        let status = if status == "closed" { "ended" } else { status };
 
         let body = serde_json::json!({
             "status": status,
@@ -152,29 +182,44 @@ impl SupabaseClient {
     /// Upsert a message to Supabase.
     pub async fn upsert_message(
         &self,
-        message_id: &str,
         session_id: &str,
-        content: &str,
+        content_encrypted: Option<&str>,
+        content_nonce: Option<&str>,
+        role: &str,
         sequence_number: i64,
         access_token: &str,
     ) -> ToshinoriResult<()> {
-        let url = self.rest_url("agent_coding_session_messages");
+        let message = MessageUpsert {
+            session_id: session_id.to_string(),
+            sequence_number,
+            role: role.to_string(),
+            content_encrypted: content_encrypted.map(|v| v.to_string()),
+            content_nonce: content_nonce.map(|v| v.to_string()),
+        };
 
-        let now = chrono::Utc::now().to_rfc3339();
+        self.upsert_messages_batch(&[message], access_token).await
+    }
 
-        let body = serde_json::json!({
-            "id": message_id,
-            "session_id": session_id,
-            "content": content,
-            "sequence_number": sequence_number,
-            "created_at": now
-        });
+    /// Upsert a batch of messages to Supabase.
+    pub async fn upsert_messages_batch(
+        &self,
+        messages: &[MessageUpsert],
+        access_token: &str,
+    ) -> ToshinoriResult<()> {
+        let url = format!(
+            "{}?on_conflict=session_id,sequence_number",
+            self.rest_url("agent_coding_session_messages")
+        );
 
-        debug!(message_id, session_id, "Syncing message to Supabase");
+        if messages.is_empty() {
+            return Ok(());
+        }
 
-        self.upsert(&url, &body, access_token).await?;
+        debug!(count = messages.len(), "Syncing message batch to Supabase");
 
-        debug!(message_id, "Message synced to Supabase");
+        self.upsert(&url, messages, access_token).await?;
+
+        debug!(count = messages.len(), "Message batch synced to Supabase");
         Ok(())
     }
 
@@ -183,26 +228,13 @@ impl SupabaseClient {
         &self,
         session_id: &str,
         status: &str,
-        access_token: &str,
+        _access_token: &str,
     ) -> ToshinoriResult<()> {
-        let url = format!(
-            "{}?id=eq.{}",
-            self.rest_url("agent_coding_sessions"),
-            session_id
+        warn!(
+            session_id,
+            status,
+            "Agent status sync skipped (no agent_status column in Supabase schema)"
         );
-
-        let now = chrono::Utc::now().to_rfc3339();
-
-        let body = serde_json::json!({
-            "agent_status": status,
-            "last_heartbeat_at": now
-        });
-
-        debug!(session_id, status, "Updating agent status in Supabase");
-
-        self.patch(&url, &body, access_token).await?;
-
-        debug!(session_id, "Agent status updated in Supabase");
         Ok(())
     }
 
@@ -211,7 +243,7 @@ impl SupabaseClient {
     // =========================================================================
 
     /// Perform an upsert (POST with merge-duplicates).
-    async fn upsert<T: Serialize>(
+    async fn upsert<T: Serialize + ?Sized>(
         &self,
         url: &str,
         body: &T,

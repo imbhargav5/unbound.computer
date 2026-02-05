@@ -244,8 +244,21 @@ struct RightSidebarPanel: View {
     private func selectFile(_ file: FileItem) {
         guard !file.isDirectory else { return }
         fileTreeViewModel?.selectFile(file.path)
-        // Avoid loading file contents on click to keep UI responsive.
-        // File content can be opened via explicit action later.
+        if let fullPath = resolveFullPath(for: file) {
+            editorState.openFileTab(
+                relativePath: file.path,
+                fullPath: fullPath,
+                sessionId: appState.selectedSessionId
+            )
+        }
+    }
+
+    private func resolveFullPath(for file: FileItem) -> String? {
+        if file.path.hasPrefix("/") {
+            return file.path
+        }
+        guard let workDir = workingDirectory else { return nil }
+        return URL(fileURLWithPath: workDir).appendingPathComponent(file.path).path
     }
 
     private func loadDiffForFile(_ path: String) async {

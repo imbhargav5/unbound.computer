@@ -4,6 +4,8 @@ use crate::app::DaemonState;
 use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
+use std::fs;
+use std::io::Read;
 use std::path::Path;
 use yagami::{ListOptions, YagamiError};
 
@@ -12,7 +14,8 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_repository_list(server, state.clone()).await;
     register_repository_add(server, state.clone()).await;
     register_repository_remove(server, state.clone()).await;
-    register_repository_list_files(server, state).await;
+    register_repository_list_files(server, state.clone()).await;
+    register_repository_read_file(server, state).await;
 }
 
 async fn register_repository_list(server: &IpcServer, state: DaemonState) {
@@ -199,6 +202,164 @@ async fn register_repository_list_files(server: &IpcServer, state: DaemonState) 
                     .collect();
 
                 Response::success(&req.id, serde_json::json!({ "entries": entries_json }))
+            }
+        })
+        .await;
+}
+
+async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::RepositoryReadFile, move |req| {
+            let state = state.clone();
+            async move {
+                let session_id = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("session_id"))
+                    .and_then(|v| v.as_str());
+
+                let Some(session_id) = session_id else {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "session_id is required",
+                    );
+                };
+
+                let relative_path = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("relative_path"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                if relative_path.is_empty() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "relative_path is required",
+                    );
+                }
+
+                if Path::new(relative_path).is_absolute() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "relative_path must be relative",
+                    );
+                }
+
+                let max_bytes = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("max_bytes"))
+                    .and_then(|v| v.as_u64())
+                    .filter(|v| *v > 0)
+                    .unwrap_or(1_000_000);
+
+                let root_path = match resolve_session_root(&state, session_id) {
+                    Ok(root) => root,
+                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                };
+
+                let root = Path::new(&root_path);
+                let root_canon = match root.canonicalize() {
+                    Ok(path) => path,
+                    Err(err) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            &format!("invalid repository root: {}", err),
+                        );
+                    }
+                };
+
+                let target_path = root_canon.join(relative_path);
+                let target_canon = match target_path.canonicalize() {
+                    Ok(path) => path,
+                    Err(err) => {
+                        let code = match err.kind() {
+                            std::io::ErrorKind::NotFound => error_codes::NOT_FOUND,
+                            std::io::ErrorKind::PermissionDenied => error_codes::INVALID_PARAMS,
+                            _ => error_codes::INTERNAL_ERROR,
+                        };
+                        return Response::error(&req.id, code, &format!("file not found: {}", err));
+                    }
+                };
+
+                if !target_canon.starts_with(&root_canon) {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "path escapes repository root",
+                    );
+                }
+
+                let metadata = match fs::metadata(&target_canon) {
+                    Ok(metadata) => metadata,
+                    Err(err) => {
+                        let code = match err.kind() {
+                            std::io::ErrorKind::NotFound => error_codes::NOT_FOUND,
+                            std::io::ErrorKind::PermissionDenied => error_codes::INVALID_PARAMS,
+                            _ => error_codes::INTERNAL_ERROR,
+                        };
+                        return Response::error(&req.id, code, &format!("file error: {}", err));
+                    }
+                };
+
+                if metadata.is_dir() {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "relative_path must point to a file",
+                    );
+                }
+
+                let mut file = match fs::File::open(&target_canon) {
+                    Ok(file) => file,
+                    Err(err) => {
+                        let code = match err.kind() {
+                            std::io::ErrorKind::NotFound => error_codes::NOT_FOUND,
+                            std::io::ErrorKind::PermissionDenied => error_codes::INVALID_PARAMS,
+                            _ => error_codes::INTERNAL_ERROR,
+                        };
+                        return Response::error(&req.id, code, &format!("file open error: {}", err));
+                    }
+                };
+
+                let mut buffer = Vec::new();
+                let mut limited = file.take(max_bytes + 1);
+                if let Err(err) = limited.read_to_end(&mut buffer) {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INTERNAL_ERROR,
+                        &format!("file read error: {}", err),
+                    );
+                }
+
+                let is_truncated = buffer.len() as u64 > max_bytes;
+                if is_truncated {
+                    buffer.truncate(max_bytes as usize);
+                }
+
+                let content = match String::from_utf8(buffer) {
+                    Ok(content) => content,
+                    Err(_) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INVALID_PARAMS,
+                            "file is not valid UTF-8",
+                        );
+                    }
+                };
+
+                Response::success(
+                    &req.id,
+                    serde_json::json!({
+                        "content": content,
+                        "is_truncated": is_truncated,
+                    }),
+                )
             }
         })
         .await;

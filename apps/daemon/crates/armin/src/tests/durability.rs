@@ -85,7 +85,7 @@ fn rule_02_sqlite_write_before_side_effect() {
     let effects = armin.sink().effects();
     assert!(effects.iter().any(|e| matches!(
         e,
-        crate::SideEffect::MessageAppended { session_id: s, message_id: m }
+        crate::SideEffect::MessageAppended { session_id: s, message_id: m, .. }
         if *s == session_id && *m == message.id
     )));
 

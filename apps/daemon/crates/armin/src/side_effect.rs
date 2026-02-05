@@ -36,6 +36,8 @@ pub enum SideEffect {
     MessageAppended {
         session_id: SessionId,
         message_id: MessageId,
+        sequence_number: i64,
+        content: String,
     },
 
     // Session state side-effects
@@ -132,6 +134,8 @@ mod tests {
         sink.emit(SideEffect::MessageAppended {
             session_id: session_id.clone(),
             message_id: message_id.clone(),
+            sequence_number: 1,
+            content: "hello".to_string(),
         });
 
         assert_eq!(sink.len(), 2);
@@ -146,7 +150,9 @@ mod tests {
             effects[1],
             SideEffect::MessageAppended {
                 session_id: session_id.clone(),
-                message_id: message_id.clone()
+                message_id: message_id.clone(),
+                sequence_number: 1,
+                content: "hello".to_string(),
             }
         );
     }

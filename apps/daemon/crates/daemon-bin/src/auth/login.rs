@@ -2,6 +2,7 @@
 
 use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
+use toshinori::SyncContext;
 use tracing::{info, warn};
 
 /// Register the auth login handler.
@@ -11,6 +12,8 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
             let secrets = state.secrets.clone();
             let config = state.config.clone();
             let supabase_client = state.supabase_client.clone();
+            let toshinori = state.toshinori.clone();
+            let message_sync = state.message_sync.clone();
             let cached_db_key = state.db_encryption_key.clone();
             let cached_device_id = state.device_id.clone();
             let cached_device_private_key = state.device_private_key.clone();
@@ -188,6 +191,16 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
                 *cached_device_private_key.lock().unwrap() = Some(private_key_arr);
                 *cached_db_key.lock().unwrap() = db_encryption_key;
                 info!("Updated cached device identity and encryption keys after login");
+
+                // Update Supabase sync contexts
+                let sync_context = SyncContext {
+                    access_token: access_token_for_supabase.clone(),
+                    user_id: user_id_for_device.clone(),
+                    device_id: device_id.clone(),
+                };
+
+                toshinori.set_context(sync_context.clone()).await;
+                message_sync.set_context(sync_context).await;
 
                 // Detect platform for device_type
                 let device_type = if cfg!(target_os = "macos") {

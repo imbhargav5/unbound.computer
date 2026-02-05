@@ -13,6 +13,7 @@ use std::time::Duration;
 /// Rule 37: Consumer closes connection mid-command
 #[tokio::test]
 async fn rule_37_consumer_closes_connection() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     // Consumer will close connection without responding
     consumer.queue_response(ConsumerResponse::CloseConnection);
@@ -43,6 +44,7 @@ async fn rule_37_consumer_closes_connection() {
 /// Rule 38: Falco reconnects (tested by successful subsequent connection)
 #[tokio::test]
 async fn rule_38_falco_reconnects() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -79,6 +81,7 @@ async fn rule_38_falco_reconnects() {
 /// Rule 39: Falco does not emit Redis ACK on connection failure
 #[tokio::test]
 async fn rule_39_no_ack_on_connection_failure() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::CloseConnection);
     let handle = consumer.start().await;
@@ -106,6 +109,7 @@ async fn rule_39_no_ack_on_connection_failure() {
 /// Rule 40: Command remains pending after connection failure
 #[tokio::test]
 async fn rule_40_command_remains_pending() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::CloseConnection);
     let handle = consumer.start().await;
@@ -138,6 +142,7 @@ async fn rule_40_command_remains_pending() {
 /// Transport failure: Consumer not listening at start
 #[tokio::test]
 async fn transport_failure_consumer_not_listening() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     // Don't start the consumer
 
@@ -163,6 +168,7 @@ async fn transport_failure_consumer_not_listening() {
 /// Transport failure: Multiple connection failures then success
 #[tokio::test]
 async fn transport_failure_retry_success() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -203,6 +209,7 @@ async fn transport_failure_retry_success() {
 /// Transport failure: Partial write before close
 #[tokio::test]
 async fn transport_failure_partial_write() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::CloseConnection);
     let handle = consumer.start().await;
@@ -231,6 +238,7 @@ async fn transport_failure_partial_write() {
 /// Transport failure: Socket path doesn't exist
 #[tokio::test]
 async fn transport_failure_socket_not_exists() {
+    if !super::harness::ensure_uds() { return; }
     let redis = Arc::new(MockRedis::new("falco"));
     redis.xadd(vec![1, 2, 3]);
 
@@ -250,6 +258,7 @@ async fn transport_failure_socket_not_exists() {
 /// Transport failure: Recovery after consumer restart
 #[tokio::test]
 async fn transport_failure_consumer_restart() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;

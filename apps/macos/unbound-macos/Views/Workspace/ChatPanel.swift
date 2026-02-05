@@ -319,7 +319,11 @@ struct ChatPanel: View {
                 switch tab.kind {
                 case .file:
                     if let fullPath = tab.fullPath {
-                        FileEditorView(filePath: fullPath)
+                        FileEditorView(
+                            sessionId: tab.sessionId,
+                            relativePath: tab.path,
+                            filePath: fullPath
+                        )
                     } else {
                         fileLoadErrorView("Missing file path for editor tab.")
                     }
@@ -727,7 +731,10 @@ struct FileTab: View {
 
 struct FileEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppState.self) private var appState
 
+    let sessionId: UUID?
+    let relativePath: String
     let filePath: String
 
     @State private var fileContent: String = ""
@@ -803,18 +810,44 @@ struct FileEditorView: View {
         }
     }
 
+    @MainActor
     private func loadFile() async {
         isLoading = true
         errorMessage = nil
 
-        do {
-            let content = try String(contentsOfFile: filePath, encoding: .utf8)
-            fileContent = content
-        } catch {
-            errorMessage = error.localizedDescription
+        guard let sessionId else {
+            errorMessage = "Missing session for file load."
+            isLoading = false
+            return
         }
 
-        isLoading = false
+        let requestedPath = relativePath
+
+        do {
+            let response = try await appState.daemonClient.readRepositoryFile(
+                sessionId: sessionId.uuidString.lowercased(),
+                relativePath: requestedPath,
+                maxBytes: 1_000_000
+            )
+
+            guard !Task.isCancelled else { return }
+
+            var content = response.content
+            if response.isTruncated {
+                content += "\n\n… (truncated)"
+            }
+
+            if relativePath == requestedPath {
+                fileContent = content
+                isLoading = false
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            if relativePath == requestedPath {
+                errorMessage = error.localizedDescription
+                isLoading = false
+            }
+        }
     }
 }
 

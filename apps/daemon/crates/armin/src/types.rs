@@ -453,6 +453,30 @@ impl NewOutboxEvent {
     }
 }
 
+/// Supabase message outbox entry for sync tracking.
+#[derive(Debug, Clone)]
+pub struct SupabaseMessageOutboxEntry {
+    pub message_id: MessageId,
+    pub created_at: DateTime<Utc>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub retry_count: i32,
+    pub last_error: Option<String>,
+}
+
+/// Pending Supabase message payload for sync.
+#[derive(Debug, Clone)]
+pub struct PendingSupabaseMessage {
+    pub message_id: MessageId,
+    pub session_id: SessionId,
+    pub sequence_number: i64,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub retry_count: i32,
+    pub last_error: Option<String>,
+}
+
 // ============================================================================
 // User settings types
 // ============================================================================

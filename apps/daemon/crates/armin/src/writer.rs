@@ -10,7 +10,7 @@
 //! - If SQLite write fails, nothing else happens
 
 use crate::types::{
-    AgentStatus, Message, NewMessage, NewOutboxEvent, NewRepository, NewSession,
+    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
     NewSessionSecret, OutboxEvent, Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
 
@@ -117,4 +117,20 @@ pub trait SessionWriter {
 
     /// Marks outbox events as acknowledged.
     fn mark_outbox_acked(&self, batch_id: &str);
+
+    // ========================================================================
+    // Supabase message outbox operations
+    // ========================================================================
+
+    /// Insert a message into the Supabase message outbox.
+    fn insert_supabase_message_outbox(&self, message_id: &MessageId);
+
+    /// Mark messages as sent to Supabase.
+    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]);
+
+    /// Mark messages as failed to sync (updates retry count and last error).
+    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str);
+
+    /// Delete messages from the Supabase outbox.
+    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]);
 }

@@ -63,14 +63,14 @@ sink.clear_context().await;
 
 | Side-Effect | Supabase Action |
 |-------------|-----------------|
-| `RepositoryCreated` | Upsert to `repositories` |
+| `RepositoryCreated` | **Skipped by default** (requires repository metadata) |
 | `RepositoryDeleted` | Delete from `repositories` |
-| `SessionCreated` | Upsert to `agent_coding_sessions` |
-| `SessionClosed` | Update status to "closed" |
+| `SessionCreated` | Upsert to `agent_coding_sessions` (requires session metadata) |
+| `SessionClosed` | Update status to "ended" |
 | `SessionDeleted` | Delete from `agent_coding_sessions` |
-| `SessionUpdated` | Touch heartbeat |
-| `MessageAppended` | (TBD - needs content) |
-| `AgentStatusChanged` | Update `agent_status` field |
+| `SessionUpdated` | Upsert to `agent_coding_sessions` (requires session metadata) |
+| `MessageAppended` | Enqueue message sync (requires message content) |
+| `AgentStatusChanged` | **Skipped** (no `agent_status` column in schema) |
 | `OutboxEventsSent` | No sync needed |
 | `OutboxEventsAcked` | No sync needed |
 
@@ -99,5 +99,12 @@ Toshinori follows a **fire-and-forget** pattern:
 - Errors are logged but never propagate
 - Armin's commit is never blocked or rolled back
 - Supabase sync failures don't affect local operation
+
+## Metadata Requirements
+
+Session upserts require repository metadata that is not available in Armin side-effects
+alone. Provide a metadata source via `SessionMetadataProvider` to enable session sync.
+Repository upserts are skipped by default for the same reason (missing `name` and
+`local_path`).
 
 This ensures the daemon remains responsive even during network issues.

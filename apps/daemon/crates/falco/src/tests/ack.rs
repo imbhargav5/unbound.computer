@@ -22,6 +22,7 @@ use std::time::Duration;
 /// Rule 9: Consumer responds with ACK_REDIS
 #[tokio::test]
 async fn rule_09_consumer_responds_ack_redis() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -51,6 +52,7 @@ async fn rule_09_consumer_responds_ack_redis() {
 /// Rule 10: Falco emits exactly one Redis ACK
 #[tokio::test]
 async fn rule_10_emits_exactly_one_ack() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -78,6 +80,7 @@ async fn rule_10_emits_exactly_one_ack() {
 /// Rule 11: Redis ACK occurs after consumer response
 #[tokio::test]
 async fn rule_11_ack_after_consumer_response() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -110,6 +113,7 @@ async fn rule_11_ack_after_consumer_response() {
 /// Rule 12: Falco proceeds to the next command
 #[tokio::test]
 async fn rule_12_proceeds_to_next_command() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -149,6 +153,7 @@ async fn rule_12_proceeds_to_next_command() {
 /// Rule 13: Consumer responds with DO_NOT_ACK
 #[tokio::test]
 async fn rule_13_consumer_responds_do_not_ack() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::DoNotAck);
     let handle = consumer.start().await;
@@ -178,6 +183,7 @@ async fn rule_13_consumer_responds_do_not_ack() {
 /// Rule 14: Falco emits no Redis ACK
 #[tokio::test]
 async fn rule_14_no_ack_emitted() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::DoNotAck);
     let handle = consumer.start().await;
@@ -204,6 +210,7 @@ async fn rule_14_no_ack_emitted() {
 /// Rule 15: Command remains pending in Redis
 #[tokio::test]
 async fn rule_15_command_remains_pending() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::DoNotAck);
     let handle = consumer.start().await;
@@ -232,6 +239,7 @@ async fn rule_15_command_remains_pending() {
 /// Rule 16: With DO_NOT_ACK, the command stays in PEL for redelivery
 #[tokio::test]
 async fn rule_16_command_available_for_redelivery() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -268,6 +276,7 @@ async fn rule_16_command_available_for_redelivery() {
 /// ACK: Multiple commands, alternating ACK and DO_NOT_ACK
 #[tokio::test]
 async fn ack_alternating_decisions() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -307,6 +316,7 @@ async fn ack_alternating_decisions() {
 /// ACK: Response with result data
 #[tokio::test]
 async fn ack_with_result_data() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::AckRedisWithResult(vec![0xCA, 0xFE]));
     let handle = consumer.start().await;
@@ -334,6 +344,7 @@ async fn ack_with_result_data() {
 /// ACK: ACK order matches processing order
 #[tokio::test]
 async fn ack_order_matches_processing_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

@@ -150,6 +150,7 @@ fn rule_87_side_effects_no_interleave() {
             SideEffect::MessageAppended {
                 session_id: sid,
                 message_id: mid,
+                ..
             } => {
                 assert!(*sid == session1 || *sid == session2);
                 assert!(!mid.as_str().is_empty());

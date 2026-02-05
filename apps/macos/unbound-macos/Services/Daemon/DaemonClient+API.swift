@@ -324,6 +324,24 @@ extension DaemonClient {
             }
         }
     }
+
+    /// Read file contents for a session-relative path.
+    func readRepositoryFile(
+        sessionId: String,
+        relativePath: String,
+        maxBytes: Int? = nil
+    ) async throws -> DaemonFileContent {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "relative_path": relativePath
+        ]
+        if let maxBytes {
+            params["max_bytes"] = maxBytes
+        }
+
+        let response = try await call(method: .repositoryReadFile, params: params)
+        return try response.resultAs(DaemonFileContent.self)
+    }
 }
 
 // MARK: - Git

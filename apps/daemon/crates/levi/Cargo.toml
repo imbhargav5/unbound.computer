@@ -1,0 +1,16 @@
+[package]
+name = "levi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+armin = { workspace = true }
+daemon-database = { workspace = true }
+daemon-storage = { workspace = true }
+toshinori = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

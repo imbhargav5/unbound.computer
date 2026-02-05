@@ -13,6 +13,7 @@ use std::time::Duration;
 /// Rule 29: Multiple commands appended to Redis
 #[tokio::test]
 async fn rule_29_multiple_commands_appended() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -39,6 +40,7 @@ async fn rule_29_multiple_commands_appended() {
 /// Rule 30: Consumer resolves commands sequentially
 #[tokio::test]
 async fn rule_30_sequential_resolution() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -75,6 +77,7 @@ async fn rule_30_sequential_resolution() {
 /// Rule 31: Falco forwards commands strictly in append order
 #[tokio::test]
 async fn rule_31_forwards_in_append_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -117,6 +120,7 @@ async fn rule_31_forwards_in_append_order() {
 /// Rule 32: Redis ACK order matches append order
 #[tokio::test]
 async fn rule_32_ack_order_matches_append_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -151,6 +155,7 @@ async fn rule_32_ack_order_matches_append_order() {
 /// Ordering: FIFO guarantee even with varying response times
 #[tokio::test]
 async fn ordering_fifo_with_varying_delays() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -188,6 +193,7 @@ async fn ordering_fifo_with_varying_delays() {
 /// Ordering: Interleaved ACK/NACK preserves order for ACKed messages
 #[tokio::test]
 async fn ordering_interleaved_ack_nack() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -227,6 +233,7 @@ async fn ordering_interleaved_ack_nack() {
 /// Ordering: Timeout doesn't break order
 #[tokio::test]
 async fn ordering_timeout_preserves_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -262,6 +269,7 @@ async fn ordering_timeout_preserves_order() {
 /// Ordering: Large number of commands maintains order
 #[tokio::test]
 async fn ordering_large_command_count() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -293,6 +301,7 @@ async fn ordering_large_command_count() {
 /// Ordering: Consumer receives in same order as Redis
 #[tokio::test]
 async fn ordering_consumer_receives_in_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

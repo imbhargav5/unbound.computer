@@ -49,6 +49,8 @@ pub enum Method {
     RepositoryRemove,
     #[serde(rename = "repository.list_files")]
     RepositoryListFiles,
+    #[serde(rename = "repository.read_file")]
+    RepositoryReadFile,
 
     // Claude CLI
     #[serde(rename = "claude.send")]
@@ -356,6 +358,7 @@ mod tests {
             (Method::RepositoryAdd, "repository.add"),
             (Method::RepositoryRemove, "repository.remove"),
             (Method::RepositoryListFiles, "repository.list_files"),
+            (Method::RepositoryReadFile, "repository.read_file"),
             (Method::ClaudeSend, "claude.send"),
             (Method::ClaudeStatus, "claude.status"),
             (Method::ClaudeStop, "claude.stop"),

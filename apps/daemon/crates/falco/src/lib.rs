@@ -27,7 +27,7 @@ pub mod protocol;
 pub mod redis_consumer;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use config::FalcoConfig;
 pub use courier::Courier;

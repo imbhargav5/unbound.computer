@@ -12,6 +12,7 @@ members = [
     "crates/daemon-bin",
     "crates/falco",
     "crates/toshinori",
+    "crates/levi",
     "crates/deku",
     "crates/yagami",
 ]
@@ -90,6 +91,7 @@ daemon-outbox = { path = "crates/daemon-outbox" }
 daemon-ipc = { path = "crates/daemon-ipc" }
 falco = { path = "crates/falco" }
 toshinori = { path = "crates/toshinori" }
+levi = { path = "crates/levi" }
 deku = { path = "crates/deku" }
 yagami = { path = "crates/yagami" }
 

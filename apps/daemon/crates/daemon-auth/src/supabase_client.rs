@@ -339,7 +339,10 @@ impl SupabaseClient {
             return Ok(());
         }
 
-        let url = self.rest_url("agent_coding_session_secrets");
+        let url = format!(
+            "{}?on_conflict=session_id,device_id",
+            self.rest_url("agent_coding_session_secrets")
+        );
 
         let body: Vec<InsertSecretRequest> = secrets
             .into_iter()

@@ -17,6 +17,7 @@ use uuid::Uuid;
 /// Rule 1: Falco starts with a consumer listening on the transport socket
 #[tokio::test]
 async fn rule_01_consumer_must_be_listening() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
 
     // Consumer not started yet - connection should fail
@@ -38,6 +39,7 @@ async fn rule_01_consumer_must_be_listening() {
 /// Rule 2: Falco connects to the consumer using the production transport
 #[tokio::test]
 async fn rule_02_connects_using_production_transport() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -53,6 +55,7 @@ async fn rule_02_connects_using_production_transport() {
 /// Rule 3: Falco uses the same framing and protocol as production
 #[tokio::test]
 async fn rule_03_uses_production_framing() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -92,6 +95,7 @@ async fn rule_03_uses_production_framing() {
 /// Rule 4: Falco does not assume anything about consumer internals
 #[tokio::test]
 async fn rule_04_consumer_agnostic() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -128,6 +132,7 @@ async fn rule_04_consumer_agnostic() {
 /// Transport: Binary frame integrity preserved
 #[tokio::test]
 async fn transport_binary_frame_integrity() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -159,6 +164,7 @@ async fn transport_binary_frame_integrity() {
 /// Transport: Multiple sequential connections work
 #[tokio::test]
 async fn transport_multiple_connections() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

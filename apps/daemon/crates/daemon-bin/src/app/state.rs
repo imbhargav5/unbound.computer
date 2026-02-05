@@ -8,8 +8,10 @@ use daemon_core::{Config, Paths};
 use daemon_database::DatabasePool;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
+use levi::Levi;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use toshinori::ToshinoriSink;
 use tokio::sync::broadcast;
 
 /// Shared daemon state (thread-safe).
@@ -42,6 +44,10 @@ pub struct DaemonState {
     pub device_private_key: Arc<Mutex<Option<[u8; 32]>>>,
     /// Service for syncing sessions to Supabase.
     pub session_sync: Arc<SessionSyncService>,
+    /// Toshinori sink for Supabase sync.
+    pub toshinori: Arc<ToshinoriSink>,
+    /// Levi worker for Supabase message sync.
+    pub message_sync: Arc<Levi>,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.

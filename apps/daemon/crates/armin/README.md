@@ -148,7 +148,7 @@ assert_eq!(
 
 Available side-effects:
 - `SessionCreated { session_id }`
-- `MessageAppended { session_id, message_id }`
+- `MessageAppended { session_id, message_id, sequence_number, content }`
 - `SessionClosed { session_id }`
 
 ## What Armin Deliberately Does NOT Do

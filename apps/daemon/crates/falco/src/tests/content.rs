@@ -13,6 +13,7 @@ use std::time::Duration;
 /// Rule 41: Payload contains random bytes
 #[tokio::test]
 async fn rule_41_random_bytes_payload() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -42,6 +43,7 @@ async fn rule_41_random_bytes_payload() {
 /// Rule 42: Falco forwards payload unchanged
 #[tokio::test]
 async fn rule_42_payload_unchanged() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -96,6 +98,7 @@ async fn rule_42_payload_unchanged() {
 /// (Demonstrated by forwarding structurally invalid content)
 #[tokio::test]
 async fn rule_43_no_payload_inspection() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -136,6 +139,7 @@ async fn rule_43_no_payload_inspection() {
 /// Rule 44: Falco does not crash on malformed payload
 #[tokio::test]
 async fn rule_44_no_crash_on_malformed() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -188,6 +192,7 @@ async fn rule_44_no_crash_on_malformed() {
 /// Content: Binary payloads with embedded protocol bytes
 #[tokio::test]
 async fn content_embedded_protocol_bytes() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -226,6 +231,7 @@ async fn content_embedded_protocol_bytes() {
 /// Content: Maximum payload size
 #[tokio::test]
 async fn content_max_payload_size() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -255,6 +261,7 @@ async fn content_max_payload_size() {
 /// Content: Zero-length payloads are valid
 #[tokio::test]
 async fn content_zero_length_valid() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -291,6 +298,7 @@ async fn content_zero_length_valid() {
 /// Content: Encrypted-looking payloads
 #[tokio::test]
 async fn content_encrypted_payloads() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

@@ -13,6 +13,7 @@ use std::time::Duration;
 /// Rule 17: Consumer delays response
 #[tokio::test]
 async fn rule_17_consumer_delays_response() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(300)));
     let handle = consumer.start().await;
@@ -46,6 +47,7 @@ async fn rule_17_consumer_delays_response() {
 /// Rule 18: Falco blocks waiting for resolution
 #[tokio::test]
 async fn rule_18_blocks_waiting_for_resolution() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(500)));
     let handle = consumer.start().await;
@@ -76,6 +78,7 @@ async fn rule_18_blocks_waiting_for_resolution() {
 /// Rule 19: Additional commands appended to Redis remain unread
 #[tokio::test]
 async fn rule_19_additional_commands_unread() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(200)));
     consumer.set_default_response(ConsumerResponse::AckRedis);
@@ -116,6 +119,7 @@ async fn rule_19_additional_commands_unread() {
 /// Rule 20: Falco does not buffer commands locally
 #[tokio::test]
 async fn rule_20_no_local_buffering() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -152,6 +156,7 @@ async fn rule_20_no_local_buffering() {
 /// Backpressure: Slow consumer doesn't cause command loss
 #[tokio::test]
 async fn backpressure_slow_consumer_no_loss() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -190,6 +195,7 @@ async fn backpressure_slow_consumer_no_loss() {
 /// Backpressure: XREADGROUP blocks until data available
 #[tokio::test]
 async fn backpressure_read_blocks_until_data() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -225,6 +231,7 @@ async fn backpressure_read_blocks_until_data() {
 /// Backpressure: Sequential processing with varying delays
 #[tokio::test]
 async fn backpressure_varying_delays() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;

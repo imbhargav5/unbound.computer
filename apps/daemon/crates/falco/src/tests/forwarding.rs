@@ -13,6 +13,7 @@ use std::time::Duration;
 /// Rule 5: When a command exists in Redis, Falco forwards exactly one command frame to the consumer
 #[tokio::test]
 async fn rule_05_forwards_exactly_one_frame() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -40,6 +41,7 @@ async fn rule_05_forwards_exactly_one_frame() {
 /// Rule 6: Forwarded payload bytes match Redis payload bytes exactly
 #[tokio::test]
 async fn rule_06_payload_bytes_match_exactly() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -90,6 +92,7 @@ async fn rule_06_payload_bytes_match_exactly() {
 /// Rule 7: Falco forwards at most one command at a time
 #[tokio::test]
 async fn rule_07_at_most_one_command_at_a_time() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -136,6 +139,7 @@ async fn rule_07_at_most_one_command_at_a_time() {
 /// Rule 8: Falco does not forward the next command before the current one resolves
 #[tokio::test]
 async fn rule_08_no_forward_before_resolution() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -181,6 +185,7 @@ async fn rule_08_no_forward_before_resolution() {
 /// Forwarding: Empty payload is forwarded correctly
 #[tokio::test]
 async fn forwarding_empty_payload() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -206,6 +211,7 @@ async fn forwarding_empty_payload() {
 /// Forwarding: Large payload is forwarded correctly
 #[tokio::test]
 async fn forwarding_large_payload() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -235,6 +241,7 @@ async fn forwarding_large_payload() {
 /// Forwarding: Command ID is unique per forward
 #[tokio::test]
 async fn forwarding_unique_command_ids() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

@@ -72,7 +72,7 @@ fn rule_12_exactly_one_side_effect_per_append() {
         .filter(|e| {
             matches!(
                 e,
-                SideEffect::MessageAppended { session_id: s, message_id: m }
+                SideEffect::MessageAppended { session_id: s, message_id: m, .. }
                 if *s == session_id && *m == message.id
             )
         })
@@ -105,7 +105,7 @@ fn rule_13_side_effects_after_sqlite_commit() {
         // Verify side-effect was emitted
         assert!(armin.sink().effects().iter().any(|e| matches!(
             e,
-            SideEffect::MessageAppended { session_id: s, message_id: m }
+            SideEffect::MessageAppended { session_id: s, message_id: m, .. }
             if *s == session_id && *m == message.id
         )));
 

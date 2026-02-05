@@ -7,7 +7,7 @@ use crate::client::SupabaseClient;
 use armin::{SideEffect, SideEffectSink};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 /// Context required for Supabase sync operations.
 #[derive(Clone)]
@@ -18,6 +18,35 @@ pub struct SyncContext {
     pub user_id: String,
     /// Device ID for this daemon instance.
     pub device_id: String,
+}
+
+/// Metadata required to upsert a session in Supabase.
+#[derive(Clone, Debug)]
+pub struct SessionMetadata {
+    pub repository_id: String,
+    pub current_branch: Option<String>,
+    pub working_directory: Option<String>,
+    pub is_worktree: bool,
+    pub worktree_path: Option<String>,
+}
+
+/// Provider for session metadata needed by Supabase sync.
+pub trait SessionMetadataProvider: Send + Sync {
+    fn get_session_metadata(&self, session_id: &str) -> Option<SessionMetadata>;
+}
+
+/// A message sync request to be sent to Supabase.
+#[derive(Clone, Debug)]
+pub struct MessageSyncRequest {
+    pub session_id: String,
+    pub message_id: String,
+    pub sequence_number: i64,
+    pub content: String,
+}
+
+/// Message syncer interface (e.g., Levi).
+pub trait MessageSyncer: Send + Sync {
+    fn enqueue(&self, request: MessageSyncRequest);
 }
 
 /// Toshinori: A SideEffectSink that syncs to Supabase.
@@ -34,6 +63,10 @@ pub struct ToshinoriSink {
     client: SupabaseClient,
     /// Sync context (token, user_id, device_id).
     context: Arc<RwLock<Option<SyncContext>>>,
+    /// Optional metadata provider for session upserts.
+    metadata_provider: Arc<RwLock<Option<Arc<dyn SessionMetadataProvider>>>>,
+    /// Optional message syncer for Supabase message writes.
+    message_syncer: Arc<RwLock<Option<Arc<dyn MessageSyncer>>>>,
     /// Tokio runtime handle for spawning async tasks.
     runtime: tokio::runtime::Handle,
 }
@@ -53,6 +86,8 @@ impl ToshinoriSink {
         Self {
             client: SupabaseClient::new(api_url, anon_key),
             context: Arc::new(RwLock::new(None)),
+            metadata_provider: Arc::new(RwLock::new(None)),
+            message_syncer: Arc::new(RwLock::new(None)),
             runtime,
         }
     }
@@ -73,6 +108,30 @@ impl ToshinoriSink {
         info!("Toshinori sync context cleared");
     }
 
+    /// Set the session metadata provider.
+    pub async fn set_metadata_provider(&self, provider: Arc<dyn SessionMetadataProvider>) {
+        let mut guard = self.metadata_provider.write().await;
+        *guard = Some(provider);
+    }
+
+    /// Clear the session metadata provider.
+    pub async fn clear_metadata_provider(&self) {
+        let mut guard = self.metadata_provider.write().await;
+        *guard = None;
+    }
+
+    /// Set the message syncer.
+    pub async fn set_message_syncer(&self, syncer: Arc<dyn MessageSyncer>) {
+        let mut guard = self.message_syncer.write().await;
+        *guard = Some(syncer);
+    }
+
+    /// Clear the message syncer.
+    pub async fn clear_message_syncer(&self) {
+        let mut guard = self.message_syncer.write().await;
+        *guard = None;
+    }
+
     /// Check if sync is enabled (context is set).
     pub async fn is_enabled(&self) -> bool {
         self.context.read().await.is_some()
@@ -82,6 +141,8 @@ impl ToshinoriSink {
     fn handle_effect(&self, effect: SideEffect) {
         let client = self.client.clone();
         let context = self.context.clone();
+        let metadata_provider = self.metadata_provider.clone();
+        let message_syncer = self.message_syncer.clone();
 
         self.runtime.spawn(async move {
             // Get context (if not set, just log and return)
@@ -99,14 +160,11 @@ impl ToshinoriSink {
             // Sync based on effect type
             let result = match &effect {
                 SideEffect::RepositoryCreated { repository_id } => {
-                    client
-                        .upsert_repository(
-                            repository_id.as_str(),
-                            &ctx.user_id,
-                            &ctx.device_id,
-                            &ctx.access_token,
-                        )
-                        .await
+                    warn!(
+                        repository_id = repository_id.as_str(),
+                        "Repository sync skipped (missing metadata: name/local_path)"
+                    );
+                    Ok(())
                 }
 
                 SideEffect::RepositoryDeleted { repository_id } => {
@@ -116,20 +174,40 @@ impl ToshinoriSink {
                 }
 
                 SideEffect::SessionCreated { session_id } => {
-                    client
-                        .upsert_session(
-                            session_id.as_str(),
-                            &ctx.user_id,
-                            &ctx.device_id,
-                            "active",
-                            &ctx.access_token,
-                        )
-                        .await
+                    let metadata = {
+                        let guard = metadata_provider.read().await;
+                        guard
+                            .as_ref()
+                            .and_then(|provider| provider.get_session_metadata(session_id.as_str()))
+                    };
+
+                    if let Some(metadata) = metadata {
+                        client
+                            .upsert_session(
+                                session_id.as_str(),
+                                &ctx.user_id,
+                                &ctx.device_id,
+                                &metadata.repository_id,
+                                "active",
+                                metadata.current_branch.as_deref(),
+                                metadata.working_directory.as_deref(),
+                                metadata.is_worktree,
+                                metadata.worktree_path.as_deref(),
+                                &ctx.access_token,
+                            )
+                            .await
+                    } else {
+                        warn!(
+                            session_id = session_id.as_str(),
+                            "Session sync skipped (missing metadata provider or metadata)"
+                        );
+                        Ok(())
+                    }
                 }
 
                 SideEffect::SessionClosed { session_id } => {
                     client
-                        .update_session_status(session_id.as_str(), "closed", &ctx.access_token)
+                        .update_session_status(session_id.as_str(), "ended", &ctx.access_token)
                         .await
                 }
 
@@ -140,35 +218,73 @@ impl ToshinoriSink {
                 }
 
                 SideEffect::SessionUpdated { session_id } => {
-                    // Session metadata update - just touch the heartbeat
-                    client
-                        .update_session_status(session_id.as_str(), "active", &ctx.access_token)
-                        .await
+                    let metadata = {
+                        let guard = metadata_provider.read().await;
+                        guard
+                            .as_ref()
+                            .and_then(|provider| provider.get_session_metadata(session_id.as_str()))
+                    };
+
+                    if let Some(metadata) = metadata {
+                        client
+                            .upsert_session(
+                                session_id.as_str(),
+                                &ctx.user_id,
+                                &ctx.device_id,
+                                &metadata.repository_id,
+                                "active",
+                                metadata.current_branch.as_deref(),
+                                metadata.working_directory.as_deref(),
+                                metadata.is_worktree,
+                                metadata.worktree_path.as_deref(),
+                                &ctx.access_token,
+                            )
+                            .await
+                    } else {
+                        warn!(
+                            session_id = session_id.as_str(),
+                            "Session update skipped (missing metadata provider or metadata)"
+                        );
+                        Ok(())
+                    }
                 }
 
                 SideEffect::MessageAppended {
                     session_id,
                     message_id,
+                    sequence_number,
+                    content,
                 } => {
-                    // Note: We don't have the message content here.
-                    // The actual sync would need to fetch from Armin or
-                    // we need to extend the SideEffect to include content.
-                    debug!(
-                        session_id = session_id.as_str(),
-                        message_id = message_id.as_str(),
-                        "Toshinori: MessageAppended (content sync TBD)"
-                    );
-                    Ok(())
+                    let syncer = {
+                        let guard = message_syncer.read().await;
+                        guard.as_ref().cloned()
+                    };
+
+                    if let Some(syncer) = syncer {
+                        syncer.enqueue(MessageSyncRequest {
+                            session_id: session_id.as_str().to_string(),
+                            message_id: message_id.as_str().to_string(),
+                            sequence_number: *sequence_number,
+                            content: content.clone(),
+                        });
+                        Ok(())
+                    } else {
+                        debug!(
+                            session_id = session_id.as_str(),
+                            message_id = message_id.as_str(),
+                            "Toshinori: MessageAppended (no message syncer)"
+                        );
+                        Ok(())
+                    }
                 }
 
                 SideEffect::AgentStatusChanged { session_id, status } => {
-                    client
-                        .update_agent_status(
-                            session_id.as_str(),
-                            status.as_str(),
-                            &ctx.access_token,
-                        )
-                        .await
+                    warn!(
+                        session_id = session_id.as_str(),
+                        status = status.as_str(),
+                        "Agent status sync skipped (no agent_status column in Supabase schema)"
+                    );
+                    Ok(())
                 }
 
                 SideEffect::OutboxEventsSent { batch_id } => {

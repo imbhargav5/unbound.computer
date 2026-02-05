@@ -19,13 +19,13 @@ class EditorState {
         self.selectedTabId = tabs.first?.id
     }
 
-    func openFileTab(relativePath: String, fullPath: String) {
+    func openFileTab(relativePath: String, fullPath: String, sessionId: UUID?) {
         if let existing = tabs.first(where: { $0.kind == .file && $0.path == relativePath }) {
             selectedTabId = existing.id
             return
         }
 
-        let tab = EditorTab(kind: .file, path: relativePath, fullPath: fullPath)
+        let tab = EditorTab(kind: .file, path: relativePath, fullPath: fullPath, sessionId: sessionId)
         tabs.append(tab)
         selectedTabId = tab.id
     }

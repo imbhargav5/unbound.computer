@@ -175,6 +175,30 @@ pub struct AgentCodingSessionEventOutbox {
     pub acked_at: Option<DateTime<Utc>>,
 }
 
+/// Supabase message outbox entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentCodingSessionMessageSupabaseOutbox {
+    pub message_id: String,
+    pub created_at: DateTime<Utc>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub retry_count: i32,
+    pub last_error: Option<String>,
+}
+
+/// Pending Supabase message payload (joined with message content).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupabaseMessageOutboxPending {
+    pub message_id: String,
+    pub session_id: String,
+    pub sequence_number: i64,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub retry_count: i32,
+    pub last_error: Option<String>,
+}
+
 /// Outbox event status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

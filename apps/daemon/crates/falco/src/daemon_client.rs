@@ -155,12 +155,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_connect_nonexistent_socket() {
+        if !crate::tests::harness::ensure_uds() {
+            return;
+        }
         let result = DaemonClient::connect(Path::new("/nonexistent/socket.sock")).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_send_and_receive() {
+        if !crate::tests::harness::ensure_uds() {
+            return;
+        }
         let dir = tempdir().unwrap();
         let socket_path = dir.path().join("test.sock");
 
@@ -205,6 +211,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_timeout() {
+        if !crate::tests::harness::ensure_uds() {
+            return;
+        }
         let dir = tempdir().unwrap();
         let socket_path = dir.path().join("test.sock");
 

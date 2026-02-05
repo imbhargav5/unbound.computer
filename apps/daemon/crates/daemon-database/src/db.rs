@@ -2,10 +2,10 @@
 
 use crate::{
     migrations, AgentCodingSession, AgentCodingSessionEventOutbox,
-    AgentCodingSessionMessage, AgentCodingSessionState, AgentStatus, DatabaseError,
-    DatabaseResult, NewAgentCodingSession,
+    AgentCodingSessionMessage, AgentCodingSessionState, AgentStatus, DatabaseError, DatabaseResult,
+    NewAgentCodingSession,
     NewAgentCodingSessionMessage, NewOutboxEvent, NewRepository, NewSessionSecret, OutboxStatus,
-    Repository, SessionSecret, SessionStatus, UserSetting,
+    Repository, SessionSecret, SessionStatus, SupabaseMessageOutboxPending, UserSetting,
 };
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
@@ -535,6 +535,122 @@ impl Database {
             |row| row.get(0),
         )?;
         Ok(max.unwrap_or(0) + 1)
+    }
+
+    // ==========================================
+    // Supabase Message Outbox
+    // ==========================================
+
+    /// Insert a message into the Supabase outbox.
+    pub fn insert_supabase_message_outbox(&self, message_id: &str) -> DatabaseResult<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO agent_coding_session_message_supabase_outbox (message_id)
+             VALUES (?1)",
+            params![message_id],
+        )?;
+        Ok(())
+    }
+
+    /// Get pending Supabase message outbox entries (joined with message content).
+    pub fn get_pending_supabase_messages(&self, limit: usize) -> DatabaseResult<Vec<SupabaseMessageOutboxPending>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT o.message_id, m.session_id, m.sequence_number, m.content,
+                    o.created_at, o.last_attempt_at, o.retry_count, o.last_error
+             FROM agent_coding_session_message_supabase_outbox o
+             JOIN agent_coding_session_messages m ON m.id = o.message_id
+             WHERE o.sent_at IS NULL
+             ORDER BY o.created_at ASC
+             LIMIT ?1",
+        )?;
+
+        let rows = stmt
+            .query_map(params![limit as i64], |row| {
+                Ok(SupabaseMessageOutboxPending {
+                    message_id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    sequence_number: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: parse_datetime(row.get::<_, String>(4)?),
+                    last_attempt_at: row.get::<_, Option<String>>(5)?.map(parse_datetime),
+                    retry_count: row.get(6)?,
+                    last_error: row.get(7)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(rows)
+    }
+
+    /// Mark messages as sent to Supabase.
+    pub fn mark_supabase_messages_sent(&self, message_ids: &[String]) -> DatabaseResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let now = Utc::now().to_rfc3339();
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "UPDATE agent_coding_session_message_supabase_outbox
+             SET sent_at = ?1, last_error = NULL
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len() + 1);
+        params_vec.push(&now);
+        for id in message_ids {
+            params_vec.push(id);
+        }
+
+        self.conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    /// Mark messages as failed to sync (increments retry count).
+    pub fn mark_supabase_messages_failed(&self, message_ids: &[String], error: &str) -> DatabaseResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let now = Utc::now().to_rfc3339();
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "UPDATE agent_coding_session_message_supabase_outbox
+             SET last_attempt_at = ?1,
+                 retry_count = retry_count + 1,
+                 last_error = ?2
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len() + 2);
+        params_vec.push(&now);
+        params_vec.push(&error);
+        for id in message_ids {
+            params_vec.push(id);
+        }
+
+        self.conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    /// Delete messages from the Supabase outbox.
+    pub fn delete_supabase_message_outbox(&self, message_ids: &[String]) -> DatabaseResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "DELETE FROM agent_coding_session_message_supabase_outbox
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len());
+        for id in message_ids {
+            params_vec.push(id);
+        }
+
+        self.conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
     }
 
     // ==========================================

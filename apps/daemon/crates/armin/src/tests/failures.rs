@@ -172,7 +172,7 @@ fn rule_95_live_failure_side_effects_safe() {
     assert_eq!(effects.len(), 1);
     assert!(matches!(
         &effects[0],
-        crate::SideEffect::MessageAppended { session_id: s, message_id: m }
+        crate::SideEffect::MessageAppended { session_id: s, message_id: m, .. }
         if *s == session_id && *m == message.id
     ));
 }

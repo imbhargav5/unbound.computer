@@ -9,15 +9,33 @@ use crate::protocol::{
     read_frame, CommandFrame, DaemonDecisionFrame, Decision, FRAME_TYPE_COMMAND,
 };
 use std::collections::VecDeque;
+use std::os::unix::net::UnixListener as StdUnixListener;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::time::timeout;
 use uuid::Uuid;
+
+/// Returns false when the environment disallows creating Unix domain sockets.
+pub fn ensure_uds() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    let available = AVAILABLE.get_or_init(|| {
+        let dir = match TempDir::new() {
+            Ok(dir) => dir,
+            Err(_) => return false,
+        };
+        let path = dir.path().join("uds_probe.sock");
+        StdUnixListener::bind(&path).is_ok()
+    });
+    if !*available {
+        eprintln!("Skipping falco UDS tests: Unix domain sockets not permitted.");
+    }
+    *available
+}
 
 /// A command received by the mock consumer.
 #[derive(Debug, Clone)]
@@ -493,6 +511,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_consumer_receives_command() {
+        if !super::ensure_uds() { return; }
         let consumer = MockConsumer::new();
         let handle = consumer.start().await;
 
@@ -523,6 +542,7 @@ mod tests {
 
     #[test]
     fn test_mock_redis_basic_operations() {
+        if !super::ensure_uds() { return; }
         let redis = MockRedis::new("test-group");
 
         // Add commands
@@ -560,6 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_falco_sim_basic_flow() {
+        if !super::ensure_uds() { return; }
         let consumer = MockConsumer::new();
         consumer.set_default_response(ConsumerResponse::AckRedis);
         let handle = consumer.start().await;

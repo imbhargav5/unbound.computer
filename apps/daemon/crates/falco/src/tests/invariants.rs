@@ -17,6 +17,7 @@ use std::time::Duration;
 /// Rule 45: At most one command is ever in-flight
 #[tokio::test]
 async fn rule_45_at_most_one_in_flight() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -61,6 +62,7 @@ async fn rule_45_at_most_one_in_flight() {
 /// Rule 46: Falco never forwards a second command before resolving the first
 #[tokio::test]
 async fn rule_46_no_forward_before_resolution() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -103,6 +105,7 @@ async fn rule_46_no_forward_before_resolution() {
 /// Rule 47: Falco never ACKs Redis without consumer approval or timeout
 #[tokio::test]
 async fn rule_47_no_ack_without_approval_or_timeout() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -159,6 +162,7 @@ async fn rule_47_no_ack_without_approval_or_timeout() {
 /// Rule 48: Behavior depends only on Redis state, Consumer responses, Time
 #[tokio::test]
 async fn rule_48_deterministic_behavior() {
+    if !super::harness::ensure_uds() { return; }
     // Run the same scenario multiple times to verify determinism
 
     for trial in 0..3 {
@@ -214,6 +218,7 @@ async fn rule_48_deterministic_behavior() {
 /// Invariant: Consumer identity doesn't affect behavior
 #[tokio::test]
 async fn invariant_consumer_identity_irrelevant() {
+    if !super::harness::ensure_uds() { return; }
     // Two different "consumer instances" with same response pattern
     // should produce identical Falco behavior
 
@@ -253,6 +258,7 @@ async fn invariant_consumer_identity_irrelevant() {
 /// Invariant: ACK log captures all and only approved messages
 #[tokio::test]
 async fn invariant_ack_log_accuracy() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -297,6 +303,7 @@ async fn invariant_ack_log_accuracy() {
 /// Invariant: Pending count is consistent
 #[tokio::test]
 async fn invariant_pending_count_consistent() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -338,6 +345,7 @@ async fn invariant_pending_count_consistent() {
 /// Invariant: Stream is drained in order
 #[tokio::test]
 async fn invariant_stream_drained_in_order() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -372,6 +380,7 @@ async fn invariant_stream_drained_in_order() {
 /// One-Line Integration Guarantee test
 #[tokio::test]
 async fn one_line_integration_guarantee() {
+    if !super::harness::ensure_uds() { return; }
     // Falco's behavior is fully determined by:
     // 1. Redis input (payloads and order)
     // 2. Consumer protocol responses

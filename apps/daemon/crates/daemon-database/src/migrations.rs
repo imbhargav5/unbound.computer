@@ -3,12 +3,12 @@
 //! This module contains all SQL migrations for the database schema.
 //! Migrations are run in order and tracked in the `migrations` table.
 
-use crate::{DatabaseError, DatabaseResult};
+use crate::DatabaseResult;
 use rusqlite::Connection;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 8;
+pub const CURRENT_VERSION: i32 = 9;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -55,6 +55,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 8 {
         migrate_v8_plaintext_messages(conn)?;
+    }
+    if current_version < 9 {
+        migrate_v9_supabase_message_outbox(conn)?;
     }
 
     info!("Migrations complete");
@@ -436,6 +439,32 @@ fn migrate_v8_plaintext_messages(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+/// V9: Supabase message outbox table.
+fn migrate_v9_supabase_message_outbox(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v9: supabase_message_outbox");
+
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS agent_coding_session_message_supabase_outbox (
+            message_id TEXT PRIMARY KEY REFERENCES agent_coding_session_messages(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            sent_at TEXT,
+            last_attempt_at TEXT,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_supabase_outbox_sent_at
+            ON agent_coding_session_message_supabase_outbox(sent_at);
+        CREATE INDEX IF NOT EXISTS idx_supabase_outbox_last_attempt_at
+            ON agent_coding_session_message_supabase_outbox(last_attempt_at);
+        ",
+    )?;
+
+    record_migration(conn, 9, "supabase_message_outbox")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,6 +487,7 @@ mod tests {
         assert!(tables.contains(&"agent_coding_sessions".to_string()));
         assert!(tables.contains(&"agent_coding_session_messages".to_string()));
         assert!(tables.contains(&"agent_coding_session_event_outbox".to_string()));
+        assert!(tables.contains(&"agent_coding_session_message_supabase_outbox".to_string()));
         assert!(tables.contains(&"user_settings".to_string()));
         assert!(tables.contains(&"session_secrets".to_string()));
         assert!(tables.contains(&"migrations".to_string()));
@@ -476,7 +506,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 8);
+        assert_eq!(version, 9);
     }
 
     #[test]

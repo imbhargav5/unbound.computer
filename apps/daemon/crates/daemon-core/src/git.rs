@@ -780,11 +780,14 @@ mod tests {
     fn test_get_status_current_repo() {
         // This test runs against the actual repository
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let repo_path = manifest_dir
-            .parent()
-            .and_then(|p| p.parent())
-            .and_then(|p| p.parent())
-            .unwrap();
+        let repo = match git2::Repository::discover(&manifest_dir) {
+            Ok(repo) => repo,
+            Err(_) => return, // Not running inside a git repo, skip test.
+        };
+        let repo_path = match repo.workdir() {
+            Some(path) => path,
+            None => return, // Bare repo, skip test.
+        };
 
         let result = get_status(repo_path);
         assert!(result.is_ok());

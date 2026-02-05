@@ -22,6 +22,7 @@ use std::time::Duration;
 /// Rule 21: Consumer does not respond
 #[tokio::test]
 async fn rule_21_consumer_no_response() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     let handle = consumer.start().await;
@@ -52,6 +53,7 @@ async fn rule_21_consumer_no_response() {
 /// Rule 22: Decision timeout expires
 #[tokio::test]
 async fn rule_22_timeout_expires() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     let handle = consumer.start().await;
@@ -85,6 +87,7 @@ async fn rule_22_timeout_expires() {
 /// Rule 23: Falco emits exactly one Redis ACK (on timeout)
 #[tokio::test]
 async fn rule_23_emits_exactly_one_ack_on_timeout() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     let handle = consumer.start().await;
@@ -114,6 +117,7 @@ async fn rule_23_emits_exactly_one_ack_on_timeout() {
 /// Rule 24: ACK is timeout-derived (timed_out flag)
 #[tokio::test]
 async fn rule_24_ack_marked_timeout_derived() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     let handle = consumer.start().await;
@@ -149,6 +153,7 @@ async fn rule_24_ack_marked_timeout_derived() {
 /// Rule 25: Consumer responds after timeout
 #[tokio::test]
 async fn rule_25_consumer_responds_after_timeout() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     // Consumer will respond after 500ms, but timeout is 200ms
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(500)));
@@ -177,6 +182,7 @@ async fn rule_25_consumer_responds_after_timeout() {
 /// Rule 26: Falco ignores late response
 #[tokio::test]
 async fn rule_26_ignores_late_response() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(500)));
     let handle = consumer.start().await;
@@ -204,6 +210,7 @@ async fn rule_26_ignores_late_response() {
 /// Rule 27: No additional Redis ACK is emitted
 #[tokio::test]
 async fn rule_27_no_additional_ack() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(500)));
     let handle = consumer.start().await;
@@ -237,6 +244,7 @@ async fn rule_27_no_additional_ack() {
 /// Rule 28: Falco state remains consistent
 #[tokio::test]
 async fn rule_28_state_remains_consistent() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -283,6 +291,7 @@ async fn rule_28_state_remains_consistent() {
 /// Timeout: Configurable timeout duration
 #[tokio::test]
 async fn timeout_configurable_duration() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     let handle = consumer.start().await;
@@ -329,6 +338,7 @@ async fn timeout_configurable_duration() {
 /// Timeout: Just-in-time response (no timeout)
 #[tokio::test]
 async fn timeout_just_in_time_response() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     // Respond just before timeout
     consumer.queue_response(ConsumerResponse::DelayThenAck(Duration::from_millis(150)));
@@ -358,6 +368,7 @@ async fn timeout_just_in_time_response() {
 /// Timeout: Multiple consecutive timeouts
 #[tokio::test]
 async fn timeout_multiple_consecutive() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     for _ in 0..3 {
         consumer.queue_response(ConsumerResponse::NeverRespond);

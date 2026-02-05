@@ -14,6 +14,7 @@ use std::time::Duration;
 /// (Simulated by not completing the decision phase)
 #[tokio::test]
 async fn rule_33_crash_after_forward_before_resolution() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     // Consumer never responds - simulates Falco crashing while waiting
     consumer.queue_response(ConsumerResponse::NeverRespond);
@@ -48,6 +49,7 @@ async fn rule_33_crash_after_forward_before_resolution() {
 /// (Simulated using pending messages in Redis)
 #[tokio::test]
 async fn rule_34_35_restart_and_reforward() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -83,6 +85,7 @@ async fn rule_34_35_restart_and_reforward() {
 /// Rule 36: Redis ACK is not lost
 #[tokio::test]
 async fn rule_36_ack_not_lost() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;
@@ -122,6 +125,7 @@ async fn rule_36_ack_not_lost() {
 /// Crash safety: Pending messages don't disappear
 #[tokio::test]
 async fn crash_safety_pending_persists() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::DoNotAck);
     let handle = consumer.start().await;
@@ -156,6 +160,7 @@ async fn crash_safety_pending_persists() {
 /// Crash safety: Mixed ACK/NACK maintains correct pending state
 #[tokio::test]
 async fn crash_safety_mixed_pending_state() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     let handle = consumer.start().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -196,6 +201,7 @@ async fn crash_safety_mixed_pending_state() {
 /// Crash safety: Timeout ACKs are durable
 #[tokio::test]
 async fn crash_safety_timeout_acks_durable() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.queue_response(ConsumerResponse::NeverRespond);
     consumer.queue_response(ConsumerResponse::NeverRespond);
@@ -228,6 +234,7 @@ async fn crash_safety_timeout_acks_durable() {
 /// Crash safety: No duplicate ACKs
 #[tokio::test]
 async fn crash_safety_no_duplicate_acks() {
+    if !super::harness::ensure_uds() { return; }
     let consumer = MockConsumer::new();
     consumer.set_default_response(ConsumerResponse::AckRedis);
     let handle = consumer.start().await;

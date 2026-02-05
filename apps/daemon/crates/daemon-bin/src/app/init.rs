@@ -10,8 +10,10 @@ use daemon_core::{Config, Paths};
 use daemon_database::{DatabasePool, PoolConfig};
 use daemon_ipc::IpcServer;
 use daemon_storage::create_secrets_manager;
+use levi::{Levi, LeviConfig};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use toshinori::ToshinoriSink;
 use tracing::{debug, info, warn};
 
 /// Run the daemon.
@@ -67,9 +69,20 @@ pub async fn run_daemon(
     // Create IPC server first (we need subscriptions for Armin)
     let ipc_server = IpcServer::new(&paths.socket_file().to_string_lossy());
 
+    // Create Toshinori sink for Supabase sync
+    let toshinori = Arc::new(ToshinoriSink::new(
+        &config.supabase_url,
+        &config.supabase_publishable_key,
+        tokio::runtime::Handle::current(),
+    ));
+
     // Initialize Armin session engine with the daemon database
     // Armin now manages the complete schema (repositories, sessions, messages, etc.)
-    let armin = create_daemon_armin(&paths.database_file(), ipc_server.subscriptions().clone())
+    let armin = create_daemon_armin(
+        &paths.database_file(),
+        ipc_server.subscriptions().clone(),
+        Some(toshinori.clone()),
+    )
         .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
     info!(
         path = %paths.database_file().display(),
@@ -121,6 +134,8 @@ pub async fn run_daemon(
         }
     };
 
+    let db_encryption_key_arc = Arc::new(Mutex::new(db_encryption_key));
+
     // Get device ID and private key for session secret distribution
     let device_id = secrets.get_device_id().ok().flatten();
     let device_private_key = secrets
@@ -159,6 +174,24 @@ pub async fn run_daemon(
         session_secret_cache.inner(),
     ));
 
+    // Create Levi message sync worker
+    let armin_handle: levi::ArminHandle = armin.clone();
+    let message_sync = Arc::new(Levi::new(
+        LeviConfig::default(),
+        &config.supabase_url,
+        &config.supabase_publishable_key,
+        armin_handle,
+        db_encryption_key_arc.clone(),
+    ));
+
+    // Connect Toshinori to Levi for message sync
+    toshinori
+        .set_message_syncer(message_sync.clone())
+        .await;
+
+    // Start Levi processing loop
+    message_sync.start();
+
     // Note: Armin was already initialized above with paths.database_file()
     // The old armin.db path is no longer used - all data is in daemon.db
 
@@ -170,13 +203,15 @@ pub async fn run_daemon(
         secrets: secrets_arc,
         claude_processes: Arc::new(Mutex::new(HashMap::new())),
         terminal_processes: Arc::new(Mutex::new(HashMap::new())),
-        db_encryption_key: Arc::new(Mutex::new(db_encryption_key)),
+        db_encryption_key: db_encryption_key_arc,
         subscriptions: ipc_server.subscriptions().clone(),
         session_secret_cache,
         supabase_client,
         device_id: device_id_arc,
         device_private_key: device_private_key_arc,
         session_sync,
+        toshinori,
+        message_sync,
         armin,
     };
 

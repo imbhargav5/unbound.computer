@@ -20,6 +20,9 @@ mod client;
 mod error;
 mod sink;
 
-pub use client::SupabaseClient;
+pub use client::{MessageUpsert, SupabaseClient};
 pub use error::{ToshinoriError, ToshinoriResult};
-pub use sink::ToshinoriSink;
+pub use sink::{
+    MessageSyncRequest, MessageSyncer, SessionMetadata, SessionMetadataProvider, SyncContext,
+    ToshinoriSink,
+};

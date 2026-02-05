@@ -6,6 +6,7 @@ use armin::{Armin, SideEffect, SideEffectSink};
 use daemon_ipc::{Event, EventType, SubscriptionManager};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use toshinori::ToshinoriSink;
 use tracing::{debug, info};
 
 /// A side-effect sink that bridges Armin events to daemon subscriptions.
@@ -17,6 +18,30 @@ pub struct DaemonSideEffectSink {
     subscriptions: SubscriptionManager,
     /// Global sequence counter for events.
     sequence: AtomicI64,
+}
+
+/// Composite sink that broadcasts to IPC and optionally syncs to Supabase.
+pub struct DaemonCompositeSink {
+    daemon_sink: DaemonSideEffectSink,
+    toshinori: Option<Arc<ToshinoriSink>>,
+}
+
+impl DaemonCompositeSink {
+    pub fn new(subscriptions: SubscriptionManager, toshinori: Option<Arc<ToshinoriSink>>) -> Self {
+        Self {
+            daemon_sink: DaemonSideEffectSink::new(subscriptions),
+            toshinori,
+        }
+    }
+}
+
+impl SideEffectSink for DaemonCompositeSink {
+    fn emit(&self, effect: SideEffect) {
+        self.daemon_sink.emit(effect.clone());
+        if let Some(toshinori) = &self.toshinori {
+            toshinori.emit(effect);
+        }
+    }
 }
 
 impl DaemonSideEffectSink {
@@ -94,6 +119,8 @@ impl SideEffectSink for DaemonSideEffectSink {
             SideEffect::MessageAppended {
                 session_id,
                 message_id,
+                sequence_number: _,
+                content: _,
             } => {
                 debug!(
                     session_id = %session_id,
@@ -157,7 +184,7 @@ impl SideEffectSink for DaemonSideEffectSink {
 }
 
 /// The Armin engine configured for daemon use.
-pub type DaemonArmin = Armin<DaemonSideEffectSink>;
+pub type DaemonArmin = Armin<DaemonCompositeSink>;
 
 /// Creates a new Armin engine for the daemon.
 ///
@@ -172,8 +199,9 @@ pub type DaemonArmin = Armin<DaemonSideEffectSink>;
 pub fn create_daemon_armin(
     db_path: &std::path::Path,
     subscriptions: SubscriptionManager,
+    toshinori: Option<Arc<ToshinoriSink>>,
 ) -> Result<Arc<DaemonArmin>, armin::ArminError> {
-    let sink = DaemonSideEffectSink::new(subscriptions);
+    let sink = DaemonCompositeSink::new(subscriptions, toshinori);
     let armin = Armin::open(db_path, sink)?;
 
     info!(path = %db_path.display(), "Armin session engine initialized");
@@ -186,7 +214,7 @@ pub fn create_daemon_armin(
 pub fn create_test_armin(
     subscriptions: SubscriptionManager,
 ) -> Result<Arc<DaemonArmin>, armin::ArminError> {
-    let sink = DaemonSideEffectSink::new(subscriptions);
+    let sink = DaemonCompositeSink::new(subscriptions, None);
     let armin = Armin::in_memory(sink)?;
 
     Ok(Arc::new(armin))

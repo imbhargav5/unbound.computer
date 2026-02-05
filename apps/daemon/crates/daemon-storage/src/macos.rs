@@ -139,7 +139,7 @@ mod tests {
     #[test]
     #[ignore] // Requires macOS Keychain access
     fn test_keychain_operations() {
-        let storage = KeychainStorage::new_without_access_group(TEST_SERVICE).unwrap();
+        let storage = KeychainStorage::new(TEST_SERVICE).unwrap();
 
         // Clean up from previous test runs
         let _ = storage.delete("test_key");

@@ -32,9 +32,9 @@ use crate::side_effect::{SideEffect, SideEffectSink};
 use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
 use crate::types::{
-    AgentStatus, Message, NewMessage, NewOutboxEvent, NewRepository, NewSession,
-    NewSessionSecret, OutboxEvent, Repository, RepositoryId, Session, SessionId,
-    SessionSecret, SessionState, SessionStatus, SessionUpdate,
+    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
+    NewSessionSecret, OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session,
+    SessionId, SessionSecret, SessionState, SessionStatus, SessionUpdate,
 };
 use crate::writer::SessionWriter;
 use crate::ArminError;
@@ -354,6 +354,10 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             .insert_agent_message(session, &message)
             .expect("failed to insert message");
 
+        self.sqlite
+            .insert_supabase_message_outbox(&inserted.id)
+            .expect("failed to insert supabase message outbox");
+
         let full_message = Message {
             id: inserted.id.clone(),
             content: message.content,
@@ -368,6 +372,8 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         self.sink.emit(SideEffect::MessageAppended {
             session_id: session.clone(),
             message_id: inserted.id,
+            sequence_number: full_message.sequence_number,
+            content: full_message.content.clone(),
         });
 
         full_message
@@ -473,6 +479,34 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             batch_id: batch_id.to_string(),
         });
     }
+
+    // ========================================================================
+    // Supabase message outbox operations
+    // ========================================================================
+
+    fn insert_supabase_message_outbox(&self, message_id: &MessageId) {
+        self.sqlite
+            .insert_supabase_message_outbox(message_id)
+            .expect("failed to insert supabase message outbox");
+    }
+
+    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) {
+        self.sqlite
+            .mark_supabase_messages_sent(message_ids)
+            .expect("failed to mark supabase messages sent");
+    }
+
+    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) {
+        self.sqlite
+            .mark_supabase_messages_failed(message_ids, error)
+            .expect("failed to mark supabase messages failed");
+    }
+
+    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) {
+        self.sqlite
+            .delete_supabase_message_outbox(message_ids)
+            .expect("failed to delete supabase message outbox");
+    }
 }
 
 impl<S: SideEffectSink> SessionReader for Armin<S> {
@@ -565,6 +599,12 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
             .get_pending_outbox_events(session, limit)
             .expect("failed to get pending outbox events")
     }
+
+    fn get_pending_supabase_messages(&self, limit: usize) -> Vec<PendingSupabaseMessage> {
+        self.sqlite
+            .get_pending_supabase_messages(limit)
+            .expect("failed to get pending supabase messages")
+    }
 }
 
 #[cfg(test)]
@@ -605,7 +645,9 @@ mod tests {
             effects[0],
             SideEffect::MessageAppended {
                 session_id: session_id.clone(),
-                message_id: message.id.clone()
+                message_id: message.id.clone(),
+                sequence_number: message.sequence_number,
+                content: message.content.clone(),
             }
         );
     }

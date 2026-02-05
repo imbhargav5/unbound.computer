@@ -92,6 +92,30 @@ impl SqliteStore {
             self.migrate_v1_full_schema(&conn)?;
         }
 
+        // Ensure Supabase message outbox table exists for existing databases
+        self.ensure_supabase_message_outbox(&conn)?;
+
+        Ok(())
+    }
+
+    fn ensure_supabase_message_outbox(&self, conn: &Connection) -> SqliteResult<()> {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_coding_session_message_supabase_outbox (
+                message_id TEXT PRIMARY KEY REFERENCES agent_coding_session_messages(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                sent_at TEXT,
+                last_attempt_at TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_supabase_outbox_sent_at
+                ON agent_coding_session_message_supabase_outbox(sent_at);
+            CREATE INDEX IF NOT EXISTS idx_supabase_outbox_last_attempt_at
+                ON agent_coding_session_message_supabase_outbox(last_attempt_at);
+            "#,
+        )?;
         Ok(())
     }
 
@@ -231,6 +255,25 @@ impl SqliteStore {
                 DELETE FROM agent_coding_session_event_outbox
                 WHERE status = 'acked' AND acked_at < datetime('now', '-1 day');
             END;
+            "#,
+        )?;
+
+        // Supabase message outbox table
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_coding_session_message_supabase_outbox (
+                message_id TEXT PRIMARY KEY REFERENCES agent_coding_session_messages(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                sent_at TEXT,
+                last_attempt_at TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_supabase_outbox_sent_at
+                ON agent_coding_session_message_supabase_outbox(sent_at);
+            CREATE INDEX IF NOT EXISTS idx_supabase_outbox_last_attempt_at
+                ON agent_coding_session_message_supabase_outbox(last_attempt_at);
             "#,
         )?;
 
@@ -886,6 +929,127 @@ impl SqliteStore {
     }
 
     // ========================================================================
+    // Supabase message outbox operations
+    // ========================================================================
+
+    /// Insert a message into the Supabase message outbox.
+    pub fn insert_supabase_message_outbox(&self, message_id: &MessageId) -> SqliteResult<()> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        conn.execute(
+            "INSERT OR IGNORE INTO agent_coding_session_message_supabase_outbox (message_id)
+             VALUES (?1)",
+            params![message_id.as_str()],
+        )?;
+        Ok(())
+    }
+
+    /// Get pending Supabase messages (joined with message content).
+    pub fn get_pending_supabase_messages(&self, limit: usize) -> SqliteResult<Vec<crate::types::PendingSupabaseMessage>> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let mut stmt = conn.prepare_cached(
+            "SELECT o.message_id, m.session_id, m.sequence_number, m.content,
+                    o.created_at, o.last_attempt_at, o.retry_count, o.last_error
+             FROM agent_coding_session_message_supabase_outbox o
+             JOIN agent_coding_session_messages m ON m.id = o.message_id
+             WHERE o.sent_at IS NULL
+             ORDER BY o.created_at ASC
+             LIMIT ?1",
+        )?;
+
+        let rows = stmt
+            .query_map(params![limit as i64], |row| {
+                Ok(crate::types::PendingSupabaseMessage {
+                    message_id: MessageId::from_string(row.get::<_, String>(0)?),
+                    session_id: SessionId::from_string(row.get::<_, String>(1)?),
+                    sequence_number: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(4)?),
+                    last_attempt_at: row.get::<_, Option<String>>(5)?.map(Self::parse_datetime),
+                    retry_count: row.get(6)?,
+                    last_error: row.get(7)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(rows)
+    }
+
+    /// Mark messages as successfully sent to Supabase.
+    pub fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> SqliteResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "UPDATE agent_coding_session_message_supabase_outbox
+             SET sent_at = ?1, last_error = NULL
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len() + 1);
+        params_vec.push(&now);
+        for id in message_ids {
+            params_vec.push(&id.0);
+        }
+
+        conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    /// Mark messages as failed to sync (increments retry count).
+    pub fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> SqliteResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "UPDATE agent_coding_session_message_supabase_outbox
+             SET last_attempt_at = ?1,
+                 retry_count = retry_count + 1,
+                 last_error = ?2
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len() + 2);
+        params_vec.push(&now);
+        params_vec.push(&error);
+        for id in message_ids {
+            params_vec.push(&id.0);
+        }
+
+        conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    /// Delete messages from the Supabase outbox.
+    pub fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> SqliteResult<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.lock().expect("lock poisoned");
+        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "DELETE FROM agent_coding_session_message_supabase_outbox
+             WHERE message_id IN ({})",
+            placeholders
+        );
+
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(message_ids.len());
+        for id in message_ids {
+            params_vec.push(&id.0);
+        }
+
+        conn.execute(&sql, params_vec.as_slice())?;
+        Ok(())
+    }
+
+    // ========================================================================
     // User settings operations
     // ========================================================================
 
@@ -995,6 +1159,45 @@ mod tests {
 
         let retrieved = store.get_agent_session(&id).unwrap().unwrap();
         assert_eq!(retrieved.id.as_str(), "my-custom-session-id");
+    }
+
+    #[test]
+    fn supabase_message_outbox_crud() {
+        let store = SqliteStore::in_memory().unwrap();
+        let repo_id = create_test_repo(&store);
+        let session_id = create_test_session(&store, &repo_id);
+
+        let inserted = store
+            .insert_agent_message(&session_id, &NewMessage { content: "Hello".to_string() })
+            .unwrap();
+
+        store
+            .insert_supabase_message_outbox(&inserted.id)
+            .unwrap();
+
+        let pending = store.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, inserted.id);
+        assert_eq!(pending[0].sequence_number, inserted.sequence_number);
+
+        store
+            .mark_supabase_messages_failed(&[inserted.id.clone()], "test error")
+            .unwrap();
+
+        let pending = store.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending[0].retry_count, 1);
+        assert_eq!(pending[0].last_error.as_deref(), Some("test error"));
+
+        store
+            .mark_supabase_messages_sent(&[inserted.id.clone()])
+            .unwrap();
+
+        store
+            .delete_supabase_message_outbox(&[inserted.id.clone()])
+            .unwrap();
+
+        let pending = store.get_pending_supabase_messages(10).unwrap();
+        assert!(pending.is_empty());
     }
 
     #[test]
