@@ -53,29 +53,29 @@ enum Radius {
     static let full: CGFloat = 9999
 }
 
-// MARK: - Font Sizes (compact base, scaled by LocalSettings)
+// MARK: - Font Sizes (scaled by LocalSettings)
 
 enum FontSize {
-    /// 9pt - Extra extra small
-    static let xxs: CGFloat = 9
-    /// 10pt - Extra small
-    static let xs: CGFloat = 10
-    /// 11pt - Small
-    static let sm: CGFloat = 11
-    /// 12pt - Small-medium
-    static let smMd: CGFloat = 12
-    /// 13pt - Base/default
-    static let base: CGFloat = 13
-    /// 14pt - Large
-    static let lg: CGFloat = 14
-    /// 16pt - Extra large
-    static let xl: CGFloat = 16
-    /// 18pt - 2x large
-    static let xxl: CGFloat = 18
-    /// 22pt - 3x large
-    static let xxxl: CGFloat = 22
-    /// 28pt - Display small
-    static let display: CGFloat = 28
+    /// 10pt - Extra extra small
+    static let xxs: CGFloat = 10
+    /// 11pt - Extra small
+    static let xs: CGFloat = 11
+    /// 12pt - Small
+    static let sm: CGFloat = 12
+    /// 13pt - Small-medium
+    static let smMd: CGFloat = 13
+    /// 14pt - Base/default
+    static let base: CGFloat = 14
+    /// 15pt - Large
+    static let lg: CGFloat = 15
+    /// 17pt - Extra large
+    static let xl: CGFloat = 17
+    /// 19pt - 2x large
+    static let xxl: CGFloat = 19
+    /// 24pt - 3x large
+    static let xxxl: CGFloat = 24
+    /// 30pt - Display small
+    static let display: CGFloat = 30
 }
 
 // MARK: - Icon Sizes

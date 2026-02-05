@@ -39,7 +39,7 @@ struct SidebarHeader: View {
                         .foregroundStyle(colors.mutedForeground)
                 }
                 .buttonGhost(size: .icon)
-                .popover(isPresented: $showMenu, arrowEdge: .bottom) {
+                .popover(isPresented: $showMenu, arrowEdge: .trailing) {
                     SidebarHeaderMenu(
                         onOpenKeyboardShortcuts: {
                             showMenu = false
@@ -50,6 +50,7 @@ struct SidebarHeader: View {
                             onOpenSettings?()
                         }
                     )
+                    .fixedSize()
                 }
             }
         }

@@ -108,7 +108,7 @@ struct WorkspaceView: View {
                             createSession(for: repository, locationType: locationType)
                         }
                     )
-                    .frame(minWidth: 120, idealWidth: 168, maxWidth: 240)
+                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
 
                     // Center - Chat Panel
                     if selectedSession != nil {
@@ -138,57 +138,13 @@ struct WorkspaceView: View {
                         selectedTab: $selectedSidebarTab,
                         workingDirectory: workingDirectoryPath
                     )
-                    .frame(minWidth: 250, idealWidth: 450)
+                    .frame(minWidth: 280, idealWidth: 400, maxWidth: 600)
                 }
                 .padding(.top, titlebarHeight)
 
-                // Custom titlebar row (same line as traffic lights)
+                // Custom titlebar row (transparent, just for traffic lights spacing)
                 WindowToolbar(content: {
-                    ZStack {
-                        HStack(spacing: 0) {
-                            Color.clear
-                                .frame(width: trafficLightWidth)
-                            Spacer()
-                        }
-
-                        Button {
-                            withAnimation(.easeOut(duration: Duration.fast)) {
-                                appState.showCommandPalette = true
-                            }
-                        } label: {
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: IconSize.xs))
-                                    .foregroundStyle(colors.mutedForeground)
-
-                                Text("Search...")
-                                    .font(Typography.caption)
-                                    .foregroundStyle(colors.mutedForeground)
-
-                                Spacer()
-
-                                Text("⌘K")
-                                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
-                                    .padding(.horizontal, Spacing.xs)
-                                    .padding(.vertical, 2)
-                                    .background(colors.muted)
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
-                            }
-                            .frame(width: 200)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(colors.muted.opacity(0.6))
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Radius.md)
-                                    .stroke(colors.border.opacity(0.3), lineWidth: BorderWidth.hairline)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .padding(.horizontal, Spacing.lg)
+                    Color.clear
                 }, height: titlebarHeight)
             }
 
