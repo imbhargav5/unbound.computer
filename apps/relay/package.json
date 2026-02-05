@@ -1,6 +1,6 @@
 {
   "name": "@unbound/relay",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "private": true,
   "description": "Unbound Relay Server",
   "type": "module",
