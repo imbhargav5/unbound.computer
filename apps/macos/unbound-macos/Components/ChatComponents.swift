@@ -432,16 +432,56 @@ struct ChatMessageView: View {
             case .fileChange(let fileChange):
                 return "\(fileChange.changeType.rawValue): \(fileChange.filePath)"
             case .toolUse(let toolUse):
-                return "Tool: \(toolUse.toolName)"
-            case .subAgentActivity(let activity):
-                let toolNames = activity.tools.map { $0.toolName }.joined(separator: ", ")
-                return "Sub-Agent (\(activity.subagentType)): \(activity.description)\nTools: \(toolNames)\(activity.result.map { "\nResult: \($0)" } ?? "")"
+                // Only include bash commands as they're useful to copy
+                if toolUse.toolName == "Bash", let input = toolUse.input {
+                    if let data = input.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let command = json["command"] as? String {
+                        return command
+                    }
+                }
+                return nil
+            case .subAgentActivity:
+                // Sub-agent activities don't have useful copyable content
+                return nil
             case .askUserQuestion(let question):
                 return question.question
-            case .eventPayload(let payload):
-                return "Event: \(payload.eventType)"
+            case .eventPayload:
+                return nil
             }
         }.joined(separator: "\n\n")
+    }
+
+    /// Whether this message has meaningful content worth copying
+    private var hasCopyableContent: Bool {
+        // User messages are always copyable
+        if isUser { return true }
+
+        // Check if there's actual text content, code blocks, or useful tool output
+        for content in displayContent {
+            switch content {
+            case .text(let textContent):
+                if !textContent.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return true
+                }
+            case .codeBlock:
+                return true
+            case .error:
+                return true
+            case .todoList:
+                return true
+            case .toolUse(let toolUse):
+                // Only Bash commands are worth copying
+                if toolUse.toolName == "Bash" && toolUse.input != nil {
+                    return true
+                }
+            case .askUserQuestion:
+                return true
+            case .fileChange, .subAgentActivity, .eventPayload:
+                continue
+            }
+        }
+        return false
     }
 
     private func copyToClipboard() {
@@ -478,19 +518,6 @@ struct ChatMessageView: View {
                 if !isUser && !fileChanges.isEmpty {
                     FileChangeSummaryView(fileChanges: fileChanges)
                 }
-
-                // Action row (copy button on hover)
-                if isHovered && !message.isStreaming {
-                    HStack(spacing: Spacing.sm) {
-                        Button(action: copyToClipboard) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.system(size: IconSize.xs))
-                                .foregroundStyle(colors.mutedForeground)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Copy message")
-                    }
-                }
             }
             .padding(isUser ? Spacing.md : 0)
             .background(
@@ -501,6 +528,17 @@ struct ChatMessageView: View {
                     }
                 }
             )
+
+            // Copy button on the right (only show when hovered and has copyable content)
+            if isHovered && !message.isStreaming && hasCopyableContent {
+                Button(action: copyToClipboard) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: IconSize.xs))
+                        .foregroundStyle(colors.mutedForeground)
+                }
+                .buttonStyle(.plain)
+                .help("Copy message")
+            }
 
             if !isUser {
                 Spacer(minLength: 60)

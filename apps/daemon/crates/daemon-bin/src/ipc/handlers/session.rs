@@ -2,9 +2,9 @@
 
 use crate::app::DaemonState;
 use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionWriter};
-use daemon_core::git;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
+use piccolo::{create_worktree, remove_worktree};
 use std::path::Path;
 use tracing::{debug, warn};
 
@@ -134,7 +134,7 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
 
                     // Create the git worktree
-                    match git::create_worktree(
+                    match create_worktree(
                         Path::new(&repo.path),
                         wt_name,
                         branch_name.as_deref(),
@@ -329,7 +329,7 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                         // Get repository path for worktree cleanup
                         if let Some(repo) = state.armin.get_repository(&session.repository_id) {
                             // Try to remove the worktree, but don't fail the deletion if this fails
-                            if let Err(e) = git::remove_worktree(
+                            if let Err(e) = remove_worktree(
                                 Path::new(&repo.path),
                                 Path::new(worktree_path),
                             ) {

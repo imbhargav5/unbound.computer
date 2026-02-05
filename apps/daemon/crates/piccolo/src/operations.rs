@@ -1,157 +1,51 @@
-//! Git operations using libgit2.
+//! Git operations implementation.
 //!
-//! Provides native git integration for repository status, diff, commit history,
-//! branch operations, and worktree management.
+//! All operations are pure functions that take a repository path and return
+//! results. They do not maintain any state between calls.
 
-use git2::{BranchType, Delta, DiffOptions, Repository, Sort, StatusOptions};
-use serde::{Deserialize, Serialize};
+use git2::{BranchType, DiffOptions, Repository, Sort, StatusOptions};
 use std::path::Path;
 
-/// File status in git.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GitFileStatus {
-    Modified,
-    Added,
-    Deleted,
-    Renamed,
-    Copied,
-    Untracked,
-    Ignored,
-    Typechange,
-    Unreadable,
-    Conflicted,
-    Unchanged,
-}
-
-impl GitFileStatus {
-    /// Convert from git2 Delta.
-    fn from_delta(delta: Delta) -> Self {
-        match delta {
-            Delta::Added => GitFileStatus::Added,
-            Delta::Deleted => GitFileStatus::Deleted,
-            Delta::Modified => GitFileStatus::Modified,
-            Delta::Renamed => GitFileStatus::Renamed,
-            Delta::Copied => GitFileStatus::Copied,
-            Delta::Ignored => GitFileStatus::Ignored,
-            Delta::Untracked => GitFileStatus::Untracked,
-            Delta::Typechange => GitFileStatus::Typechange,
-            Delta::Unreadable => GitFileStatus::Unreadable,
-            Delta::Conflicted => GitFileStatus::Conflicted,
-            Delta::Unmodified => GitFileStatus::Unchanged,
-        }
-    }
-}
-
-/// A file entry in git status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitStatusFile {
-    /// File path relative to repository root.
-    pub path: String,
-    /// Status of the file.
-    pub status: GitFileStatus,
-    /// Whether the file is staged.
-    pub staged: bool,
-}
-
-/// Result of git status operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitStatusResult {
-    /// List of files with their statuses.
-    pub files: Vec<GitStatusFile>,
-    /// Current branch name.
-    pub branch: Option<String>,
-    /// Whether the working directory is clean.
-    pub is_clean: bool,
-}
-
-/// Result of git diff operation for a single file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitDiffResult {
-    /// File path.
-    pub file_path: String,
-    /// Diff content in unified format.
-    pub diff: String,
-    /// Whether the file is binary.
-    pub is_binary: bool,
-    /// Whether the diff was truncated.
-    pub is_truncated: bool,
-    /// Number of additions.
-    pub additions: u32,
-    /// Number of deletions.
-    pub deletions: u32,
-}
-
-/// A git commit entry for history display.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitCommit {
-    /// Full SHA hash.
-    pub oid: String,
-    /// Short SHA hash (7 characters).
-    pub short_oid: String,
-    /// Full commit message.
-    pub message: String,
-    /// First line of commit message.
-    pub summary: String,
-    /// Author name.
-    pub author_name: String,
-    /// Author email.
-    pub author_email: String,
-    /// Author timestamp (Unix seconds).
-    pub author_time: i64,
-    /// Committer name.
-    pub committer_name: String,
-    /// Committer timestamp (Unix seconds).
-    pub committer_time: i64,
-    /// Parent commit OIDs (for graph visualization).
-    pub parent_oids: Vec<String>,
-}
-
-/// A git branch entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitBranch {
-    /// Branch name (without refs/heads/ prefix).
-    pub name: String,
-    /// Whether this is the currently checked out branch.
-    pub is_current: bool,
-    /// Whether this is a remote-tracking branch.
-    pub is_remote: bool,
-    /// Upstream branch name if set.
-    pub upstream: Option<String>,
-    /// Number of commits ahead of upstream.
-    pub ahead: u32,
-    /// Number of commits behind upstream.
-    pub behind: u32,
-    /// OID of the branch's HEAD commit.
-    pub head_oid: String,
-}
-
-/// Result of git log operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitLogResult {
-    /// List of commits.
-    pub commits: Vec<GitCommit>,
-    /// Whether there are more commits beyond the limit.
-    pub has_more: bool,
-    /// Total count if available (may be expensive to compute).
-    pub total_count: Option<u32>,
-}
-
-/// Result of git branches operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitBranchesResult {
-    /// List of local branches.
-    pub local: Vec<GitBranch>,
-    /// List of remote-tracking branches.
-    pub remote: Vec<GitBranch>,
-    /// Current branch name.
-    pub current: Option<String>,
-}
+use crate::types::{
+    GitBranch, GitBranchesResult, GitCommit, GitDiffResult, GitFileStatus, GitLogResult,
+    GitStatusFile, GitStatusResult,
+};
 
 /// Get the git status for a repository.
+///
+/// Queries both the index (staged changes) and working tree (unstaged changes)
+/// to provide a complete picture of the repository state.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository root (containing .git directory)
+///
+/// # Returns
+///
+/// A [`GitStatusResult`] containing:
+/// - List of changed files with their status and staged state
+/// - Current branch name (or None if detached HEAD)
+/// - Whether the working directory is clean
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The path is not a git repository
+/// - The repository cannot be opened
+/// - Status query fails
+///
+/// # Example
+///
+/// ```ignore
+/// let status = get_status(Path::new("/path/to/repo"))?;
+/// for file in &status.files {
+///     let state = if file.staged { "staged" } else { "unstaged" };
+///     println!("{}: {:?} ({})", file.path, file.status, state);
+/// }
+/// ```
 pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Get current branch
     let branch = repo
@@ -222,21 +116,56 @@ pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, String> {
 }
 
 /// Get the diff for a specific file.
+///
+/// Generates a unified diff for the specified file, comparing either:
+/// - Working tree changes (unstaged) against the index
+/// - Index changes (staged) against HEAD
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository root
+/// * `file_path` - Path to the file relative to repository root
+/// * `max_lines` - Maximum number of diff lines to return (default: 2000)
+///
+/// # Returns
+///
+/// A [`GitDiffResult`] containing:
+/// - The unified diff content
+/// - Binary file indicator
+/// - Truncation indicator
+/// - Addition/deletion counts
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - The file does not exist or has no changes
+/// - Diff generation fails
+///
+/// # Example
+///
+/// ```ignore
+/// let diff = get_file_diff(repo_path, "src/main.rs", Some(500))?;
+/// if diff.is_binary {
+///     println!("Binary file");
+/// } else {
+///     println!("+{} -{}", diff.additions, diff.deletions);
+///     println!("{}", diff.diff);
+/// }
+/// ```
 pub fn get_file_diff(
     repo_path: &Path,
     file_path: &str,
     max_lines: Option<usize>,
 ) -> Result<GitDiffResult, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let max_lines = max_lines.unwrap_or(2000);
 
     // Set up diff options
     let mut diff_opts = DiffOptions::new();
-    diff_opts
-        .pathspec(file_path)
-        .context_lines(3);
+    diff_opts.pathspec(file_path).context_lines(3);
 
     // Get the diff between HEAD and working directory
     let diff = repo
@@ -328,19 +257,52 @@ pub fn get_file_diff(
 
 /// Get commit history for a repository.
 ///
+/// Retrieves commits in reverse chronological order with support for
+/// pagination and branch filtering.
+///
 /// # Arguments
+///
 /// * `repo_path` - Path to the repository
-/// * `limit` - Maximum number of commits to return (default 50)
-/// * `offset` - Number of commits to skip (for pagination)
+/// * `limit` - Maximum number of commits to return (default: 50)
+/// * `offset` - Number of commits to skip for pagination (default: 0)
 /// * `branch` - Optional branch name to get history for (default: HEAD)
+///
+/// # Returns
+///
+/// A [`GitLogResult`] containing:
+/// - List of commits with full metadata
+/// - Whether more commits exist beyond the limit
+/// - Total count (typically None for performance)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - The specified branch does not exist
+/// - Revision walking fails
+///
+/// # Example
+///
+/// ```ignore
+/// // Get first 20 commits
+/// let log = get_log(repo_path, Some(20), None, None)?;
+/// for commit in &log.commits {
+///     println!("{} {}", commit.short_oid, commit.summary);
+/// }
+///
+/// // Get next 20 commits (pagination)
+/// if log.has_more {
+///     let page2 = get_log(repo_path, Some(20), Some(20), None)?;
+/// }
+/// ```
 pub fn get_log(
     repo_path: &Path,
     limit: Option<usize>,
     offset: Option<usize>,
     branch: Option<&str>,
 ) -> Result<GitLogResult, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let limit = limit.unwrap_or(50);
     let offset = offset.unwrap_or(0);
@@ -366,8 +328,11 @@ pub fn get_log(
         .revwalk()
         .map_err(|e| format!("Failed to create revwalk: {}", e))?;
 
-    revwalk.push(start_oid).map_err(|e| format!("Failed to push start commit: {}", e))?;
-    revwalk.set_sorting(Sort::TIME | Sort::TOPOLOGICAL)
+    revwalk
+        .push(start_oid)
+        .map_err(|e| format!("Failed to push start commit: {}", e))?;
+    revwalk
+        .set_sorting(Sort::TIME | Sort::TOPOLOGICAL)
         .map_err(|e| format!("Failed to set sorting: {}", e))?;
 
     let mut commits = Vec::new();
@@ -402,10 +367,7 @@ pub fn get_log(
         let message = commit.message().unwrap_or("").to_string();
         let summary = commit.summary().unwrap_or("").to_string();
 
-        let parent_oids: Vec<String> = commit
-            .parent_ids()
-            .map(|id| id.to_string())
-            .collect();
+        let parent_oids: Vec<String> = commit.parent_ids().map(|id| id.to_string()).collect();
 
         commits.push(GitCommit {
             oid: oid.to_string(),
@@ -429,21 +391,54 @@ pub fn get_log(
 }
 
 /// Get all branches for a repository.
+///
+/// Returns both local and remote-tracking branches with their
+/// tracking relationships and ahead/behind counts.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+///
+/// # Returns
+///
+/// A [`GitBranchesResult`] containing:
+/// - Local branches with upstream tracking info
+/// - Remote-tracking branches
+/// - Current branch name
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - Branch enumeration fails
+///
+/// # Example
+///
+/// ```ignore
+/// let branches = get_branches(repo_path)?;
+///
+/// println!("Current: {:?}", branches.current);
+///
+/// for branch in &branches.local {
+///     let tracking = match &branch.upstream {
+///         Some(u) => format!(" (tracking {} +{} -{})", u, branch.ahead, branch.behind),
+///         None => String::new(),
+///     };
+///     println!("  {}{}", branch.name, tracking);
+/// }
+/// ```
 pub fn get_branches(repo_path: &Path) -> Result<GitBranchesResult, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Get current branch name
-    let current = repo
-        .head()
-        .ok()
-        .and_then(|head| {
-            if head.is_branch() {
-                head.shorthand().map(String::from)
-            } else {
-                None
-            }
-        });
+    let current = repo.head().ok().and_then(|head| {
+        if head.is_branch() {
+            head.shorthand().map(String::from)
+        } else {
+            None
+        }
+    });
 
     let mut local_branches = Vec::new();
     let mut remote_branches = Vec::new();
@@ -478,17 +473,12 @@ pub fn get_branches(repo_path: &Path) -> Result<GitBranchesResult, String> {
         let (upstream, ahead, behind) = if !is_remote {
             match branch.upstream() {
                 Ok(upstream_branch) => {
-                    let upstream_name = upstream_branch
-                        .name()
-                        .ok()
-                        .flatten()
-                        .map(String::from);
+                    let upstream_name = upstream_branch.name().ok().flatten().map(String::from);
 
                     // Calculate ahead/behind
-                    let (ahead, behind) = if let (Some(local_oid), Some(upstream_oid)) = (
-                        branch.get().target(),
-                        upstream_branch.get().target(),
-                    ) {
+                    let (ahead, behind) = if let (Some(local_oid), Some(upstream_oid)) =
+                        (branch.get().target(), upstream_branch.get().target())
+                    {
                         repo.graph_ahead_behind(local_oid, upstream_oid)
                             .map(|(a, b)| (a as u32, b as u32))
                             .unwrap_or((0, 0))
@@ -522,12 +512,10 @@ pub fn get_branches(repo_path: &Path) -> Result<GitBranchesResult, String> {
     }
 
     // Sort branches: current first, then alphabetically
-    local_branches.sort_by(|a, b| {
-        match (a.is_current, b.is_current) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.cmp(&b.name),
-        }
+    local_branches.sort_by(|a, b| match (a.is_current, b.is_current) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.cmp(&b.name),
     });
     remote_branches.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -539,9 +527,34 @@ pub fn get_branches(repo_path: &Path) -> Result<GitBranchesResult, String> {
 }
 
 /// Stage files for commit.
+///
+/// Adds files to the git index (staging area). Handles both new files
+/// and deleted files appropriately.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+/// * `paths` - Slice of file paths relative to repository root
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - Any file cannot be staged
+/// - Index write fails
+///
+/// # Example
+///
+/// ```ignore
+/// // Stage specific files
+/// stage_files(repo_path, &["src/main.rs", "Cargo.toml"])?;
+///
+/// // Stage a deleted file
+/// stage_files(repo_path, &["removed_file.rs"])?;
+/// ```
 pub fn stage_files(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let mut index = repo
         .index()
@@ -570,9 +583,31 @@ pub fn stage_files(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
 }
 
 /// Unstage files (remove from index, keep working tree changes).
+///
+/// Resets files in the index to their HEAD state while preserving
+/// any working tree modifications.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+/// * `paths` - Slice of file paths relative to repository root
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - Any file cannot be unstaged
+/// - Index write fails
+///
+/// # Example
+///
+/// ```ignore
+/// // Unstage specific files
+/// unstage_files(repo_path, &["src/main.rs"])?;
+/// ```
 pub fn unstage_files(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Get HEAD tree to reset to
     let head = repo.head().ok();
@@ -601,9 +636,36 @@ pub fn unstage_files(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
 }
 
 /// Discard working tree changes for files.
+///
+/// Resets files in the working tree to match their state in the index.
+/// This is a destructive operation that cannot be undone.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+/// * `paths` - Slice of file paths relative to repository root
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - Checkout operation fails
+///
+/// # Warning
+///
+/// This operation permanently discards uncommitted changes. There is
+/// no way to recover discarded changes unless they were stashed or
+/// backed up elsewhere.
+///
+/// # Example
+///
+/// ```ignore
+/// // Discard changes to specific files
+/// discard_changes(repo_path, &["src/main.rs"])?;
+/// ```
 pub fn discard_changes(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let mut checkout_opts = git2::build::CheckoutBuilder::new();
     checkout_opts.force();
@@ -620,20 +682,55 @@ pub fn discard_changes(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
 
 /// Create a git worktree at `<repo>/.unbound-worktrees/<worktree_name>/`.
 ///
+/// Creates a linked worktree with a corresponding branch for parallel
+/// development workflows.
+///
 /// # Arguments
+///
 /// * `repo_path` - Path to the main repository
 /// * `worktree_name` - Name for the worktree directory (typically session ID)
 /// * `branch_name` - Optional branch name to use (defaults to `unbound/<worktree_name>`)
 ///
 /// # Returns
+///
 /// The absolute path to the created worktree directory.
+///
+/// # Worktree Layout
+///
+/// ```text
+/// /path/to/repo/
+/// ├── .git/
+/// ├── .unbound-worktrees/
+/// │   └── session-123/          <- Created worktree
+/// │       ├── .git              <- File pointing to main .git
+/// │       └── ...               <- Working tree files
+/// └── ...
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - The worktree directory already exists
+/// - Branch creation fails
+/// - Worktree creation fails
+///
+/// # Example
+///
+/// ```ignore
+/// let path = create_worktree(repo_path, "session-123", None)?;
+/// println!("Worktree created at: {}", path);
+///
+/// // With custom branch name
+/// let path = create_worktree(repo_path, "feature", Some("feature/my-feature"))?;
+/// ```
 pub fn create_worktree(
     repo_path: &Path,
     worktree_name: &str,
     branch_name: Option<&str>,
 ) -> Result<String, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Construct worktree path: <repo>/.unbound-worktrees/<worktree_name>/
     let worktrees_dir = repo_path.join(".unbound-worktrees");
@@ -657,7 +754,9 @@ pub fn create_worktree(
         .unwrap_or_else(|| format!("unbound/{}", worktree_name));
 
     // Get HEAD commit to create branch from
-    let head = repo.head().map_err(|e| format!("Failed to get HEAD: {}", e))?;
+    let head = repo
+        .head()
+        .map_err(|e| format!("Failed to get HEAD: {}", e))?;
     let head_commit = head
         .peel_to_commit()
         .map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
@@ -690,10 +789,11 @@ pub fn create_worktree(
         worktree_name,
         &worktree_path,
         Some(
-            git2::WorktreeAddOptions::new()
-                .reference(Some(&repo.find_reference(&branch_ref).map_err(|e| {
-                    format!("Failed to find branch reference: {}", e)
-                })?)),
+            git2::WorktreeAddOptions::new().reference(Some(
+                &repo
+                    .find_reference(&branch_ref)
+                    .map_err(|e| format!("Failed to find branch reference: {}", e))?,
+            )),
         ),
     )
     .map_err(|e| format!("Failed to create worktree: {}", e))?;
@@ -710,15 +810,29 @@ pub fn create_worktree(
 
 /// Remove a git worktree and its directory.
 ///
+/// Cleans up both the worktree registration in git and the worktree
+/// directory on disk.
+///
 /// # Arguments
+///
 /// * `repo_path` - Path to the main repository
 /// * `worktree_path` - Path to the worktree directory to remove
 ///
-/// # Returns
-/// Ok(()) on success, Err with message on failure.
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - Worktree pruning fails
+/// - Directory removal fails
+///
+/// # Example
+///
+/// ```ignore
+/// remove_worktree(repo_path, Path::new("/path/to/repo/.unbound-worktrees/session-123"))?;
+/// ```
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Try to find the worktree name from the path
     let worktree_name = worktree_path
@@ -748,7 +862,11 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), Str
 
     // Clean up the .unbound-worktrees directory if empty
     if let Some(parent) = worktree_path.parent() {
-        if parent.file_name().map(|n| n == ".unbound-worktrees").unwrap_or(false) {
+        if parent
+            .file_name()
+            .map(|n| n == ".unbound-worktrees")
+            .unwrap_or(false)
+        {
             // Try to remove if empty, ignore errors
             let _ = std::fs::remove_dir(parent);
         }
@@ -764,10 +882,23 @@ mod tests {
 
     #[test]
     fn test_git_file_status_from_delta() {
-        assert_eq!(GitFileStatus::from_delta(Delta::Added), GitFileStatus::Added);
-        assert_eq!(GitFileStatus::from_delta(Delta::Deleted), GitFileStatus::Deleted);
-        assert_eq!(GitFileStatus::from_delta(Delta::Modified), GitFileStatus::Modified);
-        assert_eq!(GitFileStatus::from_delta(Delta::Untracked), GitFileStatus::Untracked);
+        use git2::Delta;
+        assert_eq!(
+            GitFileStatus::from_delta(Delta::Added),
+            GitFileStatus::Added
+        );
+        assert_eq!(
+            GitFileStatus::from_delta(Delta::Deleted),
+            GitFileStatus::Deleted
+        );
+        assert_eq!(
+            GitFileStatus::from_delta(Delta::Modified),
+            GitFileStatus::Modified
+        );
+        assert_eq!(
+            GitFileStatus::from_delta(Delta::Untracked),
+            GitFileStatus::Untracked
+        );
     }
 
     #[test]

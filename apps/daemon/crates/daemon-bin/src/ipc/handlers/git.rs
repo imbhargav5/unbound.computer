@@ -1,11 +1,11 @@
 //! Git handlers.
 
 use crate::app::DaemonState;
-use daemon_core::{
-    discard_changes, get_branches, get_file_diff, get_log, get_status, stage_files, unstage_files,
-};
 use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
+use piccolo::{
+    discard_changes, get_branches, get_file_diff, get_log, get_status, stage_files, unstage_files,
+};
 
 /// Register git handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
