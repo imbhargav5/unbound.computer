@@ -93,3 +93,120 @@ impl From<PiccoloError> for String {
         err.to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_messages_for_all_variants() {
+        let cases: Vec<(PiccoloError, &str)> = vec![
+            (
+                PiccoloError::RepositoryOpen("not found".into()),
+                "Failed to open repository: not found",
+            ),
+            (
+                PiccoloError::HeadAccess("detached".into()),
+                "Failed to get HEAD: detached",
+            ),
+            (
+                PiccoloError::IndexAccess("locked".into()),
+                "Failed to access index: locked",
+            ),
+            (
+                PiccoloError::IndexWrite("permission".into()),
+                "Failed to write index: permission",
+            ),
+            (
+                PiccoloError::StatusQuery("timeout".into()),
+                "Failed to get status: timeout",
+            ),
+            (
+                PiccoloError::DiffGeneration("corrupt".into()),
+                "Failed to generate diff: corrupt",
+            ),
+            (
+                PiccoloError::BranchNotFound("feature".into()),
+                "Branch not found: feature",
+            ),
+            (
+                PiccoloError::BranchList("io error".into()),
+                "Failed to list branches: io error",
+            ),
+            (
+                PiccoloError::BranchCreate("exists".into()),
+                "Failed to create branch: exists",
+            ),
+            (
+                PiccoloError::RevwalkCreate("memory".into()),
+                "Failed to create revision walker: memory",
+            ),
+            (
+                PiccoloError::StageFile("main.rs".into(), "not found".into()),
+                "Failed to stage file 'main.rs': not found",
+            ),
+            (
+                PiccoloError::UnstageFile("lib.rs".into(), "locked".into()),
+                "Failed to unstage file 'lib.rs': locked",
+            ),
+            (
+                PiccoloError::DiscardChanges("checkout failed".into()),
+                "Failed to discard changes: checkout failed",
+            ),
+            (
+                PiccoloError::WorktreeCreate("dir exists".into()),
+                "Failed to create worktree: dir exists",
+            ),
+            (
+                PiccoloError::WorktreeRemove("in use".into()),
+                "Failed to remove worktree: in use",
+            ),
+            (
+                PiccoloError::WorktreeExists("session-1".into()),
+                "Worktree already exists: session-1",
+            ),
+            (
+                PiccoloError::InvalidPath("..".into()),
+                "Invalid path: ..",
+            ),
+            (
+                PiccoloError::Filesystem("read only".into()),
+                "Filesystem error: read only",
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(
+                error.to_string(),
+                expected,
+                "Display for {:?} should be \"{}\"",
+                error,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn to_error_string_matches_display() {
+        let err = PiccoloError::RepositoryOpen("test".into());
+        assert_eq!(err.to_error_string(), err.to_string());
+    }
+
+    #[test]
+    fn into_string_conversion() {
+        let err = PiccoloError::BranchNotFound("main".into());
+        let s: String = err.into();
+        assert_eq!(s, "Branch not found: main");
+    }
+
+    #[test]
+    fn debug_format_contains_variant_name() {
+        let err = PiccoloError::WorktreeCreate("test".into());
+        let debug = format!("{:?}", err);
+        assert!(
+            debug.contains("WorktreeCreate"),
+            "Debug output should contain variant name, got: {}",
+            debug
+        );
+    }
+}

@@ -609,14 +609,14 @@ pub fn unstage_files(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    // Get HEAD tree to reset to
+    // Get HEAD commit to reset to (reset_default requires a commit-ish object)
     let head = repo.head().ok();
-    let head_tree = head.as_ref().and_then(|h| h.peel_to_tree().ok());
+    let head_commit = head.as_ref().and_then(|h| h.peel_to_commit().ok());
 
     for path in paths {
-        if let Some(ref tree) = head_tree {
+        if let Some(ref commit) = head_commit {
             // Reset path to HEAD state in index
-            repo.reset_default(Some(&tree.as_object()), &[Path::new(path)])
+            repo.reset_default(Some(commit.as_object()), &[Path::new(path)])
                 .map_err(|e| format!("Failed to unstage '{}': {}", path, e))?;
         } else {
             // No HEAD (initial commit), remove from index

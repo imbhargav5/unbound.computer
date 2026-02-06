@@ -55,6 +55,245 @@ impl GitFileStatus {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_delta_all_variants() {
+        use git2::Delta;
+
+        let cases = [
+            (Delta::Added, GitFileStatus::Added),
+            (Delta::Deleted, GitFileStatus::Deleted),
+            (Delta::Modified, GitFileStatus::Modified),
+            (Delta::Renamed, GitFileStatus::Renamed),
+            (Delta::Copied, GitFileStatus::Copied),
+            (Delta::Ignored, GitFileStatus::Ignored),
+            (Delta::Untracked, GitFileStatus::Untracked),
+            (Delta::Typechange, GitFileStatus::Typechange),
+            (Delta::Unreadable, GitFileStatus::Unreadable),
+            (Delta::Conflicted, GitFileStatus::Conflicted),
+            (Delta::Unmodified, GitFileStatus::Unchanged),
+        ];
+
+        for (delta, expected) in cases {
+            assert_eq!(
+                GitFileStatus::from_delta(delta),
+                expected,
+                "from_delta({:?}) should be {:?}",
+                delta,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn file_status_serde_roundtrip() {
+        let variants = [
+            (GitFileStatus::Modified, "\"modified\""),
+            (GitFileStatus::Added, "\"added\""),
+            (GitFileStatus::Deleted, "\"deleted\""),
+            (GitFileStatus::Renamed, "\"renamed\""),
+            (GitFileStatus::Copied, "\"copied\""),
+            (GitFileStatus::Untracked, "\"untracked\""),
+            (GitFileStatus::Ignored, "\"ignored\""),
+            (GitFileStatus::Typechange, "\"typechange\""),
+            (GitFileStatus::Unreadable, "\"unreadable\""),
+            (GitFileStatus::Conflicted, "\"conflicted\""),
+            (GitFileStatus::Unchanged, "\"unchanged\""),
+        ];
+
+        for (variant, expected_json) in variants {
+            let serialized = serde_json::to_string(&variant).expect("serialize");
+            assert_eq!(
+                serialized, expected_json,
+                "serialization of {:?} should be {}",
+                variant, expected_json
+            );
+
+            let deserialized: GitFileStatus =
+                serde_json::from_str(&serialized).expect("deserialize");
+            assert_eq!(deserialized, variant);
+        }
+    }
+
+    #[test]
+    fn status_result_serde_roundtrip() {
+        let result = GitStatusResult {
+            files: vec![
+                GitStatusFile {
+                    path: "src/main.rs".to_string(),
+                    status: GitFileStatus::Modified,
+                    staged: true,
+                },
+                GitStatusFile {
+                    path: "new_file.txt".to_string(),
+                    status: GitFileStatus::Untracked,
+                    staged: false,
+                },
+            ],
+            branch: Some("main".to_string()),
+            is_clean: false,
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitStatusResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.files.len(), 2);
+        assert_eq!(deserialized.branch, Some("main".to_string()));
+        assert!(!deserialized.is_clean);
+        assert_eq!(deserialized.files[0].path, "src/main.rs");
+        assert_eq!(deserialized.files[0].status, GitFileStatus::Modified);
+        assert!(deserialized.files[0].staged);
+    }
+
+    #[test]
+    fn diff_result_serde_roundtrip() {
+        let result = GitDiffResult {
+            file_path: "src/lib.rs".to_string(),
+            diff: "+new line\n-old line".to_string(),
+            is_binary: false,
+            is_truncated: true,
+            additions: 5,
+            deletions: 3,
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitDiffResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.file_path, "src/lib.rs");
+        assert!(!deserialized.is_binary);
+        assert!(deserialized.is_truncated);
+        assert_eq!(deserialized.additions, 5);
+        assert_eq!(deserialized.deletions, 3);
+    }
+
+    #[test]
+    fn commit_serde_roundtrip() {
+        let commit = GitCommit {
+            oid: "a".repeat(40),
+            short_oid: "a".repeat(7),
+            message: "Full message\n\nWith body".to_string(),
+            summary: "Full message".to_string(),
+            author_name: "Test User".to_string(),
+            author_email: "test@example.com".to_string(),
+            author_time: 1700000000,
+            committer_name: "Committer".to_string(),
+            committer_time: 1700000001,
+            parent_oids: vec!["b".repeat(40), "c".repeat(40)],
+        };
+
+        let json = serde_json::to_string(&commit).expect("serialize");
+        let deserialized: GitCommit = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.oid, "a".repeat(40));
+        assert_eq!(deserialized.short_oid, "a".repeat(7));
+        assert_eq!(deserialized.summary, "Full message");
+        assert_eq!(deserialized.parent_oids.len(), 2);
+    }
+
+    #[test]
+    fn branch_serde_roundtrip_with_upstream() {
+        let branch = GitBranch {
+            name: "main".to_string(),
+            is_current: true,
+            is_remote: false,
+            upstream: Some("origin/main".to_string()),
+            ahead: 2,
+            behind: 1,
+            head_oid: "d".repeat(40),
+        };
+
+        let json = serde_json::to_string(&branch).expect("serialize");
+        let deserialized: GitBranch = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.name, "main");
+        assert!(deserialized.is_current);
+        assert_eq!(deserialized.upstream, Some("origin/main".to_string()));
+        assert_eq!(deserialized.ahead, 2);
+        assert_eq!(deserialized.behind, 1);
+    }
+
+    #[test]
+    fn branch_serde_roundtrip_without_upstream() {
+        let branch = GitBranch {
+            name: "feature".to_string(),
+            is_current: false,
+            is_remote: false,
+            upstream: None,
+            ahead: 0,
+            behind: 0,
+            head_oid: "e".repeat(40),
+        };
+
+        let json = serde_json::to_string(&branch).expect("serialize");
+        let deserialized: GitBranch = serde_json::from_str(&json).expect("deserialize");
+
+        assert!(deserialized.upstream.is_none());
+        assert_eq!(deserialized.ahead, 0);
+        assert_eq!(deserialized.behind, 0);
+    }
+
+    #[test]
+    fn log_result_serde_roundtrip_with_total_count() {
+        let result = GitLogResult {
+            commits: vec![],
+            has_more: true,
+            total_count: Some(42),
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitLogResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert!(deserialized.has_more);
+        assert_eq!(deserialized.total_count, Some(42));
+    }
+
+    #[test]
+    fn log_result_serde_roundtrip_without_total_count() {
+        let result = GitLogResult {
+            commits: vec![],
+            has_more: false,
+            total_count: None,
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitLogResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert!(!deserialized.has_more);
+        assert!(deserialized.total_count.is_none());
+    }
+
+    #[test]
+    fn branches_result_serde_with_current() {
+        let result = GitBranchesResult {
+            local: vec![],
+            remote: vec![],
+            current: Some("main".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitBranchesResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.current, Some("main".to_string()));
+    }
+
+    #[test]
+    fn branches_result_serde_detached_head() {
+        let result = GitBranchesResult {
+            local: vec![],
+            remote: vec![],
+            current: None,
+        };
+
+        let json = serde_json::to_string(&result).expect("serialize");
+        let deserialized: GitBranchesResult = serde_json::from_str(&json).expect("deserialize");
+
+        assert!(deserialized.current.is_none());
+    }
+}
+
 /// A file entry in git status.
 ///
 /// Represents a single file that has changes relative to the index
