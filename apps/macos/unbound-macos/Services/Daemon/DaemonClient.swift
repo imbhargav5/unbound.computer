@@ -292,12 +292,24 @@ final class DaemonClient {
                 throw DaemonError.notAuthenticated
             case DaemonErrorCode.notFound:
                 throw DaemonError.notFound(error.message)
+            case DaemonErrorCode.conflict:
+                throw DaemonError.conflict(currentRevision: decodeConflictRevision(from: error.data))
             default:
                 throw DaemonError.serverError(code: error.code, message: error.message)
             }
         }
 
         return response
+    }
+
+    private func decodeConflictRevision(from data: AnyCodableValue?) -> DaemonFileRevision? {
+        guard let payload = data?.value as? [String: Any],
+              let revisionValue = payload["current_revision"],
+              JSONSerialization.isValidJSONObject(revisionValue),
+              let revisionData = try? JSONSerialization.data(withJSONObject: revisionValue) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(DaemonFileRevision.self, from: revisionData)
     }
 
     // MARK: - Receiving Data

@@ -342,6 +342,88 @@ extension DaemonClient {
         let response = try await call(method: .repositoryReadFile, params: params)
         return try response.resultAs(DaemonFileContent.self)
     }
+
+    /// Read a slice of file contents for a session-relative path.
+    func readRepositoryFileSlice(
+        sessionId: String,
+        relativePath: String,
+        startLine: Int,
+        endLineExclusive: Int,
+        maxBytes: Int? = nil
+    ) async throws -> DaemonFileSlice {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "relative_path": relativePath,
+            "start_line": startLine,
+            "end_line_exclusive": endLineExclusive
+        ]
+        if let maxBytes {
+            params["max_bytes"] = maxBytes
+        }
+
+        let response = try await call(method: .repositoryReadFileSlice, params: params)
+        return try response.resultAs(DaemonFileSlice.self)
+    }
+
+    /// Write full file contents for a session-relative path.
+    func writeRepositoryFile(
+        sessionId: String,
+        relativePath: String,
+        content: String,
+        expectedRevision: DaemonFileRevision?,
+        force: Bool = false
+    ) async throws -> DaemonWriteResult {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "relative_path": relativePath,
+            "content": content
+        ]
+        if let expectedRevision {
+            params["expected_revision"] = [
+                "token": expectedRevision.token,
+                "len_bytes": expectedRevision.lenBytes,
+                "modified_unix_ns": expectedRevision.modifiedUnixNs
+            ]
+        }
+        if force {
+            params["force"] = true
+        }
+
+        let response = try await call(method: .repositoryWriteFile, params: params)
+        return try response.resultAs(DaemonWriteResult.self)
+    }
+
+    /// Replace a line range in a file for a session-relative path.
+    func replaceRepositoryFileRange(
+        sessionId: String,
+        relativePath: String,
+        startLine: Int,
+        endLineExclusive: Int,
+        replacement: String,
+        expectedRevision: DaemonFileRevision?,
+        force: Bool = false
+    ) async throws -> DaemonWriteResult {
+        var params: [String: Any] = [
+            "session_id": sessionId,
+            "relative_path": relativePath,
+            "start_line": startLine,
+            "end_line_exclusive": endLineExclusive,
+            "replacement": replacement
+        ]
+        if let expectedRevision {
+            params["expected_revision"] = [
+                "token": expectedRevision.token,
+                "len_bytes": expectedRevision.lenBytes,
+                "modified_unix_ns": expectedRevision.modifiedUnixNs
+            ]
+        }
+        if force {
+            params["force"] = true
+        }
+
+        let response = try await call(method: .repositoryReplaceFileRange, params: params)
+        return try response.resultAs(DaemonWriteResult.self)
+    }
 }
 
 // MARK: - Git

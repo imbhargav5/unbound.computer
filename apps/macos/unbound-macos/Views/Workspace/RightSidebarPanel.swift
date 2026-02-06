@@ -88,6 +88,12 @@ struct RightSidebarPanel: View {
     // Working directory
     let workingDirectory: String?
 
+    @State private var pendingCloseTabId: UUID?
+    @State private var showUnsavedCloseDialog: Bool = false
+    @State private var conflictTabId: UUID?
+    @State private var conflictRevision: DaemonFileRevision?
+    @State private var showConflictDialog: Bool = false
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -128,6 +134,24 @@ struct RightSidebarPanel: View {
         return editorState.tabs.first
     }
 
+    private var selectedFileTab: EditorTab? {
+        guard let tab = selectedEditorTab, tab.kind == .file else { return nil }
+        return tab
+    }
+
+    private var dirtyTabIds: Set<UUID> {
+        Set(
+            editorState.documentsByTabId
+                .filter { $0.value.isDirty }
+                .map(\.key)
+        )
+    }
+
+    private var canSaveSelectedFile: Bool {
+        guard let selectedFileTab else { return false }
+        return editorState.canSave(tabId: selectedFileTab.id)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             VSplitView {
@@ -135,12 +159,13 @@ struct RightSidebarPanel: View {
                 VStack(spacing: 0) {
                     FileEditorTabBar(
                         files: editorState.tabs,
+                        dirtyTabIds: dirtyTabIds,
                         selectedFileId: editorState.selectedTabId ?? editorState.tabs.first?.id,
                         onSelectFile: { id in
                             editorState.selectTab(id: id)
                         },
                         onCloseFile: { id in
-                            editorState.closeTab(id: id)
+                            requestCloseTab(id)
                         }
                     ) {
                         HStack(spacing: Spacing.sm) {
@@ -148,6 +173,7 @@ struct RightSidebarPanel: View {
                             if let action = gitToolbarAction {
                                 GitToolbarActionButton(action: action, onTap: {})
                             }
+                            saveButton
                         }
                     }
 
@@ -192,6 +218,54 @@ struct RightSidebarPanel: View {
                 }
             }
         }
+        .confirmationDialog(
+            "Unsaved changes",
+            isPresented: $showUnsavedCloseDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Save") {
+                Task { await saveAndClosePendingTab() }
+            }
+            Button("Discard", role: .destructive) {
+                if let tabId = pendingCloseTabId {
+                    editorState.closeTab(id: tabId)
+                }
+                pendingCloseTabId = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingCloseTabId = nil
+            }
+        } message: {
+            Text("Save changes before closing this tab?")
+        }
+        .confirmationDialog(
+            "File changed on disk",
+            isPresented: $showConflictDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Reload") {
+                guard let tabId = conflictTabId else { return }
+                Task {
+                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
+                    clearConflictState()
+                }
+            }
+            Button("Overwrite") {
+                guard let tabId = conflictTabId else { return }
+                Task {
+                    await overwriteAfterConflict(tabId: tabId)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                clearConflictState()
+            }
+        } message: {
+            if let revision = conflictRevision {
+                Text("Current revision token: \(revision.token)")
+            } else {
+                Text("The file was modified externally. Reload or overwrite your local edits.")
+            }
+        }
     }
 
     // MARK: - Editor Content
@@ -201,15 +275,7 @@ struct RightSidebarPanel: View {
         if let tab = selectedEditorTab {
             switch tab.kind {
             case .file:
-                if let fullPath = tab.fullPath {
-                    FileEditorView(
-                        sessionId: tab.sessionId,
-                        relativePath: tab.path,
-                        filePath: fullPath
-                    )
-                } else {
-                    editorErrorView("Missing file path for editor tab.")
-                }
+                FileEditorView(tab: tab, editorState: editorState)
             case .diff:
                 DiffEditorView(
                     path: tab.path,
@@ -235,22 +301,6 @@ struct RightSidebarPanel: View {
         }
     }
 
-    private func editorErrorView(_ message: String) -> some View {
-        VStack(spacing: Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24))
-                .foregroundStyle(colors.destructive)
-            Text("Unable to open file")
-                .font(Typography.body)
-                .foregroundStyle(colors.foreground)
-            Text(message)
-                .font(Typography.caption)
-                .foregroundStyle(colors.mutedForeground)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.editorBackground)
-    }
-
     // MARK: - Branch Selector
 
     private var branchSelector: some View {
@@ -273,6 +323,28 @@ struct RightSidebarPanel: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         }
         .buttonStyle(.plain)
+    }
+
+    private var saveButton: some View {
+        Button {
+            Task { await saveActiveFile() }
+        } label: {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.system(size: IconSize.xs))
+                Text("Save")
+                    .font(Typography.toolbar)
+            }
+            .foregroundStyle(colors.foreground)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(colors.muted)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("s", modifiers: .command)
+        .disabled(!canSaveSelectedFile)
+        .opacity(canSaveSelectedFile ? 1.0 : 0.55)
     }
 
     // MARK: - Changes Header
@@ -387,6 +459,82 @@ struct RightSidebarPanel: View {
                 sessionId: appState.selectedSessionId
             )
         }
+    }
+
+    private func requestCloseTab(_ tabId: UUID) {
+        if editorState.isDirty(tabId: tabId) {
+            pendingCloseTabId = tabId
+            showUnsavedCloseDialog = true
+            return
+        }
+        editorState.closeTab(id: tabId)
+    }
+
+    private func saveActiveFile() async {
+        guard let tab = selectedFileTab else { return }
+        await performSave(
+            tabId: tab.id,
+            forceOverwrite: false,
+            closeOnSuccess: false
+        )
+    }
+
+    private func saveAndClosePendingTab() async {
+        guard let tabId = pendingCloseTabId else { return }
+        await performSave(
+            tabId: tabId,
+            forceOverwrite: false,
+            closeOnSuccess: true
+        )
+    }
+
+    private func overwriteAfterConflict(tabId: UUID) async {
+        let shouldCloseAfterSave = pendingCloseTabId == tabId
+        await performSave(
+            tabId: tabId,
+            forceOverwrite: true,
+            closeOnSuccess: shouldCloseAfterSave
+        )
+        clearConflictState()
+    }
+
+    private func performSave(
+        tabId: UUID,
+        forceOverwrite: Bool,
+        closeOnSuccess: Bool
+    ) async {
+        do {
+            let outcome = try await editorState.saveFile(
+                tabId: tabId,
+                daemonClient: appState.daemonClient,
+                forceOverwrite: forceOverwrite
+            )
+            switch outcome {
+            case .saved:
+                if closeOnSuccess {
+                    editorState.closeTab(id: tabId)
+                }
+                pendingCloseTabId = nil
+            case .noChanges:
+                if closeOnSuccess {
+                    editorState.closeTab(id: tabId)
+                }
+                pendingCloseTabId = nil
+            case .conflict(let currentRevision):
+                conflictTabId = tabId
+                conflictRevision = currentRevision
+                showConflictDialog = true
+            }
+        } catch {
+            logger.warning("Save failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func clearConflictState() {
+        conflictTabId = nil
+        conflictRevision = nil
+        showConflictDialog = false
+        pendingCloseTabId = nil
     }
 
     private func resolveFullPath(for file: FileItem) -> String? {

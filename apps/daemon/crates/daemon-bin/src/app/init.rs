@@ -3,13 +3,14 @@
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
-use levi::SessionSyncService;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use daemon_auth::{SessionManager, SupabaseClient};
 use daemon_core::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
 use daemon_storage::create_secrets_manager;
+use gyomei::Gyomei;
+use levi::SessionSyncService;
 use levi::{Levi, LeviConfig};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -27,11 +28,7 @@ pub async fn run_daemon(
     if socket_path.exists() {
         // Try to connect to existing daemon
         let client = daemon_ipc::IpcClient::new(&socket_path.to_string_lossy());
-        if client
-            .call_method(daemon_ipc::Method::Health)
-            .await
-            .is_ok()
-        {
+        if client.call_method(daemon_ipc::Method::Health).await.is_ok() {
             eprintln!(
                 "Error: Daemon is already running. Use 'unbound daemon stop' to stop it first."
             );
@@ -83,14 +80,15 @@ pub async fn run_daemon(
         ipc_server.subscriptions().clone(),
         Some(toshinori.clone()),
     )
-        .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
+    .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
     info!(
         path = %paths.database_file().display(),
         "Armin session engine initialized"
     );
 
     // Async database for operations not yet migrated to Armin
-    let db = AsyncDatabase::open(&paths.database_file()).await
+    let db = AsyncDatabase::open(&paths.database_file())
+        .await
         .map_err(|e| format!("Failed to open async database: {}", e))?;
     info!("Async database initialized");
 
@@ -184,9 +182,7 @@ pub async fn run_daemon(
     ));
 
     // Connect Toshinori to Levi for message sync
-    toshinori
-        .set_message_syncer(message_sync.clone())
-        .await;
+    toshinori.set_message_syncer(message_sync.clone()).await;
 
     // Start Levi processing loop
     message_sync.start();
@@ -195,6 +191,7 @@ pub async fn run_daemon(
     // The old armin.db path is no longer used - all data is in daemon.db
 
     // Create shared state (Clone-able with internal Arc)
+    let gyomei = Arc::new(Gyomei::with_defaults());
     let state = DaemonState {
         config: Arc::new(config),
         paths: Arc::new(paths.clone()),
@@ -212,6 +209,7 @@ pub async fn run_daemon(
         toshinori,
         message_sync,
         armin,
+        gyomei,
     };
 
     // Load session secrets from Supabase into memory cache

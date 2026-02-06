@@ -51,6 +51,12 @@ pub enum Method {
     RepositoryListFiles,
     #[serde(rename = "repository.read_file")]
     RepositoryReadFile,
+    #[serde(rename = "repository.read_file_slice")]
+    RepositoryReadFileSlice,
+    #[serde(rename = "repository.write_file")]
+    RepositoryWriteFile,
+    #[serde(rename = "repository.replace_file_range")]
+    RepositoryReplaceFileRange,
 
     // Claude CLI
     #[serde(rename = "claude.send")]
@@ -135,7 +141,12 @@ pub enum EventType {
 
 impl Event {
     /// Create a new event.
-    pub fn new(event_type: EventType, session_id: &str, data: serde_json::Value, sequence: i64) -> Self {
+    pub fn new(
+        event_type: EventType,
+        session_id: &str,
+        data: serde_json::Value,
+        sequence: i64,
+    ) -> Self {
         Self {
             event_type,
             session_id: session_id.to_string(),
@@ -283,6 +294,7 @@ pub mod error_codes {
     pub const INTERNAL_ERROR: i32 = -32603;
     pub const NOT_AUTHENTICATED: i32 = -32001;
     pub const NOT_FOUND: i32 = -32002;
+    pub const CONFLICT: i32 = -32003;
 }
 
 #[cfg(test)]
@@ -359,6 +371,15 @@ mod tests {
             (Method::RepositoryRemove, "repository.remove"),
             (Method::RepositoryListFiles, "repository.list_files"),
             (Method::RepositoryReadFile, "repository.read_file"),
+            (
+                Method::RepositoryReadFileSlice,
+                "repository.read_file_slice",
+            ),
+            (Method::RepositoryWriteFile, "repository.write_file"),
+            (
+                Method::RepositoryReplaceFileRange,
+                "repository.replace_file_range",
+            ),
             (Method::ClaudeSend, "claude.send"),
             (Method::ClaudeStatus, "claude.status"),
             (Method::ClaudeStop, "claude.stop"),
@@ -377,8 +398,12 @@ mod tests {
         for (method, expected_name) in methods {
             let request = Request::new(method.clone());
             let json = request.to_json().unwrap();
-            assert!(json.contains(&format!("\"method\":\"{}\"", expected_name)),
-                "Method {:?} should serialize to {}", method, expected_name);
+            assert!(
+                json.contains(&format!("\"method\":\"{}\"", expected_name)),
+                "Method {:?} should serialize to {}",
+                method,
+                expected_name
+            );
         }
     }
 
@@ -458,6 +483,7 @@ mod tests {
         // Custom error codes
         assert_eq!(error_codes::NOT_AUTHENTICATED, -32001);
         assert_eq!(error_codes::NOT_FOUND, -32002);
+        assert_eq!(error_codes::CONFLICT, -32003);
     }
 
     #[test]

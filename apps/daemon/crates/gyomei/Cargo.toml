@@ -1,0 +1,16 @@
+[package]
+name = "gyomei"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Secure rope-backed text file read/write utilities for the Unbound daemon"
+
+[dependencies]
+ropey = "1.6"
+lru = "0.12"
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

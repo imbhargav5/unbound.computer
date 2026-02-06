@@ -21,6 +21,7 @@ toshinori = { workspace = true }
 levi = { workspace = true }
 deku = { workspace = true }
 yagami = { workspace = true }
+gyomei = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

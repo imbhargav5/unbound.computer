@@ -1,18 +1,19 @@
 //! Daemon state definition.
 
 use crate::armin_adapter::DaemonArmin;
-use levi::SessionSyncService;
 use crate::utils::SessionSecretCache;
 use daemon_auth::SupabaseClient;
 use daemon_core::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
+use gyomei::Gyomei;
 use levi::Levi;
+use levi::SessionSyncService;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use toshinori::ToshinoriSink;
 use tokio::sync::broadcast;
+use toshinori::ToshinoriSink;
 
 /// Shared daemon state (thread-safe).
 #[derive(Clone)]
@@ -52,4 +53,6 @@ pub struct DaemonState {
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.
     pub armin: Arc<DaemonArmin>,
+    /// Rope-backed secure file reader/writer service.
+    pub gyomei: Arc<Gyomei>,
 }

@@ -579,6 +579,7 @@ struct FileEditorTabBar<Trailing: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let files: [EditorTab]
+    let dirtyTabIds: Set<UUID>
     let selectedFileId: UUID?
     var onSelectFile: (UUID) -> Void
     var onCloseFile: (UUID) -> Void
@@ -590,12 +591,14 @@ struct FileEditorTabBar<Trailing: View>: View {
 
     init(
         files: [EditorTab],
+        dirtyTabIds: Set<UUID> = [],
         selectedFileId: UUID?,
         onSelectFile: @escaping (UUID) -> Void,
         onCloseFile: @escaping (UUID) -> Void,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.files = files
+        self.dirtyTabIds = dirtyTabIds
         self.selectedFileId = selectedFileId
         self.onSelectFile = onSelectFile
         self.onCloseFile = onCloseFile
@@ -612,6 +615,7 @@ struct FileEditorTabBar<Trailing: View>: View {
                         ForEach(files) { file in
                             FileTab(
                                 file: file,
+                                isDirty: dirtyTabIds.contains(file.id),
                                 isSelected: selectedFileId == file.id,
                                 onSelect: { onSelectFile(file.id) },
                                 onClose: { onCloseFile(file.id) }
@@ -638,6 +642,7 @@ struct FileTab: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let file: EditorTab
+    let isDirty: Bool
     let isSelected: Bool
     var onSelect: () -> Void
     var onClose: () -> Void
@@ -662,6 +667,12 @@ struct FileTab: View {
                     .font(Typography.caption)
                     .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
                     .lineLimit(1)
+
+                if file.kind == .file && isDirty {
+                    Circle()
+                        .fill(colors.warning)
+                        .frame(width: 6, height: 6)
+                }
 
                 if file.kind == .diff {
                     Text("Diff")
@@ -730,30 +741,34 @@ struct FileEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppState.self) private var appState
 
-    let sessionId: UUID?
-    let relativePath: String
-    let filePath: String
-
-    @State private var fileContent: String = ""
-    @State private var isLoading: Bool = true
-    @State private var errorMessage: String?
+    let tab: EditorTab
+    @Bindable var editorState: EditorState
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
-    private var lines: [String] {
-        fileContent.components(separatedBy: "\n")
+    private var documentState: EditorDocumentState {
+        editorState.document(for: tab.id) ?? EditorDocumentState()
+    }
+
+    private var contentBinding: Binding<String> {
+        Binding(
+            get: { editorState.document(for: tab.id)?.content ?? "" },
+            set: { editorState.updateDocumentContent(for: tab.id, content: $0) }
+        )
+    }
+
+    private var lineCount: Int {
+        max(1, documentState.content.split(separator: "\n", omittingEmptySubsequences: false).count)
     }
 
     var body: some View {
-        let language = SyntaxHighlighter.languageIdentifier(forFilePath: filePath)
-        let highlighter = SyntaxHighlighter(language: language, colorScheme: colorScheme)
         Group {
-            if isLoading {
+            if documentState.isLoading && !documentState.hasLoaded {
                 ProgressView("Loading file...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = errorMessage {
+            } else if let error = documentState.errorMessage, documentState.content.isEmpty {
                 VStack(spacing: Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 24))
@@ -767,83 +782,66 @@ struct FileEditorView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                GeometryReader { proxy in
-                    ScrollView([.horizontal, .vertical]) {
-                        HStack(alignment: .top, spacing: 0) {
-                            // Line numbers gutter
-                            VStack(alignment: .trailing, spacing: 0) {
-                                ForEach(Array(lines.enumerated()), id: \.offset) { index, _ in
-                                    Text("\(index + 1)")
-                                        .font(.system(size: FontSize.sm, design: .monospaced))
-                                        .foregroundStyle(colors.mutedForeground.opacity(0.5))
-                                        .frame(height: 20)
-                                }
-                            }
-                            .padding(.horizontal, Spacing.sm)
-                            .background(colors.surface2)
-
-                            // Code content
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                                    let content = line.isEmpty ? " " : line
-                                    Text(highlighter.highlight(content))
-                                        .font(.system(size: FontSize.sm, design: .monospaced))
-                                        .frame(height: 20, alignment: .leading)
-                                }
-                            }
-                            .padding(.horizontal, Spacing.sm)
-
+                VStack(spacing: 0) {
+                    if let readOnlyReason = documentState.readOnlyReason {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: IconSize.xs))
+                            Text(readOnlyReason)
+                                .font(Typography.caption)
+                                .lineLimit(2)
                             Spacer(minLength: 0)
                         }
-                        .padding(.vertical, Spacing.sm)
-                        .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .foregroundStyle(colors.warning)
+                        .background(colors.warning.opacity(0.08))
                     }
+
+                    if let error = documentState.errorMessage, !error.isEmpty {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: IconSize.xs))
+                            Text(error)
+                                .font(Typography.caption)
+                                .lineLimit(2)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .foregroundStyle(colors.destructive)
+                        .background(colors.destructive.opacity(0.08))
+                    }
+
+                    TextEditor(text: contentBinding)
+                        .font(.system(size: FontSize.sm, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.sm)
+                        .disabled(documentState.isReadOnly || documentState.isSaving)
+
+                    HStack(spacing: Spacing.sm) {
+                        Text("\(lineCount) lines")
+                            .font(Typography.micro)
+                            .foregroundStyle(colors.mutedForeground)
+                        Spacer(minLength: 0)
+                        if documentState.isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(colors.surface2)
                 }
             }
         }
         .background(colors.editorBackground)
-        .task(id: filePath) {
-            await loadFile()
-        }
-    }
-
-    @MainActor
-    private func loadFile() async {
-        isLoading = true
-        errorMessage = nil
-
-        guard let sessionId else {
-            errorMessage = "Missing session for file load."
-            isLoading = false
-            return
-        }
-
-        let requestedPath = relativePath
-
-        do {
-            let response = try await appState.daemonClient.readRepositoryFile(
-                sessionId: sessionId.uuidString.lowercased(),
-                relativePath: requestedPath,
-                maxBytes: 1_000_000
+        .task(id: tab.id) {
+            await editorState.ensureFileLoaded(
+                tabId: tab.id,
+                daemonClient: appState.daemonClient
             )
-
-            guard !Task.isCancelled else { return }
-
-            var content = response.content
-            if response.isTruncated {
-                content += "\n\n… (truncated)"
-            }
-
-            if relativePath == requestedPath {
-                fileContent = content
-                isLoading = false
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            if relativePath == requestedPath {
-                errorMessage = error.localizedDescription
-                isLoading = false
-            }
         }
     }
 }

@@ -41,6 +41,9 @@ enum DaemonMethod: String, Codable {
     case repositoryRemove = "repository.remove"
     case repositoryListFiles = "repository.list_files"
     case repositoryReadFile = "repository.read_file"
+    case repositoryReadFileSlice = "repository.read_file_slice"
+    case repositoryWriteFile = "repository.write_file"
+    case repositoryReplaceFileRange = "repository.replace_file_range"
 
     // Claude CLI
     case claudeSend = "claude.send"
@@ -234,6 +237,7 @@ enum DaemonErrorCode {
     // Custom error codes
     static let notAuthenticated = -32001
     static let notFound = -32002
+    static let conflict = -32003
 }
 
 // MARK: - Daemon Errors
@@ -249,6 +253,7 @@ enum DaemonError: LocalizedError {
     case serverError(code: Int, message: String)
     case notAuthenticated
     case notFound(String)
+    case conflict(currentRevision: DaemonFileRevision?)
     case disconnected
     case daemonNotRunning
 
@@ -272,6 +277,8 @@ enum DaemonError: LocalizedError {
             return "Not authenticated"
         case .notFound(let resource):
             return "Not found: \(resource)"
+        case .conflict:
+            return "File has changed on disk"
         case .disconnected:
             return "Disconnected from daemon"
         case .daemonNotRunning:
@@ -487,10 +494,65 @@ struct DaemonFileEntry: Codable, Identifiable {
 struct DaemonFileContent: Codable {
     let content: String
     let isTruncated: Bool
+    let revision: DaemonFileRevision?
+    let totalLines: Int?
+    let readOnlyReason: String?
 
     enum CodingKeys: String, CodingKey {
         case content
         case isTruncated = "is_truncated"
+        case revision
+        case totalLines = "total_lines"
+        case readOnlyReason = "read_only_reason"
+    }
+}
+
+/// Opaque file revision model returned by daemon.
+struct DaemonFileRevision: Codable, Hashable {
+    let token: String
+    let lenBytes: Int64
+    let modifiedUnixNs: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case lenBytes = "len_bytes"
+        case modifiedUnixNs = "modified_unix_ns"
+    }
+}
+
+/// Slice read response for partial file loading.
+struct DaemonFileSlice: Codable {
+    let content: String
+    let startLine: Int
+    let endLineExclusive: Int
+    let totalLines: Int
+    let hasMoreBefore: Bool
+    let hasMoreAfter: Bool
+    let isTruncated: Bool
+    let revision: DaemonFileRevision
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case startLine = "start_line"
+        case endLineExclusive = "end_line_exclusive"
+        case totalLines = "total_lines"
+        case hasMoreBefore = "has_more_before"
+        case hasMoreAfter = "has_more_after"
+        case isTruncated = "is_truncated"
+        case revision
+    }
+}
+
+/// Write operation result from daemon.
+struct DaemonWriteResult: Codable {
+    let revision: DaemonFileRevision
+    let bytesWritten: Int64
+    let totalLines: Int
+
+    enum CodingKeys: String, CodingKey {
+        case revision
+        case bytesWritten = "bytes_written"
+        case totalLines = "total_lines"
     }
 }
 

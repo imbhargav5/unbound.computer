@@ -47,3 +47,16 @@ struct DiffLoadState: Hashable {
     var diff: FileDiff?
     var errorMessage: String?
 }
+
+struct EditorDocumentState: Hashable {
+    var content: String = ""
+    var baseContent: String = ""
+    var revision: DaemonFileRevision?
+    var isDirty: Bool = false
+    var isLoading: Bool = false
+    var isSaving: Bool = false
+    var errorMessage: String?
+    var isReadOnly: Bool = false
+    var readOnlyReason: String?
+    var hasLoaded: Bool = false
+}
