@@ -645,7 +645,7 @@ fn compute_backoff(retry_count: i32, config: &LeviConfig) -> chrono::Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::{Armin, NewMessage, NewSessionSecret, RecordingSink};
+    use armin::{Armin, NewMessage, NewSessionSecret, PendingSyncMessage, RecordingSink};
     use daemon_database::{encrypt_content, generate_nonce};
 
     fn setup_armin_with_secret() -> (ArminHandle, SessionId, Arc<Mutex<Option<[u8; 32]>>>) {
@@ -736,6 +736,132 @@ mod tests {
     }
 
     #[test]
+    fn compute_backoff_zero_for_non_positive_retries() {
+        let config = LeviConfig::default();
+        assert_eq!(compute_backoff(0, &config), chrono::Duration::zero());
+        assert_eq!(compute_backoff(-1, &config), chrono::Duration::zero());
+        assert_eq!(compute_backoff(-100, &config), chrono::Duration::zero());
+    }
+
+    #[test]
+    fn compute_backoff_large_retry_count_saturates() {
+        let config = LeviConfig {
+            backoff_base: Duration::from_secs(2),
+            backoff_max: Duration::from_secs(300),
+            ..LeviConfig::default()
+        };
+
+        // Very large retry count should cap at max, not overflow
+        assert_eq!(compute_backoff(100, &config), chrono::Duration::seconds(300));
+        assert_eq!(compute_backoff(i32::MAX, &config), chrono::Duration::seconds(300));
+    }
+
+    #[test]
+    fn is_session_due_zero_retry_always_due() {
+        let config = LeviConfig::default();
+        let now = Utc::now();
+
+        // With retry_count 0, backoff is zero — so it's always due even if last attempt was now
+        assert!(is_session_due(Some(now), 0, now, &config));
+    }
+
+    #[test]
+    fn is_session_due_exactly_at_boundary() {
+        let config = LeviConfig {
+            backoff_base: Duration::from_secs(2),
+            backoff_max: Duration::from_secs(300),
+            ..LeviConfig::default()
+        };
+
+        let now = Utc::now();
+        let last_attempt = now;
+        // retry_count=1 → backoff=2s, checking exactly at +2s should be due
+        assert!(is_session_due(
+            Some(last_attempt),
+            1,
+            now + chrono::Duration::seconds(2),
+            &config,
+        ));
+        // 1ms before should not be due
+        assert!(!is_session_due(
+            Some(last_attempt),
+            1,
+            now + chrono::Duration::milliseconds(1999),
+            &config,
+        ));
+    }
+
+    #[test]
+    fn get_session_secret_key_returns_from_cache() {
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        // First call populates cache
+        let key1 = get_session_secret_key(&armin, &cache, &db_key, session_id.as_str()).unwrap();
+
+        // Wipe the db_key so a non-cached path would fail
+        *db_key.lock().unwrap() = None;
+
+        // Second call should still succeed from cache
+        let key2 = get_session_secret_key(&armin, &cache, &db_key, session_id.as_str()).unwrap();
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn get_session_secret_key_errors_without_db_key() {
+        let (armin, session_id, _) = setup_armin_with_secret();
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+        let no_db_key = Arc::new(Mutex::new(None));
+
+        let err = get_session_secret_key(&armin, &cache, &no_db_key, session_id.as_str())
+            .expect_err("expected missing db key error");
+        assert!(err.contains("missing database encryption key"));
+    }
+
+    #[test]
+    fn encrypt_message_errors_without_db_key() {
+        let (armin, session_id, _) = setup_armin_with_secret();
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+        let no_db_key = Arc::new(Mutex::new(None));
+
+        let err = encrypt_message(&armin, &cache, &no_db_key, session_id.as_str(), b"hello")
+            .expect_err("expected error without db key");
+        assert!(err.contains("missing database encryption key"));
+    }
+
+    #[test]
+    fn encrypt_message_produces_different_ciphertext_each_time() {
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let (cipher1, nonce1) =
+            encrypt_message(&armin, &cache, &db_key, session_id.as_str(), b"hello").unwrap();
+        let (cipher2, nonce2) =
+            encrypt_message(&armin, &cache, &db_key, session_id.as_str(), b"hello").unwrap();
+
+        // Different nonces → different ciphertext (nonces are random)
+        assert_ne!(nonce1, nonce2);
+        assert_ne!(cipher1, cipher2);
+    }
+
+    #[test]
+    fn encrypt_message_output_is_valid_base64() {
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let (cipher_b64, nonce_b64) =
+            encrypt_message(&armin, &cache, &db_key, session_id.as_str(), b"test data").unwrap();
+
+        // Both should decode as valid base64
+        assert!(BASE64.decode(&cipher_b64).is_ok());
+        assert!(BASE64.decode(&nonce_b64).is_ok());
+
+        // Nonce should be 12 bytes (NONCE_SIZE)
+        let nonce_bytes = BASE64.decode(&nonce_b64).unwrap();
+        assert_eq!(nonce_bytes.len(), 12);
+    }
+
+    #[test]
     fn cursor_based_sync_state() {
         let sink = RecordingSink::new();
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
@@ -776,5 +902,279 @@ mod tests {
         let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.retry_count, 1);
         assert_eq!(state.last_error.as_deref(), Some("test error"));
+    }
+
+    // ========================================================================
+    // send_session_batch tests
+    // ========================================================================
+
+    fn make_test_client() -> SupabaseClient {
+        SupabaseClient::new("http://localhost:54321", "test-anon-key")
+    }
+
+    fn make_pending_sync(
+        session_id: &SessionId,
+        messages: Vec<(&str, i64)>,
+    ) -> SessionPendingSync {
+        SessionPendingSync {
+            session_id: session_id.clone(),
+            last_synced_sequence_number: 0,
+            retry_count: 0,
+            last_attempt_at: None,
+            messages: messages
+                .into_iter()
+                .map(|(content, seq)| PendingSyncMessage {
+                    session_id: session_id.clone(),
+                    message_id: armin::MessageId::from_string(format!("msg-{}", seq)),
+                    sequence_number: seq,
+                    content: content.to_string(),
+                })
+                .collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn send_session_batch_skips_when_no_context() {
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let client = make_test_client();
+        let context = Arc::new(RwLock::new(None)); // No context set
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let pending = make_pending_sync(&session_id, vec![("hello", 1)]);
+
+        let result = send_session_batch(&client, &armin, &context, &cache, &db_key, pending).await;
+        assert!(result.is_ok());
+
+        // No sync state should be written (batch was skipped)
+        let state = armin.get_supabase_sync_state(&session_id).unwrap();
+        assert!(state.is_none());
+    }
+
+    #[tokio::test]
+    async fn send_session_batch_skips_empty_messages() {
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let client = make_test_client();
+        let context = Arc::new(RwLock::new(Some(SyncContext {
+            access_token: "test-token".to_string(),
+            user_id: "test-user".to_string(),
+            device_id: "test-device".to_string(),
+        })));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let pending = make_pending_sync(&session_id, vec![]);
+
+        let result = send_session_batch(&client, &armin, &context, &cache, &db_key, pending).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn send_session_batch_fails_encryption_without_db_key() {
+        let (armin, session_id, _) = setup_armin_with_secret();
+        let client = make_test_client();
+        let context = Arc::new(RwLock::new(Some(SyncContext {
+            access_token: "test-token".to_string(),
+            user_id: "test-user".to_string(),
+            device_id: "test-device".to_string(),
+        })));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+        let no_db_key = Arc::new(Mutex::new(None));
+
+        let pending = make_pending_sync(&session_id, vec![("hello", 1)]);
+
+        let result =
+            send_session_batch(&client, &armin, &context, &cache, &no_db_key, pending).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("missing database encryption key"));
+
+        // Should have marked sync as failed
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
+        assert_eq!(state.retry_count, 1);
+        assert!(state.last_error.as_deref().unwrap().contains("missing database encryption key"));
+    }
+
+    #[tokio::test]
+    async fn send_session_batch_encrypts_and_tracks_max_sequence() {
+        // This test verifies encryption succeeds for all messages but the API call
+        // will fail (no real server). We verify the error path marks failure.
+        let (armin, session_id, db_key) = setup_armin_with_secret();
+        let client = make_test_client();
+        let context = Arc::new(RwLock::new(Some(SyncContext {
+            access_token: "test-token".to_string(),
+            user_id: "test-user".to_string(),
+            device_id: "test-device".to_string(),
+        })));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let pending = make_pending_sync(&session_id, vec![("msg1", 1), ("msg2", 2), ("msg3", 3)]);
+
+        // Will fail at the API call since there's no real server
+        let result =
+            send_session_batch(&client, &armin, &context, &cache, &db_key, pending).await;
+        assert!(result.is_err());
+
+        // Sync should be marked as failed (API error)
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
+        assert_eq!(state.retry_count, 1);
+        assert!(state.last_error.is_some());
+
+        // But the secret should have been cached from the encryption step
+        let cached = cache.lock().unwrap();
+        assert!(cached.contains_key(session_id.as_str()));
+    }
+
+    // ========================================================================
+    // Levi struct tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn levi_set_and_clear_context() {
+        let sink = RecordingSink::new();
+        let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
+        let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
+
+        let levi = Levi::new(
+            LeviConfig::default(),
+            "http://localhost:54321",
+            "test-key",
+            armin,
+            db_key,
+        );
+
+        // Initially no context
+        {
+            let guard = levi.context.read().await;
+            assert!(guard.is_none());
+        }
+
+        // Set context
+        levi.set_context(SyncContext {
+            access_token: "token-123".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        {
+            let guard = levi.context.read().await;
+            assert!(guard.is_some());
+            assert_eq!(guard.as_ref().unwrap().access_token, "token-123");
+        }
+
+        // Clear context
+        levi.clear_context().await;
+
+        {
+            let guard = levi.context.read().await;
+            assert!(guard.is_none());
+        }
+    }
+
+    #[test]
+    fn levi_enqueue_sends_to_channel() {
+        let sink = RecordingSink::new();
+        let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
+        let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
+
+        let levi = Levi::new(
+            LeviConfig::default(),
+            "http://localhost:54321",
+            "test-key",
+            armin,
+            db_key,
+        );
+
+        // Enqueue a message — should not panic
+        levi.enqueue(MessageSyncRequest {
+            session_id: "session-1".to_string(),
+            message_id: "msg-1".to_string(),
+            sequence_number: 1,
+            content: "hello".to_string(),
+        });
+
+        // Verify it landed in the channel by taking the receiver and checking
+        let mut receiver = levi.receiver.lock().unwrap().take().unwrap();
+        let msg = receiver.try_recv().unwrap();
+        assert_eq!(msg.session_id, "session-1");
+        assert_eq!(msg.sequence_number, 1);
+    }
+
+    #[test]
+    fn levi_new_starts_with_empty_cache() {
+        let sink = RecordingSink::new();
+        let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
+        let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
+
+        let levi = Levi::new(
+            LeviConfig::default(),
+            "http://localhost:54321",
+            "test-key",
+            armin,
+            db_key,
+        );
+
+        assert!(levi.secret_cache.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn levi_config_default_values() {
+        let config = LeviConfig::default();
+        assert_eq!(config.batch_size, 50);
+        assert_eq!(config.flush_interval, Duration::from_millis(500));
+        assert_eq!(config.backoff_base, Duration::from_secs(2));
+        assert_eq!(config.backoff_max, Duration::from_secs(300));
+    }
+
+    #[test]
+    fn cursor_sync_multiple_success_advances_cursor() {
+        let sink = RecordingSink::new();
+        let armin = Arc::new(Armin::in_memory(sink).unwrap());
+        let session_id = armin.create_session().unwrap();
+
+        armin.append(&session_id, NewMessage { content: "a".to_string() }).unwrap();
+        armin.append(&session_id, NewMessage { content: "b".to_string() }).unwrap();
+        armin.append(&session_id, NewMessage { content: "c".to_string() }).unwrap();
+        armin.append(&session_id, NewMessage { content: "d".to_string() }).unwrap();
+
+        // Sync first two
+        armin.mark_supabase_sync_success(&session_id, 2).unwrap();
+        let pending = armin.get_sessions_pending_sync(100).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].messages.len(), 2);
+        assert_eq!(pending[0].messages[0].sequence_number, 3);
+        assert_eq!(pending[0].messages[1].sequence_number, 4);
+
+        // Sync remaining
+        armin.mark_supabase_sync_success(&session_id, 4).unwrap();
+        let pending = armin.get_sessions_pending_sync(100).unwrap();
+        assert!(pending.is_empty());
+
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
+        assert_eq!(state.last_synced_sequence_number, 4);
+        assert_eq!(state.retry_count, 0);
+    }
+
+    #[test]
+    fn cursor_sync_failure_then_success_resets_retry() {
+        let sink = RecordingSink::new();
+        let armin = Arc::new(Armin::in_memory(sink).unwrap());
+        let session_id = armin.create_session().unwrap();
+
+        armin.append(&session_id, NewMessage { content: "a".to_string() }).unwrap();
+
+        // Fail twice
+        armin.mark_supabase_sync_failed(&session_id, "err1").unwrap();
+        armin.mark_supabase_sync_failed(&session_id, "err2").unwrap();
+
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
+        assert_eq!(state.retry_count, 2);
+        assert_eq!(state.last_error.as_deref(), Some("err2"));
+
+        // Now succeed
+        armin.mark_supabase_sync_success(&session_id, 1).unwrap();
+
+        let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
+        assert_eq!(state.retry_count, 0);
+        assert!(state.last_error.is_none());
+        assert_eq!(state.last_synced_sequence_number, 1);
     }
 }

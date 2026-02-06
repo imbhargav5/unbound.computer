@@ -531,3 +531,322 @@ impl SessionSyncService {
         cache.get(session_id).cloned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use daemon_storage::SecureStorage;
+
+    // ========================================================================
+    // In-memory storage for tests (SecureStorage impl)
+    // ========================================================================
+
+    struct MemoryStorage {
+        data: std::sync::Mutex<std::collections::HashMap<String, String>>,
+    }
+
+    impl MemoryStorage {
+        fn new() -> Self {
+            Self {
+                data: std::sync::Mutex::new(std::collections::HashMap::new()),
+            }
+        }
+    }
+
+    impl SecureStorage for MemoryStorage {
+        fn set(&self, key: &str, value: &str) -> daemon_storage::StorageResult<()> {
+            self.data
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+
+        fn get(&self, key: &str) -> daemon_storage::StorageResult<Option<String>> {
+            Ok(self.data.lock().unwrap().get(key).cloned())
+        }
+
+        fn delete(&self, key: &str) -> daemon_storage::StorageResult<bool> {
+            Ok(self.data.lock().unwrap().remove(key).is_some())
+        }
+    }
+
+    fn make_secrets_manager() -> SecretsManager {
+        SecretsManager::new(Box::new(MemoryStorage::new()))
+    }
+
+    // ========================================================================
+    // SyncError Display tests
+    // ========================================================================
+
+    #[test]
+    fn sync_error_display_not_authenticated() {
+        let err = SyncError::NotAuthenticated;
+        assert_eq!(err.to_string(), "Not authenticated");
+    }
+
+    #[test]
+    fn sync_error_display_no_device_identity() {
+        let err = SyncError::NoDeviceIdentity;
+        assert_eq!(err.to_string(), "No device identity configured");
+    }
+
+    #[test]
+    fn sync_error_display_repository_not_found() {
+        let err = SyncError::RepositoryNotFound("repo-123".to_string());
+        assert_eq!(err.to_string(), "Repository not found: repo-123");
+    }
+
+    #[test]
+    fn sync_error_display_supabase() {
+        let err = SyncError::Supabase("connection refused".to_string());
+        assert_eq!(err.to_string(), "Supabase error: connection refused");
+    }
+
+    #[test]
+    fn sync_error_display_encryption() {
+        let err = SyncError::Encryption("bad key".to_string());
+        assert_eq!(err.to_string(), "Encryption error: bad key");
+    }
+
+    #[test]
+    fn sync_error_is_error_trait() {
+        let err: Box<dyn std::error::Error> = Box::new(SyncError::NotAuthenticated);
+        assert_eq!(err.to_string(), "Not authenticated");
+    }
+
+    #[test]
+    fn sync_error_debug_includes_variant() {
+        let err = SyncError::RepositoryNotFound("abc".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("RepositoryNotFound"));
+        assert!(debug_str.contains("abc"));
+    }
+
+    // ========================================================================
+    // Session secret cache tests
+    // ========================================================================
+
+    #[test]
+    fn cache_secret_and_retrieve() {
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+        cache
+            .lock()
+            .unwrap()
+            .insert("session-1".to_string(), vec![1, 2, 3, 4]);
+
+        let result = cache.lock().unwrap().get("session-1").cloned();
+        assert_eq!(result, Some(vec![1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn cache_secret_overwrites_existing() {
+        let cache: Arc<Mutex<HashMap<String, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+
+        cache
+            .lock()
+            .unwrap()
+            .insert("session-1".to_string(), vec![1, 2, 3]);
+        cache
+            .lock()
+            .unwrap()
+            .insert("session-1".to_string(), vec![4, 5, 6]);
+
+        let result = cache.lock().unwrap().get("session-1").cloned();
+        assert_eq!(result, Some(vec![4, 5, 6]));
+    }
+
+    #[test]
+    fn cache_secret_independent_sessions() {
+        let cache: Arc<Mutex<HashMap<String, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+
+        cache
+            .lock()
+            .unwrap()
+            .insert("session-1".to_string(), vec![1, 2, 3]);
+        cache
+            .lock()
+            .unwrap()
+            .insert("session-2".to_string(), vec![4, 5, 6]);
+
+        assert_eq!(
+            cache.lock().unwrap().get("session-1").cloned(),
+            Some(vec![1, 2, 3])
+        );
+        assert_eq!(
+            cache.lock().unwrap().get("session-2").cloned(),
+            Some(vec![4, 5, 6])
+        );
+        assert!(cache.lock().unwrap().get("session-3").is_none());
+    }
+
+    // ========================================================================
+    // get_auth_context tests
+    // ========================================================================
+
+    #[test]
+    fn get_auth_context_fails_without_session() {
+        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+            "http://localhost:54321",
+            "test-key",
+        ));
+        let secrets = Arc::new(Mutex::new(make_secrets_manager()));
+        let device_id = Arc::new(Mutex::new(Some("device-1".to_string())));
+        let device_private_key = Arc::new(Mutex::new(Some([42u8; 32])));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        // Need a real AsyncDatabase — create via temp file
+        let tmp = std::env::temp_dir().join(format!("levi_test_{}.db", std::process::id()));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+
+        let service = SessionSyncService::new(
+            supabase_client,
+            db,
+            secrets,
+            device_id,
+            device_private_key,
+            cache,
+        );
+
+        // SecretsManager has no session stored → NotAuthenticated
+        let err = service.get_auth_context().unwrap_err();
+        assert!(matches!(err, SyncError::NotAuthenticated));
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn get_auth_context_fails_without_device_id() {
+        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+            "http://localhost:54321",
+            "test-key",
+        ));
+        let secrets = Arc::new(Mutex::new(make_secrets_manager()));
+        let device_id = Arc::new(Mutex::new(None)); // No device ID
+        let device_private_key = Arc::new(Mutex::new(Some([42u8; 32])));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let tmp = std::env::temp_dir().join(format!("levi_test_nd_{}.db", std::process::id()));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+
+        // Store a fake session so we get past the auth check
+        {
+            let sm = secrets.lock().unwrap();
+            sm.set_supabase_session(
+                "fake-access",
+                "fake-refresh",
+                "user-1",
+                Some("test@example.com"),
+                "2099-01-01T00:00:00Z",
+            )
+            .unwrap();
+        }
+
+        let service = SessionSyncService::new(
+            supabase_client,
+            db,
+            secrets,
+            device_id,
+            device_private_key,
+            cache,
+        );
+
+        let err = service.get_auth_context().unwrap_err();
+        assert!(matches!(err, SyncError::NoDeviceIdentity));
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn get_auth_context_succeeds_with_valid_state() {
+        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+            "http://localhost:54321",
+            "test-key",
+        ));
+        let secrets = Arc::new(Mutex::new(make_secrets_manager()));
+        let device_id = Arc::new(Mutex::new(Some("device-42".to_string())));
+        let device_private_key = Arc::new(Mutex::new(Some([42u8; 32])));
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let tmp = std::env::temp_dir().join(format!("levi_test_ok_{}.db", std::process::id()));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+
+        {
+            let sm = secrets.lock().unwrap();
+            sm.set_supabase_session(
+                "my-access-token",
+                "my-refresh-token",
+                "user-99",
+                Some("user@example.com"),
+                "2099-01-01T00:00:00Z",
+            )
+            .unwrap();
+        }
+
+        let service = SessionSyncService::new(
+            supabase_client,
+            db,
+            secrets,
+            device_id,
+            device_private_key,
+            cache,
+        );
+
+        let (user_id, device_id, access_token) = service.get_auth_context().unwrap();
+        assert_eq!(user_id, "user-99");
+        assert_eq!(device_id, "device-42");
+        assert_eq!(access_token, "my-access-token");
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    // ========================================================================
+    // distribute_secret tests (partial — requires no network)
+    // ========================================================================
+
+    #[test]
+    fn distribute_secret_fails_without_device_private_key() {
+        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+            "http://localhost:54321",
+            "test-key",
+        ));
+        let secrets = Arc::new(Mutex::new(make_secrets_manager()));
+        let device_id = Arc::new(Mutex::new(Some("device-1".to_string())));
+        let device_private_key = Arc::new(Mutex::new(None)); // No private key
+        let cache = Arc::new(Mutex::new(HashMap::new()));
+
+        let tmp = std::env::temp_dir().join(format!("levi_test_dpk_{}.db", std::process::id()));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+
+        {
+            let sm = secrets.lock().unwrap();
+            sm.set_supabase_session(
+                "token",
+                "refresh",
+                "user-1",
+                Some("test@example.com"),
+                "2099-01-01T00:00:00Z",
+            )
+            .unwrap();
+        }
+
+        let service = SessionSyncService::new(
+            supabase_client,
+            db,
+            secrets,
+            device_id,
+            device_private_key,
+            cache,
+        );
+
+        let result = rt.block_on(service.distribute_secret("session-1", "secret-val"));
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), SyncError::NoDeviceIdentity));
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
