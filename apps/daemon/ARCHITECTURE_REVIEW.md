@@ -73,14 +73,14 @@ The handlers, machines, and secret management in `daemon-bin` have effectively *
 
 ## Proposed New Crates
 
-### Crate 1: `mikasa` — Session Orchestrator
+### Crate 1: `rengoku-sessions` — Session Orchestrator
 
 **Extracted from:** `daemon-bin/src/ipc/handlers/session.rs`, `daemon-bin/src/utils/session_secret_cache.rs`
 
 **Responsibility:** Session lifecycle management — creation (with optional worktree), deletion (with worktree cleanup), secret generation/encryption/caching, and Supabase sync coordination.
 
 ```
-mikasa/
+rengoku-sessions/
 ├── src/
 │   ├── lib.rs
 │   ├── create.rs        # Session creation: ID gen → worktree → Armin → encrypt secret → cache → sync
@@ -91,7 +91,7 @@ mikasa/
 
 **Dependencies:** `armin`, `piccolo`, `daemon-database`, `daemon-storage`, `daemon-core`
 
-**What daemon-bin keeps:** Thin IPC handlers that parse params → call `mikasa::create_session(...)` → serialize response.
+**What daemon-bin keeps:** Thin IPC handlers that parse params → call `rengoku_sessions::create_session(...)` → serialize response.
 
 **Testability gains:**
 - Test session creation without IPC server
@@ -116,14 +116,14 @@ impl<A, S> SessionOrchestrator<A, S> {
 
 ---
 
-### Crate 2: `eren` — Process Orchestrator
+### Crate 2: `eren-machines` — Process Orchestrator
 
 **Extracted from:** `daemon-bin/src/ipc/handlers/claude.rs`, `daemon-bin/src/machines/claude/stream.rs`, `daemon-bin/src/ipc/handlers/terminal.rs`, `daemon-bin/src/machines/terminal/stream.rs`
 
 **Responsibility:** Process lifecycle for Claude CLI and terminal commands — spawning, event stream processing, status tracking, and graceful shutdown.
 
 ```
-eren/
+eren-machines/
 ├── src/
 │   ├── lib.rs
 │   ├── claude.rs          # Claude process: spawn → stream events → store messages → cleanup
@@ -135,7 +135,7 @@ eren/
 
 **Dependencies:** `armin`, `deku`
 
-**What daemon-bin keeps:** IPC handlers that parse params → call `eren::spawn_claude(...)` → serialize response. No more `tokio::spawn` in handlers.
+**What daemon-bin keeps:** IPC handlers that parse params → call `eren_machines::spawn_claude(...)` → serialize response. No more `tokio::spawn` in handlers.
 
 **Testability gains:**
 - Test Claude event → Armin message mapping without a real Claude process
@@ -162,14 +162,14 @@ impl<W: SessionWriter> ProcessManager<W> {
 
 ---
 
-### Crate 3: `erwin` — Workspace Resolver
+### Crate 3: `sakura-working-dir-resolution` — Workspace Resolver
 
 **Extracted from:** `daemon-bin/src/ipc/handlers/repository.rs` (path resolution logic), `daemon-bin/src/ipc/handlers/claude.rs` (working dir resolution)
 
 **Responsibility:** Resolve the correct working directory for a session (worktree path vs. repository path) and validate paths for file operations.
 
 ```
-erwin/
+sakura-working-dir-resolution/
 ├── src/
 │   ├── lib.rs
 │   ├── resolver.rs     # Session → working directory resolution
@@ -188,14 +188,14 @@ erwin/
 
 ---
 
-### Crate 4: `hange` — Protocol Definitions
+### Crate 4: `one-for-all-protocol` — Protocol Definitions
 
 **Extracted from:** `daemon-ipc/src/protocol.rs`, `daemon-ipc/src/error.rs`
 
 **Responsibility:** Pure data types for the IPC protocol — no I/O, no async, no transport.
 
 ```
-hange/
+one-for-all-protocol/
 ├── src/
 │   ├── lib.rs
 │   ├── method.rs       # Method enum (Health, SessionCreate, ClaudeSend, etc.)
@@ -208,25 +208,25 @@ hange/
 
 **Dependencies:** `serde`, `serde_json`, `uuid` — no async runtime, no I/O
 
-**What daemon-ipc keeps:** `IpcServer`, `IpcClient`, `SubscriptionManager`, `StreamingSubscription` — the transport layer that uses `hange` types.
+**What daemon-ipc keeps:** `IpcServer`, `IpcClient`, `SubscriptionManager`, `StreamingSubscription` — the transport layer that uses `one-for-all-protocol` types.
 
-**Rationale:** The CLI crate currently depends on `daemon-ipc` just to use `Method`, `Request`, and `Response`. With `hange`, the CLI depends only on the lightweight protocol types. `daemon-ipc` becomes a pure transport crate that depends on `hange`.
+**Rationale:** The CLI crate currently depends on `daemon-ipc` just to use `Method`, `Request`, and `Response`. With `one-for-all-protocol`, the CLI depends only on the lightweight protocol types. `daemon-ipc` becomes a pure transport crate that depends on `one-for-all-protocol`.
 
 **Testability gains:**
 - Protocol serialization tests don't need async runtime
 - Client and server can be tested against protocol types without coupling
-- New transports (WebSocket, HTTP) can be built on `hange` types
+- New transports (WebSocket, HTTP) can be built on `one-for-all-protocol` types
 
 ---
 
-### Crate 5: `sasha` — Device Identity & Crypto Coordinator
+### Crate 5: `sasuke-crypto` — Device Identity & Crypto Coordinator
 
 **Extracted from:** `daemon-bin/src/app/init.rs` (crypto material loading), `daemon-bin/src/utils/secrets.rs` (Supabase secret loading)
 
 **Responsibility:** Device identity management — loading device ID/private key from keychain, deriving database encryption key, loading session secrets from Supabase.
 
 ```
-sasha/
+sasuke-crypto/
 ├── src/
 │   ├── lib.rs
 │   ├── identity.rs       # Load/cache device_id and device_private_key
@@ -245,14 +245,14 @@ sasha/
 
 ---
 
-### Crate 6: `historia` — Daemon Lifecycle
+### Crate 6: `historia-lifecycle` — Daemon Lifecycle
 
 **Extracted from:** `daemon-bin/src/app/init.rs`, `daemon-bin/src/app/lifecycle.rs`
 
 **Responsibility:** Daemon startup orchestration, singleton enforcement, graceful shutdown, and PID file management.
 
 ```
-historia/
+historia-lifecycle/
 ├── src/
 │   ├── lib.rs
 │   ├── singleton.rs    # Check if daemon already running, clean stale sockets
@@ -291,38 +291,39 @@ daemon-bin (2000+ lines of business logic, 3 tests)
 
 ```
 daemon-bin (thin shell: CLI, handler registration, state wiring)
-├── main.rs              — CLI parsing, delegates to historia
+├── main.rs              — CLI parsing, delegates to historia-lifecycle
 ├── ipc/handlers/*.rs    — parameter extraction + delegation only (< 30 lines each)
 └── armin_adapter.rs     — keep as-is
 
-hange       — protocol types (Method, Request, Response, Event)
-daemon-ipc  — transport (IpcServer, IpcClient) using hange types
-mikasa      — session lifecycle (create, delete, secrets)
-eren        — process management (Claude, terminal)
-erwin       — workspace resolution (session → working dir)
-sasha       — device identity & crypto coordination
-historia    — daemon lifecycle (startup, shutdown, singleton)
+one-for-all-protocol  — protocol types (Method, Request, Response, Event)
+daemon-ipc            — transport (IpcServer, IpcClient) using one-for-all-protocol types
+rengoku-sessions      — session lifecycle (create, delete, secrets)
+eren-machines         — process management (Claude, terminal)
+sakura-working-dir-resolution — workspace resolution (session → working dir)
+sasuke-crypto         — device identity & crypto coordination
+historia-lifecycle    — daemon lifecycle (startup, shutdown, singleton)
 ```
 
 ### Dependency Graph
 
 ```
-                    hange (protocol types)
+              one-for-all-protocol (protocol types)
                    /              \
           daemon-ipc              cli-new
          (transport)
               |
           daemon-bin (thin shell)
-         /    |    \       \
-     mikasa  eren  erwin  historia
-       |      |      |       |
-       +------+------+-------+
-       |                      |
-     armin              sasha
-       |                  |
-  daemon-database    daemon-storage
-                          |
-                     daemon-core
+         /    |    \               \
+  rengoku  eren   sakura     historia
+ -sessions -machines -working   -lifecycle
+    |         |     -dir-res.      |
+    +---------+---------+----------+
+    |                              |
+  armin                     sasuke-crypto
+    |                              |
+daemon-database             daemon-storage
+                                   |
+                              daemon-core
 ```
 
 ### DaemonState After Refactoring
@@ -335,10 +336,10 @@ pub struct DaemonState {
     pub subscriptions: SubscriptionManager,
 
     // Domain services (each owns its own dependencies)
-    pub sessions: Arc<mikasa::SessionOrchestrator>,
-    pub processes: Arc<eren::ProcessManager>,
-    pub workspace: Arc<erwin::WorkspaceResolver>,
-    pub identity: Arc<sasha::DeviceIdentity>,
+    pub sessions: Arc<rengoku_sessions::SessionOrchestrator>,
+    pub processes: Arc<eren_machines::ProcessManager>,
+    pub workspace: Arc<sakura_working_dir_resolution::WorkspaceResolver>,
+    pub identity: Arc<sasuke_crypto::DeviceIdentity>,
 
     // Core engines (shared by domain services)
     pub armin: Arc<DaemonArmin>,
@@ -354,50 +355,50 @@ From 17 fields to 9, with clear ownership boundaries.
 
 ### Phase 1: Extract protocol types (low risk, high value)
 
-1. Create `hange` from `daemon-ipc/src/protocol.rs` + `error.rs`
-2. Make `daemon-ipc` depend on `hange` and re-export types
-3. Update `cli-new` to depend on `hange` directly
+1. Create `one-for-all-protocol` from `daemon-ipc/src/protocol.rs` + `error.rs`
+2. Make `daemon-ipc` depend on `one-for-all-protocol` and re-export types
+3. Update `cli-new` to depend on `one-for-all-protocol` directly
 4. **Zero breaking changes** — re-exports maintain compatibility
 
 ### Phase 2: Extract workspace resolver (eliminates duplication)
 
-1. Create `erwin` with the session → working directory resolution
+1. Create `sakura-working-dir-resolution` with the session → working directory resolution
 2. Replace duplicated resolution logic in claude.rs, terminal.rs, repository.rs, git.rs
 3. Add tests for path resolution edge cases
 
 ### Phase 3: Extract process management (biggest testability win)
 
-1. Create `eren` from machines/ and claude/terminal handlers
+1. Create `eren-machines` from machines/ and claude/terminal handlers
 2. Define `ProcessRegistry` trait for tracking running processes
 3. Extract `ClaudeEventBridge` with trait-based Armin/subscription deps
 4. Write tests with mock event streams
 
 ### Phase 4: Extract session orchestration
 
-1. Create `mikasa` from session handler + secret cache
+1. Create `rengoku-sessions` from session handler + secret cache
 2. Define `SecretStore` trait (implementations: SQLite, keychain, Supabase)
 3. Write tests for session creation flow with mock stores
 
 ### Phase 5: Extract identity and lifecycle
 
-1. Create `sasha` from init.rs crypto loading + utils/secrets.rs
-2. Create `historia` from init.rs lifecycle + lifecycle.rs
+1. Create `sasuke-crypto` from init.rs crypto loading + utils/secrets.rs
+2. Create `historia-lifecycle` from init.rs lifecycle + lifecycle.rs
 3. Write tests for startup/shutdown sequences
 
 ---
 
 ## Naming Reference
 
-Following the existing convention of anime character names:
+Following the existing convention of anime character names with descriptive suffixes:
 
 | Crate | Character | Series | Mnemonic |
 |-------|-----------|--------|----------|
-| mikasa | Mikasa Ackerman | Attack on Titan | Protects sessions like Mikasa protects Eren |
-| eren | Eren Yeager | Attack on Titan | Drives processes forward relentlessly |
-| erwin | Erwin Smith | Attack on Titan | Strategic commander — resolves the right path |
-| hange | Hange Zoë | Attack on Titan | Scientist — defines the protocol/language |
-| sasha | Sasha Blouse | Attack on Titan | Resourceful — manages provisions (secrets/keys) |
-| historia | Historia Reiss | Attack on Titan | Oversees the kingdom's lifecycle |
+| `rengoku-sessions` | Kyojuro Rengoku | Demon Slayer | Flame Hashira — burns bright protecting session state |
+| `eren-machines` | Eren Yeager | Attack on Titan | Drives processes forward relentlessly |
+| `sakura-working-dir-resolution` | Sakura Haruno | Naruto | Precise and analytical — resolves the right path |
+| `one-for-all-protocol` | One For All | My Hero Academia | The shared power (protocol) passed between all crates |
+| `sasuke-crypto` | Sasuke Uchiha | Naruto | Sharingan — sees through encryption, guards secrets |
+| `historia-lifecycle` | Historia Reiss | Attack on Titan | Oversees the kingdom's lifecycle |
 
 ---
 
@@ -406,6 +407,6 @@ Following the existing convention of anime character names:
 1. **Unit tests for business logic**: Each orchestrator crate can be tested with mock dependencies
 2. **Faster compilation**: Changes to session logic don't recompile process management
 3. **Clear ownership**: Each crate has a single responsibility with a defined API
-4. **New transport options**: `hange` types can be used for HTTP/WebSocket APIs without depending on Unix socket transport
+4. **New transport options**: `one-for-all-protocol` types can be used for HTTP/WebSocket APIs without depending on Unix socket transport
 5. **Handler simplification**: IPC handlers become ~20-line parameter extractors that delegate to named crates
-6. **Compile-time dependency enforcement**: A handler that should only use `mikasa` can't accidentally reach into `eren`'s internals
+6. **Compile-time dependency enforcement**: A handler that should only use `rengoku-sessions` can't accidentally reach into `eren-machines`'s internals
