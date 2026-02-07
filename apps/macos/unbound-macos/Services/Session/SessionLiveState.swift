@@ -764,4 +764,29 @@ class SessionLiveState {
     }
 
     // MARK: - Private: Message Parsing
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this live state with fake data for Xcode Canvas previews.
+    /// Bypasses daemon subscriptions entirely by setting state directly.
+    func configureForPreview(
+        messages: [ChatMessage] = [],
+        claudeRunning: Bool = false,
+        activeTools: [ActiveTool] = [],
+        activeSubAgents: [ActiveSubAgent] = [],
+        toolHistory: [ToolHistoryEntry] = [],
+        streamingContent: String? = nil,
+        pendingPrompt: PendingPrompt? = nil
+    ) {
+        self.messages = messages
+        self.claudeRunning = claudeRunning
+        self.subscriptionState = .subscribed
+        self.activeTools = activeTools
+        self.activeSubAgents = activeSubAgents
+        self.toolHistory = toolHistory
+        self.streamingContent = streamingContent
+        self.pendingPrompt = pendingPrompt
+    }
+    #endif
 }

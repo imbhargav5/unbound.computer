@@ -13,7 +13,7 @@ private let logger = Logger(label: "app.ui.git")
 
 // MARK: - Git ViewModel
 
-@Observable
+@MainActor @Observable
 class GitViewModel {
     // MARK: - Dependencies
 
@@ -94,9 +94,14 @@ class GitViewModel {
     private(set) var isLoadingBranches: Bool = false
     private(set) var isPerformingAction: Bool = false
 
+    // MARK: - Commit State
+
+    /// Commit message for the next commit
+    var commitMessage: String = ""
+
     // MARK: - Error State
 
-    private(set) var lastError: String?
+    var lastError: String?
 
     // MARK: - Initialization
 
@@ -226,6 +231,47 @@ class GitViewModel {
             logger.info("Discarded changes in \(paths.count) files")
         } catch {
             logger.error("Failed to discard changes: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Commit & Push Operations
+
+    /// Create a commit from staged changes
+    func commit() async {
+        guard let repoPath = repositoryPath, let client = daemonClient else { return }
+        let message = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
+        do {
+            let result = try await client.gitCommit(path: repoPath, message: message)
+            commitMessage = ""
+            lastError = nil
+            await refreshAll()
+            logger.info("Created commit: \(result.shortOid) \(result.summary)")
+        } catch {
+            logger.error("Failed to commit: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Push commits to remote
+    func push() async {
+        guard let repoPath = repositoryPath, let client = daemonClient else { return }
+
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
+        do {
+            let result = try await client.gitPush(path: repoPath)
+            lastError = nil
+            await refreshAll()
+            logger.info("Pushed \(result.branch) to \(result.remote)")
+        } catch {
+            logger.error("Failed to push: \(error.localizedDescription)")
             lastError = error.localizedDescription
         }
     }
@@ -409,4 +455,28 @@ class GitViewModel {
         guard let oid = selectedCommitOid else { return nil }
         return commits.first { $0.oid == oid }
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this view model with fake data for Xcode Canvas previews.
+    /// Bypasses the daemon entirely by setting state directly.
+    func configureForPreview(
+        repositoryPath: String? = nil,
+        currentBranch: String? = nil,
+        status: GitStatusResult? = nil,
+        commits: [GitCommit] = [],
+        localBranches: [GitBranch] = [],
+        remoteBranches: [GitBranch] = []
+    ) {
+        self.repositoryPath = repositoryPath
+        self.currentBranch = currentBranch
+        self.status = status
+        self.commits = commits
+        self.localBranches = localBranches
+        self.remoteBranches = remoteBranches
+        self.commitGraph = computeCommitGraph(commits)
+        self.hasMoreCommits = commits.count > 5
+    }
+    #endif
 }

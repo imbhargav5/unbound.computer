@@ -456,3 +456,25 @@ pub struct GitBranchesResult {
     /// `None` if in a detached HEAD state.
     pub current: Option<String>,
 }
+
+/// Result of a git commit operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitCommitResult {
+    /// Full SHA hash of the new commit.
+    pub oid: String,
+    /// Short SHA hash (7 characters).
+    pub short_oid: String,
+    /// First line of the commit message.
+    pub summary: String,
+}
+
+/// Result of a git push operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitPushResult {
+    /// Remote name (e.g., "origin").
+    pub remote: String,
+    /// Branch name that was pushed.
+    pub branch: String,
+    /// Whether the push succeeded.
+    pub success: bool,
+}

@@ -6,9 +6,10 @@
 use git2::{BranchType, DiffOptions, Repository, Sort, StatusOptions};
 use std::path::Path;
 
+use crate::error::PiccoloError;
 use crate::types::{
-    GitBranch, GitBranchesResult, GitCommit, GitDiffResult, GitFileStatus, GitLogResult,
-    GitStatusFile, GitStatusResult,
+    GitBranch, GitBranchesResult, GitCommit, GitCommitResult, GitDiffResult, GitFileStatus,
+    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult,
 };
 
 /// Get the git status for a repository.
@@ -70,40 +71,70 @@ pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, String> {
         let path = entry.path().unwrap_or("").to_string();
         let status = entry.status();
 
-        // Determine if file is staged (in index) or unstaged (in workdir)
-        let (file_status, staged) = if status.is_index_new() {
-            (GitFileStatus::Added, true)
+        // Check for staged (index) changes
+        let index_status = if status.is_index_new() {
+            Some(GitFileStatus::Added)
         } else if status.is_index_modified() {
-            (GitFileStatus::Modified, true)
+            Some(GitFileStatus::Modified)
         } else if status.is_index_deleted() {
-            (GitFileStatus::Deleted, true)
+            Some(GitFileStatus::Deleted)
         } else if status.is_index_renamed() {
-            (GitFileStatus::Renamed, true)
+            Some(GitFileStatus::Renamed)
         } else if status.is_index_typechange() {
-            (GitFileStatus::Typechange, true)
-        } else if status.is_wt_new() {
-            (GitFileStatus::Untracked, false)
-        } else if status.is_wt_modified() {
-            (GitFileStatus::Modified, false)
-        } else if status.is_wt_deleted() {
-            (GitFileStatus::Deleted, false)
-        } else if status.is_wt_renamed() {
-            (GitFileStatus::Renamed, false)
-        } else if status.is_wt_typechange() {
-            (GitFileStatus::Typechange, false)
-        } else if status.is_conflicted() {
-            (GitFileStatus::Conflicted, false)
-        } else if status.is_ignored() {
-            (GitFileStatus::Ignored, false)
+            Some(GitFileStatus::Typechange)
         } else {
-            continue; // Skip unchanged files
+            None
         };
 
-        files.push(GitStatusFile {
-            path,
-            status: file_status,
-            staged,
-        });
+        // Check for unstaged (working tree) changes
+        let wt_status = if status.is_wt_new() {
+            Some(GitFileStatus::Untracked)
+        } else if status.is_wt_modified() {
+            Some(GitFileStatus::Modified)
+        } else if status.is_wt_deleted() {
+            Some(GitFileStatus::Deleted)
+        } else if status.is_wt_renamed() {
+            Some(GitFileStatus::Renamed)
+        } else if status.is_wt_typechange() {
+            Some(GitFileStatus::Typechange)
+        } else {
+            None
+        };
+
+        // Emit staged entry if present
+        if let Some(file_status) = index_status {
+            files.push(GitStatusFile {
+                path: path.clone(),
+                status: file_status,
+                staged: true,
+            });
+        }
+
+        // Emit unstaged entry if present
+        if let Some(file_status) = wt_status {
+            files.push(GitStatusFile {
+                path: path.clone(),
+                status: file_status,
+                staged: false,
+            });
+        }
+
+        // Handle conflicted and ignored (not index or wt specific)
+        if index_status.is_none() && wt_status.is_none() {
+            if status.is_conflicted() {
+                files.push(GitStatusFile {
+                    path,
+                    status: GitFileStatus::Conflicted,
+                    staged: false,
+                });
+            } else if status.is_ignored() {
+                files.push(GitStatusFile {
+                    path,
+                    status: GitFileStatus::Ignored,
+                    staged: false,
+                });
+            }
+        }
     }
 
     let is_clean = files.is_empty();
@@ -678,6 +709,210 @@ pub fn discard_changes(repo_path: &Path, paths: &[&str]) -> Result<(), String> {
         .map_err(|e| format!("Failed to discard changes: {}", e))?;
 
     Ok(())
+}
+
+/// Create a git commit from staged changes.
+///
+/// Creates a new commit with the given message using the staged changes
+/// in the index. If author name/email are not provided, they are read
+/// from the repository's git configuration.
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+/// * `message` - Commit message
+/// * `author_name` - Optional author name (defaults to git config user.name)
+/// * `author_email` - Optional author email (defaults to git config user.email)
+///
+/// # Returns
+///
+/// A [`GitCommitResult`] with the new commit's OID and summary.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - There are no staged changes
+/// - Author information is not available
+/// - Commit creation fails
+pub fn commit(
+    repo_path: &Path,
+    message: &str,
+    author_name: Option<&str>,
+    author_email: Option<&str>,
+) -> Result<GitCommitResult, PiccoloError> {
+    let repo = Repository::open(repo_path)?;
+
+    let mut index = repo
+        .index()
+        .map_err(|e| PiccoloError::IndexAccess(e.message().to_string()))?;
+
+    // Write the index as a tree
+    let tree_oid = index
+        .write_tree()
+        .map_err(|e| PiccoloError::IndexAccess(e.message().to_string()))?;
+    let tree = repo
+        .find_tree(tree_oid)
+        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+
+    // Check if there are actually staged changes by comparing tree to HEAD
+    let head_tree = repo
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_tree().ok());
+
+    if let Some(ref ht) = head_tree {
+        let diff = repo
+            .diff_tree_to_tree(Some(ht), Some(&tree), None)
+            .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+        if diff.deltas().count() == 0 {
+            return Err(PiccoloError::NothingToCommit);
+        }
+    }
+
+    // Get author info from params or git config
+    let config = repo
+        .config()
+        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+
+    let name = match author_name {
+        Some(n) => n.to_string(),
+        None => config
+            .get_string("user.name")
+            .map_err(|_| PiccoloError::CommitCreation("user.name not configured".to_string()))?,
+    };
+
+    let email = match author_email {
+        Some(e) => e.to_string(),
+        None => config
+            .get_string("user.email")
+            .map_err(|_| PiccoloError::CommitCreation("user.email not configured".to_string()))?,
+    };
+
+    let signature = git2::Signature::now(&name, &email)
+        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+
+    // Get parent commit (if any)
+    let parent_commit = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+    let parents: Vec<&git2::Commit> = parent_commit.iter().collect();
+
+    let commit_oid = repo
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            message,
+            &tree,
+            &parents,
+        )
+        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+
+    let oid_str = commit_oid.to_string();
+    let short_oid = oid_str[..7.min(oid_str.len())].to_string();
+    let summary = message.lines().next().unwrap_or("").to_string();
+
+    Ok(GitCommitResult {
+        oid: oid_str,
+        short_oid,
+        summary,
+    })
+}
+
+/// Push commits to a remote repository.
+///
+/// Shells out to `git push` to inherit the user's credential infrastructure
+/// (SSH keys, macOS Keychain, credential helpers).
+///
+/// # Arguments
+///
+/// * `repo_path` - Path to the repository
+/// * `remote` - Optional remote name (defaults to "origin")
+/// * `branch` - Optional branch name (defaults to current branch)
+///
+/// # Returns
+///
+/// A [`GitPushResult`] with the remote and branch that were pushed.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository cannot be opened
+/// - No current branch is checked out
+/// - Authentication fails
+/// - The remote is not found
+/// - The push is rejected
+pub fn push(
+    repo_path: &Path,
+    remote: Option<&str>,
+    branch: Option<&str>,
+) -> Result<GitPushResult, PiccoloError> {
+    // Validate repo exists and get defaults
+    let repo = Repository::open(repo_path)?;
+
+    let remote_name = remote.unwrap_or("origin").to_string();
+
+    let branch_name = match branch {
+        Some(b) => b.to_string(),
+        None => repo
+            .head()
+            .ok()
+            .and_then(|head| {
+                if head.is_branch() {
+                    head.shorthand().map(String::from)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| {
+                PiccoloError::PushFailed("No branch currently checked out".to_string())
+            })?,
+    };
+
+    // Drop the repo before spawning git to release any locks
+    drop(repo);
+
+    let output = std::process::Command::new("git")
+        .args(["push", &remote_name, &branch_name])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| PiccoloError::PushFailed(format!("Failed to execute git push: {}", e)))?;
+
+    if output.status.success() {
+        return Ok(GitPushResult {
+            remote: remote_name,
+            branch: branch_name,
+            success: true,
+        });
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // Categorize the error
+    let stderr_lower = stderr.to_lowercase();
+    if stderr_lower.contains("authentication")
+        || stderr_lower.contains("permission denied")
+        || stderr_lower.contains("could not read")
+        || stderr_lower.contains("403")
+        || stderr_lower.contains("401")
+    {
+        return Err(PiccoloError::AuthRequired(remote_name));
+    }
+
+    if stderr_lower.contains("does not appear to be a git repository")
+        || stderr_lower.contains("repository not found")
+    {
+        return Err(PiccoloError::RemoteNotFound(remote_name));
+    }
+
+    if stderr_lower.contains("everything up-to-date") {
+        return Ok(GitPushResult {
+            remote: remote_name,
+            branch: branch_name,
+            success: true,
+        });
+    }
+
+    Err(PiccoloError::PushFailed(stderr))
 }
 
 /// Create a git worktree at `<repo>/.unbound-worktrees/<worktree_name>/`.

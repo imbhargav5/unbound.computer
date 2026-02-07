@@ -358,7 +358,13 @@ struct KeyboardShortcutHandler: NSViewRepresentable {
     }
 }
 
-#Preview {
+#Preview("Populated Dashboard") {
+    WorkspaceView()
+        .environment(AppState.preview())
+        .frame(width: 1200, height: 800)
+}
+
+#Preview("Empty") {
     WorkspaceView()
         .environment(AppState())
         .frame(width: 1200, height: 800)

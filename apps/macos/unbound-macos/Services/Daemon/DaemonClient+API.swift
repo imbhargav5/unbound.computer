@@ -506,6 +506,33 @@ extension DaemonClient {
             "paths": files
         ])
     }
+
+    /// Create a commit from staged changes.
+    func gitCommit(
+        path: String,
+        message: String,
+        authorName: String? = nil,
+        authorEmail: String? = nil
+    ) async throws -> GitCommitResultResponse {
+        var params: [String: Any] = ["path": path, "message": message]
+        if let authorName { params["author_name"] = authorName }
+        if let authorEmail { params["author_email"] = authorEmail }
+        let response = try await call(method: .gitCommit, params: params)
+        return try response.resultAs(GitCommitResultResponse.self)
+    }
+
+    /// Push commits to remote.
+    func gitPush(
+        path: String,
+        remote: String? = nil,
+        branch: String? = nil
+    ) async throws -> GitPushResultResponse {
+        var params: [String: Any] = ["path": path]
+        if let remote { params["remote"] = remote }
+        if let branch { params["branch"] = branch }
+        let response = try await call(method: .gitPush, params: params)
+        return try response.resultAs(GitPushResultResponse.self)
+    }
 }
 
 // MARK: - Terminal

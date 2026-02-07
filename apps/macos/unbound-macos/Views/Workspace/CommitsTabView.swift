@@ -334,7 +334,12 @@ struct CommitRow: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("With Commits") {
+    CommitsTabView(gitViewModel: .preview())
+        .frame(width: 300, height: 500)
+}
+
+#Preview("Empty") {
     CommitsTabView(gitViewModel: GitViewModel())
         .frame(width: 300, height: 500)
 }

@@ -57,4 +57,14 @@ class SessionStateManager {
         states.removeAll()
         logger.info("Deactivated all session states")
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Register a pre-configured SessionLiveState for Canvas previews.
+    /// Bypasses the get-or-create lifecycle by injecting state directly.
+    func registerForPreview(sessionId: UUID, state: SessionLiveState) {
+        states[sessionId] = state
+    }
+    #endif
 }

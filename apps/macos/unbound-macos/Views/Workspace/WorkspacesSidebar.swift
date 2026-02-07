@@ -669,7 +669,18 @@ struct TimelineSessionRow: View {
 // MainDirectorySection, WorktreeSection, SessionRowInGroup, SessionRow
 // These are replaced by the timeline components above
 
-#Preview {
+#Preview("With Repos & Sessions") {
+    WorkspacesSidebar(
+        onOpenSettings: {},
+        onAddRepository: {},
+        onCreateSessionForRepository: { _, _ in },
+        onRequestRemoveRepository: { _ in }
+    )
+    .environment(AppState.preview())
+    .frame(width: 168, height: 600)
+}
+
+#Preview("Empty") {
     WorkspacesSidebar(
         onOpenSettings: {},
         onAddRepository: {},

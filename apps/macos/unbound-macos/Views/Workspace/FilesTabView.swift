@@ -179,7 +179,15 @@ struct FilesTreeRow: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("With Files") {
+    FilesTabView(
+        fileTreeViewModel: .preview(),
+        onFileSelected: { _ in }
+    )
+    .frame(width: 280, height: 400)
+}
+
+#Preview("Empty") {
     FilesTabView(
         fileTreeViewModel: nil,
         onFileSelected: { _ in }

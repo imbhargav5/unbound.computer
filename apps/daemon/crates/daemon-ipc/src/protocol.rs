@@ -87,6 +87,10 @@ pub enum Method {
     GitUnstage,
     #[serde(rename = "git.discard")]
     GitDiscard,
+    #[serde(rename = "git.commit")]
+    GitCommitChanges,
+    #[serde(rename = "git.push")]
+    GitPush,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]
@@ -390,6 +394,8 @@ mod tests {
             (Method::GitStage, "git.stage"),
             (Method::GitUnstage, "git.unstage"),
             (Method::GitDiscard, "git.discard"),
+            (Method::GitCommitChanges, "git.commit"),
+            (Method::GitPush, "git.push"),
             (Method::TerminalRun, "terminal.run"),
             (Method::TerminalStatus, "terminal.status"),
             (Method::TerminalStop, "terminal.stop"),

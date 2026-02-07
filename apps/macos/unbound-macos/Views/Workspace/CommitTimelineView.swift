@@ -438,7 +438,12 @@ private struct TimelineConnector: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("With History") {
+    CommitTimelineView(gitViewModel: .preview())
+        .frame(width: 320, height: 500)
+}
+
+#Preview("Empty") {
     CommitTimelineView(gitViewModel: GitViewModel())
         .frame(width: 320, height: 500)
 }

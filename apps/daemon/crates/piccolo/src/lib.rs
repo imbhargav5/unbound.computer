@@ -113,10 +113,10 @@ mod types;
 
 pub use error::PiccoloError;
 pub use operations::{
-    create_worktree, discard_changes, get_branches, get_file_diff, get_log, get_status,
-    remove_worktree, stage_files, unstage_files,
+    commit, create_worktree, discard_changes, get_branches, get_file_diff, get_log, get_status,
+    push, remove_worktree, stage_files, unstage_files,
 };
 pub use types::{
-    GitBranch, GitBranchesResult, GitCommit, GitDiffResult, GitFileStatus, GitLogResult,
-    GitStatusFile, GitStatusResult,
+    GitBranch, GitBranchesResult, GitCommit, GitCommitResult, GitDiffResult, GitFileStatus,
+    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult,
 };

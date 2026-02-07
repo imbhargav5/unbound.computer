@@ -62,6 +62,8 @@ enum DaemonMethod: String, Codable {
     case gitStage = "git.stage"
     case gitUnstage = "git.unstage"
     case gitDiscard = "git.discard"
+    case gitCommit = "git.commit"
+    case gitPush = "git.push"
 
     // Terminal operations
     case terminalRun = "terminal.run"
@@ -594,6 +596,26 @@ struct DaemonClaudeStatus: Codable {
         case sessionId = "session_id"
         case processId = "process_id"
     }
+}
+
+/// Result of a git commit operation.
+struct GitCommitResultResponse: Codable {
+    let oid: String
+    let shortOid: String
+    let summary: String
+
+    enum CodingKeys: String, CodingKey {
+        case oid
+        case shortOid = "short_oid"
+        case summary
+    }
+}
+
+/// Result of a git push operation.
+struct GitPushResultResponse: Codable {
+    let remote: String
+    let branch: String
+    let success: Bool
 }
 
 /// Git status from daemon.

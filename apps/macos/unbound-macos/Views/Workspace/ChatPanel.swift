@@ -923,7 +923,33 @@ private struct ChatMessageRow: View, Equatable {
     }
 }
 
-#Preview {
+#Preview("With Messages") {
+    ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false)
+    )
+    .environment(AppState.preview())
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Claude Active") {
+    ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.sonnet),
+        selectedThinkMode: .constant(.think),
+        isPlanMode: .constant(false)
+    )
+    .environment(AppState.preview(claudeRunning: true))
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Empty") {
     ChatPanel(
         session: FakeData.sessions.first,
         repository: nil,

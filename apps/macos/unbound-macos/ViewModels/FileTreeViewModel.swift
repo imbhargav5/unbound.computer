@@ -270,4 +270,22 @@ class FileTreeViewModel {
             }
         }
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this view model with fake data for Xcode Canvas previews.
+    /// Bypasses daemon file listing entirely by setting state directly.
+    func configureForPreview(
+        fileTree: [FileItem] = [],
+        expandedPaths: Set<String> = [],
+        selectedFilePath: String? = nil
+    ) {
+        self.allFilesTree = fileTree
+        self.expandedPaths = expandedPaths
+        self.isRootLoaded = true
+        self.selectedFilePath = selectedFilePath
+        self.allFilesByPath = buildIndex(from: fileTree)
+    }
+    #endif
 }

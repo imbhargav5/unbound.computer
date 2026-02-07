@@ -4,7 +4,8 @@ use crate::app::DaemonState;
 use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use piccolo::{
-    discard_changes, get_branches, get_file_diff, get_log, get_status, stage_files, unstage_files,
+    commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
+    unstage_files,
 };
 
 /// Register git handlers.
@@ -15,7 +16,9 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_git_branches(server, state.clone()).await;
     register_git_stage(server, state.clone()).await;
     register_git_unstage(server, state.clone()).await;
-    register_git_discard(server, state).await;
+    register_git_discard(server, state.clone()).await;
+    register_git_commit(server, state.clone()).await;
+    register_git_push(server, state).await;
 }
 
 async fn register_git_status(server: &IpcServer, state: DaemonState) {
@@ -402,6 +405,101 @@ async fn register_git_discard(server: &IpcServer, state: DaemonState) {
                 match discard_changes(std::path::Path::new(&repo_path), &path_refs) {
                     Ok(()) => Response::success(&req.id, serde_json::json!({ "success": true })),
                     Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_commit(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitCommitChanges, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let message = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("message"))
+                    .and_then(|v| v.as_str());
+
+                let Some(message) = message else {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "message is required",
+                    );
+                };
+
+                let author_name = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("author_name"))
+                    .and_then(|v| v.as_str());
+
+                let author_email = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("author_email"))
+                    .and_then(|v| v.as_str());
+
+                match commit(
+                    std::path::Path::new(&repo_path),
+                    message,
+                    author_name,
+                    author_email,
+                ) {
+                    Ok(result) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "oid": result.oid,
+                            "short_oid": result.short_oid,
+                            "summary": result.summary,
+                        }),
+                    ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_push(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitPush, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                let remote = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("remote"))
+                    .and_then(|v| v.as_str());
+
+                let branch = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("branch"))
+                    .and_then(|v| v.as_str());
+
+                match push(std::path::Path::new(&repo_path), remote, branch) {
+                    Ok(result) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "remote": result.remote,
+                            "branch": result.branch,
+                            "success": result.success,
+                        }),
+                    ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
                 }
             }
         })

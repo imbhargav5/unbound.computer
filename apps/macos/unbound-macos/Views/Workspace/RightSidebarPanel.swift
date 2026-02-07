@@ -114,16 +114,17 @@ struct RightSidebarPanel: View {
         return gitViewModel.localBranches.first(where: { $0.isCurrent })
     }
 
-    private var gitToolbarAction: GitToolbarAction? {
-        if gitViewModel.changesCount > 0 {
-            return .commit
+    private var gitToolbarActions: [GitToolbarAction] {
+        var actions: [GitToolbarAction] = []
+        if !gitViewModel.stagedFiles.isEmpty {
+            actions.append(.commit)
         }
         if let branch = currentLocalBranch,
            branch.upstream != nil,
            branch.ahead > 0 {
-            return .push
+            actions.append(.push)
         }
-        return nil
+        return actions
     }
 
     /// Currently selected editor tab
@@ -170,8 +171,18 @@ struct RightSidebarPanel: View {
                     ) {
                         HStack(spacing: Spacing.sm) {
                             branchSelector
-                            if let action = gitToolbarAction {
-                                GitToolbarActionButton(action: action, onTap: {})
+                            ForEach(gitToolbarActions, id: \.self) { action in
+                                GitToolbarActionButton(action: action, onTap: {
+                                    Task {
+                                        switch action {
+                                        case .commit:
+                                            await gitViewModel.commit()
+                                        case .push:
+                                            await gitViewModel.push()
+                                        }
+                                    }
+                                })
+                                .disabled(gitViewModel.isPerformingAction)
                             }
                             saveButton
                         }
@@ -187,7 +198,9 @@ struct RightSidebarPanel: View {
                 // Bottom section - Changes/Files/Commits
                 VStack(spacing: 0) {
                     changesHeader
+                    errorBanner
                     ShadcnDivider()
+                    commitMessageInput
                     bottomTabHeader
                     ShadcnDivider()
                     bottomTabContent
@@ -345,6 +358,58 @@ struct RightSidebarPanel: View {
         .keyboardShortcut("s", modifiers: .command)
         .disabled(!canSaveSelectedFile)
         .opacity(canSaveSelectedFile ? 1.0 : 0.55)
+    }
+
+    // MARK: - Error Banner
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let error = gitViewModel.lastError {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: IconSize.xs))
+                    .foregroundStyle(colors.destructive)
+                Text(error)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.destructive)
+                    .lineLimit(2)
+                Spacer()
+                Button {
+                    gitViewModel.lastError = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8))
+                        .foregroundStyle(colors.mutedForeground)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.xs)
+            .background(colors.destructive.opacity(0.1))
+        }
+    }
+
+    // MARK: - Commit Message Input
+
+    @ViewBuilder
+    private var commitMessageInput: some View {
+        if !gitViewModel.stagedFiles.isEmpty {
+            VStack(spacing: 0) {
+                TextField("Commit message", text: Bindable(gitViewModel).commitMessage, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: FontSize.sm, design: .monospaced))
+                    .lineLimit(1...4)
+                    .padding(Spacing.sm)
+                    .background(colors.editorBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .stroke(colors.border, lineWidth: BorderWidth.hairline)
+                    )
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.xs)
+                ShadcnDivider()
+            }
+        }
     }
 
     // MARK: - Changes Header
@@ -567,7 +632,40 @@ struct RightSidebarPanel: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Changes Tab") {
+    RightSidebarPanel(
+        fileTreeViewModel: .preview(),
+        gitViewModel: .preview(),
+        editorState: .preview(),
+        selectedTab: .constant(.changes),
+        workingDirectory: "/Users/dev/Code/unbound.computer"
+    )
+    .frame(width: 300, height: 600)
+}
+
+#Preview("Commits Tab") {
+    RightSidebarPanel(
+        fileTreeViewModel: .preview(),
+        gitViewModel: .preview(),
+        editorState: .preview(),
+        selectedTab: .constant(.commits),
+        workingDirectory: "/Users/dev/Code/unbound.computer"
+    )
+    .frame(width: 300, height: 600)
+}
+
+#Preview("Files Tab") {
+    RightSidebarPanel(
+        fileTreeViewModel: .preview(),
+        gitViewModel: .preview(withStatus: false),
+        editorState: .preview(),
+        selectedTab: .constant(.files),
+        workingDirectory: "/Users/dev/Code/unbound.computer"
+    )
+    .frame(width: 300, height: 600)
+}
+
+#Preview("Empty State") {
     RightSidebarPanel(
         fileTreeViewModel: nil,
         gitViewModel: GitViewModel(),

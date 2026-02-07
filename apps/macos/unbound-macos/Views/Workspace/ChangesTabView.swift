@@ -140,7 +140,15 @@ struct VSCodeChangeRow: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("With Changes") {
+    ChangesTabView(
+        gitViewModel: .preview(),
+        onFileSelected: { _ in }
+    )
+    .frame(width: 280, height: 400)
+}
+
+#Preview("Empty") {
     ChangesTabView(
         gitViewModel: GitViewModel(),
         onFileSelected: { _ in }

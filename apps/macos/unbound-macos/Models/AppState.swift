@@ -406,6 +406,29 @@ class AppState {
             selectedSessionId = nil
         }
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this AppState with fake data for Xcode Canvas previews.
+    /// Bypasses daemon connection and authentication entirely.
+    func configureForPreview(
+        repositories: [Repository] = [],
+        sessions: [UUID: [Session]] = [:],
+        selectedRepositoryId: UUID? = nil,
+        selectedSessionId: UUID? = nil,
+        isAuthenticated: Bool = true,
+        email: String? = "dev@unbound.computer"
+    ) {
+        self.daemonConnectionState = .connected
+        self.isAuthenticated = isAuthenticated
+        self.currentUserEmail = email
+        self.repositories = repositories
+        self.sessions = sessions
+        self.selectedRepositoryId = selectedRepositoryId
+        self.selectedSessionId = selectedSessionId
+    }
+    #endif
 }
 
 // MARK: - Convenience Accessors

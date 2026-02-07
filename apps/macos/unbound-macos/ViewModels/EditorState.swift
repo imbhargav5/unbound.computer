@@ -329,4 +329,29 @@ class EditorState {
 
         return lines
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this editor state with fake tabs and content for Canvas previews.
+    func configureForPreview(
+        tabs: [EditorTab] = [],
+        selectedTabId: UUID? = nil,
+        documentContent: String = "",
+        baseContent: String = ""
+    ) {
+        self.tabs = tabs
+        self.selectedTabId = selectedTabId ?? tabs.first?.id
+
+        // Set up document state for the first file tab
+        for tab in tabs where tab.kind == .file {
+            self.documentsByTabId[tab.id] = EditorDocumentState(
+                content: documentContent,
+                baseContent: baseContent,
+                isDirty: documentContent != baseContent && !documentContent.isEmpty,
+                hasLoaded: !documentContent.isEmpty
+            )
+        }
+    }
+    #endif
 }

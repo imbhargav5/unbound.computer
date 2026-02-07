@@ -69,6 +69,30 @@ pub enum PiccoloError {
     #[error("Worktree already exists: {0}")]
     WorktreeExists(String),
 
+    /// Failed to create commit.
+    #[error("Failed to create commit: {0}")]
+    CommitCreation(String),
+
+    /// No staged changes to commit.
+    #[error("Nothing to commit: no staged changes")]
+    NothingToCommit,
+
+    /// Push operation failed.
+    #[error("Push failed: {0}")]
+    PushFailed(String),
+
+    /// No commits to push.
+    #[error("Nothing to push: branch is up to date with remote")]
+    NothingToPush,
+
+    /// Authentication required for remote operation.
+    #[error("Authentication required for remote: {0}")]
+    AuthRequired(String),
+
+    /// Remote not found.
+    #[error("Remote not found: {0}")]
+    RemoteNotFound(String),
+
     /// Invalid path.
     #[error("Invalid path: {0}")]
     InvalidPath(String),
@@ -76,6 +100,20 @@ pub enum PiccoloError {
     /// Filesystem operation failed.
     #[error("Filesystem error: {0}")]
     Filesystem(String),
+}
+
+impl From<git2::Error> for PiccoloError {
+    fn from(err: git2::Error) -> Self {
+        match err.class() {
+            git2::ErrorClass::Repository => PiccoloError::RepositoryOpen(err.message().to_string()),
+            git2::ErrorClass::Index => PiccoloError::IndexAccess(err.message().to_string()),
+            git2::ErrorClass::Reference => PiccoloError::HeadAccess(err.message().to_string()),
+            git2::ErrorClass::Net | git2::ErrorClass::Http | git2::ErrorClass::Ssh => {
+                PiccoloError::AuthRequired(err.message().to_string())
+            }
+            _ => PiccoloError::CommitCreation(err.message().to_string()),
+        }
+    }
 }
 
 impl PiccoloError {
@@ -164,6 +202,30 @@ mod tests {
             (
                 PiccoloError::WorktreeExists("session-1".into()),
                 "Worktree already exists: session-1",
+            ),
+            (
+                PiccoloError::CommitCreation("tree empty".into()),
+                "Failed to create commit: tree empty",
+            ),
+            (
+                PiccoloError::NothingToCommit,
+                "Nothing to commit: no staged changes",
+            ),
+            (
+                PiccoloError::PushFailed("rejected".into()),
+                "Push failed: rejected",
+            ),
+            (
+                PiccoloError::NothingToPush,
+                "Nothing to push: branch is up to date with remote",
+            ),
+            (
+                PiccoloError::AuthRequired("origin".into()),
+                "Authentication required for remote: origin",
+            ),
+            (
+                PiccoloError::RemoteNotFound("upstream".into()),
+                "Remote not found: upstream",
             ),
             (
                 PiccoloError::InvalidPath("..".into()),
