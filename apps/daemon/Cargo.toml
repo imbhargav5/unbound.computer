@@ -16,6 +16,12 @@ members = [
     "crates/yamcha",
     "crates/piccolo",
     "crates/gyomei",
+    "crates/one-for-all-protocol",
+    "crates/sakura-working-dir-resolution",
+    "crates/eren-machines",
+    "crates/rengoku-sessions",
+    "crates/sasuke-crypto",
+    "crates/historia-lifecycle",
 ]
 
 [workspace.package]
@@ -94,3 +100,12 @@ yagami = { path = "crates/yagami" }
 yamcha = { path = "crates/yamcha" }
 piccolo = { path = "crates/piccolo" }
 gyomei = { path = "crates/gyomei" }
+one-for-all-protocol = { path = "crates/one-for-all-protocol" }
+sakura-working-dir-resolution = { path = "crates/sakura-working-dir-resolution" }
+eren-machines = { path = "crates/eren-machines" }
+rengoku-sessions = { path = "crates/rengoku-sessions" }
+sasuke-crypto = { path = "crates/sasuke-crypto" }
+historia-lifecycle = { path = "crates/historia-lifecycle" }
+
+# Redis
+redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }
