@@ -73,7 +73,6 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `piccolo` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
 | `levi` | Supabase message sync worker with batching and retries |
 | `toshinori` | Supabase sync sink for Armin side-effects |
-| `falco` | Encrypted remote command courier (Redis Streams to daemon) |
 | `yamcha` | Session title generation via Groq Llama 3.1 8B |
 | `yagami` | Safe directory listing with path traversal protection |
 

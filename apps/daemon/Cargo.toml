@@ -8,7 +8,7 @@ members = [
     "crates/daemon-auth",
     "crates/daemon-ipc",
     "crates/daemon-bin",
-    "crates/falco",
+
     "crates/toshinori",
     "crates/levi",
     "crates/deku",
@@ -86,7 +86,7 @@ daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }
 daemon-auth = { path = "crates/daemon-auth" }
 daemon-ipc = { path = "crates/daemon-ipc" }
-falco = { path = "crates/falco" }
+
 toshinori = { path = "crates/toshinori" }
 levi = { path = "crates/levi" }
 deku = { path = "crates/deku" }
@@ -94,6 +94,3 @@ yagami = { path = "crates/yagami" }
 yamcha = { path = "crates/yamcha" }
 piccolo = { path = "crates/piccolo" }
 gyomei = { path = "crates/gyomei" }
-
-# Redis
-redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

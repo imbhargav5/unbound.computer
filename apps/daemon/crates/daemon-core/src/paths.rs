@@ -64,11 +64,6 @@ impl Paths {
         self.base_dir.join("daemon.sock")
     }
 
-    /// Get the Falco socket path (~/.unbound/falco.sock).
-    pub fn falco_socket_file(&self) -> PathBuf {
-        self.base_dir.join("falco.sock")
-    }
-
     /// Get the PID file path (~/.unbound/daemon.pid).
     pub fn pid_file(&self) -> PathBuf {
         self.base_dir.join("daemon.pid")
@@ -114,7 +109,6 @@ mod tests {
         assert_eq!(paths.config_file(), base.join("config.json"));
         assert_eq!(paths.database_file(), base.join("unbound.sqlite"));
         assert_eq!(paths.socket_file(), base.join("daemon.sock"));
-        assert_eq!(paths.falco_socket_file(), base.join("falco.sock"));
         assert_eq!(paths.pid_file(), base.join("daemon.pid"));
         assert_eq!(paths.logs_dir(), base.join("logs"));
         assert_eq!(paths.daemon_log_file(), base.join("logs/daemon.log"));
