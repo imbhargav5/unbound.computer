@@ -1,0 +1,13 @@
+[package]
+name = "sasuke-crypto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Device identity and crypto coordination for the Unbound daemon"
+
+[dependencies]
+thiserror = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]

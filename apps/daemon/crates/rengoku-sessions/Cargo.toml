@@ -1,0 +1,15 @@
+[package]
+name = "rengoku-sessions"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Session lifecycle orchestration (create, delete, secrets) for the Unbound daemon"
+
+[dependencies]
+armin = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+armin = { workspace = true }
+tempfile = "3"

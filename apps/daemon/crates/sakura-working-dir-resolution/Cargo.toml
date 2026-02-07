@@ -1,0 +1,15 @@
+[package]
+name = "sakura-working-dir-resolution"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Session-to-working-directory resolution for the Unbound daemon"
+
+[dependencies]
+armin = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+armin = { workspace = true }
+chrono = { workspace = true }
