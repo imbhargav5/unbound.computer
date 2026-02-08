@@ -122,6 +122,16 @@ class ActiveSessionManager {
             }
         }
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this session manager with fake data for Xcode Canvas previews.
+    /// Bypasses simulation by setting sessions directly.
+    func configureForPreview(sessions: [ActiveSession]) {
+        self.sessions = sessions
+    }
+    #endif
 }
 
 // Environment key for the session manager

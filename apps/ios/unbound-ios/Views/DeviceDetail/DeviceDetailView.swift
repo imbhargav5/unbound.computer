@@ -71,7 +71,12 @@ struct DeviceDetailView: View {
         .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            projects = MockData.projects(for: device)
+            #if DEBUG
+            projects = PreviewData.projects(for: device)
+            #else
+            // TODO: Load real projects from service
+            projects = []
+            #endif
         }
     }
 
@@ -121,9 +126,9 @@ struct DeviceDetailView: View {
     }
 }
 
-#Preview {
+#Preview("Device Detail") {
     NavigationStack {
-        DeviceDetailView(device: MockData.devices[0])
+        DeviceDetailView(device: PreviewData.devices[0])
     }
     .tint(AppTheme.accent)
 }

@@ -171,26 +171,7 @@ struct MCQOptionCardView: View {
 #Preview("MCQ Question - No Selection") {
     VStack {
         MCQQuestionView(
-            question: MCQQuestion(
-                question: "How would you like me to implement this feature?",
-                options: [
-                    MCQQuestion.MCQOption(
-                        label: "Add to existing file",
-                        description: "Modify ChatView.swift with new components",
-                        icon: "doc.badge.plus"
-                    ),
-                    MCQQuestion.MCQOption(
-                        label: "Create new files",
-                        description: "Create separate component files",
-                        icon: "folder.badge.plus"
-                    ),
-                    MCQQuestion.MCQOption(
-                        label: "Let Claude decide",
-                        description: "I'll analyze the codebase and choose",
-                        icon: "brain.head.profile"
-                    )
-                ]
-            ),
+            question: PreviewData.mcqQuestion,
             onOptionSelected: { option in
                 logger.debug("Selected: \(option.label)")
             },
@@ -203,19 +184,22 @@ struct MCQOptionCardView: View {
     .background(AppTheme.backgroundPrimary)
 }
 
-#Preview("MCQ Question - Confirmed with Custom Answer") {
+#Preview("MCQ Question - Confirmed") {
     VStack {
         MCQQuestionView(
-            question: MCQQuestion(
-                question: "Which approach do you prefer?",
-                options: [
-                    MCQQuestion.MCQOption(label: "Option A", description: "First option", icon: "1.circle"),
-                    MCQQuestion.MCQOption(label: "Option B", description: "Second option", icon: "2.circle")
-                ],
-                selectedOptionId: MCQQuestion.somethingElseOption.id,
-                customAnswer: "I'd like to use a combination of both approaches",
-                isConfirmed: true
-            ),
+            question: PreviewData.mcqQuestionConfirmed,
+            onOptionSelected: { _ in },
+            onCustomInputRequested: { }
+        )
+    }
+    .padding()
+    .background(AppTheme.backgroundPrimary)
+}
+
+#Preview("MCQ Question - Custom Answer") {
+    VStack {
+        MCQQuestionView(
+            question: PreviewData.mcqQuestionWithCustomAnswer,
             onOptionSelected: { _ in },
             onCustomInputRequested: { }
         )

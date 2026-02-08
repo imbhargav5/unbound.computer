@@ -95,12 +95,12 @@ struct ProjectCardView: View {
     }
 }
 
-#Preview {
+#Preview("Project Cards") {
     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-        ForEach(MockData.projects) { project in
+        ForEach(PreviewData.projects) { project in
             ProjectCardView(project: project)
         }
     }
     .padding()
-    .background(Color(.systemBackground))
+    .background(AppTheme.backgroundPrimary)
 }

@@ -161,14 +161,14 @@ struct CodeBlockView: View {
     }
 }
 
-#Preview {
+#Preview("Message Bubbles") {
     ScrollView {
         VStack(spacing: 16) {
-            ForEach(MockData.messages) { message in
+            ForEach(PreviewData.messages) { message in
                 MessageBubbleView(message: message)
             }
         }
         .padding(.vertical)
     }
-    .background(Color(.systemBackground))
+    .background(AppTheme.backgroundPrimary)
 }

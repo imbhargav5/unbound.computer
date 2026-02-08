@@ -132,33 +132,11 @@ struct SessionRowView: View {
     }
 }
 
-#Preview {
+#Preview("Session Rows") {
     VStack(spacing: 12) {
-        SessionRowView(
-            session: ActiveSession(
-                id: UUID(),
-                projectName: "unbound-ios",
-                chatTitle: "Implement device list view",
-                deviceName: "MacBook Pro",
-                status: .generating,
-                progress: 0.65,
-                startedAt: Date().addingTimeInterval(-45),
-                language: .swift
-            )
-        ) {}
-
-        SessionRowView(
-            session: ActiveSession(
-                id: UUID(),
-                projectName: "claude-code",
-                chatTitle: "Fix navigation issues",
-                deviceName: "MacBook Pro",
-                status: .prReady,
-                progress: 1.0,
-                startedAt: Date().addingTimeInterval(-300),
-                language: .typescript
-            )
-        ) {}
+        ForEach(PreviewData.activeSessions.prefix(3)) { session in
+            SessionRowView(session: session) {}
+        }
     }
     .padding()
 }

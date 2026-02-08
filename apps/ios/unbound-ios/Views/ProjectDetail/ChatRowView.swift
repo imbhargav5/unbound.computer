@@ -91,12 +91,12 @@ struct ChatRowView: View {
     }
 }
 
-#Preview {
+#Preview("Chat Rows") {
     VStack(spacing: 16) {
-        ForEach(MockData.chats) { chat in
+        ForEach(PreviewData.chats) { chat in
             ChatRowView(chat: chat)
         }
     }
     .padding()
-    .background(Color(.systemBackground))
+    .background(AppTheme.backgroundPrimary)
 }

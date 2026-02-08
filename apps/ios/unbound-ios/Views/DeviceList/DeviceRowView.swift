@@ -63,12 +63,13 @@ struct DeviceRowView: View {
     }
 }
 
-#Preview {
+#Preview("Device Rows") {
     VStack(spacing: 16) {
-        DeviceRowView(device: MockData.devices[0])
-        DeviceRowView(device: MockData.devices[1])
-        DeviceRowView(device: MockData.devices[2])
+        DeviceRowView(device: PreviewData.devices[0])
+        DeviceRowView(device: PreviewData.devices[1])
+        DeviceRowView(device: PreviewData.devices[2])
+        DeviceRowView(device: PreviewData.devices[3])
     }
     .padding()
-    .background(Color(.systemBackground))
+    .background(AppTheme.backgroundPrimary)
 }

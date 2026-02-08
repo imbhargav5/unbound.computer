@@ -6,7 +6,13 @@ private let logger = Logger(label: "app.ui")
 struct AccountSettingsView: View {
     @Environment(AuthService.self) private var authService
     @State private var showQRScanner = false
-    @State private var connectedDevices: [ConnectedDevice] = MockData.connectedDevices
+    @State private var connectedDevices: [ConnectedDevice] = {
+        #if DEBUG
+        return PreviewData.connectedDevices
+        #else
+        return []
+        #endif
+    }()
     @State private var isConnecting = false
     @State private var connectionProgress: Double = 0
     @State private var lastScannedCode: String?
@@ -562,21 +568,23 @@ struct SettingsRow: View {
     }
 }
 
-// MARK: - Mock Data Extension
+// MARK: - Preview Data Extension
 
-extension MockData {
+#if DEBUG
+extension PreviewData {
     static let connectedDevices: [ConnectedDevice] = [
         ConnectedDevice(
-            id: UUID(),
+            id: UUID(uuidString: "80000000-0000-0000-0000-000000000001")!,
             name: "MacBook Pro 16\"",
             hostname: "bhargav-mbp.local",
             connectedAt: Date().addingTimeInterval(-3600 * 2),
             lastActive: Date().addingTimeInterval(-60),
             platform: .macOS,
             sessionId: "session-abc123"
-        )
+        ),
     ]
 }
+#endif
 
 // MARK: - Previews
 

@@ -307,13 +307,7 @@ struct ActiveToolRow: View {
 
 #Preview("Tool Usage - Active") {
     VStack(spacing: 20) {
-        ToolUsageIndicatorView(
-            toolState: ToolUsageState(
-                toolName: "Read",
-                statusText: "Reading ChatView.swift",
-                isActive: true
-            )
-        )
+        ToolUsageIndicatorView(toolState: PreviewData.activeToolState)
 
         ToolUsageIndicatorView(
             toolState: ToolUsageState(
@@ -322,27 +316,21 @@ struct ActiveToolRow: View {
                 isActive: true
             )
         )
-
-        ToolUsageIndicatorView(
-            toolState: ToolUsageState(
-                toolName: "Write",
-                statusText: "Generating new component",
-                isActive: true,
-                progress: 0.6
-            )
-        )
     }
     .padding()
     .background(AppTheme.backgroundPrimary)
 }
 
 #Preview("Tool Usage - Completed") {
-    ToolUsageIndicatorView(
-        toolState: ToolUsageState(
-            toolName: "Read",
-            statusText: "Read ChatView.swift",
-            isActive: false
-        )
+    ToolUsageIndicatorView(toolState: PreviewData.completedToolState)
+        .padding()
+        .background(AppTheme.backgroundPrimary)
+}
+
+#Preview("Tool History Stack") {
+    ToolHistoryStackView(
+        completedTools: PreviewData.toolHistory,
+        currentTool: PreviewData.activeToolState
     )
     .padding()
     .background(AppTheme.backgroundPrimary)

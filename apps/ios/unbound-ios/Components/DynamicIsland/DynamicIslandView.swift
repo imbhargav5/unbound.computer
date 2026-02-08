@@ -131,7 +131,7 @@ extension View {
     }
 }
 
-#Preview {
+#Preview("Dynamic Island") {
     struct PreviewWrapper: View {
         @State private var isExpanded = true
 
@@ -143,38 +143,7 @@ extension View {
             }
             .dynamicIslandOverlay(
                 isExpanded: $isExpanded,
-                sessions: [
-                    ActiveSession(
-                        id: UUID(),
-                        projectName: "unbound-ios",
-                        chatTitle: "Implement device list",
-                        deviceName: "MacBook Pro",
-                        status: .generating,
-                        progress: 0.65,
-                        startedAt: Date(),
-                        language: .swift
-                    ),
-                    ActiveSession(
-                        id: UUID(),
-                        projectName: "claude-code",
-                        chatTitle: "Fix navigation",
-                        deviceName: "MacBook Pro",
-                        status: .prReady,
-                        progress: 1.0,
-                        startedAt: Date().addingTimeInterval(-300),
-                        language: .typescript
-                    ),
-                    ActiveSession(
-                        id: UUID(),
-                        projectName: "ml-pipeline",
-                        chatTitle: "Add validation",
-                        deviceName: "Mac Mini",
-                        status: .merged,
-                        progress: 1.0,
-                        startedAt: Date().addingTimeInterval(-600),
-                        language: .python
-                    )
-                ]
+                sessions: Array(PreviewData.activeSessions.prefix(3))
             ) { session in
                 logger.debug("Tapped: \(session.projectName)")
             }

@@ -301,14 +301,21 @@ struct TypingDot: View {
 
 #Preview("With Messages") {
     NavigationStack {
-        ChatView(chat: MockData.chats[0])
+        ChatView(chat: PreviewData.chats[0])
     }
     .tint(AppTheme.accent)
 }
 
 #Preview("New Chat") {
     NavigationStack {
-        ChatView(chat: nil, project: MockData.projects[0])
+        ChatView(chat: nil, project: PreviewData.projects[0])
+    }
+    .tint(AppTheme.accent)
+}
+
+#Preview("Rich Conversation") {
+    NavigationStack {
+        ChatView(chat: PreviewData.chats[0], project: PreviewData.projects[0])
     }
     .tint(AppTheme.accent)
 }

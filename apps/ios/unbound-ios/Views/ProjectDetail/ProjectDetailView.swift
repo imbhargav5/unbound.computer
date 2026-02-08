@@ -65,7 +65,12 @@ struct ProjectDetailView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            chats = MockData.chats(for: project)
+            #if DEBUG
+            chats = PreviewData.chats(for: project)
+            #else
+            // TODO: Load real chats from service
+            chats = []
+            #endif
         }
     }
 
@@ -136,11 +141,11 @@ struct ProjectDetailView: View {
     }
 }
 
-#Preview {
+#Preview("Project Detail") {
     NavigationStack {
         ProjectDetailView(
-            device: MockData.devices[0],
-            project: MockData.projects[0]
+            device: PreviewData.devices[0],
+            project: PreviewData.projects[0]
         )
     }
     .tint(AppTheme.accent)

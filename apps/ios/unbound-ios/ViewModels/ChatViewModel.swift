@@ -49,10 +49,39 @@ final class ChatViewModel {
     init() {}
 
     func loadMessages(for chat: Chat?) {
-        if chat != nil {
-            messages = MockData.messages
-        }
+        guard chat != nil else { return }
+        #if DEBUG
+        messages = PreviewData.messages
+        #else
+        // TODO: Load real messages from service
+        messages = []
+        #endif
     }
+
+    // MARK: - Preview Support
+
+    #if DEBUG
+    /// Configure this view model with fake data for Xcode Canvas previews.
+    /// Bypasses any real services by setting state directly.
+    func configureForPreview(
+        messages: [Message] = [],
+        isTyping: Bool = false,
+        sessions: [ActiveSession] = [],
+        currentToolState: ToolUsageState? = nil,
+        completedTools: [ToolUsageState] = [],
+        simulationDiffs: [CodeDiff] = [],
+        pendingMCQSelection: MCQSelectionState? = nil
+    ) {
+        self.messages = messages
+        self.isTyping = isTyping
+        self.sessionManager.sessions = sessions
+        self.currentToolState = currentToolState
+        self.completedTools = completedTools
+        self.simulationDiffs = simulationDiffs
+        self.pendingMCQSelection = pendingMCQSelection
+        self.isFirstMessage = messages.isEmpty
+    }
+    #endif
 
     func cleanup() {
         sessionManager.stopSimulation()
