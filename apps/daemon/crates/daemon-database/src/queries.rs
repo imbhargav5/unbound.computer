@@ -767,3 +767,580 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Datelike;
+    use crate::{migrations, NewAgentCodingSession, NewAgentCodingSessionMessage, NewOutboxEvent, NewRepository, NewSessionSecret};
+
+    fn setup_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        conn
+    }
+
+    fn insert_test_repo(conn: &Connection) -> String {
+        let id = "repo-1".to_string();
+        insert_repository(conn, &NewRepository {
+            id: id.clone(),
+            path: "/test/repo".to_string(),
+            name: "test-repo".to_string(),
+            is_git_repository: true,
+            sessions_path: None,
+            default_branch: Some("main".to_string()),
+            default_remote: Some("origin".to_string()),
+        }).unwrap();
+        id
+    }
+
+    fn insert_test_session(conn: &Connection, repo_id: &str) -> String {
+        let id = "session-1".to_string();
+        insert_session(conn, &NewAgentCodingSession {
+            id: id.clone(),
+            repository_id: repo_id.to_string(),
+            title: "Test Session".to_string(),
+            claude_session_id: None,
+            is_worktree: false,
+            worktree_path: None,
+        }).unwrap();
+        id
+    }
+
+    // =========================================================================
+    // Repository queries
+    // =========================================================================
+
+    #[test]
+    fn repository_insert_and_get() {
+        let conn = setup_conn();
+        let repo = insert_repository(&conn, &NewRepository {
+            id: "r1".to_string(),
+            path: "/path/to/repo".to_string(),
+            name: "my-repo".to_string(),
+            is_git_repository: true,
+            sessions_path: Some("/sessions".to_string()),
+            default_branch: Some("main".to_string()),
+            default_remote: Some("origin".to_string()),
+        }).unwrap();
+
+        assert_eq!(repo.id, "r1");
+        assert_eq!(repo.path, "/path/to/repo");
+        assert_eq!(repo.name, "my-repo");
+        assert!(repo.is_git_repository);
+        assert_eq!(repo.sessions_path, Some("/sessions".to_string()));
+        assert_eq!(repo.default_branch, Some("main".to_string()));
+        assert_eq!(repo.default_remote, Some("origin".to_string()));
+    }
+
+    #[test]
+    fn repository_get_by_path() {
+        let conn = setup_conn();
+        insert_test_repo(&conn);
+
+        let found = get_repository_by_path(&conn, "/test/repo").unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, "repo-1");
+
+        let missing = get_repository_by_path(&conn, "/nonexistent").unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[test]
+    fn repository_list_ordered_by_last_accessed() {
+        let conn = setup_conn();
+
+        insert_repository(&conn, &NewRepository {
+            id: "r1".into(), path: "/a".into(), name: "a".into(),
+            is_git_repository: false, sessions_path: None,
+            default_branch: None, default_remote: None,
+        }).unwrap();
+
+        insert_repository(&conn, &NewRepository {
+            id: "r2".into(), path: "/b".into(), name: "b".into(),
+            is_git_repository: false, sessions_path: None,
+            default_branch: None, default_remote: None,
+        }).unwrap();
+
+        let repos = list_repositories(&conn).unwrap();
+        assert_eq!(repos.len(), 2);
+        // Most recently inserted should be first (DESC order)
+        assert_eq!(repos[0].id, "r2");
+    }
+
+    #[test]
+    fn repository_delete() {
+        let conn = setup_conn();
+        insert_test_repo(&conn);
+
+        assert!(delete_repository(&conn, "repo-1").unwrap());
+        assert!(get_repository(&conn, "repo-1").unwrap().is_none());
+        // Deleting again returns false
+        assert!(!delete_repository(&conn, "repo-1").unwrap());
+    }
+
+    // =========================================================================
+    // Session queries
+    // =========================================================================
+
+    #[test]
+    fn session_insert_and_get() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+
+        let session = insert_session(&conn, &NewAgentCodingSession {
+            id: "s1".into(),
+            repository_id: repo_id,
+            title: "My Session".into(),
+            claude_session_id: Some("claude-xyz".into()),
+            is_worktree: true,
+            worktree_path: Some("/worktree".into()),
+        }).unwrap();
+
+        assert_eq!(session.id, "s1");
+        assert_eq!(session.title, "My Session");
+        assert_eq!(session.claude_session_id, Some("claude-xyz".into()));
+        assert!(session.is_worktree);
+        assert_eq!(session.worktree_path, Some("/worktree".into()));
+    }
+
+    #[test]
+    fn session_update_title() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        assert!(update_session_title(&conn, &session_id, "New Title").unwrap());
+        let s = get_session(&conn, &session_id).unwrap().unwrap();
+        assert_eq!(s.title, "New Title");
+
+        // Non-existent returns false
+        assert!(!update_session_title(&conn, "nope", "title").unwrap());
+    }
+
+    #[test]
+    fn session_update_claude_id() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        assert!(update_session_claude_id(&conn, &session_id, "claude-abc").unwrap());
+        let s = get_session(&conn, &session_id).unwrap().unwrap();
+        assert_eq!(s.claude_session_id, Some("claude-abc".into()));
+    }
+
+    #[test]
+    fn session_touch_updates_last_accessed() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        let before = get_session(&conn, &session_id).unwrap().unwrap().last_accessed_at;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        assert!(touch_session(&conn, &session_id).unwrap());
+        let after = get_session(&conn, &session_id).unwrap().unwrap().last_accessed_at;
+        assert!(after >= before);
+    }
+
+    #[test]
+    fn session_list_for_repository() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+
+        insert_session(&conn, &NewAgentCodingSession {
+            id: "s1".into(), repository_id: repo_id.clone(),
+            title: "First".into(), claude_session_id: None,
+            is_worktree: false, worktree_path: None,
+        }).unwrap();
+        insert_session(&conn, &NewAgentCodingSession {
+            id: "s2".into(), repository_id: repo_id.clone(),
+            title: "Second".into(), claude_session_id: None,
+            is_worktree: false, worktree_path: None,
+        }).unwrap();
+
+        let sessions = list_sessions_for_repository(&conn, &repo_id).unwrap();
+        assert_eq!(sessions.len(), 2);
+
+        // No sessions for other repo
+        let empty = list_sessions_for_repository(&conn, "other-repo").unwrap();
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn session_delete() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        assert!(delete_session(&conn, &session_id).unwrap());
+        assert!(get_session(&conn, &session_id).unwrap().is_none());
+        assert!(!delete_session(&conn, &session_id).unwrap());
+    }
+
+    // =========================================================================
+    // Session state queries
+    // =========================================================================
+
+    #[test]
+    fn session_state_get_or_create() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        // Should not exist yet
+        assert!(get_session_state(&conn, &session_id).unwrap().is_none());
+
+        // get_or_create creates it
+        let state = get_or_create_session_state(&conn, &session_id).unwrap();
+        assert_eq!(state.agent_status, crate::AgentStatus::Idle);
+
+        // Calling again returns existing
+        let state2 = get_or_create_session_state(&conn, &session_id).unwrap();
+        assert_eq!(state2.agent_status, crate::AgentStatus::Idle);
+    }
+
+    #[test]
+    fn session_state_update_agent_status() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+        get_or_create_session_state(&conn, &session_id).unwrap();
+
+        assert!(update_agent_status(&conn, &session_id, crate::AgentStatus::Running).unwrap());
+        let state = get_session_state(&conn, &session_id).unwrap().unwrap();
+        assert_eq!(state.agent_status, crate::AgentStatus::Running);
+
+        // Non-existent returns false
+        assert!(!update_agent_status(&conn, "nope", crate::AgentStatus::Idle).unwrap());
+    }
+
+    // =========================================================================
+    // Message queries
+    // =========================================================================
+
+    #[test]
+    fn message_insert_get_list() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: r#"{"role":"user","text":"hello"}"#.into(),
+            sequence_number: 1, is_streaming: false,
+        }).unwrap();
+
+        let msg = get_message(&conn, "m1").unwrap().unwrap();
+        assert_eq!(msg.content, r#"{"role":"user","text":"hello"}"#);
+        assert_eq!(msg.sequence_number, 1);
+        assert!(!msg.is_streaming);
+
+        let msgs = list_messages_for_session(&conn, &session_id).unwrap();
+        assert_eq!(msgs.len(), 1);
+
+        assert!(get_message(&conn, "nonexistent").unwrap().is_none());
+    }
+
+    #[test]
+    fn message_sequence_numbers() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 1);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: "a".into(), sequence_number: 1, is_streaming: false,
+        }).unwrap();
+
+        assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 2);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m2".into(), session_id: session_id.clone(),
+            content: "b".into(), sequence_number: 5, is_streaming: false,
+        }).unwrap();
+
+        // Next after max(5) = 6
+        assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 6);
+    }
+
+    // =========================================================================
+    // Event outbox queries
+    // =========================================================================
+
+    #[test]
+    fn outbox_lifecycle() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: "c".into(), sequence_number: 1, is_streaming: false,
+        }).unwrap();
+
+        assert_eq!(get_next_outbox_sequence(&conn, &session_id).unwrap(), 1);
+
+        insert_outbox_event(&conn, &NewOutboxEvent {
+            event_id: "e1".into(), session_id: session_id.clone(),
+            sequence_number: 1, message_id: "m1".into(),
+        }).unwrap();
+
+        assert_eq!(get_next_outbox_sequence(&conn, &session_id).unwrap(), 2);
+
+        let pending = get_pending_outbox_events(&conn, &session_id, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].status, crate::OutboxStatus::Pending);
+
+        // Mark sent
+        mark_outbox_events_sent(&conn, &["e1".into()], "batch-1").unwrap();
+        assert!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().is_empty());
+
+        // Ack
+        let acked = mark_outbox_batch_acked(&conn, "batch-1").unwrap();
+        assert_eq!(acked, 1);
+    }
+
+    #[test]
+    fn outbox_reset_sent_to_pending() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        for i in 1..=3 {
+            insert_message(&conn, &NewAgentCodingSessionMessage {
+                id: format!("m{i}"), session_id: session_id.clone(),
+                content: format!("c{i}"), sequence_number: i, is_streaming: false,
+            }).unwrap();
+            insert_outbox_event(&conn, &NewOutboxEvent {
+                event_id: format!("e{i}"), session_id: session_id.clone(),
+                sequence_number: i, message_id: format!("m{i}"),
+            }).unwrap();
+        }
+
+        mark_outbox_events_sent(&conn, &["e1".into(), "e2".into(), "e3".into()], "b1").unwrap();
+        assert!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().is_empty());
+
+        let reset = reset_sent_events_to_pending(&conn, &session_id).unwrap();
+        assert_eq!(reset, 3);
+        assert_eq!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().len(), 3);
+    }
+
+    // =========================================================================
+    // Supabase message outbox queries
+    // =========================================================================
+
+    #[test]
+    fn supabase_outbox_insert_and_get_pending() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: "hello world".into(), sequence_number: 1, is_streaming: false,
+        }).unwrap();
+
+        insert_supabase_message_outbox(&conn, "m1").unwrap();
+
+        let pending = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, "m1");
+        assert_eq!(pending[0].session_id, session_id);
+        assert_eq!(pending[0].content, "hello world");
+        assert_eq!(pending[0].sequence_number, 1);
+        assert_eq!(pending[0].retry_count, 0);
+        assert!(pending[0].last_error.is_none());
+    }
+
+    #[test]
+    fn supabase_outbox_mark_sent_removes_from_pending() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        for i in 1..=3 {
+            insert_message(&conn, &NewAgentCodingSessionMessage {
+                id: format!("m{i}"), session_id: session_id.clone(),
+                content: format!("c{i}"), sequence_number: i, is_streaming: false,
+            }).unwrap();
+            insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
+        }
+
+        mark_supabase_messages_sent(&conn, &["m1".into(), "m2".into()]).unwrap();
+        let pending = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, "m3");
+    }
+
+    #[test]
+    fn supabase_outbox_mark_failed_increments_retry() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: "c".into(), sequence_number: 1, is_streaming: false,
+        }).unwrap();
+        insert_supabase_message_outbox(&conn, "m1").unwrap();
+
+        mark_supabase_messages_failed(&conn, &["m1".into()], "timeout").unwrap();
+        let p = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(p[0].retry_count, 1);
+        assert_eq!(p[0].last_error.as_deref(), Some("timeout"));
+
+        mark_supabase_messages_failed(&conn, &["m1".into()], "refused").unwrap();
+        let p = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(p[0].retry_count, 2);
+        assert_eq!(p[0].last_error.as_deref(), Some("refused"));
+    }
+
+    #[test]
+    fn supabase_outbox_delete() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        for i in 1..=2 {
+            insert_message(&conn, &NewAgentCodingSessionMessage {
+                id: format!("m{i}"), session_id: session_id.clone(),
+                content: format!("c{i}"), sequence_number: i, is_streaming: false,
+            }).unwrap();
+            insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
+        }
+
+        delete_supabase_message_outbox(&conn, &["m1".into()]).unwrap();
+        let pending = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, "m2");
+    }
+
+    #[test]
+    fn supabase_outbox_empty_operations_are_noops() {
+        let conn = setup_conn();
+        mark_supabase_messages_sent(&conn, &[]).unwrap();
+        mark_supabase_messages_failed(&conn, &[], "err").unwrap();
+        delete_supabase_message_outbox(&conn, &[]).unwrap();
+    }
+
+    #[test]
+    fn supabase_outbox_duplicate_insert_ignored() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        insert_message(&conn, &NewAgentCodingSessionMessage {
+            id: "m1".into(), session_id: session_id.clone(),
+            content: "c".into(), sequence_number: 1, is_streaming: false,
+        }).unwrap();
+
+        insert_supabase_message_outbox(&conn, "m1").unwrap();
+        insert_supabase_message_outbox(&conn, "m1").unwrap(); // should not error
+        let pending = get_pending_supabase_messages(&conn, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
+    fn supabase_outbox_limit_respected() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        for i in 1..=5 {
+            insert_message(&conn, &NewAgentCodingSessionMessage {
+                id: format!("m{i}"), session_id: session_id.clone(),
+                content: format!("c{i}"), sequence_number: i, is_streaming: false,
+            }).unwrap();
+            insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
+        }
+
+        let batch = get_pending_supabase_messages(&conn, 2).unwrap();
+        assert_eq!(batch.len(), 2);
+    }
+
+    // =========================================================================
+    // Session secret queries
+    // =========================================================================
+
+    #[test]
+    fn session_secret_crud() {
+        let conn = setup_conn();
+        let repo_id = insert_test_repo(&conn);
+        let session_id = insert_test_session(&conn, &repo_id);
+
+        assert!(!has_session_secret(&conn, &session_id).unwrap());
+        assert!(get_session_secret(&conn, &session_id).unwrap().is_none());
+
+        set_session_secret(&conn, &NewSessionSecret {
+            session_id: session_id.clone(),
+            encrypted_secret: vec![1, 2, 3],
+            nonce: vec![10, 20],
+        }).unwrap();
+
+        assert!(has_session_secret(&conn, &session_id).unwrap());
+        let s = get_session_secret(&conn, &session_id).unwrap().unwrap();
+        assert_eq!(s.encrypted_secret, vec![1, 2, 3]);
+        assert_eq!(s.nonce, vec![10, 20]);
+
+        // Upsert overwrites
+        set_session_secret(&conn, &NewSessionSecret {
+            session_id: session_id.clone(),
+            encrypted_secret: vec![4, 5, 6],
+            nonce: vec![30, 40],
+        }).unwrap();
+        let s = get_session_secret(&conn, &session_id).unwrap().unwrap();
+        assert_eq!(s.encrypted_secret, vec![4, 5, 6]);
+
+        assert!(delete_session_secret(&conn, &session_id).unwrap());
+        assert!(!has_session_secret(&conn, &session_id).unwrap());
+        assert!(!delete_session_secret(&conn, &session_id).unwrap());
+    }
+
+    // =========================================================================
+    // Settings queries
+    // =========================================================================
+
+    #[test]
+    fn settings_crud() {
+        let conn = setup_conn();
+
+        assert!(get_setting(&conn, "theme").unwrap().is_none());
+
+        set_setting(&conn, "theme", "dark", "string").unwrap();
+        let s = get_setting(&conn, "theme").unwrap().unwrap();
+        assert_eq!(s.value, "dark");
+        assert_eq!(s.value_type, "string");
+
+        // Upsert
+        set_setting(&conn, "theme", "light", "string").unwrap();
+        let s = get_setting(&conn, "theme").unwrap().unwrap();
+        assert_eq!(s.value, "light");
+
+        assert!(delete_setting(&conn, "theme").unwrap());
+        assert!(get_setting(&conn, "theme").unwrap().is_none());
+        assert!(!delete_setting(&conn, "theme").unwrap());
+    }
+
+    // =========================================================================
+    // parse_datetime helper
+    // =========================================================================
+
+    #[test]
+    fn parse_datetime_valid_rfc3339() {
+        let dt = parse_datetime("2024-01-15T10:30:00+00:00".to_string());
+        assert_eq!(dt.year(), 2024);
+        assert_eq!(dt.month(), 1);
+        assert_eq!(dt.day(), 15);
+    }
+
+    #[test]
+    fn parse_datetime_invalid_falls_back_to_now() {
+        let before = Utc::now();
+        let dt = parse_datetime("not-a-date".to_string());
+        let after = Utc::now();
+        assert!(dt >= before && dt <= after);
+    }
+}
