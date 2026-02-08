@@ -1215,4 +1215,205 @@ mod tests {
         db.delete_session(&session_id).unwrap();
         assert!(!db.has_session_secret(&session_id).unwrap());
     }
+
+    #[test]
+    fn test_update_session_claude_id() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        // Initially no claude_session_id
+        let session = db.get_session(&session_id).unwrap().unwrap();
+        assert!(session.claude_session_id.is_none());
+
+        // Update claude session ID
+        assert!(db.update_session_claude_id(&session_id, "claude-abc-123").unwrap());
+        let session = db.get_session(&session_id).unwrap().unwrap();
+        assert_eq!(session.claude_session_id, Some("claude-abc-123".to_string()));
+
+        // Overwrite with new ID
+        assert!(db.update_session_claude_id(&session_id, "claude-def-456").unwrap());
+        let session = db.get_session(&session_id).unwrap().unwrap();
+        assert_eq!(session.claude_session_id, Some("claude-def-456".to_string()));
+
+        // Non-existent session returns false
+        assert!(!db.update_session_claude_id("nonexistent", "claude-xyz").unwrap());
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_lifecycle() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        // Insert messages (outbox has FK to messages)
+        for i in 1..=3 {
+            db.insert_message(&NewAgentCodingSessionMessage {
+                id: format!("msg-{}", i),
+                session_id: session_id.clone(),
+                content: format!("content {}", i),
+                sequence_number: i,
+                is_streaming: false,
+            })
+            .unwrap();
+        }
+
+        // Insert into Supabase outbox
+        db.insert_supabase_message_outbox("msg-1").unwrap();
+        db.insert_supabase_message_outbox("msg-2").unwrap();
+        db.insert_supabase_message_outbox("msg-3").unwrap();
+
+        // Get pending messages (joined with message content)
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 3);
+        assert_eq!(pending[0].message_id, "msg-1");
+        assert_eq!(pending[0].session_id, session_id);
+        assert_eq!(pending[0].content, "content 1");
+        assert_eq!(pending[0].retry_count, 0);
+        assert!(pending[0].last_error.is_none());
+
+        // Mark first two as sent
+        db.mark_supabase_messages_sent(&["msg-1".to_string(), "msg-2".to_string()])
+            .unwrap();
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, "msg-3");
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_failure_tracking() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        db.insert_message(&NewAgentCodingSessionMessage {
+            id: "msg-1".to_string(),
+            session_id: session_id.clone(),
+            content: "content".to_string(),
+            sequence_number: 1,
+            is_streaming: false,
+        })
+        .unwrap();
+
+        db.insert_supabase_message_outbox("msg-1").unwrap();
+
+        // Mark as failed
+        db.mark_supabase_messages_failed(
+            &["msg-1".to_string()],
+            "connection timeout",
+        )
+        .unwrap();
+
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].retry_count, 1);
+        assert_eq!(
+            pending[0].last_error.as_deref(),
+            Some("connection timeout")
+        );
+        assert!(pending[0].last_attempt_at.is_some());
+
+        // Mark as failed again - retry count should increment
+        db.mark_supabase_messages_failed(
+            &["msg-1".to_string()],
+            "connection refused",
+        )
+        .unwrap();
+
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending[0].retry_count, 2);
+        assert_eq!(
+            pending[0].last_error.as_deref(),
+            Some("connection refused")
+        );
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_delete() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        for i in 1..=2 {
+            db.insert_message(&NewAgentCodingSessionMessage {
+                id: format!("msg-{}", i),
+                session_id: session_id.clone(),
+                content: format!("content {}", i),
+                sequence_number: i,
+                is_streaming: false,
+            })
+            .unwrap();
+            db.insert_supabase_message_outbox(&format!("msg-{}", i))
+                .unwrap();
+        }
+
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 2);
+
+        // Delete one entry
+        db.delete_supabase_message_outbox(&["msg-1".to_string()])
+            .unwrap();
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].message_id, "msg-2");
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_duplicate_insert_ignored() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        db.insert_message(&NewAgentCodingSessionMessage {
+            id: "msg-1".to_string(),
+            session_id: session_id.clone(),
+            content: "content".to_string(),
+            sequence_number: 1,
+            is_streaming: false,
+        })
+        .unwrap();
+
+        // Insert twice - second should be silently ignored
+        db.insert_supabase_message_outbox("msg-1").unwrap();
+        db.insert_supabase_message_outbox("msg-1").unwrap();
+
+        let pending = db.get_pending_supabase_messages(10).unwrap();
+        assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_empty_operations() {
+        let db = create_test_db();
+
+        // Empty mark_sent should be a no-op
+        db.mark_supabase_messages_sent(&[]).unwrap();
+
+        // Empty mark_failed should be a no-op
+        db.mark_supabase_messages_failed(&[], "error").unwrap();
+
+        // Empty delete should be a no-op
+        db.delete_supabase_message_outbox(&[]).unwrap();
+    }
+
+    #[test]
+    fn test_supabase_message_outbox_limit() {
+        let db = create_test_db();
+        let (_, session_id) = setup_test_repo_and_session(&db);
+
+        for i in 1..=5 {
+            db.insert_message(&NewAgentCodingSessionMessage {
+                id: format!("msg-{}", i),
+                session_id: session_id.clone(),
+                content: format!("content {}", i),
+                sequence_number: i,
+                is_streaming: false,
+            })
+            .unwrap();
+            db.insert_supabase_message_outbox(&format!("msg-{}", i))
+                .unwrap();
+        }
+
+        // Request only 2 pending messages
+        let pending = db.get_pending_supabase_messages(2).unwrap();
+        assert_eq!(pending.len(), 2);
+
+        // Request more than available
+        let pending = db.get_pending_supabase_messages(100).unwrap();
+        assert_eq!(pending.len(), 5);
+    }
 }

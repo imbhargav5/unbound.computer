@@ -164,3 +164,131 @@ impl std::fmt::Debug for ClaudeEventStream {
             .finish_non_exhaustive()
     }
 }
+
+/// Strip ANSI escape codes from a string and attempt to parse it as a Claude event.
+///
+/// Returns `None` for empty lines, non-JSON lines, and invalid JSON.
+/// This is extracted from `ClaudeEventStream::process_line` for testability.
+pub fn parse_stdout_line(line: &str, ansi_regex: &Regex) -> Option<ClaudeEvent> {
+    let clean_line = ansi_regex.replace_all(line, "").to_string();
+
+    if clean_line.trim().is_empty() {
+        return None;
+    }
+
+    if !clean_line.trim_start().starts_with('{') {
+        return None;
+    }
+
+    match serde_json::from_str::<serde_json::Value>(&clean_line) {
+        Ok(json) => Some(ClaudeEvent::from_json(clean_line, json)),
+        Err(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ansi_re() -> Regex {
+        Regex::new(r"\x1B(?:\[[0-9;?]*[A-Za-z~]|\][^\x07]*\x07)").unwrap()
+    }
+
+    #[test]
+    fn parse_valid_json_event() {
+        let re = ansi_re();
+        let line = r#"{"type":"assistant","content":"hello"}"#;
+        let event = parse_stdout_line(line, &re).unwrap();
+        assert_eq!(event.event_type(), "assistant");
+        assert!(event.raw_json().is_some());
+    }
+
+    #[test]
+    fn parse_system_event_with_session_id() {
+        let re = ansi_re();
+        let line = r#"{"type":"system","session_id":"sess-abc-123"}"#;
+        let event = parse_stdout_line(line, &re).unwrap();
+        match event {
+            ClaudeEvent::SystemWithSessionId { claude_session_id, .. } => {
+                assert_eq!(claude_session_id, "sess-abc-123");
+            }
+            _ => panic!("expected SystemWithSessionId"),
+        }
+    }
+
+    #[test]
+    fn parse_result_event() {
+        let re = ansi_re();
+        let line = r#"{"type":"result","is_error":true}"#;
+        let event = parse_stdout_line(line, &re).unwrap();
+        match event {
+            ClaudeEvent::Result { is_error, .. } => assert!(is_error),
+            _ => panic!("expected Result"),
+        }
+    }
+
+    #[test]
+    fn skip_empty_line() {
+        let re = ansi_re();
+        assert!(parse_stdout_line("", &re).is_none());
+        assert!(parse_stdout_line("   ", &re).is_none());
+        assert!(parse_stdout_line("\t\n", &re).is_none());
+    }
+
+    #[test]
+    fn skip_non_json_line() {
+        let re = ansi_re();
+        assert!(parse_stdout_line("Starting Claude...", &re).is_none());
+        assert!(parse_stdout_line("Loading model", &re).is_none());
+        assert!(parse_stdout_line("[info] ready", &re).is_none());
+    }
+
+    #[test]
+    fn skip_invalid_json() {
+        let re = ansi_re();
+        assert!(parse_stdout_line("{not valid json}", &re).is_none());
+        assert!(parse_stdout_line("{\"unclosed", &re).is_none());
+    }
+
+    #[test]
+    fn strip_ansi_codes_then_parse() {
+        let re = ansi_re();
+        // Simulate ANSI-wrapped JSON output
+        let line = "\x1b[36m{\"type\":\"assistant\",\"content\":\"hi\"}\x1b[0m";
+        let event = parse_stdout_line(line, &re).unwrap();
+        assert_eq!(event.event_type(), "assistant");
+    }
+
+    #[test]
+    fn strip_ansi_leaves_empty_line() {
+        let re = ansi_re();
+        // Line that is only ANSI codes
+        let line = "\x1b[0m\x1b[36m";
+        assert!(parse_stdout_line(line, &re).is_none());
+    }
+
+    #[test]
+    fn strip_ansi_osc_sequences() {
+        let re = ansi_re();
+        // OSC sequence (e.g., terminal title)
+        let line = "\x1b]0;title\x07{\"type\":\"assistant\",\"content\":\"ok\"}";
+        let event = parse_stdout_line(line, &re).unwrap();
+        assert_eq!(event.event_type(), "assistant");
+    }
+
+    #[test]
+    fn json_with_leading_whitespace() {
+        let re = ansi_re();
+        let line = "  {\"type\":\"assistant\",\"content\":\"hello\"}";
+        let event = parse_stdout_line(line, &re).unwrap();
+        assert_eq!(event.event_type(), "assistant");
+    }
+
+    #[test]
+    fn json_without_type_field() {
+        let re = ansi_re();
+        let line = r#"{"data":"something"}"#;
+        let event = parse_stdout_line(line, &re).unwrap();
+        assert_eq!(event.event_type(), "unknown");
+    }
+}

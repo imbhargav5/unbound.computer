@@ -60,3 +60,36 @@ pub fn parse_level(level: &str) -> tracing::Level {
         _ => tracing::Level::INFO,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_level_all_variants() {
+        assert_eq!(parse_level("trace"), tracing::Level::TRACE);
+        assert_eq!(parse_level("debug"), tracing::Level::DEBUG);
+        assert_eq!(parse_level("info"), tracing::Level::INFO);
+        assert_eq!(parse_level("warn"), tracing::Level::WARN);
+        assert_eq!(parse_level("warning"), tracing::Level::WARN);
+        assert_eq!(parse_level("error"), tracing::Level::ERROR);
+    }
+
+    #[test]
+    fn parse_level_case_insensitive() {
+        assert_eq!(parse_level("TRACE"), tracing::Level::TRACE);
+        assert_eq!(parse_level("Debug"), tracing::Level::DEBUG);
+        assert_eq!(parse_level("INFO"), tracing::Level::INFO);
+        assert_eq!(parse_level("WARN"), tracing::Level::WARN);
+        assert_eq!(parse_level("WARNING"), tracing::Level::WARN);
+        assert_eq!(parse_level("ERROR"), tracing::Level::ERROR);
+    }
+
+    #[test]
+    fn parse_level_unknown_defaults_to_info() {
+        assert_eq!(parse_level(""), tracing::Level::INFO);
+        assert_eq!(parse_level("verbose"), tracing::Level::INFO);
+        assert_eq!(parse_level("fatal"), tracing::Level::INFO);
+        assert_eq!(parse_level("nonsense"), tracing::Level::INFO);
+    }
+}
