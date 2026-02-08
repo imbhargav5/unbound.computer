@@ -63,7 +63,7 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | Crate | Description |
 |-------|-------------|
 | `daemon-bin` | Binary entry point, CLI parsing, daemon lifecycle |
-| `daemon-core` | Shared config, paths, logging, hybrid encryption |
+| `daemon-config-and-utils` | Shared config, paths, logging, hybrid encryption |
 | `daemon-ipc` | Unix socket server, NDJSON protocol, request routing |
 | `daemon-auth` | OAuth flow, token refresh, FSM-based auth state |
 | `daemon-database` | Async SQLite executor, migrations, model types |

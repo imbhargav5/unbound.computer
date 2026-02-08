@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Daemon crates
-daemon-core = { path = "../daemon/crates/daemon-core" }
+daemon-config-and-utils = { path = "../daemon/crates/daemon-config-and-utils" }
 daemon-ipc = { path = "../daemon/crates/daemon-ipc" }
 
 # Async runtime

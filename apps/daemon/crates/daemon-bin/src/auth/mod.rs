@@ -2,8 +2,10 @@
 //!
 //! Handles user authentication, session management, and device identity.
 
+mod common;
 mod login;
 mod logout;
+mod social_complete;
 mod status;
 
 use crate::app::DaemonState;
@@ -13,5 +15,6 @@ use daemon_ipc::IpcServer;
 pub async fn register_handlers(server: &IpcServer, state: DaemonState) {
     status::register(server, state.clone()).await;
     logout::register(server, state.clone()).await;
+    social_complete::register(server, state.clone()).await;
     login::register(server, state).await;
 }

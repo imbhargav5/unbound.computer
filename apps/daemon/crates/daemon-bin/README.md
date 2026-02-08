@@ -92,7 +92,7 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Domain | Methods | Backing Crate |
 |--------|---------|---------------|
 | Health | `health`, `shutdown`, `outbox.status` | - |
-| Auth | `auth.login`, `auth.status`, `auth.logout` | daemon-auth |
+| Auth | `auth.login`, `auth.complete_social`, `auth.status`, `auth.logout` | ymir |
 | Sessions | `session.list`, `session.create`, `session.get`, `session.delete` | armin |
 | Messages | `message.list`, `message.send` | armin |
 | Repos | `repository.list`, `repository.add`, `repository.remove` | armin |
@@ -162,11 +162,11 @@ daemon-bin/
 This crate depends on nearly every other workspace crate:
 
 - **armin** - Session/message storage engine
-- **daemon-core** - Config, paths, logging, crypto primitives
+- **daemon-config-and-utils** - Config, paths, logging, crypto primitives
 - **daemon-ipc** - Unix socket server and protocol
 - **daemon-database** - Async SQLite persistence
 - **daemon-storage** - Platform keychain
-- **daemon-auth** - OAuth flow and token management
+- **ymir** - OAuth flow and token/session management
 - **toshinori** - Supabase sync sink
 - **levi** - Message sync worker
 - **deku** - Claude CLI process manager

@@ -2,8 +2,7 @@
 
 use crate::armin_adapter::DaemonArmin;
 use crate::utils::SessionSecretCache;
-use daemon_auth::SupabaseClient;
-use daemon_core::{Config, Paths};
+use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
@@ -14,6 +13,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use toshinori::ToshinoriSink;
+use ymir::{DaemonAuthRuntime, SupabaseClient};
 
 /// Shared daemon state (thread-safe).
 #[derive(Clone)]
@@ -39,6 +39,8 @@ pub struct DaemonState {
     pub session_secret_cache: SessionSecretCache,
     /// Supabase REST client for device and secret distribution.
     pub supabase_client: Arc<SupabaseClient>,
+    /// Unified auth runtime used by startup and IPC handlers.
+    pub auth_runtime: Arc<DaemonAuthRuntime>,
     /// This device's ID (UUID). Updated after login.
     pub device_id: Arc<Mutex<Option<String>>>,
     /// This device's X25519 private key (for decrypting secrets). Updated after login.

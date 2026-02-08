@@ -77,7 +77,7 @@ pub async fn load_session_secrets_from_supabase(state: &DaemonState) -> Result<u
         };
 
         // Decrypt using hybrid crypto
-        let plaintext = match daemon_core::decrypt_for_device(
+        let plaintext = match daemon_config_and_utils::decrypt_for_device(
             &ephemeral_key,
             &encrypted_data,
             &device_private_key,

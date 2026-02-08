@@ -1,4 +1,4 @@
-# daemon-core
+# daemon-config-and-utils
 
 Shared types, configuration, and utilities used across all daemon crates.
 

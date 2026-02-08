@@ -397,16 +397,34 @@ mod tests {
 
     #[test]
     fn test_auth_state_conversion() {
-        assert_eq!(AuthState::from(&AuthMachineState::NotLoggedIn), AuthState::NotLoggedIn);
-        assert_eq!(AuthState::from(&AuthMachineState::LoggingIn), AuthState::LoggingIn);
-        assert_eq!(AuthState::from(&AuthMachineState::Validating), AuthState::Validating);
+        assert_eq!(
+            AuthState::from(&AuthMachineState::NotLoggedIn),
+            AuthState::NotLoggedIn
+        );
+        assert_eq!(
+            AuthState::from(&AuthMachineState::LoggingIn),
+            AuthState::LoggingIn
+        );
+        assert_eq!(
+            AuthState::from(&AuthMachineState::Validating),
+            AuthState::Validating
+        );
         assert_eq!(
             AuthState::from(&AuthMachineState::VerifyingWithServer),
             AuthState::VerifyingWithServer
         );
-        assert_eq!(AuthState::from(&AuthMachineState::LoggedIn), AuthState::LoggedIn);
-        assert_eq!(AuthState::from(&AuthMachineState::Refreshing), AuthState::Refreshing);
-        assert_eq!(AuthState::from(&AuthMachineState::LoggingOut), AuthState::LoggingOut);
+        assert_eq!(
+            AuthState::from(&AuthMachineState::LoggedIn),
+            AuthState::LoggedIn
+        );
+        assert_eq!(
+            AuthState::from(&AuthMachineState::Refreshing),
+            AuthState::Refreshing
+        );
+        assert_eq!(
+            AuthState::from(&AuthMachineState::LoggingOut),
+            AuthState::LoggingOut
+        );
     }
 
     #[test]

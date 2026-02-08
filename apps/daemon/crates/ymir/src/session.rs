@@ -258,10 +258,7 @@ impl SessionManager {
                     return Ok(true);
                 }
                 Err(e) => {
-                    warn!(
-                        "Session refresh failed on startup, session cleared: {}",
-                        e
-                    );
+                    warn!("Session refresh failed on startup, session cleared: {}", e);
                     return Err(e);
                 }
             }
@@ -454,9 +451,7 @@ impl SessionManager {
         self.secrets.clear_supabase_session()?;
         self.transition(&AuthMachineInput::RefreshFailed)?;
 
-        Err(last_error.unwrap_or(AuthError::RefreshExhausted(
-            self.refresh_config.max_retries,
-        )))
+        Err(last_error.unwrap_or(AuthError::RefreshExhausted(self.refresh_config.max_retries)))
     }
 
     /// Single attempt to refresh the session.
@@ -491,7 +486,10 @@ impl SessionManager {
             warn!(status = %status, body = %body, "Token refresh failed");
 
             // Don't clear session here - let the caller handle it based on retry logic
-            return Err(AuthError::TokenRefresh(format!("HTTP {}: {}", status, body)));
+            return Err(AuthError::TokenRefresh(format!(
+                "HTTP {}: {}",
+                status, body
+            )));
         }
 
         let data: RefreshResponse = response.json().await?;
@@ -500,8 +498,7 @@ impl SessionManager {
         let expires_at = Utc::now() + Duration::seconds(data.expires_in);
 
         // Store new tokens
-        self.secrets
-            .set_supabase_access_token(&data.access_token)?;
+        self.secrets.set_supabase_access_token(&data.access_token)?;
         self.secrets
             .set_supabase_refresh_token(&data.refresh_token)?;
         self.secrets
@@ -583,8 +580,7 @@ impl SessionManager {
             .to_string();
 
         // Store tokens
-        self.secrets
-            .set_supabase_access_token(&data.access_token)?;
+        self.secrets.set_supabase_access_token(&data.access_token)?;
         self.secrets
             .set_supabase_refresh_token(&data.refresh_token)?;
         self.secrets
@@ -668,11 +664,7 @@ mod tests {
     fn create_test_manager() -> SessionManager {
         let storage = Box::new(MemoryStorage::new());
         let secrets = SecretsManager::new(storage);
-        SessionManager::new(
-            secrets,
-            "https://test.supabase.co",
-            "test-publishable-key",
-        )
+        SessionManager::new(secrets, "https://test.supabase.co", "test-publishable-key")
     }
 
     #[test]
@@ -764,10 +756,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(
-            manager.get_user_id().unwrap(),
-            Some("user-789".to_string())
-        );
+        assert_eq!(manager.get_user_id().unwrap(), Some("user-789".to_string()));
     }
 
     #[test]
@@ -778,9 +767,7 @@ mod tests {
         assert_eq!(manager.fsm_state(), AuthState::NotLoggedIn);
 
         // Transition to LoggingIn
-        manager
-            .transition(&AuthMachineInput::LoginAttempt)
-            .unwrap();
+        manager.transition(&AuthMachineInput::LoginAttempt).unwrap();
         assert_eq!(manager.fsm_state(), AuthState::LoggingIn);
 
         // Simulate login failure
@@ -816,9 +803,7 @@ mod tests {
         }));
 
         // Make some transitions
-        manager
-            .transition(&AuthMachineInput::LoginAttempt)
-            .unwrap();
+        manager.transition(&AuthMachineInput::LoginAttempt).unwrap();
         manager.transition(&AuthMachineInput::LoginFailed).unwrap();
 
         // Callback should have been called twice (once per state change)

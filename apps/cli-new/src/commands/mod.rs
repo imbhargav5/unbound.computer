@@ -11,7 +11,7 @@ pub use repos::{repos_list, repos_add, repos_remove};
 pub use sessions::{sessions_list, sessions_show, sessions_create, sessions_delete, sessions_messages};
 
 use anyhow::Result;
-use daemon_core::Paths;
+use daemon_config_and_utils::Paths;
 use daemon_ipc::IpcClient;
 
 /// Get the IPC client for communicating with the daemon.

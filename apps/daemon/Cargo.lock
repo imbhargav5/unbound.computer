@@ -562,18 +562,7 @@ dependencies = [
 name = "daemon-auth"
 version = "0.0.12"
 dependencies = [
- "base64",
- "chrono",
- "daemon-core",
- "daemon-storage",
- "reqwest",
- "rust-fsm",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "url",
+ "ymir",
 ]
 
 [[package]]
@@ -584,8 +573,7 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
- "daemon-auth",
- "daemon-core",
+ "daemon-config-and-utils",
  "daemon-database",
  "daemon-ipc",
  "daemon-storage",
@@ -606,10 +594,11 @@ dependencies = [
  "urlencoding",
  "uuid",
  "yagami",
+ "ymir",
 ]
 
 [[package]]
-name = "daemon-core"
+name = "daemon-config-and-utils"
 version = "0.0.12"
 dependencies = [
  "chacha20poly1305",
@@ -634,7 +623,7 @@ version = "0.0.12"
 dependencies = [
  "chacha20poly1305",
  "chrono",
- "daemon-core",
+ "daemon-config-and-utils",
  "rand 0.8.5",
  "rusqlite",
  "serde",
@@ -652,7 +641,7 @@ dependencies = [
 name = "daemon-ipc"
 version = "0.0.12"
 dependencies = [
- "daemon-core",
+ "daemon-config-and-utils",
  "interprocess",
  "serde",
  "serde_json",
@@ -669,7 +658,7 @@ dependencies = [
  "base64",
  "chrono",
  "core-foundation",
- "daemon-core",
+ "daemon-config-and-utils",
  "hkdf",
  "rand 0.8.5",
  "secret-service",
@@ -1115,7 +1104,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 name = "historia-lifecycle"
 version = "0.0.12"
 dependencies = [
- "daemon-core",
+ "daemon-config-and-utils",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -1494,13 +1483,13 @@ dependencies = [
  "armin",
  "base64",
  "chrono",
- "daemon-auth",
- "daemon-core",
+ "daemon-config-and-utils",
  "daemon-database",
  "daemon-storage",
  "tokio",
  "toshinori",
  "tracing",
+ "ymir",
 ]
 
 [[package]]
@@ -3689,6 +3678,25 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "ymir"
+version = "0.0.12"
+dependencies = [
+ "base64",
+ "chrono",
+ "daemon-config-and-utils",
+ "daemon-storage",
+ "reqwest",
+ "rust-fsm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
 ]
 
 [[package]]

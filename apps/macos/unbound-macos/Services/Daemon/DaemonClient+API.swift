@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AppKit
 import Logging
 
 private let logger = Logger(label: "app.daemon.api")
@@ -44,19 +45,48 @@ extension DaemonClient {
 
     /// Start login flow with OAuth provider.
     /// - Parameters:
-    ///   - provider: OAuth provider ("github", "google") or "magic_link" for passwordless.
-    ///   - email: Email address (required for magic_link, optional for OAuth).
+    ///   - provider: OAuth provider ("github", "google", "gitlab").
+    ///   - email: Unused for social login (kept for compatibility).
     func loginWithProvider(_ provider: String, email: String? = nil) async throws {
         var params: [String: Any] = ["provider": provider]
         if let email {
             params["email"] = email
         }
-        _ = try await call(method: .authLogin, params: params)
+
+        let startResponse = try await call(method: .authLogin, params: params)
+        let socialStart = try startResponse.resultAs(DaemonSocialLoginStart.self)
+
+        guard let loginUrl = URL(string: socialStart.loginUrl) else {
+            throw DaemonError.decodingFailed("Invalid social login URL")
+        }
+
+        guard NSWorkspace.shared.open(loginUrl) else {
+            throw DaemonError.connectionFailed("Failed to open browser for social login")
+        }
+
+        _ = try await call(method: .authCompleteSocial, params: [
+            "login_id": socialStart.loginId,
+            "timeout_secs": 180
+        ])
     }
 
     /// Logout and clear session.
     func logout() async throws {
         _ = try await call(method: .authLogout)
+    }
+}
+
+private struct DaemonSocialLoginStart: Codable {
+    let status: String
+    let provider: String
+    let loginId: String
+    let loginUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case provider
+        case loginId = "login_id"
+        case loginUrl = "login_url"
     }
 }
 

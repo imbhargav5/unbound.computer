@@ -6,7 +6,7 @@ use super::app::{
 };
 use super::claude_events::ClaudeCodeMessage;
 use anyhow::Result;
-use daemon_core::Paths;
+use daemon_config_and_utils::Paths;
 use daemon_ipc::{Event as DaemonEvent, IpcClient, Method, StreamingSubscription};
 use std::collections::HashMap;
 use tokio::sync::mpsc;

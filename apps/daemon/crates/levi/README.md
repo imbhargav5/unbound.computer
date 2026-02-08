@@ -157,7 +157,7 @@ service.distribute_secret(session_id, session_secret).await?;
 | `armin` | Local session storage (SQLite) |
 | `toshinori` | Supabase HTTP client |
 | `daemon-auth` | Supabase types and client |
-| `daemon-core` | Hybrid encryption utilities |
+| `daemon-config-and-utils` | Hybrid encryption utilities |
 | `daemon-database` | Symmetric encryption (XChaCha20-Poly1305) |
 | `daemon-storage` | Secrets management |
 

@@ -53,8 +53,17 @@ function CLIAuthLoading() {
 function CLIAuthContent() {
   const searchParams = useSearchParams();
   const loginId = searchParams.get("login_id");
+  const providerParam = searchParams.get("provider");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoStartedProvider, setAutoStartedProvider] = useState(false);
+
+  const presetProvider: "github" | "google" | "gitlab" | null =
+    providerParam === "github" ||
+    providerParam === "google" ||
+    providerParam === "gitlab"
+      ? providerParam
+      : null;
 
   useEffect(() => {
     // Validate login_id parameter
@@ -78,7 +87,7 @@ function CLIAuthContent() {
       const supabase = createClient();
 
       // Construct callback URL with login_id
-      const redirectTo = `${window.location.origin}/cli-auth/callback?login_id=${encodeURIComponent(loginId)}`;
+      const redirectTo = `${window.location.origin}/cli-auth/social-provider/callback?login_id=${encodeURIComponent(loginId)}`;
 
       // Initiate OAuth flow with PKCE
       // SECURITY: PKCE prevents authorization code interception
@@ -102,6 +111,18 @@ function CLIAuthContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!(loginId && presetProvider)) {
+      return;
+    }
+    if (autoStartedProvider || loading || error) {
+      return;
+    }
+
+    setAutoStartedProvider(true);
+    void handleOAuthLogin(presetProvider);
+  }, [autoStartedProvider, error, loading, loginId, presetProvider]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">

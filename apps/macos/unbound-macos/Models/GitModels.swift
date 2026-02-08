@@ -3,7 +3,7 @@
 //  unbound-macos
 //
 //  Git data models for commit history, branches, and staging operations.
-//  Matches daemon-core/src/git.rs types.
+//  Matches daemon-config-and-utils/src/git.rs types.
 //
 
 import Foundation

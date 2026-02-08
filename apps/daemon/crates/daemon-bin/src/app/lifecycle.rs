@@ -1,6 +1,6 @@
 //! Daemon lifecycle management (stop, status).
 
-use daemon_core::Paths;
+use daemon_config_and_utils::Paths;
 use daemon_ipc::Method;
 
 /// Stop the daemon.

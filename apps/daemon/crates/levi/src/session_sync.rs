@@ -48,7 +48,7 @@
 //! ```
 
 use base64::Engine;
-use daemon_auth::{CodingSessionSecretRecord, SupabaseClient};
+use ymir::{CodingSessionSecretRecord, SupabaseClient};
 use daemon_database::{queries, AsyncDatabase};
 use daemon_storage::SecretsManager;
 use std::collections::HashMap;
@@ -359,9 +359,9 @@ impl SessionSyncService {
 
         // Encrypt for this device first
         let this_device_public_key =
-            daemon_core::hybrid_crypto::public_key_from_private(&device_private_key);
+            daemon_config_and_utils::hybrid_crypto::public_key_from_private(&device_private_key);
 
-        let (ephemeral_pub, encrypted) = daemon_core::encrypt_for_device(
+        let (ephemeral_pub, encrypted) = daemon_config_and_utils::encrypt_for_device(
             session_secret.as_bytes(),
             &this_device_public_key,
             session_id,
@@ -396,7 +396,7 @@ impl SessionSyncService {
                 }
             };
 
-            let (ephemeral_pub, encrypted) = match daemon_core::encrypt_for_device(
+            let (ephemeral_pub, encrypted) = match daemon_config_and_utils::encrypt_for_device(
                 session_secret.as_bytes(),
                 &public_key,
                 session_id,
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_fails_without_session() {
-        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+        let supabase_client = Arc::new(ymir::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_fails_without_device_id() {
-        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+        let supabase_client = Arc::new(ymir::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -761,7 +761,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_succeeds_with_valid_state() {
-        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+        let supabase_client = Arc::new(ymir::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -809,7 +809,7 @@ mod tests {
 
     #[test]
     fn distribute_secret_fails_without_device_private_key() {
-        let supabase_client = Arc::new(daemon_auth::SupabaseClient::new(
+        let supabase_client = Arc::new(ymir::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));

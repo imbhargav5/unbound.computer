@@ -89,7 +89,7 @@ rengoku-sessions/
 │   └── secret_loader.rs # Load secrets from Supabase at startup
 ```
 
-**Dependencies:** `armin`, `piccolo`, `daemon-database`, `daemon-storage`, `daemon-core`
+**Dependencies:** `armin`, `piccolo`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
 
 **What daemon-bin keeps:** Thin IPC handlers that parse params → call `rengoku_sessions::create_session(...)` → serialize response.
 
@@ -234,7 +234,7 @@ sasuke-crypto/
 │   └── remote_secrets.rs # Fetch and decrypt session secrets from Supabase
 ```
 
-**Dependencies:** `daemon-core`, `daemon-storage`, `daemon-auth` (SupabaseClient)
+**Dependencies:** `daemon-config-and-utils`, `daemon-storage`, `daemon-auth` (SupabaseClient)
 
 **Rationale:** The init.rs file has 15 lines of crypto material loading interleaved with service initialization. This logic silently swallows errors (`Ok(None)` when no key found) and is untestable in its current form. Extracting it allows testing key derivation, error handling, and Supabase secret loading independently.
 
@@ -261,7 +261,7 @@ historia-lifecycle/
 │   └── pidfile.rs      # PID file write/cleanup
 ```
 
-**Dependencies:** `daemon-ipc`, `daemon-core`
+**Dependencies:** `daemon-ipc`, `daemon-config-and-utils`
 
 **Rationale:** Startup and shutdown logic is currently mixed with service construction in `init.rs`. Extracting it makes the lifecycle testable (can we detect a stale socket? does shutdown clean up PID files?) and clarifies the initialization order.
 
@@ -323,7 +323,7 @@ historia-lifecycle    — daemon lifecycle (startup, shutdown, singleton)
     |                              |
 daemon-database             daemon-storage
                                    |
-                              daemon-core
+                              daemon-config-and-utils
 ```
 
 ### DaemonState After Refactoring

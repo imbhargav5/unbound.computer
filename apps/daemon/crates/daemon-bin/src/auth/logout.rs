@@ -1,30 +1,23 @@
 //! Authentication logout handler.
 
 use crate::app::DaemonState;
+use crate::auth::common::clear_login_side_effects;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 
 /// Register the auth logout handler.
 pub async fn register(server: &IpcServer, state: DaemonState) {
     server
         .register_handler(Method::AuthLogout, move |req| {
-            let secrets = state.secrets.clone();
-            let toshinori = state.toshinori.clone();
-            let message_sync = state.message_sync.clone();
+            let state = state.clone();
             async move {
-                let result = tokio::task::spawn_blocking(move || {
-                    let secrets = secrets.lock().unwrap();
-                    secrets.clear_supabase_session()
-                })
-                .await
-                .unwrap();
-
-                match result {
+                match state.auth_runtime.logout() {
                     Ok(()) => {
-                        toshinori.clear_context().await;
-                        message_sync.clear_context().await;
+                        clear_login_side_effects(&state).await;
                         Response::success(&req.id, serde_json::json!({ "status": "logged_out" }))
                     }
-                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
+                    Err(error) => {
+                        Response::error(&req.id, error_codes::INTERNAL_ERROR, &error.to_string())
+                    }
                 }
             }
         })

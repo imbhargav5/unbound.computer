@@ -20,6 +20,7 @@ enum DaemonMethod: String, Codable {
     // Authentication
     case authStatus = "auth.status"
     case authLogin = "auth.login"
+    case authCompleteSocial = "auth.complete_social"
     case authLogout = "auth.logout"
 
     // Sessions

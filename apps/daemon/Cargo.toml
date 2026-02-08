@@ -2,9 +2,10 @@
 resolver = "2"
 members = [
     "crates/armin",
-    "crates/daemon-core",
+    "crates/daemon-config-and-utils",
     "crates/daemon-storage",
     "crates/daemon-database",
+    "crates/ymir",
     "crates/daemon-auth",
     "crates/daemon-ipc",
     "crates/daemon-bin",
@@ -87,9 +88,10 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 
 # Local workspace crates
 armin = { path = "crates/armin" }
-daemon-core = { path = "crates/daemon-core" }
+daemon-config-and-utils = { path = "crates/daemon-config-and-utils" }
 daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }
+ymir = { path = "crates/ymir" }
 daemon-auth = { path = "crates/daemon-auth" }
 daemon-ipc = { path = "crates/daemon-ipc" }
 

@@ -11,11 +11,11 @@ path = "src/main.rs"
 
 [dependencies]
 armin = { workspace = true }
-daemon-core = { workspace = true }
+daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
 piccolo = { workspace = true }
-daemon-auth = { workspace = true }
+ymir = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }
 levi = { workspace = true }

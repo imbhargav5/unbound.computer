@@ -361,14 +361,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "daemon-core"
-version = "0.0.7"
+name = "daemon-config-and-utils"
+version = "0.0.12"
 dependencies = [
  "chacha20poly1305",
  "dirs",
- "git2",
  "hkdf",
  "observability",
+ "piccolo",
  "rand",
  "serde",
  "serde_json",
@@ -381,9 +381,9 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.7"
+version = "0.0.12"
 dependencies = [
- "daemon-core",
+ "daemon-config-and-utils",
  "interprocess",
  "serde",
  "serde_json",
@@ -1095,7 +1095,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.7"
+version = "0.0.12"
 dependencies = [
  "chrono",
  "dirs",
@@ -1201,6 +1201,17 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "piccolo"
+version = "0.0.12"
+dependencies = [
+ "git2",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+]
 
 [[package]]
 name = "pin-project-lite"
@@ -1839,13 +1850,13 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "unbound-cli"
-version = "0.0.7"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "chrono",
  "clap",
  "crossterm",
- "daemon-core",
+ "daemon-config-and-utils",
  "daemon-ipc",
  "futures",
  "observability",

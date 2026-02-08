@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 armin = { workspace = true }
-daemon-auth = { workspace = true }
-daemon-core = { workspace = true }
+ymir = { workspace = true }
+daemon-config-and-utils = { workspace = true }
 daemon-database = { workspace = true }
 daemon-storage = { workspace = true }
 toshinori = { workspace = true }

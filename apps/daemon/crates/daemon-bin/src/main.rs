@@ -9,7 +9,7 @@ mod types;
 mod utils;
 
 use clap::{Parser, Subcommand};
-use daemon_core::{init_logging, Config, Paths};
+use daemon_config_and_utils::{init_logging, Config, Paths};
 
 /// Unbound daemon command-line interface.
 #[derive(Parser)]

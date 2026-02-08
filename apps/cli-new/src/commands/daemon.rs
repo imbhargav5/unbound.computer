@@ -3,7 +3,7 @@
 use super::{get_ipc_client, is_daemon_running};
 use crate::output::{self, OutputFormat};
 use anyhow::Result;
-use daemon_core::Paths;
+use daemon_config_and_utils::Paths;
 use daemon_ipc::Method;
 use std::process::Command;
 

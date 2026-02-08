@@ -311,7 +311,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status_code = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to upsert coding session: {} - {}", status_code, body);
+            tracing::error!(
+                "Failed to upsert coding session: {} - {}",
+                status_code,
+                body
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to upsert coding session: {} - {}",
                 status_code, body
@@ -370,14 +374,21 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body_text = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to insert session secrets: {} - {}", status, body_text);
+            tracing::error!(
+                "Failed to insert session secrets: {} - {}",
+                status,
+                body_text
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to insert session secrets: {} - {}",
                 status, body_text
             )));
         }
 
-        tracing::info!("Successfully distributed session secrets to {} devices", body.len());
+        tracing::info!(
+            "Successfully distributed session secrets to {} devices",
+            body.len()
+        );
         Ok(())
     }
 

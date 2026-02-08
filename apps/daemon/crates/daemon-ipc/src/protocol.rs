@@ -17,6 +17,8 @@ pub enum Method {
     AuthStatus,
     #[serde(rename = "auth.login")]
     AuthLogin,
+    #[serde(rename = "auth.complete_social")]
+    AuthCompleteSocial,
     #[serde(rename = "auth.logout")]
     AuthLogout,
 
@@ -364,6 +366,7 @@ mod tests {
             (Method::Shutdown, "shutdown"),
             (Method::AuthStatus, "auth.status"),
             (Method::AuthLogin, "auth.login"),
+            (Method::AuthCompleteSocial, "auth.complete_social"),
             (Method::AuthLogout, "auth.logout"),
             (Method::SessionList, "session.list"),
             (Method::SessionCreate, "session.create"),

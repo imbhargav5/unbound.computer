@@ -18,6 +18,8 @@ pub enum Method {
     AuthStatus,
     #[serde(rename = "auth.login")]
     AuthLogin,
+    #[serde(rename = "auth.complete_social")]
+    AuthCompleteSocial,
     #[serde(rename = "auth.logout")]
     AuthLogout,
 
@@ -332,6 +334,7 @@ mod tests {
         let cases = vec![
             (Method::AuthStatus, "\"auth.status\""),
             (Method::AuthLogin, "\"auth.login\""),
+            (Method::AuthCompleteSocial, "\"auth.complete_social\""),
             (Method::AuthLogout, "\"auth.logout\""),
             (Method::SessionList, "\"session.list\""),
             (Method::SessionCreate, "\"session.create\""),
@@ -375,7 +378,7 @@ mod tests {
     fn method_roundtrip_all_variants() {
         let methods = vec![
             Method::Health, Method::Shutdown,
-            Method::AuthStatus, Method::AuthLogin, Method::AuthLogout,
+            Method::AuthStatus, Method::AuthLogin, Method::AuthCompleteSocial, Method::AuthLogout,
             Method::SessionList, Method::SessionCreate, Method::SessionGet, Method::SessionDelete,
             Method::MessageList, Method::MessageSend,
             Method::OutboxStatus,
@@ -792,10 +795,10 @@ mod tests {
 
     #[test]
     fn all_method_count() {
-        // Ensure we have exactly 34 methods by trying to serialize each
+        // Ensure we have exactly 36 methods by trying to serialize each
         let methods = vec![
             Method::Health, Method::Shutdown,
-            Method::AuthStatus, Method::AuthLogin, Method::AuthLogout,
+            Method::AuthStatus, Method::AuthLogin, Method::AuthCompleteSocial, Method::AuthLogout,
             Method::SessionList, Method::SessionCreate, Method::SessionGet, Method::SessionDelete,
             Method::MessageList, Method::MessageSend,
             Method::OutboxStatus,
@@ -808,6 +811,6 @@ mod tests {
             Method::GitStage, Method::GitUnstage, Method::GitDiscard,
             Method::TerminalRun, Method::TerminalStatus, Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 35);
+        assert_eq!(methods.len(), 36);
     }
 }

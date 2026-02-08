@@ -105,9 +105,9 @@ impl OAuthCallbackServer {
     /// The caller is responsible for opening the browser to the auth URL.
     pub async fn wait_for_callback(&self) -> AuthResult<OAuthResult> {
         let addr = format!("127.0.0.1:{}", self.port);
-        let listener = TcpListener::bind(&addr).await.map_err(|e| {
-            AuthError::OAuth(format!("Failed to bind to {}: {}", addr, e))
-        })?;
+        let listener = TcpListener::bind(&addr)
+            .await
+            .map_err(|e| AuthError::OAuth(format!("Failed to bind to {}: {}", addr, e)))?;
 
         info!(port = self.port, "OAuth callback server listening");
 
@@ -206,20 +206,10 @@ async fn handle_connection(
 
     // Build result
     let result = if let Some(err) = error {
-        send_response(
-            &mut writer,
-            200,
-            "OK",
-            &error_page(&err),
-        ).await?;
+        send_response(&mut writer, 200, "OK", &error_page(&err)).await?;
         OAuthResult::failure(err)
     } else if let (Some(token), Some(refresh), Some(uid)) = (access_token, refresh_token, user_id) {
-        send_response(
-            &mut writer,
-            200,
-            "OK",
-            &success_page(),
-        ).await?;
+        send_response(&mut writer, 200, "OK", &success_page()).await?;
         OAuthResult::success(token, refresh, uid, email, expires_in.unwrap_or(3600))
     } else {
         send_response(
@@ -227,7 +217,8 @@ async fn handle_connection(
             200,
             "OK",
             &error_page("Missing required parameters"),
-        ).await?;
+        )
+        .await?;
         OAuthResult::failure("Missing required parameters".to_string())
     };
 
@@ -275,7 +266,8 @@ fn success_page() -> String {
 
 /// Generate error page HTML.
 fn error_page(error: &str) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html>
 <head><title>Unbound - Authentication Failed</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 50px; background: #f5f5f5;">
@@ -285,7 +277,9 @@ fn error_page(error: &str) -> String {
 <p style="color: #888; font-size: 14px;">You can close this window and try again.</p>
 </div>
 </body>
-</html>"#, error)
+</html>"#,
+        error
+    )
 }
 
 /// Simple URL encoding.
@@ -424,7 +418,10 @@ mod tests {
     #[test]
     fn test_oauth_server_with_defaults() {
         let server = OAuthCallbackServer::with_defaults();
-        assert_eq!(server.callback_url(), format!("http://localhost:{}/callback", DEFAULT_OAUTH_PORT));
+        assert_eq!(
+            server.callback_url(),
+            format!("http://localhost:{}/callback", DEFAULT_OAUTH_PORT)
+        );
     }
 
     #[test]
