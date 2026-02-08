@@ -26,6 +26,9 @@ SUPABASE_URL = http://127.0.0.1:54321
 // This is the default key for local Supabase - safe to commit
 SUPABASE_PUBLISHABLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 
+// Set to 1 to recreate local SQLite database on next launch (debug only)
+// RECREATE_LOCAL_DB_ON_LAUNCH = 1
+
 // ================================
 // Staging URLs (uncomment to use)
 // ================================

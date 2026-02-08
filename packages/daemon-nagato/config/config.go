@@ -15,10 +15,11 @@ const (
 	DefaultDaemonTimeout = 15 * time.Second
 	DefaultSocketName    = "nagato.sock"
 	DefaultBaseDir       = ".unbound"
+	DefaultEventName     = "remote.command.v1"
 
 	// Environment variable names
 	EnvAblyKey        = "ABLY_API_KEY"
-	EnvNagatoSocket  = "NAGATO_SOCKET"
+	EnvNagatoSocket   = "NAGATO_SOCKET"
 	EnvDaemonTimeout  = "NAGATO_DAEMON_TIMEOUT"
 	EnvUnboundBaseDir = "UNBOUND_BASE_DIR"
 )
@@ -29,7 +30,7 @@ type Config struct {
 	AblyKey string
 
 	// DeviceID is the unique identifier for this device.
-	// Used to construct the channel name: remote-commands:{device_id}
+	// Used to construct the channel name: remote:{device_id}:commands
 	DeviceID string
 
 	// SocketPath is the path to the Unix domain socket for daemon communication.
@@ -43,8 +44,11 @@ type Config struct {
 	ConsumerName string
 
 	// ChannelName is the Ably channel to subscribe to.
-	// Format: remote-commands:{device_id}
+	// Format: remote:{device_id}:commands
 	ChannelName string
+
+	// EventName is the Ably event name to consume from the channel.
+	EventName string
 }
 
 // New creates a new Config with values from environment variables and defaults.
@@ -53,13 +57,14 @@ func New(deviceID string) (*Config, error) {
 		DeviceID:      deviceID,
 		ConsumerName:  "nagato-" + uuid.New().String(),
 		DaemonTimeout: DefaultDaemonTimeout,
+		EventName:     DefaultEventName,
 	}
 
 	// Ably API key (required)
 	cfg.AblyKey = os.Getenv(EnvAblyKey)
 
 	// Channel name derived from device ID
-	cfg.ChannelName = "remote-commands:" + deviceID
+	cfg.ChannelName = "remote:" + deviceID + ":commands"
 
 	// Socket path
 	if socketPath := os.Getenv(EnvNagatoSocket); socketPath != "" {
@@ -98,6 +103,9 @@ func (c *Config) Validate() error {
 	}
 	if c.SocketPath == "" {
 		return &ConfigError{Field: "SocketPath", Message: "socket path is required"}
+	}
+	if c.EventName == "" {
+		return &ConfigError{Field: "EventName", Message: "event name is required"}
 	}
 	return nil
 }

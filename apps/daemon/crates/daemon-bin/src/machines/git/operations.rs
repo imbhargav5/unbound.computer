@@ -7,7 +7,9 @@ pub use daemon_config_and_utils::{get_file_diff, get_status};
 
 /// Wrapper for get_status that takes a string path.
 #[allow(dead_code)]
-pub fn get_status_from_path(repo_path: &str) -> Result<daemon_config_and_utils::GitStatusResult, String> {
+pub fn get_status_from_path(
+    repo_path: &str,
+) -> Result<daemon_config_and_utils::GitStatusResult, String> {
     get_status(Path::new(repo_path))
 }
 

@@ -1,6 +1,8 @@
 // Package sideeffect defines the side-effect types that mirror Armin's SideEffect enum.
 package sideeffect
 
+import "encoding/json"
+
 // Type represents the type of side-effect.
 type Type string
 
@@ -30,6 +32,15 @@ const (
 // The JSON payload is decoded based on the Type field.
 type SideEffect struct {
 	Type Type `json:"type"`
+
+	// Channel overrides the default publisher channel when present.
+	Channel string `json:"channel,omitempty"`
+
+	// Event overrides the default event name when present.
+	Event string `json:"event,omitempty"`
+
+	// Payload is the optional data body to publish instead of the full envelope.
+	Payload json.RawMessage `json:"payload,omitempty"`
 
 	// Repository fields
 	RepositoryID string `json:"repository_id,omitempty"`

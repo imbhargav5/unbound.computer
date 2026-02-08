@@ -5,6 +5,10 @@ use std::path::PathBuf;
 
 /// Bundle identifier for the macOS app (shared database location).
 const BUNDLE_IDENTIFIER: &str = "com.unbound.macos";
+/// Falco socket filename under the base runtime directory.
+const FALCO_SOCKET_NAME: &str = "falco.sock";
+/// Nagato socket filename under the base runtime directory.
+const NAGATO_SOCKET_NAME: &str = "nagato.sock";
 
 /// Manages file system paths for the daemon.
 #[derive(Debug, Clone)]
@@ -32,7 +36,10 @@ impl Paths {
             .join("Application Support")
             .join(BUNDLE_IDENTIFIER);
 
-        Ok(Self { base_dir, app_support_dir })
+        Ok(Self {
+            base_dir,
+            app_support_dir,
+        })
     }
 
     /// Create a new Paths instance with a custom base directory.
@@ -69,6 +76,16 @@ impl Paths {
         self.base_dir.join("daemon.pid")
     }
 
+    /// Get the Falco socket path (~/.unbound/falco.sock).
+    pub fn falco_socket_file(&self) -> PathBuf {
+        self.base_dir.join(FALCO_SOCKET_NAME)
+    }
+
+    /// Get the Nagato socket path (~/.unbound/nagato.sock).
+    pub fn nagato_socket_file(&self) -> PathBuf {
+        self.base_dir.join(NAGATO_SOCKET_NAME)
+    }
+
     /// Get the logs directory (~/.unbound/logs).
     pub fn logs_dir(&self) -> PathBuf {
         self.base_dir.join("logs")
@@ -97,7 +114,6 @@ impl Default for Paths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::tempdir;
 
     #[test]
@@ -110,6 +126,8 @@ mod tests {
         assert_eq!(paths.database_file(), base.join("unbound.sqlite"));
         assert_eq!(paths.socket_file(), base.join("daemon.sock"));
         assert_eq!(paths.pid_file(), base.join("daemon.pid"));
+        assert_eq!(paths.falco_socket_file(), base.join("falco.sock"));
+        assert_eq!(paths.nagato_socket_file(), base.join("nagato.sock"));
         assert_eq!(paths.logs_dir(), base.join("logs"));
         assert_eq!(paths.daemon_log_file(), base.join("logs/daemon.log"));
     }
@@ -168,6 +186,8 @@ mod tests {
         assert!(paths.database_file().ends_with("unbound.sqlite"));
         assert!(paths.socket_file().ends_with("daemon.sock"));
         assert!(paths.pid_file().ends_with("daemon.pid"));
+        assert!(paths.falco_socket_file().ends_with("falco.sock"));
+        assert!(paths.nagato_socket_file().ends_with("nagato.sock"));
         assert!(paths.logs_dir().ends_with("logs"));
         assert!(paths.daemon_log_file().ends_with("daemon.log"));
     }

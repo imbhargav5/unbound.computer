@@ -104,18 +104,29 @@ func run() error {
 	}
 	defer pub.Close()
 
-	// Connect to Ably
-	if err := pub.Connect(ctx); err != nil {
-		return fmt.Errorf("failed to connect to Ably: %w", err)
-	}
-
-	// Create and start server
+	// Create and start server first so daemon can connect immediately.
+	// Ably connectivity can come up shortly after.
 	srv := server.New(cfg.SocketPath, pub, logger.Named("server"))
-
 	if err := srv.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	defer srv.Close()
+
+	// Connect to Ably asynchronously so Falco socket readiness is not gated on
+	// external network conditions.
+	go func() {
+		logger.Info("connecting Ably publisher in background")
+		if err := pub.Connect(ctx); err != nil {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			logger.Error("failed to connect to Ably publisher", zap.Error(err))
+			return
+		}
+		logger.Info("Ably publisher connected")
+	}()
 
 	logger.Info("falco ready",
 		zap.String("socket", cfg.SocketPath),

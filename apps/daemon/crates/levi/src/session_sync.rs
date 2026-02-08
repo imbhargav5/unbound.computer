@@ -48,12 +48,12 @@
 //! ```
 
 use base64::Engine;
-use ymir::{CodingSessionSecretRecord, SupabaseClient};
 use daemon_database::{queries, AsyncDatabase};
 use daemon_storage::SecretsManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
+use ymir::{CodingSessionSecretRecord, SupabaseClient};
 
 /// Base64 encoding engine for keys and encrypted data.
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
@@ -237,9 +237,10 @@ impl SessionSyncService {
 
         // Get repository from local database
         let repo_id_owned = repository_id.to_string();
-        let repo = self.db.call(move |conn| {
-            queries::get_repository(conn, &repo_id_owned)
-        }).await
+        let repo = self
+            .db
+            .call(move |conn| queries::get_repository(conn, &repo_id_owned))
+            .await
             .map_err(|e| SyncError::Supabase(e.to_string()))?
             .ok_or_else(|| SyncError::RepositoryNotFound(repository_id.to_string()))?;
 
@@ -250,10 +251,10 @@ impl SessionSyncService {
                 &device_id,
                 &repo.name,
                 &repo.path,
-                None,   // remote_url - TODO: add to local DB
-                None,   // default_branch - TODO: add to local DB
-                false,  // is_worktree
-                None,   // worktree_branch
+                None,  // remote_url - TODO: add to local DB
+                None,  // default_branch - TODO: add to local DB
+                false, // is_worktree
+                None,  // worktree_branch
                 &access_token,
             )
             .await
@@ -294,10 +295,10 @@ impl SessionSyncService {
                 &device_id,
                 repository_id,
                 status,
-                None,   // current_branch
-                None,   // working_directory
-                false,  // is_worktree
-                None,   // worktree_path
+                None,  // current_branch
+                None,  // working_directory
+                false, // is_worktree
+                None,  // worktree_path
                 &access_token,
             )
             .await
@@ -698,7 +699,9 @@ mod tests {
         // Need a real AsyncDatabase — create via temp file
         let tmp = std::env::temp_dir().join(format!("levi_test_{}.db", std::process::id()));
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+        let db = rt
+            .block_on(daemon_database::AsyncDatabase::open(&tmp))
+            .unwrap();
 
         let service = SessionSyncService::new(
             supabase_client,
@@ -729,7 +732,9 @@ mod tests {
 
         let tmp = std::env::temp_dir().join(format!("levi_test_nd_{}.db", std::process::id()));
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+        let db = rt
+            .block_on(daemon_database::AsyncDatabase::open(&tmp))
+            .unwrap();
 
         // Store a fake session so we get past the auth check
         {
@@ -772,7 +777,9 @@ mod tests {
 
         let tmp = std::env::temp_dir().join(format!("levi_test_ok_{}.db", std::process::id()));
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+        let db = rt
+            .block_on(daemon_database::AsyncDatabase::open(&tmp))
+            .unwrap();
 
         {
             let sm = secrets.lock().unwrap();
@@ -820,7 +827,9 @@ mod tests {
 
         let tmp = std::env::temp_dir().join(format!("levi_test_dpk_{}.db", std::process::id()));
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let db = rt.block_on(daemon_database::AsyncDatabase::open(&tmp)).unwrap();
+        let db = rt
+            .block_on(daemon_database::AsyncDatabase::open(&tmp))
+            .unwrap();
 
         {
             let sm = secrets.lock().unwrap();

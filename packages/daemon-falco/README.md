@@ -25,7 +25,7 @@ When Armin commits a fact to SQLite, it emits a side-effect. The daemon forwards
 │                            Falco                                     │
 │                                                                      │
 │  • Receives SideEffectFrame from daemon                             │
-│  • Publishes to device-specific Ably channel                        │
+│  • Publishes to a default channel or per-message override channel   │
 │  • Sends PublishAckFrame back to daemon                             │
 │  • Handles backpressure and retries                                 │
 │                                                                      │
@@ -35,13 +35,13 @@ When Armin commits a fact to SQLite, it emits a side-effect. The daemon forwards
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                            Ably                                      │
-│                 Channel: device-events:{device_id}                   │
+│ Default channel: device-events:{device_id}                           │
+│ Override channel example: session:{session_id}:conversation          │
 │                                                                      │
-│  ┌─────────────┬─────────────┬─────────────┬─────────────┐         │
-│  │ SessionCreated │ MessageAppended │ AgentStatusChanged │  ...   │
-│  │  {session_id}  │ {session_id,    │ {session_id,       │         │
-│  │                │  message_id}    │  status}           │         │
-│  └─────────────┴─────────────┴─────────────┴─────────────┘         │
+│  ┌───────────────┬───────────────────────────────┬───────────────┐  │
+│  │ session_created │ conversation.message.v1      │ ...           │  │
+│  │ repository_...  │ session_updated              │               │  │
+│  └───────────────┴───────────────────────────────┴───────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,6 +61,35 @@ Falco publishes these side-effects to Ably:
 | `AgentStatusChanged` | Agent status changed (idle/running/waiting/error) |
 | `OutboxEventsSent` | Outbox events were sent |
 | `OutboxEventsAcked` | Outbox events were acknowledged |
+
+## Publish Envelope Overrides
+
+Falco accepts a standard side-effect payload and supports three optional overrides:
+
+- `channel`: publish to a channel different from Falco's default `device-events:{device_id}`
+- `event`: publish with a custom event name instead of `type`
+- `payload`: publish this raw JSON body instead of the full side-effect envelope
+
+This is used by Toshinori's Ably hot path for conversation messages. Example envelope sent to Falco:
+
+```json
+{
+  "type": "message_appended",
+  "channel": "session:session-123:conversation",
+  "event": "conversation.message.v1",
+  "payload": {
+    "schema_version": 1,
+    "session_id": "session-123",
+    "message_id": "message-456",
+    "sequence_number": 42,
+    "sender_device_id": "device-abc",
+    "created_at_ms": 1739030400000,
+    "encryption_alg": "chacha20poly1305",
+    "content_encrypted": "...base64...",
+    "content_nonce": "...base64..."
+  }
+}
+```
 
 ## Binary Protocol
 

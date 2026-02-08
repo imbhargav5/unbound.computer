@@ -29,8 +29,8 @@ The **main binary entry point** for the Unbound daemon. It wires together all sp
 │              │                                                       │
 │     ┌────────┼────────┐                                             │
 │     ▼        ▼        ▼                                             │
-│  Toshinori  Levi   Gyomei                                           │
-│  (sync)    (msgs)  (files)                                          │
+│  Toshinori  Levi  AblyRealtime  Gyomei                              │
+│  (sink)    (cold)   (hot)      (files)                              │
 └─────────────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -60,10 +60,15 @@ On `start`, the daemon boots services in dependency order:
 6. **Database** - Async SQLite executor
 7. **SecretsManager** - Platform keychain access
 8. **SupabaseClient** - REST API client
-9. **Levi** - Message sync worker
-10. **Gyomei** - Rope-backed file I/O with cache
-11. **Handler registration** - Wire IPC methods to handlers
-12. **Listen** - Accept client connections
+9. **Levi** - Supabase message sync worker (cold path)
+10. **AblyRealtimeSyncer** - Ably hot-path message publish worker (when `ABLY_API_KEY` is set)
+11. **Gyomei** - Rope-backed file I/O with cache
+12. **Handler registration** - Wire IPC methods to handlers
+13. **Listen** - Accept client connections
+
+When Ably hot-path is enabled, the daemon also ensures a Falco sidecar is available.
+It will use an existing Falco socket if present, otherwise it spawns the Falco binary
+packaged alongside the daemon and waits for `~/.unbound/falco.sock` before enabling hot-sync.
 
 ## Shared State
 
@@ -79,6 +84,7 @@ All handlers share a `DaemonState` (cheap to clone via Arc):
 | `paths` | `Arc<Paths>` | Socket, PID, database paths |
 | `toshinori` | `Arc<ToshinoriSink>` | Supabase change sink |
 | `message_sync` | `Arc<Levi>` | Message sync worker |
+| `realtime_message_sync` | `Option<Arc<AblyRealtimeSyncer>>` | Ably hot-path message sync worker |
 | `supabase_client` | `Arc<SupabaseClient>` | REST API for device management |
 | `session_sync` | `Arc<SessionSyncService>` | Background session sync |
 | `session_secret_cache` | `SessionSecretCache` | In-memory secret lookup |
@@ -108,11 +114,14 @@ The `armin_adapter` composes two sinks so every Armin commit fans out:
 
 ```
 Armin commit
-    ├──► DaemonSideEffectSink  → broadcast to IPC clients
-    └──► ToshinoriSink         → sync to Supabase
+    ├──► DaemonSideEffectSink  -> broadcast to IPC clients
+    └──► ToshinoriSink
+            ├──► Levi (cold path) -> Supabase messages/session tables
+            └──► AblyRealtimeSyncer (hot path) -> Falco -> Ably
 ```
 
-Events include `SessionCreated`, `SessionClosed`, `MessageAppended`, and `RepositoryDeleted`.
+`MessageAppended` is fanned out to both cold and hot paths. Hot path uses channel
+`session:{session_id}:conversation` with event `conversation.message.v1`.
 
 ## Crate Structure
 
@@ -169,6 +178,7 @@ This crate depends on nearly every other workspace crate:
 - **ymir** - OAuth flow and token/session management
 - **toshinori** - Supabase sync sink
 - **levi** - Message sync worker
+- **daemon-falco** (runtime process) - Ably publisher for hot-path payloads
 - **deku** - Claude CLI process manager
 - **piccolo** - Native git operations (libgit2)
 - **gyomei** - Rope-backed file I/O

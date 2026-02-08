@@ -55,21 +55,28 @@ async fn register_terminal_run(server: &IpcServer, state: DaemonState) {
                 } else {
                     // Get from session's repository
                     let session_id_owned = session_id.clone();
-                    let result = state.db.call(move |conn| {
-                        let session = queries::get_session(conn, &session_id_owned)?
-                            .ok_or_else(|| daemon_database::DatabaseError::NotFound("Session not found".to_string()))?;
-                        let repo = queries::get_repository(conn, &session.repository_id)?
-                            .ok_or_else(|| daemon_database::DatabaseError::NotFound("Repository not found".to_string()))?;
-                        Ok(session.worktree_path.unwrap_or(repo.path))
-                    }).await;
+                    let result = state
+                        .db
+                        .call(move |conn| {
+                            let session = queries::get_session(conn, &session_id_owned)?
+                                .ok_or_else(|| {
+                                    daemon_database::DatabaseError::NotFound(
+                                        "Session not found".to_string(),
+                                    )
+                                })?;
+                            let repo = queries::get_repository(conn, &session.repository_id)?
+                                .ok_or_else(|| {
+                                    daemon_database::DatabaseError::NotFound(
+                                        "Repository not found".to_string(),
+                                    )
+                                })?;
+                            Ok(session.worktree_path.unwrap_or(repo.path))
+                        })
+                        .await;
                     match result {
                         Ok(path) => path,
                         Err(daemon_database::DatabaseError::NotFound(msg)) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::NOT_FOUND,
-                                &msg,
-                            )
+                            return Response::error(&req.id, error_codes::NOT_FOUND, &msg)
                         }
                         Err(e) => {
                             return Response::error(

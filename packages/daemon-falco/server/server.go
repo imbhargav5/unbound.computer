@@ -190,12 +190,36 @@ func (s *Server) processFrame(ctx context.Context, conn net.Conn, data []byte) {
 		return
 	}
 
-	// Publish to Ably
-	err = s.publisher.PublishJSON(ctx, string(effect.Type), frame.JSONPayload)
+	eventName := string(effect.Type)
+	if effect.Event != "" {
+		eventName = effect.Event
+	}
+	if eventName == "" {
+		err := errors.New("missing event name in side-effect payload")
+		s.logger.Error("failed to publish side-effect",
+			zap.String("effect_id", frame.EffectID.String()),
+			zap.Error(err),
+		)
+		s.sendAck(conn, frame.EffectID, protocol.Failed, err.Error())
+		return
+	}
+
+	publishPayload := frame.JSONPayload
+	if len(effect.Payload) > 0 {
+		publishPayload = effect.Payload
+	}
+
+	// Publish to Ably (default or override channel)
+	if effect.Channel != "" {
+		err = s.publisher.PublishJSONToChannel(ctx, effect.Channel, eventName, publishPayload)
+	} else {
+		err = s.publisher.PublishJSON(ctx, eventName, publishPayload)
+	}
 	if err != nil {
 		s.logger.Error("failed to publish side-effect",
 			zap.String("effect_id", frame.EffectID.String()),
-			zap.String("type", string(effect.Type)),
+			zap.String("channel", effect.Channel),
+			zap.String("event", eventName),
 			zap.Error(err),
 		)
 		s.sendAck(conn, frame.EffectID, protocol.Failed, err.Error())
@@ -204,7 +228,8 @@ func (s *Server) processFrame(ctx context.Context, conn net.Conn, data []byte) {
 
 	s.logger.Info("published side-effect",
 		zap.String("effect_id", frame.EffectID.String()),
-		zap.String("type", string(effect.Type)),
+		zap.String("channel", effect.Channel),
+		zap.String("event", eventName),
 		zap.String("session_id", effect.SessionID),
 	)
 

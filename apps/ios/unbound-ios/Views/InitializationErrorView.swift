@@ -10,6 +10,17 @@ import SwiftUI
 struct InitializationErrorView: View {
     let error: Error
     let onRetry: () -> Void
+    let onRecreateDatabase: (() -> Void)?
+
+    init(
+        error: Error,
+        onRetry: @escaping () -> Void,
+        onRecreateDatabase: (() -> Void)? = nil
+    ) {
+        self.error = error
+        self.onRetry = onRetry
+        self.onRecreateDatabase = onRecreateDatabase
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -45,6 +56,13 @@ struct InitializationErrorView: View {
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.accent)
 
+            if let onRecreateDatabase {
+                Button("Recreate Local Database and Retry", role: .destructive) {
+                    onRecreateDatabase()
+                }
+                .buttonStyle(.bordered)
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -59,6 +77,7 @@ struct InitializationErrorView: View {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Database migration failed"]
         ),
-        onRetry: {}
+        onRetry: {},
+        onRecreateDatabase: {}
     )
 }

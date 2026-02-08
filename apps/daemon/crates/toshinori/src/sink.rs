@@ -1,7 +1,7 @@
 //! Toshinori SideEffectSink implementation.
 //!
 //! This module provides the main `SideEffectSink` that syncs Armin's
-//! side-effects to Supabase for cross-device visibility.
+//! side-effects to Supabase and dispatches hot-path message sync notifications.
 
 use crate::client::SupabaseClient;
 use armin::{SideEffect, SideEffectSink};
@@ -52,7 +52,7 @@ pub trait SessionMetadataProvider: Send + Sync {
     fn get_session_metadata(&self, session_id: &str) -> Option<SessionMetadata>;
 }
 
-/// Represents a message that needs to be synced to Supabase.
+/// Represents a message that needs to be synced by a downstream worker.
 ///
 /// Encapsulates all the information needed to enqueue a message for
 /// async sync processing by the message syncer component.
@@ -70,10 +70,10 @@ pub struct MessageSyncRequest {
 
 /// Trait for async message sync processing.
 ///
-/// Implementors (e.g., Levi) handle the actual encryption and upload
-/// of messages to Supabase, potentially with batching and retry logic.
+/// Implementors (e.g., Levi/Ably workers) handle encryption and delivery
+/// with their own batching/retry strategies.
 pub trait MessageSyncer: Send + Sync {
-    /// Enqueues a message for async sync to Supabase.
+    /// Enqueues a message for async sync.
     ///
     /// The implementation should handle encryption, batching, and retries.
     fn enqueue(&self, request: MessageSyncRequest);
@@ -97,6 +97,8 @@ pub struct ToshinoriSink {
     metadata_provider: Arc<RwLock<Option<Arc<dyn SessionMetadataProvider>>>>,
     /// Optional message syncer for Supabase message writes.
     message_syncer: Arc<RwLock<Option<Arc<dyn MessageSyncer>>>>,
+    /// Optional realtime message syncer for Ably hot-path publish.
+    realtime_message_syncer: Arc<RwLock<Option<Arc<dyn MessageSyncer>>>>,
     /// Tokio runtime handle for spawning async tasks.
     runtime: tokio::runtime::Handle,
 }
@@ -118,6 +120,7 @@ impl ToshinoriSink {
             context: Arc::new(RwLock::new(None)),
             metadata_provider: Arc::new(RwLock::new(None)),
             message_syncer: Arc::new(RwLock::new(None)),
+            realtime_message_syncer: Arc::new(RwLock::new(None)),
             runtime,
         }
     }
@@ -176,6 +179,18 @@ impl ToshinoriSink {
         *guard = None;
     }
 
+    /// Registers a realtime message syncer for hot-path publish (e.g., Ably).
+    pub async fn set_realtime_message_syncer(&self, syncer: Arc<dyn MessageSyncer>) {
+        let mut guard = self.realtime_message_syncer.write().await;
+        *guard = Some(syncer);
+    }
+
+    /// Removes the realtime message syncer reference.
+    pub async fn clear_realtime_message_syncer(&self) {
+        let mut guard = self.realtime_message_syncer.write().await;
+        *guard = None;
+    }
+
     /// Checks if Supabase sync is currently enabled.
     ///
     /// Returns true if a sync context has been set (user is authenticated).
@@ -194,6 +209,7 @@ impl ToshinoriSink {
         let context = self.context.clone();
         let metadata_provider = self.metadata_provider.clone();
         let message_syncer = self.message_syncer.clone();
+        let realtime_message_syncer = self.realtime_message_syncer.clone();
 
         self.runtime.spawn(async move {
             // Early exit if no sync context is configured
@@ -306,24 +322,39 @@ impl ToshinoriSink {
                     sequence_number,
                     content,
                 } => {
-                    let syncer = {
+                    let supabase_syncer = {
                         let guard = message_syncer.read().await;
                         guard.as_ref().cloned()
                     };
+                    let realtime_syncer = {
+                        let guard = realtime_message_syncer.read().await;
+                        guard.as_ref().cloned()
+                    };
 
-                    if let Some(syncer) = syncer {
-                        syncer.enqueue(MessageSyncRequest {
-                            session_id: session_id.as_str().to_string(),
-                            message_id: message_id.as_str().to_string(),
-                            sequence_number: *sequence_number,
-                            content: content.clone(),
-                        });
+                    let request = MessageSyncRequest {
+                        session_id: session_id.as_str().to_string(),
+                        message_id: message_id.as_str().to_string(),
+                        sequence_number: *sequence_number,
+                        content: content.clone(),
+                    };
+
+                    let mut dispatched = false;
+                    if let Some(syncer) = supabase_syncer {
+                        syncer.enqueue(request.clone());
+                        dispatched = true;
+                    }
+                    if let Some(syncer) = realtime_syncer {
+                        syncer.enqueue(request);
+                        dispatched = true;
+                    }
+
+                    if dispatched {
                         Ok(())
                     } else {
                         debug!(
                             session_id = session_id.as_str(),
                             message_id = message_id.as_str(),
-                            "Toshinori: MessageAppended (no message syncer)"
+                            "Toshinori: MessageAppended (no message syncers)"
                         );
                         Ok(())
                     }
@@ -337,7 +368,6 @@ impl ToshinoriSink {
                     );
                     Ok(())
                 }
-
             };
 
             // Log errors but don't fail

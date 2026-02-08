@@ -16,10 +16,12 @@
 //! - **Idempotent**: Uses upsert operations for safe retries
 //! - **Minimal coupling**: Only depends on Armin's public types
 
+mod ably_sync;
 mod client;
 mod error;
 mod sink;
 
+pub use ably_sync::{AblyArminAccess, AblyArminHandle, AblyRealtimeSyncer, AblySyncConfig};
 pub use client::{MessageUpsert, SupabaseClient};
 pub use error::{ToshinoriError, ToshinoriResult};
 pub use sink::{

@@ -1,5 +1,6 @@
 //! Daemon initialization.
 
+use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
@@ -12,8 +13,10 @@ use gyomei::Gyomei;
 use levi::SessionSyncService;
 use levi::{Levi, LeviConfig};
 use std::collections::HashMap;
+use std::process::Child;
 use std::sync::{Arc, Mutex};
-use toshinori::{SyncContext, ToshinoriSink};
+use std::time::Duration;
+use toshinori::{AblyRealtimeSyncer, AblySyncConfig, SyncContext, ToshinoriSink};
 use tracing::{debug, info, warn};
 use ymir::{DaemonAuthRuntime, SessionManager, SupabaseClient};
 
@@ -162,6 +165,9 @@ pub async fn run_daemon(
         info!("Device identity loaded for multi-device session secret distribution");
     }
 
+    // Keep a copy for sidecar startup decisions before moving into shared state.
+    let local_device_id = device_id.clone();
+
     // Create shared Arc values for reuse
     let device_id_arc = Arc::new(Mutex::new(device_id));
     let device_private_key_arc = Arc::new(Mutex::new(device_private_key));
@@ -189,6 +195,77 @@ pub async fn run_daemon(
         db_encryption_key_arc.clone(),
     ));
 
+    let mut initial_falco_process: Option<Child> = None;
+    let initial_realtime_message_sync = if let Some(ably_api_key) = config.ably_api_key.as_deref() {
+        let falco_socket_path = paths.falco_socket_file();
+
+        if !falco_socket_path.exists() {
+            match local_device_id.as_deref() {
+                Some(device_id) => match start_falco_sidecar(
+                    &paths,
+                    device_id,
+                    ably_api_key,
+                    &config.log_level,
+                    Duration::from_secs(5),
+                    "daemon_startup",
+                )
+                .await
+                {
+                    Ok(child) => {
+                        info!(
+                            socket = %falco_socket_path.display(),
+                            "Started Falco sidecar for Ably hot-path sync"
+                        );
+                        initial_falco_process = Some(child);
+                    }
+                    Err(err) => warn!(
+                        error = %err,
+                        "Falco did not become ready; disabling Ably hot-path message sync"
+                    ),
+                },
+                None => warn!(
+                    "Ably API key configured but device ID is missing; disabling Ably hot-path message sync"
+                ),
+            }
+        } else {
+            info!(
+                socket = %falco_socket_path.display(),
+                "Using existing Falco socket for Ably hot-path sync"
+            );
+        }
+
+        if falco_socket_path.exists() {
+            match ensure_socket_connectable(&falco_socket_path).await {
+                Ok(()) => {
+                    let armin_handle: toshinori::AblyArminHandle = armin.clone();
+                    let syncer = Arc::new(AblyRealtimeSyncer::new(
+                        AblySyncConfig::default(),
+                        armin_handle,
+                        db_encryption_key_arc.clone(),
+                        falco_socket_path,
+                    ));
+                    toshinori.set_realtime_message_syncer(syncer.clone()).await;
+                    syncer.start();
+                    info!("Initialized Ably hot-path message sync worker");
+                    Some(syncer)
+                }
+                Err(err) => {
+                    warn!(
+                        socket = %falco_socket_path.display(),
+                        error = %err,
+                        "Falco socket exists but is not connectable; disabling Ably hot-path message sync"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        info!("Ably API key not configured, skipping Ably hot-path sync worker");
+        None
+    };
+
     // Connect Toshinori to Levi for message sync
     toshinori.set_message_syncer(message_sync.clone()).await;
 
@@ -203,7 +280,10 @@ pub async fn run_daemon(
             device_id: sync.device_id,
         };
         toshinori.set_context(sync_context.clone()).await;
-        message_sync.set_context(sync_context).await;
+        message_sync.set_context(sync_context.clone()).await;
+        if let Some(syncer) = &initial_realtime_message_sync {
+            syncer.set_context(sync_context.clone()).await;
+        }
         info!("Initialized Supabase sync contexts from persisted auth session");
     }
 
@@ -229,6 +309,8 @@ pub async fn run_daemon(
         session_sync,
         toshinori,
         message_sync,
+        realtime_message_sync: Arc::new(tokio::sync::RwLock::new(initial_realtime_message_sync)),
+        falco_process: Arc::new(Mutex::new(initial_falco_process)),
         armin,
         gyomei,
     };
@@ -256,7 +338,10 @@ pub async fn run_daemon(
             let pending = match armin_ref.get_sessions_pending_sync(1000) {
                 Ok(p) => p,
                 Err(e) => {
-                    warn!("Failed to query pending sync sessions for reconciliation: {}", e);
+                    warn!(
+                        "Failed to query pending sync sessions for reconciliation: {}",
+                        e
+                    );
                     return;
                 }
             };
@@ -278,7 +363,10 @@ pub async fn run_daemon(
                 let session = match armin_ref.get_session(&session_pending.session_id) {
                     Ok(Some(s)) => s,
                     Ok(None) => {
-                        warn!(session_id, "Pending sync session not found locally, skipping");
+                        warn!(
+                            session_id,
+                            "Pending sync session not found locally, skipping"
+                        );
                         continue;
                     }
                     Err(e) => {
@@ -311,6 +399,8 @@ pub async fn run_daemon(
         });
     }
 
+    let runtime_state = state.clone();
+
     // Register handlers
     register_handlers(&ipc_server, state).await;
 
@@ -321,6 +411,10 @@ pub async fn run_daemon(
     );
 
     let server_result = ipc_server.run().await;
+
+    if let Some(mut child) = runtime_state.falco_process.lock().unwrap().take() {
+        terminate_child(&mut child, "falco");
+    }
 
     // Cleanup
     let _ = std::fs::remove_file(paths.pid_file());

@@ -16,10 +16,13 @@ package courier
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/unbound-computer/daemon-nagato/client"
@@ -32,11 +35,28 @@ const (
 	// Error recovery delays
 	ConnectionErrorDelay = time.Second
 	ProtocolErrorDelay   = 100 * time.Millisecond
+
+	// Event emitted by the machine after command handling.
+	RemoteCommandAckEvent = "remote.command.ack.v1"
+)
+
+const (
+	AckStatusAccepted = "accepted"
+	AckStatusRejected = "rejected"
+	AckStatusTimeout  = "timeout"
 )
 
 var (
 	ErrShutdown = errors.New("courier shutdown")
 )
+
+type commandAckPayload struct {
+	SchemaVersion int    `json:"schema_version"`
+	CommandID     string `json:"command_id"`
+	Status        string `json:"status"`
+	CreatedAtMS   int64  `json:"created_at_ms"`
+	ResultB64     string `json:"result_b64,omitempty"`
+}
 
 // Courier orchestrates message flow between Ably and the daemon.
 type Courier struct {
@@ -60,6 +80,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*Courier, error) {
 	cons, err := consumer.New(consumer.Options{
 		AblyKey:     cfg.AblyKey,
 		ChannelName: cfg.ChannelName,
+		EventName:   cfg.EventName,
 		Logger:      logger.Named("consumer"),
 		BufferSize:  1, // One-in-flight
 	})
@@ -106,6 +127,7 @@ func (c *Courier) Run(ctx context.Context) error {
 	c.logger.Info("starting courier",
 		zap.String("device_id", c.cfg.DeviceID),
 		zap.String("channel", c.cfg.ChannelName),
+		zap.String("event", c.cfg.EventName),
 		zap.String("socket", c.cfg.SocketPath),
 		zap.String("consumer", c.cfg.ConsumerName),
 		zap.Duration("timeout", c.cfg.DaemonTimeout),
@@ -187,7 +209,7 @@ func (c *Courier) processMessage(ctx context.Context, msg *consumer.Message) err
 	}
 
 	// Send to daemon and wait for decision
-	response, err := c.daemon.SendAndWait(ctx, msg.Payload)
+	commandID, response, err := c.daemon.SendAndWait(ctx, msg.Payload)
 	if err != nil {
 		// Check if it's a timeout (fail-open)
 		if errors.Is(err, client.ErrTimeout) {
@@ -195,6 +217,7 @@ func (c *Courier) processMessage(ctx context.Context, msg *consumer.Message) err
 				zap.String("message_id", msg.ID),
 				zap.Duration("timeout", c.cfg.DaemonTimeout),
 			)
+			c.publishAck(ctx, commandID, msg.ID, AckStatusTimeout, nil)
 			// Fail-open: consider message processed to prevent blocking
 			// The daemon may have processed it but failed to respond
 			return nil
@@ -214,11 +237,13 @@ func (c *Courier) processMessage(ctx context.Context, msg *consumer.Message) err
 		c.logger.Info("daemon processed message successfully",
 			zap.String("message_id", msg.ID),
 		)
+		c.publishAck(ctx, response.CommandID, msg.ID, AckStatusAccepted, response.Result)
 
 	case protocol.DoNotAck:
 		c.logger.Warn("daemon rejected message",
 			zap.String("message_id", msg.ID),
 		)
+		c.publishAck(ctx, response.CommandID, msg.ID, AckStatusRejected, response.Result)
 		// Message may be redelivered depending on Ably configuration
 
 	default:
@@ -229,6 +254,51 @@ func (c *Courier) processMessage(ctx context.Context, msg *consumer.Message) err
 	}
 
 	return nil
+}
+
+func (c *Courier) publishAck(
+	ctx context.Context,
+	commandID uuid.UUID,
+	ablyMessageID string,
+	status string,
+	result []byte,
+) {
+	if commandID == uuid.Nil {
+		c.logger.Warn("skipping command ack publish due to missing command_id",
+			zap.String("ably_message_id", ablyMessageID),
+			zap.String("status", status),
+		)
+		return
+	}
+
+	payload := commandAckPayload{
+		SchemaVersion: 1,
+		CommandID:     commandID.String(),
+		Status:        status,
+		CreatedAtMS:   time.Now().UnixMilli(),
+	}
+	if len(result) > 0 {
+		payload.ResultB64 = base64.StdEncoding.EncodeToString(result)
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		c.logger.Warn("failed to encode command ack payload",
+			zap.String("ably_message_id", ablyMessageID),
+			zap.String("command_id", commandID.String()),
+			zap.Error(err),
+		)
+		return
+	}
+
+	if err := c.consumer.Publish(ctx, RemoteCommandAckEvent, encoded); err != nil {
+		c.logger.Warn("failed to publish command ack",
+			zap.String("ably_message_id", ablyMessageID),
+			zap.String("command_id", commandID.String()),
+			zap.String("status", status),
+			zap.Error(err),
+		)
+	}
 }
 
 // Stop gracefully stops the courier.

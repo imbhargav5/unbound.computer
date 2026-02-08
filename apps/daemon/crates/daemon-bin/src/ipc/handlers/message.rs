@@ -112,7 +112,11 @@ async fn register_message_send(server: &IpcServer, state: DaemonState) {
                 ) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to append message: {}", e));
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to append message: {}", e),
+                        );
                     }
                 };
 

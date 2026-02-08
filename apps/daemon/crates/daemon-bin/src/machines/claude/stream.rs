@@ -31,7 +31,10 @@ pub async fn handle_claude_events(
     let mut event_count = 0;
 
     // Set agent status to running via Armin
-    if let Err(e) = state.armin.update_agent_status(&armin_session_id, AgentStatus::Running) {
+    if let Err(e) = state
+        .armin
+        .update_agent_status(&armin_session_id, AgentStatus::Running)
+    {
         warn!(error = %e, "Failed to set agent status to running");
     }
     info!("Agent status set to RUNNING");
@@ -39,7 +42,9 @@ pub async fn handle_claude_events(
     // Process events from the stream
     while let Some(event) = stream.next().await {
         match &event {
-            ClaudeEvent::Json { event_type, raw, .. } => {
+            ClaudeEvent::Json {
+                event_type, raw, ..
+            } => {
                 event_count += 1;
 
                 // Store raw JSON via Armin
@@ -58,7 +63,10 @@ pub async fn handle_claude_events(
                 debug!(event_num = event_count, event_type = %event_type, "event");
             }
 
-            ClaudeEvent::SystemWithSessionId { claude_session_id, raw } => {
+            ClaudeEvent::SystemWithSessionId {
+                claude_session_id,
+                raw,
+            } => {
                 event_count += 1;
 
                 // Store raw JSON via Armin
@@ -72,7 +80,10 @@ pub async fn handle_claude_events(
                 }
 
                 // Update claude_session_id via Armin
-                if let Err(e) = state.armin.update_session_claude_id(&armin_session_id, claude_session_id) {
+                if let Err(e) = state
+                    .armin
+                    .update_session_claude_id(&armin_session_id, claude_session_id)
+                {
                     warn!(error = %e, "Failed to update Claude session ID");
                 }
 
@@ -109,7 +120,10 @@ pub async fn handle_claude_events(
                 }
 
                 // Update agent status to idle
-                if let Err(e) = state.armin.update_agent_status(&armin_session_id, AgentStatus::Idle) {
+                if let Err(e) = state
+                    .armin
+                    .update_agent_status(&armin_session_id, AgentStatus::Idle)
+                {
                     warn!(error = %e, "Failed to set agent status to idle");
                 }
             }
@@ -140,7 +154,10 @@ pub async fn handle_claude_events(
     info!(event_count = event_count, "Processed events total");
 
     // Update agent status to idle via Armin
-    if let Err(e) = state.armin.update_agent_status(&armin_session_id, AgentStatus::Idle) {
+    if let Err(e) = state
+        .armin
+        .update_agent_status(&armin_session_id, AgentStatus::Idle)
+    {
         warn!(error = %e, "Failed to set agent status to idle (cleanup)");
     }
     info!("Agent status set to IDLE");
@@ -165,6 +182,8 @@ fn broadcast_event(state: &DaemonState, session_id: &str, raw_json: &str) {
     let subscriptions = state.subscriptions.clone();
     let session_id_for_broadcast = session_id.to_string();
     tokio::spawn(async move {
-        subscriptions.broadcast_or_create(&session_id_for_broadcast, event).await;
+        subscriptions
+            .broadcast_or_create(&session_id_for_broadcast, event)
+            .await;
     });
 }

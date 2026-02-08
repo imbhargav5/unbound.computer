@@ -50,11 +50,19 @@ struct unbound_iosApp: App {
                     SplashView(statusMessage: message, progress: progress)
 
                 case .failed(let error):
-                    InitializationErrorView(error: error, onRetry: {
-                        Task {
-                            await initialize()
+                    InitializationErrorView(
+                        error: error,
+                        onRetry: {
+                            Task {
+                                await initialize()
+                            }
+                        },
+                        onRecreateDatabase: {
+                            Task {
+                                await initialize(recreateDatabase: true)
+                            }
                         }
-                    })
+                    )
 
                 case .ready:
                     mainContent
@@ -85,12 +93,12 @@ struct unbound_iosApp: App {
 
     // MARK: - Initialization
 
-    private func initialize() async {
+    private func initialize(recreateDatabase: Bool = false) async {
         initState = .loading(message: "Starting...", progress: 0.0)
 
         do {
             // Step 1: Initialize database (device identity is initialized after auth)
-            _ = try await AppInitializer.shared.initializeAsync { message, progress in
+            _ = try await AppInitializer.shared.initializeAsync(recreateDatabase: recreateDatabase) { message, progress in
                 initState = .loading(message: message, progress: progress * 0.5)
             }
 
@@ -147,6 +155,8 @@ struct unbound_iosApp: App {
                                 DeviceDetailView(device: device)
                             case .syncedDeviceDetail(let device):
                                 SyncedDeviceDetailView(device: device)
+                            case .syncedSessionDetail(let session):
+                                SyncedSessionDetailView(session: session)
                             case .projectDetail(let device, let project):
                                 ProjectDetailView(device: device, project: project)
                             case .chat(let chat):

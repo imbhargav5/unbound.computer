@@ -82,6 +82,12 @@ struct SyncedDeviceDetailView: View {
                                     session: session,
                                     repository: syncedDataService.repository(for: session)
                                 )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                    navigationManager.navigateToSyncedSession(session)
+                                }
                             }
                         }
                         .padding(.horizontal, AppTheme.spacingM)

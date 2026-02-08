@@ -6,6 +6,7 @@ package consumer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -32,6 +33,7 @@ type Consumer struct {
 	client      *ably.Realtime
 	channel     *ably.RealtimeChannel
 	channelName string
+	eventName   string
 	logger      *zap.Logger
 
 	messages chan *Message
@@ -51,6 +53,10 @@ type Options struct {
 
 	// ChannelName is the Ably channel to subscribe to.
 	ChannelName string
+
+	// EventName is the Ably event name to process.
+	// If empty, all events are accepted.
+	EventName string
 
 	// Logger is the zap logger instance.
 	Logger *zap.Logger
@@ -80,6 +86,7 @@ func New(opts Options) (*Consumer, error) {
 	return &Consumer{
 		client:      client,
 		channelName: opts.ChannelName,
+		eventName:   opts.EventName,
 		logger:      opts.Logger,
 		messages:    make(chan *Message, opts.BufferSize),
 		errors:      make(chan error, 1),
@@ -183,6 +190,15 @@ func (c *Consumer) handleMessage(msg *ably.Message) {
 		zap.String("name", msg.Name),
 	)
 
+	if c.eventName != "" && msg.Name != c.eventName {
+		c.logger.Debug("skipping non-command event",
+			zap.String("id", msg.ID),
+			zap.String("name", msg.Name),
+			zap.String("expected_event", c.eventName),
+		)
+		return
+	}
+
 	// Extract payload - Ably messages can have various data types
 	var payload []byte
 	switch data := msg.Data.(type) {
@@ -191,11 +207,20 @@ func (c *Consumer) handleMessage(msg *ably.Message) {
 	case string:
 		payload = []byte(data)
 	default:
-		c.logger.Error("unexpected message data type",
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			c.logger.Error("unexpected message data type",
+				zap.String("id", msg.ID),
+				zap.Any("data_type", data),
+				zap.Error(err),
+			)
+			return
+		}
+		payload = marshaled
+		c.logger.Debug("marshaled structured message data",
 			zap.String("id", msg.ID),
-			zap.Any("data_type", data),
+			zap.Int("payload_len", len(payload)),
 		)
-		return
 	}
 
 	message := &Message{
@@ -215,6 +240,23 @@ func (c *Consumer) handleMessage(msg *ably.Message) {
 // Only one message is delivered at a time (one-in-flight guarantee).
 func (c *Consumer) Receive() <-chan *Message {
 	return c.messages
+}
+
+// Publish sends a message to the currently attached channel.
+func (c *Consumer) Publish(ctx context.Context, eventName string, payload []byte) error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrClosed
+	}
+	if c.channel == nil {
+		c.mu.Unlock()
+		return ErrNotConnected
+	}
+	channel := c.channel
+	c.mu.Unlock()
+
+	return channel.Publish(ctx, eventName, payload)
 }
 
 // Errors returns a channel for receiving errors.

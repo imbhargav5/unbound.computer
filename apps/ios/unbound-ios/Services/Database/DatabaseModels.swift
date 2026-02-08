@@ -45,17 +45,24 @@ struct SessionRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "agent_coding_sessions"
 
     var id: String
-    var name: String
-    var repositoryId: String?
+    var repositoryId: String
+    var title: String
+    var claudeSessionId: String?
+    var isWorktree: Bool
     var worktreePath: String?
     var status: String
     var createdAt: Date
     var lastAccessedAt: Date
     var updatedAt: Date
 
+    /// Backward-compatible alias used by older UI mapping code.
+    var name: String { title }
+
     enum CodingKeys: String, CodingKey {
-        case id, name, status
+        case id, title, status
         case repositoryId = "repository_id"
+        case claudeSessionId = "claude_session_id"
+        case isWorktree = "is_worktree"
         case worktreePath = "worktree_path"
         case createdAt = "created_at"
         case lastAccessedAt = "last_accessed_at"
@@ -84,26 +91,22 @@ struct ChatTabRecord: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-// MARK: - Message Record (Encrypted)
+// MARK: - Message Record
 
 struct MessageRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "agent_coding_session_messages"
 
     var id: String
-    var chatTabId: String
-    var role: String
-    var contentEncrypted: Data
-    var contentNonce: Data
+    var sessionId: String
+    var content: String
     var timestamp: Date
     var isStreaming: Bool
     var sequenceNumber: Int
     var createdAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, role, timestamp
-        case chatTabId = "chat_tab_id"
-        case contentEncrypted = "content_encrypted"
-        case contentNonce = "content_nonce"
+        case id, content, timestamp
+        case sessionId = "session_id"
         case isStreaming = "is_streaming"
         case sequenceNumber = "sequence_number"
         case createdAt = "created_at"

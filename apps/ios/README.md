@@ -58,6 +58,7 @@ Set via Xcode scheme environment or system settings:
 | `API_URL` | `http://localhost:3000` | `https://unbound.computer` |
 | `SUPABASE_URL` | `http://127.0.0.1:54321` | (requires configuration) |
 | `SUPABASE_PUBLISHABLE_KEY` | Local demo key | (requires configuration) |
+| `RECREATE_LOCAL_DB_ON_LAUNCH` | `false` | `false` |
 
 ## Local Development Configuration
 
@@ -86,6 +87,7 @@ Or set environment variables directly in the scheme:
    - `RELAY_URL` = `ws://localhost:8080`
    - `API_URL` = `http://localhost:3000`
    - `SUPABASE_URL` = `http://127.0.0.1:54321`
+   - `RECREATE_LOCAL_DB_ON_LAUNCH` = `1` (optional, one-time local SQLite reset)
 
 ## Keychain Storage
 

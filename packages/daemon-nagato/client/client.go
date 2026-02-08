@@ -137,14 +137,14 @@ func (c *Client) IsConnected() bool {
 // 3. Waits for a DaemonDecisionFrame response (with timeout)
 // 4. Verifies the command ID matches
 // 5. Returns the decision and any result data
-func (c *Client) SendAndWait(ctx context.Context, payload []byte) (*Response, error) {
+func (c *Client) SendAndWait(ctx context.Context, payload []byte) (uuid.UUID, *Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Ensure we're connected
 	if c.conn == nil {
 		if err := c.connectLocked(ctx); err != nil {
-			return nil, err
+			return uuid.Nil, nil, err
 		}
 	}
 
@@ -166,14 +166,14 @@ func (c *Client) SendAndWait(ctx context.Context, payload []byte) (*Response, er
 	encoded := frame.Encode()
 	if err := c.writeAll(encoded); err != nil {
 		c.disconnectLocked()
-		return nil, fmt.Errorf("failed to send command: %w", err)
+		return commandID, nil, fmt.Errorf("failed to send command: %w", err)
 	}
 
 	// Wait for response with timeout
 	response, err := c.readDecision(ctx, commandID)
 	if err != nil {
 		c.disconnectLocked()
-		return nil, err
+		return commandID, nil, err
 	}
 
 	c.logger.Debug("received decision from daemon",
@@ -181,7 +181,7 @@ func (c *Client) SendAndWait(ctx context.Context, payload []byte) (*Response, er
 		zap.String("decision", response.Decision.String()),
 	)
 
-	return response, nil
+	return commandID, response, nil
 }
 
 // Response contains the daemon's decision for a command.

@@ -7,9 +7,14 @@ description = "Supabase sync sink for Armin side-effects"
 [dependencies]
 # Armin types
 armin = { path = "../armin" }
+daemon-config-and-utils = { workspace = true }
+daemon-database = { workspace = true }
+daemon-storage = { workspace = true }
+base64 = { workspace = true }
+uuid = { workspace = true }
 
 # Async runtime
-tokio = { version = "1", features = ["sync", "rt"] }
+tokio = { version = "1", features = ["sync", "rt", "time", "net", "io-util"] }
 
 # HTTP client
 reqwest = { workspace = true }

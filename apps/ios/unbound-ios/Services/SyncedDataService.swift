@@ -110,17 +110,20 @@ struct SyncedRepository: Identifiable, Hashable {
 /// Session model for UI display
 struct SyncedSession: Identifiable, Hashable {
     let id: UUID
-    let name: String
+    let title: String
     let repositoryId: UUID?
     let worktreePath: String?
     let status: CodingSessionStatus
     let lastAccessedAt: Date
     let createdAt: Date
 
+    /// Backward-compatible alias used by existing UI code.
+    var name: String { title }
+
     init(from record: SessionRecord) {
         self.id = UUID(uuidString: record.id) ?? UUID()
-        self.name = record.name
-        self.repositoryId = record.repositoryId.flatMap { UUID(uuidString: $0) }
+        self.title = record.title
+        self.repositoryId = UUID(uuidString: record.repositoryId)
         self.worktreePath = record.worktreePath
         self.status = CodingSessionStatus(rawValue: record.status) ?? .active
         self.lastAccessedAt = record.lastAccessedAt

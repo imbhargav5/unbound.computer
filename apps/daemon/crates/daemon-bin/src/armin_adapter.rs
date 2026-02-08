@@ -61,7 +61,8 @@ impl DaemonSideEffectSink {
 
 impl std::fmt::Debug for DaemonSideEffectSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DaemonSideEffectSink").finish_non_exhaustive()
+        f.debug_struct("DaemonSideEffectSink")
+            .finish_non_exhaustive()
     }
 }
 
@@ -142,7 +143,9 @@ impl SideEffectSink for DaemonSideEffectSink {
                 let session_id_str = session_id.as_str().to_string();
                 // Spawn async task since broadcast_or_create is async
                 tokio::spawn(async move {
-                    subscriptions.broadcast_or_create(&session_id_str, event).await;
+                    subscriptions
+                        .broadcast_or_create(&session_id_str, event)
+                        .await;
                 });
             }
 
@@ -166,10 +169,11 @@ impl SideEffectSink for DaemonSideEffectSink {
                 let subscriptions = self.subscriptions.clone();
                 let session_id_str = session_id.as_str().to_string();
                 tokio::spawn(async move {
-                    subscriptions.broadcast_or_create(&session_id_str, event).await;
+                    subscriptions
+                        .broadcast_or_create(&session_id_str, event)
+                        .await;
                 });
             }
-
         }
     }
 }

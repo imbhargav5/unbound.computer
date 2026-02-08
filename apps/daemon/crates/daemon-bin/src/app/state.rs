@@ -10,9 +10,10 @@ use gyomei::Gyomei;
 use levi::Levi;
 use levi::SessionSyncService;
 use std::collections::HashMap;
+use std::process::Child;
 use std::sync::{Arc, Mutex};
-use tokio::sync::broadcast;
-use toshinori::ToshinoriSink;
+use tokio::sync::{broadcast, RwLock};
+use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
 
 /// Shared daemon state (thread-safe).
@@ -51,6 +52,11 @@ pub struct DaemonState {
     pub toshinori: Arc<ToshinoriSink>,
     /// Levi worker for Supabase message sync.
     pub message_sync: Arc<Levi>,
+    /// Optional Ably hot-path worker for conversation message publish.
+    /// Stored behind an async lock so it can be installed lazily after login.
+    pub realtime_message_sync: Arc<RwLock<Option<Arc<AblyRealtimeSyncer>>>>,
+    /// Optional Falco child process managed by this daemon instance.
+    pub falco_process: Arc<Mutex<Option<Child>>>,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.

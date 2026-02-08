@@ -134,7 +134,10 @@ impl SessionSecretCache {
         let secret = secrets.get_session_secret(session_id).ok()??;
         let key = SecretsManager::parse_session_secret(&secret).ok()?;
 
-        debug!(session_id, "Retrieved session secret from keychain (legacy)");
+        debug!(
+            session_id,
+            "Retrieved session secret from keychain (legacy)"
+        );
         Some(key)
     }
 }

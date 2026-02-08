@@ -69,7 +69,7 @@ pub use session_sync::{SessionSyncService, SyncError, SyncResult};
 use armin::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use daemon_database::{encrypt_content, generate_nonce};
+use daemon_config_and_utils::encrypt_conversation_message;
 use daemon_storage::SecretsManager;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -279,7 +279,8 @@ impl Levi {
                     pending_session_ids.clear();
 
                     // Query SQLite for all sessions with pending messages
-                    let sessions_to_sync = match armin.get_sessions_pending_sync(config.batch_size) {
+                    let sessions_to_sync = match armin.get_sessions_pending_sync(config.batch_size)
+                    {
                         Ok(sessions) => sessions,
                         Err(e) => {
                             warn!(error = %e, "Levi failed to query pending sessions");
@@ -459,7 +460,10 @@ async fn send_session_batch(
         return Ok(());
     }
 
-    match client.upsert_messages_batch(&payloads, &ctx.access_token).await {
+    match client
+        .upsert_messages_batch(&payloads, &ctx.access_token)
+        .await
+    {
         Ok(()) => {
             let _ = armin.mark_supabase_sync_success(session_id, max_sequence);
             Ok(())
@@ -474,8 +478,8 @@ async fn send_session_batch(
 
 /// Encrypts a message using the session's symmetric key.
 ///
-/// Uses XChaCha20-Poly1305 authenticated encryption with:
-/// - A random 24-byte nonce (generated fresh for each message)
+/// Uses ChaCha20-Poly1305 authenticated encryption with:
+/// - A random 12-byte nonce (generated fresh for each message)
 /// - The session's 32-byte symmetric key
 ///
 /// # Arguments
@@ -505,10 +509,8 @@ fn encrypt_message(
     plaintext: &[u8],
 ) -> Result<(String, String), String> {
     let key = get_session_secret_key(armin, secret_cache, db_encryption_key, session_id)?;
-    let nonce = generate_nonce();
-    let ciphertext = encrypt_content(&key, &nonce, plaintext).map_err(|e| e.to_string())?;
-
-    Ok((BASE64.encode(ciphertext), BASE64.encode(nonce)))
+    let encrypted = encrypt_conversation_message(&key, plaintext).map_err(|e| e.to_string())?;
+    Ok((encrypted.content_encrypted_b64, encrypted.content_nonce_b64))
 }
 
 /// Retrieves the symmetric encryption key for a session.
@@ -587,17 +589,25 @@ fn get_session_secret_key(
         &session_secret.encrypted_secret,
     )
     .map_err(|e| {
-        error!(
-            session_id = %session_id,
-            nonce_len = session_secret.nonce.len(),
-            encrypted_len = session_secret.encrypted_secret.len(),
-            "Session secret decryption failed: {}", e
-        );
-        e.to_string()
-    })?;
+            error!(
+                session_id = %session_id,
+                nonce_len = session_secret.nonce.len(),
+                encrypted_len = session_secret.encrypted_secret.len(),
+                "Session secret decryption failed: {}", e
+            );
+            format!(
+                "failed to decrypt session secret for session {}: {} (this usually indicates a stale database encryption key or corrupted session secret record)",
+                session_id, e
+            )
+        })?;
 
     let secret_str = String::from_utf8(plaintext).map_err(|e| e.to_string())?;
-    let key = SecretsManager::parse_session_secret(&secret_str).map_err(|e| e.to_string())?;
+    let key = SecretsManager::parse_session_secret(&secret_str).map_err(|e| {
+        format!(
+            "invalid session secret format for session {}: {}",
+            session_id, e
+        )
+    })?;
 
     // Cache for future use
     secret_cache
@@ -695,11 +705,13 @@ mod tests {
         let nonce = generate_nonce();
         let encrypted = encrypt_content(&db_key, &nonce, session_secret.as_bytes()).unwrap();
 
-        armin.set_session_secret(NewSessionSecret {
-            session_id: session_id.clone(),
-            encrypted_secret: encrypted,
-            nonce: nonce.to_vec(),
-        }).unwrap();
+        armin
+            .set_session_secret(NewSessionSecret {
+                session_id: session_id.clone(),
+                encrypted_secret: encrypted,
+                nonce: nonce.to_vec(),
+            })
+            .unwrap();
 
         (
             armin as ArminHandle,
@@ -789,8 +801,14 @@ mod tests {
         };
 
         // Very large retry count should cap at max, not overflow
-        assert_eq!(compute_backoff(100, &config), chrono::Duration::seconds(300));
-        assert_eq!(compute_backoff(i32::MAX, &config), chrono::Duration::seconds(300));
+        assert_eq!(
+            compute_backoff(100, &config),
+            chrono::Duration::seconds(300)
+        );
+        assert_eq!(
+            compute_backoff(i32::MAX, &config),
+            chrono::Duration::seconds(300)
+        );
     }
 
     #[test]
@@ -909,9 +927,30 @@ mod tests {
         assert!(state.is_none());
 
         // Append some messages
-        armin.append(&session_id, NewMessage { content: "msg1".to_string() }).unwrap();
-        armin.append(&session_id, NewMessage { content: "msg2".to_string() }).unwrap();
-        armin.append(&session_id, NewMessage { content: "msg3".to_string() }).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "msg1".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "msg2".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "msg3".to_string(),
+                },
+            )
+            .unwrap();
 
         // Check pending sync
         let pending = armin.get_sessions_pending_sync(100).unwrap();
@@ -934,7 +973,9 @@ mod tests {
         assert_eq!(pending[0].messages[0].sequence_number, 3);
 
         // Mark sync failed
-        armin.mark_supabase_sync_failed(&session_id, "test error").unwrap();
+        armin
+            .mark_supabase_sync_failed(&session_id, "test error")
+            .unwrap();
 
         let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.retry_count, 1);
@@ -949,10 +990,7 @@ mod tests {
         SupabaseClient::new("http://localhost:54321", "test-anon-key")
     }
 
-    fn make_pending_sync(
-        session_id: &SessionId,
-        messages: Vec<(&str, i64)>,
-    ) -> SessionPendingSync {
+    fn make_pending_sync(session_id: &SessionId, messages: Vec<(&str, i64)>) -> SessionPendingSync {
         SessionPendingSync {
             session_id: session_id.clone(),
             last_synced_sequence_number: 0,
@@ -1021,12 +1059,18 @@ mod tests {
         let result =
             send_session_batch(&client, &armin, &context, &cache, &no_db_key, pending).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("missing database encryption key"));
+        assert!(result
+            .unwrap_err()
+            .contains("missing database encryption key"));
 
         // Should have marked sync as failed
         let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.retry_count, 1);
-        assert!(state.last_error.as_deref().unwrap().contains("missing database encryption key"));
+        assert!(state
+            .last_error
+            .as_deref()
+            .unwrap()
+            .contains("missing database encryption key"));
     }
 
     #[tokio::test]
@@ -1045,8 +1089,7 @@ mod tests {
         let pending = make_pending_sync(&session_id, vec![("msg1", 1), ("msg2", 2), ("msg3", 3)]);
 
         // Will fail at the API call since there's no real server
-        let result =
-            send_session_batch(&client, &armin, &context, &cache, &db_key, pending).await;
+        let result = send_session_batch(&client, &armin, &context, &cache, &db_key, pending).await;
         assert!(result.is_err());
 
         // Sync should be marked as failed (API error)
@@ -1168,10 +1211,38 @@ mod tests {
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
         let session_id = armin.create_session().unwrap();
 
-        armin.append(&session_id, NewMessage { content: "a".to_string() }).unwrap();
-        armin.append(&session_id, NewMessage { content: "b".to_string() }).unwrap();
-        armin.append(&session_id, NewMessage { content: "c".to_string() }).unwrap();
-        armin.append(&session_id, NewMessage { content: "d".to_string() }).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "a".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "b".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "c".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "d".to_string(),
+                },
+            )
+            .unwrap();
 
         // Sync first two
         armin.mark_supabase_sync_success(&session_id, 2).unwrap();
@@ -1197,11 +1268,22 @@ mod tests {
         let armin = Arc::new(Armin::in_memory(sink).unwrap());
         let session_id = armin.create_session().unwrap();
 
-        armin.append(&session_id, NewMessage { content: "a".to_string() }).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "a".to_string(),
+                },
+            )
+            .unwrap();
 
         // Fail twice
-        armin.mark_supabase_sync_failed(&session_id, "err1").unwrap();
-        armin.mark_supabase_sync_failed(&session_id, "err2").unwrap();
+        armin
+            .mark_supabase_sync_failed(&session_id, "err1")
+            .unwrap();
+        armin
+            .mark_supabase_sync_failed(&session_id, "err2")
+            .unwrap();
 
         let state = armin.get_supabase_sync_state(&session_id).unwrap().unwrap();
         assert_eq!(state.retry_count, 2);

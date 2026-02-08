@@ -54,10 +54,9 @@ pub async fn handle_terminal_process(
                 })
                 .to_string();
 
-                if let Err(e) = armin_for_stderr.append(
-                    &session_id_for_stderr,
-                    NewMessage { content },
-                ) {
+                if let Err(e) =
+                    armin_for_stderr.append(&session_id_for_stderr, NewMessage { content })
+                {
                     tracing::warn!(error = %e, "Failed to store terminal stderr output");
                 }
             }
@@ -119,7 +118,10 @@ pub async fn handle_terminal_process(
             if status.success() {
                 info!(exit_code = code, "Terminal process finished successfully");
             } else {
-                warn!(exit_code = code, "Terminal process exited with non-zero code");
+                warn!(
+                    exit_code = code,
+                    "Terminal process exited with non-zero code"
+                );
             }
             code
         }
@@ -136,10 +138,10 @@ pub async fn handle_terminal_process(
     })
     .to_string();
 
-    if let Err(e) = state.armin.append(
-        &armin_session_id,
-        NewMessage { content },
-    ) {
+    if let Err(e) = state
+        .armin
+        .append(&armin_session_id, NewMessage { content })
+    {
         warn!(error = %e, "Failed to store terminal finished event");
     }
 

@@ -187,10 +187,7 @@ final class DatabaseService {
     }()
 
     lazy var messages: MessageRepository = {
-        MessageRepository(
-            databaseService: self,
-            encryptionService: MessageEncryptionService.shared
-        )
+        MessageRepository(databaseService: self)
     }()
 
     lazy var attachments: AttachmentRepository = {
@@ -211,5 +208,30 @@ final class DatabaseService {
     /// Check if database file exists
     var databaseFileExists: Bool {
         fileManager.fileExists(atPath: databaseURL.path)
+    }
+
+    /// Recreate the local SQLite database by deleting existing files.
+    /// Useful when local schema/data is corrupted and needs a clean rebuild.
+    func recreateLocalDatabase() throws {
+        logger.notice("Recreating local database at path: \(self.databaseURL.path)")
+
+        // Release active connections before deleting files.
+        dbPool = nil
+
+        let databaseFiles = [
+            databaseURL.path,
+            "\(databaseURL.path)-wal",
+            "\(databaseURL.path)-shm"
+        ]
+
+        for filePath in databaseFiles where fileManager.fileExists(atPath: filePath) {
+            do {
+                try fileManager.removeItem(atPath: filePath)
+                logger.info("Deleted database file: \(filePath)")
+            } catch {
+                logger.error("Failed to delete database file \(filePath): \(error.localizedDescription)")
+                throw DatabaseError.migrationFailed("Failed to recreate local database: \(error.localizedDescription)")
+            }
+        }
     }
 }

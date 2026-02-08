@@ -2,8 +2,8 @@
 //  MessageRepository.swift
 //  unbound-ios
 //
-//  Database repository for encrypted chat messages.
-//  Messages are encrypted at rest using ChaCha20-Poly1305.
+//  Database repository for coding session messages.
+//  Local iOS schema stores plaintext `content` to mirror macOS SQLite.
 //
 
 import Foundation
@@ -11,42 +11,25 @@ import GRDB
 
 final class MessageRepository {
     private let databaseService: DatabaseService
-    private let encryptionService: MessageEncryptionService
 
-    init(databaseService: DatabaseService, encryptionService: MessageEncryptionService) {
+    init(databaseService: DatabaseService) {
         self.databaseService = databaseService
-        self.encryptionService = encryptionService
     }
 
     // MARK: - Fetch Operations
 
-    /// Fetch all messages for a chat tab, decrypted
-    func fetch(chatTabId: UUID) async throws -> [(id: UUID, role: MessageRole, content: [MessageContent], timestamp: Date, isStreaming: Bool)] {
+    /// Fetch all message records for a session ordered by sequence.
+    func fetch(sessionId: UUID) async throws -> [MessageRecord] {
         let db = try databaseService.getDatabase()
-        let records = try await db.read { db in
+        return try await db.read { db in
             try MessageRecord
-                .filter(Column("chat_tab_id") == chatTabId.uuidString)
+                .filter(Column("session_id") == sessionId.uuidString)
                 .order(Column("sequence_number").asc)
                 .fetchAll(db)
         }
-
-        // Decrypt each message
-        return try records.map { record in
-            let content = try encryptionService.decrypt(
-                ciphertext: record.contentEncrypted,
-                nonce: record.contentNonce
-            )
-            return (
-                id: UUID(uuidString: record.id) ?? UUID(),
-                role: MessageRole(rawValue: record.role) ?? .user,
-                content: content,
-                timestamp: record.timestamp,
-                isStreaming: record.isStreaming
-            )
-        }
     }
 
-    /// Fetch a single message by ID (returns record without decryption)
+    /// Fetch a single message by ID.
     func fetchRecord(id: UUID) async throws -> MessageRecord? {
         let db = try databaseService.getDatabase()
         return try await db.read { db in
@@ -58,24 +41,19 @@ final class MessageRepository {
 
     // MARK: - Insert Operations
 
-    /// Insert a new message (encrypts content automatically)
+    /// Insert a new plaintext message record.
     func insert(
         id: UUID,
-        chatTabId: UUID,
-        role: MessageRole,
-        content: [MessageContent],
+        sessionId: UUID,
+        content: String,
         timestamp: Date = Date(),
         isStreaming: Bool = false,
         sequenceNumber: Int
     ) async throws {
-        let (ciphertext, nonce) = try encryptionService.encrypt(content)
-
         let record = MessageRecord(
             id: id.uuidString,
-            chatTabId: chatTabId.uuidString,
-            role: role.rawValue,
-            contentEncrypted: ciphertext,
-            contentNonce: nonce,
+            sessionId: sessionId.uuidString,
+            content: content,
             timestamp: timestamp,
             isStreaming: isStreaming,
             sequenceNumber: sequenceNumber,
@@ -89,28 +67,23 @@ final class MessageRepository {
         }
     }
 
-    /// Insert multiple messages for a chat tab
+    /// Insert multiple plaintext messages for a session.
     func insertAll(
-        _ messages: [(id: UUID, role: MessageRole, content: [MessageContent], timestamp: Date, isStreaming: Bool)],
-        chatTabId: UUID
+        _ messages: [(id: UUID, content: String, timestamp: Date, isStreaming: Bool)],
+        sessionId: UUID
     ) async throws {
         let db = try databaseService.getDatabase()
 
-        // Encrypt all messages
-        var records: [MessageRecord] = []
-        for (index, message) in messages.enumerated() {
-            let (ciphertext, nonce) = try encryptionService.encrypt(message.content)
-            records.append(MessageRecord(
+        let records: [MessageRecord] = messages.enumerated().map { index, message in
+            MessageRecord(
                 id: message.id.uuidString,
-                chatTabId: chatTabId.uuidString,
-                role: message.role.rawValue,
-                contentEncrypted: ciphertext,
-                contentNonce: nonce,
+                sessionId: sessionId.uuidString,
+                content: message.content,
                 timestamp: message.timestamp,
                 isStreaming: message.isStreaming,
                 sequenceNumber: index,
                 createdAt: Date()
-            ))
+            )
         }
 
         try await db.write { db in
@@ -122,30 +95,28 @@ final class MessageRepository {
 
     // MARK: - Update Operations
 
-    /// Update message content (re-encrypts)
-    func updateContent(id: UUID, content: [MessageContent]) async throws {
-        let (ciphertext, nonce) = try encryptionService.encrypt(content)
-
+    /// Update message content.
+    func updateContent(id: UUID, content: String) async throws {
         let db = try databaseService.getDatabase()
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE worktree_messages
-                    SET content_encrypted = ?, content_nonce = ?
+                    UPDATE agent_coding_session_messages
+                    SET content = ?
                     WHERE id = ?
                     """,
-                arguments: [ciphertext, nonce, id.uuidString]
+                arguments: [content, id.uuidString]
             )
         }
     }
 
-    /// Update streaming status
+    /// Update streaming status.
     func updateStreaming(id: UUID, isStreaming: Bool) async throws {
         let db = try databaseService.getDatabase()
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE worktree_messages
+                    UPDATE agent_coding_session_messages
                     SET is_streaming = ?
                     WHERE id = ?
                     """,
@@ -156,7 +127,7 @@ final class MessageRepository {
 
     // MARK: - Delete Operations
 
-    /// Delete a message by ID
+    /// Delete a message by ID.
     func delete(id: UUID) async throws {
         let db = try databaseService.getDatabase()
         try await db.write { db in
@@ -166,39 +137,39 @@ final class MessageRepository {
         }
     }
 
-    /// Delete all messages for a chat tab
-    func deleteAll(chatTabId: UUID) async throws {
+    /// Delete all messages for a session.
+    func deleteAll(sessionId: UUID) async throws {
         let db = try databaseService.getDatabase()
         try await db.write { db in
             try MessageRecord
-                .filter(Column("chat_tab_id") == chatTabId.uuidString)
+                .filter(Column("session_id") == sessionId.uuidString)
                 .deleteAll(db)
         }
     }
 
     // MARK: - Utility
 
-    /// Get count of messages in a chat tab
-    func count(chatTabId: UUID) async throws -> Int {
+    /// Get count of messages in a session.
+    func count(sessionId: UUID) async throws -> Int {
         let db = try databaseService.getDatabase()
         return try await db.read { db in
             try MessageRecord
-                .filter(Column("chat_tab_id") == chatTabId.uuidString)
+                .filter(Column("session_id") == sessionId.uuidString)
                 .fetchCount(db)
         }
     }
 
-    /// Get the next sequence number for a chat tab
-    func getNextSequenceNumber(chatTabId: UUID) async throws -> Int {
+    /// Get the next sequence number for a session.
+    func getNextSequenceNumber(sessionId: UUID) async throws -> Int {
         let db = try databaseService.getDatabase()
         return try await db.read { db in
             let maxSequence = try Int.fetchOne(
                 db,
                 sql: """
-                    SELECT MAX(sequence_number) FROM worktree_messages
-                    WHERE chat_tab_id = ?
+                    SELECT MAX(sequence_number) FROM agent_coding_session_messages
+                    WHERE session_id = ?
                     """,
-                arguments: [chatTabId.uuidString]
+                arguments: [sessionId.uuidString]
             )
             return (maxSequence ?? -1) + 1
         }

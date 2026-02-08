@@ -282,8 +282,7 @@ impl SupabaseClient {
     ) -> ToshinoriResult<()> {
         warn!(
             session_id,
-            status,
-            "Agent status sync skipped (no agent_status column in Supabase schema)"
+            status, "Agent status sync skipped (no agent_status column in Supabase schema)"
         );
         Ok(())
     }

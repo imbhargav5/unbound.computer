@@ -601,6 +601,7 @@ dependencies = [
 name = "daemon-config-and-utils"
 version = "0.0.12"
 dependencies = [
+ "base64",
  "chacha20poly1305",
  "dirs",
  "hkdf",
@@ -2862,13 +2863,18 @@ name = "toshinori"
 version = "0.1.0"
 dependencies = [
  "armin",
+ "base64",
  "chrono",
+ "daemon-config-and-utils",
+ "daemon-database",
+ "daemon-storage",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

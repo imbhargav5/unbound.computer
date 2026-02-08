@@ -1,108 +1,115 @@
 # Toshinori
 
-Toshinori is a **Supabase sync sink** for Armin side-effects. When Armin commits facts to SQLite, Toshinori asynchronously syncs those changes to Supabase for cross-device visibility.
+Toshinori is the daemon-side **fanout sink** for Armin side-effects:
+
+- cold path: sync durable state to Supabase
+- hot path: publish encrypted conversation messages to Ably via Falco
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                            Daemon                                    │
-│                                                                      │
-│  Armin (SQLite) ─── commit ──► SideEffect ──► ToshinoriSink         │
-│                                                      │               │
-└──────────────────────────────────────────────────────┼───────────────┘
-                                                       │
-                                                       │ async HTTP
-                                                       ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Supabase                                    │
-│                                                                      │
-│  ┌───────────────┐  ┌─────────────────────────┐  ┌──────────────┐  │
-│  │ repositories  │  │ agent_coding_sessions   │  │  messages    │  │
-│  └───────────────┘  └─────────────────────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                  Daemon                                  │
+│                                                                           │
+│ Armin (SQLite commit) -> SideEffect -> ToshinoriSink                     │
+│                                       |                                   │
+│                                       | MessageAppended fanout            │
+│                    +------------------+------------------+                │
+│                    |                                     |                │
+│             enqueue to Levi                      enqueue to AblyRealtime  │
+└────────────────────|─────────────────────────────|────────────────────────┘
+                     |                             |
+               async HTTP (cold)             Falco socket (hot)
+                     v                             v
+              Supabase tables               daemon-falco -> Ably
 ```
 
 ## Design Principles
 
-- **Non-blocking**: Side-effect handling is async and doesn't block Armin
-- **Fire-and-forget**: Failed syncs are logged but don't fail the operation
-- **Idempotent**: Uses upsert operations for safe retries
-- **Context-aware**: Only syncs when authenticated (context is set)
+- **Non-blocking**: side-effect handling is async and never blocks Armin commits
+- **Fire-and-forget**: sync failures are logged and retried by workers
+- **Single encryption utility**: conversation payload encryption uses shared helpers from `daemon-config-and-utils`
+- **Context-aware**: sync workers run only when auth context is present
+
+## Message Sync Paths
+
+| Path | Worker | Target | Purpose |
+|------|--------|--------|---------|
+| Cold | `Levi` | Supabase `messages` table | Durable cross-device sync |
+| Hot | `AblyRealtimeSyncer` | Ably `session:{session_id}:conversation` | Fast realtime delivery |
+
+The two paths are independent: hot-path publish does not change Supabase cold-sync logic.
 
 ## Usage
 
 ```rust
-use toshinori::{ToshinoriSink, SyncContext};
-use armin::SideEffectSink;
+use std::sync::Arc;
+use toshinori::{SyncContext, ToshinoriSink};
 
-// Create sink with Supabase credentials
-let sink = ToshinoriSink::new(
+let sink = Arc::new(ToshinoriSink::new(
     "https://xyz.supabase.co",
-    "your-anon-key",
+    "anon-key",
     tokio::runtime::Handle::current(),
-);
+));
 
-// After user authenticates, set the sync context
 sink.set_context(SyncContext {
     access_token: "user-access-token".to_string(),
     user_id: "user-uuid".to_string(),
     device_id: "device-uuid".to_string(),
 }).await;
 
-// Now side-effects will be synced to Supabase
-sink.emit(SideEffect::SessionCreated {
-    session_id: SessionId::from_string("session-123"),
-});
+// Register workers (constructed elsewhere)
+// sink.set_message_syncer(levi_syncer).await;
+// sink.set_realtime_message_syncer(ably_syncer).await;
 
-// On logout, clear the context
+// On logout
 sink.clear_context().await;
 ```
 
 ## Side-Effects Handled
 
-| Side-Effect | Supabase Action |
-|-------------|-----------------|
-| `RepositoryCreated` | **Skipped by default** (requires repository metadata) |
-| `RepositoryDeleted` | Delete from `repositories` |
-| `SessionCreated` | Upsert to `agent_coding_sessions` (requires session metadata) |
-| `SessionClosed` | Update status to "ended" |
-| `SessionDeleted` | Delete from `agent_coding_sessions` |
-| `SessionUpdated` | Upsert to `agent_coding_sessions` (requires session metadata) |
-| `MessageAppended` | Enqueue message sync (requires message content) |
-| `AgentStatusChanged` | **Skipped** (no `agent_status` column in schema) |
+| Side-Effect | Supabase (cold) | Ably hot path |
+|-------------|------------------|---------------|
+| `RepositoryCreated` | Skipped by default (needs metadata) | No-op |
+| `RepositoryDeleted` | Delete from `repositories` | No-op |
+| `SessionCreated` | Upsert `agent_coding_sessions` (needs metadata) | No-op |
+| `SessionClosed` | Update session status to `ended` | No-op |
+| `SessionDeleted` | Delete from `agent_coding_sessions` | No-op |
+| `SessionUpdated` | Upsert `agent_coding_sessions` (needs metadata) | No-op |
+| `MessageAppended` | Enqueue Levi sync | Enqueue Ably realtime sync |
+| `AgentStatusChanged` | Skipped | No-op |
 
-## Integration with Daemon
+## Ably Conversation Message Contract
 
-Toshinori is designed to work alongside the existing `DaemonSideEffectSink`:
+For each `MessageAppended`, the realtime worker publishes:
 
-```rust
-// You can compose multiple sinks
-struct CompositeSink {
-    daemon_sink: DaemonSideEffectSink,  // IPC broadcasts
-    toshinori: ToshinoriSink,            // Supabase sync
-}
+- channel: `session:{session_id}:conversation`
+- event: `conversation.message.v1`
+- payload:
 
-impl SideEffectSink for CompositeSink {
-    fn emit(&self, effect: SideEffect) {
-        self.daemon_sink.emit(effect.clone());
-        self.toshinori.emit(effect);
-    }
+```json
+{
+  "schema_version": 1,
+  "session_id": "session-123",
+  "message_id": "message-456",
+  "sequence_number": 42,
+  "sender_device_id": "device-abc",
+  "created_at_ms": 1739030400000,
+  "encryption_alg": "chacha20poly1305",
+  "content_encrypted": "...base64...",
+  "content_nonce": "...base64..."
 }
 ```
 
+`content_encrypted` and `content_nonce` are produced from the shared conversation crypto utility.
+
 ## Error Handling
 
-Toshinori follows a **fire-and-forget** pattern:
-- Errors are logged but never propagate
-- Armin's commit is never blocked or rolled back
-- Supabase sync failures don't affect local operation
+- Errors are logged and do not propagate back to Armin commit paths
+- Worker-level retries/backoff are handled in Levi and AblyRealtimeSyncer
+- Missing auth context causes syncs to be skipped safely
 
 ## Metadata Requirements
 
-Session upserts require repository metadata that is not available in Armin side-effects
-alone. Provide a metadata source via `SessionMetadataProvider` to enable session sync.
-Repository upserts are skipped by default for the same reason (missing `name` and
-`local_path`).
-
-This ensures the daemon remains responsive even during network issues.
+Session upserts require metadata not present in raw Armin side-effects. Provide a
+`SessionMetadataProvider` to enable `SessionCreated`/`SessionUpdated` upserts.

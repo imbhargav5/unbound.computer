@@ -150,11 +150,7 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                     let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
 
                     // Create the git worktree
-                    match create_worktree(
-                        Path::new(&repo.path),
-                        wt_name,
-                        branch_name.as_deref(),
-                    ) {
+                    match create_worktree(Path::new(&repo.path), wt_name, branch_name.as_deref()) {
                         Ok(path) => Some(path),
                         Err(e) => {
                             return Response::error(
@@ -301,11 +297,7 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                     .map(String::from);
 
                 let Some(id) = id else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "id is required",
-                    );
+                    return Response::error(&req.id, error_codes::INVALID_PARAMS, "id is required");
                 };
 
                 let session_id = SessionId::from_string(&id);
@@ -326,9 +318,11 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                     Ok(None) => {
                         Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
                     }
-                    Err(e) => {
-                        Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e))
-                    }
+                    Err(e) => Response::error(
+                        &req.id,
+                        error_codes::INTERNAL_ERROR,
+                        &format!("Failed to get session: {}", e),
+                    ),
                 }
             }
         })
@@ -348,11 +342,7 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                     .map(String::from);
 
                 let Some(id) = id else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "id is required",
-                    );
+                    return Response::error(&req.id, error_codes::INVALID_PARAMS, "id is required");
                 };
 
                 // First, get the session to check if it's a worktree
@@ -360,10 +350,18 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                 let session = match state.armin.get_session(&session_id) {
                     Ok(Some(s)) => s,
                     Ok(None) => {
-                        return Response::error(&req.id, error_codes::NOT_FOUND, "Session not found");
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            "Session not found",
+                        );
                     }
                     Err(e) => {
-                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e));
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to get session: {}", e),
+                        );
                     }
                 };
 
@@ -373,10 +371,9 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                         // Get repository path for worktree cleanup
                         if let Ok(Some(repo)) = state.armin.get_repository(&session.repository_id) {
                             // Try to remove the worktree, but don't fail the deletion if this fails
-                            if let Err(e) = remove_worktree(
-                                Path::new(&repo.path),
-                                Path::new(worktree_path),
-                            ) {
+                            if let Err(e) =
+                                remove_worktree(Path::new(&repo.path), Path::new(worktree_path))
+                            {
                                 warn!(
                                     session_id = %session.id.as_str(),
                                     worktree_path = %worktree_path,
@@ -398,7 +395,11 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
                 let deleted = match state.armin.delete_session(&session_id) {
                     Ok(d) => d,
                     Err(e) => {
-                        return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to delete session: {}", e));
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to delete session: {}", e),
+                        );
                     }
                 };
 

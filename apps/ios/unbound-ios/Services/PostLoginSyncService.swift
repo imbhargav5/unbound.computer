@@ -48,6 +48,8 @@ private struct SupabaseSessionResponse: Codable {
     let userId: String
     let deviceId: String
     let repositoryId: String
+    let title: String?
+    let claudeSessionId: String?
     let status: String
     let sessionStartedAt: String
     let lastHeartbeatAt: String?
@@ -62,6 +64,8 @@ private struct SupabaseSessionResponse: Codable {
         case userId = "user_id"
         case deviceId = "device_id"
         case repositoryId = "repository_id"
+        case title
+        case claudeSessionId = "claude_session_id"
         case status
         case sessionStartedAt = "session_started_at"
         case lastHeartbeatAt = "last_heartbeat_at"
@@ -300,8 +304,10 @@ final class PostLoginSyncService {
             for session in supabaseSessions {
                 let record = SessionRecord(
                     id: session.id,
-                    name: "Session",  // Name is derived from repo on macOS
                     repositoryId: session.repositoryId,
+                    title: session.title ?? "New conversation",
+                    claudeSessionId: session.claudeSessionId,
+                    isWorktree: session.isWorktree,
                     worktreePath: session.worktreePath,
                     status: session.status,
                     createdAt: parseDate(session.createdAt) ?? Date(),

@@ -62,7 +62,7 @@ final class ChatTabRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE chat_tabs
+                    UPDATE agent_coding_session_chat_tabs
                     SET title = ?, updated_at = ?
                     WHERE id = ?
                     """,
@@ -77,7 +77,7 @@ final class ChatTabRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE chat_tabs
+                    UPDATE agent_coding_session_chat_tabs
                     SET claude_session_id = ?, updated_at = ?
                     WHERE id = ?
                     """,

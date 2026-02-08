@@ -65,13 +65,18 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                         }
                         Err(e) => {
                             error!("\x1b[31m[CLAUDE]\x1b[0m Failed to get session: {}", e);
-                            return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get session: {}", e));
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to get session: {}", e),
+                            );
                         }
                     };
 
                     info!(
                         "\x1b[36m[CLAUDE]\x1b[0m Found session: {} (repo: {})",
-                        session.title, session.repository_id.as_str()
+                        session.title,
+                        session.repository_id.as_str()
                     );
 
                     let repo = match state.armin.get_repository(&session.repository_id) {
@@ -89,7 +94,11 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                         }
                         Err(e) => {
                             error!("\x1b[31m[CLAUDE]\x1b[0m Failed to get repository: {}", e);
-                            return Response::error(&req.id, error_codes::INTERNAL_ERROR, &format!("Failed to get repository: {}", e));
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to get repository: {}", e),
+                            );
                         }
                     };
 
@@ -121,7 +130,10 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                             );
                         }
                         Err(e) => {
-                            warn!("\x1b[31m[CLAUDE]\x1b[0m Failed to store user message: {}", e);
+                            warn!(
+                                "\x1b[31m[CLAUDE]\x1b[0m Failed to store user message: {}",
+                                e
+                            );
                         }
                     }
                 }
@@ -189,7 +201,9 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                     handle_claude_events(stream, session_id_for_task, state_for_task).await;
                 });
 
-                info!("\x1b[32m[CLAUDE]\x1b[0m claude.send completed - process running in background");
+                info!(
+                    "\x1b[32m[CLAUDE]\x1b[0m claude.send completed - process running in background"
+                );
 
                 Response::success(
                     &req.id,
@@ -230,7 +244,9 @@ async fn register_claude_status(server: &IpcServer, state: DaemonState) {
 
                 // Get agent status from Armin
                 let armin_session_id = SessionId::from_string(&session_id);
-                let agent_status = state.armin.get_session_state(&armin_session_id)
+                let agent_status = state
+                    .armin
+                    .get_session_state(&armin_session_id)
                     .ok()
                     .flatten()
                     .map(|s| s.agent_status.as_str().to_string())

@@ -13,7 +13,7 @@ When a remote client (e.g., mobile app, web dashboard) wants to send a command t
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                            Ably                                      │
-│                 Channel: remote-commands:{device_id}                 │
+│                 Channel: remote:{device_id}:commands                 │
 │                                                                      │
 │  ┌─────────────┬─────────────┬─────────────┬─────────────┐         │
 │  │  command-1  │  command-2  │  command-3  │  command-4  │   ...   │
@@ -28,10 +28,11 @@ When a remote client (e.g., mobile app, web dashboard) wants to send a command t
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           Nagato                                    │
 │                                                                      │
-│  • Subscribes to device-specific Ably channel                       │
+│  • Subscribes to `remote.command.v1` on device-specific channel     │
 │  • Generates command_id (UUID) for each message                     │
 │  • Forwards encrypted payload to daemon                              │
 │  • Waits for daemon decision (ACK_MESSAGE or DO_NOT_ACK)            │
+│  • Publishes command ACKs using `command_id` correlation            │
 │  • Handles timeout fail-open behavior                               │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
@@ -62,6 +63,32 @@ Nagato and Falco are complementary:
 Together they enable bidirectional real-time sync:
 - Commands flow **in** via Nagato
 - Events flow **out** via Falco
+
+## Ably Contract
+
+Nagato currently uses one channel and two event types:
+
+| Direction | Channel | Event | Payload |
+|-----------|---------|-------|---------|
+| Remote -> Device | `remote:{device_id}:commands` | `remote.command.v1` | Encrypted command bytes/JSON |
+| Device -> Remote | `remote:{device_id}:commands` | `remote.command.ack.v1` | Command ack payload |
+
+Command ACK payload schema:
+
+```json
+{
+  "schema_version": 1,
+  "command_id": "uuid-v4",
+  "status": "accepted",
+  "created_at_ms": 1739030400000,
+  "result_b64": "optional-base64-daemon-result"
+}
+```
+
+`status` is one of:
+- `accepted` (daemon returned `ACK_MESSAGE`)
+- `rejected` (daemon returned `DO_NOT_ACK`)
+- `timeout` (daemon timed out and Nagato applied fail-open)
 
 ## Binary Protocol
 
@@ -111,10 +138,11 @@ The timeout should be set high enough to allow for:
 
 ## Non-Negotiable Invariants
 
-1. **Content-Agnostic**: Nagato never inspects or modifies encrypted payloads
+1. **Content-Agnostic**: Nagato never decrypts or rewrites command payloads
 2. **One-In-Flight**: Only one command processed at a time
 3. **Fail-Open Timeout**: Timeout results in continue (not block)
-4. **Crash-Safe**: No persistent state; Ably handles redelivery
+4. **Command-ID Correlated ACKs**: outbound ACKs are keyed by daemon `command_id`
+5. **Crash-Safe**: No persistent state; Ably handles redelivery
 
 ## Installation
 

@@ -36,9 +36,11 @@ async fn register_git_status(server: &IpcServer, state: DaemonState) {
                 {
                     // Look up repository path from database
                     let repo_id_owned = repo_id.clone();
-                    match state.db.call(move |conn| {
-                        queries::get_repository(conn, &repo_id_owned)
-                    }).await {
+                    match state
+                        .db
+                        .call(move |conn| queries::get_repository(conn, &repo_id_owned))
+                        .await
+                    {
                         Ok(Some(repo)) => repo.path,
                         Ok(None) => {
                             return Response::error(
@@ -101,9 +103,11 @@ async fn register_git_diff_file(server: &IpcServer, state: DaemonState) {
                     .map(|s| s.to_lowercase())
                 {
                     let repo_id_owned = repo_id.clone();
-                    match state.db.call(move |conn| {
-                        queries::get_repository(conn, &repo_id_owned)
-                    }).await {
+                    match state
+                        .db
+                        .call(move |conn| queries::get_repository(conn, &repo_id_owned))
+                        .await
+                    {
                         Ok(Some(repo)) => repo.path,
                         Ok(None) => {
                             return Response::error(
@@ -190,9 +194,11 @@ async fn extract_repo_path(
         .map(|s| s.to_lowercase())
     {
         let repo_id_owned = repo_id.clone();
-        match state.db.call(move |conn| {
-            queries::get_repository(conn, &repo_id_owned)
-        }).await {
+        match state
+            .db
+            .call(move |conn| queries::get_repository(conn, &repo_id_owned))
+            .await
+        {
             Ok(Some(repo)) => Ok(repo.path),
             Ok(None) => Err((error_codes::NOT_FOUND, "Repository not found".to_string())),
             Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
@@ -241,12 +247,7 @@ async fn register_git_log(server: &IpcServer, state: DaemonState) {
                     .and_then(|p| p.get("branch"))
                     .and_then(|v| v.as_str());
 
-                match get_log(
-                    std::path::Path::new(&repo_path),
-                    limit,
-                    offset,
-                    branch,
-                ) {
+                match get_log(std::path::Path::new(&repo_path), limit, offset, branch) {
                     Ok(log) => Response::success(
                         &req.id,
                         serde_json::json!({

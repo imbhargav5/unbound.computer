@@ -56,7 +56,7 @@ final class AppInitializer {
     /// - Throws: AppInitializationError if initialization fails
     /// - Returns: Initialization result with details
     @discardableResult
-    func initialize() throws -> AppInitializationResult {
+    func initialize(recreateDatabase: Bool = false) throws -> AppInitializationResult {
         logger.info("Starting app initialization...")
 
         guard !isInitialized else {
@@ -69,7 +69,7 @@ final class AppInitializer {
         do {
             // Initialize database (creates schema, runs migrations)
             logger.info("Step 1/1: Initializing database...")
-            try databaseService.initialize()
+            try initializeDatabase(recreateDatabase: recreateDatabase)
             logger.info("Database initialized")
 
             isInitialized = true
@@ -98,7 +98,10 @@ final class AppInitializer {
     /// - Throws: AppInitializationError if initialization fails
     /// - Returns: Initialization result with details
     @discardableResult
-    func initializeAsync(progress: ((String, Double) -> Void)? = nil) async throws -> AppInitializationResult {
+    func initializeAsync(
+        recreateDatabase: Bool = false,
+        progress: ((String, Double) -> Void)? = nil
+    ) async throws -> AppInitializationResult {
         logger.info("Starting async app initialization...")
 
         guard !isInitialized else {
@@ -112,7 +115,7 @@ final class AppInitializer {
             // Initialize database (creates schema, runs migrations)
             logger.info("Step 1/1: Initializing database...")
             progress?("Setting up database...", 0.5)
-            try databaseService.initialize()
+            try initializeDatabase(recreateDatabase: recreateDatabase)
             logger.info("Database initialized")
 
             isInitialized = true
@@ -139,5 +142,18 @@ final class AppInitializer {
     func reset() {
         isInitialized = false
         initializationError = nil
+    }
+
+    // MARK: - Private
+
+    private func initializeDatabase(recreateDatabase: Bool) throws {
+        #if DEBUG
+        if recreateDatabase || Config.recreateLocalDatabaseOnLaunch {
+            logger.notice("Recreating local database before initialization")
+            try databaseService.recreateLocalDatabase()
+        }
+        #endif
+
+        try databaseService.initialize()
     }
 }

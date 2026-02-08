@@ -5,6 +5,7 @@ import SwiftUI
 enum AppRoute: Hashable {
     case deviceDetail(Device)
     case syncedDeviceDetail(SyncedDevice)
+    case syncedSessionDetail(SyncedSession)
     case projectDetail(Device, Project)
     case chat(Chat)
     case newChat(Project)
@@ -23,6 +24,10 @@ class NavigationManager {
 
     func navigateToSyncedDevice(_ device: SyncedDevice) {
         path.append(AppRoute.syncedDeviceDetail(device))
+    }
+
+    func navigateToSyncedSession(_ session: SyncedSession) {
+        path.append(AppRoute.syncedSessionDetail(session))
     }
 
     func navigateToProject(_ project: Project, on device: Device) {

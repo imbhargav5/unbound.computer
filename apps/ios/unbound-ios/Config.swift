@@ -58,6 +58,21 @@ enum Config {
         #endif
     }
 
+    /// Force recreation of local SQLite database on app launch (debug only).
+    /// Set `RECREATE_LOCAL_DB_ON_LAUNCH=1` in scheme environment variables.
+    static var recreateLocalDatabaseOnLaunch: Bool {
+        #if DEBUG
+        guard let rawValue = ProcessInfo.processInfo.environment["RECREATE_LOCAL_DB_ON_LAUNCH"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return false
+        }
+        return rawValue == "1" || rawValue == "true" || rawValue == "yes"
+        #else
+        return false
+        #endif
+    }
+
     /// OAuth redirect URL scheme
     static let oauthRedirectScheme = "unbound-ios"
 
@@ -80,7 +95,7 @@ enum Config {
     /// Print current configuration (debug only)
     static func printConfig() {
         #if DEBUG
-        logger.debug("Config: API URL: \(apiURL), Supabase URL: \(supabaseURL), Debug Mode: \(isDebug)")
+        logger.debug("Config: API URL: \(apiURL), Supabase URL: \(supabaseURL), Debug Mode: \(isDebug), Recreate DB On Launch: \(recreateLocalDatabaseOnLaunch)")
         #endif
     }
 }

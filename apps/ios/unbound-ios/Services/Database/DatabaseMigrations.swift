@@ -224,5 +224,163 @@ enum DatabaseMigrations {
             try db.create(indexOn: "agent_coding_session_attachments", columns: ["message_id"])
             try db.create(indexOn: "agent_coding_session_attachments", columns: ["file_type"])
         }
+
+        // MARK: - v3: Align Local SQLite with macOS Schema
+
+        migrator.registerMigration("v3_align_macos_sqlite_schema") { db in
+            // Rebuild sessions table to match macOS columns.
+            try db.create(table: "agent_coding_sessions_new") { t in
+                t.column("id", .text).primaryKey()
+                t.column("repository_id", .text).notNull()
+                    .references("repositories", onDelete: .cascade)
+                t.column("title", .text).notNull().defaults(to: "New conversation")
+                t.column("claude_session_id", .text)
+                t.column("status", .text).notNull().defaults(to: "active")
+                t.column("is_worktree", .boolean).notNull().defaults(to: false)
+                t.column("worktree_path", .text)
+                t.column("created_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+                t.column("last_accessed_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+                t.column("updated_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+            }
+
+            try db.execute(
+                sql: """
+                    INSERT INTO agent_coding_sessions_new
+                        (id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
+                    SELECT
+                        id,
+                        repository_id,
+                        COALESCE(name, 'New conversation') AS title,
+                        NULL AS claude_session_id,
+                        status,
+                        CASE
+                            WHEN worktree_path IS NOT NULL AND worktree_path != '' THEN 1
+                            ELSE 0
+                        END AS is_worktree,
+                        worktree_path,
+                        created_at,
+                        last_accessed_at,
+                        updated_at
+                    FROM agent_coding_sessions
+                    WHERE repository_id IS NOT NULL
+                    """
+            )
+
+            try db.drop(table: "agent_coding_sessions")
+            try db.rename(table: "agent_coding_sessions_new", to: "agent_coding_sessions")
+
+            try db.create(indexOn: "agent_coding_sessions", columns: ["repository_id"])
+            try db.create(indexOn: "agent_coding_sessions", columns: ["status"])
+            try db.create(indexOn: "agent_coding_sessions", columns: ["last_accessed_at"])
+            try db.create(indexOn: "agent_coding_sessions", columns: ["is_worktree"])
+
+            // Rebuild messages table to macOS plaintext schema.
+            try db.create(table: "agent_coding_session_messages_new") { t in
+                t.column("id", .text).primaryKey()
+                t.column("session_id", .text).notNull()
+                    .references("agent_coding_sessions", onDelete: .cascade)
+                t.column("content", .text).notNull()
+                t.column("timestamp", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+                t.column("is_streaming", .boolean).notNull().defaults(to: false)
+                t.column("sequence_number", .integer).notNull()
+                t.column("created_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+            }
+
+            // Legacy iOS rows only have encrypted payloads, so content is reset when migrating.
+            try db.execute(
+                sql: """
+                    INSERT INTO agent_coding_session_messages_new
+                        (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+                    SELECT
+                        m.id,
+                        ct.session_id,
+                        '' AS content,
+                        m.timestamp,
+                        m.is_streaming,
+                        m.sequence_number,
+                        m.created_at
+                    FROM agent_coding_session_messages m
+                    INNER JOIN agent_coding_session_chat_tabs ct
+                        ON ct.id = m.chat_tab_id
+                    """
+            )
+
+            try db.drop(table: "agent_coding_session_messages")
+            try db.rename(table: "agent_coding_session_messages_new", to: "agent_coding_session_messages")
+
+            try db.create(indexOn: "agent_coding_session_messages", columns: ["session_id"])
+            try db.create(indexOn: "agent_coding_session_messages", columns: ["session_id", "sequence_number"])
+            try db.create(indexOn: "agent_coding_session_messages", columns: ["timestamp"])
+
+            // macOS does not use local chat tabs.
+            try db.drop(table: "agent_coding_session_chat_tabs")
+
+            // Add macOS runtime tables used for local state + sync.
+            try db.create(table: "agent_coding_session_state", ifNotExists: true) { t in
+                t.column("session_id", .text).primaryKey()
+                    .references("agent_coding_sessions", onDelete: .cascade)
+                t.column("agent_status", .text).notNull().defaults(to: "idle")
+                t.column("queued_commands", .text)
+                t.column("diff_summary", .text)
+                t.column("updated_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+            }
+
+            try db.create(table: "session_secrets", ifNotExists: true) { t in
+                t.column("session_id", .text).primaryKey()
+                    .references("agent_coding_sessions", onDelete: .cascade)
+                t.column("encrypted_secret", .blob).notNull()
+                t.column("nonce", .blob).notNull()
+                t.column("created_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+            }
+
+            try db.create(table: "agent_coding_session_message_supabase_outbox", ifNotExists: true) { t in
+                t.column("message_id", .text).primaryKey()
+                    .references("agent_coding_session_messages", onDelete: .cascade)
+                t.column("created_at", .datetime).notNull()
+                    .defaults(sql: "CURRENT_TIMESTAMP")
+                t.column("sent_at", .datetime)
+                t.column("last_attempt_at", .datetime)
+                t.column("retry_count", .integer).notNull().defaults(to: 0)
+                t.column("last_error", .text)
+            }
+            try db.create(indexOn: "agent_coding_session_message_supabase_outbox", columns: ["sent_at"])
+            try db.create(indexOn: "agent_coding_session_message_supabase_outbox", columns: ["last_attempt_at"])
+
+            try db.create(table: "agent_coding_session_supabase_sync_state", ifNotExists: true) { t in
+                t.column("session_id", .text).primaryKey()
+                    .references("agent_coding_sessions", onDelete: .cascade)
+                t.column("last_synced_sequence_number", .integer).notNull().defaults(to: 0)
+                t.column("last_sync_at", .datetime)
+                t.column("last_error", .text)
+                t.column("retry_count", .integer).notNull().defaults(to: 0)
+                t.column("last_attempt_at", .datetime)
+            }
+            try db.create(indexOn: "agent_coding_session_supabase_sync_state", columns: ["last_attempt_at"])
+
+            try db.create(table: "agent_coding_session_ably_sync_state", ifNotExists: true) { t in
+                t.column("session_id", .text).primaryKey()
+                    .references("agent_coding_sessions", onDelete: .cascade)
+                t.column("last_synced_sequence_number", .integer).notNull().defaults(to: 0)
+                t.column("last_sync_at", .datetime)
+                t.column("last_error", .text)
+                t.column("retry_count", .integer).notNull().defaults(to: 0)
+                t.column("last_attempt_at", .datetime)
+            }
+            try db.create(indexOn: "agent_coding_session_ably_sync_state", columns: ["last_attempt_at"])
+
+            // Mirror daemon migration tracking table name.
+            try db.create(table: "migrations", ifNotExists: true) { t in
+                t.column("version", .integer).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("applied_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+            }
+        }
     }
 }
