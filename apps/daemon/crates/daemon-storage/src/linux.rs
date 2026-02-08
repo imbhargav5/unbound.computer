@@ -43,10 +43,10 @@ impl SecretServiceStorage {
         f(&collection)
     }
 
-    fn build_attributes(&self, key: &str) -> HashMap<String, String> {
+    fn build_attributes<'a>(&'a self, key: &'a str) -> HashMap<&'a str, &'a str> {
         let mut attrs = HashMap::new();
-        attrs.insert("service".to_string(), self.service_name.clone());
-        attrs.insert("key".to_string(), key.to_string());
+        attrs.insert("service", self.service_name.as_str());
+        attrs.insert("key", key);
         attrs
     }
 }
