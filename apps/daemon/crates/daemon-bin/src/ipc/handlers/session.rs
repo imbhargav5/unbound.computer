@@ -210,6 +210,13 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
                                 session_secret.as_bytes(),
                             ) {
                                 Ok(encrypted) => {
+                                    debug!(
+                                        session_id = %session_id.as_str(),
+                                        nonce_len = nonce.len(),
+                                        encrypted_len = encrypted.len(),
+                                        plaintext_len = session_secret.len(),
+                                        "Encrypted session secret, storing via Armin"
+                                    );
                                     // Store via Armin
                                     let secret = armin::NewSessionSecret {
                                         session_id: session_id.clone(),

@@ -37,7 +37,6 @@ struct unbound_iosApp: App {
     // Singleton services - accessed directly, not wrapped in @State
     private var authService: AuthService { AuthService.shared }
     private var deviceTrustService: DeviceTrustService { DeviceTrustService.shared }
-    private var relayService: RelayConnectionService { RelayConnectionService.shared }
     private var pushService: PushNotificationService { PushNotificationService.shared }
     private var deepLinkRouter: DeepLinkRouter { DeepLinkRouter.shared }
     private var trustStatusService: DeviceTrustStatusService { DeviceTrustStatusService.shared }
@@ -64,7 +63,6 @@ struct unbound_iosApp: App {
             .environment(AuthService.shared)
             .environment(\.navigationManager, navigationManager)
             .environment(\.deviceTrustService, DeviceTrustService.shared)
-            .environment(\.relayService, RelayConnectionService.shared)
             .environment(\.pushNotificationService, PushNotificationService.shared)
             .environment(\.deepLinkRouter, DeepLinkRouter.shared)
             .tint(AppTheme.accent)
@@ -170,8 +168,6 @@ struct unbound_iosApp: App {
             }
         }
         .task {
-            // Connect to relay on authenticated content appear
-            await connectToRelay()
             // Request push notification authorization
             await pushService.requestAuthorization()
             // Check if we should show trust onboarding
@@ -196,28 +192,14 @@ struct unbound_iosApp: App {
         }
     }
 
-    // MARK: - Relay Connection
-
-    private func connectToRelay() async {
-        do {
-            let token = try await authService.getAccessToken()
-            relayService.connect(to: Config.relayWebSocketURL, authToken: token)
-        } catch {
-            logger.error("Failed to get access token for relay: \(error)")
-        }
-    }
-
     // MARK: - Auth State Changes
 
     private func handleAuthStateChange(_ newState: AuthState) {
         switch newState {
         case .authenticated:
-            // Relay connection is handled by .task on authenticatedContent
             break
 
         case .unauthenticated, .error:
-            // Disconnect from relay when logged out
-            relayService.disconnect()
             // Clear cached push token
             pushService.clearCachedToken()
 

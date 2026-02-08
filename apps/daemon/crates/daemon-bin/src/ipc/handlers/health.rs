@@ -31,18 +31,5 @@ pub async fn register(server: &IpcServer) {
         })
         .await;
 
-    // Outbox status
-    server
-        .register_handler(Method::OutboxStatus, |req| async move {
-            Response::success(
-                &req.id,
-                serde_json::json!({
-                    "status": "ok",
-                    "queues": 0,
-                }),
-            )
-        })
-        .await;
-
     info!("Registered health handlers");
 }

@@ -51,7 +51,6 @@ pub async fn run_daemon(
     info!(
         supabase_url = %config.supabase_url,
         supabase_key_prefix = %&config.supabase_publishable_key[..config.supabase_publishable_key.len().min(20)],
-        relay_url = %config.relay.url,
         "Configuration loaded"
     );
 
@@ -244,6 +243,73 @@ pub async fn run_daemon(
             Err(e) => warn!("Failed to load session secrets from Supabase: {}", e),
         }
     });
+
+    // Reconcile local sessions with Supabase: ensure any session that has
+    // pending messages to sync also exists in Supabase's agent_coding_sessions
+    // table. Without this, Levi's message inserts fail RLS policy checks.
+    {
+        use armin::SessionReader;
+
+        let armin_ref = state.armin.clone();
+        let session_sync_ref = state.session_sync.clone();
+        tokio::spawn(async move {
+            let pending = match armin_ref.get_sessions_pending_sync(1000) {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!("Failed to query pending sync sessions for reconciliation: {}", e);
+                    return;
+                }
+            };
+
+            if pending.is_empty() {
+                return;
+            }
+
+            info!(
+                count = pending.len(),
+                "Reconciling local sessions with Supabase before message sync"
+            );
+
+            // Collect unique repository IDs to sync first (FK dependency)
+            let mut synced_repos = std::collections::HashSet::new();
+
+            for session_pending in &pending {
+                let session_id = session_pending.session_id.as_str();
+                let session = match armin_ref.get_session(&session_pending.session_id) {
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
+                        warn!(session_id, "Pending sync session not found locally, skipping");
+                        continue;
+                    }
+                    Err(e) => {
+                        warn!(session_id, error = %e, "Failed to get session for reconciliation");
+                        continue;
+                    }
+                };
+
+                // Sync repository first if not already done (FK dependency)
+                let repo_id = session.repository_id.as_str().to_string();
+                if !synced_repos.contains(&repo_id) {
+                    if let Err(e) = session_sync_ref.sync_repository(&repo_id).await {
+                        warn!(session_id, repository_id = %repo_id, error = %e, "Failed to reconcile repository");
+                        // Continue anyway — repo may already exist in Supabase
+                    }
+                    synced_repos.insert(repo_id);
+                }
+
+                if let Err(e) = session_sync_ref
+                    .sync_session(
+                        session_id,
+                        session.repository_id.as_str(),
+                        session.status.as_str(),
+                    )
+                    .await
+                {
+                    warn!(session_id, error = %e, "Failed to reconcile session to Supabase");
+                }
+            }
+        });
+    }
 
     // Register handlers
     register_handlers(&ipc_server, state).await;

@@ -38,10 +38,6 @@ pub enum Method {
     #[serde(rename = "message.send")]
     MessageSend,
 
-    // Outbox
-    #[serde(rename = "outbox.status")]
-    OutboxStatus,
-
     // Repositories
     #[serde(rename = "repository.list")]
     RepositoryList,
@@ -372,7 +368,6 @@ mod tests {
             (Method::SessionCreate, "session.create"),
             (Method::SessionGet, "session.get"),
             (Method::SessionDelete, "session.delete"),
-            (Method::OutboxStatus, "outbox.status"),
             (Method::RepositoryList, "repository.list"),
             (Method::RepositoryAdd, "repository.add"),
             (Method::RepositoryRemove, "repository.remove"),

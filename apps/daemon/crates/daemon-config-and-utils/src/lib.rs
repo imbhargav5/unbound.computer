@@ -6,7 +6,7 @@ pub mod hybrid_crypto;
 mod logging;
 mod paths;
 
-pub use config::{Config, RelayConfig};
+pub use config::Config;
 pub use error::{CoreError, CoreResult};
 pub use hybrid_crypto::{decrypt_for_device, encrypt_for_device, generate_keypair};
 pub use logging::init_logging;

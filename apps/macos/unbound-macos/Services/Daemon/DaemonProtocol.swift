@@ -33,9 +33,6 @@ enum DaemonMethod: String, Codable {
     case messageList = "message.list"
     case messageSend = "message.send"
 
-    // Outbox
-    case outboxStatus = "outbox.status"
-
     // Repositories
     case repositoryList = "repository.list"
     case repositoryAdd = "repository.add"

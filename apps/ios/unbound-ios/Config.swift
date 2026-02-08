@@ -12,31 +12,6 @@ import Logging
 private let logger = Logger(label: "app.config")
 
 enum Config {
-    // MARK: - Relay Server
-
-    /// The relay server URL
-    /// - Debug: Uses local development server
-    /// - Release: Uses production Fly.io server
-    static var relayURL: URL {
-        #if DEBUG
-        // Development: Use local relay server
-        // Override with environment variable if set
-        if let envURL = ProcessInfo.processInfo.environment["RELAY_URL"],
-           let url = URL(string: envURL) {
-            return url
-        }
-        return URL(string: "ws://localhost:8080")!
-        #else
-        // Production: Use Fly.io relay server
-        return URL(string: "wss://unbound-computer.fly.dev")!
-        #endif
-    }
-
-    /// WebSocket URL for the relay (alias for clarity)
-    static var relayWebSocketURL: URL {
-        relayURL
-    }
-
     // MARK: - API
 
     /// The main API URL
@@ -105,7 +80,7 @@ enum Config {
     /// Print current configuration (debug only)
     static func printConfig() {
         #if DEBUG
-        logger.debug("Config: Relay URL: \(relayURL), API URL: \(apiURL), Supabase URL: \(supabaseURL), Debug Mode: \(isDebug)")
+        logger.debug("Config: API URL: \(apiURL), Supabase URL: \(supabaseURL), Debug Mode: \(isDebug)")
         #endif
     }
 }

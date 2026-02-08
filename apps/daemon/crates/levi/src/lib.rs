@@ -76,13 +76,10 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, Duration};
 use toshinori::{MessageSyncRequest, MessageSyncer, MessageUpsert, SupabaseClient, SyncContext};
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 /// Base64 encoding engine for ciphertext and nonces.
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
-
-/// Default role assigned to synced messages.
-const DEFAULT_ROLE: &str = "assistant";
 
 /// Default capacity of the in-memory message queue.
 const DEFAULT_QUEUE_CAPACITY: usize = 1024;
@@ -297,6 +294,9 @@ impl Levi {
                             continue;
                         }
 
+                        let session_id_for_log = session_pending.session_id.as_str().to_string();
+                        let retry_count = session_pending.retry_count;
+
                         if let Err(err) = send_session_batch(
                             &client,
                             &armin,
@@ -307,7 +307,12 @@ impl Levi {
                         )
                         .await
                         {
-                            warn!(error = %err, "Levi session batch failed");
+                            warn!(
+                                session_id = %session_id_for_log,
+                                retry_count = retry_count,
+                                error = %err,
+                                "Levi session batch failed"
+                            );
                         }
                     }
                 }
@@ -421,7 +426,6 @@ async fn send_session_batch(
                 payloads.push(MessageUpsert {
                     session_id: session_id.as_str().to_string(),
                     sequence_number: message.sequence_number,
-                    role: DEFAULT_ROLE.to_string(),
                     content_encrypted: Some(cipher_b64),
                     content_nonce: Some(nonce_b64),
                 });
@@ -552,12 +556,29 @@ fn get_session_secret_key(
         .map_err(|e| format!("failed to get session secret: {}", e))?
         .ok_or_else(|| "missing session secret".to_string())?;
 
+    debug!(
+        session_id = %session_id,
+        db_key_len = db_key.len(),
+        nonce_len = session_secret.nonce.len(),
+        encrypted_len = session_secret.encrypted_secret.len(),
+        nonce_b64 = %BASE64.encode(&session_secret.nonce),
+        "Decrypting session secret"
+    );
+
     let plaintext = daemon_database::decrypt_content(
         &db_key,
         &session_secret.nonce,
         &session_secret.encrypted_secret,
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        error!(
+            session_id = %session_id,
+            nonce_len = session_secret.nonce.len(),
+            encrypted_len = session_secret.encrypted_secret.len(),
+            "Session secret decryption failed: {}", e
+        );
+        e.to_string()
+    })?;
 
     let secret_str = String::from_utf8(plaintext).map_err(|e| e.to_string())?;
     let key = SecretsManager::parse_session_secret(&secret_str).map_err(|e| e.to_string())?;

@@ -12,46 +12,6 @@ import Logging
 private let logger = Logger(label: "app.config")
 
 enum Config {
-    // MARK: - Relay Server
-
-    /// The relay server URL
-    /// - Debug: Uses local development server
-    /// - Release: Uses production Fly.io server
-    static var relayURL: URL {
-        #if DEBUG
-        // Development: Use local relay server
-        // Override with environment variable if set
-        if let envURL = ProcessInfo.processInfo.environment["RELAY_URL"],
-           let url = URL(string: envURL) {
-            return url
-        }
-        return URL(string: "ws://localhost:8080")!
-        #else
-        // Production: Use Fly.io relay server
-        return URL(string: "wss://unbound-computer.fly.dev")!
-        #endif
-    }
-
-    /// WebSocket URL for the relay (alias for clarity)
-    static var relayWebSocketURL: URL {
-        relayURL
-    }
-
-    /// HTTP URL for the relay (for outbox batch sending)
-    /// Converts ws:// to http:// and wss:// to https://
-    static var relayHTTPURL: URL {
-        let wsURL = relayURL.absoluteString
-        let httpURL: String
-        if wsURL.hasPrefix("wss://") {
-            httpURL = wsURL.replacingOccurrences(of: "wss://", with: "https://")
-        } else if wsURL.hasPrefix("ws://") {
-            httpURL = wsURL.replacingOccurrences(of: "ws://", with: "http://")
-        } else {
-            httpURL = wsURL
-        }
-        return URL(string: httpURL)!
-    }
-
     // MARK: - API
 
     /// The main API URL
@@ -128,7 +88,6 @@ enum Config {
     static func printConfig() {
         #if DEBUG
         logger.debug("Config:")
-        logger.debug("  - Relay URL: \(relayURL)")
         logger.debug("  - API URL: \(apiURL)")
         logger.debug("  - Supabase URL: \(supabaseURL)")
         logger.debug("  - OAuth Redirect: \(oauthRedirectURL)")

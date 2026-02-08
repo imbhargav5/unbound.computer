@@ -18,8 +18,6 @@ pub struct MessageUpsert {
     pub session_id: String,
     /// The message's position in the session's message sequence.
     pub sequence_number: i64,
-    /// The message role (e.g., "user", "assistant").
-    pub role: String,
     /// Base64-encoded encrypted message content (omitted if None).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_encrypted: Option<String>,
@@ -230,14 +228,12 @@ impl SupabaseClient {
         session_id: &str,
         content_encrypted: Option<&str>,
         content_nonce: Option<&str>,
-        role: &str,
         sequence_number: i64,
         access_token: &str,
     ) -> ToshinoriResult<()> {
         let message = MessageUpsert {
             session_id: session_id.to_string(),
             sequence_number,
-            role: role.to_string(),
             content_encrypted: content_encrypted.map(|v| v.to_string()),
             content_nonce: content_nonce.map(|v| v.to_string()),
         };
