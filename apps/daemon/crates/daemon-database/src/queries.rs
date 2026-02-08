@@ -4,9 +4,9 @@
 //! Each function takes a `&Connection` as its first parameter.
 
 use crate::{
-    AgentCodingSession, AgentCodingSessionEventOutbox, AgentCodingSessionMessage,
+    AgentCodingSession, AgentCodingSessionMessage,
     AgentCodingSessionState, AgentStatus, DatabaseError, DatabaseResult, NewAgentCodingSession,
-    NewAgentCodingSessionMessage, NewOutboxEvent, NewRepository, NewSessionSecret, OutboxStatus,
+    NewAgentCodingSessionMessage, NewRepository, NewSessionSecret,
     Repository, SessionSecret, SessionStatus, SupabaseMessageOutboxPending, UserSetting,
 };
 use chrono::{DateTime, Utc};
@@ -415,113 +415,6 @@ pub fn get_next_message_sequence(conn: &Connection, session_id: &str) -> Databas
 }
 
 // ==========================================
-// Outbox
-// ==========================================
-
-/// Insert a new outbox event.
-pub fn insert_outbox_event(conn: &Connection, event: &NewOutboxEvent) -> DatabaseResult<()> {
-    let now = Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT INTO agent_coding_session_event_outbox (event_id, session_id, sequence_number, message_id, status, created_at)
-         VALUES (?1, ?2, ?3, ?4, 'pending', ?5)",
-        params![
-            event.event_id,
-            event.session_id,
-            event.sequence_number,
-            event.message_id,
-            now,
-        ],
-    )?;
-    Ok(())
-}
-
-/// Get pending outbox events for a session (limited to batch size).
-pub fn get_pending_outbox_events(
-    conn: &Connection,
-    session_id: &str,
-    limit: usize,
-) -> DatabaseResult<Vec<AgentCodingSessionEventOutbox>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT event_id, session_id, sequence_number, relay_send_batch_id, message_id, status, retry_count, last_error, created_at, sent_at, acked_at
-         FROM agent_coding_session_event_outbox
-         WHERE session_id = ?1 AND status = 'pending'
-         ORDER BY sequence_number ASC
-         LIMIT ?2",
-    )?;
-
-    let events = stmt
-        .query_map(params![session_id, limit as i64], |row| {
-            Ok(AgentCodingSessionEventOutbox {
-                event_id: row.get(0)?,
-                session_id: row.get(1)?,
-                sequence_number: row.get(2)?,
-                relay_send_batch_id: row.get(3)?,
-                message_id: row.get(4)?,
-                status: OutboxStatus::from_str(&row.get::<_, String>(5)?),
-                retry_count: row.get(6)?,
-                last_error: row.get(7)?,
-                created_at: parse_datetime(row.get::<_, String>(8)?),
-                sent_at: row.get::<_, Option<String>>(9)?.map(parse_datetime),
-                acked_at: row.get::<_, Option<String>>(10)?.map(parse_datetime),
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(events)
-}
-
-/// Mark outbox events as sent with a batch ID.
-pub fn mark_outbox_events_sent(
-    conn: &Connection,
-    event_ids: &[String],
-    batch_id: &str,
-) -> DatabaseResult<()> {
-    let now = Utc::now().to_rfc3339();
-    for event_id in event_ids {
-        conn.execute(
-            "UPDATE agent_coding_session_event_outbox
-             SET status = 'sent', relay_send_batch_id = ?1, sent_at = ?2
-             WHERE event_id = ?3",
-            params![batch_id, now, event_id],
-        )?;
-    }
-    Ok(())
-}
-
-/// Mark outbox events as acknowledged by batch ID.
-pub fn mark_outbox_batch_acked(conn: &Connection, batch_id: &str) -> DatabaseResult<usize> {
-    let now = Utc::now().to_rfc3339();
-    let count = conn.execute(
-        "UPDATE agent_coding_session_event_outbox
-         SET status = 'acked', acked_at = ?1
-         WHERE relay_send_batch_id = ?2",
-        params![now, batch_id],
-    )?;
-    Ok(count)
-}
-
-/// Reset sent events to pending (for crash recovery).
-pub fn reset_sent_events_to_pending(conn: &Connection, session_id: &str) -> DatabaseResult<usize> {
-    let count = conn.execute(
-        "UPDATE agent_coding_session_event_outbox
-         SET status = 'pending', relay_send_batch_id = NULL, sent_at = NULL
-         WHERE session_id = ?1 AND status = 'sent'",
-        params![session_id],
-    )?;
-    Ok(count)
-}
-
-/// Get the next outbox sequence number for a session.
-pub fn get_next_outbox_sequence(conn: &Connection, session_id: &str) -> DatabaseResult<i64> {
-    let max: Option<i64> = conn.query_row(
-        "SELECT MAX(sequence_number) FROM agent_coding_session_event_outbox WHERE session_id = ?1",
-        params![session_id],
-        |row| row.get(0),
-    )?;
-    Ok(max.unwrap_or(0) + 1)
-}
-
-// ==========================================
 // Supabase Message Outbox
 // ==========================================
 
@@ -772,7 +665,7 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
 mod tests {
     use super::*;
     use chrono::Datelike;
-    use crate::{migrations, NewAgentCodingSession, NewAgentCodingSessionMessage, NewOutboxEvent, NewRepository, NewSessionSecret};
+    use crate::{migrations, NewAgentCodingSession, NewAgentCodingSessionMessage, NewRepository, NewSessionSecret};
 
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -1064,68 +957,6 @@ mod tests {
 
         // Next after max(5) = 6
         assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 6);
-    }
-
-    // =========================================================================
-    // Event outbox queries
-    // =========================================================================
-
-    #[test]
-    fn outbox_lifecycle() {
-        let conn = setup_conn();
-        let repo_id = insert_test_repo(&conn);
-        let session_id = insert_test_session(&conn, &repo_id);
-
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: "c".into(), sequence_number: 1, is_streaming: false,
-        }).unwrap();
-
-        assert_eq!(get_next_outbox_sequence(&conn, &session_id).unwrap(), 1);
-
-        insert_outbox_event(&conn, &NewOutboxEvent {
-            event_id: "e1".into(), session_id: session_id.clone(),
-            sequence_number: 1, message_id: "m1".into(),
-        }).unwrap();
-
-        assert_eq!(get_next_outbox_sequence(&conn, &session_id).unwrap(), 2);
-
-        let pending = get_pending_outbox_events(&conn, &session_id, 10).unwrap();
-        assert_eq!(pending.len(), 1);
-        assert_eq!(pending[0].status, crate::OutboxStatus::Pending);
-
-        // Mark sent
-        mark_outbox_events_sent(&conn, &["e1".into()], "batch-1").unwrap();
-        assert!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().is_empty());
-
-        // Ack
-        let acked = mark_outbox_batch_acked(&conn, "batch-1").unwrap();
-        assert_eq!(acked, 1);
-    }
-
-    #[test]
-    fn outbox_reset_sent_to_pending() {
-        let conn = setup_conn();
-        let repo_id = insert_test_repo(&conn);
-        let session_id = insert_test_session(&conn, &repo_id);
-
-        for i in 1..=3 {
-            insert_message(&conn, &NewAgentCodingSessionMessage {
-                id: format!("m{i}"), session_id: session_id.clone(),
-                content: format!("c{i}"), sequence_number: i, is_streaming: false,
-            }).unwrap();
-            insert_outbox_event(&conn, &NewOutboxEvent {
-                event_id: format!("e{i}"), session_id: session_id.clone(),
-                sequence_number: i, message_id: format!("m{i}"),
-            }).unwrap();
-        }
-
-        mark_outbox_events_sent(&conn, &["e1".into(), "e2".into(), "e3".into()], "b1").unwrap();
-        assert!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().is_empty());
-
-        let reset = reset_sent_events_to_pending(&conn, &session_id).unwrap();
-        assert_eq!(reset, 3);
-        assert_eq!(get_pending_outbox_events(&conn, &session_id, 10).unwrap().len(), 3);
     }
 
     // =========================================================================

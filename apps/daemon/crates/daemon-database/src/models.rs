@@ -159,22 +159,6 @@ impl MessageRole {
     }
 }
 
-/// Agent coding session event outbox - message delivery queue for relay sync.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentCodingSessionEventOutbox {
-    pub event_id: String,
-    pub session_id: String,
-    pub sequence_number: i64,
-    pub relay_send_batch_id: Option<String>,
-    pub message_id: String,
-    pub status: OutboxStatus,
-    pub retry_count: i32,
-    pub last_error: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub sent_at: Option<DateTime<Utc>>,
-    pub acked_at: Option<DateTime<Utc>>,
-}
-
 /// Supabase message outbox entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentCodingSessionMessageSupabaseOutbox {
@@ -197,42 +181,6 @@ pub struct SupabaseMessageOutboxPending {
     pub last_attempt_at: Option<DateTime<Utc>>,
     pub retry_count: i32,
     pub last_error: Option<String>,
-}
-
-/// Outbox event status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OutboxStatus {
-    Pending,
-    Sent,
-    Acked,
-    Failed,
-}
-
-impl Default for OutboxStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
-
-impl OutboxStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Pending => "pending",
-            Self::Sent => "sent",
-            Self::Acked => "acked",
-            Self::Failed => "failed",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "sent" => Self::Sent,
-            "acked" => Self::Acked,
-            "failed" => Self::Failed,
-            _ => Self::Pending,
-        }
-    }
 }
 
 /// User settings - key-value configuration.
@@ -275,15 +223,6 @@ pub struct NewAgentCodingSessionMessage {
     pub content: String,
     pub sequence_number: i64,
     pub is_streaming: bool,
-}
-
-/// New outbox event for insertion.
-#[derive(Debug, Clone)]
-pub struct NewOutboxEvent {
-    pub event_id: String,
-    pub session_id: String,
-    pub sequence_number: i64,
-    pub message_id: String,
 }
 
 /// Session secret - encrypted session encryption key stored in SQLite.
@@ -376,29 +315,6 @@ mod tests {
     }
 
     #[test]
-    fn test_outbox_status_from_str() {
-        assert_eq!(OutboxStatus::from_str("pending"), OutboxStatus::Pending);
-        assert_eq!(OutboxStatus::from_str("PENDING"), OutboxStatus::Pending);
-        assert_eq!(OutboxStatus::from_str("sent"), OutboxStatus::Sent);
-        assert_eq!(OutboxStatus::from_str("SENT"), OutboxStatus::Sent);
-        assert_eq!(OutboxStatus::from_str("acked"), OutboxStatus::Acked);
-        assert_eq!(OutboxStatus::from_str("ACKED"), OutboxStatus::Acked);
-        assert_eq!(OutboxStatus::from_str("failed"), OutboxStatus::Failed);
-        assert_eq!(OutboxStatus::from_str("FAILED"), OutboxStatus::Failed);
-        // Unknown defaults to Pending
-        assert_eq!(OutboxStatus::from_str("unknown"), OutboxStatus::Pending);
-        assert_eq!(OutboxStatus::from_str(""), OutboxStatus::Pending);
-    }
-
-    #[test]
-    fn test_outbox_status_as_str() {
-        assert_eq!(OutboxStatus::Pending.as_str(), "pending");
-        assert_eq!(OutboxStatus::Sent.as_str(), "sent");
-        assert_eq!(OutboxStatus::Acked.as_str(), "acked");
-        assert_eq!(OutboxStatus::Failed.as_str(), "failed");
-    }
-
-    #[test]
     fn test_session_status_default() {
         assert_eq!(SessionStatus::default(), SessionStatus::Active);
     }
@@ -406,10 +322,5 @@ mod tests {
     #[test]
     fn test_agent_status_default() {
         assert_eq!(AgentStatus::default(), AgentStatus::Idle);
-    }
-
-    #[test]
-    fn test_outbox_status_default() {
-        assert_eq!(OutboxStatus::default(), OutboxStatus::Pending);
     }
 }

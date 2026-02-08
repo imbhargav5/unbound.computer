@@ -46,12 +46,6 @@ pub enum SideEffect {
         session_id: SessionId,
         status: AgentStatus,
     },
-
-    // Outbox side-effects
-    /// Outbox events were sent.
-    OutboxEventsSent { batch_id: String },
-    /// Outbox events were acknowledged.
-    OutboxEventsAcked { batch_id: String },
 }
 
 /// A sink that receives side-effects from Armin.

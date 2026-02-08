@@ -128,6 +128,10 @@ pub struct LeviConfig {
     pub backoff_base: Duration,
     /// Maximum duration for backoff (caps exponential growth).
     pub backoff_max: Duration,
+    /// Maximum number of retries before permanently abandoning a session's sync.
+    /// Prevents Levi from endlessly retrying sessions with permanent failures
+    /// (e.g., secrets encrypted with a stale device key).
+    pub max_retries: i32,
 }
 
 impl Default for LeviConfig {
@@ -137,6 +141,7 @@ impl Default for LeviConfig {
             flush_interval: Duration::from_millis(500),
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(300),
+            max_retries: 20,
         }
     }
 }
@@ -284,6 +289,17 @@ impl Levi {
                     let now = Utc::now();
 
                     for session_pending in sessions_to_sync {
+                        // Permanently skip sessions that have exceeded max retries
+                        if session_pending.retry_count > config.max_retries {
+                            debug!(
+                                session_id = %session_pending.session_id.as_str(),
+                                retry_count = session_pending.retry_count,
+                                max_retries = config.max_retries,
+                                "Skipping session sync (max retries exceeded)"
+                            );
+                            continue;
+                        }
+
                         // Check if this session is due for retry based on backoff
                         if !is_session_due(
                             session_pending.last_attempt_at,
@@ -1143,6 +1159,7 @@ mod tests {
         assert_eq!(config.flush_interval, Duration::from_millis(500));
         assert_eq!(config.backoff_base, Duration::from_secs(2));
         assert_eq!(config.backoff_max, Duration::from_secs(300));
+        assert_eq!(config.max_retries, 20);
     }
 
     #[test]

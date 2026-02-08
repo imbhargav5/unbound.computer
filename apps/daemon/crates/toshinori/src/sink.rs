@@ -338,15 +338,6 @@ impl ToshinoriSink {
                     Ok(())
                 }
 
-                SideEffect::OutboxEventsSent { batch_id } => {
-                    debug!(batch_id, "Toshinori: OutboxEventsSent (no sync needed)");
-                    Ok(())
-                }
-
-                SideEffect::OutboxEventsAcked { batch_id } => {
-                    debug!(batch_id, "Toshinori: OutboxEventsAcked (no sync needed)");
-                    Ok(())
-                }
             };
 
             // Log errors but don't fail

@@ -58,8 +58,6 @@ core-foundation = "0.10"  # macOS Core Foundation types
 secret-service = { version = "3.0", features = ["rt-tokio-crypto-rust"] }  # Linux Secret Service (blocking API)
 windows = { version = "0.58", features = ["Security_Credentials"] }
 
-# WebSocket
-tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 futures-util = "0.3"
 
 # IPC

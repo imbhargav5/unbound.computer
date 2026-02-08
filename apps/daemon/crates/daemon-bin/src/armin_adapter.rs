@@ -170,15 +170,6 @@ impl SideEffectSink for DaemonSideEffectSink {
                 });
             }
 
-            SideEffect::OutboxEventsSent { batch_id } => {
-                debug!(batch_id = %batch_id, "Armin outbox events sent");
-                // Outbox events are not currently broadcast
-            }
-
-            SideEffect::OutboxEventsAcked { batch_id } => {
-                debug!(batch_id = %batch_id, "Armin outbox events acked");
-                // Outbox events are not currently broadcast
-            }
         }
     }
 }

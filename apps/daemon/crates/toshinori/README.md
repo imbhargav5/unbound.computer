@@ -71,8 +71,6 @@ sink.clear_context().await;
 | `SessionUpdated` | Upsert to `agent_coding_sessions` (requires session metadata) |
 | `MessageAppended` | Enqueue message sync (requires message content) |
 | `AgentStatusChanged` | **Skipped** (no `agent_status` column in schema) |
-| `OutboxEventsSent` | No sync needed |
-| `OutboxEventsAcked` | No sync needed |
 
 ## Integration with Daemon
 

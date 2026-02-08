@@ -207,14 +207,6 @@ mod tests {
             Ok(false)
         }
 
-        fn get_pending_outbox_events(
-            &self,
-            _session: &SessionId,
-            _limit: usize,
-        ) -> Result<Vec<OutboxEvent>, ArminError> {
-            Ok(vec![])
-        }
-
         fn get_pending_supabase_messages(
             &self,
             _limit: usize,
@@ -230,6 +222,20 @@ mod tests {
         }
 
         fn get_sessions_pending_sync(
+            &self,
+            _limit_per_session: usize,
+        ) -> Result<Vec<SessionPendingSync>, ArminError> {
+            Ok(vec![])
+        }
+
+        fn get_ably_sync_state(
+            &self,
+            _session: &SessionId,
+        ) -> Result<Option<AblySyncState>, ArminError> {
+            Ok(None)
+        }
+
+        fn get_sessions_pending_ably_sync(
             &self,
             _limit_per_session: usize,
         ) -> Result<Vec<SessionPendingSync>, ArminError> {

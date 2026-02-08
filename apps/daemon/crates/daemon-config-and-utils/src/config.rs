@@ -71,7 +71,7 @@ impl Config {
     }
 
     /// Load configuration from a file, falling back to defaults.
-    /// Note: relay.url, supabase_url, and supabase_publishable_key are
+    /// Note: supabase_url and supabase_publishable_key are
     /// compile-time only and will always use the built-in defaults,
     /// regardless of what's in the config file.
     pub fn load(paths: &Paths) -> CoreResult<Self> {

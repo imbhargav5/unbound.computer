@@ -12,7 +12,7 @@ use crate::delta::DeltaView;
 use crate::live::LiveSubscription;
 use crate::snapshot::SnapshotView;
 use crate::types::{
-    OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
+    AblySyncState, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
     SessionPendingSync, SessionSecret, SessionState, SupabaseSyncState,
 };
 use crate::ArminError;
@@ -79,11 +79,8 @@ pub trait SessionReader {
     fn has_session_secret(&self, session: &SessionId) -> Result<bool, ArminError>;
 
     // ========================================================================
-    // Outbox operations
+    // Supabase message outbox operations
     // ========================================================================
-
-    /// Gets pending outbox events for a session.
-    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Result<Vec<OutboxEvent>, ArminError>;
 
     /// Gets pending Supabase message outbox entries (joined with message content).
     fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError>;
@@ -97,4 +94,14 @@ pub trait SessionReader {
 
     /// Gets sessions with pending messages to sync (cursor-based).
     fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError>;
+
+    // ========================================================================
+    // Ably sync state operations (cursor-based)
+    // ========================================================================
+
+    /// Gets the Ably sync state for a session.
+    fn get_ably_sync_state(&self, session: &SessionId) -> Result<Option<AblySyncState>, ArminError>;
+
+    /// Gets sessions with pending messages to sync via Ably (cursor-based).
+    fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError>;
 }

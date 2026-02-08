@@ -15,8 +15,8 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
-    NewSessionSecret, OutboxEvent, OutboxStatus, Repository, RepositoryId, Session, SessionId,
+    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    NewSessionSecret, Repository, RepositoryId, Session, SessionId,
     SessionSecret, SessionState, SessionStatus, SessionUpdate, UserSetting,
 };
 
@@ -97,6 +97,12 @@ impl SqliteStore {
 
         // Ensure Supabase sync state table exists for existing databases
         self.ensure_supabase_sync_state(&conn)?;
+
+        // Ensure Ably sync state table exists for existing databases
+        self.ensure_ably_sync_state(&conn)?;
+
+        // Drop legacy outbox table if it exists
+        conn.execute_batch("DROP TABLE IF EXISTS agent_coding_session_event_outbox;")?;
 
         Ok(())
     }
@@ -221,43 +227,6 @@ impl SqliteStore {
                 nonce BLOB NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
-            "#,
-        )?;
-
-        // Event outbox table
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS agent_coding_session_event_outbox (
-                event_id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
-                sequence_number INTEGER NOT NULL,
-                relay_send_batch_id TEXT,
-                message_id TEXT NOT NULL REFERENCES agent_coding_session_messages(id) ON DELETE CASCADE,
-                status TEXT NOT NULL DEFAULT 'pending',
-                retry_count INTEGER NOT NULL DEFAULT 0,
-                last_error TEXT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                sent_at TEXT,
-                acked_at TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_outbox_session_seq
-                ON agent_coding_session_event_outbox(session_id, sequence_number);
-            CREATE INDEX IF NOT EXISTS idx_outbox_status
-                ON agent_coding_session_event_outbox(status);
-            CREATE INDEX IF NOT EXISTS idx_outbox_batch_id
-                ON agent_coding_session_event_outbox(relay_send_batch_id);
-            CREATE INDEX IF NOT EXISTS idx_outbox_message_id
-                ON agent_coding_session_event_outbox(message_id);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_session_seq_unique
-                ON agent_coding_session_event_outbox(session_id, sequence_number);
-
-            CREATE TRIGGER IF NOT EXISTS cleanup_acked_events
-            AFTER INSERT ON agent_coding_session_event_outbox
-            BEGIN
-                DELETE FROM agent_coding_session_event_outbox
-                WHERE status = 'acked' AND acked_at < datetime('now', '-1 day');
-            END;
             "#,
         )?;
 
@@ -842,113 +811,6 @@ impl SqliteStore {
     }
 
     // ========================================================================
-    // Outbox operations
-    // ========================================================================
-
-    /// Inserts a new outbox event.
-    pub fn insert_outbox_event(&self, event: &NewOutboxEvent) -> SqliteResult<()> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let now = Self::now_rfc3339();
-        conn.execute(
-            "INSERT INTO agent_coding_session_event_outbox (event_id, session_id, sequence_number, message_id, status, created_at)
-             VALUES (?1, ?2, ?3, ?4, 'pending', ?5)",
-            params![
-                event.event_id,
-                event.session_id.as_str(),
-                event.sequence_number,
-                event.message_id.as_str(),
-                now,
-            ],
-        )?;
-        Ok(())
-    }
-
-    /// Gets pending outbox events for a session (limited to batch size).
-    pub fn get_pending_outbox_events(&self, session_id: &SessionId, limit: usize) -> SqliteResult<Vec<OutboxEvent>> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let mut stmt = conn.prepare_cached(
-            "SELECT event_id, session_id, sequence_number, relay_send_batch_id, message_id, status, retry_count, last_error, created_at, sent_at, acked_at
-             FROM agent_coding_session_event_outbox
-             WHERE session_id = ?1 AND status = 'pending'
-             ORDER BY sequence_number ASC
-             LIMIT ?2",
-        )?;
-
-        let events = stmt
-            .query_map(params![session_id.as_str(), limit as i64], |row| {
-                Ok(OutboxEvent {
-                    event_id: row.get(0)?,
-                    session_id: SessionId::from_string(row.get::<_, String>(1)?),
-                    sequence_number: row.get(2)?,
-                    relay_send_batch_id: row.get(3)?,
-                    message_id: MessageId::from_string(row.get::<_, String>(4)?),
-                    status: OutboxStatus::from_str(&row.get::<_, String>(5)?),
-                    retry_count: row.get(6)?,
-                    last_error: row.get(7)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(8)?),
-                    sent_at: row.get::<_, Option<String>>(9)?.map(Self::parse_datetime),
-                    acked_at: row.get::<_, Option<String>>(10)?.map(Self::parse_datetime),
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(events)
-    }
-
-    /// Marks outbox events as sent with a batch ID.
-    pub fn mark_outbox_events_sent(&self, event_ids: &[String], batch_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let now = Self::now_rfc3339();
-        for event_id in event_ids {
-            conn.execute(
-                "UPDATE agent_coding_session_event_outbox
-                 SET status = 'sent', relay_send_batch_id = ?1, sent_at = ?2
-                 WHERE event_id = ?3",
-                params![batch_id, now, event_id],
-            )?;
-        }
-        Ok(())
-    }
-
-    /// Marks outbox events as acknowledged by batch ID.
-    pub fn mark_outbox_batch_acked(&self, batch_id: &str) -> SqliteResult<usize> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let now = Self::now_rfc3339();
-        let count = conn.execute(
-            "UPDATE agent_coding_session_event_outbox
-             SET status = 'acked', acked_at = ?1
-             WHERE relay_send_batch_id = ?2",
-            params![now, batch_id],
-        )?;
-        Ok(count)
-    }
-
-    /// Resets sent events to pending (for crash recovery).
-    #[allow(dead_code)]
-    pub fn reset_sent_events_to_pending(&self, session_id: &SessionId) -> SqliteResult<usize> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let count = conn.execute(
-            "UPDATE agent_coding_session_event_outbox
-             SET status = 'pending', relay_send_batch_id = NULL, sent_at = NULL
-             WHERE session_id = ?1 AND status = 'sent'",
-            params![session_id.as_str()],
-        )?;
-        Ok(count)
-    }
-
-    /// Gets the next outbox sequence number for a session.
-    #[allow(dead_code)]
-    pub fn get_next_outbox_sequence(&self, session_id: &SessionId) -> SqliteResult<i64> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let max: Option<i64> = conn.query_row(
-            "SELECT MAX(sequence_number) FROM agent_coding_session_event_outbox WHERE session_id = ?1",
-            params![session_id.as_str()],
-            |row| row.get(0),
-        )?;
-        Ok(max.unwrap_or(0) + 1)
-    }
-
-    // ========================================================================
     // Supabase message outbox operations
     // ========================================================================
 
@@ -1242,6 +1104,169 @@ impl SqliteStore {
         let now = Self::now_rfc3339();
         conn.execute(
             "INSERT INTO agent_coding_session_supabase_sync_state
+                (session_id, last_synced_sequence_number, retry_count, last_error, last_attempt_at)
+             VALUES (?1, 0, 1, ?2, ?3)
+             ON CONFLICT(session_id) DO UPDATE SET
+                retry_count = retry_count + 1,
+                last_error = ?2,
+                last_attempt_at = ?3",
+            params![session_id.as_str(), error, now],
+        )?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // Ably sync state operations (cursor-based sync per session)
+    // ========================================================================
+
+    /// Ensures the Ably sync state table exists (for existing databases).
+    fn ensure_ably_sync_state(&self, conn: &Connection) -> SqliteResult<()> {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_coding_session_ably_sync_state (
+                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+                last_synced_sequence_number INTEGER NOT NULL DEFAULT 0,
+                last_sync_at TEXT,
+                last_error TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ably_sync_state_last_attempt_at
+                ON agent_coding_session_ably_sync_state(last_attempt_at);
+            "#,
+        )?;
+        Ok(())
+    }
+
+    /// Get Ably sync state for a session.
+    pub fn get_ably_sync_state(&self, session_id: &SessionId) -> SqliteResult<Option<crate::types::AblySyncState>> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let mut stmt = conn.prepare_cached(
+            "SELECT session_id, last_synced_sequence_number, last_sync_at, last_error, retry_count, last_attempt_at
+             FROM agent_coding_session_ably_sync_state WHERE session_id = ?1",
+        )?;
+
+        let result = stmt.query_row(params![session_id.as_str()], |row| {
+            Ok(crate::types::AblySyncState {
+                session_id: SessionId::from_string(row.get::<_, String>(0)?),
+                last_synced_sequence_number: row.get(1)?,
+                last_sync_at: row.get::<_, Option<String>>(2)?.map(Self::parse_datetime),
+                last_error: row.get(3)?,
+                retry_count: row.get(4)?,
+                last_attempt_at: row.get::<_, Option<String>>(5)?.map(Self::parse_datetime),
+            })
+        });
+
+        match result {
+            Ok(state) => Ok(Some(state)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get sessions with pending messages to sync via Ably (messages with sequence > last_synced).
+    pub fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
+        let conn = self.conn.lock().expect("lock poisoned");
+
+        // Get all sessions that have messages beyond their Ably sync cursor
+        let mut stmt = conn.prepare_cached(
+            r#"
+            SELECT DISTINCT m.session_id
+            FROM agent_coding_session_messages m
+            LEFT JOIN agent_coding_session_ably_sync_state s ON m.session_id = s.session_id
+            WHERE m.sequence_number > COALESCE(s.last_synced_sequence_number, 0)
+            "#,
+        )?;
+
+        let session_ids: Vec<SessionId> = stmt
+            .query_map([], |row| Ok(SessionId::from_string(row.get::<_, String>(0)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        drop(stmt);
+
+        let mut results = Vec::new();
+
+        for session_id in session_ids {
+            let sync_state = {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT last_synced_sequence_number, retry_count, last_attempt_at
+                     FROM agent_coding_session_ably_sync_state WHERE session_id = ?1",
+                )?;
+
+                stmt.query_row(params![session_id.as_str()], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i32>(1)?,
+                        row.get::<_, Option<String>>(2)?.map(Self::parse_datetime),
+                    ))
+                })
+                .unwrap_or((0, 0, None))
+            };
+
+            let (last_synced_sequence_number, retry_count, last_attempt_at) = sync_state;
+
+            let mut msg_stmt = conn.prepare_cached(
+                "SELECT id, session_id, sequence_number, content
+                 FROM agent_coding_session_messages
+                 WHERE session_id = ?1 AND sequence_number > ?2
+                 ORDER BY sequence_number ASC
+                 LIMIT ?3",
+            )?;
+
+            let messages: Vec<crate::types::PendingSyncMessage> = msg_stmt
+                .query_map(
+                    params![session_id.as_str(), last_synced_sequence_number, limit_per_session as i64],
+                    |row| {
+                        Ok(crate::types::PendingSyncMessage {
+                            session_id: SessionId::from_string(row.get::<_, String>(1)?),
+                            message_id: MessageId::from_string(row.get::<_, String>(0)?),
+                            sequence_number: row.get(2)?,
+                            content: row.get(3)?,
+                        })
+                    },
+                )?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            if !messages.is_empty() {
+                results.push(crate::types::SessionPendingSync {
+                    session_id,
+                    last_synced_sequence_number,
+                    retry_count,
+                    last_attempt_at,
+                    messages,
+                });
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Mark Ably sync as successful for a session up to a sequence number.
+    pub fn mark_ably_sync_success(&self, session_id: &SessionId, up_to_sequence: i64) -> SqliteResult<()> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_coding_session_ably_sync_state
+                (session_id, last_synced_sequence_number, last_sync_at, retry_count, last_error, last_attempt_at)
+             VALUES (?1, ?2, ?3, 0, NULL, ?3)
+             ON CONFLICT(session_id) DO UPDATE SET
+                last_synced_sequence_number = ?2,
+                last_sync_at = ?3,
+                retry_count = 0,
+                last_error = NULL,
+                last_attempt_at = ?3",
+            params![session_id.as_str(), up_to_sequence, now],
+        )?;
+        Ok(())
+    }
+
+    /// Mark Ably sync as failed for a session (increments retry count).
+    pub fn mark_ably_sync_failed(&self, session_id: &SessionId, error: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_coding_session_ably_sync_state
                 (session_id, last_synced_sequence_number, retry_count, last_error, last_attempt_at)
              VALUES (?1, 0, 1, ?2, ?3)
              ON CONFLICT(session_id) DO UPDATE SET

@@ -10,8 +10,8 @@
 //! - If SQLite write fails, nothing else happens
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
-    NewSessionSecret, OutboxEvent, Repository, RepositoryId, Session, SessionId, SessionUpdate,
+    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    NewSessionSecret, Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
 use crate::ArminError;
 
@@ -108,19 +108,6 @@ pub trait SessionWriter {
     fn delete_session_secret(&self, session: &SessionId) -> Result<bool, ArminError>;
 
     // ========================================================================
-    // Outbox operations
-    // ========================================================================
-
-    /// Inserts a new outbox event.
-    fn insert_outbox_event(&self, event: NewOutboxEvent) -> Result<OutboxEvent, ArminError>;
-
-    /// Marks outbox events as sent.
-    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]) -> Result<(), ArminError>;
-
-    /// Marks outbox events as acknowledged.
-    fn mark_outbox_acked(&self, batch_id: &str) -> Result<(), ArminError>;
-
-    // ========================================================================
     // Supabase message outbox operations
     // ========================================================================
 
@@ -145,4 +132,14 @@ pub trait SessionWriter {
 
     /// Marks sync as failed for a session (increments retry count).
     fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;
+
+    // ========================================================================
+    // Ably sync state operations (cursor-based)
+    // ========================================================================
+
+    /// Marks Ably sync as successful for a session up to a sequence number.
+    fn mark_ably_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError>;
+
+    /// Marks Ably sync as failed for a session (increments retry count).
+    fn mark_ably_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;
 }

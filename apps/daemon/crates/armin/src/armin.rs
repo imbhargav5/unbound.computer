@@ -32,8 +32,8 @@ use crate::side_effect::{SideEffect, SideEffectSink};
 use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewOutboxEvent, NewRepository, NewSession,
-    NewSessionSecret, OutboxEvent, PendingSupabaseMessage, Repository, RepositoryId, Session,
+    AblySyncState, AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    NewSessionSecret, PendingSupabaseMessage, Repository, RepositoryId, Session,
     SessionId, SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
     SupabaseSyncState,
 };
@@ -400,54 +400,6 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     }
 
     // ========================================================================
-    // Outbox operations
-    // ========================================================================
-
-    fn insert_outbox_event(&self, event: NewOutboxEvent) -> Result<OutboxEvent, ArminError> {
-        // 1. Commit fact to SQLite
-        self.sqlite.insert_outbox_event(&event)?;
-
-        // Return a constructed OutboxEvent
-        Ok(OutboxEvent {
-            event_id: event.event_id,
-            session_id: event.session_id,
-            sequence_number: event.sequence_number,
-            relay_send_batch_id: None,
-            message_id: event.message_id,
-            status: crate::types::OutboxStatus::Pending,
-            retry_count: 0,
-            last_error: None,
-            created_at: chrono::Utc::now(),
-            sent_at: None,
-            acked_at: None,
-        })
-    }
-
-    fn mark_outbox_sent(&self, batch_id: &str, event_ids: &[String]) -> Result<(), ArminError> {
-        // 1. Commit fact to SQLite
-        self.sqlite.mark_outbox_events_sent(event_ids, batch_id)?;
-
-        // 3. Emit side-effect
-        self.sink.emit(SideEffect::OutboxEventsSent {
-            batch_id: batch_id.to_string(),
-        });
-
-        Ok(())
-    }
-
-    fn mark_outbox_acked(&self, batch_id: &str) -> Result<(), ArminError> {
-        // 1. Commit fact to SQLite
-        self.sqlite.mark_outbox_batch_acked(batch_id)?;
-
-        // 3. Emit side-effect
-        self.sink.emit(SideEffect::OutboxEventsAcked {
-            batch_id: batch_id.to_string(),
-        });
-
-        Ok(())
-    }
-
-    // ========================================================================
     // Supabase message outbox operations
     // ========================================================================
 
@@ -482,6 +434,20 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
 
     fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError> {
         self.sqlite.mark_supabase_sync_failed(session, error)?;
+        Ok(())
+    }
+
+    // ========================================================================
+    // Ably sync state operations (cursor-based)
+    // ========================================================================
+
+    fn mark_ably_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError> {
+        self.sqlite.mark_ably_sync_success(session, up_to_sequence)?;
+        Ok(())
+    }
+
+    fn mark_ably_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError> {
+        self.sqlite.mark_ably_sync_failed(session, error)?;
         Ok(())
     }
 }
@@ -552,12 +518,8 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     }
 
     // ========================================================================
-    // Outbox operations
+    // Supabase message outbox operations
     // ========================================================================
-
-    fn get_pending_outbox_events(&self, session: &SessionId, limit: usize) -> Result<Vec<OutboxEvent>, ArminError> {
-        Ok(self.sqlite.get_pending_outbox_events(session, limit)?)
-    }
 
     fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
         Ok(self.sqlite.get_pending_supabase_messages(limit)?)
@@ -573,6 +535,18 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
 
     fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError> {
         Ok(self.sqlite.get_sessions_pending_sync(limit_per_session)?)
+    }
+
+    // ========================================================================
+    // Ably sync state operations (cursor-based)
+    // ========================================================================
+
+    fn get_ably_sync_state(&self, session: &SessionId) -> Result<Option<AblySyncState>, ArminError> {
+        Ok(self.sqlite.get_ably_sync_state(session)?)
+    }
+
+    fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError> {
+        Ok(self.sqlite.get_sessions_pending_ably_sync(limit_per_session)?)
     }
 }
 

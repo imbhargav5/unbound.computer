@@ -475,90 +475,6 @@ pub struct NewSessionSecret {
     pub nonce: Vec<u8>,
 }
 
-// ============================================================================
-// Outbox types
-// ============================================================================
-
-/// Outbox event status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum OutboxStatus {
-    #[default]
-    Pending,
-    Sent,
-    Acked,
-    Failed,
-}
-
-impl OutboxStatus {
-    /// Converts the outbox status to its string representation.
-    ///
-    /// Returns a static string slice matching the database representation
-    /// of each status variant (lowercase).
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Pending => "pending",
-            Self::Sent => "sent",
-            Self::Acked => "acked",
-            Self::Failed => "failed",
-        }
-    }
-
-    /// Parses a string into an OutboxStatus variant.
-    ///
-    /// Performs case-insensitive matching. Returns `Pending` as the default
-    /// for any unrecognized string values (fail-safe behavior for retry logic).
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "sent" => Self::Sent,
-            "acked" => Self::Acked,
-            "failed" => Self::Failed,
-            _ => Self::Pending,
-        }
-    }
-}
-
-/// An outbox event for relay sync.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OutboxEvent {
-    pub event_id: String,
-    pub session_id: SessionId,
-    pub sequence_number: i64,
-    pub relay_send_batch_id: Option<String>,
-    pub message_id: MessageId,
-    pub status: OutboxStatus,
-    pub retry_count: i32,
-    pub last_error: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub sent_at: Option<DateTime<Utc>>,
-    pub acked_at: Option<DateTime<Utc>>,
-}
-
-/// A new outbox event to be inserted.
-#[derive(Debug, Clone)]
-pub struct NewOutboxEvent {
-    pub event_id: String,
-    pub session_id: SessionId,
-    pub sequence_number: i64,
-    pub message_id: MessageId,
-}
-
-impl NewOutboxEvent {
-    /// Creates a new outbox event with an auto-generated UUID.
-    ///
-    /// Constructs an outbox entry linking a message to its session with a
-    /// sequence number for ordering. The event_id is generated automatically
-    /// to ensure uniqueness for relay sync tracking.
-    pub fn new(session_id: impl Into<SessionId>, sequence_number: i64, message_id: impl Into<MessageId>) -> Self {
-        Self {
-            event_id: Uuid::new_v4().to_string(),
-            session_id: session_id.into(),
-            sequence_number,
-            message_id: message_id.into(),
-        }
-    }
-}
-
 /// Supabase message outbox entry for sync tracking.
 #[derive(Debug, Clone)]
 pub struct SupabaseMessageOutboxEntry {
@@ -618,6 +534,23 @@ pub struct SessionPendingSync {
     pub retry_count: i32,
     pub last_attempt_at: Option<DateTime<Utc>>,
     pub messages: Vec<PendingSyncMessage>,
+}
+
+// ============================================================================
+// Ably sync state types (cursor-based sync per session)
+// ============================================================================
+
+/// Ably sync state for a session (cursor-based sync tracking).
+///
+/// Tracks the last synced sequence number per session for Ably real-time sync.
+#[derive(Debug, Clone)]
+pub struct AblySyncState {
+    pub session_id: SessionId,
+    pub last_synced_sequence_number: i64,
+    pub last_sync_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
+    pub retry_count: i32,
+    pub last_attempt_at: Option<DateTime<Utc>>,
 }
 
 // ============================================================================
