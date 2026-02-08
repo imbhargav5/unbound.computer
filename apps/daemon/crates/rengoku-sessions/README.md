@@ -1,0 +1,156 @@
+# Rengoku Sessions
+
+**Session lifecycle orchestration (create, delete, secrets) for the Unbound daemon.** Rengoku manages session creation with optional worktrees, session deletion with cleanup data, and a thread-safe in-memory cache for session encryption secrets.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           Daemon                                 │
+│                                                                  │
+│  IPC Handler                                                     │
+│       │                                                          │
+│       ├── create_session(armin, params) ──► Session              │
+│       │       │                                                  │
+│       │       └── validates repo ──► creates via Armin           │
+│       │                                                          │
+│       ├── delete_session(armin, id) ──► Option<Session>          │
+│       │       │                                                  │
+│       │       └── returns session data for worktree cleanup      │
+│       │                                                          │
+│       └── SessionSecretCache                                     │
+│               │                                                  │
+│               ├── in-memory (fast) ◄──────┐                     │
+│               ├── SQLite (durable)        │ fallback chain      │
+│               └── keychain (secure)  ─────┘                     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Session Creation
+
+```rust
+use rengoku_sessions::{create_session, CreateSessionParams};
+use armin::SessionId;
+
+let params = CreateSessionParams {
+    repository_id: "repo-uuid".to_string(),
+    title: "Fix login bug".to_string(),
+    is_worktree: true,
+    worktree_name: Some("fix-login".to_string()),
+    branch_name: Some("fix/login-bug".to_string()),
+};
+
+let session = create_session(
+    &armin,
+    &params,
+    SessionId::new(),
+    Some("/repo/.unbound-worktrees/fix-login".to_string()),
+)?;
+```
+
+The function validates that the repository exists before creating the session. Worktree filesystem creation is the caller's responsibility - Rengoku only stores the metadata.
+
+## Session Deletion
+
+```rust
+use rengoku_sessions::delete_session;
+
+match delete_session(&armin, &session_id)? {
+    Some(session) => {
+        // Session was deleted - use returned data for cleanup
+        if let Some(worktree_path) = &session.worktree_path {
+            // Caller handles filesystem worktree removal
+            piccolo::remove_worktree(repo_path, Path::new(worktree_path))?;
+        }
+    }
+    None => {
+        // Session didn't exist (not an error)
+    }
+}
+```
+
+Deletion returns the session data so the caller can handle filesystem cleanup (worktree removal, etc). Returns `None` if the session doesn't exist, distinguishing "not found" from "deleted".
+
+## Session Secret Cache
+
+Thread-safe in-memory cache for session encryption keys. Designed as the fast layer in a memory -> SQLite -> keychain fallback chain.
+
+```rust
+use rengoku_sessions::SessionSecretCache;
+
+let cache = SessionSecretCache::new();
+
+// Store a secret
+cache.insert("session-123".to_string(), encryption_key.to_vec());
+
+// Retrieve (returns cloned Vec<u8>)
+if let Some(key) = cache.get("session-123") {
+    // Decrypt messages with key
+}
+
+// Check without retrieving
+cache.contains("session-123"); // true
+
+// Remove on session deletion
+cache.remove("session-123");
+
+// Sharing across threads (Clone shares the same backing HashMap)
+let cache2 = cache.clone();
+// cache and cache2 point to the same data
+```
+
+### Cache API
+
+| Method | Description |
+|--------|-------------|
+| `new()` | Create empty cache |
+| `from_shared(arc)` | Wrap existing `Arc<Mutex<HashMap>>` |
+| `insert(id, key)` | Add or update a secret |
+| `get(id)` | Retrieve secret (cloned) |
+| `remove(id)` | Remove and return secret |
+| `contains(id)` | Check existence |
+| `len()` / `is_empty()` | Cache size |
+| `clear()` | Remove all secrets |
+| `inner()` | Access underlying Arc for interop |
+
+## Storing Encrypted Secrets
+
+```rust
+use rengoku_sessions::store_session_secret;
+
+// Store pre-encrypted secret in Armin (for persistence)
+store_session_secret(
+    &armin,
+    session_id,
+    encrypted_secret,  // already encrypted by caller
+    nonce,             // needed for decryption
+)?;
+```
+
+## Error Types
+
+```rust
+pub enum SessionError {
+    RepositoryNotFound(String),  // Repo doesn't exist
+    SessionNotFound(String),     // Session doesn't exist
+    WorktreeCreation(String),    // Worktree setup failed
+    Armin(ArminError),           // Storage layer error
+    Encryption(String),          // Encryption/decryption failure
+}
+```
+
+## Design Principles
+
+- **Pure orchestration**: No platform-specific code - delegates encryption and filesystem ops to callers
+- **Two-stage deletion**: Returns session data for caller cleanup instead of doing it internally
+- **Generic trait bounds**: Functions accept `impl SessionWriter + SessionReader` for testability
+- **Thread-safe cache**: `Arc<Mutex<HashMap>>` with cheap Clone for sharing across handlers
+
+## Testing
+
+```bash
+cargo test -p rengoku-sessions
+```
+
+35+ tests covering session creation, deletion, secret caching, error handling, and concurrent access patterns.

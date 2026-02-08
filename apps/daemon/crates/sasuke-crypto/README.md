@@ -1,0 +1,133 @@
+# Sasuke Crypto
+
+**Device identity and crypto coordination for the Unbound daemon.** Sasuke manages the device's cryptographic identity - device ID, private key, and database encryption key - along with base64 utilities for key encoding and a type for remote secret records from Supabase.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           Daemon                                 │
+│                                                                  │
+│  DeviceIdentity                                                  │
+│    ├── device_id          (String)    ◄── Supabase registration │
+│    ├── device_private_key ([u8; 32])  ◄── Keychain              │
+│    └── db_encryption_key  ([u8; 32])  ◄── Key derivation        │
+│                                                                  │
+│  Registration States:                                            │
+│    empty() ──► partial (id only) ──► registered (id + key)      │
+│                                          │                       │
+│                                          ▼                       │
+│                                    + db_encryption_key           │
+│                                    (full capability)             │
+│                                                                  │
+│  RemoteSecretRecord                                              │
+│    ├── session_id                                                │
+│    ├── ephemeral_public_key  (base64)                           │
+│    └── encrypted_secret      (base64)                           │
+│         │                                                        │
+│         ▼                                                        │
+│    decrypt with device_private_key ──► session secret            │
+│    (done by consumer, not this crate)                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Device Identity
+
+Tracks the device's cryptographic material with explicit state checking:
+
+```rust
+use sasuke_crypto::DeviceIdentity;
+
+// Unregistered device
+let identity = DeviceIdentity::empty();
+assert!(!identity.is_registered());
+
+// Fully registered device
+let identity = DeviceIdentity::new(
+    Some("device-uuid".to_string()),
+    Some([0u8; 32]),  // X25519 private key
+    Some([0u8; 32]),  // Database encryption key
+);
+assert!(identity.is_registered());
+assert!(identity.has_encryption_key());
+```
+
+### Identity States
+
+| State | `device_id` | `device_private_key` | `db_encryption_key` | `is_registered()` |
+|-------|:-----------:|:--------------------:|:-------------------:|:-----------------:|
+| Empty | `None` | `None` | `None` | `false` |
+| Partial | `Some` | `None` | `None` | `false` |
+| Registered | `Some` | `Some` | `None` | `true` |
+| Full | `Some` | `Some` | `Some` | `true` |
+
+Registration requires **both** `device_id` and `device_private_key`. The `db_encryption_key` is independent - a device can be registered but not yet have database encryption.
+
+## Base64 Utilities
+
+```rust
+use sasuke_crypto::{decode_key_base64, decode_bytes_base64, encode_base64};
+
+// Decode exactly 32-byte key from base64
+let key: [u8; 32] = decode_key_base64("AAAA...base64...")?;
+
+// Decode variable-length bytes
+let bytes: Vec<u8> = decode_bytes_base64("AAAA...base64...")?;
+
+// Encode to base64
+let encoded: String = encode_base64(&[1, 2, 3]);
+```
+
+`decode_key_base64` enforces exactly 32 bytes - returns `InvalidKeyLength` if the decoded data is any other size.
+
+## Remote Secret Records
+
+Represents encrypted session secrets fetched from Supabase for cross-device access:
+
+```rust
+use sasuke_crypto::RemoteSecretRecord;
+
+let record = RemoteSecretRecord {
+    session_id: "session-uuid".to_string(),
+    ephemeral_public_key: "base64-encoded-public-key".to_string(),
+    encrypted_secret: "base64-encoded-ciphertext".to_string(),
+};
+
+// Decryption is done by the consumer using:
+// 1. decode ephemeral_public_key (base64 → X25519 public key)
+// 2. ECDH with device_private_key → shared secret
+// 3. decrypt encrypted_secret with shared secret
+```
+
+## Error Types
+
+```rust
+pub enum CryptoError {
+    NoDeviceId,                              // Device not registered
+    NoDevicePrivateKey,                      // Private key not loaded
+    NoAccessToken,                           // Auth token missing
+    EncryptionKeyError(String),              // Key derivation failed
+    Base64Decode(String),                    // Invalid base64 input
+    InvalidKeyLength { expected, actual },   // Key not 32 bytes
+    DecryptionFailed(String),                // Decryption error
+    InvalidUtf8,                             // Non-UTF-8 decrypted data
+    SecretParseFailed(String),               // Secret format error
+    Storage(String),                         // Keychain/storage error
+}
+```
+
+## Design Principles
+
+- **No actual cryptography**: This crate manages keys and types - actual X25519 ECDH and ChaCha20-Poly1305 operations live in consumers
+- **No platform-specific code**: Keychain access is handled by `daemon-storage`
+- **Fixed-size keys**: Private and encryption keys are `[u8; 32]`, enforced at decode time
+- **Explicit state machine**: Identity states are queryable, not implicit
+- **Minimal dependencies**: Only `thiserror` and `base64`
+
+## Testing
+
+```bash
+cargo test -p sasuke-crypto
+```
+
+20+ tests covering identity state transitions, base64 round-trips, key length validation, error formatting, and edge cases.
