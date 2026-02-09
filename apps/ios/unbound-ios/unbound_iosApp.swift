@@ -26,7 +26,6 @@ struct unbound_iosApp: App {
     // View-owned state (correct usage of @State)
     @State private var initState: AppInitState = .loading(message: "Starting...", progress: 0.0)
     @State private var navigationManager = NavigationManager()
-    @State private var showTrustOnboarding = false
 
     init() {
         // Register Geist fonts on app startup
@@ -39,7 +38,6 @@ struct unbound_iosApp: App {
     private var deviceTrustService: DeviceTrustService { DeviceTrustService.shared }
     private var pushService: PushNotificationService { PushNotificationService.shared }
     private var deepLinkRouter: DeepLinkRouter { DeepLinkRouter.shared }
-    private var trustStatusService: DeviceTrustStatusService { DeviceTrustStatusService.shared }
     private var presenceService: DevicePresenceService { DevicePresenceService.shared }
 
     var body: some Scene {
@@ -146,59 +144,31 @@ struct unbound_iosApp: App {
     private var authenticatedContent: some View {
         // Wrap with PostLoginSyncWrapper to sync device to Supabase
         PostLoginSyncWrapper {
-            ZStack {
-                NavigationStack(path: $navigationManager.path) {
-                    DeviceListView()
-                        .navigationDestination(for: AppRoute.self) { route in
-                            switch route {
-                            case .deviceDetail(let device):
-                                DeviceDetailView(device: device)
-                            case .syncedDeviceDetail(let device):
-                                SyncedDeviceDetailView(device: device)
-                            case .syncedSessionDetail(let session):
-                                SyncedSessionDetailView(session: session)
-                            case .projectDetail(let device, let project):
-                                ProjectDetailView(device: device, project: project)
-                            case .chat(let chat):
-                                ChatView(chat: chat)
-                            case .newChat(let project):
-                                ChatView(chat: nil, project: project)
-                            case .accountSettings:
-                                AccountSettingsView()
-                            }
+            NavigationStack(path: $navigationManager.path) {
+                DeviceListView()
+                    .navigationDestination(for: AppRoute.self) { route in
+                        switch route {
+                        case .deviceDetail(let device):
+                            DeviceDetailView(device: device)
+                        case .syncedDeviceDetail(let device):
+                            SyncedDeviceDetailView(device: device)
+                        case .syncedSessionDetail(let session):
+                            SyncedSessionDetailView(session: session)
+                        case .projectDetail(let device, let project):
+                            ProjectDetailView(device: device, project: project)
+                        case .chat(let chat):
+                            ChatView(chat: chat)
+                        case .newChat(let project):
+                            ChatView(chat: nil, project: project)
+                        case .accountSettings:
+                            AccountSettingsView()
                         }
-                }
-
-                // Full-screen trust onboarding overlay - blocks all interaction until trusted
-                if showTrustOnboarding {
-                    TrustOnboardingView { trusted in
-                        showTrustOnboarding = false
                     }
-                }
             }
         }
         .task {
             // Request push notification authorization
             await pushService.requestAuthorization()
-            // Check if we should show trust onboarding
-            await checkTrustOnboarding()
-        }
-    }
-
-    // MARK: - Trust Onboarding
-
-    private func checkTrustOnboarding() async {
-        // Wait a brief moment for device registration to complete
-        try? await Task.sleep(for: .seconds(1))
-
-        // Fetch current trust status from Supabase
-        try? await trustStatusService.fetchTrustStatus()
-
-        // Show onboarding if user hasn't seen it yet
-        await MainActor.run {
-            if trustStatusService.shouldShowTrustOnboarding {
-                showTrustOnboarding = true
-            }
         }
     }
 

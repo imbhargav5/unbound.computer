@@ -5,40 +5,14 @@ private let logger = Logger(label: "app.ui")
 
 struct AccountSettingsView: View {
     @Environment(AuthService.self) private var authService
-    @State private var showQRScanner = false
-    @State private var connectedDevices: [ConnectedDevice] = {
-        #if DEBUG
-        return PreviewData.connectedDevices
-        #else
-        return []
-        #endif
-    }()
-    @State private var isConnecting = false
-    @State private var connectionProgress: Double = 0
-    @State private var lastScannedCode: String?
     @State private var showLogoutAlert = false
     @State private var isLoggingOut = false
-
-    // Trust status - access singleton directly, don't wrap in @State
-    private var trustStatusService: DeviceTrustStatusService { DeviceTrustStatusService.shared }
-    @State private var isUpdatingTrust = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: AppTheme.spacingL) {
                 // Account header
                 accountHeader
-
-                // Connected devices section
-                connectedDevicesSection
-
-                // Scan new device button
-                scanButton
-
-                // Connection progress
-                if isConnecting {
-                    connectionProgressView
-                }
 
                 // Settings sections
                 settingsSections
@@ -48,15 +22,6 @@ struct AccountSettingsView: View {
         .background(AppTheme.backgroundPrimary)
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.large)
-        .sheet(isPresented: $showQRScanner) {
-            QRScannerView { scannedCode in
-                handleScannedCode(scannedCode)
-            }
-        }
-        .task {
-            // Fetch latest trust status from backend
-            try? await trustStatusService.fetchTrustStatus()
-        }
     }
 
     // MARK: - Account Header
@@ -99,159 +64,10 @@ struct AccountSettingsView: View {
         return String(initials)
     }
 
-    // MARK: - Connected Devices Section
-
-    private var connectedDevicesSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingM) {
-            HStack {
-                Text("Connected Sessions")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Spacer()
-
-                Text("\(connectedDevices.count) active")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            if connectedDevices.isEmpty {
-                EmptyStateView(
-                    icon: "laptopcomputer.and.iphone",
-                    title: "No Connected Devices",
-                    message: "Scan a QR code from another device running Claude Code to connect."
-                )
-                .padding(.vertical, AppTheme.spacingL)
-            } else {
-                VStack(spacing: AppTheme.spacingS) {
-                    ForEach(connectedDevices) { device in
-                        ConnectedDeviceRow(device: device) {
-                            disconnectDevice(device)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(AppTheme.spacingM)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge)
-                .stroke(AppTheme.cardBorder, lineWidth: 1)
-        )
-    }
-
-    // MARK: - Scan Button
-
-    private var scanButton: some View {
-        Button {
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
-            showQRScanner = true
-        } label: {
-            HStack(spacing: AppTheme.spacingM) {
-                Image(systemName: "qrcode.viewfinder")
-                    .font(.title2)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Scan QR Code")
-                        .font(.headline)
-
-                    Text("Connect to a new device")
-                        .font(.caption)
-                        .opacity(0.8)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.body.weight(.medium))
-                    .opacity(0.6)
-            }
-            .foregroundStyle(Color(.systemBackground))
-            .padding(AppTheme.spacingM)
-            .background(AppTheme.accentGradient)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
-        }
-        .disabled(isConnecting)
-        .opacity(isConnecting ? 0.6 : 1)
-    }
-
-    // MARK: - Connection Progress
-
-    private var connectionProgressView: some View {
-        VStack(spacing: AppTheme.spacingM) {
-            HStack(spacing: AppTheme.spacingS) {
-                ProgressView()
-                    .tint(AppTheme.accent)
-
-                Text(connectionStatusText)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            ProgressView(value: connectionProgress)
-                .progressViewStyle(.linear)
-                .tint(AppTheme.accent)
-        }
-        .padding(AppTheme.spacingM)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
-    }
-
-    private var connectionStatusText: String {
-        switch connectionProgress {
-        case 0..<0.3:
-            return "Validating QR code..."
-        case 0.3..<0.6:
-            return "Establishing secure connection..."
-        case 0.6..<0.9:
-            return "Syncing session data..."
-        default:
-            return "Finalizing connection..."
-        }
-    }
-
     // MARK: - Settings Sections
 
     private var settingsSections: some View {
         VStack(spacing: AppTheme.spacingM) {
-            // Device Security section
-            SettingsSection(title: "Device Security") {
-                HStack(spacing: AppTheme.spacingM) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.body)
-                        .foregroundStyle(trustStatusService.isTrusted ? AppTheme.accent : AppTheme.textSecondary)
-                        .frame(width: 24)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Trusted Device")
-                            .font(.body)
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text(trustStatusService.isTrusted ? "This device is trusted" : "Mark as trusted to enable full access")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-
-                    Spacer()
-
-                    if isUpdatingTrust {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Toggle("", isOn: Binding(
-                            get: { trustStatusService.isTrusted },
-                            set: { newValue in handleTrustToggle(newValue) }
-                        ))
-                        .labelsHidden()
-                    }
-                }
-                .padding(AppTheme.spacingM)
-                .background(AppTheme.cardBackground)
-                .cornerRadius(AppTheme.cornerRadiusMedium)
-            }
-
             // Preferences section
             SettingsSection(title: "Preferences") {
                 SettingsRow(icon: "bell.badge", title: "Notifications", subtitle: "Manage alerts")
@@ -339,170 +155,6 @@ struct AccountSettingsView: View {
         }
     }
 
-    // MARK: - Actions
-
-    private func handleTrustToggle(_ trusted: Bool) {
-        isUpdatingTrust = true
-
-        Task {
-            do {
-                try await trustStatusService.setTrusted(trusted)
-            } catch {
-                logger.error("Failed to update trust status: \(error)")
-                // Service state will be unchanged on error, so UI will revert automatically
-            }
-            await MainActor.run {
-                isUpdatingTrust = false
-            }
-        }
-    }
-
-    private func handleScannedCode(_ code: String) {
-        showQRScanner = false
-        lastScannedCode = code
-
-        // Start fake connection process
-        isConnecting = true
-        connectionProgress = 0
-
-        // Simulate connection progress
-        simulateConnection()
-    }
-
-    private func simulateConnection() {
-        let steps = [0.2, 0.4, 0.6, 0.8, 1.0]
-        var currentStep = 0
-
-        Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { timer in
-            if currentStep < steps.count {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    connectionProgress = steps[currentStep]
-                }
-                currentStep += 1
-            } else {
-                timer.invalidate()
-
-                // Add new device
-                let newDevice = ConnectedDevice(
-                    id: UUID(),
-                    name: "MacBook Pro",
-                    hostname: "studio-mac.local",
-                    connectedAt: Date(),
-                    lastActive: Date(),
-                    platform: .macOS,
-                    sessionId: lastScannedCode ?? UUID().uuidString
-                )
-
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    connectedDevices.append(newDevice)
-                    isConnecting = false
-                    connectionProgress = 0
-                }
-
-                // Haptic feedback
-                let notificationFeedback = UINotificationFeedbackGenerator()
-                notificationFeedback.notificationOccurred(.success)
-            }
-        }
-    }
-
-    private func disconnectDevice(_ device: ConnectedDevice) {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
-
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            connectedDevices.removeAll { $0.id == device.id }
-        }
-    }
-}
-
-// MARK: - Connected Device Model
-
-struct ConnectedDevice: Identifiable {
-    let id: UUID
-    let name: String
-    let hostname: String
-    let connectedAt: Date
-    var lastActive: Date
-    let platform: Platform
-    let sessionId: String
-
-    enum Platform: String {
-        case macOS = "macOS"
-        case linux = "Linux"
-        case windows = "Windows"
-
-        var icon: String {
-            switch self {
-            case .macOS: return "laptopcomputer"
-            case .linux: return "terminal"
-            case .windows: return "pc"
-            }
-        }
-    }
-}
-
-// MARK: - Connected Device Row
-
-struct ConnectedDeviceRow: View {
-    let device: ConnectedDevice
-    let onDisconnect: () -> Void
-
-    @State private var showDisconnectAlert = false
-
-    var body: some View {
-        HStack(spacing: AppTheme.spacingM) {
-            // Platform icon
-            Image(systemName: device.platform.icon)
-                .font(.title3)
-                .foregroundStyle(AppTheme.accent)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.toolBadgeBg)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
-
-            // Device info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(device.name)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text(device.hostname)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-
-                Text("Connected \(device.connectedAt.formatted(.relative(presentation: .named)))")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-
-            Spacer()
-
-            // Status indicator
-            Circle()
-                .fill(.green)
-                .frame(width: 8, height: 8)
-
-            // Disconnect button
-            Button {
-                showDisconnectAlert = true
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
-        .padding(AppTheme.spacingS)
-        .background(AppTheme.backgroundSecondary.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
-        .alert("Disconnect Device?", isPresented: $showDisconnectAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Disconnect", role: .destructive) {
-                onDisconnect()
-            }
-        } message: {
-            Text("This will end the session on \(device.name). You can reconnect by scanning the QR code again.")
-        }
-    }
 }
 
 // MARK: - Settings Section
@@ -567,24 +219,6 @@ struct SettingsRow: View {
         .background(AppTheme.cardBackground)
     }
 }
-
-// MARK: - Preview Data Extension
-
-#if DEBUG
-extension PreviewData {
-    static let connectedDevices: [ConnectedDevice] = [
-        ConnectedDevice(
-            id: UUID(uuidString: "80000000-0000-0000-0000-000000000001")!,
-            name: "MacBook Pro 16\"",
-            hostname: "bhargav-mbp.local",
-            connectedAt: Date().addingTimeInterval(-3600 * 2),
-            lastActive: Date().addingTimeInterval(-60),
-            platform: .macOS,
-            sessionId: "session-abc123"
-        ),
-    ]
-}
-#endif
 
 // MARK: - Previews
 
