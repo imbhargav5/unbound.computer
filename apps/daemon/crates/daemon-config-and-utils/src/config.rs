@@ -136,7 +136,10 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.log_level, DEFAULT_LOG_LEVEL);
         assert_eq!(config.supabase_url, DEFAULT_SUPABASE_URL);
-        assert_eq!(config.supabase_publishable_key, DEFAULT_SUPABASE_PUBLISHABLE_KEY);
+        assert_eq!(
+            config.supabase_publishable_key,
+            DEFAULT_SUPABASE_PUBLISHABLE_KEY
+        );
     }
 
     #[test]

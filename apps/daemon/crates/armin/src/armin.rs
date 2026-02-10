@@ -33,8 +33,8 @@ use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
 use crate::types::{
     AblySyncState, AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
-    NewSessionSecret, PendingSupabaseMessage, Repository, RepositoryId, Session,
-    SessionId, SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
+    NewSessionSecret, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
+    SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
     SupabaseSyncState,
 };
 use crate::writer::SessionWriter;
@@ -224,9 +224,15 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         Ok(updated)
     }
 
-    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> Result<bool, ArminError> {
+    fn update_session_claude_id(
+        &self,
+        id: &SessionId,
+        claude_session_id: &str,
+    ) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let updated = self.sqlite.update_agent_session_claude_id(id, claude_session_id)?;
+        let updated = self
+            .sqlite
+            .update_agent_session_claude_id(id, claude_session_id)?;
 
         if updated {
             // 3. Emit side-effect
@@ -260,7 +266,11 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     // Session state operations
     // ========================================================================
 
-    fn update_agent_status(&self, session: &SessionId, status: AgentStatus) -> Result<(), ArminError> {
+    fn update_agent_status(
+        &self,
+        session: &SessionId,
+        status: AgentStatus,
+    ) -> Result<(), ArminError> {
         // 1. Ensure session state exists, then update
         let _ = self.sqlite.get_or_create_session_state(session)?;
 
@@ -285,7 +295,11 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         // Ensure default repository exists for simple session creation
         let default_repo_id = RepositoryId::from_string("default-test-repo");
         if self.sqlite.get_repository(&default_repo_id).is_err()
-            || self.sqlite.get_repository(&default_repo_id).unwrap().is_none()
+            || self
+                .sqlite
+                .get_repository(&default_repo_id)
+                .unwrap()
+                .is_none()
         {
             let repo = NewRepository {
                 id: default_repo_id.clone(),
@@ -315,7 +329,9 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         self.delta.init_session(created.id.clone(), None);
 
         // 3. Emit side-effect
-        self.sink.emit(SideEffect::SessionCreated { session_id: created.id.clone() });
+        self.sink.emit(SideEffect::SessionCreated {
+            session_id: created.id.clone(),
+        });
 
         Ok(created.id)
     }
@@ -376,7 +392,9 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         self.live.close_session(session);
 
         // 3. Emit side-effect
-        self.sink.emit(SideEffect::SessionClosed { session_id: session.clone() });
+        self.sink.emit(SideEffect::SessionClosed {
+            session_id: session.clone(),
+        });
 
         Ok(())
     }
@@ -413,8 +431,13 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         Ok(())
     }
 
-    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> Result<(), ArminError> {
-        self.sqlite.mark_supabase_messages_failed(message_ids, error)?;
+    fn mark_supabase_messages_failed(
+        &self,
+        message_ids: &[MessageId],
+        error: &str,
+    ) -> Result<(), ArminError> {
+        self.sqlite
+            .mark_supabase_messages_failed(message_ids, error)?;
         Ok(())
     }
 
@@ -427,12 +450,21 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
-    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError> {
-        self.sqlite.mark_supabase_sync_success(session, up_to_sequence)?;
+    fn mark_supabase_sync_success(
+        &self,
+        session: &SessionId,
+        up_to_sequence: i64,
+    ) -> Result<(), ArminError> {
+        self.sqlite
+            .mark_supabase_sync_success(session, up_to_sequence)?;
         Ok(())
     }
 
-    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError> {
+    fn mark_supabase_sync_failed(
+        &self,
+        session: &SessionId,
+        error: &str,
+    ) -> Result<(), ArminError> {
         self.sqlite.mark_supabase_sync_failed(session, error)?;
         Ok(())
     }
@@ -441,8 +473,13 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     // Ably sync state operations (cursor-based)
     // ========================================================================
 
-    fn mark_ably_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError> {
-        self.sqlite.mark_ably_sync_success(session, up_to_sequence)?;
+    fn mark_ably_sync_success(
+        &self,
+        session: &SessionId,
+        up_to_sequence: i64,
+    ) -> Result<(), ArminError> {
+        self.sqlite
+            .mark_ably_sync_success(session, up_to_sequence)?;
         Ok(())
     }
 
@@ -474,7 +511,9 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // ========================================================================
 
     fn list_sessions(&self, repository_id: &RepositoryId) -> Result<Vec<Session>, ArminError> {
-        Ok(self.sqlite.list_agent_sessions_for_repository(repository_id)?)
+        Ok(self
+            .sqlite
+            .list_agent_sessions_for_repository(repository_id)?)
     }
 
     fn get_session(&self, id: &SessionId) -> Result<Option<Session>, ArminError> {
@@ -521,7 +560,10 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // Supabase message outbox operations
     // ========================================================================
 
-    fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
+    fn get_pending_supabase_messages(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
         Ok(self.sqlite.get_pending_supabase_messages(limit)?)
     }
 
@@ -529,11 +571,17 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
-    fn get_supabase_sync_state(&self, session: &SessionId) -> Result<Option<SupabaseSyncState>, ArminError> {
+    fn get_supabase_sync_state(
+        &self,
+        session: &SessionId,
+    ) -> Result<Option<SupabaseSyncState>, ArminError> {
         Ok(self.sqlite.get_supabase_sync_state(session)?)
     }
 
-    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError> {
+    fn get_sessions_pending_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> Result<Vec<SessionPendingSync>, ArminError> {
         Ok(self.sqlite.get_sessions_pending_sync(limit_per_session)?)
     }
 
@@ -541,12 +589,20 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
     // Ably sync state operations (cursor-based)
     // ========================================================================
 
-    fn get_ably_sync_state(&self, session: &SessionId) -> Result<Option<AblySyncState>, ArminError> {
+    fn get_ably_sync_state(
+        &self,
+        session: &SessionId,
+    ) -> Result<Option<AblySyncState>, ArminError> {
         Ok(self.sqlite.get_ably_sync_state(session)?)
     }
 
-    fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError> {
-        Ok(self.sqlite.get_sessions_pending_ably_sync(limit_per_session)?)
+    fn get_sessions_pending_ably_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> Result<Vec<SessionPendingSync>, ArminError> {
+        Ok(self
+            .sqlite
+            .get_sessions_pending_ably_sync(limit_per_session)?)
     }
 }
 
@@ -564,7 +620,12 @@ mod tests {
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0], SideEffect::SessionCreated { session_id: session_id.clone() });
+        assert_eq!(
+            effects[0],
+            SideEffect::SessionCreated {
+                session_id: session_id.clone()
+            }
+        );
     }
 
     #[test]
@@ -575,12 +636,14 @@ mod tests {
         let session_id = armin.create_session().unwrap();
         armin.sink().clear();
 
-        let message = armin.append(
-            &session_id,
-            NewMessage {
-                content: "Hello".to_string(),
-            },
-        ).unwrap();
+        let message = armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Hello".to_string(),
+                },
+            )
+            .unwrap();
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
@@ -607,7 +670,12 @@ mod tests {
 
         let effects = armin.sink().effects();
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0], SideEffect::SessionClosed { session_id: session_id.clone() });
+        assert_eq!(
+            effects[0],
+            SideEffect::SessionClosed {
+                session_id: session_id.clone()
+            }
+        );
     }
 
     #[test]
@@ -616,18 +684,22 @@ mod tests {
         let armin = Armin::in_memory(sink).unwrap();
 
         let session_id = armin.create_session().unwrap();
-        let msg1 = armin.append(
-            &session_id,
-            NewMessage {
-                content: "First".to_string(),
-            },
-        ).unwrap();
-        let msg2 = armin.append(
-            &session_id,
-            NewMessage {
-                content: "Second".to_string(),
-            },
-        ).unwrap();
+        let msg1 = armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "First".to_string(),
+                },
+            )
+            .unwrap();
+        let msg2 = armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Second".to_string(),
+                },
+            )
+            .unwrap();
 
         // Verify sequence numbers are assigned correctly
         assert_eq!(msg1.sequence_number, 1);
@@ -647,12 +719,14 @@ mod tests {
         let session_id = armin.create_session().unwrap();
         let sub = armin.subscribe(&session_id);
 
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Hello".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Hello".to_string(),
+                },
+            )
+            .unwrap();
 
         let msg = sub.try_recv().unwrap();
         assert_eq!(msg.content, "Hello");
@@ -681,12 +755,14 @@ mod tests {
         let armin = Armin::in_memory(sink).unwrap();
 
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Message".to_string(),
+                },
+            )
+            .unwrap();
 
         // Before refresh, snapshot doesn't include the new session
         // (it was created after initial recovery)

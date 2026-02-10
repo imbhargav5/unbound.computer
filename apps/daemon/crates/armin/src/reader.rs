@@ -83,25 +83,38 @@ pub trait SessionReader {
     // ========================================================================
 
     /// Gets pending Supabase message outbox entries (joined with message content).
-    fn get_pending_supabase_messages(&self, limit: usize) -> Result<Vec<PendingSupabaseMessage>, ArminError>;
+    fn get_pending_supabase_messages(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PendingSupabaseMessage>, ArminError>;
 
     // ========================================================================
     // Supabase sync state operations (cursor-based)
     // ========================================================================
 
     /// Gets the Supabase sync state for a session.
-    fn get_supabase_sync_state(&self, session: &SessionId) -> Result<Option<SupabaseSyncState>, ArminError>;
+    fn get_supabase_sync_state(
+        &self,
+        session: &SessionId,
+    ) -> Result<Option<SupabaseSyncState>, ArminError>;
 
     /// Gets sessions with pending messages to sync (cursor-based).
-    fn get_sessions_pending_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError>;
+    fn get_sessions_pending_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> Result<Vec<SessionPendingSync>, ArminError>;
 
     // ========================================================================
     // Ably sync state operations (cursor-based)
     // ========================================================================
 
     /// Gets the Ably sync state for a session.
-    fn get_ably_sync_state(&self, session: &SessionId) -> Result<Option<AblySyncState>, ArminError>;
+    fn get_ably_sync_state(&self, session: &SessionId)
+        -> Result<Option<AblySyncState>, ArminError>;
 
     /// Gets sessions with pending messages to sync via Ably (cursor-based).
-    fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> Result<Vec<SessionPendingSync>, ArminError>;
+    fn get_sessions_pending_ably_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> Result<Vec<SessionPendingSync>, ArminError>;
 }

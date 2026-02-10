@@ -4,6 +4,7 @@ mod app;
 mod armin_adapter;
 mod auth;
 mod ipc;
+mod itachi;
 mod machines;
 mod types;
 mod utils;

@@ -209,7 +209,9 @@ mod tests {
         let line = r#"{"type":"system","session_id":"sess-abc-123"}"#;
         let event = parse_stdout_line(line, &re).unwrap();
         match event {
-            ClaudeEvent::SystemWithSessionId { claude_session_id, .. } => {
+            ClaudeEvent::SystemWithSessionId {
+                claude_session_id, ..
+            } => {
                 assert_eq!(claude_session_id, "sess-abc-123");
             }
             _ => panic!("expected SystemWithSessionId"),

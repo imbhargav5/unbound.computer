@@ -84,7 +84,11 @@ pub enum YagamiError {
 ///
 /// # Errors
 /// Returns an error if the path is invalid, escapes root, or is not a directory.
-pub fn list_dir(root: &Path, relative_path: &str, options: ListOptions) -> Result<Vec<FileEntry>, YagamiError> {
+pub fn list_dir(
+    root: &Path,
+    relative_path: &str,
+    options: ListOptions,
+) -> Result<Vec<FileEntry>, YagamiError> {
     // Reject absolute paths in the relative path argument to prevent confusion
     if Path::new(relative_path).is_absolute() {
         return Err(YagamiError::InvalidRelativePath);
@@ -101,7 +105,9 @@ pub fn list_dir(root: &Path, relative_path: &str, options: ListOptions) -> Resul
     };
 
     // Canonicalize to resolve any .. or symlinks in the target path
-    let target_canon = target_path.canonicalize().map_err(|_| YagamiError::InvalidRelativePath)?;
+    let target_canon = target_path
+        .canonicalize()
+        .map_err(|_| YagamiError::InvalidRelativePath)?;
 
     // Security check: ensure the resolved path is still within root
     if !target_canon.starts_with(&root_canon) {
@@ -156,12 +162,10 @@ pub fn list_dir(root: &Path, relative_path: &str, options: ListOptions) -> Resul
     }
 
     // Sort: directories first, then alphabetically by name (case-insensitive)
-    entries.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
 
     Ok(entries)
@@ -282,6 +286,9 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path();
         let err = list_dir(root, "../", ListOptions::default()).unwrap_err();
-        assert!(matches!(err, YagamiError::PathTraversal | YagamiError::InvalidRelativePath));
+        assert!(matches!(
+            err,
+            YagamiError::PathTraversal | YagamiError::InvalidRelativePath
+        ));
     }
 }

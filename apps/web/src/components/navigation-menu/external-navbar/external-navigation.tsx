@@ -14,7 +14,7 @@ export async function ExternalNavigation() {
         <Suspense>
           <LeftNav />
         </Suspense>
-        <div className="flex items-center gap-4">
+        <div className="hidden items-center gap-4">
           <div className="hidden lg:block">
             <Suspense>
               <LoginCTAButton />

@@ -260,10 +260,7 @@ async fn send_enqueued_message(
         request.content.as_bytes(),
     )
     .inspect_err(|err| {
-        let _ = armin.mark_ably_sync_failed(
-            &SessionId::from_string(&request.session_id),
-            err,
-        );
+        let _ = armin.mark_ably_sync_failed(&SessionId::from_string(&request.session_id), err);
     })?;
 
     let payload = ConversationPayload {
@@ -290,10 +287,7 @@ async fn send_enqueued_message(
     publish_via_falco(falco_stream, falco_socket_path, &bytes)
         .await
         .inspect_err(|err| {
-            let _ = armin.mark_ably_sync_failed(
-                &SessionId::from_string(&request.session_id),
-                err,
-            );
+            let _ = armin.mark_ably_sync_failed(&SessionId::from_string(&request.session_id), err);
         })?;
 
     let session_id = SessionId::from_string(&request.session_id);
@@ -305,6 +299,12 @@ async fn send_enqueued_message(
         channel = %session_conversation_channel(&request.session_id),
         event = CONVERSATION_EVENT_NAME,
         "Ably hot-sync message published"
+    );
+    #[cfg(debug_assertions)]
+    info!(
+        session_id = %request.session_id,
+        size_kb = format!("{:.2}", bytes.len() as f64 / 1024.0),
+        "Ably hot-sync message size"
     );
 
     Ok(())
@@ -443,6 +443,12 @@ async fn send_session_batch(
             channel = %session_conversation_channel(session_id.as_str()),
             event = CONVERSATION_EVENT_NAME,
             "Ably hot-sync message published"
+        );
+        #[cfg(debug_assertions)]
+        info!(
+            session_id = %session_id.as_str(),
+            size_kb = format!("{:.2}", bytes.len() as f64 / 1024.0),
+            "Ably hot-sync message size"
         );
         let _ = armin.mark_ably_sync_success(session_id, message.sequence_number);
     }

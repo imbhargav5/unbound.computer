@@ -120,6 +120,45 @@ impl SupabaseClient {
         Ok(devices)
     }
 
+    /// Fetch a single active device by ID.
+    ///
+    /// Returns `Ok(None)` when no active device exists for that ID.
+    pub async fn fetch_device_by_id(
+        &self,
+        device_id: &str,
+        access_token: &str,
+    ) -> AuthResult<Option<DeviceInfo>> {
+        let url = format!(
+            "{}?id=eq.{}&is_active=eq.true&select=id,user_id,device_type,name,public_key,is_active&limit=1",
+            self.rest_url("devices"),
+            device_id
+        );
+
+        tracing::debug!("Fetching device {} from Supabase", device_id);
+
+        let response = self
+            .http_client
+            .get(&url)
+            .header("apikey", &self.anon_key)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Accept", "application/json")
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Failed to fetch device by id: {} - {}", status, body);
+            return Err(AuthError::OAuth(format!(
+                "Failed to fetch device by id: {} - {}",
+                status, body
+            )));
+        }
+
+        let devices: Vec<DeviceInfo> = response.json().await?;
+        Ok(devices.into_iter().next())
+    }
+
     /// Fetch or create this device in Supabase.
     ///
     /// If the device doesn't exist, creates it. If it exists, updates the public key.

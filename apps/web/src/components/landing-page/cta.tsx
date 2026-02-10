@@ -1,5 +1,4 @@
-import { ArrowRight, Terminal } from "lucide-react";
-import { Link } from "@/components/intl-link";
+import { Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function CTA() {
@@ -15,26 +14,15 @@ export default function CTA() {
         </h2>
 
         <p className="mx-auto mb-8 max-w-xl text-lg text-white/40">
-          Install the CLI, pair your mobile device, and start coding from
-          anywhere.
+          We&apos;re building the future of remote Claude Code sessions.
         </p>
 
         <div className="flex flex-col justify-center gap-4 sm:flex-row">
           <Button
-            asChild
-            className="bg-white px-8 py-6 text-base text-black hover:bg-white/90"
+            className="cursor-default bg-white/10 px-8 py-6 text-base text-white hover:bg-white/10"
+            disabled
           >
-            <Link href="/sign-up">
-              Create Account
-              <ArrowRight className="ml-2" size={18} />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            className="border-white/20 bg-transparent px-8 py-6 text-base text-white hover:bg-white/5"
-            variant="outline"
-          >
-            <Link href="/docs">View Documentation</Link>
+            Coming Soon
           </Button>
         </div>
       </div>

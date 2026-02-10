@@ -87,7 +87,10 @@ impl SecretsManager {
         // Use user-scoped key if we have a session
         if let Ok(Some(meta)) = self.get_supabase_session_meta() {
             let key = Self::user_scoped_device_key(&meta.user_id);
-            tracing::debug!("Storing device private key with user-scoped key for user {}", meta.user_id);
+            tracing::debug!(
+                "Storing device private key with user-scoped key for user {}",
+                meta.user_id
+            );
             return self.storage.set(&key, &encoded);
         }
 
@@ -100,7 +103,11 @@ impl SecretsManager {
     ///
     /// This is useful when setting up a new session and the user_id is known
     /// but session metadata isn't stored yet.
-    pub fn set_device_private_key_for_user(&self, user_id: &str, private_key: &[u8]) -> StorageResult<()> {
+    pub fn set_device_private_key_for_user(
+        &self,
+        user_id: &str,
+        private_key: &[u8],
+    ) -> StorageResult<()> {
         let key = Self::user_scoped_device_key(user_id);
         tracing::debug!("Storing device private key for user {}", user_id);
         self.storage.set(&key, &BASE64.encode(private_key))
@@ -121,7 +128,10 @@ impl SecretsManager {
             let user_scoped_key = Self::user_scoped_device_key(&meta.user_id);
             tracing::debug!("Looking for user-scoped device key: {}", user_scoped_key);
             if let Some(bytes) = self.get_device_key_bytes(&user_scoped_key)? {
-                tracing::info!("Found user-scoped device private key for user {}", meta.user_id);
+                tracing::info!(
+                    "Found user-scoped device private key for user {}",
+                    meta.user_id
+                );
                 return Ok(Some(bytes));
             }
             tracing::debug!("User-scoped device key not found for known user");
@@ -162,7 +172,10 @@ impl SecretsManager {
 
             // If it's not 32 bytes and not valid base64, it might be corrupted
             // but let's return it anyway and let the caller handle it
-            tracing::warn!("Device key has unexpected format (len={}), returning as-is", bytes.len());
+            tracing::warn!(
+                "Device key has unexpected format (len={}), returning as-is",
+                bytes.len()
+            );
             return Ok(Some(bytes));
         }
 
@@ -416,7 +429,8 @@ impl SecretsManager {
         use rand::RngCore;
         let mut bytes = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let base64url = BASE64.encode(bytes)
+        let base64url = BASE64
+            .encode(bytes)
             .replace('+', "-")
             .replace('/', "_")
             .replace('=', "");
@@ -426,19 +440,20 @@ impl SecretsManager {
     /// Parse session secret to get raw key bytes
     pub fn parse_session_secret(secret: &str) -> StorageResult<Vec<u8>> {
         if !secret.starts_with("sess_") {
-            return Err(crate::StorageError::Encoding("Invalid session secret format".to_string()));
+            return Err(crate::StorageError::Encoding(
+                "Invalid session secret format".to_string(),
+            ));
         }
         let base64url = &secret[5..];
-        let base64 = base64url
-            .replace('-', "+")
-            .replace('_', "/");
+        let base64 = base64url.replace('-', "+").replace('_', "/");
         // Add padding
         let padded = match base64.len() % 4 {
             2 => format!("{}==", base64),
             3 => format!("{}=", base64),
             _ => base64,
         };
-        BASE64.decode(&padded)
+        BASE64
+            .decode(&padded)
             .map_err(|e| crate::StorageError::Encoding(e.to_string()))
     }
 

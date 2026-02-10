@@ -1,26 +1,23 @@
-import { QrCode, Smartphone, Terminal } from "lucide-react";
+import { Laptop, Smartphone, Terminal } from "lucide-react";
 
 const steps = [
   {
     number: "01",
-    title: "Install",
-    description: "Install the Unbound CLI on your development machine",
-    code: "npm install -g unbound",
-    icon: Terminal,
+    title: "Install macOS App",
+    description: "Install the Unbound app on your Mac",
+    icon: Laptop,
   },
   {
     number: "02",
-    title: "Pair",
-    description: "Scan a QR code to securely pair your phone",
-    code: "unbound link",
-    icon: QrCode,
+    title: "Install iOS App",
+    description: "Install the Unbound app on your iPhone",
+    icon: Smartphone,
   },
   {
     number: "03",
-    title: "Code",
-    description: "Start Claude Code sessions from anywhere",
-    code: "unbound",
-    icon: Smartphone,
+    title: "Use Claude Anywhere",
+    description: "Start and control Claude Code sessions from anywhere",
+    icon: Terminal,
   },
 ];
 
@@ -61,11 +58,6 @@ export default function HowItWorks() {
                 {step.title}
               </h3>
               <p className="mb-4 text-white/40">{step.description}</p>
-
-              {/* Code snippet */}
-              <code className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-2 font-mono text-sm text-white/60">
-                {step.code}
-              </code>
             </div>
           ))}
         </div>

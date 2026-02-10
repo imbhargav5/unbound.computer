@@ -105,8 +105,8 @@ pub fn init_dev_subscriber(config: &LogConfig) {
     };
 
     // Build env filter from RUST_LOG or default
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.default_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.default_level));
 
     // Compose and install
     tracing_subscriber::registry()

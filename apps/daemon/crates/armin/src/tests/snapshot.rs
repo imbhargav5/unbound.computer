@@ -30,12 +30,14 @@ fn rule_41_snapshots_contain_committed_messages() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
 
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Committed message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Committed message".to_string(),
+                },
+            )
+            .unwrap();
 
         session_id
     };
@@ -57,12 +59,14 @@ fn rule_43_snapshots_immutable() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Message 1".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Message 1".to_string(),
+            },
+        )
+        .unwrap();
 
     armin.refresh_snapshot().unwrap();
 
@@ -70,12 +74,14 @@ fn rule_43_snapshots_immutable() {
     let snapshot1 = armin.snapshot();
 
     // Add more messages
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Message 2".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Message 2".to_string(),
+            },
+        )
+        .unwrap();
 
     // Original snapshot should still have only 1 message
     let session = snapshot1.session(&session_id).unwrap();
@@ -90,24 +96,28 @@ fn rule_44_snapshots_unchanged_without_rebuild() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Before".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Before".to_string(),
+            },
+        )
+        .unwrap();
     armin.refresh_snapshot().unwrap();
 
     let snapshot_before = armin.snapshot();
 
     // Add more messages
     for i in 0..10 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("After {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("After {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Snapshot should be unchanged
@@ -115,7 +125,10 @@ fn rule_44_snapshots_unchanged_without_rebuild() {
     let session_before = snapshot_before.session(&session_id).unwrap();
     let session_after = snapshot_after.session(&session_id).unwrap();
 
-    assert_eq!(session_before.message_count(), session_after.message_count());
+    assert_eq!(
+        session_before.message_count(),
+        session_after.message_count()
+    );
     assert_eq!(session_before.message_count(), 1);
 }
 
@@ -127,12 +140,14 @@ fn rule_45_snapshot_rebuild_no_side_effects() {
     let session_id = armin.create_session().unwrap();
 
     for i in 0..20 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     armin.sink().clear();
@@ -155,12 +170,14 @@ fn rule_46_snapshot_rebuild_preserves_order() {
 
     let contents: Vec<_> = (0..20).map(|i| format!("Message {}", i)).collect();
     for (i, content) in contents.iter().enumerate() {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: content.clone(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: content.clone(),
+                },
+            )
+            .unwrap();
     }
 
     armin.refresh_snapshot().unwrap();
@@ -183,12 +200,14 @@ fn rule_47_snapshot_includes_all_history() {
     // Add in batches with refreshes
     for batch in 0..5 {
         for i in 0..10 {
-            armin.append(
-                &session_id,
-                NewMessage {
-                    content: format!("Batch {} Message {}", batch, i),
-                },
-            ).unwrap();
+            armin
+                .append(
+                    &session_id,
+                    NewMessage {
+                        content: format!("Batch {} Message {}", batch, i),
+                    },
+                )
+                .unwrap();
         }
         armin.refresh_snapshot().unwrap();
     }
@@ -207,20 +226,24 @@ fn rule_48_snapshots_exclude_delta_before_refresh() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "In snapshot".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "In snapshot".to_string(),
+            },
+        )
+        .unwrap();
     armin.refresh_snapshot().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "In delta".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "In delta".to_string(),
+            },
+        )
+        .unwrap();
 
     let snapshot = armin.snapshot();
     let session = snapshot.session(&session_id).unwrap();
@@ -244,23 +267,27 @@ fn rule_49_snapshot_plus_delta_equals_full() {
 
     // Add messages to snapshot
     for i in 0..5 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Snapshot {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Snapshot {}", i),
+                },
+            )
+            .unwrap();
     }
     armin.refresh_snapshot().unwrap();
 
     // Add messages to delta
     for i in 0..5 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Delta {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Delta {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Combine snapshot and delta
@@ -289,12 +316,14 @@ fn rule_50_snapshot_reads_in_memory() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Test".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Test".to_string(),
+            },
+        )
+        .unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Multiple snapshot reads should work without issues
@@ -329,18 +358,22 @@ fn snapshot_with_multiple_sessions() {
     let session1 = armin.create_session().unwrap();
     let session2 = armin.create_session().unwrap();
 
-    armin.append(
-        &session1,
-        NewMessage {
-            content: "S1".to_string(),
-        },
-    ).unwrap();
-    armin.append(
-        &session2,
-        NewMessage {
-            content: "S2".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session1,
+            NewMessage {
+                content: "S1".to_string(),
+            },
+        )
+        .unwrap();
+    armin
+        .append(
+            &session2,
+            NewMessage {
+                content: "S2".to_string(),
+            },
+        )
+        .unwrap();
 
     armin.refresh_snapshot().unwrap();
 
@@ -397,7 +430,11 @@ fn snapshot_nonexistent_session_returns_none() {
     armin.refresh_snapshot().unwrap();
 
     let snapshot = armin.snapshot();
-    assert!(snapshot.session(&crate::types::SessionId::from_string("nonexistent-session-9999")).is_none());
+    assert!(snapshot
+        .session(&crate::types::SessionId::from_string(
+            "nonexistent-session-9999"
+        ))
+        .is_none());
 }
 
 #[test]
@@ -406,12 +443,14 @@ fn snapshot_clone_is_independent() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Test".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Test".to_string(),
+            },
+        )
+        .unwrap();
 
     armin.refresh_snapshot().unwrap();
 
@@ -419,12 +458,14 @@ fn snapshot_clone_is_independent() {
     let snapshot2 = snapshot1.clone();
 
     // Add more and refresh
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "New".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "New".to_string(),
+            },
+        )
+        .unwrap();
     armin.refresh_snapshot().unwrap();
 
     // Cloned snapshots should be unchanged

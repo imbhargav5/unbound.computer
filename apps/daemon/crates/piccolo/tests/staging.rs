@@ -198,13 +198,25 @@ fn unstage_subset_of_staged_files() {
 
     let status = get_status(&repo_path).expect("get_status failed");
 
-    let a = status.files.iter().find(|f| f.path == "a.txt").expect("a.txt not found");
+    let a = status
+        .files
+        .iter()
+        .find(|f| f.path == "a.txt")
+        .expect("a.txt not found");
     assert!(a.staged, "a.txt should still be staged");
 
-    let b = status.files.iter().find(|f| f.path == "b.txt").expect("b.txt not found");
+    let b = status
+        .files
+        .iter()
+        .find(|f| f.path == "b.txt")
+        .expect("b.txt not found");
     assert!(!b.staged, "b.txt should be unstaged");
 
-    let c = status.files.iter().find(|f| f.path == "c.txt").expect("c.txt not found");
+    let c = status
+        .files
+        .iter()
+        .find(|f| f.path == "c.txt")
+        .expect("c.txt not found");
     assert!(c.staged, "c.txt should still be staged");
 }
 

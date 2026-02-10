@@ -31,32 +31,52 @@ enum Config {
 
     /// Supabase project URL
     static var supabaseURL: URL {
-        #if DEBUG
-        if let envURL = ProcessInfo.processInfo.environment["SUPABASE_URL"],
-           let url = URL(string: envURL) {
-            return url
+        guard let envURL = ProcessInfo.processInfo.environment["SUPABASE_URL"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !envURL.isEmpty,
+              let url = URL(string: envURL) else {
+            fatalError("SUPABASE_URL must be set to a valid URL")
         }
-        // Local Supabase (localhost works for iOS Simulator)
-        return URL(string: "http://localhost:54321")!
-        #else
-        // Production Supabase - replace with your actual URL
-        return URL(string: "https://your-project.supabase.co")!
-        #endif
+        return url
     }
 
     /// Supabase publishable key
     static var supabasePublishableKey: String {
-        #if DEBUG
-        if let key = ProcessInfo.processInfo.environment["SUPABASE_PUBLISHABLE_KEY"] {
-            return key
+        guard let key = ProcessInfo.processInfo.environment["SUPABASE_PUBLISHABLE_KEY"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !key.isEmpty else {
+            fatalError("SUPABASE_PUBLISHABLE_KEY must be set")
         }
-        // Local Supabase default publishable key
-        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+        return key
+    }
+
+    // MARK: - Ably
+
+    /// Debug-only Ably API key override for local testing.
+    ///
+    /// If set in DEBUG, iOS can use key auth temporarily instead of token auth.
+    /// Production builds always return nil.
+    static var ablyDevApiKey: String? {
+        #if DEBUG
+        let raw = ProcessInfo.processInfo.environment["ABLY_API_KEY"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let raw, !raw.isEmpty else {
+            return nil
+        }
+        return raw
         #else
-        // Production key - should be set properly
-        return ProcessInfo.processInfo.environment["SUPABASE_PUBLISHABLE_KEY"] ?? ""
+        return nil
         #endif
     }
+
+    /// Mobile token-auth endpoint used by the Ably realtime transport.
+    static var ablyTokenAuthURL: URL {
+        apiURL.appendingPathComponent("api/v1/mobile/ably/token")
+    }
+
+    static let remoteCommandEventName = "remote.command.v1"
+    static let remoteCommandAckEventName = "remote.command.ack.v1"
+    static let sessionSecretResponseEventName = "session.secret.response.v1"
 
     /// Force recreation of local SQLite database on app launch (debug only).
     /// Set `RECREATE_LOCAL_DB_ON_LAUNCH=1` in scheme environment variables.

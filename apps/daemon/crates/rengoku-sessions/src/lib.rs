@@ -503,13 +503,7 @@ mod tests {
         let armin = make_armin();
         let session_id = armin.create_session().unwrap();
 
-        store_session_secret(
-            &armin,
-            session_id.clone(),
-            vec![1, 2, 3, 4],
-            vec![5, 6, 7],
-        )
-        .unwrap();
+        store_session_secret(&armin, session_id.clone(), vec![1, 2, 3, 4], vec![5, 6, 7]).unwrap();
 
         let secret = armin.get_session_secret(&session_id).unwrap();
         assert!(secret.is_some());

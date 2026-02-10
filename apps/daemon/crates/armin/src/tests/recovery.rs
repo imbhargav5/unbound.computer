@@ -23,18 +23,22 @@ fn recovery_rebuilds_sessions() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Hello".to_string(),
-            },
-        ).unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Hi".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Hello".to_string(),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Hi".to_string(),
+                },
+            )
+            .unwrap();
         session_id
         // armin is dropped here, simulating a shutdown
     };
@@ -61,12 +65,14 @@ fn recovery_emits_no_side_effects() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Test".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Test".to_string(),
+                },
+            )
+            .unwrap();
     };
 
     // Reopen with fresh sink
@@ -92,20 +98,24 @@ fn recovery_rebuilds_multiple_sessions() {
         let armin = Armin::open(path, sink).unwrap();
 
         let s1 = armin.create_session().unwrap();
-        armin.append(
-            &s1,
-            NewMessage {
-                content: "Session 1".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &s1,
+                NewMessage {
+                    content: "Session 1".to_string(),
+                },
+            )
+            .unwrap();
 
         let s2 = armin.create_session().unwrap();
-        armin.append(
-            &s2,
-            NewMessage {
-                content: "Session 2".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &s2,
+                NewMessage {
+                    content: "Session 2".to_string(),
+                },
+            )
+            .unwrap();
 
         (s1, s2)
     };
@@ -134,12 +144,14 @@ fn recovery_preserves_closed_sessions() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Closing".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Closing".to_string(),
+                },
+            )
+            .unwrap();
         armin.close(&session_id).unwrap();
         session_id
     };
@@ -163,12 +175,14 @@ fn recovery_clears_deltas() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Message".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -199,12 +213,14 @@ fn new_messages_after_recovery_appear_in_delta() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Before recovery".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Before recovery".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -212,12 +228,14 @@ fn new_messages_after_recovery_appear_in_delta() {
     let sink = RecordingSink::new();
     let armin = Armin::open(path, sink).unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "After recovery".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "After recovery".to_string(),
+            },
+        )
+        .unwrap();
 
     // New message should be in delta
     let delta = armin.delta(&session_id);
@@ -267,12 +285,14 @@ fn recovery_with_counting_sink_emits_nothing() {
         for i in 0..5 {
             let session_id = armin.create_session().unwrap();
             for j in 0..3 {
-                armin.append(
-                    &session_id,
-                    NewMessage {
-                        content: format!("Message {}-{}", i, j),
-                    },
-                ).unwrap();
+                armin
+                    .append(
+                        &session_id,
+                        NewMessage {
+                            content: format!("Message {}-{}", i, j),
+                        },
+                    )
+                    .unwrap();
             }
         }
     }

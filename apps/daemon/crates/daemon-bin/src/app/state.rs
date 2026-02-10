@@ -1,6 +1,7 @@
 //! Daemon state definition.
 
 use crate::armin_adapter::DaemonArmin;
+use crate::itachi::idempotency::IdempotencyStore;
 use crate::utils::SessionSecretCache;
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
@@ -12,7 +13,8 @@ use levi::SessionSyncService;
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, oneshot, RwLock};
+use tokio::task::JoinHandle;
 use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
 
@@ -57,6 +59,14 @@ pub struct DaemonState {
     pub realtime_message_sync: Arc<RwLock<Option<Arc<AblyRealtimeSyncer>>>>,
     /// Optional Falco child process managed by this daemon instance.
     pub falco_process: Arc<Mutex<Option<Child>>>,
+    /// Optional Nagato child process managed by this daemon instance.
+    pub nagato_process: Arc<Mutex<Option<Child>>>,
+    /// Itachi in-memory idempotency store for UM remote commands.
+    pub itachi_idempotency: Arc<Mutex<IdempotencyStore>>,
+    /// Shutdown signal sender for Nagato socket listener.
+    pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    /// Join handle for Nagato socket listener task.
+    pub nagato_server_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.

@@ -10,8 +10,8 @@
 //! - If SQLite write fails, nothing else happens
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
-    NewSessionSecret, Repository, RepositoryId, Session, SessionId, SessionUpdate,
+    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession, NewSessionSecret,
+    Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
 use crate::ArminError;
 
@@ -52,7 +52,11 @@ pub trait SessionWriter {
     fn update_session(&self, id: &SessionId, update: SessionUpdate) -> Result<bool, ArminError>;
 
     /// Updates the Claude session ID for a session.
-    fn update_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> Result<bool, ArminError>;
+    fn update_session_claude_id(
+        &self,
+        id: &SessionId,
+        claude_session_id: &str,
+    ) -> Result<bool, ArminError>;
 
     /// Deletes a session.
     ///
@@ -66,7 +70,11 @@ pub trait SessionWriter {
     /// Updates the agent status for a session.
     ///
     /// Creates the session state row if it doesn't exist.
-    fn update_agent_status(&self, session: &SessionId, status: AgentStatus) -> Result<(), ArminError>;
+    fn update_agent_status(
+        &self,
+        session: &SessionId,
+        status: AgentStatus,
+    ) -> Result<(), ArminError>;
 
     // ========================================================================
     // Message operations
@@ -118,7 +126,11 @@ pub trait SessionWriter {
     fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
 
     /// Mark messages as failed to sync (updates retry count and last error).
-    fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> Result<(), ArminError>;
+    fn mark_supabase_messages_failed(
+        &self,
+        message_ids: &[MessageId],
+        error: &str,
+    ) -> Result<(), ArminError>;
 
     /// Delete messages from the Supabase outbox.
     fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
@@ -128,17 +140,26 @@ pub trait SessionWriter {
     // ========================================================================
 
     /// Marks sync as successful for a session up to a sequence number.
-    fn mark_supabase_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError>;
+    fn mark_supabase_sync_success(
+        &self,
+        session: &SessionId,
+        up_to_sequence: i64,
+    ) -> Result<(), ArminError>;
 
     /// Marks sync as failed for a session (increments retry count).
-    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;
+    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str)
+        -> Result<(), ArminError>;
 
     // ========================================================================
     // Ably sync state operations (cursor-based)
     // ========================================================================
 
     /// Marks Ably sync as successful for a session up to a sequence number.
-    fn mark_ably_sync_success(&self, session: &SessionId, up_to_sequence: i64) -> Result<(), ArminError>;
+    fn mark_ably_sync_success(
+        &self,
+        session: &SessionId,
+        up_to_sequence: i64,
+    ) -> Result<(), ArminError>;
 
     /// Marks Ably sync as failed for a session (increments retry count).
     fn mark_ably_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;

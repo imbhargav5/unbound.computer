@@ -25,9 +25,8 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// Handler function type for IPC methods.
-pub type HandlerFn = Box<
-    dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send>> + Send + Sync,
->;
+pub type HandlerFn =
+    Box<dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send>> + Send + Sync>;
 
 /// Callback type for getting initial subscription state.
 pub type InitialStateFn = Box<
@@ -56,12 +55,10 @@ impl SubscriptionManager {
     /// Subscribe to a session's events. Returns a receiver for events.
     pub async fn subscribe(&self, session_id: &str) -> broadcast::Receiver<Event> {
         let mut senders = self.senders.write().await;
-        let sender = senders
-            .entry(session_id.to_string())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(100);
-                tx
-            });
+        let sender = senders.entry(session_id.to_string()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(100);
+            tx
+        });
         sender.subscribe()
     }
 
@@ -77,12 +74,10 @@ impl SubscriptionManager {
     /// Broadcast an event, creating the channel if it doesn't exist.
     pub async fn broadcast_or_create(&self, session_id: &str, event: Event) {
         let mut senders = self.senders.write().await;
-        let sender = senders
-            .entry(session_id.to_string())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(100);
-                tx
-            });
+        let sender = senders.entry(session_id.to_string()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(100);
+            tx
+        });
         let _ = sender.send(event);
     }
 
@@ -263,7 +258,8 @@ async fn handle_connection(
             Ok(req) => req,
             Err(e) => {
                 warn!(error = %e, "Failed to parse request");
-                let response = Response::error("", error_codes::PARSE_ERROR, &format!("Parse error: {}", e));
+                let response =
+                    Response::error("", error_codes::PARSE_ERROR, &format!("Parse error: {}", e));
                 let response_json = response.to_json()?;
                 writer.write_all(response_json.as_bytes()).await?;
                 writer.write_all(b"\n").await?;
@@ -301,10 +297,13 @@ async fn handle_connection(
             };
 
             // Send success response first
-            let response = Response::success(&request_id, serde_json::json!({
-                "subscribed": true,
-                "session_id": session_id,
-            }));
+            let response = Response::success(
+                &request_id,
+                serde_json::json!({
+                    "subscribed": true,
+                    "session_id": session_id,
+                }),
+            );
             let response_json = response.to_json()?;
             writer.write_all(response_json.as_bytes()).await?;
             writer.write_all(b"\n").await?;
@@ -331,9 +330,12 @@ async fn handle_connection(
 
         // Handle unsubscribe (no-op in request/response mode, handled in streaming)
         if method == Method::SessionUnsubscribe {
-            let response = Response::success(&request_id, serde_json::json!({
-                "unsubscribed": true,
-            }));
+            let response = Response::success(
+                &request_id,
+                serde_json::json!({
+                    "unsubscribed": true,
+                }),
+            );
             let response_json = response.to_json()?;
             writer.write_all(response_json.as_bytes()).await?;
             writer.write_all(b"\n").await?;
@@ -473,7 +475,8 @@ impl IpcClient {
 
     /// Send a request and wait for response.
     pub async fn call(&self, request: Request) -> IpcResult<Response> {
-        let stream = UnixStream::connect(&self.socket_path).await
+        let stream = UnixStream::connect(&self.socket_path)
+            .await
             .map_err(|e| IpcError::Socket(format!("Failed to connect: {}", e)))?;
 
         let (reader, mut writer) = stream.into_split();
@@ -521,7 +524,8 @@ impl IpcClient {
     /// Returns a `StreamingSubscription` that yields events as they arrive.
     /// The connection stays open until unsubscribed or dropped.
     pub async fn subscribe(&self, session_id: &str) -> IpcResult<StreamingSubscription> {
-        let stream = UnixStream::connect(&self.socket_path).await
+        let stream = UnixStream::connect(&self.socket_path)
+            .await
             .map_err(|e| IpcError::Socket(format!("Failed to connect: {}", e)))?;
 
         let (reader, mut writer) = stream.into_split();
@@ -655,9 +659,11 @@ mod tests {
     async fn test_ipc_server_register_handler() {
         let server = IpcServer::new("/tmp/test-server3.sock");
 
-        server.register_handler(Method::Health, |req| async move {
-            Response::success(&req.id, serde_json::json!({"status": "ok"}))
-        }).await;
+        server
+            .register_handler(Method::Health, |req| async move {
+                Response::success(&req.id, serde_json::json!({"status": "ok"}))
+            })
+            .await;
 
         // Handler should be registered (we can't verify directly but no panic)
         assert!(true);
@@ -679,10 +685,8 @@ mod tests {
         server.shutdown();
 
         // Receiver should get notification
-        let result = tokio::time::timeout(
-            std::time::Duration::from_millis(100),
-            receiver.recv()
-        ).await;
+        let result =
+            tokio::time::timeout(std::time::Duration::from_millis(100), receiver.recv()).await;
 
         assert!(result.is_ok());
     }
@@ -691,17 +695,23 @@ mod tests {
     async fn test_ipc_server_multiple_handlers() {
         let server = IpcServer::new("/tmp/test-server5.sock");
 
-        server.register_handler(Method::Health, |req| async move {
-            Response::success(&req.id, serde_json::json!({"healthy": true}))
-        }).await;
+        server
+            .register_handler(Method::Health, |req| async move {
+                Response::success(&req.id, serde_json::json!({"healthy": true}))
+            })
+            .await;
 
-        server.register_handler(Method::AuthStatus, |req| async move {
-            Response::success(&req.id, serde_json::json!({"logged_in": false}))
-        }).await;
+        server
+            .register_handler(Method::AuthStatus, |req| async move {
+                Response::success(&req.id, serde_json::json!({"logged_in": false}))
+            })
+            .await;
 
-        server.register_handler(Method::SessionList, |req| async move {
-            Response::success(&req.id, serde_json::json!({"sessions": []}))
-        }).await;
+        server
+            .register_handler(Method::SessionList, |req| async move {
+                Response::success(&req.id, serde_json::json!({"sessions": []}))
+            })
+            .await;
 
         // All handlers registered without error
         assert!(true);

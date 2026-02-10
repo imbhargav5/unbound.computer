@@ -25,7 +25,8 @@ export function LeftNav() {
           {!(isBlogPage || isDocsPage) && "Unbound"}
         </span>
       </Link>
-      <ul className="hidden items-center gap-6 lg:flex">
+      {/* Links hidden for now */}
+      <ul className="hidden">
         {navbarLinks.map(({ name, href }) => (
           <li key={name}>
             <Link

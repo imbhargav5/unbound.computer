@@ -441,6 +441,16 @@ final class KeychainService {
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         return status == errSecSuccess
     }
+
+    /// Deletes an item for a scoped key
+    func delete(forScopedKey key: String) throws {
+        let query = baseQuery(forScopedKey: key)
+        let status = SecItemDelete(query as CFDictionary)
+
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.unhandledError(status: status)
+        }
+    }
 }
 
 // MARK: - Convenience Extensions

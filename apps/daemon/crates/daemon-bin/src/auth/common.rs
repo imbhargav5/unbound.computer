@@ -1,6 +1,7 @@
 //! Shared auth side effects for daemon state updates.
 
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
+use crate::app::nagato_sidecar::start_nagato_sidecar;
 use crate::app::DaemonState;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,6 +15,7 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
     *state.device_private_key.lock().unwrap() = Some(login.device_private_key);
     *state.db_encryption_key.lock().unwrap() = login.db_encryption_key;
 
+    ensure_nagato_ingress_started(state, login).await;
     ensure_realtime_sync_started(state, login).await;
 
     let sync_context = SyncContext {
@@ -114,4 +116,67 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
         .await;
     syncer.start();
     info!("Initialized Ably hot-path message sync worker after login");
+}
+
+async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginResult) {
+    let Some(ably_api_key) = state.config.ably_api_key.as_deref() else {
+        return;
+    };
+
+    let mut stale_child = None;
+    let should_start = {
+        let mut process_guard = state.nagato_process.lock().unwrap();
+        match process_guard.as_mut() {
+            Some(existing) => match existing.try_wait() {
+                Ok(None) => false,
+                Ok(Some(status)) => {
+                    warn!(
+                        status = %status,
+                        "Nagato sidecar exited unexpectedly; restarting after login"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        "Failed to inspect Nagato sidecar state; restarting after login"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+            },
+            None => true,
+        }
+    };
+
+    if let Some(mut child) = stale_child {
+        terminate_child(&mut child, "nagato");
+    }
+
+    if !should_start {
+        return;
+    }
+
+    match start_nagato_sidecar(
+        state.paths.as_ref(),
+        &login.device_id,
+        ably_api_key,
+        &state.config.log_level,
+        Duration::from_secs(1),
+        "auth_login",
+    )
+    .await
+    {
+        Ok(child) => {
+            *state.nagato_process.lock().unwrap() = Some(child);
+            info!("Started Nagato sidecar after login for remote command ingress");
+        }
+        Err(err) => {
+            warn!(
+                error = %err,
+                "Failed to start Nagato sidecar after login; remote command ingress remains disabled"
+            );
+        }
+    }
 }

@@ -141,11 +141,7 @@ mod tests {
 
     #[test]
     fn identity_new_is_registered() {
-        let id = DeviceIdentity::new(
-            "device-123".to_string(),
-            [1u8; 32],
-            [2u8; 32],
-        );
+        let id = DeviceIdentity::new("device-123".to_string(), [1u8; 32], [2u8; 32]);
         assert!(id.is_registered());
         assert!(id.has_encryption_key());
         assert_eq!(id.device_id.as_deref(), Some("device-123"));

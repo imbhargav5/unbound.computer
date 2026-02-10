@@ -44,12 +44,14 @@ fn rule_01_every_append_writes_to_sqlite() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Test message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Test message".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -74,12 +76,14 @@ fn rule_02_sqlite_write_before_side_effect() {
     let session_id = armin.create_session().unwrap();
 
     // Append a message
-    let message = armin.append(
-        &session_id,
-        NewMessage {
-            content: "Test".to_string(),
-        },
-    ).unwrap();
+    let message = armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Test".to_string(),
+            },
+        )
+        .unwrap();
 
     // Side-effect was emitted
     let effects = armin.sink().effects();
@@ -112,26 +116,35 @@ fn rule_06_message_ids_are_monotonic() {
     // Interleave appends across sessions
     for i in 0..5 {
         all_ids.push(
-            armin.append(
-                &session1,
-                NewMessage {
-                    content: "S1".to_string(),
-                },
-            ).unwrap(),
+            armin
+                .append(
+                    &session1,
+                    NewMessage {
+                        content: "S1".to_string(),
+                    },
+                )
+                .unwrap(),
         );
         all_ids.push(
-            armin.append(
-                &session2,
-                NewMessage {
-                    content: "S2".to_string(),
-                },
-            ).unwrap(),
+            armin
+                .append(
+                    &session2,
+                    NewMessage {
+                        content: "S2".to_string(),
+                    },
+                )
+                .unwrap(),
         );
     }
 
     // All IDs should be unique (UUIDs)
-    let unique_ids: std::collections::HashSet<_> = all_ids.iter().map(|msg| msg.id.as_str()).collect();
-    assert_eq!(unique_ids.len(), all_ids.len(), "All message IDs should be unique");
+    let unique_ids: std::collections::HashSet<_> =
+        all_ids.iter().map(|msg| msg.id.as_str()).collect();
+    assert_eq!(
+        unique_ids.len(),
+        all_ids.len(),
+        "All message IDs should be unique"
+    );
 }
 
 /// Rule 7: Messages are persisted in append order
@@ -146,12 +159,14 @@ fn rule_07_messages_persisted_in_append_order() {
         let session_id = armin.create_session().unwrap();
 
         for i in 0..10 {
-            armin.append(
-                &session_id,
-                NewMessage {
-                    content: format!("Message {}", i),
-                },
-            ).unwrap();
+            armin
+                .append(
+                    &session_id,
+                    NewMessage {
+                        content: format!("Message {}", i),
+                    },
+                )
+                .unwrap();
         }
         session_id
     };
@@ -176,12 +191,14 @@ fn rule_08_multiple_appends_preserve_order() {
 
     let contents = vec!["First", "Second", "Third", "Fourth", "Fifth"];
     for (i, content) in contents.iter().enumerate() {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: content.to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: content.to_string(),
+                },
+            )
+            .unwrap();
     }
 
     let delta = armin.delta(&session_id);
@@ -202,12 +219,14 @@ fn rule_09_messages_survive_restart() {
         let session_id = armin.create_session().unwrap();
 
         for i in 0..100 {
-            armin.append(
-                &session_id,
-                NewMessage {
-                    content: format!("Message {}", i),
-                },
-            ).unwrap();
+            armin
+                .append(
+                    &session_id,
+                    NewMessage {
+                        content: format!("Message {}", i),
+                    },
+                )
+                .unwrap();
         }
         (session_id, 100)
     };
@@ -229,12 +248,14 @@ fn rule_10_closed_sessions_reject_appends() {
     let armin = Armin::in_memory(sink).unwrap();
 
     let session_id = armin.create_session().unwrap();
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Before close".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Before close".to_string(),
+            },
+        )
+        .unwrap();
 
     armin.close(&session_id).unwrap();
 
@@ -262,12 +283,14 @@ fn rule_71_crash_after_commit_preserves_message() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        let message = armin.append(
-            &session_id,
-            NewMessage {
-                content: "Committed message".to_string(),
-            },
-        ).unwrap();
+        let message = armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Committed message".to_string(),
+                },
+            )
+            .unwrap();
         // "Crash" by dropping without graceful shutdown
         (session_id, message)
     };
@@ -291,12 +314,14 @@ fn rule_75_recovery_rebuilds_delta() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Message 1".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Message 1".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -309,12 +334,14 @@ fn rule_75_recovery_rebuilds_delta() {
     assert!(delta.is_empty(), "Delta should be empty after recovery");
 
     // Add new message - this should appear in delta
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Message 2".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Message 2".to_string(),
+            },
+        )
+        .unwrap();
 
     let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
@@ -332,20 +359,24 @@ fn rule_76_recovery_rebuilds_snapshots() {
         let armin = Armin::open(path, sink).unwrap();
 
         let s1 = armin.create_session().unwrap();
-        armin.append(
-            &s1,
-            NewMessage {
-                content: "S1M1".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &s1,
+                NewMessage {
+                    content: "S1M1".to_string(),
+                },
+            )
+            .unwrap();
 
         let s2 = armin.create_session().unwrap();
-        armin.append(
-            &s2,
-            NewMessage {
-                content: "S2M1".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &s2,
+                NewMessage {
+                    content: "S2M1".to_string(),
+                },
+            )
+            .unwrap();
         armin.close(&s2).unwrap();
 
         (s1, s2)
@@ -379,12 +410,14 @@ fn rule_77_recovery_emits_no_side_effects() {
         for _ in 0..5 {
             let session_id = armin.create_session().unwrap();
             for j in 0..10 {
-                armin.append(
-                    &session_id,
-                    NewMessage {
-                        content: format!("Message {}", j),
-                    },
-                ).unwrap();
+                armin
+                    .append(
+                        &session_id,
+                        NewMessage {
+                            content: format!("Message {}", j),
+                        },
+                    )
+                    .unwrap();
             }
         }
     }
@@ -410,12 +443,14 @@ fn rule_78_recovery_does_not_notify_live_subscribers() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Historical message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Historical message".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -444,12 +479,14 @@ fn rule_79_recovery_produces_consistent_views() {
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
         for i in 0..20 {
-            armin.append(
-                &session_id,
-                NewMessage {
-                    content: format!("Message {}", i),
-                },
-            ).unwrap();
+            armin
+                .append(
+                    &session_id,
+                    NewMessage {
+                        content: format!("Message {}", i),
+                    },
+                )
+                .unwrap();
         }
         session_id
     };
@@ -483,12 +520,14 @@ fn rule_80_recovery_is_idempotent() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Test".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Test".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 

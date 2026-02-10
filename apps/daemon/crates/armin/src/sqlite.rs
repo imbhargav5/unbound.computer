@@ -15,9 +15,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
-    NewSessionSecret, Repository, RepositoryId, Session, SessionId,
-    SessionSecret, SessionState, SessionStatus, SessionUpdate, UserSetting,
+    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession, NewSessionSecret,
+    Repository, RepositoryId, Session, SessionId, SessionSecret, SessionState, SessionStatus,
+    SessionUpdate, UserSetting,
 };
 
 /// Result of an atomic message insertion.
@@ -33,7 +33,6 @@ pub struct InsertedMessage {
 pub struct SqliteStore {
     conn: Mutex<Connection>,
 }
-
 
 impl SqliteStore {
     /// Opens a SQLite database at the given path.
@@ -423,7 +422,10 @@ impl SqliteStore {
     /// Deletes a repository by ID.
     pub fn delete_repository(&self, id: &RepositoryId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
-        let count = conn.execute("DELETE FROM repositories WHERE id = ?1", params![id.as_str()])?;
+        let count = conn.execute(
+            "DELETE FROM repositories WHERE id = ?1",
+            params![id.as_str()],
+        )?;
         Ok(count > 0)
     }
 
@@ -484,7 +486,10 @@ impl SqliteStore {
     }
 
     /// Lists sessions for a repository.
-    pub fn list_agent_sessions_for_repository(&self, repository_id: &RepositoryId) -> SqliteResult<Vec<Session>> {
+    pub fn list_agent_sessions_for_repository(
+        &self,
+        repository_id: &RepositoryId,
+    ) -> SqliteResult<Vec<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
@@ -540,7 +545,11 @@ impl SqliteStore {
     }
 
     /// Updates a session with partial fields.
-    pub fn update_agent_session(&self, id: &SessionId, update: &SessionUpdate) -> SqliteResult<bool> {
+    pub fn update_agent_session(
+        &self,
+        id: &SessionId,
+        update: &SessionUpdate,
+    ) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
 
@@ -586,13 +595,18 @@ impl SqliteStore {
         }
         params_vec.push(Box::new(id.as_str().to_string()));
 
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
         let count = conn.execute(&sql, params_refs.as_slice())?;
         Ok(count > 0)
     }
 
     /// Updates the Claude session ID for a session.
-    pub fn update_agent_session_claude_id(&self, id: &SessionId, claude_session_id: &str) -> SqliteResult<bool> {
+    pub fn update_agent_session_claude_id(
+        &self,
+        id: &SessionId,
+        claude_session_id: &str,
+    ) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         let count = conn.execute(
@@ -641,7 +655,10 @@ impl SqliteStore {
     // ========================================================================
 
     /// Gets or creates session state.
-    pub fn get_or_create_session_state(&self, session_id: &SessionId) -> SqliteResult<SessionState> {
+    pub fn get_or_create_session_state(
+        &self,
+        session_id: &SessionId,
+    ) -> SqliteResult<SessionState> {
         if let Some(state) = self.get_session_state(session_id)? {
             return Ok(state);
         }
@@ -685,7 +702,11 @@ impl SqliteStore {
     }
 
     /// Updates agent status.
-    pub fn update_agent_status(&self, session_id: &SessionId, status: AgentStatus) -> SqliteResult<bool> {
+    pub fn update_agent_status(
+        &self,
+        session_id: &SessionId,
+        status: AgentStatus,
+    ) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         let count = conn.execute(
@@ -700,7 +721,11 @@ impl SqliteStore {
     // ========================================================================
 
     /// Inserts a message into the agent messages table with atomic sequence assignment.
-    pub fn insert_agent_message(&self, session: &SessionId, msg: &NewMessage) -> SqliteResult<InsertedMessage> {
+    pub fn insert_agent_message(
+        &self,
+        session: &SessionId,
+        msg: &NewMessage,
+    ) -> SqliteResult<InsertedMessage> {
         let id = MessageId::new();
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
@@ -721,7 +746,10 @@ impl SqliteStore {
             |row| row.get(0),
         )?;
 
-        Ok(InsertedMessage { id, sequence_number })
+        Ok(InsertedMessage {
+            id,
+            sequence_number,
+        })
     }
 
     /// Gets all messages for a session from the agent messages table.
@@ -753,7 +781,10 @@ impl SqliteStore {
     // ========================================================================
 
     /// Gets a session secret by session ID.
-    pub fn get_session_secret(&self, session_id: &SessionId) -> SqliteResult<Option<SessionSecret>> {
+    pub fn get_session_secret(
+        &self,
+        session_id: &SessionId,
+    ) -> SqliteResult<Option<SessionSecret>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT session_id, encrypted_secret, nonce, created_at
@@ -784,7 +815,12 @@ impl SqliteStore {
             "INSERT INTO session_secrets (session_id, encrypted_secret, nonce, created_at)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(session_id) DO UPDATE SET encrypted_secret = ?2, nonce = ?3",
-            params![secret.session_id.as_str(), secret.encrypted_secret, secret.nonce, now],
+            params![
+                secret.session_id.as_str(),
+                secret.encrypted_secret,
+                secret.nonce,
+                now
+            ],
         )?;
         Ok(())
     }
@@ -826,7 +862,10 @@ impl SqliteStore {
     }
 
     /// Get pending Supabase messages (joined with message content).
-    pub fn get_pending_supabase_messages(&self, limit: usize) -> SqliteResult<Vec<crate::types::PendingSupabaseMessage>> {
+    pub fn get_pending_supabase_messages(
+        &self,
+        limit: usize,
+    ) -> SqliteResult<Vec<crate::types::PendingSupabaseMessage>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT o.message_id, m.session_id, m.sequence_number, m.content,
@@ -863,7 +902,10 @@ impl SqliteStore {
         }
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "UPDATE agent_coding_session_message_supabase_outbox
              SET sent_at = ?1, last_error = NULL
@@ -882,13 +924,20 @@ impl SqliteStore {
     }
 
     /// Mark messages as failed to sync (increments retry count).
-    pub fn mark_supabase_messages_failed(&self, message_ids: &[MessageId], error: &str) -> SqliteResult<()> {
+    pub fn mark_supabase_messages_failed(
+        &self,
+        message_ids: &[MessageId],
+        error: &str,
+    ) -> SqliteResult<()> {
         if message_ids.is_empty() {
             return Ok(());
         }
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "UPDATE agent_coding_session_message_supabase_outbox
              SET last_attempt_at = ?1,
@@ -915,7 +964,10 @@ impl SqliteStore {
             return Ok(());
         }
         let conn = self.conn.lock().expect("lock poisoned");
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "DELETE FROM agent_coding_session_message_supabase_outbox
              WHERE message_id IN ({})",
@@ -956,7 +1008,10 @@ impl SqliteStore {
     }
 
     /// Get sync state for a session.
-    pub fn get_supabase_sync_state(&self, session_id: &SessionId) -> SqliteResult<Option<crate::types::SupabaseSyncState>> {
+    pub fn get_supabase_sync_state(
+        &self,
+        session_id: &SessionId,
+    ) -> SqliteResult<Option<crate::types::SupabaseSyncState>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT session_id, last_synced_sequence_number, last_sync_at, last_error, retry_count, last_attempt_at
@@ -983,7 +1038,10 @@ impl SqliteStore {
 
     /// Get or create sync state for a session.
     #[allow(dead_code)]
-    pub fn get_or_create_supabase_sync_state(&self, session_id: &SessionId) -> SqliteResult<crate::types::SupabaseSyncState> {
+    pub fn get_or_create_supabase_sync_state(
+        &self,
+        session_id: &SessionId,
+    ) -> SqliteResult<crate::types::SupabaseSyncState> {
         if let Some(state) = self.get_supabase_sync_state(session_id)? {
             return Ok(state);
         }
@@ -1001,7 +1059,10 @@ impl SqliteStore {
     }
 
     /// Get sessions with pending messages to sync (messages with sequence > last_synced).
-    pub fn get_sessions_pending_sync(&self, limit_per_session: usize) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
+    pub fn get_sessions_pending_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
         let conn = self.conn.lock().expect("lock poisoned");
 
         // First, get all sessions that have messages beyond their sync cursor
@@ -1015,7 +1076,9 @@ impl SqliteStore {
         )?;
 
         let session_ids: Vec<SessionId> = stmt
-            .query_map([], |row| Ok(SessionId::from_string(row.get::<_, String>(0)?)))?
+            .query_map([], |row| {
+                Ok(SessionId::from_string(row.get::<_, String>(0)?))
+            })?
             .collect::<Result<Vec<_>, _>>()?;
 
         drop(stmt);
@@ -1053,7 +1116,11 @@ impl SqliteStore {
 
             let messages: Vec<crate::types::PendingSyncMessage> = msg_stmt
                 .query_map(
-                    params![session_id.as_str(), last_synced_sequence_number, limit_per_session as i64],
+                    params![
+                        session_id.as_str(),
+                        last_synced_sequence_number,
+                        limit_per_session as i64
+                    ],
                     |row| {
                         Ok(crate::types::PendingSyncMessage {
                             session_id: SessionId::from_string(row.get::<_, String>(1)?),
@@ -1080,7 +1147,11 @@ impl SqliteStore {
     }
 
     /// Mark sync as successful for a session up to a sequence number.
-    pub fn mark_supabase_sync_success(&self, session_id: &SessionId, up_to_sequence: i64) -> SqliteResult<()> {
+    pub fn mark_supabase_sync_success(
+        &self,
+        session_id: &SessionId,
+        up_to_sequence: i64,
+    ) -> SqliteResult<()> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
@@ -1099,7 +1170,11 @@ impl SqliteStore {
     }
 
     /// Mark sync as failed for a session (increments retry count).
-    pub fn mark_supabase_sync_failed(&self, session_id: &SessionId, error: &str) -> SqliteResult<()> {
+    pub fn mark_supabase_sync_failed(
+        &self,
+        session_id: &SessionId,
+        error: &str,
+    ) -> SqliteResult<()> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
@@ -1140,7 +1215,10 @@ impl SqliteStore {
     }
 
     /// Get Ably sync state for a session.
-    pub fn get_ably_sync_state(&self, session_id: &SessionId) -> SqliteResult<Option<crate::types::AblySyncState>> {
+    pub fn get_ably_sync_state(
+        &self,
+        session_id: &SessionId,
+    ) -> SqliteResult<Option<crate::types::AblySyncState>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT session_id, last_synced_sequence_number, last_sync_at, last_error, retry_count, last_attempt_at
@@ -1166,7 +1244,10 @@ impl SqliteStore {
     }
 
     /// Get sessions with pending messages to sync via Ably (messages with sequence > last_synced).
-    pub fn get_sessions_pending_ably_sync(&self, limit_per_session: usize) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
+    pub fn get_sessions_pending_ably_sync(
+        &self,
+        limit_per_session: usize,
+    ) -> SqliteResult<Vec<crate::types::SessionPendingSync>> {
         let conn = self.conn.lock().expect("lock poisoned");
 
         // Get all sessions that have messages beyond their Ably sync cursor
@@ -1180,7 +1261,9 @@ impl SqliteStore {
         )?;
 
         let session_ids: Vec<SessionId> = stmt
-            .query_map([], |row| Ok(SessionId::from_string(row.get::<_, String>(0)?)))?
+            .query_map([], |row| {
+                Ok(SessionId::from_string(row.get::<_, String>(0)?))
+            })?
             .collect::<Result<Vec<_>, _>>()?;
 
         drop(stmt);
@@ -1216,7 +1299,11 @@ impl SqliteStore {
 
             let messages: Vec<crate::types::PendingSyncMessage> = msg_stmt
                 .query_map(
-                    params![session_id.as_str(), last_synced_sequence_number, limit_per_session as i64],
+                    params![
+                        session_id.as_str(),
+                        last_synced_sequence_number,
+                        limit_per_session as i64
+                    ],
                     |row| {
                         Ok(crate::types::PendingSyncMessage {
                             session_id: SessionId::from_string(row.get::<_, String>(1)?),
@@ -1243,7 +1330,11 @@ impl SqliteStore {
     }
 
     /// Mark Ably sync as successful for a session up to a sequence number.
-    pub fn mark_ably_sync_success(&self, session_id: &SessionId, up_to_sequence: i64) -> SqliteResult<()> {
+    pub fn mark_ably_sync_success(
+        &self,
+        session_id: &SessionId,
+        up_to_sequence: i64,
+    ) -> SqliteResult<()> {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
@@ -1286,7 +1377,9 @@ impl SqliteStore {
     #[allow(dead_code)]
     pub fn get_setting(&self, key: &str) -> SqliteResult<Option<UserSetting>> {
         let conn = self.conn.lock().expect("lock poisoned");
-        let mut stmt = conn.prepare("SELECT key, value, value_type, updated_at FROM user_settings WHERE key = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT key, value, value_type, updated_at FROM user_settings WHERE key = ?1",
+        )?;
 
         let result = stmt.query_row(params![key], |row| {
             Ok(UserSetting {
@@ -1325,7 +1418,6 @@ impl SqliteStore {
         let count = conn.execute("DELETE FROM user_settings WHERE key = ?1", params![key])?;
         Ok(count > 0)
     }
-
 }
 
 #[cfg(test)]
@@ -1397,12 +1489,15 @@ mod tests {
         let session_id = create_test_session(&store, &repo_id);
 
         let inserted = store
-            .insert_agent_message(&session_id, &NewMessage { content: "Hello".to_string() })
+            .insert_agent_message(
+                &session_id,
+                &NewMessage {
+                    content: "Hello".to_string(),
+                },
+            )
             .unwrap();
 
-        store
-            .insert_supabase_message_outbox(&inserted.id)
-            .unwrap();
+        store.insert_supabase_message_outbox(&inserted.id).unwrap();
 
         let pending = store.get_pending_supabase_messages(10).unwrap();
         assert_eq!(pending.len(), 1);
@@ -1510,19 +1605,34 @@ mod tests {
 
         // First message should get sequence 1
         let inserted1 = store
-            .insert_agent_message(&session_id, &NewMessage { content: "First".to_string() })
+            .insert_agent_message(
+                &session_id,
+                &NewMessage {
+                    content: "First".to_string(),
+                },
+            )
             .unwrap();
         assert_eq!(inserted1.sequence_number, 1);
 
         // Second message should get sequence 2
         let inserted2 = store
-            .insert_agent_message(&session_id, &NewMessage { content: "Second".to_string() })
+            .insert_agent_message(
+                &session_id,
+                &NewMessage {
+                    content: "Second".to_string(),
+                },
+            )
             .unwrap();
         assert_eq!(inserted2.sequence_number, 2);
 
         // Third message should get sequence 3
         let inserted3 = store
-            .insert_agent_message(&session_id, &NewMessage { content: "Third".to_string() })
+            .insert_agent_message(
+                &session_id,
+                &NewMessage {
+                    content: "Third".to_string(),
+                },
+            )
             .unwrap();
         assert_eq!(inserted3.sequence_number, 3);
     }
@@ -1536,13 +1646,28 @@ mod tests {
 
         // Each session has independent sequence numbers
         let msg1 = store
-            .insert_agent_message(&session1, &NewMessage { content: "S1-M1".to_string() })
+            .insert_agent_message(
+                &session1,
+                &NewMessage {
+                    content: "S1-M1".to_string(),
+                },
+            )
             .unwrap();
         let msg2 = store
-            .insert_agent_message(&session2, &NewMessage { content: "S2-M1".to_string() })
+            .insert_agent_message(
+                &session2,
+                &NewMessage {
+                    content: "S2-M1".to_string(),
+                },
+            )
             .unwrap();
         let msg3 = store
-            .insert_agent_message(&session1, &NewMessage { content: "S1-M2".to_string() })
+            .insert_agent_message(
+                &session1,
+                &NewMessage {
+                    content: "S1-M2".to_string(),
+                },
+            )
             .unwrap();
 
         assert_eq!(msg1.sequence_number, 1); // session1 starts at 1

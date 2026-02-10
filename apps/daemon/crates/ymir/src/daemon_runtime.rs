@@ -342,7 +342,9 @@ impl DaemonAuthRuntime {
                             )
                         })?;
                     let public_key =
-                        daemon_config_and_utils::hybrid_crypto::public_key_from_private(&private_key_arr);
+                        daemon_config_and_utils::hybrid_crypto::public_key_from_private(
+                            &private_key_arr,
+                        );
                     let public_key_b64 =
                         base64::engine::general_purpose::STANDARD.encode(public_key);
                     let db_encryption_key = secrets.get_database_encryption_key()?;

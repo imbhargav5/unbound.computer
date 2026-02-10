@@ -150,9 +150,7 @@ fn non_existent_path_returns_error() {
     let result = get_status(Path::new("/nonexistent/path/to/repo"));
     assert!(result.is_err());
     assert!(
-        result
-            .unwrap_err()
-            .contains("Failed to open repository"),
+        result.unwrap_err().contains("Failed to open repository"),
         "expected error about opening repository"
     );
 }
@@ -172,17 +170,33 @@ fn multiple_files_with_mixed_states() {
 
     let status = get_status(&repo_path).expect("get_status failed");
     assert!(!status.is_clean);
-    assert!(status.files.len() >= 3, "expected at least 3 files, got {}", status.files.len());
+    assert!(
+        status.files.len() >= 3,
+        "expected at least 3 files, got {}",
+        status.files.len()
+    );
 
-    let untracked = status.files.iter().find(|f| f.path == "untracked.txt").expect("untracked not found");
+    let untracked = status
+        .files
+        .iter()
+        .find(|f| f.path == "untracked.txt")
+        .expect("untracked not found");
     assert_eq!(untracked.status, GitFileStatus::Untracked);
     assert!(!untracked.staged);
 
-    let modified = status.files.iter().find(|f| f.path == "README.md").expect("README not found");
+    let modified = status
+        .files
+        .iter()
+        .find(|f| f.path == "README.md")
+        .expect("README not found");
     assert_eq!(modified.status, GitFileStatus::Modified);
     assert!(modified.staged);
 
-    let new_staged = status.files.iter().find(|f| f.path == "new_staged.txt").expect("new_staged not found");
+    let new_staged = status
+        .files
+        .iter()
+        .find(|f| f.path == "new_staged.txt")
+        .expect("new_staged not found");
     assert_eq!(new_staged.status, GitFileStatus::Added);
     assert!(new_staged.staged);
 }

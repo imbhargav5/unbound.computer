@@ -38,7 +38,9 @@ use tracing::{debug, info};
 fn from_tokio_rusqlite(e: tokio_rusqlite::Error) -> DatabaseError {
     match e {
         tokio_rusqlite::Error::Rusqlite(e) => DatabaseError::Sqlite(e),
-        tokio_rusqlite::Error::Close(_) => DatabaseError::Connection("Connection closed".to_string()),
+        tokio_rusqlite::Error::Close(_) => {
+            DatabaseError::Connection("Connection closed".to_string())
+        }
         other => DatabaseError::Connection(other.to_string()),
     }
 }
@@ -158,7 +160,8 @@ impl AsyncDatabase {
         // Inner type: Result<DatabaseResult<T>, tokio_rusqlite::Error>
         // After await: Result<DatabaseResult<T>, tokio_rusqlite::Error>
         // After flatten: DatabaseResult<T>
-        let outer_result = self.conn
+        let outer_result = self
+            .conn
             .call(move |conn| {
                 let inner_result = f(conn);
                 // Return Ok with our DatabaseResult wrapped inside
@@ -194,10 +197,8 @@ impl AsyncDatabase {
 
     /// Check if the database is healthy by executing a simple query.
     pub async fn health_check(&self) -> DatabaseResult<()> {
-        self.call_sqlite(|conn| {
-            conn.execute_batch("SELECT 1")
-        })
-        .await?;
+        self.call_sqlite(|conn| conn.execute_batch("SELECT 1"))
+            .await?;
         debug!("Database health check passed");
         Ok(())
     }
@@ -248,11 +249,9 @@ mod tests {
         .unwrap();
 
         // Insert data
-        db.call_sqlite(|conn| {
-            conn.execute("INSERT INTO test (name) VALUES (?1)", ["Alice"])
-        })
-        .await
-        .unwrap();
+        db.call_sqlite(|conn| conn.execute("INSERT INTO test (name) VALUES (?1)", ["Alice"]))
+            .await
+            .unwrap();
 
         // Query data
         let names: Vec<String> = db
@@ -280,7 +279,7 @@ mod tests {
         db.call_sqlite(|conn| {
             conn.execute_batch(
                 "CREATE TABLE IF NOT EXISTS counter (id INTEGER PRIMARY KEY, val INTEGER);
-                 INSERT INTO counter (val) VALUES (0);"
+                 INSERT INTO counter (val) VALUES (0);",
             )
         })
         .await

@@ -205,10 +205,7 @@ pub fn get_file_diff(
 
     // If no workdir changes, try index to HEAD diff (staged changes)
     let diff = if diff.deltas().count() == 0 {
-        let head_tree = repo
-            .head()
-            .ok()
-            .and_then(|head| head.peel_to_tree().ok());
+        let head_tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
 
         repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))
             .map_err(|e| format!("Failed to get staged diff: {}", e))?
@@ -756,10 +753,7 @@ pub fn commit(
         .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
 
     // Check if there are actually staged changes by comparing tree to HEAD
-    let head_tree = repo
-        .head()
-        .ok()
-        .and_then(|head| head.peel_to_tree().ok());
+    let head_tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
 
     if let Some(ref ht) = head_tree {
         let diff = repo

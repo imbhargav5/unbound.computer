@@ -36,12 +36,14 @@ fn rule_83_concurrent_reads_no_blocking() {
 
     // Writes should still work
     for i in 0..100 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Verify writes succeeded
@@ -65,12 +67,14 @@ fn rule_85_concurrent_subscribers_isolated() {
 
     // Send messages
     for i in 0..10 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Each subscriber should receive all messages independently
@@ -93,12 +97,14 @@ fn rule_86_side_effects_sequential() {
 
     // Append many messages
     for i in 0..100 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     let effects = armin.sink().effects();
@@ -109,7 +115,10 @@ fn rule_86_side_effects_sequential() {
     for effect in effects {
         match effect {
             SideEffect::MessageAppended { message_id, .. } => {
-                assert!(seen_ids.insert(message_id.as_str().to_string()), "Duplicate ID in side-effects");
+                assert!(
+                    seen_ids.insert(message_id.as_str().to_string()),
+                    "Duplicate ID in side-effects"
+                );
             }
             _ => panic!("Unexpected side-effect"),
         }
@@ -128,18 +137,22 @@ fn rule_87_side_effects_no_interleave() {
 
     // Alternate between sessions
     for i in 0..10 {
-        armin.append(
-            &session1,
-            NewMessage {
-                content: format!("S1-{}", i),
-            },
-        ).unwrap();
-        armin.append(
-            &session2,
-            NewMessage {
-                content: format!("S2-{}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session1,
+                NewMessage {
+                    content: format!("S1-{}", i),
+                },
+            )
+            .unwrap();
+        armin
+            .append(
+                &session2,
+                NewMessage {
+                    content: format!("S2-{}", i),
+                },
+            )
+            .unwrap();
     }
 
     let effects = armin.sink().effects();
@@ -168,12 +181,14 @@ fn rule_88_delta_thread_safe_reads() {
     let session_id = armin.create_session().unwrap();
 
     for i in 0..100 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Get delta (it's Clone)
@@ -209,12 +224,14 @@ fn rule_89_live_hub_thread_safe() {
 
     // Append messages
     for i in 0..10 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Receive in a different context (simulating thread safety)
@@ -242,12 +259,14 @@ fn rule_90_sqlite_synchronized() {
         let session_id = armin.create_session().unwrap();
 
         for i in 0..100 {
-            armin.append(
-                &session_id,
-                NewMessage {
-                    content: format!("Message {}", i),
-                },
-            ).unwrap();
+            armin
+                .append(
+                    &session_id,
+                    NewMessage {
+                        content: format!("Message {}", i),
+                    },
+                )
+                .unwrap();
         }
 
         session_id
@@ -295,12 +314,14 @@ fn multiple_snapshot_clones_independent() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Original".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Original".to_string(),
+            },
+        )
+        .unwrap();
     armin.refresh_snapshot().unwrap();
 
     let snap1 = armin.snapshot();
@@ -331,12 +352,14 @@ fn delta_clones_independent() {
     let session_id = armin.create_session().unwrap();
 
     for i in 0..50 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     let delta1 = armin.delta(&session_id);
@@ -358,12 +381,14 @@ fn many_subscribers_single_message() {
 
     let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Broadcast".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Broadcast".to_string(),
+            },
+        )
+        .unwrap();
 
     // All should receive
     for (i, sub) in subscribers.iter().enumerate() {

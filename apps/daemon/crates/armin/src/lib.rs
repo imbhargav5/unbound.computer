@@ -78,9 +78,9 @@ pub use reader::SessionReader;
 pub use side_effect::{NullSink, RecordingSink, SideEffect, SideEffectSink};
 pub use types::{
     AblySyncState, AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
-    NewSessionSecret, PendingSupabaseMessage, PendingSyncMessage,
-    Repository, RepositoryId, Session, SessionId, SessionPendingSync, SessionSecret, SessionState,
-    SessionStatus, SessionUpdate, SupabaseMessageOutboxEntry, SupabaseSyncState, UserSetting,
+    NewSessionSecret, PendingSupabaseMessage, PendingSyncMessage, Repository, RepositoryId,
+    Session, SessionId, SessionPendingSync, SessionSecret, SessionState, SessionStatus,
+    SessionUpdate, SupabaseMessageOutboxEntry, SupabaseSyncState, UserSetting,
 };
 pub use writer::SessionWriter;
 

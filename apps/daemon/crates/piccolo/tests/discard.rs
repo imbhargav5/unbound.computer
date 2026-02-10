@@ -19,7 +19,10 @@ fn discard_restores_original_content() {
     discard_changes(&repo_path, &["README.md"]).expect("discard_changes failed");
 
     let restored = fs::read_to_string(repo_path.join("README.md")).expect("read restored");
-    assert_eq!(original, restored, "file should be restored to original content");
+    assert_eq!(
+        original, restored,
+        "file should be restored to original content"
+    );
 }
 
 #[test]
@@ -41,7 +44,10 @@ fn discard_specific_file_leaves_others() {
 
     // README.md should be clean (no longer in status)
     let readme = status.files.iter().find(|f| f.path == "README.md");
-    assert!(readme.is_none(), "README.md should not appear in status after discard");
+    assert!(
+        readme.is_none(),
+        "README.md should not appear in status after discard"
+    );
 
     // other.txt should still be modified
     let other = status.files.iter().find(|f| f.path == "other.txt");
@@ -60,7 +66,8 @@ fn discard_on_clean_file_is_noop() {
     let (_dir, repo_path) = common::init_test_repo();
 
     // Discard on unmodified file should succeed without error
-    discard_changes(&repo_path, &["README.md"]).expect("discard_changes on clean file should succeed");
+    discard_changes(&repo_path, &["README.md"])
+        .expect("discard_changes on clean file should succeed");
 
     let status = get_status(&repo_path).expect("get_status failed");
     assert!(status.is_clean);

@@ -22,6 +22,7 @@ declare global {
       UNKEY_ROOT_KEY: string;
       UNKEY_API_ID: string;
       OPENAI_API_KEY?: string;
+      ABLY_API_KEY?: string;
       USE_LOCAL_EMAIL?: string;
     }
   }

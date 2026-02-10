@@ -3,7 +3,7 @@
 //  unbound-ios
 //
 //  Service for iOS devices to join and view coding sessions created on macOS.
-//  Handles fetching and decrypting session secrets to enable conversation viewing.
+//  Handles resolving and decrypting session secrets to enable conversation viewing.
 //
 
 import Foundation
@@ -38,14 +38,14 @@ enum CodingSessionViewerError: Error, LocalizedError {
 
 /// Service for viewing coding sessions on iOS
 final class CodingSessionViewerService {
-    private let sessionSecretService: SessionSecretService
+    private let umSecretShareService: UMSecretShareService
     private let authService: AuthService
 
     init(
-        sessionSecretService: SessionSecretService = .shared,
+        umSecretShareService: UMSecretShareService = .shared,
         authService: AuthService = .shared
     ) {
-        self.sessionSecretService = sessionSecretService
+        self.umSecretShareService = umSecretShareService
         self.authService = authService
     }
 
@@ -55,10 +55,8 @@ final class CodingSessionViewerService {
     ///
     /// This method:
     /// 1. Validates user is authenticated
-    /// 2. Fetches device ID from keychain
-    /// 3. Fetches encrypted secret from database
-    /// 4. Decrypts secret using device private key
-    /// 5. Returns decrypted session secret for use in conversation decryption
+    /// 2. Resolves session secret through local keychain-first UM flow
+    /// 3. Returns decrypted session secret for use in conversation decryption
     ///
     /// - Parameter sessionId: UUID of the coding session to join
     /// - Returns: Decrypted session secret string
@@ -66,34 +64,37 @@ final class CodingSessionViewerService {
     func joinCodingSession(_ sessionId: UUID) async throws -> String {
         // 1. Get current user ID
         guard let userIdString = authService.currentUserId,
-              let userId = UUID(uuidString: userIdString) else {
+              UUID(uuidString: userIdString) != nil else {
             throw CodingSessionViewerError.notAuthenticated
         }
 
         // 2. Get device ID from keychain
         let keychainService = KeychainService.shared
-        guard let deviceId = try? keychainService.getDeviceId(forUser: userIdString) else {
+        guard (try? keychainService.getDeviceId(forUser: userIdString)) != nil else {
             throw CodingSessionViewerError.noDeviceId
         }
 
-        // 3. Fetch and decrypt session secret
+        // 3. Resolve and decrypt session secret via keychain-first UM flow.
         do {
-            let sessionSecret = try await sessionSecretService.fetchAndDecryptCodingSessionSecret(
-                sessionId: sessionId,
-                deviceId: deviceId,
-                userId: userId,
-                supabase: authService.supabaseClient
+            let sessionSecret = try await umSecretShareService.fetchSessionSecret(
+                sessionId: sessionId
             )
 
             logger.info("Successfully joined coding session \(sessionId)")
             return sessionSecret
 
-        } catch let sessionError as SessionSecretError {
-            switch sessionError {
-            case .databaseError:
+        } catch let umError as UMSecretShareError {
+            switch umError {
+            case .notAuthenticated:
+                throw CodingSessionViewerError.notAuthenticated
+            case .noDeviceId:
+                throw CodingSessionViewerError.noDeviceId
+            case .sessionNotFound:
+                throw CodingSessionViewerError.sessionNotFound(sessionId)
+            case .secretNotFound:
                 throw CodingSessionViewerError.secretNotFound(sessionId)
             default:
-                throw CodingSessionViewerError.decryptionFailed(sessionError)
+                throw CodingSessionViewerError.decryptionFailed(umError)
             }
         } catch {
             throw CodingSessionViewerError.decryptionFailed(error)
@@ -107,17 +108,16 @@ final class CodingSessionViewerService {
     /// - Parameter sessionId: UUID of the coding session
     /// - Returns: True if secret exists and is accessible, false otherwise
     func isCodingSessionAvailable(_ sessionId: UUID) async -> Bool {
-        guard let userIdString = authService.currentUserId,
-              let deviceId = try? KeychainService.shared.getDeviceId(forUser: userIdString) else {
+        guard let userIdString = authService.currentUserId else {
             return false
         }
 
         do {
             let response = try await authService.supabaseClient
-                .from("agent_coding_session_secrets")
+                .from("agent_coding_sessions")
                 .select("id")
-                .eq("session_id", value: sessionId.uuidString)
-                .eq("device_id", value: deviceId.uuidString)
+                .eq("id", value: sessionId.uuidString)
+                .eq("user_id", value: userIdString)
                 .limit(1)
                 .execute()
 
@@ -132,30 +132,29 @@ final class CodingSessionViewerService {
 
     /// Fetches all coding sessions that this device can view
     ///
-    /// - Returns: Array of session IDs that have secrets for this device
+    /// - Returns: Array of session IDs owned by the current user
     func listAvailableCodingSessions() async throws -> [UUID] {
-        guard let userIdString = authService.currentUserId,
-              let deviceId = try? KeychainService.shared.getDeviceId(forUser: userIdString) else {
+        guard let userIdString = authService.currentUserId else {
             return []
         }
 
         do {
             let response = try await authService.supabaseClient
-                .from("agent_coding_session_secrets")
-                .select("session_id")
-                .eq("device_id", value: deviceId.uuidString)
+                .from("agent_coding_sessions")
+                .select("id")
+                .eq("user_id", value: userIdString)
                 .execute()
 
             struct SessionRow: Codable {
-                let sessionId: String
+                let id: String
 
                 enum CodingKeys: String, CodingKey {
-                    case sessionId = "session_id"
+                    case id
                 }
             }
 
             let rows = try JSONDecoder().decode([SessionRow].self, from: response.data)
-            return rows.compactMap { UUID(uuidString: $0.sessionId) }
+            return rows.compactMap { UUID(uuidString: $0.id) }
 
         } catch {
             logger.error("Error listing sessions: \(error)")

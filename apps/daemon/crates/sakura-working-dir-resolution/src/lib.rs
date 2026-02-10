@@ -90,10 +90,10 @@ pub fn resolve_repository_path<R: SessionReader>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::*;
     use armin::delta::DeltaView;
     use armin::live::LiveSubscription;
     use armin::snapshot::SnapshotView;
+    use armin::*;
 
     // =========================================================================
     // Mock SessionReader for testing
@@ -161,10 +161,7 @@ mod tests {
             Ok(self.repositories.iter().find(|r| r.path == path).cloned())
         }
 
-        fn list_sessions(
-            &self,
-            repository_id: &RepositoryId,
-        ) -> Result<Vec<Session>, ArminError> {
+        fn list_sessions(&self, repository_id: &RepositoryId) -> Result<Vec<Session>, ArminError> {
             Ok(self
                 .sessions
                 .iter()
@@ -367,7 +364,10 @@ mod tests {
             .with_repo("repo-2", "/path/two")
             .with_repo("repo-3", "/path/three");
 
-        assert_eq!(resolve_repository_path(&reader, "repo-2").unwrap(), "/path/two");
+        assert_eq!(
+            resolve_repository_path(&reader, "repo-2").unwrap(),
+            "/path/two"
+        );
     }
 
     // =========================================================================

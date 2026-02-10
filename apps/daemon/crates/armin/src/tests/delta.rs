@@ -30,21 +30,25 @@ fn rule_21_messages_appear_immediately_in_delta() {
     assert!(armin.delta(&session_id).is_empty());
 
     // After first append
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "First".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "First".to_string(),
+            },
+        )
+        .unwrap();
     assert_eq!(armin.delta(&session_id).len(), 1);
 
     // After second append
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Second".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Second".to_string(),
+            },
+        )
+        .unwrap();
     assert_eq!(armin.delta(&session_id).len(), 2);
 }
 
@@ -56,12 +60,14 @@ fn rule_22_delta_only_after_snapshot() {
     let session_id = armin.create_session().unwrap();
 
     // Add messages before snapshot
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Before snapshot".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Before snapshot".to_string(),
+            },
+        )
+        .unwrap();
 
     // Refresh snapshot
     armin.refresh_snapshot().unwrap();
@@ -73,12 +79,14 @@ fn rule_22_delta_only_after_snapshot() {
     );
 
     // Add message after snapshot
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "After snapshot".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "After snapshot".to_string(),
+            },
+        )
+        .unwrap();
 
     // Delta should only have the new message
     let delta = armin.delta(&session_id);
@@ -95,12 +103,14 @@ fn rule_23_delta_preserves_order() {
 
     let contents = vec!["First", "Second", "Third", "Fourth", "Fifth"];
     for (i, content) in contents.iter().enumerate() {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: content.to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: content.to_string(),
+                },
+            )
+            .unwrap();
     }
 
     let delta = armin.delta(&session_id);
@@ -118,29 +128,38 @@ fn rule_24_delta_is_session_scoped() {
     let session1 = armin.create_session().unwrap();
     let session2 = armin.create_session().unwrap();
 
-    armin.append(
-        &session1,
-        NewMessage {
-            content: "Session 1 message".to_string(),
-        },
-    ).unwrap();
-    armin.append(
-        &session2,
-        NewMessage {
-            content: "Session 2 message".to_string(),
-        },
-    ).unwrap();
-    armin.append(
-        &session1,
-        NewMessage {
-            content: "Session 1 second".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session1,
+            NewMessage {
+                content: "Session 1 message".to_string(),
+            },
+        )
+        .unwrap();
+    armin
+        .append(
+            &session2,
+            NewMessage {
+                content: "Session 2 message".to_string(),
+            },
+        )
+        .unwrap();
+    armin
+        .append(
+            &session1,
+            NewMessage {
+                content: "Session 1 second".to_string(),
+            },
+        )
+        .unwrap();
 
     // Session 1 delta
     let delta1 = armin.delta(&session1);
     assert_eq!(delta1.len(), 2);
-    assert!(delta1.messages().iter().all(|m| m.content.starts_with("Session 1")));
+    assert!(delta1
+        .messages()
+        .iter()
+        .all(|m| m.content.starts_with("Session 1")));
 
     // Session 2 delta
     let delta2 = armin.delta(&session2);
@@ -157,12 +176,14 @@ fn rule_25_delta_cleared_after_snapshot_rebuild() {
 
     // Add messages
     for i in 0..10 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     assert_eq!(armin.delta(&session_id).len(), 10);
@@ -187,12 +208,14 @@ fn rule_26_delta_rebuilt_after_restart() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Message".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Message".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -208,12 +231,14 @@ fn rule_26_delta_rebuilt_after_restart() {
     );
 
     // New messages should appear in delta
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "New message".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "New message".to_string(),
+            },
+        )
+        .unwrap();
 
     let delta = armin.delta(&session_id);
     assert_eq!(delta.len(), 1);
@@ -229,12 +254,14 @@ fn rule_27_delta_no_duplicates() {
 
     // Add messages
     for i in 0..10 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     let delta = armin.delta(&session_id);
@@ -264,12 +291,14 @@ fn rule_28_delta_only_committed_messages() {
         let session_id = armin.create_session().unwrap();
 
         // Add message - it goes to both SQLite and delta
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Committed".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Committed".to_string(),
+                },
+            )
+            .unwrap();
 
         let delta = armin.delta(&session_id);
         assert_eq!(delta.len(), 1);
@@ -298,12 +327,14 @@ fn rule_29_delta_growth_no_blocking() {
     // Write many messages without refreshing snapshot
     let count = 1000;
     for i in 0..count {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // All messages should be in delta
@@ -318,12 +349,14 @@ fn rule_30_delta_iteration_deterministic() {
     let session_id = armin.create_session().unwrap();
 
     for i in 0..20 {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Get delta multiple times
@@ -360,7 +393,9 @@ fn delta_empty_for_nonexistent_session() {
     let sink = RecordingSink::new();
     let armin = Armin::in_memory(sink).unwrap();
 
-    let delta = armin.delta(&crate::types::SessionId::from_string("nonexistent-session-9999"));
+    let delta = armin.delta(&crate::types::SessionId::from_string(
+        "nonexistent-session-9999",
+    ));
     assert!(delta.is_empty());
 }
 
@@ -370,18 +405,22 @@ fn delta_into_iterator() {
     let armin = Armin::in_memory(sink).unwrap();
     let session_id = armin.create_session().unwrap();
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "One".to_string(),
-        },
-    ).unwrap();
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Two".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "One".to_string(),
+            },
+        )
+        .unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Two".to_string(),
+            },
+        )
+        .unwrap();
 
     let delta = armin.delta(&session_id);
     let contents: Vec<_> = delta.into_iter().map(|m| m.content).collect();

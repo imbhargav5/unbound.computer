@@ -10,8 +10,7 @@ mod paths;
 pub use config::Config;
 pub use conversation_crypto::{
     decrypt_conversation_message, encrypt_conversation_message,
-    encrypt_conversation_message_with_nonce, ConversationCryptoError,
-    EncryptedConversationPayload,
+    encrypt_conversation_message_with_nonce, ConversationCryptoError, EncryptedConversationPayload,
 };
 pub use error::{CoreError, CoreResult};
 pub use hybrid_crypto::{decrypt_for_device, encrypt_for_device, generate_keypair};

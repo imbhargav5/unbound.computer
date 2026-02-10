@@ -73,7 +73,7 @@ pub struct AgentCodingSessionState {
     pub session_id: String,
     pub agent_status: AgentStatus,
     pub queued_commands: Option<String>, // JSON array
-    pub diff_summary: Option<String>,     // JSON array
+    pub diff_summary: Option<String>,    // JSON array
     pub updated_at: DateTime<Utc>,
 }
 

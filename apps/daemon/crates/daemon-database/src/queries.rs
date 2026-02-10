@@ -4,10 +4,10 @@
 //! Each function takes a `&Connection` as its first parameter.
 
 use crate::{
-    AgentCodingSession, AgentCodingSessionMessage,
-    AgentCodingSessionState, AgentStatus, DatabaseError, DatabaseResult, NewAgentCodingSession,
-    NewAgentCodingSessionMessage, NewRepository, NewSessionSecret,
-    Repository, SessionSecret, SessionStatus, SupabaseMessageOutboxPending, UserSetting,
+    AgentCodingSession, AgentCodingSessionMessage, AgentCodingSessionState, AgentStatus,
+    DatabaseError, DatabaseResult, NewAgentCodingSession, NewAgentCodingSessionMessage,
+    NewRepository, NewSessionSecret, Repository, SessionSecret, SessionStatus,
+    SupabaseMessageOutboxPending, UserSetting,
 };
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
@@ -331,7 +331,10 @@ pub fn update_agent_status(
 // ==========================================
 
 /// Insert a new message.
-pub fn insert_message(conn: &Connection, message: &NewAgentCodingSessionMessage) -> DatabaseResult<()> {
+pub fn insert_message(
+    conn: &Connection,
+    message: &NewAgentCodingSessionMessage,
+) -> DatabaseResult<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
@@ -462,12 +465,18 @@ pub fn get_pending_supabase_messages(
 }
 
 /// Mark messages as sent to Supabase.
-pub fn mark_supabase_messages_sent(conn: &Connection, message_ids: &[String]) -> DatabaseResult<()> {
+pub fn mark_supabase_messages_sent(
+    conn: &Connection,
+    message_ids: &[String],
+) -> DatabaseResult<()> {
     if message_ids.is_empty() {
         return Ok(());
     }
     let now = Utc::now().to_rfc3339();
-    let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+    let placeholders = std::iter::repeat("?")
+        .take(message_ids.len())
+        .collect::<Vec<_>>()
+        .join(", ");
     let sql = format!(
         "UPDATE agent_coding_session_message_supabase_outbox
          SET sent_at = ?1, last_error = NULL
@@ -495,7 +504,10 @@ pub fn mark_supabase_messages_failed(
         return Ok(());
     }
     let now = Utc::now().to_rfc3339();
-    let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+    let placeholders = std::iter::repeat("?")
+        .take(message_ids.len())
+        .collect::<Vec<_>>()
+        .join(", ");
     let sql = format!(
         "UPDATE agent_coding_session_message_supabase_outbox
          SET last_attempt_at = ?1,
@@ -524,7 +536,10 @@ pub fn delete_supabase_message_outbox(
     if message_ids.is_empty() {
         return Ok(());
     }
-    let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+    let placeholders = std::iter::repeat("?")
+        .take(message_ids.len())
+        .collect::<Vec<_>>()
+        .join(", ");
     let sql = format!(
         "DELETE FROM agent_coding_session_message_supabase_outbox
          WHERE message_id IN ({})",
@@ -546,8 +561,8 @@ pub fn delete_supabase_message_outbox(
 
 /// Get a user setting.
 pub fn get_setting(conn: &Connection, key: &str) -> DatabaseResult<Option<UserSetting>> {
-    let mut stmt =
-        conn.prepare("SELECT key, value, value_type, updated_at FROM user_settings WHERE key = ?1")?;
+    let mut stmt = conn
+        .prepare("SELECT key, value, value_type, updated_at FROM user_settings WHERE key = ?1")?;
 
     let result = stmt.query_row(params![key], |row| {
         Ok(UserSetting {
@@ -625,7 +640,12 @@ pub fn set_session_secret(conn: &Connection, secret: &NewSessionSecret) -> Datab
         "INSERT INTO session_secrets (session_id, encrypted_secret, nonce, created_at)
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(session_id) DO UPDATE SET encrypted_secret = ?2, nonce = ?3",
-        params![secret.session_id, secret.encrypted_secret, secret.nonce, now,],
+        params![
+            secret.session_id,
+            secret.encrypted_secret,
+            secret.nonce,
+            now,
+        ],
     )?;
     debug!(session_id = %secret.session_id, "Session secret stored");
     Ok(())
@@ -664,8 +684,11 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        migrations, NewAgentCodingSession, NewAgentCodingSessionMessage, NewRepository,
+        NewSessionSecret,
+    };
     use chrono::Datelike;
-    use crate::{migrations, NewAgentCodingSession, NewAgentCodingSessionMessage, NewRepository, NewSessionSecret};
 
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -676,28 +699,36 @@ mod tests {
 
     fn insert_test_repo(conn: &Connection) -> String {
         let id = "repo-1".to_string();
-        insert_repository(conn, &NewRepository {
-            id: id.clone(),
-            path: "/test/repo".to_string(),
-            name: "test-repo".to_string(),
-            is_git_repository: true,
-            sessions_path: None,
-            default_branch: Some("main".to_string()),
-            default_remote: Some("origin".to_string()),
-        }).unwrap();
+        insert_repository(
+            conn,
+            &NewRepository {
+                id: id.clone(),
+                path: "/test/repo".to_string(),
+                name: "test-repo".to_string(),
+                is_git_repository: true,
+                sessions_path: None,
+                default_branch: Some("main".to_string()),
+                default_remote: Some("origin".to_string()),
+            },
+        )
+        .unwrap();
         id
     }
 
     fn insert_test_session(conn: &Connection, repo_id: &str) -> String {
         let id = "session-1".to_string();
-        insert_session(conn, &NewAgentCodingSession {
-            id: id.clone(),
-            repository_id: repo_id.to_string(),
-            title: "Test Session".to_string(),
-            claude_session_id: None,
-            is_worktree: false,
-            worktree_path: None,
-        }).unwrap();
+        insert_session(
+            conn,
+            &NewAgentCodingSession {
+                id: id.clone(),
+                repository_id: repo_id.to_string(),
+                title: "Test Session".to_string(),
+                claude_session_id: None,
+                is_worktree: false,
+                worktree_path: None,
+            },
+        )
+        .unwrap();
         id
     }
 
@@ -708,15 +739,19 @@ mod tests {
     #[test]
     fn repository_insert_and_get() {
         let conn = setup_conn();
-        let repo = insert_repository(&conn, &NewRepository {
-            id: "r1".to_string(),
-            path: "/path/to/repo".to_string(),
-            name: "my-repo".to_string(),
-            is_git_repository: true,
-            sessions_path: Some("/sessions".to_string()),
-            default_branch: Some("main".to_string()),
-            default_remote: Some("origin".to_string()),
-        }).unwrap();
+        let repo = insert_repository(
+            &conn,
+            &NewRepository {
+                id: "r1".to_string(),
+                path: "/path/to/repo".to_string(),
+                name: "my-repo".to_string(),
+                is_git_repository: true,
+                sessions_path: Some("/sessions".to_string()),
+                default_branch: Some("main".to_string()),
+                default_remote: Some("origin".to_string()),
+            },
+        )
+        .unwrap();
 
         assert_eq!(repo.id, "r1");
         assert_eq!(repo.path, "/path/to/repo");
@@ -744,17 +779,33 @@ mod tests {
     fn repository_list_ordered_by_last_accessed() {
         let conn = setup_conn();
 
-        insert_repository(&conn, &NewRepository {
-            id: "r1".into(), path: "/a".into(), name: "a".into(),
-            is_git_repository: false, sessions_path: None,
-            default_branch: None, default_remote: None,
-        }).unwrap();
+        insert_repository(
+            &conn,
+            &NewRepository {
+                id: "r1".into(),
+                path: "/a".into(),
+                name: "a".into(),
+                is_git_repository: false,
+                sessions_path: None,
+                default_branch: None,
+                default_remote: None,
+            },
+        )
+        .unwrap();
 
-        insert_repository(&conn, &NewRepository {
-            id: "r2".into(), path: "/b".into(), name: "b".into(),
-            is_git_repository: false, sessions_path: None,
-            default_branch: None, default_remote: None,
-        }).unwrap();
+        insert_repository(
+            &conn,
+            &NewRepository {
+                id: "r2".into(),
+                path: "/b".into(),
+                name: "b".into(),
+                is_git_repository: false,
+                sessions_path: None,
+                default_branch: None,
+                default_remote: None,
+            },
+        )
+        .unwrap();
 
         let repos = list_repositories(&conn).unwrap();
         assert_eq!(repos.len(), 2);
@@ -782,14 +833,18 @@ mod tests {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
 
-        let session = insert_session(&conn, &NewAgentCodingSession {
-            id: "s1".into(),
-            repository_id: repo_id,
-            title: "My Session".into(),
-            claude_session_id: Some("claude-xyz".into()),
-            is_worktree: true,
-            worktree_path: Some("/worktree".into()),
-        }).unwrap();
+        let session = insert_session(
+            &conn,
+            &NewAgentCodingSession {
+                id: "s1".into(),
+                repository_id: repo_id,
+                title: "My Session".into(),
+                claude_session_id: Some("claude-xyz".into()),
+                is_worktree: true,
+                worktree_path: Some("/worktree".into()),
+            },
+        )
+        .unwrap();
 
         assert_eq!(session.id, "s1");
         assert_eq!(session.title, "My Session");
@@ -829,10 +884,16 @@ mod tests {
         let repo_id = insert_test_repo(&conn);
         let session_id = insert_test_session(&conn, &repo_id);
 
-        let before = get_session(&conn, &session_id).unwrap().unwrap().last_accessed_at;
+        let before = get_session(&conn, &session_id)
+            .unwrap()
+            .unwrap()
+            .last_accessed_at;
         std::thread::sleep(std::time::Duration::from_millis(10));
         assert!(touch_session(&conn, &session_id).unwrap());
-        let after = get_session(&conn, &session_id).unwrap().unwrap().last_accessed_at;
+        let after = get_session(&conn, &session_id)
+            .unwrap()
+            .unwrap()
+            .last_accessed_at;
         assert!(after >= before);
     }
 
@@ -841,16 +902,30 @@ mod tests {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
 
-        insert_session(&conn, &NewAgentCodingSession {
-            id: "s1".into(), repository_id: repo_id.clone(),
-            title: "First".into(), claude_session_id: None,
-            is_worktree: false, worktree_path: None,
-        }).unwrap();
-        insert_session(&conn, &NewAgentCodingSession {
-            id: "s2".into(), repository_id: repo_id.clone(),
-            title: "Second".into(), claude_session_id: None,
-            is_worktree: false, worktree_path: None,
-        }).unwrap();
+        insert_session(
+            &conn,
+            &NewAgentCodingSession {
+                id: "s1".into(),
+                repository_id: repo_id.clone(),
+                title: "First".into(),
+                claude_session_id: None,
+                is_worktree: false,
+                worktree_path: None,
+            },
+        )
+        .unwrap();
+        insert_session(
+            &conn,
+            &NewAgentCodingSession {
+                id: "s2".into(),
+                repository_id: repo_id.clone(),
+                title: "Second".into(),
+                claude_session_id: None,
+                is_worktree: false,
+                worktree_path: None,
+            },
+        )
+        .unwrap();
 
         let sessions = list_sessions_for_repository(&conn, &repo_id).unwrap();
         assert_eq!(sessions.len(), 2);
@@ -918,11 +993,17 @@ mod tests {
         let repo_id = insert_test_repo(&conn);
         let session_id = insert_test_session(&conn, &repo_id);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: r#"{"role":"user","text":"hello"}"#.into(),
-            sequence_number: 1, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m1".into(),
+                session_id: session_id.clone(),
+                content: r#"{"role":"user","text":"hello"}"#.into(),
+                sequence_number: 1,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
 
         let msg = get_message(&conn, "m1").unwrap().unwrap();
         assert_eq!(msg.content, r#"{"role":"user","text":"hello"}"#);
@@ -943,17 +1024,31 @@ mod tests {
 
         assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 1);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: "a".into(), sequence_number: 1, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m1".into(),
+                session_id: session_id.clone(),
+                content: "a".into(),
+                sequence_number: 1,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
 
         assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 2);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m2".into(), session_id: session_id.clone(),
-            content: "b".into(), sequence_number: 5, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m2".into(),
+                session_id: session_id.clone(),
+                content: "b".into(),
+                sequence_number: 5,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
 
         // Next after max(5) = 6
         assert_eq!(get_next_message_sequence(&conn, &session_id).unwrap(), 6);
@@ -969,10 +1064,17 @@ mod tests {
         let repo_id = insert_test_repo(&conn);
         let session_id = insert_test_session(&conn, &repo_id);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: "hello world".into(), sequence_number: 1, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m1".into(),
+                session_id: session_id.clone(),
+                content: "hello world".into(),
+                sequence_number: 1,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
 
         insert_supabase_message_outbox(&conn, "m1").unwrap();
 
@@ -993,10 +1095,17 @@ mod tests {
         let session_id = insert_test_session(&conn, &repo_id);
 
         for i in 1..=3 {
-            insert_message(&conn, &NewAgentCodingSessionMessage {
-                id: format!("m{i}"), session_id: session_id.clone(),
-                content: format!("c{i}"), sequence_number: i, is_streaming: false,
-            }).unwrap();
+            insert_message(
+                &conn,
+                &NewAgentCodingSessionMessage {
+                    id: format!("m{i}"),
+                    session_id: session_id.clone(),
+                    content: format!("c{i}"),
+                    sequence_number: i,
+                    is_streaming: false,
+                },
+            )
+            .unwrap();
             insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
         }
 
@@ -1012,10 +1121,17 @@ mod tests {
         let repo_id = insert_test_repo(&conn);
         let session_id = insert_test_session(&conn, &repo_id);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: "c".into(), sequence_number: 1, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m1".into(),
+                session_id: session_id.clone(),
+                content: "c".into(),
+                sequence_number: 1,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
         insert_supabase_message_outbox(&conn, "m1").unwrap();
 
         mark_supabase_messages_failed(&conn, &["m1".into()], "timeout").unwrap();
@@ -1036,10 +1152,17 @@ mod tests {
         let session_id = insert_test_session(&conn, &repo_id);
 
         for i in 1..=2 {
-            insert_message(&conn, &NewAgentCodingSessionMessage {
-                id: format!("m{i}"), session_id: session_id.clone(),
-                content: format!("c{i}"), sequence_number: i, is_streaming: false,
-            }).unwrap();
+            insert_message(
+                &conn,
+                &NewAgentCodingSessionMessage {
+                    id: format!("m{i}"),
+                    session_id: session_id.clone(),
+                    content: format!("c{i}"),
+                    sequence_number: i,
+                    is_streaming: false,
+                },
+            )
+            .unwrap();
             insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
         }
 
@@ -1063,10 +1186,17 @@ mod tests {
         let repo_id = insert_test_repo(&conn);
         let session_id = insert_test_session(&conn, &repo_id);
 
-        insert_message(&conn, &NewAgentCodingSessionMessage {
-            id: "m1".into(), session_id: session_id.clone(),
-            content: "c".into(), sequence_number: 1, is_streaming: false,
-        }).unwrap();
+        insert_message(
+            &conn,
+            &NewAgentCodingSessionMessage {
+                id: "m1".into(),
+                session_id: session_id.clone(),
+                content: "c".into(),
+                sequence_number: 1,
+                is_streaming: false,
+            },
+        )
+        .unwrap();
 
         insert_supabase_message_outbox(&conn, "m1").unwrap();
         insert_supabase_message_outbox(&conn, "m1").unwrap(); // should not error
@@ -1081,10 +1211,17 @@ mod tests {
         let session_id = insert_test_session(&conn, &repo_id);
 
         for i in 1..=5 {
-            insert_message(&conn, &NewAgentCodingSessionMessage {
-                id: format!("m{i}"), session_id: session_id.clone(),
-                content: format!("c{i}"), sequence_number: i, is_streaming: false,
-            }).unwrap();
+            insert_message(
+                &conn,
+                &NewAgentCodingSessionMessage {
+                    id: format!("m{i}"),
+                    session_id: session_id.clone(),
+                    content: format!("c{i}"),
+                    sequence_number: i,
+                    is_streaming: false,
+                },
+            )
+            .unwrap();
             insert_supabase_message_outbox(&conn, &format!("m{i}")).unwrap();
         }
 
@@ -1105,11 +1242,15 @@ mod tests {
         assert!(!has_session_secret(&conn, &session_id).unwrap());
         assert!(get_session_secret(&conn, &session_id).unwrap().is_none());
 
-        set_session_secret(&conn, &NewSessionSecret {
-            session_id: session_id.clone(),
-            encrypted_secret: vec![1, 2, 3],
-            nonce: vec![10, 20],
-        }).unwrap();
+        set_session_secret(
+            &conn,
+            &NewSessionSecret {
+                session_id: session_id.clone(),
+                encrypted_secret: vec![1, 2, 3],
+                nonce: vec![10, 20],
+            },
+        )
+        .unwrap();
 
         assert!(has_session_secret(&conn, &session_id).unwrap());
         let s = get_session_secret(&conn, &session_id).unwrap().unwrap();
@@ -1117,11 +1258,15 @@ mod tests {
         assert_eq!(s.nonce, vec![10, 20]);
 
         // Upsert overwrites
-        set_session_secret(&conn, &NewSessionSecret {
-            session_id: session_id.clone(),
-            encrypted_secret: vec![4, 5, 6],
-            nonce: vec![30, 40],
-        }).unwrap();
+        set_session_secret(
+            &conn,
+            &NewSessionSecret {
+                session_id: session_id.clone(),
+                encrypted_secret: vec![4, 5, 6],
+                nonce: vec![30, 40],
+            },
+        )
+        .unwrap();
         let s = get_session_secret(&conn, &session_id).unwrap().unwrap();
         assert_eq!(s.encrypted_secret, vec![4, 5, 6]);
 

@@ -33,7 +33,10 @@ fn staged_modification_shows_diff() {
 
     let diff = get_file_diff(&repo_path, "README.md", None).expect("get_file_diff failed");
     assert!(!diff.is_binary);
-    assert!(diff.additions > 0 || diff.deletions > 0, "expected some changes");
+    assert!(
+        diff.additions > 0 || diff.deletions > 0,
+        "expected some changes"
+    );
     assert!(!diff.diff.is_empty());
 }
 
@@ -44,7 +47,10 @@ fn unchanged_file_returns_empty_diff() {
     let diff = get_file_diff(&repo_path, "README.md", None).expect("get_file_diff failed");
     assert_eq!(diff.additions, 0);
     assert_eq!(diff.deletions, 0);
-    assert!(diff.diff.is_empty(), "expected empty diff for unchanged file");
+    assert!(
+        diff.diff.is_empty(),
+        "expected empty diff for unchanged file"
+    );
 }
 
 #[test]
@@ -63,7 +69,10 @@ fn diff_truncation_with_max_lines_returns_error() {
     // This means truncation actually results in an error, not a successful result
     // with is_truncated=true. This documents the current behavior.
     let result = get_file_diff(&repo_path, "README.md", Some(10));
-    assert!(result.is_err(), "truncation via callback abort should return an error");
+    assert!(
+        result.is_err(),
+        "truncation via callback abort should return an error"
+    );
 }
 
 #[test]
@@ -74,7 +83,10 @@ fn diff_no_truncation_when_within_limit() {
     common::create_file(&repo_path, "README.md", "one change\n");
 
     let diff = get_file_diff(&repo_path, "README.md", Some(100)).expect("get_file_diff failed");
-    assert!(!diff.is_truncated, "should not be truncated when within limit");
+    assert!(
+        !diff.is_truncated,
+        "should not be truncated when within limit"
+    );
 }
 
 #[test]
@@ -83,7 +95,10 @@ fn diff_with_none_max_lines_uses_default() {
     common::create_file(&repo_path, "README.md", "small change\n");
 
     let diff = get_file_diff(&repo_path, "README.md", None).expect("get_file_diff failed");
-    assert!(!diff.is_truncated, "expected non-truncated diff for small change");
+    assert!(
+        !diff.is_truncated,
+        "expected non-truncated diff for small change"
+    );
 }
 
 #[test]
@@ -145,7 +160,10 @@ fn binary_file_diff_does_not_panic() {
     // may not trigger reliably. This test documents that diffing a binary file
     // at minimum succeeds without errors.
     let result = get_file_diff(&repo_path, "binary.bin", None);
-    assert!(result.is_ok(), "diffing a binary file should not return an error");
+    assert!(
+        result.is_ok(),
+        "diffing a binary file should not return an error"
+    );
 }
 
 #[test]

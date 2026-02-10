@@ -14,8 +14,9 @@ impl SecretServiceStorage {
     /// Create a new Secret Service storage instance.
     pub fn new(service_name: &str) -> StorageResult<Self> {
         // Verify we can connect to Secret Service
-        SecretService::connect(EncryptionType::Dh)
-            .map_err(|e| StorageError::Platform(format!("Failed to connect to Secret Service: {}", e)))?;
+        SecretService::connect(EncryptionType::Dh).map_err(|e| {
+            StorageError::Platform(format!("Failed to connect to Secret Service: {}", e))
+        })?;
 
         Ok(Self {
             service_name: service_name.to_string(),
@@ -35,9 +36,9 @@ impl SecretServiceStorage {
 
         // Unlock the collection if needed
         if collection.is_locked().unwrap_or(false) {
-            collection
-                .unlock()
-                .map_err(|e| StorageError::Platform(format!("Failed to unlock collection: {}", e)))?;
+            collection.unlock().map_err(|e| {
+                StorageError::Platform(format!("Failed to unlock collection: {}", e))
+            })?;
         }
 
         f(&collection)
@@ -94,8 +95,8 @@ impl SecureStorage for SecretServiceStorage {
                 .get_secret()
                 .map_err(|e| StorageError::Platform(e.to_string()))?;
 
-            let value = String::from_utf8(secret)
-                .map_err(|e| StorageError::Encoding(e.to_string()))?;
+            let value =
+                String::from_utf8(secret).map_err(|e| StorageError::Encoding(e.to_string()))?;
 
             Ok(Some(value))
         })

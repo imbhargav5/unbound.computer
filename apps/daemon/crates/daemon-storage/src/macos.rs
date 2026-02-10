@@ -63,8 +63,8 @@ impl KeychainStorage {
     fn search_keychain_string(&self, key: &str) -> StorageResult<Option<String>> {
         match self.search_keychain_bytes(key)? {
             Some(data) => {
-                let value = String::from_utf8(data)
-                    .map_err(|e| StorageError::Encoding(e.to_string()))?;
+                let value =
+                    String::from_utf8(data).map_err(|e| StorageError::Encoding(e.to_string()))?;
                 Ok(Some(value))
             }
             None => Ok(None),

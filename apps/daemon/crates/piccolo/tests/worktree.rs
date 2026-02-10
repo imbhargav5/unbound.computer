@@ -56,8 +56,7 @@ fn create_worktree_reuses_existing_branch() {
     }
 
     // create_worktree should reuse the existing branch
-    let wt_path =
-        create_worktree(&repo_path, "test", None).expect("create_worktree failed");
+    let wt_path = create_worktree(&repo_path, "test", None).expect("create_worktree failed");
     assert!(Path::new(&wt_path).exists());
 }
 
@@ -119,8 +118,7 @@ fn unbound_worktrees_dir_created_automatically() {
 fn remove_existing_worktree() {
     let (_dir, repo_path) = common::init_test_repo();
 
-    let wt_path =
-        create_worktree(&repo_path, "to-remove", None).expect("create_worktree failed");
+    let wt_path = create_worktree(&repo_path, "to-remove", None).expect("create_worktree failed");
     let wt_path = Path::new(&wt_path);
     assert!(wt_path.exists());
 
@@ -153,7 +151,8 @@ fn remove_nonexistent_worktree_succeeds() {
     let fake_path = repo_path.join(".unbound-worktrees/nonexistent");
 
     // Should succeed gracefully (no error for missing directory)
-    remove_worktree(&repo_path, &fake_path).expect("remove_worktree should succeed for nonexistent path");
+    remove_worktree(&repo_path, &fake_path)
+        .expect("remove_worktree should succeed for nonexistent path");
 }
 
 #[test]

@@ -144,10 +144,7 @@ pub mod claude_bridge {
     }
 
     /// Set agent status to idle.
-    pub fn set_idle(
-        writer: &impl SessionWriter,
-        session_id: &SessionId,
-    ) -> Result<(), ArminError> {
+    pub fn set_idle(writer: &impl SessionWriter, session_id: &SessionId) -> Result<(), ArminError> {
         writer.update_agent_status(session_id, AgentStatus::Idle)
     }
 }

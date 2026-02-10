@@ -28,12 +28,14 @@ fn rule_31_subscribers_receive_new_messages() {
 
     let sub = armin.subscribe(&session_id);
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Hello".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Hello".to_string(),
+            },
+        )
+        .unwrap();
 
     let msg = sub.try_recv().expect("Should receive message");
     assert_eq!(msg.content, "Hello");
@@ -50,12 +52,14 @@ fn rule_32_subscribers_receive_in_order() {
 
     let contents = vec!["First", "Second", "Third", "Fourth", "Fifth"];
     for (i, content) in contents.iter().enumerate() {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: content.to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: content.to_string(),
+                },
+            )
+            .unwrap();
     }
 
     for expected in &contents {
@@ -72,12 +76,14 @@ fn rule_33_no_historical_messages() {
     let session_id = armin.create_session().unwrap();
 
     // Add messages before subscription
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Historical".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Historical".to_string(),
+            },
+        )
+        .unwrap();
 
     // Subscribe after
     let sub = armin.subscribe(&session_id);
@@ -89,12 +95,14 @@ fn rule_33_no_historical_messages() {
     );
 
     // But should receive new messages
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "New".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "New".to_string(),
+            },
+        )
+        .unwrap();
 
     let msg = sub.try_recv().expect("Should receive new message");
     assert_eq!(msg.content, "New");
@@ -114,12 +122,14 @@ fn rule_34_subscribers_block_semantics() {
     assert!(sub.try_recv().is_none());
 
     // Add message
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Test".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Test".to_string(),
+            },
+        )
+        .unwrap();
 
     // Now it should be available
     assert!(sub.try_recv().is_some());
@@ -136,12 +146,14 @@ fn rule_35_multiple_subscribers_same_messages() {
     let sub2 = armin.subscribe(&session_id);
     let sub3 = armin.subscribe(&session_id);
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Broadcast".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Broadcast".to_string(),
+            },
+        )
+        .unwrap();
 
     // All subscribers should receive the message
     assert_eq!(sub1.try_recv().unwrap().content, "Broadcast");
@@ -161,12 +173,14 @@ fn rule_36_slow_subscribers_no_blocking() {
     // Write many messages without reading
     let count = 100;
     for i in 0..count {
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: format!("Message {}", i),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: format!("Message {}", i),
+                },
+            )
+            .unwrap();
     }
 
     // Verify all writes completed
@@ -193,12 +207,14 @@ fn rule_38_notifications_after_commit() {
 
         let sub = armin.subscribe(&session_id);
 
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Committed".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Committed".to_string(),
+                },
+            )
+            .unwrap();
 
         // Received via live subscription
         let msg = sub.try_recv().expect("Should receive message");
@@ -226,20 +242,24 @@ fn rule_40_subscriptions_session_scoped() {
     let sub2 = armin.subscribe(&session2);
 
     // Message to session1
-    armin.append(
-        &session1,
-        NewMessage {
-            content: "For session 1".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session1,
+            NewMessage {
+                content: "For session 1".to_string(),
+            },
+        )
+        .unwrap();
 
     // Message to session2
-    armin.append(
-        &session2,
-        NewMessage {
-            content: "For session 2".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session2,
+            NewMessage {
+                content: "For session 2".to_string(),
+            },
+        )
+        .unwrap();
 
     // Each subscriber only gets their session's messages
     assert_eq!(sub1.try_recv().unwrap().content, "For session 1");
@@ -262,12 +282,14 @@ fn subscription_after_recovery_receives_new_messages() {
         let sink = RecordingSink::new();
         let armin = Armin::open(path, sink).unwrap();
         let session_id = armin.create_session().unwrap();
-        armin.append(
-            &session_id,
-            NewMessage {
-                content: "Before restart".to_string(),
-            },
-        ).unwrap();
+        armin
+            .append(
+                &session_id,
+                NewMessage {
+                    content: "Before restart".to_string(),
+                },
+            )
+            .unwrap();
         session_id
     };
 
@@ -280,12 +302,14 @@ fn subscription_after_recovery_receives_new_messages() {
     assert!(sub.try_recv().is_none());
 
     // But should receive new ones
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "After restart".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "After restart".to_string(),
+            },
+        )
+        .unwrap();
 
     assert_eq!(sub.try_recv().unwrap().content, "After restart");
 }
@@ -302,12 +326,14 @@ fn dropped_subscription_cleaned_up() {
     }
 
     // Writing should still work (dead subscriber cleaned up)
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Test".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Test".to_string(),
+            },
+        )
+        .unwrap();
 
     assert_eq!(armin.delta(&session_id).len(), 1);
 }
@@ -320,12 +346,14 @@ fn closed_session_stops_notifications() {
 
     let sub = armin.subscribe(&session_id);
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Before close".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Before close".to_string(),
+            },
+        )
+        .unwrap();
 
     armin.close(&session_id).unwrap();
 
@@ -344,18 +372,22 @@ fn subscription_iterator() {
 
     let sub = armin.subscribe(&session_id);
 
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "One".to_string(),
-        },
-    ).unwrap();
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Two".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "One".to_string(),
+            },
+        )
+        .unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Two".to_string(),
+            },
+        )
+        .unwrap();
 
     // Collect via try_recv (iter() would block)
     let mut messages = Vec::new();
@@ -376,16 +408,20 @@ fn many_subscribers_performance() {
     let subscribers: Vec<_> = (0..100).map(|_| armin.subscribe(&session_id)).collect();
 
     // Send a message
-    armin.append(
-        &session_id,
-        NewMessage {
-            content: "Broadcast to many".to_string(),
-        },
-    ).unwrap();
+    armin
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Broadcast to many".to_string(),
+            },
+        )
+        .unwrap();
 
     // All should receive it
     for (i, sub) in subscribers.iter().enumerate() {
-        let msg = sub.try_recv().expect(&format!("Subscriber {} should receive", i));
+        let msg = sub
+            .try_recv()
+            .expect(&format!("Subscriber {} should receive", i));
         assert_eq!(msg.content, "Broadcast to many");
     }
 }

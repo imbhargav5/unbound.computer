@@ -348,9 +348,15 @@ mod tests {
             (Method::RepositoryRemove, "\"repository.remove\""),
             (Method::RepositoryListFiles, "\"repository.list_files\""),
             (Method::RepositoryReadFile, "\"repository.read_file\""),
-            (Method::RepositoryReadFileSlice, "\"repository.read_file_slice\""),
+            (
+                Method::RepositoryReadFileSlice,
+                "\"repository.read_file_slice\"",
+            ),
             (Method::RepositoryWriteFile, "\"repository.write_file\""),
-            (Method::RepositoryReplaceFileRange, "\"repository.replace_file_range\""),
+            (
+                Method::RepositoryReplaceFileRange,
+                "\"repository.replace_file_range\"",
+            ),
             (Method::ClaudeSend, "\"claude.send\""),
             (Method::ClaudeStatus, "\"claude.status\""),
             (Method::ClaudeStop, "\"claude.stop\""),
@@ -377,19 +383,42 @@ mod tests {
     #[test]
     fn method_roundtrip_all_variants() {
         let methods = vec![
-            Method::Health, Method::Shutdown,
-            Method::AuthStatus, Method::AuthLogin, Method::AuthCompleteSocial, Method::AuthLogout,
-            Method::SessionList, Method::SessionCreate, Method::SessionGet, Method::SessionDelete,
-            Method::MessageList, Method::MessageSend,
+            Method::Health,
+            Method::Shutdown,
+            Method::AuthStatus,
+            Method::AuthLogin,
+            Method::AuthCompleteSocial,
+            Method::AuthLogout,
+            Method::SessionList,
+            Method::SessionCreate,
+            Method::SessionGet,
+            Method::SessionDelete,
+            Method::MessageList,
+            Method::MessageSend,
             Method::OutboxStatus,
-            Method::RepositoryList, Method::RepositoryAdd, Method::RepositoryRemove,
-            Method::RepositoryListFiles, Method::RepositoryReadFile, Method::RepositoryReadFileSlice,
-            Method::RepositoryWriteFile, Method::RepositoryReplaceFileRange,
-            Method::ClaudeSend, Method::ClaudeStatus, Method::ClaudeStop,
-            Method::SessionSubscribe, Method::SessionUnsubscribe,
-            Method::GitStatus, Method::GitDiffFile, Method::GitLog, Method::GitBranches,
-            Method::GitStage, Method::GitUnstage, Method::GitDiscard,
-            Method::TerminalRun, Method::TerminalStatus, Method::TerminalStop,
+            Method::RepositoryList,
+            Method::RepositoryAdd,
+            Method::RepositoryRemove,
+            Method::RepositoryListFiles,
+            Method::RepositoryReadFile,
+            Method::RepositoryReadFileSlice,
+            Method::RepositoryWriteFile,
+            Method::RepositoryReplaceFileRange,
+            Method::ClaudeSend,
+            Method::ClaudeStatus,
+            Method::ClaudeStop,
+            Method::SessionSubscribe,
+            Method::SessionUnsubscribe,
+            Method::GitStatus,
+            Method::GitDiffFile,
+            Method::GitLog,
+            Method::GitBranches,
+            Method::GitStage,
+            Method::GitUnstage,
+            Method::GitDiscard,
+            Method::TerminalRun,
+            Method::TerminalStatus,
+            Method::TerminalStop,
         ];
 
         for method in methods {
@@ -448,10 +477,7 @@ mod tests {
             serde_json::json!({"repository_id": "abc"}),
         );
         assert!(r.params.is_some());
-        assert_eq!(
-            r.params.as_ref().unwrap()["repository_id"],
-            "abc"
-        );
+        assert_eq!(r.params.as_ref().unwrap()["repository_id"], "abc");
     }
 
     #[test]
@@ -672,17 +698,28 @@ mod tests {
 
         for (event_type, expected) in types {
             let json = serde_json::to_string(&event_type).unwrap();
-            assert_eq!(json, expected, "EventType {:?} serialized incorrectly", event_type);
+            assert_eq!(
+                json, expected,
+                "EventType {:?} serialized incorrectly",
+                event_type
+            );
         }
     }
 
     #[test]
     fn event_type_roundtrip_all_variants() {
         let types = vec![
-            EventType::Message, EventType::StreamingChunk, EventType::StatusChange,
-            EventType::InitialState, EventType::Ping, EventType::TerminalOutput,
-            EventType::TerminalFinished, EventType::ClaudeEvent, EventType::AuthStateChanged,
-            EventType::SessionCreated, EventType::SessionDeleted,
+            EventType::Message,
+            EventType::StreamingChunk,
+            EventType::StatusChange,
+            EventType::InitialState,
+            EventType::Ping,
+            EventType::TerminalOutput,
+            EventType::TerminalFinished,
+            EventType::ClaudeEvent,
+            EventType::AuthStateChanged,
+            EventType::SessionCreated,
+            EventType::SessionDeleted,
         ];
         for et in types {
             let json = serde_json::to_string(&et).unwrap();
@@ -756,10 +793,14 @@ mod tests {
     #[test]
     fn error_codes_all_negative() {
         let codes = [
-            error_codes::PARSE_ERROR, error_codes::INVALID_REQUEST,
-            error_codes::METHOD_NOT_FOUND, error_codes::INVALID_PARAMS,
-            error_codes::INTERNAL_ERROR, error_codes::NOT_AUTHENTICATED,
-            error_codes::NOT_FOUND, error_codes::CONFLICT,
+            error_codes::PARSE_ERROR,
+            error_codes::INVALID_REQUEST,
+            error_codes::METHOD_NOT_FOUND,
+            error_codes::INVALID_PARAMS,
+            error_codes::INTERNAL_ERROR,
+            error_codes::NOT_AUTHENTICATED,
+            error_codes::NOT_FOUND,
+            error_codes::CONFLICT,
         ];
         for code in codes {
             assert!(code < 0, "Error code {} should be negative", code);
@@ -770,10 +811,14 @@ mod tests {
     fn error_codes_are_unique() {
         use std::collections::HashSet;
         let codes = vec![
-            error_codes::PARSE_ERROR, error_codes::INVALID_REQUEST,
-            error_codes::METHOD_NOT_FOUND, error_codes::INVALID_PARAMS,
-            error_codes::INTERNAL_ERROR, error_codes::NOT_AUTHENTICATED,
-            error_codes::NOT_FOUND, error_codes::CONFLICT,
+            error_codes::PARSE_ERROR,
+            error_codes::INVALID_REQUEST,
+            error_codes::METHOD_NOT_FOUND,
+            error_codes::INVALID_PARAMS,
+            error_codes::INTERNAL_ERROR,
+            error_codes::NOT_AUTHENTICATED,
+            error_codes::NOT_FOUND,
+            error_codes::CONFLICT,
         ];
         let set: HashSet<i32> = codes.iter().copied().collect();
         assert_eq!(set.len(), codes.len(), "Duplicate error codes found");
@@ -785,10 +830,7 @@ mod tests {
 
     #[test]
     fn request_in_response_roundtrip() {
-        let req = Request::with_params(
-            Method::SessionGet,
-            serde_json::json!({"id": "sess-1"}),
-        );
+        let req = Request::with_params(Method::SessionGet, serde_json::json!({"id": "sess-1"}));
         let resp = Response::success(&req.id, serde_json::json!({"session": {"id": "sess-1"}}));
         assert_eq!(req.id, resp.id);
     }
@@ -797,19 +839,42 @@ mod tests {
     fn all_method_count() {
         // Ensure we have exactly 36 methods by trying to serialize each
         let methods = vec![
-            Method::Health, Method::Shutdown,
-            Method::AuthStatus, Method::AuthLogin, Method::AuthCompleteSocial, Method::AuthLogout,
-            Method::SessionList, Method::SessionCreate, Method::SessionGet, Method::SessionDelete,
-            Method::MessageList, Method::MessageSend,
+            Method::Health,
+            Method::Shutdown,
+            Method::AuthStatus,
+            Method::AuthLogin,
+            Method::AuthCompleteSocial,
+            Method::AuthLogout,
+            Method::SessionList,
+            Method::SessionCreate,
+            Method::SessionGet,
+            Method::SessionDelete,
+            Method::MessageList,
+            Method::MessageSend,
             Method::OutboxStatus,
-            Method::RepositoryList, Method::RepositoryAdd, Method::RepositoryRemove,
-            Method::RepositoryListFiles, Method::RepositoryReadFile, Method::RepositoryReadFileSlice,
-            Method::RepositoryWriteFile, Method::RepositoryReplaceFileRange,
-            Method::ClaudeSend, Method::ClaudeStatus, Method::ClaudeStop,
-            Method::SessionSubscribe, Method::SessionUnsubscribe,
-            Method::GitStatus, Method::GitDiffFile, Method::GitLog, Method::GitBranches,
-            Method::GitStage, Method::GitUnstage, Method::GitDiscard,
-            Method::TerminalRun, Method::TerminalStatus, Method::TerminalStop,
+            Method::RepositoryList,
+            Method::RepositoryAdd,
+            Method::RepositoryRemove,
+            Method::RepositoryListFiles,
+            Method::RepositoryReadFile,
+            Method::RepositoryReadFileSlice,
+            Method::RepositoryWriteFile,
+            Method::RepositoryReplaceFileRange,
+            Method::ClaudeSend,
+            Method::ClaudeStatus,
+            Method::ClaudeStop,
+            Method::SessionSubscribe,
+            Method::SessionUnsubscribe,
+            Method::GitStatus,
+            Method::GitDiffFile,
+            Method::GitLog,
+            Method::GitBranches,
+            Method::GitStage,
+            Method::GitUnstage,
+            Method::GitDiscard,
+            Method::TerminalRun,
+            Method::TerminalStatus,
+            Method::TerminalStop,
         ];
         assert_eq!(methods.len(), 36);
     }

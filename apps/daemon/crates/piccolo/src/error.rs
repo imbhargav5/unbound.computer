@@ -227,10 +227,7 @@ mod tests {
                 PiccoloError::RemoteNotFound("upstream".into()),
                 "Remote not found: upstream",
             ),
-            (
-                PiccoloError::InvalidPath("..".into()),
-                "Invalid path: ..",
-            ),
+            (PiccoloError::InvalidPath("..".into()), "Invalid path: .."),
             (
                 PiccoloError::Filesystem("read only".into()),
                 "Filesystem error: read only",

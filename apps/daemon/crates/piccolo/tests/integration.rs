@@ -47,7 +47,10 @@ fn full_staging_cycle() {
     // 4. Modify a committed file and get diff
     common::create_file(&repo_path, "README.md", "modified readme\n");
     let diff = get_file_diff(&repo_path, "README.md", None).expect("get_file_diff failed");
-    assert!(diff.additions > 0 || diff.deletions > 0, "expected changes in diff");
+    assert!(
+        diff.additions > 0 || diff.deletions > 0,
+        "expected changes in diff"
+    );
 
     // 5. Discard changes
     discard_changes(&repo_path, &["README.md"]).expect("discard_changes failed");
@@ -165,7 +168,10 @@ fn status_reflects_subdirectory_files() {
     assert!(!status.is_clean);
 
     let paths: Vec<&str> = status.files.iter().map(|f| f.path.as_str()).collect();
-    assert!(paths.contains(&"src/main.rs"), "expected src/main.rs in status");
+    assert!(
+        paths.contains(&"src/main.rs"),
+        "expected src/main.rs in status"
+    );
     assert!(
         paths.contains(&"src/lib/utils.rs"),
         "expected src/lib/utils.rs in status"

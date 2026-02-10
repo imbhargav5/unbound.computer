@@ -4,7 +4,6 @@ import { Footer } from "./footer";
 import HeroSection from "./hero-section";
 import HowItWorks from "./how-it-works";
 import Integration from "./integration";
-import Pricing from "./pricing";
 import Quotation from "./quotetion";
 
 export async function LandingPage() {
@@ -15,7 +14,6 @@ export async function LandingPage() {
       <HowItWorks />
       <Integration />
       <Quotation />
-      <Pricing />
       <FAQ />
       <CTA />
       <Footer />

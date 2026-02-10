@@ -41,18 +41,22 @@ fn basic_workflow() {
     let session_id = engine.create_session().unwrap();
 
     // Append messages
-    let _msg1 = engine.append(
-        &session_id,
-        NewMessage {
-            content: "Hello".to_string(),
-        },
-    ).unwrap();
-    let _msg2 = engine.append(
-        &session_id,
-        NewMessage {
-            content: "Hi there!".to_string(),
-        },
-    ).unwrap();
+    let _msg1 = engine
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Hello".to_string(),
+            },
+        )
+        .unwrap();
+    let _msg2 = engine
+        .append(
+            &session_id,
+            NewMessage {
+                content: "Hi there!".to_string(),
+            },
+        )
+        .unwrap();
 
     // Verify delta
     let delta = engine.delta(&session_id);

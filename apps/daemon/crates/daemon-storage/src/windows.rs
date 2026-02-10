@@ -16,8 +16,9 @@ impl CredentialStorage {
     /// Create a new Credential Vault storage instance.
     pub fn new(service_name: &str) -> StorageResult<Self> {
         // Verify we can access the vault
-        PasswordVault::new()
-            .map_err(|e| StorageError::Platform(format!("Failed to access Credential Vault: {}", e)))?;
+        PasswordVault::new().map_err(|e| {
+            StorageError::Platform(format!("Failed to access Credential Vault: {}", e))
+        })?;
 
         Ok(Self {
             resource_name: service_name.to_string(),
@@ -25,8 +26,9 @@ impl CredentialStorage {
     }
 
     fn get_vault(&self) -> StorageResult<PasswordVault> {
-        PasswordVault::new()
-            .map_err(|e| StorageError::Platform(format!("Failed to access Credential Vault: {}", e)))
+        PasswordVault::new().map_err(|e| {
+            StorageError::Platform(format!("Failed to access Credential Vault: {}", e))
+        })
     }
 
     fn make_credential(&self, key: &str, value: &str) -> StorageResult<PasswordCredential> {
@@ -66,13 +68,13 @@ impl SecureStorage for CredentialStorage {
         match vault.Retrieve(&resource, &user_name) {
             Ok(credential) => {
                 // Need to call RetrievePassword to populate the Password field
-                credential
-                    .RetrievePassword()
-                    .map_err(|e| StorageError::Platform(format!("Failed to retrieve password: {}", e)))?;
+                credential.RetrievePassword().map_err(|e| {
+                    StorageError::Platform(format!("Failed to retrieve password: {}", e))
+                })?;
 
-                let password = credential
-                    .Password()
-                    .map_err(|e| StorageError::Platform(format!("Failed to get password: {}", e)))?;
+                let password = credential.Password().map_err(|e| {
+                    StorageError::Platform(format!("Failed to get password: {}", e))
+                })?;
 
                 Ok(Some(password.to_string()))
             }
@@ -100,9 +102,9 @@ impl SecureStorage for CredentialStorage {
 
         match vault.Retrieve(&resource, &user_name) {
             Ok(credential) => {
-                vault
-                    .Remove(&credential)
-                    .map_err(|e| StorageError::Platform(format!("Failed to remove credential: {}", e)))?;
+                vault.Remove(&credential).map_err(|e| {
+                    StorageError::Platform(format!("Failed to remove credential: {}", e))
+                })?;
                 Ok(true)
             }
             Err(e) => {

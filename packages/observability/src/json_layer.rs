@@ -104,7 +104,8 @@ impl Visit for FieldVisitor {
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields.insert(field.name().to_string(), serde_json::Value::Bool(value));
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::Bool(value));
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {

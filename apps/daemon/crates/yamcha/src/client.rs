@@ -62,8 +62,7 @@ impl GroqClient {
     /// # Errors
     /// Returns `YamchaError::MissingApiKey` if the environment variable is not set.
     pub fn from_env() -> YamchaResult<Self> {
-        let api_key =
-            std::env::var("GROQ_API_KEY").map_err(|_| YamchaError::MissingApiKey)?;
+        let api_key = std::env::var("GROQ_API_KEY").map_err(|_| YamchaError::MissingApiKey)?;
         Ok(Self::new(api_key))
     }
 
@@ -123,9 +122,7 @@ impl GroqClient {
             .choices
             .first()
             .map(|c| c.message.content.trim().to_string())
-            .ok_or_else(|| {
-                YamchaError::InvalidResponse("No choices in response".to_string())
-            })?;
+            .ok_or_else(|| YamchaError::InvalidResponse("No choices in response".to_string()))?;
 
         tracing::info!(title = %title, "Generated session title");
 

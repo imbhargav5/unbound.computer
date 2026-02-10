@@ -1,9 +1,12 @@
 //! Daemon initialization.
 
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
+use crate::app::nagato_sidecar::start_nagato_sidecar;
+use crate::app::nagato_server::spawn_nagato_server;
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
+use crate::itachi::idempotency::IdempotencyStore;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
@@ -311,9 +314,49 @@ pub async fn run_daemon(
         message_sync,
         realtime_message_sync: Arc::new(tokio::sync::RwLock::new(initial_realtime_message_sync)),
         falco_process: Arc::new(Mutex::new(initial_falco_process)),
+        nagato_process: Arc::new(Mutex::new(None)),
+        itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
+        nagato_shutdown_tx: Arc::new(Mutex::new(None)),
+        nagato_server_task: Arc::new(Mutex::new(None)),
         armin,
         gyomei,
     };
+
+    {
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let task = spawn_nagato_server(state.clone(), shutdown_rx);
+        *state.nagato_shutdown_tx.lock().unwrap() = Some(shutdown_tx);
+        *state.nagato_server_task.lock().unwrap() = Some(task);
+    }
+
+    if let Some(ably_api_key) = state.config.ably_api_key.as_deref() {
+        match local_device_id.as_deref() {
+            Some(device_id) => match start_nagato_sidecar(
+                state.paths.as_ref(),
+                device_id,
+                ably_api_key,
+                &state.config.log_level,
+                Duration::from_secs(1),
+                "daemon_startup",
+            )
+            .await
+            {
+                Ok(child) => {
+                    *state.nagato_process.lock().unwrap() = Some(child);
+                    info!("Started Nagato sidecar for remote command ingress");
+                }
+                Err(err) => warn!(
+                    error = %err,
+                    "Failed to start Nagato sidecar; remote command ingress disabled"
+                ),
+            },
+            None => warn!(
+                "Ably API key configured but device ID is missing; disabling Nagato remote command ingress"
+            ),
+        }
+    } else {
+        info!("Ably API key not configured, skipping Nagato remote command ingress");
+    }
 
     // Load session secrets from Supabase into memory cache
     // This runs in the background to not block daemon startup
@@ -411,6 +454,20 @@ pub async fn run_daemon(
     );
 
     let server_result = ipc_server.run().await;
+
+    if let Some(shutdown_tx) = runtime_state.nagato_shutdown_tx.lock().unwrap().take() {
+        let _ = shutdown_tx.send(());
+    }
+    let nagato_task = runtime_state.nagato_server_task.lock().unwrap().take();
+    if let Some(task) = nagato_task {
+        if let Err(err) = task.await {
+            warn!(error = %err, "Nagato socket listener task join failed");
+        }
+    }
+
+    if let Some(mut child) = runtime_state.nagato_process.lock().unwrap().take() {
+        terminate_child(&mut child, "nagato");
+    }
 
     if let Some(mut child) = runtime_state.falco_process.lock().unwrap().take() {
         terminate_child(&mut child, "falco");

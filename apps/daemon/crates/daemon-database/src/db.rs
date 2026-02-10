@@ -1,11 +1,10 @@
 //! Database connection and query operations.
 
 use crate::{
-    migrations, AgentCodingSession,
-    AgentCodingSessionMessage, AgentCodingSessionState, AgentStatus, DatabaseError, DatabaseResult,
-    NewAgentCodingSession,
-    NewAgentCodingSessionMessage, NewRepository, NewSessionSecret,
-    Repository, SessionSecret, SessionStatus, SupabaseMessageOutboxPending, UserSetting,
+    migrations, AgentCodingSession, AgentCodingSessionMessage, AgentCodingSessionState,
+    AgentStatus, DatabaseError, DatabaseResult, NewAgentCodingSession,
+    NewAgentCodingSessionMessage, NewRepository, NewSessionSecret, Repository, SessionSecret,
+    SessionStatus, SupabaseMessageOutboxPending, UserSetting,
 };
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
@@ -28,7 +27,8 @@ impl Database {
         let conn = Connection::open(path)?;
 
         // Enable WAL mode and performance optimizations
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
             PRAGMA foreign_keys = ON;
@@ -36,7 +36,8 @@ impl Database {
             PRAGMA temp_store = MEMORY;
             PRAGMA mmap_size = 268435456;
             PRAGMA busy_timeout = 5000;
-        ")?;
+        ",
+        )?;
 
         // Run migrations
         migrations::run_migrations(&conn)?;
@@ -48,11 +49,13 @@ impl Database {
     pub fn open_in_memory() -> DatabaseResult<Self> {
         let conn = Connection::open_in_memory()?;
         // Note: WAL mode doesn't apply to in-memory databases
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             PRAGMA foreign_keys = ON;
             PRAGMA cache_size = -64000;
             PRAGMA temp_store = MEMORY;
-        ")?;
+        ",
+        )?;
         migrations::run_migrations(&conn)?;
         Ok(Self { conn })
     }
@@ -188,7 +191,10 @@ impl Database {
     // ==========================================
 
     /// Insert a new session.
-    pub fn insert_session(&self, session: &NewAgentCodingSession) -> DatabaseResult<AgentCodingSession> {
+    pub fn insert_session(
+        &self,
+        session: &NewAgentCodingSession,
+    ) -> DatabaseResult<AgentCodingSession> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
             "INSERT INTO agent_coding_sessions (id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
@@ -237,7 +243,10 @@ impl Database {
     }
 
     /// List sessions for a repository.
-    pub fn list_sessions_for_repository(&self, repository_id: &str) -> DatabaseResult<Vec<AgentCodingSession>> {
+    pub fn list_sessions_for_repository(
+        &self,
+        repository_id: &str,
+    ) -> DatabaseResult<Vec<AgentCodingSession>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
              FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
@@ -285,14 +294,19 @@ impl Database {
 
     /// Delete a session by ID.
     pub fn delete_session(&self, id: &str) -> DatabaseResult<bool> {
-        let count = self
-            .conn
-            .execute("DELETE FROM agent_coding_sessions WHERE id = ?1", params![id])?;
+        let count = self.conn.execute(
+            "DELETE FROM agent_coding_sessions WHERE id = ?1",
+            params![id],
+        )?;
         Ok(count > 0)
     }
 
     /// Update the Claude session ID for a session.
-    pub fn update_session_claude_id(&self, id: &str, claude_session_id: &str) -> DatabaseResult<bool> {
+    pub fn update_session_claude_id(
+        &self,
+        id: &str,
+        claude_session_id: &str,
+    ) -> DatabaseResult<bool> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
             "UPDATE agent_coding_sessions SET claude_session_id = ?1, updated_at = ?2 WHERE id = ?3",
@@ -306,7 +320,10 @@ impl Database {
     // ==========================================
 
     /// Get or create session state.
-    pub fn get_or_create_session_state(&self, session_id: &str) -> DatabaseResult<AgentCodingSessionState> {
+    pub fn get_or_create_session_state(
+        &self,
+        session_id: &str,
+    ) -> DatabaseResult<AgentCodingSessionState> {
         if let Some(state) = self.get_session_state(session_id)? {
             return Ok(state);
         }
@@ -318,12 +335,16 @@ impl Database {
             params![session_id, now],
         )?;
 
-        self.get_session_state(session_id)?
-            .ok_or_else(|| DatabaseError::NotFound("Session state not found after insert".to_string()))
+        self.get_session_state(session_id)?.ok_or_else(|| {
+            DatabaseError::NotFound("Session state not found after insert".to_string())
+        })
     }
 
     /// Get session state.
-    pub fn get_session_state(&self, session_id: &str) -> DatabaseResult<Option<AgentCodingSessionState>> {
+    pub fn get_session_state(
+        &self,
+        session_id: &str,
+    ) -> DatabaseResult<Option<AgentCodingSessionState>> {
         let mut stmt = self.conn.prepare(
             "SELECT session_id, agent_status, queued_commands, diff_summary, updated_at
              FROM agent_coding_session_state WHERE session_id = ?1",
@@ -347,7 +368,11 @@ impl Database {
     }
 
     /// Update agent status.
-    pub fn update_agent_status(&self, session_id: &str, status: AgentStatus) -> DatabaseResult<bool> {
+    pub fn update_agent_status(
+        &self,
+        session_id: &str,
+        status: AgentStatus,
+    ) -> DatabaseResult<bool> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
             "UPDATE agent_coding_session_state SET agent_status = ?1, updated_at = ?2 WHERE session_id = ?3",
@@ -405,7 +430,10 @@ impl Database {
     }
 
     /// List messages for a session ordered by sequence number.
-    pub fn list_messages_for_session(&self, session_id: &str) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
+    pub fn list_messages_for_session(
+        &self,
+        session_id: &str,
+    ) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
              FROM agent_coding_session_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
@@ -453,7 +481,10 @@ impl Database {
     }
 
     /// Get pending Supabase message outbox entries (joined with message content).
-    pub fn get_pending_supabase_messages(&self, limit: usize) -> DatabaseResult<Vec<SupabaseMessageOutboxPending>> {
+    pub fn get_pending_supabase_messages(
+        &self,
+        limit: usize,
+    ) -> DatabaseResult<Vec<SupabaseMessageOutboxPending>> {
         let mut stmt = self.conn.prepare(
             "SELECT o.message_id, m.session_id, m.sequence_number, m.content,
                     o.created_at, o.last_attempt_at, o.retry_count, o.last_error
@@ -488,7 +519,10 @@ impl Database {
             return Ok(());
         }
         let now = Utc::now().to_rfc3339();
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "UPDATE agent_coding_session_message_supabase_outbox
              SET sent_at = ?1, last_error = NULL
@@ -507,12 +541,19 @@ impl Database {
     }
 
     /// Mark messages as failed to sync (increments retry count).
-    pub fn mark_supabase_messages_failed(&self, message_ids: &[String], error: &str) -> DatabaseResult<()> {
+    pub fn mark_supabase_messages_failed(
+        &self,
+        message_ids: &[String],
+        error: &str,
+    ) -> DatabaseResult<()> {
         if message_ids.is_empty() {
             return Ok(());
         }
         let now = Utc::now().to_rfc3339();
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "UPDATE agent_coding_session_message_supabase_outbox
              SET last_attempt_at = ?1,
@@ -538,7 +579,10 @@ impl Database {
         if message_ids.is_empty() {
             return Ok(());
         }
-        let placeholders = std::iter::repeat("?").take(message_ids.len()).collect::<Vec<_>>().join(", ");
+        let placeholders = std::iter::repeat("?")
+            .take(message_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "DELETE FROM agent_coding_session_message_supabase_outbox
              WHERE message_id IN ({})",
@@ -648,9 +692,10 @@ impl Database {
 
     /// Delete a session secret.
     pub fn delete_session_secret(&self, session_id: &str) -> DatabaseResult<bool> {
-        let count = self
-            .conn
-            .execute("DELETE FROM session_secrets WHERE session_id = ?1", params![session_id])?;
+        let count = self.conn.execute(
+            "DELETE FROM session_secrets WHERE session_id = ?1",
+            params![session_id],
+        )?;
         Ok(count > 0)
     }
 
@@ -663,7 +708,6 @@ impl Database {
         )?;
         Ok(count > 0)
     }
-
 }
 
 /// Parse an RFC3339 datetime string, falling back to current time on error.
@@ -779,7 +823,9 @@ mod tests {
         assert_eq!(session.title, "Test Session");
 
         // Update title
-        assert!(db.update_session_title("session-1", "Updated Title").unwrap());
+        assert!(db
+            .update_session_title("session-1", "Updated Title")
+            .unwrap());
         let fetched = db.get_session("session-1").unwrap().unwrap();
         assert_eq!(fetched.title, "Updated Title");
 
@@ -827,12 +873,16 @@ mod tests {
         assert!(state.diff_summary.is_none());
 
         // Update agent status
-        assert!(db.update_agent_status(&session_id, AgentStatus::Running).unwrap());
+        assert!(db
+            .update_agent_status(&session_id, AgentStatus::Running)
+            .unwrap());
         let state = db.get_session_state(&session_id).unwrap().unwrap();
         assert_eq!(state.agent_status, AgentStatus::Running);
 
         // Update to waiting
-        assert!(db.update_agent_status(&session_id, AgentStatus::Waiting).unwrap());
+        assert!(db
+            .update_agent_status(&session_id, AgentStatus::Waiting)
+            .unwrap());
         let state = db.get_session_state(&session_id).unwrap().unwrap();
         assert_eq!(state.agent_status, AgentStatus::Waiting);
 
@@ -888,7 +938,8 @@ mod tests {
             content: "message 1".to_string(),
             sequence_number: seq1,
             is_streaming: false,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Next sequence should be 2
         let seq2 = db.get_next_message_sequence(&session_id).unwrap();
@@ -901,7 +952,8 @@ mod tests {
             content: "message 2".to_string(),
             sequence_number: seq2,
             is_streaming: false,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Next sequence should be 3
         let seq3 = db.get_next_message_sequence(&session_id).unwrap();
@@ -1011,17 +1063,29 @@ mod tests {
         assert!(session.claude_session_id.is_none());
 
         // Update claude session ID
-        assert!(db.update_session_claude_id(&session_id, "claude-abc-123").unwrap());
+        assert!(db
+            .update_session_claude_id(&session_id, "claude-abc-123")
+            .unwrap());
         let session = db.get_session(&session_id).unwrap().unwrap();
-        assert_eq!(session.claude_session_id, Some("claude-abc-123".to_string()));
+        assert_eq!(
+            session.claude_session_id,
+            Some("claude-abc-123".to_string())
+        );
 
         // Overwrite with new ID
-        assert!(db.update_session_claude_id(&session_id, "claude-def-456").unwrap());
+        assert!(db
+            .update_session_claude_id(&session_id, "claude-def-456")
+            .unwrap());
         let session = db.get_session(&session_id).unwrap().unwrap();
-        assert_eq!(session.claude_session_id, Some("claude-def-456".to_string()));
+        assert_eq!(
+            session.claude_session_id,
+            Some("claude-def-456".to_string())
+        );
 
         // Non-existent session returns false
-        assert!(!db.update_session_claude_id("nonexistent", "claude-xyz").unwrap());
+        assert!(!db
+            .update_session_claude_id("nonexistent", "claude-xyz")
+            .unwrap());
     }
 
     #[test]
@@ -1080,34 +1144,22 @@ mod tests {
         db.insert_supabase_message_outbox("msg-1").unwrap();
 
         // Mark as failed
-        db.mark_supabase_messages_failed(
-            &["msg-1".to_string()],
-            "connection timeout",
-        )
-        .unwrap();
+        db.mark_supabase_messages_failed(&["msg-1".to_string()], "connection timeout")
+            .unwrap();
 
         let pending = db.get_pending_supabase_messages(10).unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].retry_count, 1);
-        assert_eq!(
-            pending[0].last_error.as_deref(),
-            Some("connection timeout")
-        );
+        assert_eq!(pending[0].last_error.as_deref(), Some("connection timeout"));
         assert!(pending[0].last_attempt_at.is_some());
 
         // Mark as failed again - retry count should increment
-        db.mark_supabase_messages_failed(
-            &["msg-1".to_string()],
-            "connection refused",
-        )
-        .unwrap();
+        db.mark_supabase_messages_failed(&["msg-1".to_string()], "connection refused")
+            .unwrap();
 
         let pending = db.get_pending_supabase_messages(10).unwrap();
         assert_eq!(pending[0].retry_count, 2);
-        assert_eq!(
-            pending[0].last_error.as_deref(),
-            Some("connection refused")
-        );
+        assert_eq!(pending[0].last_error.as_deref(), Some("connection refused"));
     }
 
     #[test]

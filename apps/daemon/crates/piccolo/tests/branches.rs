@@ -12,7 +12,10 @@ fn single_branch_repo() {
     assert!(branches.local[0].is_current);
     assert!(!branches.local[0].is_remote);
     assert!(branches.current.is_some());
-    assert_eq!(branches.current.as_deref(), Some(branches.local[0].name.as_str()));
+    assert_eq!(
+        branches.current.as_deref(),
+        Some(branches.local[0].name.as_str())
+    );
 }
 
 #[test]
@@ -22,8 +25,10 @@ fn multiple_local_branches() {
     let repo = git2::Repository::open(&repo_path).expect("open repo");
     let head = repo.head().expect("head");
     let commit = head.peel_to_commit().expect("peel");
-    repo.branch("feature-a", &commit, false).expect("create branch a");
-    repo.branch("feature-b", &commit, false).expect("create branch b");
+    repo.branch("feature-a", &commit, false)
+        .expect("create branch a");
+    repo.branch("feature-b", &commit, false)
+        .expect("create branch b");
 
     let branches = get_branches(&repo_path).expect("get_branches failed");
     assert_eq!(branches.local.len(), 3);
@@ -55,7 +60,8 @@ fn non_current_branches_sorted_alphabetically() {
     let commit = head.peel_to_commit().expect("peel");
     repo.branch("zebra", &commit, false).expect("create branch");
     repo.branch("alpha", &commit, false).expect("create branch");
-    repo.branch("middle", &commit, false).expect("create branch");
+    repo.branch("middle", &commit, false)
+        .expect("create branch");
 
     let branches = get_branches(&repo_path).expect("get_branches failed");
     // First is current, rest are alphabetical
@@ -68,7 +74,10 @@ fn non_current_branches_sorted_alphabetically() {
 
     let mut sorted = non_current.clone();
     sorted.sort();
-    assert_eq!(non_current, sorted, "non-current branches should be alphabetically sorted");
+    assert_eq!(
+        non_current, sorted,
+        "non-current branches should be alphabetically sorted"
+    );
 }
 
 #[test]
@@ -81,7 +90,10 @@ fn detached_head_returns_current_none() {
     repo.set_head_detached(oid).expect("detach head");
 
     let branches = get_branches(&repo_path).expect("get_branches failed");
-    assert!(branches.current.is_none(), "expected None for detached HEAD");
+    assert!(
+        branches.current.is_none(),
+        "expected None for detached HEAD"
+    );
 }
 
 #[test]
@@ -122,11 +134,8 @@ fn remote_branches_from_clone() {
     // Create a bare remote from the test repo
     let remote_dir = tempfile::TempDir::new().expect("create temp dir");
     let bare_path = remote_dir.path().join("remote.git");
-    git2::Repository::clone(
-        repo_path.to_str().expect("path to str"),
-        &bare_path,
-    )
-    .expect("clone repo");
+    git2::Repository::clone(repo_path.to_str().expect("path to str"), &bare_path)
+        .expect("clone repo");
 
     let branches = get_branches(&bare_path).expect("get_branches failed");
     // A clone should have remote-tracking branches

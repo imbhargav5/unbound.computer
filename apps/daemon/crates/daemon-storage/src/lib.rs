@@ -126,7 +126,10 @@ mod tests {
 
         // Test set and get
         storage.set("test_key", "test_value").unwrap();
-        assert_eq!(storage.get("test_key").unwrap(), Some("test_value".to_string()));
+        assert_eq!(
+            storage.get("test_key").unwrap(),
+            Some("test_value".to_string())
+        );
 
         // Test has
         assert!(storage.has("test_key").unwrap());
@@ -145,12 +148,18 @@ mod tests {
 
         // Test device ID
         manager.set_device_id("device-123").unwrap();
-        assert_eq!(manager.get_device_id().unwrap(), Some("device-123".to_string()));
+        assert_eq!(
+            manager.get_device_id().unwrap(),
+            Some("device-123".to_string())
+        );
 
         // Test API key
         manager.set_api_key("api-key-456").unwrap();
         assert!(manager.has_api_key().unwrap());
-        assert_eq!(manager.get_api_key().unwrap(), Some("api-key-456".to_string()));
+        assert_eq!(
+            manager.get_api_key().unwrap(),
+            Some("api-key-456".to_string())
+        );
 
         // Test clear all
         manager.clear_all().unwrap();
@@ -168,20 +177,28 @@ mod tests {
 
         // Set session using convenience method
         let future_time = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
-        manager.set_supabase_session(
-            "access-token",
-            "refresh-token",
-            "user-123",
-            Some("test@example.com"),
-            &future_time,
-        ).unwrap();
+        manager
+            .set_supabase_session(
+                "access-token",
+                "refresh-token",
+                "user-123",
+                Some("test@example.com"),
+                &future_time,
+            )
+            .unwrap();
 
         // Session should exist
         assert!(manager.has_supabase_session().unwrap());
 
         // Verify individual tokens
-        assert_eq!(manager.get_supabase_access_token().unwrap(), Some("access-token".to_string()));
-        assert_eq!(manager.get_supabase_refresh_token().unwrap(), Some("refresh-token".to_string()));
+        assert_eq!(
+            manager.get_supabase_access_token().unwrap(),
+            Some("access-token".to_string())
+        );
+        assert_eq!(
+            manager.get_supabase_refresh_token().unwrap(),
+            Some("refresh-token".to_string())
+        );
 
         // Verify metadata
         let meta = manager.get_supabase_session_meta().unwrap().unwrap();
@@ -201,13 +218,15 @@ mod tests {
 
         // Set expired session (past time)
         let past_time = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
-        manager.set_supabase_session(
-            "access-token",
-            "refresh-token",
-            "user-123",
-            Some("test@example.com"),
-            &past_time,
-        ).unwrap();
+        manager
+            .set_supabase_session(
+                "access-token",
+                "refresh-token",
+                "user-123",
+                Some("test@example.com"),
+                &past_time,
+            )
+            .unwrap();
 
         // Session exists but is expired
         assert!(manager.has_supabase_session().unwrap());
@@ -215,13 +234,15 @@ mod tests {
 
         // Set valid session (future time)
         let future_time = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
-        manager.set_supabase_session(
-            "access-token-2",
-            "refresh-token-2",
-            "user-456",
-            Some("test2@example.com"),
-            &future_time,
-        ).unwrap();
+        manager
+            .set_supabase_session(
+                "access-token-2",
+                "refresh-token-2",
+                "user-456",
+                Some("test2@example.com"),
+                &future_time,
+            )
+            .unwrap();
 
         // Session should not be expired
         assert!(!manager.is_supabase_session_expired().unwrap());
@@ -284,8 +305,10 @@ mod tests {
         let manager = SecretsManager::new(storage);
 
         // Set private key (32 bytes)
-        let private_key = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-                               17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+        let private_key = vec![
+            1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31, 32,
+        ];
         manager.set_device_private_key(&private_key).unwrap();
 
         // Get private key

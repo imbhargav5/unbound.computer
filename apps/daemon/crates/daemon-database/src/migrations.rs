@@ -30,7 +30,11 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
         )
         .unwrap_or(0);
 
-    info!(current_version, target_version = CURRENT_VERSION, "Running migrations");
+    info!(
+        current_version,
+        target_version = CURRENT_VERSION,
+        "Running migrations"
+    );
 
     if current_version < 1 {
         migrate_v1_initial_schema(conn)?;
@@ -552,11 +556,26 @@ mod tests {
             .collect();
 
         // Should have content column
-        assert!(columns.contains(&"content".to_string()), "content column should exist");
+        assert!(
+            columns.contains(&"content".to_string()),
+            "content column should exist"
+        );
         // Should NOT have encryption columns
-        assert!(!columns.contains(&"role".to_string()), "role column should not exist");
-        assert!(!columns.contains(&"content_encrypted".to_string()), "content_encrypted should not exist");
-        assert!(!columns.contains(&"content_nonce".to_string()), "content_nonce should not exist");
-        assert!(!columns.contains(&"debugging_decrypted_payload".to_string()), "debugging_decrypted_payload should not exist");
+        assert!(
+            !columns.contains(&"role".to_string()),
+            "role column should not exist"
+        );
+        assert!(
+            !columns.contains(&"content_encrypted".to_string()),
+            "content_encrypted should not exist"
+        );
+        assert!(
+            !columns.contains(&"content_nonce".to_string()),
+            "content_nonce should not exist"
+        );
+        assert!(
+            !columns.contains(&"debugging_decrypted_payload".to_string()),
+            "debugging_decrypted_payload should not exist"
+        );
     }
 }

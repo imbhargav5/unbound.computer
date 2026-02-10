@@ -13,6 +13,8 @@
 		CDD0B4AA2F07B688002D09F7 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1612EFFB80000000002 /* Auth */; };
 		CDD0B4AB2F07B688002D09F7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1622EFFB80000000003 /* Supabase */; };
 		CDD3C1582EFFB73700CDEC43 /* UnboundWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CE10A0012F30000100200001 /* Ably in Frameworks */ = {isa = PBXBuildFile; productRef = CE10A0002F30000100200001 /* Ably */; };
+		D1A1E0032F31000100A10001 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1A1E0022F31000100A10001 /* XCTest.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -22,6 +24,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = CDD3C1562EFFB73700CDEC43;
 			remoteInfo = UnboundWidgetExtension;
+		};
+		D1A1E0082F31000100A10001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CDD3C1352EFFB73600CDEC43 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CDD3C13C2EFFB73600CDEC43;
+			remoteInfo = "unbound-ios";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -42,6 +51,8 @@
 /* Begin PBXFileReference section */
 		CDD3C13D2EFFB73600CDEC43 /* unbound-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "unbound-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = UnboundWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A1E0012F31000100A10001 /* unbound-iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "unbound-iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A1E0022F31000100A10001 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -68,6 +79,11 @@
 			path = UnboundWidget;
 			sourceTree = "<group>";
 		};
+		D1A1E0042F31000100A10001 /* unbound-iosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "unbound-iosTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE10A0012F30000100200001 /* Ably in Frameworks */,
 				CD922D9F2F0E3919002CF21F /* GRDB in Frameworks */,
 				CDD0B4AB2F07B688002D09F7 /* Supabase in Frameworks */,
 				CDD0B4AA2F07B688002D09F7 /* Auth in Frameworks */,
@@ -90,6 +107,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A1E0052F31000100A10001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1A1E0032F31000100A10001 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -97,8 +122,10 @@
 			isa = PBXGroup;
 			children = (
 				CDD3C13F2EFFB73600CDEC43 /* unbound-ios */,
+				D1A1E0042F31000100A10001 /* unbound-iosTests */,
 				CDD3C1512EFFB73700CDEC43 /* UnboundWidget */,
 				CDD3C13E2EFFB73600CDEC43 /* Products */,
+				D1A1E00E2F31000100A10001 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -106,9 +133,18 @@
 			isa = PBXGroup;
 			children = (
 				CDD3C13D2EFFB73600CDEC43 /* unbound-ios.app */,
+				D1A1E0012F31000100A10001 /* unbound-iosTests.xctest */,
 				CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D1A1E00E2F31000100A10001 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				D1A1E0022F31000100A10001 /* XCTest.framework */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -133,6 +169,7 @@
 			);
 			name = "unbound-ios";
 			packageProductDependencies = (
+				CE10A0002F30000100200001 /* Ably */,
 				CDD3C1612EFFB80000000002 /* Auth */,
 				CDD3C1622EFFB80000000003 /* Supabase */,
 				CD922D9E2F0E3919002CF21F /* GRDB */,
@@ -165,6 +202,27 @@
 			productReference = CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D1A1E00A2F31000100A10001 /* unbound-iosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A1E00D2F31000100A10001 /* Build configuration list for PBXNativeTarget "unbound-iosTests" */;
+			buildPhases = (
+				D1A1E0062F31000100A10001 /* Sources */,
+				D1A1E0052F31000100A10001 /* Frameworks */,
+				D1A1E0072F31000100A10001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D1A1E0092F31000100A10001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D1A1E0042F31000100A10001 /* unbound-iosTests */,
+			);
+			name = "unbound-iosTests";
+			productName = "unbound-iosTests";
+			productReference = D1A1E0012F31000100A10001 /* unbound-iosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -181,6 +239,10 @@
 					CDD3C1562EFFB73700CDEC43 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
+					D1A1E00A2F31000100A10001 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = CDD3C13C2EFFB73600CDEC43;
+					};
 				};
 			};
 			buildConfigurationList = CDD3C1382EFFB73600CDEC43 /* Build configuration list for PBXProject "unbound-ios" */;
@@ -193,6 +255,7 @@
 			mainGroup = CDD3C1342EFFB73600CDEC43;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				CE10A0022F30000100200001 /* XCRemoteSwiftPackageReference "ably-cocoa" */,
 				CDD3C1602EFFB80000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CD922D9D2F0E3919002CF21F /* XCRemoteSwiftPackageReference "GRDB" */,
 				CD922DA42F0E3919002CF21F /* XCRemoteSwiftPackageReference "swift-log" */,
@@ -203,6 +266,7 @@
 			projectRoot = "";
 			targets = (
 				CDD3C13C2EFFB73600CDEC43 /* unbound-ios */,
+				D1A1E00A2F31000100A10001 /* unbound-iosTests */,
 				CDD3C1562EFFB73700CDEC43 /* UnboundWidgetExtension */,
 			);
 		};
@@ -217,6 +281,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CDD3C1532EFFB73700CDEC43 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1A1E0072F31000100A10001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -240,6 +311,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A1E0062F31000100A10001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -247,6 +325,11 @@
 			isa = PBXTargetDependency;
 			target = CDD3C1562EFFB73700CDEC43 /* UnboundWidgetExtension */;
 			targetProxy = CDD3C1552EFFB73700CDEC43 /* PBXContainerItemProxy */;
+		};
+		D1A1E0092F31000100A10001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CDD3C13C2EFFB73600CDEC43 /* unbound-ios */;
+			targetProxy = D1A1E0082F31000100A10001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -488,6 +571,53 @@
 			};
 			name = Release;
 		};
+		D1A1E00B2F31000100A10001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = LLC6TV7P6M;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/unbound-ios.app/unbound-ios";
+			};
+			name = Debug;
+		};
+		D1A1E00C2F31000100A10001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = LLC6TV7P6M;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/unbound-ios.app/unbound-ios";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -514,6 +644,15 @@
 			buildConfigurations = (
 				CDD3C15B2EFFB73700CDEC43 /* Debug */,
 				CDD3C15C2EFFB73700CDEC43 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D1A1E00D2F31000100A10001 /* Build configuration list for PBXNativeTarget "unbound-iosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A1E00B2F31000100A10001 /* Debug */,
+				D1A1E00C2F31000100A10001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -545,6 +684,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		CE10A0022F30000100200001 /* XCRemoteSwiftPackageReference "ably-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ably/ably-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.39;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -572,6 +719,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDD3C1602EFFB80000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		CE10A0002F30000100200001 /* Ably */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE10A0022F30000100200001 /* XCRemoteSwiftPackageReference "ably-cocoa" */;
+			productName = Ably;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -140,7 +140,9 @@ pub fn decrypt_for_device(
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&symmetric_key));
     cipher
         .decrypt(Nonce::from_slice(nonce), ciphertext)
-        .map_err(|_| CoreError::Crypto("Decryption failed: authentication tag mismatch".to_string()))
+        .map_err(|_| {
+            CoreError::Crypto("Decryption failed: authentication tag mismatch".to_string())
+        })
 }
 
 /// Generate a new X25519 keypair for device identity.
@@ -206,7 +208,10 @@ mod tests {
         let result = decrypt_for_device(&ephemeral_pub, &encrypted, &private_key, session_id2);
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Decryption failed"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Decryption failed"));
     }
 
     #[test]

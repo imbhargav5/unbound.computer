@@ -21,8 +21,8 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Links */}
-          <div className="flex flex-wrap gap-12 lg:gap-16">
+          {/* Links — hidden for now */}
+          <div className="hidden flex-wrap gap-12 lg:gap-16">
             {footerItems.map((item) => (
               <div key={item.title}>
                 <h3 className="mb-4 font-medium text-white/40 text-xs uppercase tracking-widest">

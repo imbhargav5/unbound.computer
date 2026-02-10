@@ -178,8 +178,14 @@ mod tests {
         let session2_id = SessionId::from_string("session-2");
 
         let mut sessions = HashMap::new();
-        sessions.insert(session1_id.clone(), SessionSnapshot::new(session1_id.clone(), vec![], false));
-        sessions.insert(session2_id.clone(), SessionSnapshot::new(session2_id.clone(), vec![], false));
+        sessions.insert(
+            session1_id.clone(),
+            SessionSnapshot::new(session1_id.clone(), vec![], false),
+        );
+        sessions.insert(
+            session2_id.clone(),
+            SessionSnapshot::new(session2_id.clone(), vec![], false),
+        );
 
         let snapshot = SnapshotView::new(sessions);
         let ids: Vec<_> = snapshot.session_ids().collect();

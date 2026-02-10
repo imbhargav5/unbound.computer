@@ -1,4 +1,4 @@
-import { ArrowRight, Terminal } from "lucide-react";
+import { Github } from "lucide-react";
 import { Link } from "@/components/intl-link";
 import { Button } from "@/components/ui/button";
 
@@ -11,10 +11,16 @@ export default async function HeroSection() {
       </div>
 
       <div className="relative flex w-full flex-col items-center gap-8">
-        {/* Badge */}
-        <div className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-1.5">
-          <div className="size-2 animate-pulse rounded-full bg-white" />
-          <span className="text-sm text-white/70">End-to-End Encrypted</span>
+        {/* Badges */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-1.5">
+            <div className="size-2 animate-pulse rounded-full bg-white" />
+            <span className="text-sm text-white/70">End-to-End Encrypted</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-1.5">
+            <Github className="size-3.5 text-white/70" />
+            <span className="text-sm text-white/70">Open Source</span>
+          </div>
         </div>
 
         {/* Headline */}
@@ -31,26 +37,13 @@ export default async function HeroSection() {
           devices.
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col gap-4 pt-4 sm:flex-row">
+        {/* CTAs — hidden for now */}
+        <div className="hidden flex-col gap-4 pt-4 sm:hidden">
           <Button
             asChild
             className="bg-white px-8 py-6 text-base text-black hover:bg-white/90"
           >
-            <Link href="/login">
-              Get Started
-              <ArrowRight className="ml-2" size={18} />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            className="border-white/20 bg-transparent px-8 py-6 text-base text-white hover:bg-white/5"
-            variant="outline"
-          >
-            <Link href="/docs">
-              <Terminal className="mr-2" size={18} />
-              Documentation
-            </Link>
+            <Link href="/login">Get Started</Link>
           </Button>
         </div>
       </div>

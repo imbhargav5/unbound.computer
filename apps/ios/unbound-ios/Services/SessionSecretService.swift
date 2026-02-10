@@ -78,7 +78,7 @@ final class SessionSecretService {
 
         // 3. Get device private key from keychain
         let keychainService = KeychainService.shared
-        guard let devicePrivateKeyData = try? keychainService.getDevicePrivateKey(forUser: userId),
+        guard let devicePrivateKeyData = resolveDevicePrivateKey(forUser: userId, keychainService: keychainService),
               devicePrivateKeyData.count == 32 else {
             throw SessionSecretError.missingDeviceKey
         }
@@ -95,7 +95,7 @@ final class SessionSecretService {
         )
 
         // 5. Derive decryption key using same HKDF parameters as macOS
-        let salt = sessionId.uuidString.data(using: .utf8)!
+        let salt = sessionId.uuidString.lowercased().data(using: .utf8)!
         let info = "unbound-session-secret-v1".data(using: .utf8)!
         let symmetricKey = sharedSecret.hkdfDerivedSymmetricKey(
             using: SHA256.self,
@@ -130,6 +130,61 @@ final class SessionSecretService {
         }
 
         return sessionSecret
+    }
+
+    /// Decrypts a session secret from split nonce + ciphertext envelope fields.
+    ///
+    /// - Parameters:
+    ///   - encapsulationPublicKey: Base64-encoded ephemeral public key
+    ///   - nonceB64: Base64-encoded nonce (12 bytes)
+    ///   - ciphertextB64: Base64-encoded ciphertext+tag bytes
+    ///   - sessionId: UUID of the coding session
+    ///   - userId: Authenticated user ID for keychain key lookup
+    func decryptCodingSessionSecretEnvelope(
+        encapsulationPublicKey: String,
+        nonceB64: String,
+        ciphertextB64: String,
+        sessionId: UUID,
+        userId: String
+    ) throws -> String {
+        guard let nonceData = Data(base64Encoded: nonceB64),
+              let ciphertextData = Data(base64Encoded: ciphertextB64) else {
+            throw SessionSecretError.invalidCiphertext
+        }
+
+        var combined = Data()
+        combined.append(nonceData)
+        combined.append(ciphertextData)
+
+        return try decryptCodingSessionSecret(
+            ephemeralPublicKey: encapsulationPublicKey,
+            encryptedSecret: combined.base64EncodedString(),
+            sessionId: sessionId,
+            userId: userId
+        )
+    }
+
+    private func resolveDevicePrivateKey(forUser userId: String, keychainService: KeychainService) -> Data? {
+        let normalized = userId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return nil
+        }
+
+        var candidates: [String] = [normalized]
+        let lowercase = normalized.lowercased()
+        if lowercase != normalized {
+            candidates.append(lowercase)
+        }
+        let uppercase = normalized.uppercased()
+        if uppercase != normalized && uppercase != lowercase {
+            candidates.append(uppercase)
+        }
+        for candidate in candidates {
+            if let key = try? keychainService.getDevicePrivateKey(forUser: candidate) {
+                return key
+            }
+        }
+        return nil
     }
 
     // MARK: - Fetch from Database

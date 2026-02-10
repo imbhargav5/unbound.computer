@@ -136,10 +136,12 @@ impl DeltaStore {
     /// only after the message has been durably committed to SQLite.
     pub fn append(&self, session: &SessionId, message: Message) {
         let mut deltas = self.deltas.write().expect("lock poisoned");
-        let delta = deltas.entry(session.clone()).or_insert_with(|| SessionDelta {
-            snapshot_cursor: None,
-            messages: Vec::new(),
-        });
+        let delta = deltas
+            .entry(session.clone())
+            .or_insert_with(|| SessionDelta {
+                snapshot_cursor: None,
+                messages: Vec::new(),
+            });
         delta.messages.push(message);
     }
 
