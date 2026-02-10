@@ -77,6 +77,7 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
                     )
                     throw SessionDetailMessageError.decryptFailed
                 }
+                let parsedBlocks = SessionMessagePayloadParser.parseContentBlocks(from: plaintext)
                 mapped.append((
                     sequenceNumber: row.sequenceNumber,
                     message: Message(
@@ -84,7 +85,8 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
                         content: SessionMessagePayloadParser.displayText(from: plaintext),
                         role: SessionMessagePayloadParser.role(from: plaintext),
                         timestamp: row.createdAt ?? Date(timeIntervalSince1970: 0),
-                        isStreaming: false
+                        isStreaming: false,
+                        parsedContent: parsedBlocks.isEmpty ? nil : parsedBlocks
                     )
                 ))
             }

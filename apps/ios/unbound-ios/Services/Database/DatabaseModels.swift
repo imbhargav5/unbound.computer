@@ -51,6 +51,7 @@ struct SessionRecord: Codable, FetchableRecord, PersistableRecord {
     var isWorktree: Bool
     var worktreePath: String?
     var status: String
+    var deviceId: String?
     var createdAt: Date
     var lastAccessedAt: Date
     var updatedAt: Date
@@ -64,6 +65,7 @@ struct SessionRecord: Codable, FetchableRecord, PersistableRecord {
         case claudeSessionId = "claude_session_id"
         case isWorktree = "is_worktree"
         case worktreePath = "worktree_path"
+        case deviceId = "device_id"
         case createdAt = "created_at"
         case lastAccessedAt = "last_accessed_at"
         case updatedAt = "updated_at"

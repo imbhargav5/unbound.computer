@@ -382,5 +382,14 @@ enum DatabaseMigrations {
                 t.column("applied_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
             }
         }
+
+        // MARK: - v4: Add device_id to Sessions
+
+        migrator.registerMigration("v4_add_device_id_to_sessions") { db in
+            try db.alter(table: "agent_coding_sessions") { t in
+                t.add(column: "device_id", .text)  // nullable for existing rows
+            }
+            try db.create(indexOn: "agent_coding_sessions", columns: ["device_id"])
+        }
     }
 }

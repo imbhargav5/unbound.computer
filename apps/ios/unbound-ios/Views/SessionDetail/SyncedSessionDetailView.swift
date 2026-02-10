@@ -10,6 +10,17 @@ struct SyncedSessionDetailView: View {
         _viewModel = State(initialValue: SyncedSessionDetailViewModel(session: session))
     }
 
+    private var visibleMessages: [Message] {
+        viewModel.messages.filter { message in
+            guard let blocks = message.parsedContent else {
+                // No parsed content - show if content is non-empty
+                return !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            // Filter out messages where all blocks are empty/whitespace
+            return blocks.contains(where: \.isVisibleContent)
+        }
+    }
+
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.messages.isEmpty {
@@ -48,7 +59,7 @@ struct SyncedSessionDetailView: View {
                 headerCard
 
                 LazyVStack(spacing: AppTheme.spacingS) {
-                    ForEach(viewModel.messages) { message in
+                    ForEach(visibleMessages) { message in
                         MessageBubbleView(message: message)
                     }
                 }

@@ -145,7 +145,7 @@ struct unbound_iosApp: App {
         // Wrap with PostLoginSyncWrapper to sync device to Supabase
         PostLoginSyncWrapper {
             NavigationStack(path: $navigationManager.path) {
-                DeviceListView()
+                DashboardView()
                     .navigationDestination(for: AppRoute.self) { route in
                         switch route {
                         case .deviceDetail(let device):

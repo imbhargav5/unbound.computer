@@ -9,6 +9,7 @@ struct Message: Identifiable, Hashable {
     let codeBlocks: [CodeBlock]?
     let isStreaming: Bool
     var richContent: ChatContent?
+    var parsedContent: [SessionContentBlock]?
 
     init(
         id: UUID = UUID(),
@@ -17,7 +18,8 @@ struct Message: Identifiable, Hashable {
         timestamp: Date = Date(),
         codeBlocks: [CodeBlock]? = nil,
         isStreaming: Bool = false,
-        richContent: ChatContent? = nil
+        richContent: ChatContent? = nil,
+        parsedContent: [SessionContentBlock]? = nil
     ) {
         self.id = id
         self.content = content
@@ -26,6 +28,7 @@ struct Message: Identifiable, Hashable {
         self.codeBlocks = codeBlocks
         self.isStreaming = isStreaming
         self.richContent = richContent
+        self.parsedContent = parsedContent
     }
 
     enum MessageRole: String, Codable {

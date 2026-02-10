@@ -197,6 +197,11 @@ enum AppTheme {
     static let cardShadowColor = Color.black.opacity(0.08)
     static let cardShadowRadius: CGFloat = 8
     static let cardShadowY: CGFloat = 2
+
+    // MARK: - Device Home Accent
+    static let amberAccent = Color(red: 232/255, green: 167/255, blue: 62/255)  // #E8A73E
+    static let deviceCardBackground = Color(white: 0.08)
+    static let thinBorderWidth: CGFloat = 1.0
 }
 
 // MARK: - View Modifiers
@@ -215,8 +220,29 @@ struct CardStyle: ViewModifier {
     }
 }
 
+struct ThinBorderCardStyle: ViewModifier {
+    var highlighted: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(AppTheme.deviceCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium)
+                    .stroke(
+                        highlighted ? AppTheme.amberAccent.opacity(0.6) : Color.white.opacity(0.1),
+                        lineWidth: AppTheme.thinBorderWidth
+                    )
+            )
+    }
+}
+
 extension View {
     func cardStyle() -> some View {
         modifier(CardStyle())
+    }
+
+    func thinBorderCard(highlighted: Bool = false) -> some View {
+        modifier(ThinBorderCardStyle(highlighted: highlighted))
     }
 }

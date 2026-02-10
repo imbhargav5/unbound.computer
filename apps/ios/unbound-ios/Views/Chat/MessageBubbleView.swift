@@ -16,17 +16,21 @@ struct MessageBubbleView: View {
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: AppTheme.spacingXS) {
                 // Message content
-                Text(message.content)
-                    .font(.body)
-                    .foregroundStyle(isUser ? .white : AppTheme.textPrimary)
-                    .padding(.horizontal, AppTheme.spacingM)
-                    .padding(.vertical, AppTheme.spacingS + 2)
-                    .background(
-                        isUser
-                            ? AnyShapeStyle(AppTheme.accentGradient)
-                            : AnyShapeStyle(AppTheme.assistantBubble)
-                    )
-                    .clipShape(MessageBubbleShape(isUser: isUser))
+                if let blocks = message.parsedContent, !blocks.isEmpty, !isUser {
+                    parsedContentView(blocks: blocks)
+                } else {
+                    Text(message.content)
+                        .font(.body)
+                        .foregroundStyle(isUser ? .white : AppTheme.textPrimary)
+                        .padding(.horizontal, AppTheme.spacingM)
+                        .padding(.vertical, AppTheme.spacingS + 2)
+                        .background(
+                            isUser
+                                ? AnyShapeStyle(AppTheme.accentGradient)
+                                : AnyShapeStyle(AppTheme.assistantBubble)
+                        )
+                        .clipShape(MessageBubbleShape(isUser: isUser))
+                }
 
                 // Code blocks if present
                 if let codeBlocks = message.codeBlocks {
@@ -45,6 +49,25 @@ struct MessageBubbleView: View {
             if !isUser { Spacer(minLength: 60) }
         }
         .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    @ViewBuilder
+    private func parsedContentView(blocks: [SessionContentBlock]) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            ForEach(blocks) { block in
+                switch block {
+                case .text:
+                    SessionContentBlockView(block: block)
+                        .padding(.horizontal, AppTheme.spacingM)
+                        .padding(.vertical, AppTheme.spacingS + 2)
+                        .background(AppTheme.assistantBubble)
+                        .clipShape(MessageBubbleShape(isUser: false))
+
+                case .toolUse, .error:
+                    SessionContentBlockView(block: block)
+                }
+            }
+        }
     }
 }
 

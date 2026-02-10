@@ -310,6 +310,7 @@ final class PostLoginSyncService {
                     isWorktree: session.isWorktree,
                     worktreePath: session.worktreePath,
                     status: session.status,
+                    deviceId: session.deviceId,
                     createdAt: parseDate(session.createdAt) ?? Date(),
                     lastAccessedAt: parseDate(session.lastHeartbeatAt ?? session.updatedAt) ?? Date(),
                     updatedAt: parseDate(session.updatedAt) ?? Date()

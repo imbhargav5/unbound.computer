@@ -79,6 +79,202 @@ enum SessionMessagePayloadParser {
         return plaintext
     }
 
+    // MARK: - Content Block Parsing
+
+    static func parseContentBlocks(from plaintext: String) -> [SessionContentBlock] {
+        guard let payload = resolvedPayload(from: plaintext) else {
+            let text = plaintext.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? [] : [.text(text)]
+        }
+
+        guard let type = payload["type"] as? String else {
+            return fallbackBlocks(from: plaintext)
+        }
+
+        switch type.lowercased() {
+        case "assistant":
+            return parseAssistantBlocks(payload)
+        case "user", "user_prompt_command":
+            return parseUserBlocks(payload)
+        case "result":
+            return parseResultBlocks(payload)
+        default:
+            return fallbackBlocks(from: plaintext)
+        }
+    }
+
+    private static func resolvedPayload(from plaintext: String) -> [String: Any]? {
+        guard let payload = jsonPayload(from: plaintext) else { return nil }
+        if let wrappedRawJSON = payload["raw_json"] as? String {
+            return jsonPayload(from: wrappedRawJSON)
+        }
+        return payload
+    }
+
+    private static func parseAssistantBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
+        guard let message = payload["message"] as? [String: Any],
+              let contentBlocks = message["content"] as? [[String: Any]] else {
+            return fallbackBlocks(from: payload)
+        }
+
+        var blocks: [SessionContentBlock] = []
+
+        for block in contentBlocks {
+            guard let blockType = block["type"] as? String else { continue }
+
+            switch blockType {
+            case "text":
+                if let text = block["text"] as? String,
+                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    blocks.append(.text(text))
+                }
+            case "tool_use":
+                if let name = block["name"] as? String {
+                    let inputDict = block["input"] as? [String: Any]
+                    let summary = toolSummary(name: name, input: inputDict)
+                    blocks.append(.toolUse(SessionToolUse(
+                        id: UUID(),
+                        toolName: name,
+                        summary: summary
+                    )))
+                }
+            default:
+                break
+            }
+        }
+
+        return blocks
+    }
+
+    private static func parseUserBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
+        // User prompt commands with a direct message string
+        if let message = payload["message"] as? String,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return [.text(message)]
+        }
+
+        guard let message = payload["message"] as? [String: Any],
+              let contentBlocks = message["content"] as? [[String: Any]] else {
+            return fallbackBlocks(from: payload)
+        }
+
+        var blocks: [SessionContentBlock] = []
+
+        for block in contentBlocks {
+            guard let blockType = block["type"] as? String else { continue }
+
+            switch blockType {
+            case "text":
+                if let text = block["text"] as? String,
+                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    blocks.append(.text(text))
+                }
+            case "tool_result":
+                if let content = block["content"] as? String,
+                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    blocks.append(.text(content))
+                } else if let contentArray = block["content"] as? [[String: Any]] {
+                    for item in contentArray {
+                        if let text = item["text"] as? String,
+                           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            blocks.append(.text(text))
+                        }
+                    }
+                }
+            default:
+                break
+            }
+        }
+
+        return blocks
+    }
+
+    private static func parseResultBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
+        let isError = payload["is_error"] as? Bool ?? false
+        if let result = payload["result"] as? String,
+           !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return isError ? [.error(result)] : [.text(result)]
+        }
+        return []
+    }
+
+    private static func fallbackBlocks(from plaintext: String) -> [SessionContentBlock] {
+        let text = displayText(from: plaintext)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [.text(text)]
+    }
+
+    private static func fallbackBlocks(from payload: [String: Any]) -> [SessionContentBlock] {
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+           let jsonString = String(data: data, encoding: .utf8) {
+            return fallbackBlocks(from: jsonString)
+        }
+        return []
+    }
+
+    private static func toolSummary(name: String, input: [String: Any]?) -> String {
+        guard let input else { return name }
+
+        switch name {
+        case "Read":
+            if let filePath = input["file_path"] as? String {
+                return "Read \(shortenPath(filePath))"
+            }
+        case "Write":
+            if let filePath = input["file_path"] as? String {
+                return "Write \(shortenPath(filePath))"
+            }
+        case "Edit":
+            if let filePath = input["file_path"] as? String {
+                return "Edit \(shortenPath(filePath))"
+            }
+        case "Bash":
+            if let command = input["command"] as? String {
+                let truncated = command.count > 60
+                    ? String(command.prefix(60)) + "..."
+                    : command
+                return truncated
+            }
+        case "Grep":
+            if let pattern = input["pattern"] as? String {
+                return "Grep \(pattern)"
+            }
+        case "Glob":
+            if let pattern = input["pattern"] as? String {
+                return "Glob \(pattern)"
+            }
+        case "WebSearch":
+            if let query = input["query"] as? String {
+                return "Search: \(query)"
+            }
+        case "WebFetch":
+            if let url = input["url"] as? String {
+                return "Fetch \(url)"
+            }
+        case "Task":
+            if let description = input["description"] as? String {
+                return description
+            }
+        case "NotebookEdit":
+            if let notebookPath = input["notebook_path"] as? String {
+                return "Edit \(shortenPath(notebookPath))"
+            }
+        default:
+            break
+        }
+
+        return name
+    }
+
+    private static func shortenPath(_ path: String) -> String {
+        let components = path.split(separator: "/")
+        if components.count <= 2 {
+            return path
+        }
+        return String(components.suffix(2).joined(separator: "/"))
+    }
+
+    // MARK: - Private Helpers
+
     private static func jsonPayload(from plaintext: String) -> [String: Any]? {
         guard let data = plaintext.data(using: .utf8),
               let jsonObject = try? JSONSerialization.jsonObject(with: data),

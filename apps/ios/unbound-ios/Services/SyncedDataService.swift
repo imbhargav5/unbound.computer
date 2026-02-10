@@ -112,6 +112,7 @@ struct SyncedSession: Identifiable, Hashable {
     let id: UUID
     let title: String
     let repositoryId: UUID?
+    let deviceId: UUID?
     let worktreePath: String?
     let status: CodingSessionStatus
     let lastAccessedAt: Date
@@ -124,6 +125,7 @@ struct SyncedSession: Identifiable, Hashable {
         self.id = UUID(uuidString: record.id) ?? UUID()
         self.title = record.title
         self.repositoryId = UUID(uuidString: record.repositoryId)
+        self.deviceId = record.deviceId.flatMap { UUID(uuidString: $0) }
         self.worktreePath = record.worktreePath
         self.status = CodingSessionStatus(rawValue: record.status) ?? .active
         self.lastAccessedAt = record.lastAccessedAt
@@ -241,6 +243,20 @@ final class SyncedDataService {
     func repository(for session: SyncedSession) -> SyncedRepository? {
         guard let repoId = session.repositoryId else { return nil }
         return repository(id: repoId)
+    }
+
+    /// Get device for a session
+    func device(for session: SyncedSession) -> SyncedDevice? {
+        guard let deviceId = session.deviceId else { return nil }
+        return device(id: deviceId)
+    }
+
+    /// Recent sessions sorted by last accessed, limited to 10
+    var recentSessions: [SyncedSession] {
+        sessions
+            .sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+            .prefix(10)
+            .map { $0 }
     }
 
     // MARK: - Refresh

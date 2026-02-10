@@ -1,11 +1,7 @@
-//
-//  SyncedDeviceDetailView.swift
-//  unbound-ios
-//
-//  Detail view for a synced device showing its repositories and sessions.
-//
-
 import SwiftUI
+import Logging
+
+private let logger = Logger(label: "app.ui")
 
 struct SyncedDeviceDetailView: View {
     let device: SyncedDevice
@@ -14,31 +10,39 @@ struct SyncedDeviceDetailView: View {
 
     private let syncedDataService = SyncedDataService.shared
 
+    @State private var expandedRepoIds: Set<UUID> = []
+    @State private var hasInitialized = false
+
+    /// Repositories that have sessions belonging to this device
+    private var deviceRepositories: [SyncedRepository] {
+        syncedDataService.repositories.filter { repo in
+            !sessionsForRepo(repo.id).isEmpty
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacingL) {
-                // Device Header Card
+                // Compact device header
                 deviceHeader
 
-                // Repositories with Sessions
-                if syncedDataService.repositories.isEmpty {
+                // Repository groups with sessions
+                if deviceRepositories.isEmpty {
                     EmptyStateView(
                         icon: "folder",
                         title: "No Repositories",
-                        message: "This device has no repositories with Claude Code sessions."
+                        message: "No sessions found on this device."
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.top, 40)
                 } else {
-                    VStack(alignment: .leading, spacing: AppTheme.spacingL) {
-                        ForEach(syncedDataService.repositories) { repo in
-                            let repoSessions = syncedDataService.sessions(for: repo.id)
+                    VStack(alignment: .leading, spacing: AppTheme.spacingM) {
+                        ForEach(deviceRepositories) { repo in
                             SyncedRepositoryGroupView(
                                 repository: repo,
-                                sessions: repoSessions,
+                                sessions: sessionsForRepo(repo.id),
+                                isExpanded: expandedBinding(for: repo.id),
                                 onSessionTap: { session in
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
                                     navigationManager.navigateToSyncedSession(session)
                                 }
                             )
@@ -50,41 +54,58 @@ struct SyncedDeviceDetailView: View {
             .padding(.top, AppTheme.spacingM)
             .padding(.bottom, AppTheme.spacingXL)
         }
-        .background(AppTheme.backgroundPrimary)
-        .navigationTitle(device.name)
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+        .navigationTitle(device.hostname ?? device.name)
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            if !hasInitialized {
+                // Expand all repos by default
+                expandedRepoIds = Set(deviceRepositories.map(\.id))
+                hasInitialized = true
+            }
+        }
     }
+
+    // MARK: - Compact Device Header
 
     private var deviceHeader: some View {
         HStack(spacing: AppTheme.spacingM) {
-            // Device Icon
+            // Device icon (compact: 40pt)
             ZStack {
                 Circle()
                     .fill(AppTheme.accentGradient.opacity(0.15))
-                    .frame(width: 64, height: 64)
+                    .frame(width: 40, height: 40)
 
                 Image(systemName: device.deviceType.iconName)
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(AppTheme.accent)
             }
 
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(device.deviceType.displayName)
-                    .font(.headline)
+                    .font(Typography.subheadline)
                     .foregroundStyle(AppTheme.textPrimary)
 
                 if let hostname = device.hostname {
                     Text(hostname)
-                        .font(.subheadline)
+                        .font(Typography.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
-                HStack(spacing: AppTheme.spacingM) {
-                    SyncedDeviceStatusIndicator(status: device.status)
+                HStack(spacing: AppTheme.spacingS) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(device.status == .online ? Color.green : Color.gray)
+                            .frame(width: 8, height: 8)
+                        Text(device.status.displayName)
+                            .font(Typography.caption)
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
 
                     if let lastSeen = device.lastSeenAt {
-                        Text("Last seen \(lastSeen.formatted(.relative(presentation: .named)))")
-                            .font(.caption)
+                        Text("· \(lastSeen.formatted(.relative(presentation: .named)))")
+                            .font(Typography.caption)
                             .foregroundStyle(AppTheme.textTertiary)
                     }
                 }
@@ -92,137 +113,103 @@ struct SyncedDeviceDetailView: View {
 
             Spacer()
         }
-        .padding(AppTheme.spacingM)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge))
-        .shadow(
-            color: AppTheme.cardShadowColor,
-            radius: AppTheme.cardShadowRadius,
-            x: 0,
-            y: AppTheme.cardShadowY
-        )
         .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    // MARK: - Helpers
+
+    private func sessionsForRepo(_ repoId: UUID) -> [SyncedSession] {
+        syncedDataService.sessions.filter { session in
+            session.repositoryId == repoId && session.deviceId == device.id
+        }
+    }
+
+    private func expandedBinding(for repoId: UUID) -> Binding<Bool> {
+        Binding(
+            get: { expandedRepoIds.contains(repoId) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedRepoIds.insert(repoId)
+                } else {
+                    expandedRepoIds.remove(repoId)
+                }
+            }
+        )
     }
 }
 
-// MARK: - Repository Group View
+// MARK: - Collapsible Repository Group
 
 struct SyncedRepositoryGroupView: View {
     let repository: SyncedRepository
     let sessions: [SyncedSession]
+    @Binding var isExpanded: Bool
     let onSessionTap: (SyncedSession) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Repository header
-            HStack(spacing: AppTheme.spacingS) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
-
-                Text(repository.name)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Spacer()
-
-                if let branch = repository.defaultBranch {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.caption2)
-                        Text(branch)
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(AppTheme.textTertiary)
+            // Tappable header with chevron
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded.toggle()
                 }
+            } label: {
+                HStack(spacing: AppTheme.spacingS) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(AppTheme.amberAccent)
+
+                    Text(repository.name)
+                        .font(Typography.headline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if !sessions.isEmpty {
+                        Text("\(sessions.count)")
+                            .font(Typography.caption)
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .animation(.easeInOut(duration: 0.25), value: isExpanded)
+                }
+                .padding(AppTheme.spacingM)
             }
-            .padding(AppTheme.spacingM)
+            .buttonStyle(.plain)
 
-            if sessions.isEmpty {
-                Text("No sessions")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .padding(.horizontal, AppTheme.spacingM)
-                    .padding(.bottom, AppTheme.spacingM)
-            } else {
-                Divider()
-                    .padding(.horizontal, AppTheme.spacingM)
+            // Collapsible session list
+            if isExpanded {
+                if sessions.isEmpty {
+                    Text("No sessions")
+                        .font(Typography.caption)
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .padding(.horizontal, AppTheme.spacingM)
+                        .padding(.bottom, AppTheme.spacingM)
+                } else {
+                    Divider()
+                        .background(Color.white.opacity(0.06))
+                        .padding(.horizontal, AppTheme.spacingM)
 
-                VStack(spacing: 0) {
-                    ForEach(sessions) { session in
-                        SyncedSessionRowView(
-                            session: session,
-                            repository: nil
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onSessionTap(session)
-                        }
-
-                        if session.id != sessions.last?.id {
-                            Divider()
-                                .padding(.horizontal, AppTheme.spacingM)
+                    VStack(spacing: 4) {
+                        ForEach(sessions) { session in
+                            DeviceSessionRowView(session: session)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                    onSessionTap(session)
+                                }
                         }
                     }
+                    .padding(.vertical, AppTheme.spacingXS)
                 }
             }
         }
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge))
-        .shadow(
-            color: AppTheme.cardShadowColor,
-            radius: AppTheme.cardShadowRadius,
-            x: 0,
-            y: AppTheme.cardShadowY
-        )
+        .thinBorderCard()
     }
-}
-
-// MARK: - Session Row View
-
-struct SyncedSessionRowView: View {
-    let session: SyncedSession
-    let repository: SyncedRepository?
-
-    var body: some View {
-        HStack(spacing: AppTheme.spacingM) {
-            // Status indicator
-            Circle()
-                .fill(session.isActive ? Color.green : Color.gray)
-                .frame(width: 10, height: 10)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(session.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-
-                Text("Last active \(session.lastAccessedAt.formatted(.relative(presentation: .named)))")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.textTertiary)
-        }
-        .padding(AppTheme.spacingM)
-    }
-}
-
-#Preview {
-    NavigationStack {
-        SyncedDeviceDetailView(device: SyncedDevice(
-            id: UUID(),
-            name: "Bhargav's MacBook Pro",
-            deviceType: .macDesktop,
-            hostname: "bhargavs-mbp.local",
-            isActive: true,
-            lastSeenAt: Date(),
-            createdAt: Date()
-        ))
-    }
-    .tint(AppTheme.accent)
 }
