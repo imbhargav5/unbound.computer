@@ -242,6 +242,8 @@ struct SyncedDeviceRowView: View {
 struct SidebarView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.navigationManager) private var navigationManager
+    @Environment(AuthService.self) private var authService
+    @State private var showLogoutAlert = false
 
     var body: some View {
         NavigationStack {
@@ -252,6 +254,14 @@ struct SidebarView: View {
                         navigationManager.navigateToAccountSettings()
                     } label: {
                         Label("Settings", systemImage: "gearshape")
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showLogoutAlert = true
+                    } label: {
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 }
             }
@@ -265,6 +275,17 @@ struct SidebarView: View {
                     }
                     .foregroundStyle(AppTheme.textPrimary)
                 }
+            }
+            .alert("Sign Out", isPresented: $showLogoutAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        dismiss()
+                        try? await authService.signOut()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to sign out? You'll need to sign in again to access your sessions.")
             }
         }
         .presentationDetents([.medium])

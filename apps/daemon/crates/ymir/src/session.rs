@@ -521,6 +521,12 @@ impl SessionManager {
     ///
     /// Calls Supabase Auth API directly to authenticate the user.
     pub async fn login_with_password(&self, email: &str, password: &str) -> AuthResult<()> {
+        // If already logged in, logout first to allow re-login
+        if self.fsm_state() == AuthState::LoggedIn {
+            info!("Already logged in, logging out before re-login");
+            self.logout()?;
+        }
+
         // Transition to logging in state
         self.transition(&AuthMachineInput::LoginAttempt)?;
 

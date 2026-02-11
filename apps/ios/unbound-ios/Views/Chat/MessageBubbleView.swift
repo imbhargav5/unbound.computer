@@ -5,6 +5,7 @@ struct MessageBubbleView: View {
     var showRoleIcon: Bool = true
 
     private var isUser: Bool { message.role == .user }
+    private var timestampText: String { message.timestamp.formatted(date: .omitted, time: .shortened) }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: AppTheme.spacingS) {
@@ -16,21 +17,12 @@ struct MessageBubbleView: View {
             }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: AppTheme.spacingXS) {
-                // Message content
-                if let blocks = message.parsedContent, !blocks.isEmpty, !isUser {
+                if isUser {
+                    userTextBubble
+                } else if let blocks = message.parsedContent, !blocks.isEmpty {
                     parsedContentView(blocks: blocks)
                 } else {
-                    Text(message.content)
-                        .font(.body)
-                        .foregroundStyle(isUser ? .white : AppTheme.textPrimary)
-                        .padding(.horizontal, AppTheme.spacingM)
-                        .padding(.vertical, AppTheme.spacingS + 2)
-                        .background(
-                            isUser
-                                ? AnyShapeStyle(AppTheme.accentGradient)
-                                : AnyShapeStyle(AppTheme.assistantBubble)
-                        )
-                        .clipShape(MessageBubbleShape(isUser: isUser))
+                    assistantTextBubble
                 }
 
                 // Code blocks if present
@@ -40,11 +32,9 @@ struct MessageBubbleView: View {
                     }
                 }
 
-                // Timestamp
-                Text(message.timestamp.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .padding(.horizontal, 4)
+                if !isUser {
+                    timestampLabel
+                }
             }
 
             if !isUser { Spacer(minLength: 60) }
@@ -69,6 +59,44 @@ struct MessageBubbleView: View {
                 }
             }
         }
+    }
+
+    private var assistantTextBubble: some View {
+        Text(message.content)
+            .font(.body)
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.horizontal, AppTheme.spacingM)
+            .padding(.vertical, AppTheme.spacingS + 2)
+            .background(AppTheme.assistantBubble)
+            .clipShape(MessageBubbleShape(isUser: false))
+    }
+
+    private var userTextBubble: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            Text(message.content)
+                .font(.body)
+                .foregroundStyle(AppTheme.userBubbleText)
+
+            Text(timestampText)
+                .font(.caption2)
+                .foregroundStyle(AppTheme.userBubbleTimestamp)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, AppTheme.spacingM)
+        .padding(.vertical, AppTheme.spacingS + 2)
+        .background(AppTheme.userBubbleBackground)
+        .clipShape(MessageBubbleShape(isUser: true))
+        .overlay(
+            MessageBubbleShape(isUser: true)
+                .stroke(AppTheme.userBubbleBorder, lineWidth: 1)
+        )
+    }
+
+    private var timestampLabel: some View {
+        Text(timestampText)
+            .font(.caption2)
+            .foregroundStyle(AppTheme.textTertiary)
+            .padding(.horizontal, 4)
     }
 }
 

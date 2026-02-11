@@ -165,7 +165,43 @@ enum AppTheme {
     static let statusBusy = Color.orange
 
     // MARK: - Message Colors
-    static let userBubble = Color(.label)
+    static let userBubbleBackground = Color(UIColor { traits in
+        switch traits.userInterfaceStyle {
+        case .dark:
+            return UIColor(red: 0.19, green: 0.13, blue: 0.04, alpha: 1.0)
+        default:
+            return UIColor(red: 0.98, green: 0.94, blue: 0.86, alpha: 1.0)
+        }
+    })
+
+    static let userBubbleBorder = Color(UIColor { traits in
+        switch traits.userInterfaceStyle {
+        case .dark:
+            return UIColor(red: 0.42, green: 0.30, blue: 0.09, alpha: 1.0)
+        default:
+            return UIColor(red: 0.82, green: 0.68, blue: 0.40, alpha: 1.0)
+        }
+    })
+
+    static let userBubbleText = Color(UIColor { traits in
+        switch traits.userInterfaceStyle {
+        case .dark:
+            return UIColor(red: 0.98, green: 0.94, blue: 0.86, alpha: 1.0)
+        default:
+            return UIColor(red: 0.22, green: 0.16, blue: 0.08, alpha: 1.0)
+        }
+    })
+
+    static let userBubbleTimestamp = Color(UIColor { traits in
+        switch traits.userInterfaceStyle {
+        case .dark:
+            return UIColor(red: 0.70, green: 0.57, blue: 0.34, alpha: 1.0)
+        default:
+            return UIColor(red: 0.44, green: 0.33, blue: 0.18, alpha: 1.0)
+        }
+    })
+
+    static let userBubble = userBubbleBackground
     static let assistantBubble = Color(.tertiarySystemBackground)
 
     // MARK: - Diff Colors

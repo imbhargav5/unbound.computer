@@ -326,6 +326,127 @@ final class SessionDetailMessageServiceTests: XCTestCase {
         XCTAssertEqual(activity.tools.map(\.toolName), ["Read", "Grep"])
     }
 
+    func testLoadMessagesMergesDuplicateSubAgentActivitiesByParentId() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0x99, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let initialTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"general-purpose","description":"Initial scan"}}]}}"#
+        let updatedTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"Plan","description":"Critical review of daemon"}}]}}"#
+        let childToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Read","input":{"file_path":"README.md"}}]}}"#
+
+        let encryptedInitialTask = try encrypt(plaintext: initialTaskPayload, key: keyData)
+        let encryptedUpdatedTask = try encrypt(plaintext: updatedTaskPayload, key: keyData)
+        let encryptedChildTool = try encrypt(plaintext: childToolPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "3",
+                    sequenceNumber: 3,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedChildTool.ciphertextB64,
+                    contentNonce: encryptedChildTool.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedUpdatedTask.ciphertextB64,
+                    contentNonce: encryptedUpdatedTask.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedInitialTask.ciphertextB64,
+                    contentNonce: encryptedInitialTask.nonceB64
+                )
+            ]
+        )
+
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 1)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one merged sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_1")
+        XCTAssertEqual(activity.subagentType, "Plan")
+        XCTAssertEqual(activity.description, "Critical review of daemon")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.summary, "Read README.md")
+    }
+
+    func testLoadMessagesDeduplicatesChildToolUpdatesByToolUseId() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xAA, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_2","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}"#
+        let firstToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_2","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_read","name":"Read","input":{"file_path":"/repo/README.md"}}]}}"#
+        let secondToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_2","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_read","name":"Read","input":{"file_path":"/repo/docs/README.md"}}]}}"#
+
+        let encryptedTask = try encrypt(plaintext: taskPayload, key: keyData)
+        let encryptedFirstTool = try encrypt(plaintext: firstToolPayload, key: keyData)
+        let encryptedSecondTool = try encrypt(plaintext: secondToolPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "3",
+                    sequenceNumber: 3,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedSecondTool.ciphertextB64,
+                    contentNonce: encryptedSecondTool.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedFirstTool.ciphertextB64,
+                    contentNonce: encryptedFirstTool.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedTask.ciphertextB64,
+                    contentNonce: encryptedTask.nonceB64
+                )
+            ]
+        )
+
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 1)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_2")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "tool_read")
+        XCTAssertEqual(activity.tools.first?.summary, "Read docs/README.md")
+    }
+
     private func encrypt(plaintext: String, key: Data) throws -> (ciphertextB64: String, nonceB64: String) {
         let symmetricKey = SymmetricKey(data: key)
         let sealed = try ChaChaPoly.seal(Data(plaintext.utf8), using: symmetricKey)

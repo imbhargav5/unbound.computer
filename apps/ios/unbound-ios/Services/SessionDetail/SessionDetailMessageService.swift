@@ -132,23 +132,31 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
             }
 
             var newBlocks: [SessionContentBlock] = []
+            var localIndexByParent: [String: Int] = [:]
 
             for block in parsedContent {
                 switch block {
                 case .subAgentActivity(var activity):
                     if let pending = pendingToolsByParent.removeValue(forKey: activity.parentToolUseId) {
-                        activity.tools.append(contentsOf: pending)
+                        activity.tools = mergeTools(existing: activity.tools, incoming: pending)
                     }
-                    newBlocks.append(.subAgentActivity(activity))
-                    anchorByParent[activity.parentToolUseId] = GroupAnchor(
-                        messageIndex: result.count,
-                        blockIndex: newBlocks.count - 1
-                    )
+                    activity.tools = mergeTools(existing: [], incoming: activity.tools)
+
+                    if let localIndex = localIndexByParent[activity.parentToolUseId] {
+                        merge(subAgentActivity: activity, toLocalIndex: localIndex, in: &newBlocks)
+                    } else if let anchor = anchorByParent[activity.parentToolUseId] {
+                        merge(subAgentActivity: activity, to: anchor, in: &result)
+                    } else {
+                        newBlocks.append(.subAgentActivity(activity))
+                        localIndexByParent[activity.parentToolUseId] = newBlocks.count - 1
+                    }
 
                 case .toolUse(let toolUse):
                     if let parentId = toolUse.parentToolUseId,
                        subAgentParents.contains(parentId) {
-                        if let anchor = anchorByParent[parentId] {
+                        if let localIndex = localIndexByParent[parentId] {
+                            append(toolUse: toolUse, toLocalIndex: localIndex, in: &newBlocks)
+                        } else if let anchor = anchorByParent[parentId] {
                             append(toolUse: toolUse, to: anchor, in: &result)
                         } else {
                             pendingToolsByParent[parentId, default: []].append(toolUse)
@@ -172,6 +180,14 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
                 parsedContent: newBlocks
             )
             result.append(rebuilt)
+
+            let messageIndex = result.count - 1
+            for (parentId, blockIndex) in localIndexByParent {
+                anchorByParent[parentId] = GroupAnchor(
+                    messageIndex: messageIndex,
+                    blockIndex: blockIndex
+                )
+            }
         }
 
         return result
@@ -204,7 +220,7 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
             return
         }
 
-        activity.tools.append(toolUse)
+        activity.tools = mergeTools(existing: activity.tools, incoming: [toolUse])
         parsed[anchor.blockIndex] = .subAgentActivity(activity)
 
         messages[anchor.messageIndex] = rebuiltMessage(
@@ -212,6 +228,115 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
             content: content(from: parsed),
             parsedContent: parsed
         )
+    }
+
+    private func append(toolUse: SessionToolUse, toLocalIndex index: Int, in blocks: inout [SessionContentBlock]) {
+        guard blocks.indices.contains(index),
+              case .subAgentActivity(var activity) = blocks[index] else {
+            return
+        }
+
+        activity.tools = mergeTools(existing: activity.tools, incoming: [toolUse])
+        blocks[index] = .subAgentActivity(activity)
+    }
+
+    private func merge(subAgentActivity incoming: SessionSubAgentActivity, to anchor: GroupAnchor, in messages: inout [Message]) {
+        guard messages.indices.contains(anchor.messageIndex) else { return }
+        let message = messages[anchor.messageIndex]
+        guard var parsed = message.parsedContent,
+              parsed.indices.contains(anchor.blockIndex),
+              case .subAgentActivity(let existing) = parsed[anchor.blockIndex] else {
+            return
+        }
+
+        parsed[anchor.blockIndex] = .subAgentActivity(mergedActivity(existing: existing, incoming: incoming))
+
+        messages[anchor.messageIndex] = rebuiltMessage(
+            from: message,
+            content: content(from: parsed),
+            parsedContent: parsed
+        )
+    }
+
+    private func merge(subAgentActivity incoming: SessionSubAgentActivity, toLocalIndex index: Int, in blocks: inout [SessionContentBlock]) {
+        guard blocks.indices.contains(index),
+              case .subAgentActivity(let existing) = blocks[index] else {
+            return
+        }
+
+        blocks[index] = .subAgentActivity(mergedActivity(existing: existing, incoming: incoming))
+    }
+
+    private func mergedActivity(
+        existing: SessionSubAgentActivity,
+        incoming: SessionSubAgentActivity
+    ) -> SessionSubAgentActivity {
+        let resolvedSubagentType = mergedSubagentType(
+            existing: existing.subagentType,
+            incoming: incoming.subagentType
+        )
+        let resolvedDescription = mergedDescription(
+            existing: existing.description,
+            incoming: incoming.description
+        )
+
+        return SessionSubAgentActivity(
+            id: existing.id,
+            parentToolUseId: existing.parentToolUseId,
+            subagentType: resolvedSubagentType,
+            description: resolvedDescription,
+            tools: mergeTools(existing: existing.tools, incoming: incoming.tools)
+        )
+    }
+
+    private func mergedDescription(existing: String, incoming: String) -> String {
+        let trimmedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIncoming.isEmpty else { return existing }
+        return incoming
+    }
+
+    private func mergedSubagentType(existing: String, incoming: String) -> String {
+        if isPlaceholderSubagentType(existing), !isPlaceholderSubagentType(incoming) {
+            return incoming
+        }
+        return existing
+    }
+
+    private func isPlaceholderSubagentType(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
+            || normalized == "general purpose" || normalized == "general"
+    }
+
+    private func mergeTools(existing: [SessionToolUse], incoming: [SessionToolUse]) -> [SessionToolUse] {
+        guard !incoming.isEmpty else { return existing }
+
+        var merged = existing
+        var indexByKey: [String: Int] = [:]
+
+        for (index, tool) in existing.enumerated() {
+            indexByKey[toolDedupKey(for: tool)] = index
+        }
+
+        for tool in incoming {
+            let key = toolDedupKey(for: tool)
+            if let existingIndex = indexByKey[key] {
+                merged[existingIndex] = tool
+            } else {
+                indexByKey[key] = merged.count
+                merged.append(tool)
+            }
+        }
+
+        return merged
+    }
+
+    private func toolDedupKey(for tool: SessionToolUse) -> String {
+        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
+            return "id:\(toolUseId)"
+        }
+
+        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
     }
 
     private func rebuiltMessage(from message: Message, content: String, parsedContent: [SessionContentBlock]) -> Message {
