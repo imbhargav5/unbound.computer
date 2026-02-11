@@ -19,6 +19,7 @@ enum AuthState: Equatable {
     case unknown
     case unauthenticated
     case authenticating
+    case validatingSession
     case authenticated(userId: String)
     case error(String)
 
@@ -28,7 +29,7 @@ enum AuthState: Equatable {
     }
 
     var isLoading: Bool {
-        self == .authenticating || self == .unknown
+        self == .authenticating || self == .unknown || self == .validatingSession
     }
 }
 
@@ -139,11 +140,32 @@ final class AuthService {
         }
 
         do {
-            // Try to get the current session from Supabase
+            // Try to get the current session from Supabase (local cache only)
             let session = try await supabaseClient.auth.session
-            handleSession(session)
+
+            // Validate the session against the server
+            authState = .validatingSession
+            do {
+                _ = try await supabaseClient.auth.user()
+                handleSession(session)
+            } catch let error as Auth.AuthError {
+                // Server rejected the token (revoked, banned, expired)
+                logger.warning("Server rejected session: \(error)")
+                do {
+                    let refreshedSession = try await supabaseClient.auth.refreshSession()
+                    handleSession(refreshedSession)
+                } catch {
+                    logger.warning("Session refresh also failed: \(error)")
+                    try? keychainService.clearSupabaseSession()
+                    authState = .unauthenticated
+                }
+            } catch {
+                // Network failure or other non-auth error — allow cached session for offline support
+                logger.info("Server validation unavailable (offline?), using cached session")
+                handleSession(session)
+            }
         } catch {
-            // Session invalid or expired, try to refresh
+            // No valid local session, try to refresh
             do {
                 let session = try await supabaseClient.auth.refreshSession()
                 handleSession(session)

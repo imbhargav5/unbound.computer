@@ -123,12 +123,10 @@ struct unbound_iosApp: App {
     private var mainContent: some View {
         Group {
             switch authService.authState {
-            case .unknown:
+            case .unknown, .authenticating, .validatingSession:
                 LoadingView()
             case .unauthenticated, .error:
                 AuthView()
-            case .authenticating:
-                LoadingView()
             case .authenticated:
                 authenticatedContent
             }
