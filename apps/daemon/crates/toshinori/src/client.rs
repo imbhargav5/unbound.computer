@@ -410,4 +410,100 @@ mod tests {
             "https://test.supabase.co/rest/v1/repositories"
         );
     }
+
+    #[test]
+    fn rest_url_for_sessions_table() {
+        let client = SupabaseClient::new("https://abc.supabase.co", "key");
+        assert_eq!(
+            client.rest_url("agent_coding_sessions"),
+            "https://abc.supabase.co/rest/v1/agent_coding_sessions"
+        );
+    }
+
+    #[test]
+    fn rest_url_for_messages_table() {
+        let client = SupabaseClient::new("https://abc.supabase.co", "key");
+        assert_eq!(
+            client.rest_url("agent_coding_session_messages"),
+            "https://abc.supabase.co/rest/v1/agent_coding_session_messages"
+        );
+    }
+
+    #[test]
+    fn message_upsert_serialization_all_fields() {
+        let msg = MessageUpsert {
+            session_id: "sess-1".to_string(),
+            sequence_number: 42,
+            content_encrypted: Some("encrypted-data".to_string()),
+            content_nonce: Some("nonce-data".to_string()),
+        };
+        let json = serde_json::to_value(&msg).unwrap();
+        assert_eq!(json["session_id"], "sess-1");
+        assert_eq!(json["sequence_number"], 42);
+        assert_eq!(json["content_encrypted"], "encrypted-data");
+        assert_eq!(json["content_nonce"], "nonce-data");
+    }
+
+    #[test]
+    fn message_upsert_serialization_none_fields_omitted() {
+        let msg = MessageUpsert {
+            session_id: "sess-2".to_string(),
+            sequence_number: 1,
+            content_encrypted: None,
+            content_nonce: None,
+        };
+        let json = serde_json::to_value(&msg).unwrap();
+        assert_eq!(json["session_id"], "sess-2");
+        assert_eq!(json["sequence_number"], 1);
+        // None fields should be absent, not null
+        assert!(json.get("content_encrypted").is_none());
+        assert!(json.get("content_nonce").is_none());
+    }
+
+    #[test]
+    fn message_upsert_serialization_partial_fields() {
+        let msg = MessageUpsert {
+            session_id: "sess-3".to_string(),
+            sequence_number: 10,
+            content_encrypted: Some("data".to_string()),
+            content_nonce: None,
+        };
+        let json = serde_json::to_value(&msg).unwrap();
+        assert_eq!(json["content_encrypted"], "data");
+        assert!(json.get("content_nonce").is_none());
+    }
+
+    #[test]
+    fn debug_impl_hides_anon_key() {
+        let client = SupabaseClient::new("https://test.supabase.co", "super-secret-key");
+        let debug = format!("{:?}", client);
+        assert!(debug.contains("https://test.supabase.co"));
+        assert!(!debug.contains("super-secret-key"));
+    }
+
+    #[test]
+    fn client_is_cloneable() {
+        let client = SupabaseClient::new("https://test.supabase.co", "key");
+        let cloned = client.clone();
+        assert_eq!(cloned.api_url, "https://test.supabase.co");
+        assert_eq!(cloned.anon_key, "key");
+    }
+
+    #[tokio::test]
+    async fn upsert_messages_batch_empty_is_noop() {
+        let client = SupabaseClient::new("https://test.supabase.co", "key");
+        // Empty batch should return Ok without making any HTTP request
+        let result = client.upsert_messages_batch(&[], "fake-token").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn update_agent_status_is_noop() {
+        let client = SupabaseClient::new("https://test.supabase.co", "key");
+        // This is a placeholder that always returns Ok
+        let result = client
+            .update_agent_status("session-1", "running", "token")
+            .await;
+        assert!(result.is_ok());
+    }
 }
