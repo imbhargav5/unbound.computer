@@ -18,9 +18,61 @@ struct SessionContentBlockView: View {
         case .toolUse(let tool):
             ToolUseCardView(tool: tool)
 
+        case .subAgentActivity(let activity):
+            SubAgentActivityCardView(activity: activity)
+
         case .error(let message):
             ErrorBannerView(message: message)
         }
+    }
+}
+
+// MARK: - Sub-Agent Activity Card
+
+private struct SubAgentActivityCardView: View {
+    let activity: SessionSubAgentActivity
+    @State private var isExpanded = true
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+                ForEach(activity.tools) { tool in
+                    ToolUseCardView(tool: tool)
+                }
+            }
+            .padding(.top, AppTheme.spacingXS)
+        } label: {
+            HStack(spacing: AppTheme.spacingS) {
+                Image(systemName: activity.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(activity.displayName)
+                        .font(Typography.footnote.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    if !activity.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(activity.description)
+                            .font(Typography.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                Text("\(activity.tools.count)")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .tint(AppTheme.textSecondary)
+        .padding(.horizontal, AppTheme.spacingS + 2)
+        .padding(.vertical, AppTheme.spacingXS + 2)
+        .background(AppTheme.backgroundSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
     }
 }
 

@@ -117,6 +117,215 @@ final class SessionDetailMessageServiceTests: XCTestCase {
         }
     }
 
+    func testLoadMessagesFiltersProtocolRowsButKeepsDecryptedCount() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0x55, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let assistantPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"assistant visible"}]}}"#
+        let userToolResultPayload = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_1","is_error":false}]}}"#
+        let successfulResultPayload = #"{"type":"result","is_error":false,"result":"completed"}"#
+        let errorResultPayload = #"{"type":"result","is_error":true,"result":"command failed"}"#
+
+        let encryptedAssistant = try encrypt(plaintext: assistantPayload, key: keyData)
+        let encryptedToolResult = try encrypt(plaintext: userToolResultPayload, key: keyData)
+        let encryptedSuccessResult = try encrypt(plaintext: successfulResultPayload, key: keyData)
+        let encryptedErrorResult = try encrypt(plaintext: errorResultPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "4",
+                    sequenceNumber: 4,
+                    createdAt: Date(timeIntervalSince1970: 40),
+                    contentEncrypted: encryptedErrorResult.ciphertextB64,
+                    contentNonce: encryptedErrorResult.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedToolResult.ciphertextB64,
+                    contentNonce: encryptedToolResult.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "3",
+                    sequenceNumber: 3,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedSuccessResult.ciphertextB64,
+                    contentNonce: encryptedSuccessResult.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedAssistant.ciphertextB64,
+                    contentNonce: encryptedAssistant.nonceB64
+                )
+            ]
+        )
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 4)
+        XCTAssertEqual(result.messages.count, 2)
+        XCTAssertEqual(result.messages.map(\.content), ["assistant visible", "command failed"])
+        XCTAssertEqual(result.messages.map(\.role), [.assistant, .system])
+        XCTAssertFalse(result.messages.contains { $0.content == "completed" })
+    }
+
+    func testLoadMessagesPreservesUserMessagesWhileHidingToolResultEnvelopes() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0x66, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let userTextPayload = #"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"real user message"}]}}"#
+        let userToolResultPayload = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_1","is_error":false}]}}"#
+        let assistantPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"assistant reply"}]}}"#
+
+        let encryptedUserText = try encrypt(plaintext: userTextPayload, key: keyData)
+        let encryptedToolResult = try encrypt(plaintext: userToolResultPayload, key: keyData)
+        let encryptedAssistant = try encrypt(plaintext: assistantPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "3",
+                    sequenceNumber: 3,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedAssistant.ciphertextB64,
+                    contentNonce: encryptedAssistant.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedToolResult.ciphertextB64,
+                    contentNonce: encryptedToolResult.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedUserText.ciphertextB64,
+                    contentNonce: encryptedUserText.nonceB64
+                )
+            ]
+        )
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 2)
+        XCTAssertEqual(result.messages.map(\.content), ["real user message", "assistant reply"])
+        XCTAssertEqual(result.messages.map(\.role), [.user, .assistant])
+    }
+
+    func testLoadMessagesTreatsPlaintextRowsAsUserMessages() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0x77, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let userPlaintext = "please explain this crash"
+        let assistantPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here is the root cause"}]}}"#
+
+        let encryptedUserPlaintext = try encrypt(plaintext: userPlaintext, key: keyData)
+        let encryptedAssistant = try encrypt(plaintext: assistantPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedAssistant.ciphertextB64,
+                    contentNonce: encryptedAssistant.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedUserPlaintext.ciphertextB64,
+                    contentNonce: encryptedUserPlaintext.nonceB64
+                )
+            ]
+        )
+
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 2)
+        XCTAssertEqual(result.messages.map(\.content), [userPlaintext, "Here is the root cause"])
+        XCTAssertEqual(result.messages.map(\.role), [.user, .assistant])
+    }
+
+    func testLoadMessagesGroupsSubAgentToolUsesAcrossMessages() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0x88, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}"#
+        let childReadPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        let childGrepPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_2","name":"Grep","input":{"pattern":"TODO"}}]}}"#
+
+        let encryptedTask = try encrypt(plaintext: taskPayload, key: keyData)
+        let encryptedRead = try encrypt(plaintext: childReadPayload, key: keyData)
+        let encryptedGrep = try encrypt(plaintext: childGrepPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "3",
+                    sequenceNumber: 3,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedGrep.ciphertextB64,
+                    contentNonce: encryptedGrep.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "2",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedRead.ciphertextB64,
+                    contentNonce: encryptedRead.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedTask.ciphertextB64,
+                    contentNonce: encryptedTask.nonceB64
+                )
+            ]
+        )
+
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 1)
+        XCTAssertEqual(result.messages.first?.role, .assistant)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one grouped sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_1")
+        XCTAssertEqual(activity.subagentType, "Explore")
+        XCTAssertEqual(activity.tools.count, 2)
+        XCTAssertEqual(activity.tools.map(\.toolName), ["Read", "Grep"])
+    }
+
     private func encrypt(plaintext: String, key: Data) throws -> (ciphertextB64: String, nonceB64: String) {
         let symmetricKey = SymmetricKey(data: key)
         let sealed = try ChaChaPoly.seal(Data(plaintext.utf8), using: symmetricKey)

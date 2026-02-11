@@ -61,7 +61,7 @@ struct SyncedSessionDetailView: View {
 
                     LazyVStack(spacing: AppTheme.spacingS) {
                         ForEach(visibleMessages) { message in
-                            MessageBubbleView(message: message)
+                            MessageBubbleView(message: message, showRoleIcon: false)
                         }
                     }
 

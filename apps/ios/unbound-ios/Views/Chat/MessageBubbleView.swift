@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessageBubbleView: View {
     let message: Message
+    var showRoleIcon: Bool = true
 
     private var isUser: Bool { message.role == .user }
 
@@ -9,7 +10,7 @@ struct MessageBubbleView: View {
         HStack(alignment: .bottom, spacing: AppTheme.spacingS) {
             if isUser { Spacer(minLength: 60) }
 
-            if !isUser {
+            if !isUser && showRoleIcon {
                 ClaudeAvatarView(size: 28)
                     .padding(.bottom, 4)
             }
@@ -63,7 +64,7 @@ struct MessageBubbleView: View {
                         .background(AppTheme.assistantBubble)
                         .clipShape(MessageBubbleShape(isUser: false))
 
-                case .toolUse, .error:
+                case .toolUse, .subAgentActivity, .error:
                     SessionContentBlockView(block: block)
                 }
             }
