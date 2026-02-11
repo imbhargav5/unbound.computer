@@ -26,6 +26,7 @@ struct unbound_iosApp: App {
     // View-owned state (correct usage of @State)
     @State private var initState: AppInitState = .loading(message: "Starting...", progress: 0.0)
     @State private var navigationManager = NavigationManager()
+    @AppStorage("onboarding.completed") private var onboardingCompleted = false
 
     init() {
         // Register Geist fonts on app startup
@@ -121,18 +122,26 @@ struct unbound_iosApp: App {
 
     @ViewBuilder
     private var mainContent: some View {
-        Group {
-            switch authService.authState {
-            case .unknown, .authenticating, .validatingSession:
-                LoadingView()
-            case .unauthenticated, .error:
-                AuthView()
-            case .authenticated:
-                authenticatedContent
+        if !onboardingCompleted {
+            OnboardingView {
+                withAnimation {
+                    onboardingCompleted = true
+                }
             }
-        }
-        .onChange(of: authService.authState) { _, newValue in
-            handleAuthStateChange(newValue)
+        } else {
+            Group {
+                switch authService.authState {
+                case .unknown, .authenticating, .validatingSession:
+                    LoadingView()
+                case .unauthenticated, .error:
+                    AuthView()
+                case .authenticated:
+                    authenticatedContent
+                }
+            }
+            .onChange(of: authService.authState) { _, newValue in
+                handleAuthStateChange(newValue)
+            }
         }
     }
 
