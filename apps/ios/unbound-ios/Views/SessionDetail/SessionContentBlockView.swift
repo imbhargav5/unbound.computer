@@ -31,7 +31,7 @@ struct SessionContentBlockView: View {
 
 private struct SubAgentActivityCardView: View {
     let activity: SessionSubAgentActivity
-    @State private var isExpanded = true
+    @State private var isExpanded = false
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
