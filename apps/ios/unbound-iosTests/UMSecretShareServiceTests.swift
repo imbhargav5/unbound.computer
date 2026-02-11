@@ -239,4 +239,31 @@ private final class MockRemoteCommandTransport: RemoteCommandTransport {
             createdAtMs: 1
         )
     }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope _: RemoteCommandEnvelope
+    ) async throws {
+        publishCalls += 1
+        if let publishError {
+            throw publishError
+        }
+    }
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        return RemoteCommandResponse(
+            schemaVersion: 1,
+            requestId: requestId,
+            type: "mock.v1",
+            status: "ok",
+            result: nil,
+            errorCode: nil,
+            errorMessage: nil,
+            createdAtMs: 1
+        )
+    }
 }

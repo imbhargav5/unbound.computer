@@ -243,6 +243,19 @@ protocol RemoteCommandTransport {
         sessionId: String,
         timeout: TimeInterval
     ) async throws -> SessionSecretResponseEnvelope
+
+    /// Publish a generic remote command envelope.
+    func publishGenericCommand(
+        channel: String,
+        envelope: RemoteCommandEnvelope
+    ) async throws
+
+    /// Wait for a remote command response matching the given requestId.
+    func waitForCommandResponse(
+        channel: String,
+        requestId: String,
+        timeout: TimeInterval
+    ) async throws -> RemoteCommandResponse
 }
 
 final class AblyRemoteCommandTransport: RemoteCommandTransport {
@@ -382,6 +395,60 @@ final class AblyRemoteCommandTransport: RemoteCommandTransport {
         }
         ablyRemoteLogger.info(
             "Received session secret response request_id=\(requestId), status=\(response.status)"
+        )
+        return response
+    }
+
+    func publishGenericCommand(
+        channel: String,
+        envelope: RemoteCommandEnvelope
+    ) async throws {
+        #if canImport(Ably)
+        let realtime = try requireRealtime()
+        let channelRef = realtime.channels.get(channel)
+        ablyRemoteLogger.debug(
+            "Publishing generic command on channel=\(channel), type=\(envelope.type), request_id=\(envelope.requestId)"
+        )
+        let payloadData = try JSONEncoder().encode(envelope)
+        let payloadObject = try jsonObject(from: payloadData)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            channelRef.publish(Config.remoteCommandEventName, data: payloadObject) { error in
+                if let error {
+                    ablyRemoteLogger.error(
+                        "Failed to publish generic command request_id=\(envelope.requestId): \(error.message)"
+                    )
+                    continuation.resume(throwing: RemoteCommandTransportError.publishFailed(error.message))
+                    return
+                }
+                ablyRemoteLogger.debug(
+                    "Published generic command request_id=\(envelope.requestId)"
+                )
+                continuation.resume()
+            }
+        }
+        #else
+        throw RemoteCommandTransportError.unsupportedPlatform
+        #endif
+    }
+
+    func waitForCommandResponse(
+        channel: String,
+        requestId: String,
+        timeout: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        ablyRemoteLogger.debug(
+            "Waiting for command response on channel=\(channel), request_id=\(requestId)"
+        )
+        let response: RemoteCommandResponse = try await waitForMessage(
+            channel: channel,
+            eventName: Config.remoteCommandResponseEventName,
+            timeout: timeout
+        ) { (response: RemoteCommandResponse) in
+            response.requestId == requestId
+        }
+        ablyRemoteLogger.info(
+            "Received command response request_id=\(requestId), type=\(response.type), status=\(response.status)"
         )
         return response
     }
