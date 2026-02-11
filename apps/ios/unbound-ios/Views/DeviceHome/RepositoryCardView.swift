@@ -5,6 +5,7 @@ struct RepositoryCardView: View {
     let sessions: [SyncedSession]
     @Binding var isExpanded: Bool
     let onSessionTap: (SyncedSession) -> Void
+    var onCreateSession: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -44,17 +45,17 @@ struct RepositoryCardView: View {
 
             // Expanded content
             if isExpanded {
+                Divider()
+                    .background(Color.white.opacity(0.06))
+                    .padding(.horizontal, AppTheme.spacingM)
+
                 if sessions.isEmpty {
                     Text("No sessions")
                         .font(Typography.caption)
                         .foregroundStyle(AppTheme.textTertiary)
                         .padding(.horizontal, AppTheme.spacingM)
-                        .padding(.bottom, AppTheme.spacingM)
+                        .padding(.vertical, AppTheme.spacingS)
                 } else {
-                    Divider()
-                        .background(Color.white.opacity(0.06))
-                        .padding(.horizontal, AppTheme.spacingM)
-
                     VStack(spacing: 4) {
                         ForEach(sessions) { session in
                             DeviceSessionRowView(session: session)
@@ -67,6 +68,23 @@ struct RepositoryCardView: View {
                         }
                     }
                     .padding(.vertical, AppTheme.spacingXS)
+                }
+
+                if let onCreateSession {
+                    Button {
+                        onCreateSession()
+                    } label: {
+                        HStack(spacing: AppTheme.spacingXS) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("New Session")
+                                .font(Typography.caption)
+                        }
+                        .foregroundStyle(AppTheme.amberAccent)
+                        .padding(.horizontal, AppTheme.spacingM)
+                        .padding(.bottom, AppTheme.spacingS)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

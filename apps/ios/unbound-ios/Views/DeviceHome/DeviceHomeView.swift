@@ -7,11 +7,14 @@ struct DeviceHomeView: View {
     @Environment(\.navigationManager) private var navigationManager
 
     private let syncedDataService = SyncedDataService.shared
+    private let remoteCommandService = RemoteCommandService.shared
 
     @State private var selectedDevice: SyncedDevice?
     @State private var expandedRepoIds: Set<UUID> = []
     @State private var showDevicePicker = false
     @State private var hasInitialized = false
+    @State private var isCreatingSession = false
+    @State private var sessionCreationError: String?
 
     private var executorDevices: [SyncedDevice] {
         syncedDataService.executorDevices
@@ -44,7 +47,10 @@ struct DeviceHomeView: View {
                                 isExpanded: expandedBinding(for: repo.id),
                                 onSessionTap: { session in
                                     navigationManager.navigateToSyncedSession(session)
-                                }
+                                },
+                                onCreateSession: selectedDevice != nil ? {
+                                    createSession(repositoryId: repo.id)
+                                } : nil
                             )
                         }
                     }
@@ -69,6 +75,30 @@ struct DeviceHomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showDevicePicker) {
             devicePickerSheet
+        }
+        .overlay {
+            if isCreatingSession {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .overlay {
+                        ProgressView("Creating session...")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                            .padding(AppTheme.spacingL)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+                    }
+            }
+        }
+        .alert("Session Creation Failed", isPresented: Binding(
+            get: { sessionCreationError != nil },
+            set: { if !$0 { sessionCreationError = nil } }
+        )) {
+            Button("OK") { sessionCreationError = nil }
+        } message: {
+            if let error = sessionCreationError {
+                Text(error)
+            }
         }
         .onAppear {
             if !hasInitialized {
@@ -182,6 +212,31 @@ struct DeviceHomeView: View {
                 }
             }
         )
+    }
+
+    private func createSession(repositoryId: UUID) {
+        guard let device = selectedDevice else { return }
+        guard !isCreatingSession else { return }
+
+        isCreatingSession = true
+        sessionCreationError = nil
+
+        Task {
+            defer { isCreatingSession = false }
+            do {
+                let result = try await remoteCommandService.createSession(
+                    targetDeviceId: device.id.uuidString.lowercased(),
+                    repositoryId: repositoryId.uuidString.lowercased()
+                )
+                logger.info("Created session \(result.id) for repo \(repositoryId)")
+
+                // Refresh data so the new session appears in the list
+                await refreshData()
+            } catch {
+                logger.error("Failed to create session: \(error.localizedDescription)")
+                sessionCreationError = error.localizedDescription
+            }
+        }
     }
 
     private func refreshData() async {

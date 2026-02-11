@@ -31,15 +31,22 @@ struct SyncedSessionDetailView: View {
     }
 
     var body: some View {
-        Group {
-            if viewModel.isLoading && viewModel.messages.isEmpty {
-                loadingView
-            } else if let errorMessage = viewModel.errorMessage, viewModel.messages.isEmpty {
-                errorView(errorMessage: errorMessage)
-            } else if viewModel.messages.isEmpty {
-                emptyView
-            } else {
-                contentView
+        VStack(spacing: 0) {
+            Group {
+                if viewModel.isLoading && viewModel.messages.isEmpty {
+                    loadingView
+                } else if let errorMessage = viewModel.errorMessage, viewModel.messages.isEmpty {
+                    errorView(errorMessage: errorMessage)
+                } else if viewModel.messages.isEmpty {
+                    emptyView
+                } else {
+                    contentView
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            if session.deviceId != nil {
+                sessionInputBar
             }
         }
         .background(AppTheme.backgroundPrimary)
@@ -47,14 +54,36 @@ struct SyncedSessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task {
-                        await viewModel.loadMessages(force: true)
+                HStack(spacing: AppTheme.spacingS) {
+                    if viewModel.canStopClaude {
+                        Button {
+                            Task { await viewModel.stopClaude() }
+                        } label: {
+                            Image(systemName: "stop.circle")
+                                .foregroundStyle(.red)
+                        }
+                        .disabled(viewModel.isStopping)
                     }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+
+                    Button {
+                        Task {
+                            await viewModel.loadMessages(force: true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(viewModel.isLoading)
                 }
-                .disabled(viewModel.isLoading)
+            }
+        }
+        .alert("Command Failed", isPresented: Binding(
+            get: { viewModel.commandError != nil },
+            set: { if !$0 { viewModel.dismissError() } }
+        )) {
+            Button("OK") { viewModel.dismissError() }
+        } message: {
+            if let error = viewModel.commandError {
+                Text(error)
             }
         }
         .task {
@@ -62,6 +91,12 @@ struct SyncedSessionDetailView: View {
         }
         .onDisappear {
             viewModel.stopRealtimeUpdates()
+        }
+    }
+
+    private var sessionInputBar: some View {
+        ChatInputView(text: $viewModel.inputText) {
+            Task { await viewModel.sendMessage() }
         }
     }
 

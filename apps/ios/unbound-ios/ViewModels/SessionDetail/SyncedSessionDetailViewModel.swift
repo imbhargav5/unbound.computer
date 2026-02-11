@@ -16,21 +16,36 @@ private let sessionDetailLogger = Logger(label: "app.ui.session-detail")
 final class SyncedSessionDetailViewModel {
     private let session: SyncedSession
     private let messageService: SessionDetailMessageLoading
+    private let remoteCommandService: RemoteCommandService
 
     private(set) var messages: [Message] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var decryptedMessageCount = 0
+    var inputText = ""
+    private(set) var isSending = false
+    private(set) var isStopping = false
+    private(set) var commandError: String?
 
     private var hasLoaded = false
     private var realtimeUpdatesTask: Task<Void, Never>?
 
+    var canSendMessage: Bool {
+        session.deviceId != nil && !isSending && !isStopping
+    }
+
+    var canStopClaude: Bool {
+        session.deviceId != nil && !isStopping
+    }
+
     init(
         session: SyncedSession,
-        messageService: SessionDetailMessageLoading? = nil
+        messageService: SessionDetailMessageLoading? = nil,
+        remoteCommandService: RemoteCommandService? = nil
     ) {
         self.session = session
         self.messageService = messageService ?? SessionDetailMessageService()
+        self.remoteCommandService = remoteCommandService ?? .shared
     }
 
     func start() async {
@@ -68,6 +83,56 @@ final class SyncedSessionDetailViewModel {
             )
             errorMessage = error.localizedDescription
         }
+    }
+
+    func sendMessage() async {
+        let content = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
+        guard let deviceId = session.deviceId else { return }
+        guard !isSending else { return }
+
+        isSending = true
+        commandError = nil
+        inputText = ""
+
+        defer { isSending = false }
+
+        do {
+            let result = try await remoteCommandService.sendMessage(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                content: content
+            )
+            sessionDetailLogger.info("Message sent to session \(result.sessionId)")
+        } catch {
+            sessionDetailLogger.error("Failed to send message: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func stopClaude() async {
+        guard let deviceId = session.deviceId else { return }
+        guard !isStopping else { return }
+
+        isStopping = true
+        commandError = nil
+
+        defer { isStopping = false }
+
+        do {
+            let result = try await remoteCommandService.stopClaude(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased()
+            )
+            sessionDetailLogger.info("Claude stopped for session, stopped=\(result.stopped)")
+        } catch {
+            sessionDetailLogger.error("Failed to stop Claude: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func dismissError() {
+        commandError = nil
     }
 
     func stopRealtimeUpdates() {
