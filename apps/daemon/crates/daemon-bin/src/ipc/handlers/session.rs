@@ -70,215 +70,193 @@ async fn register_session_list(server: &IpcServer, state: DaemonState) {
         .await;
 }
 
+/// Core session creation logic shared by IPC and remote command paths.
+/// Takes params as a serde_json::Value and returns the result or an error.
+pub async fn create_session_core(
+    state: &DaemonState,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, (String, String)> {
+    let repository_id = params
+        .get("repository_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase());
+
+    let title = params
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("New session")
+        .to_string();
+
+    let is_worktree = params
+        .get("is_worktree")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let worktree_name = params
+        .get("worktree_name")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let branch_name = params
+        .get("branch_name")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let Some(repository_id) = repository_id else {
+        return Err(("invalid_params".to_string(), "repository_id is required".to_string()));
+    };
+
+    let session_id = SessionId::new();
+    let session_secret = SecretsManager::generate_session_secret();
+
+    let worktree_path = if is_worktree {
+        let repo_id = RepositoryId::from_string(&repository_id);
+        let repo = match state.armin.get_repository(&repo_id) {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                return Err(("not_found".to_string(), "Repository not found".to_string()));
+            }
+            Err(e) => {
+                return Err(("internal_error".to_string(), format!("Failed to get repository: {}", e)));
+            }
+        };
+
+        let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
+
+        match create_worktree(Path::new(&repo.path), wt_name, branch_name.as_deref()) {
+            Ok(path) => Some(path),
+            Err(e) => {
+                return Err(("internal_error".to_string(), format!("Failed to create worktree: {}", e)));
+            }
+        }
+    } else {
+        None
+    };
+
+    let new_session = NewSession {
+        id: session_id.clone(),
+        repository_id: RepositoryId::from_string(&repository_id),
+        title,
+        claude_session_id: None,
+        is_worktree,
+        worktree_path,
+    };
+
+    let created_session = match state.armin.create_session_with_metadata(new_session) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(("internal_error".to_string(), format!("Failed to create session: {}", e)));
+        }
+    };
+
+    if let Ok(key) = SecretsManager::parse_session_secret(&session_secret) {
+        state
+            .session_secret_cache
+            .insert(created_session.id.as_str(), key);
+    }
+
+    // Store session secret via Armin and sync to Supabase
+    let sqlite_future = {
+        let state = state.clone();
+        let session_id = created_session.id.clone();
+        let session_secret = session_secret.clone();
+        async move {
+            if let Some(db_key) = *state.db_encryption_key.lock().unwrap() {
+                let nonce = daemon_database::generate_nonce();
+                match daemon_database::encrypt_content(
+                    &db_key,
+                    &nonce,
+                    session_secret.as_bytes(),
+                ) {
+                    Ok(encrypted) => {
+                        debug!(
+                            session_id = %session_id.as_str(),
+                            nonce_len = nonce.len(),
+                            encrypted_len = encrypted.len(),
+                            plaintext_len = session_secret.len(),
+                            "Encrypted session secret, storing via Armin"
+                        );
+                        let secret = armin::NewSessionSecret {
+                            session_id: session_id.clone(),
+                            encrypted_secret: encrypted,
+                            nonce: nonce.to_vec(),
+                        };
+                        if let Err(e) = state.armin.set_session_secret(secret) {
+                            warn!(
+                                session_id = %session_id.as_str(),
+                                "Failed to store session secret: {}",
+                                e
+                            );
+                        }
+                        debug!(
+                            session_id = %session_id.as_str(),
+                            "Stored session secret via Armin"
+                        );
+                    }
+                    Err(e) => {
+                        warn!(
+                            session_id = %session_id.as_str(),
+                            "Failed to encrypt session secret: {}",
+                            e
+                        );
+                    }
+                }
+            }
+        }
+    };
+
+    let supabase_future = {
+        let session_sync = state.session_sync.clone();
+        let session_id = created_session.id.as_str().to_string();
+        let repository_id = created_session.repository_id.as_str().to_string();
+        let session_secret = session_secret.clone();
+        async move {
+            if let Err(e) = session_sync
+                .sync_new_session(&session_id, &repository_id, &session_secret)
+                .await
+            {
+                warn!(
+                    session_id = %session_id,
+                    "Failed to sync session to Supabase: {}",
+                    e
+                );
+            }
+        }
+    };
+
+    tokio::join!(sqlite_future, supabase_future);
+
+    let session_data = serde_json::json!({
+        "id": created_session.id.as_str(),
+        "repository_id": created_session.repository_id.as_str(),
+        "title": created_session.title,
+        "status": created_session.status.as_str(),
+        "is_worktree": created_session.is_worktree,
+        "worktree_path": created_session.worktree_path,
+        "created_at": created_session.created_at.to_rfc3339(),
+        "last_accessed_at": created_session.last_accessed_at.to_rfc3339(),
+    });
+
+    Ok(session_data)
+}
+
 async fn register_session_create(server: &IpcServer, state: DaemonState) {
     server
         .register_handler(Method::SessionCreate, move |req| {
             let state = state.clone();
             async move {
-                let repository_id = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("repository_id"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_lowercase());
-
-                let title = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("title"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("New session")
-                    .to_string();
-
-                // Worktree params
-                let is_worktree = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("is_worktree"))
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-
-                let worktree_name = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("worktree_name"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-
-                let branch_name = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("branch_name"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-
-                let Some(repository_id) = repository_id else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "repository_id is required",
-                    );
-                };
-
-                // Generate session ID and secret upfront
-                let session_id = SessionId::new();
-                let session_secret = SecretsManager::generate_session_secret();
-
-                // Determine worktree path if creating a worktree
-                let worktree_path = if is_worktree {
-                    // Get repository from Armin
-                    let repo_id = RepositoryId::from_string(&repository_id);
-                    let repo = match state.armin.get_repository(&repo_id) {
-                        Ok(Some(r)) => r,
-                        Ok(None) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::NOT_FOUND,
-                                "Repository not found",
-                            );
-                        }
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &format!("Failed to get repository: {}", e),
-                            );
-                        }
-                    };
-
-                    // Use session ID as worktree name if not provided
-                    let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
-
-                    // Create the git worktree
-                    match create_worktree(Path::new(&repo.path), wt_name, branch_name.as_deref()) {
-                        Ok(path) => Some(path),
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &format!("Failed to create worktree: {}", e),
-                            );
-                        }
+                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                match create_session_core(&state, &params).await {
+                    Ok(data) => Response::success(&req.id, data),
+                    Err((code, msg)) => {
+                        let error_code = match code.as_str() {
+                            "invalid_params" => error_codes::INVALID_PARAMS,
+                            "not_found" => error_codes::NOT_FOUND,
+                            _ => error_codes::INTERNAL_ERROR,
+                        };
+                        Response::error(&req.id, error_code, &msg)
                     }
-                } else {
-                    None
-                };
-
-                // Create session via Armin (single source of truth)
-                let new_session = NewSession {
-                    id: session_id.clone(),
-                    repository_id: RepositoryId::from_string(&repository_id),
-                    title,
-                    claude_session_id: None,
-                    is_worktree,
-                    worktree_path,
-                };
-
-                let created_session = match state.armin.create_session_with_metadata(new_session) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        return Response::error(
-                            &req.id,
-                            error_codes::INTERNAL_ERROR,
-                            &format!("Failed to create session: {}", e),
-                        );
-                    }
-                };
-
-                // Cache the parsed secret key in memory
-                if let Ok(key) = SecretsManager::parse_session_secret(&session_secret) {
-                    state
-                        .session_secret_cache
-                        .insert(created_session.id.as_str(), key);
                 }
-
-                // Store session secret via Armin and sync to Supabase
-                let sqlite_future = {
-                    let state = state.clone();
-                    let session_id = created_session.id.clone();
-                    let session_secret = session_secret.clone();
-                    async move {
-                        if let Some(db_key) = *state.db_encryption_key.lock().unwrap() {
-                            let nonce = daemon_database::generate_nonce();
-                            match daemon_database::encrypt_content(
-                                &db_key,
-                                &nonce,
-                                session_secret.as_bytes(),
-                            ) {
-                                Ok(encrypted) => {
-                                    debug!(
-                                        session_id = %session_id.as_str(),
-                                        nonce_len = nonce.len(),
-                                        encrypted_len = encrypted.len(),
-                                        plaintext_len = session_secret.len(),
-                                        "Encrypted session secret, storing via Armin"
-                                    );
-                                    // Store via Armin
-                                    let secret = armin::NewSessionSecret {
-                                        session_id: session_id.clone(),
-                                        encrypted_secret: encrypted,
-                                        nonce: nonce.to_vec(),
-                                    };
-                                    if let Err(e) = state.armin.set_session_secret(secret) {
-                                        warn!(
-                                            session_id = %session_id.as_str(),
-                                            "Failed to store session secret: {}",
-                                            e
-                                        );
-                                    }
-                                    debug!(
-                                        session_id = %session_id.as_str(),
-                                        "Stored session secret via Armin"
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        session_id = %session_id.as_str(),
-                                        "Failed to encrypt session secret: {}",
-                                        e
-                                    );
-                                }
-                            }
-                        }
-                    }
-                };
-
-                let supabase_future = {
-                    let session_sync = state.session_sync.clone();
-                    let session_id = created_session.id.as_str().to_string();
-                    let repository_id = created_session.repository_id.as_str().to_string();
-                    let session_secret = session_secret.clone();
-                    async move {
-                        if let Err(e) = session_sync
-                            .sync_new_session(&session_id, &repository_id, &session_secret)
-                            .await
-                        {
-                            warn!(
-                                session_id = %session_id,
-                                "Failed to sync session to Supabase: {}",
-                                e
-                            );
-                        }
-                    }
-                };
-
-                // Run both storage operations concurrently
-                tokio::join!(sqlite_future, supabase_future);
-
-                // Note: SessionCreated side-effect is emitted by Armin.
-                // Clients receive it via the subscription manager.
-                let session_data = serde_json::json!({
-                    "id": created_session.id.as_str(),
-                    "repository_id": created_session.repository_id.as_str(),
-                    "title": created_session.title,
-                    "status": created_session.status.as_str(),
-                    "is_worktree": created_session.is_worktree,
-                    "worktree_path": created_session.worktree_path,
-                    "created_at": created_session.created_at.to_rfc3339(),
-                    "last_accessed_at": created_session.last_accessed_at.to_rfc3339(),
-                });
-
-                Response::success(&req.id, session_data)
             }
         })
         .await;
