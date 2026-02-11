@@ -418,6 +418,165 @@ mod tests {
     }
 
     #[test]
+    fn generic_command_accepts_claude_send() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "claude.send.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": { "session_id": "abc", "content": "hello" }
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, .. } => {
+                assert_eq!(*decision, DecisionKind::AckMessage);
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_accepts_claude_stop() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "claude.stop.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": { "session_id": "abc" }
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, .. } => {
+                assert_eq!(*decision, DecisionKind::AckMessage);
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_invalid_request_id_rejects() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "not-a-uuid",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, payload } => {
+                assert_eq!(*decision, DecisionKind::DoNotAck);
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::InvalidPayload)
+                );
+                assert!(payload.message.contains("request_id"));
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+    }
+
+    #[test]
+    fn generic_command_invalid_requester_device_id_rejects() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "bad-device",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, payload } => {
+                assert_eq!(*decision, DecisionKind::DoNotAck);
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::InvalidPayload)
+                );
+                assert!(payload.message.contains("requester_device_id"));
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+    }
+
+    #[test]
+    fn generic_command_no_local_device_id_rejects() {
+        let deps_no_device = HandlerDeps {
+            local_device_id: None,
+            now_ms: 1000,
+        };
+
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "33333333-3333-3333-3333-333333333333",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps_no_device);
+        match &effects[0] {
+            Effect::ReturnDecision { decision, payload } => {
+                assert_eq!(*decision, DecisionKind::DoNotAck);
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::InternalError)
+                );
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+    }
+
+    #[test]
+    fn generic_command_envelope_preserved_in_effect() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": { "repository_id": "repo-abc", "title": "My Session" }
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        let exec_effect = effects
+            .iter()
+            .find(|e| matches!(e, Effect::ExecuteRemoteCommand { .. }))
+            .expect("should have ExecuteRemoteCommand effect");
+
+        if let Effect::ExecuteRemoteCommand { envelope } = exec_effect {
+            assert_eq!(envelope.command_type, "session.create.v1");
+            assert_eq!(
+                envelope.request_id,
+                "11111111-1111-1111-1111-111111111111"
+            );
+            assert_eq!(envelope.params["repository_id"], "repo-abc");
+            assert_eq!(envelope.params["title"], "My Session");
+        }
+    }
+
+    #[test]
     fn generic_command_target_mismatch_rejects() {
         let payload = json!({
             "schema_version": 1,

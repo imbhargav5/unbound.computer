@@ -215,3 +215,137 @@ impl SessionSecretResponsePayload {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn remote_command_envelope_round_trip() {
+        let envelope = RemoteCommandEnvelope {
+            schema_version: 1,
+            command_type: "session.create.v1".to_string(),
+            request_id: "11111111-1111-1111-1111-111111111111".to_string(),
+            requester_device_id: "22222222-2222-2222-2222-222222222222".to_string(),
+            target_device_id: "33333333-3333-3333-3333-333333333333".to_string(),
+            requested_at_ms: 1700000000000,
+            params: json!({"repository_id": "repo-1"}),
+        };
+
+        let serialized = serde_json::to_string(&envelope).unwrap();
+        let deserialized: RemoteCommandEnvelope = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, envelope);
+    }
+
+    #[test]
+    fn remote_command_envelope_type_field_renamed() {
+        let envelope = RemoteCommandEnvelope {
+            schema_version: 1,
+            command_type: "claude.send.v1".to_string(),
+            request_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa".to_string(),
+            requester_device_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb".to_string(),
+            target_device_id: "cccccccc-cccc-cccc-cccc-cccccccccccc".to_string(),
+            requested_at_ms: 1700000000000,
+            params: json!({}),
+        };
+
+        let value: serde_json::Value = serde_json::to_value(&envelope).unwrap();
+        // "type" field should be used in JSON, not "command_type"
+        assert_eq!(value["type"], "claude.send.v1");
+        assert!(value.get("command_type").is_none());
+    }
+
+    #[test]
+    fn remote_command_envelope_deserializes_from_json() {
+        let json_str = r#"{
+            "schema_version": 1,
+            "type": "claude.stop.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "33333333-3333-3333-3333-333333333333",
+            "requested_at_ms": 1700000000000,
+            "params": {"session_id": "abc-123"}
+        }"#;
+
+        let envelope: RemoteCommandEnvelope = serde_json::from_str(json_str).unwrap();
+        assert_eq!(envelope.command_type, "claude.stop.v1");
+        assert_eq!(envelope.params["session_id"], "abc-123");
+    }
+
+    #[test]
+    fn remote_command_status_serializes_snake_case() {
+        assert_eq!(
+            serde_json::to_value(RemoteCommandStatus::Ok).unwrap(),
+            json!("ok")
+        );
+        assert_eq!(
+            serde_json::to_value(RemoteCommandStatus::Error).unwrap(),
+            json!("error")
+        );
+    }
+
+    #[test]
+    fn remote_command_response_ok_factory() {
+        let resp = RemoteCommandResponse::ok(
+            "req-1".to_string(),
+            "session.create.v1".to_string(),
+            json!({"id": "session-abc"}),
+        );
+
+        assert_eq!(resp.status, RemoteCommandStatus::Ok);
+        assert_eq!(resp.request_id, "req-1");
+        assert_eq!(resp.command_type, "session.create.v1");
+        assert_eq!(resp.result, Some(json!({"id": "session-abc"})));
+        assert!(resp.error_code.is_none());
+        assert!(resp.error_message.is_none());
+    }
+
+    #[test]
+    fn remote_command_response_error_factory() {
+        let resp = RemoteCommandResponse::error(
+            "req-2".to_string(),
+            "claude.send.v1".to_string(),
+            "invalid_params",
+            "session_id is required",
+        );
+
+        assert_eq!(resp.status, RemoteCommandStatus::Error);
+        assert_eq!(resp.error_code, Some("invalid_params".to_string()));
+        assert_eq!(
+            resp.error_message,
+            Some("session_id is required".to_string())
+        );
+        assert!(resp.result.is_none());
+    }
+
+    #[test]
+    fn remote_command_response_omits_none_fields() {
+        let resp = RemoteCommandResponse::ok(
+            "req-3".to_string(),
+            "claude.stop.v1".to_string(),
+            json!({"stopped": true}),
+        );
+
+        let value = serde_json::to_value(&resp).unwrap();
+        assert!(value.get("error_code").is_none());
+        assert!(value.get("error_message").is_none());
+        assert!(value.get("result").is_some());
+    }
+
+    #[test]
+    fn remote_command_response_round_trip() {
+        let resp = RemoteCommandResponse::error(
+            "req-4".to_string(),
+            "session.create.v1".to_string(),
+            "not_found",
+            "repository not found",
+        );
+
+        let serialized = serde_json::to_string(&resp).unwrap();
+        let deserialized: RemoteCommandResponse = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.request_id, resp.request_id);
+        assert_eq!(deserialized.status, RemoteCommandStatus::Error);
+        assert_eq!(deserialized.error_code, Some("not_found".to_string()));
+    }
+}
