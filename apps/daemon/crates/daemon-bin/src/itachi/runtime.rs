@@ -215,15 +215,23 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
 
 /// Dispatch a remote command to the appropriate handler function.
 /// Returns Ok(result_json) or Err((error_code, error_message)).
-pub async fn dispatch_command(
+async fn dispatch_command(
     state: &DaemonState,
     envelope: &RemoteCommandEnvelope,
 ) -> Result<serde_json::Value, (String, String)> {
     match envelope.command_type.as_str() {
-        // Wired in a subsequent commit once handler core functions are extracted
+        "session.create.v1" => {
+            crate::ipc::handlers::session::create_session_core(state, &envelope.params).await
+        }
+        "claude.send.v1" => {
+            crate::ipc::handlers::claude::claude_send_core(state, &envelope.params).await
+        }
+        "claude.stop.v1" => {
+            crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
+        }
         other => Err((
-            "not_implemented".to_string(),
-            format!("command type {other} is not yet implemented"),
+            "unsupported_command_type".to_string(),
+            format!("command type {other} is not supported"),
         )),
     }
 }
