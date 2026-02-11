@@ -6,6 +6,78 @@ pub const DECISION_SCHEMA_VERSION: u8 = 1;
 pub const SESSION_SECRET_RESPONSE_EVENT: &str = "session.secret.response.v1";
 pub const SESSION_SECRET_RESPONSE_SCHEMA_VERSION: u8 = 1;
 pub const SESSION_SECRET_ALGORITHM: &str = "x25519-hkdf-sha256-chacha20poly1305";
+pub const REMOTE_COMMAND_RESPONSE_EVENT: &str = "remote.command.response.v1";
+
+/// Generic remote command envelope sent from iOS via Ably.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteCommandEnvelope {
+    pub schema_version: u8,
+    #[serde(rename = "type")]
+    pub command_type: String,
+    pub request_id: String,
+    pub requester_device_id: String,
+    pub target_device_id: String,
+    pub requested_at_ms: i64,
+    pub params: serde_json::Value,
+}
+
+/// Status of a remote command response.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteCommandStatus {
+    Ok,
+    Error,
+}
+
+/// Response envelope published back to iOS via Falco.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteCommandResponse {
+    pub schema_version: u8,
+    pub request_id: String,
+    #[serde(rename = "type")]
+    pub command_type: String,
+    pub status: RemoteCommandStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    pub created_at_ms: i64,
+}
+
+impl RemoteCommandResponse {
+    pub fn ok(request_id: String, command_type: String, result: serde_json::Value) -> Self {
+        Self {
+            schema_version: 1,
+            request_id,
+            command_type,
+            status: RemoteCommandStatus::Ok,
+            result: Some(result),
+            error_code: None,
+            error_message: None,
+            created_at_ms: chrono::Utc::now().timestamp_millis(),
+        }
+    }
+
+    pub fn error(
+        request_id: String,
+        command_type: String,
+        error_code: impl Into<String>,
+        error_message: impl Into<String>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            request_id,
+            command_type,
+            status: RemoteCommandStatus::Error,
+            result: None,
+            error_code: Some(error_code.into()),
+            error_message: Some(error_message.into()),
+            created_at_ms: chrono::Utc::now().timestamp_millis(),
+        }
+    }
+}
 
 /// Incoming remote command payload for UM secret sharing.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
