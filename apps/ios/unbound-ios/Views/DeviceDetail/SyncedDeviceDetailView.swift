@@ -74,12 +74,12 @@ struct SyncedDeviceDetailView: View {
             // Device icon (compact: 40pt)
             ZStack {
                 Circle()
-                    .fill(AppTheme.accentGradient.opacity(0.15))
+                    .fill(AppTheme.amberAccent.opacity(0.15))
                     .frame(width: 40, height: 40)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.amberAccent)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -113,6 +113,8 @@ struct SyncedDeviceDetailView: View {
 
             Spacer()
         }
+        .padding(AppTheme.spacingM)
+        .thinBorderCard()
         .padding(.horizontal, AppTheme.spacingM)
     }
 
@@ -192,7 +194,7 @@ struct SyncedRepositoryGroupView: View {
                         .padding(.bottom, AppTheme.spacingM)
                 } else {
                     Divider()
-                        .background(Color.white.opacity(0.06))
+                        .overlay(Color.white.opacity(0.1))
                         .padding(.horizontal, AppTheme.spacingM)
 
                     VStack(spacing: 4) {
