@@ -4,10 +4,19 @@ struct SyncedSessionDetailView: View {
     let session: SyncedSession
 
     @State private var viewModel: SyncedSessionDetailViewModel
+    @State private var hasAppliedInitialBottomScroll = false
 
-    init(session: SyncedSession) {
+    init(
+        session: SyncedSession,
+        messageService: SessionDetailMessageLoading = SessionDetailMessageService()
+    ) {
         self.session = session
-        _viewModel = State(initialValue: SyncedSessionDetailViewModel(session: session))
+        _viewModel = State(
+            initialValue: SyncedSessionDetailViewModel(
+                session: session,
+                messageService: messageService
+            )
+        )
     }
 
     private var visibleMessages: [Message] {
@@ -49,7 +58,10 @@ struct SyncedSessionDetailView: View {
             }
         }
         .task {
-            await viewModel.loadMessages()
+            await viewModel.start()
+        }
+        .onDisappear {
+            viewModel.stopRealtimeUpdates()
         }
     }
 
@@ -72,14 +84,29 @@ struct SyncedSessionDetailView: View {
                 .padding(.top, AppTheme.spacingM)
                 .padding(.bottom, AppTheme.spacingXL)
             }
+            .defaultScrollAnchor(.bottom)
             .refreshable {
                 await viewModel.loadMessages(force: true)
             }
             .onChange(of: viewModel.messages.count) { oldCount, newCount in
                 if oldCount == 0, newCount > 0 {
-                    proxy.scrollTo("bottom", anchor: .bottom)
+                    scrollToBottom(proxy: proxy)
                 }
             }
+            .onAppear {
+                guard !hasAppliedInitialBottomScroll, !viewModel.messages.isEmpty else {
+                    return
+                }
+                hasAppliedInitialBottomScroll = true
+                scrollToBottom(proxy: proxy)
+            }
+        }
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            proxy.scrollTo("bottom", anchor: .bottom)
+            hasAppliedInitialBottomScroll = true
         }
     }
 
@@ -200,3 +227,62 @@ struct SyncedSessionDetailView: View {
     }
     #endif
 }
+
+#if DEBUG
+private struct SyncedSessionDetailPreviewFixture {
+    let session: SyncedSession
+    let loader: SessionDetailFixtureMessageLoader
+
+    static func load() throws -> SyncedSessionDetailPreviewFixture {
+        let loader = try SessionDetailFixtureMessageLoader()
+        let fixture = try loader.loadFixture()
+
+        let sessionID = UUID(uuidString: fixture.session.id) ?? UUID()
+        let repositoryID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        let sessionRecord = SessionRecord(
+            id: sessionID.uuidString,
+            repositoryId: repositoryID.uuidString,
+            title: fixture.session.title,
+            claudeSessionId: nil,
+            isWorktree: false,
+            worktreePath: nil,
+            status: fixture.session.status,
+            deviceId: nil,
+            createdAt: fixture.session.createdAt,
+            lastAccessedAt: fixture.session.lastAccessedAt,
+            updatedAt: fixture.session.lastAccessedAt
+        )
+
+        return SyncedSessionDetailPreviewFixture(
+            session: SyncedSession(from: sessionRecord),
+            loader: loader
+        )
+    }
+}
+
+#Preview("Session Detail Fixture") {
+    Group {
+        if let fixture = try? SyncedSessionDetailPreviewFixture.load() {
+            NavigationStack {
+                SyncedSessionDetailView(
+                    session: fixture.session,
+                    messageService: fixture.loader
+                )
+            }
+        } else {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                Text("Missing Session Detail Fixture")
+                    .font(.headline)
+                Text("Run apps/ios/scripts/export_max_session_fixture.sh")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+        }
+    }
+    .background(AppTheme.backgroundPrimary)
+}
+#endif

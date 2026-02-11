@@ -12,6 +12,11 @@ use tracing::{debug, info, warn};
 pub fn falco_binary_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
+    // Environment variable override (highest priority).
+    if let Ok(override_path) = std::env::var("FALCO_BINARY") {
+        candidates.push(PathBuf::from(override_path));
+    }
+
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
             // Primary production path: helper binary shipped next to daemon.
@@ -27,6 +32,11 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
                     candidates.push(contents_dir.join("Resources").join("falco"));
                 }
             }
+
+            // Best-effort local-dev fallback to monorepo package binary.
+            if let Some(repo_root) = infer_repo_root(parent) {
+                candidates.push(repo_root.join("packages").join("daemon-falco").join("falco"));
+            }
         }
     }
 
@@ -39,6 +49,14 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
     }
 
     unique
+}
+
+/// Walk up ancestor directories to find the repo root.
+fn infer_repo_root(exe_parent: &Path) -> Option<PathBuf> {
+    exe_parent
+        .ancestors()
+        .find(|path| path.join("packages").join("daemon-falco").exists())
+        .map(Path::to_path_buf)
 }
 
 /// Spawns Falco using known candidate binary locations.

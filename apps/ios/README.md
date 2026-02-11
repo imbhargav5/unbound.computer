@@ -29,6 +29,26 @@ xcodebuild build \
   -sdk iphoneos
 ```
 
+## Session Detail Preview Fixture
+
+The `SyncedSessionDetailView` canvas preview uses a committed fixture at:
+
+- `unbound-ios/Resources/PreviewFixtures/session-detail-max-messages.json`
+
+Regenerate it from the macOS SQLite database:
+
+```bash
+./scripts/export_max_session_fixture.sh
+```
+
+Optional arguments:
+
+```bash
+./scripts/export_max_session_fixture.sh \
+  "/Users/bhargavponnapalli/Library/Application Support/com.unbound.macos/unbound.sqlite" \
+  "unbound-ios/Resources/PreviewFixtures/session-detail-max-messages.json"
+```
+
 ## Bundle Configuration
 
 ### Main App

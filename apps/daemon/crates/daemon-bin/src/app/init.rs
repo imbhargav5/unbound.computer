@@ -237,6 +237,47 @@ pub async fn run_daemon(
             );
         }
 
+        // If socket exists but isn't connectable, clean up and re-spawn.
+        if falco_socket_path.exists() {
+            if let Err(err) = ensure_socket_connectable(&falco_socket_path).await {
+                warn!(
+                    socket = %falco_socket_path.display(),
+                    error = %err,
+                    "Falco socket exists but is not connectable; removing stale socket and re-spawning"
+                );
+                if let Err(rm_err) = std::fs::remove_file(&falco_socket_path) {
+                    warn!(
+                        socket = %falco_socket_path.display(),
+                        error = %rm_err,
+                        "Failed to remove stale Falco socket; disabling Ably hot-path message sync"
+                    );
+                } else if let Some(device_id) = local_device_id.as_deref() {
+                    match start_falco_sidecar(
+                        &paths,
+                        device_id,
+                        ably_api_key,
+                        &config.log_level,
+                        Duration::from_secs(5),
+                        "stale_socket_recovery",
+                    )
+                    .await
+                    {
+                        Ok(child) => {
+                            info!(
+                                socket = %falco_socket_path.display(),
+                                "Re-started Falco sidecar after stale socket cleanup"
+                            );
+                            initial_falco_process = Some(child);
+                        }
+                        Err(spawn_err) => warn!(
+                            error = %spawn_err,
+                            "Failed to re-start Falco after stale socket cleanup; disabling Ably hot-path message sync"
+                        ),
+                    }
+                }
+            }
+        }
+
         if falco_socket_path.exists() {
             match ensure_socket_connectable(&falco_socket_path).await {
                 Ok(()) => {
@@ -256,7 +297,7 @@ pub async fn run_daemon(
                     warn!(
                         socket = %falco_socket_path.display(),
                         error = %err,
-                        "Falco socket exists but is not connectable; disabling Ably hot-path message sync"
+                        "Falco socket not connectable after recovery attempt; disabling Ably hot-path message sync"
                     );
                     None
                 }

@@ -133,7 +133,7 @@ struct WorkspacesSidebar: View {
                                 locations: group.locations,
                                 selectedSessionId: appState.selectedSessionId,
                                 onSelectSession: { session in
-                                    appState.selectedSessionId = session.id
+                                    appState.selectSession(session.id)
                                 },
                                 onCreateSession: onCreateSessionForRepository,
                                 onRequestRemoveRepository: { repository in

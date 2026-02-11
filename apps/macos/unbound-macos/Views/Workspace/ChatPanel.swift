@@ -111,7 +111,9 @@ struct ChatPanel: View {
         }
 
         // Otherwise use the repository path
-        guard let path = repository?.path else { return .noRepository }
+        let repositoryPath = repository?.path
+            ?? appState.repositories.first(where: { $0.id == session.repositoryId })?.path
+        guard let path = repositoryPath else { return .noRepository }
         guard FileManager.default.fileExists(atPath: path) else {
             return .pathNotFound(path)
         }
@@ -380,7 +382,9 @@ struct ChatPanel: View {
                         case .valid, .noSession:
                             // Welcome view for empty chat
                             WelcomeChatView(
-                                repoPath: repository?.name ?? "repository",
+                                repoPath: repository?.name
+                                    ?? appState.repositories.first(where: { $0.id == session.repositoryId })?.name
+                                    ?? "repository",
                                 tip: FakeData.tipMessage
                             )
                         }

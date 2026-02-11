@@ -447,6 +447,147 @@ final class SessionDetailMessageServiceTests: XCTestCase {
         XCTAssertEqual(activity.tools.first?.summary, "Read docs/README.md")
     }
 
+    func testMessageUpdatesDecryptsRealtimeEnvelopeAndYieldsGroupedTimeline() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xBC, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}"#
+        let childToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Read","input":{"file_path":"README.md"}}]}}"#
+
+        let encryptedTask = try encrypt(plaintext: taskPayload, key: keyData)
+        let encryptedChildTool = try encrypt(plaintext: childToolPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "1",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedTask.ciphertextB64,
+                    contentNonce: encryptedTask.nonceB64
+                )
+            ]
+        )
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let conversationService = MockConversationService()
+        let service = SessionDetailMessageService(
+            remoteSource: remote,
+            secretResolver: resolver,
+            conversationService: conversationService
+        )
+
+        let stream = service.messageUpdates(sessionId: sessionId)
+        let firstUpdateTask = Task {
+            var iterator = stream.makeAsyncIterator()
+            return try await iterator.next()
+        }
+
+        await conversationService.waitForSubscription()
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "2",
+                sequenceNumber: 2,
+                senderDeviceId: UUID().uuidString.lowercased(),
+                createdAtMs: 20_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedChildTool.ciphertextB64,
+                contentNonce: encryptedChildTool.nonceB64
+            )
+        )
+        conversationService.finish()
+
+        let updateValue = try await firstUpdateTask.value
+        let update = try XCTUnwrap(updateValue)
+        XCTAssertEqual(update.decryptedMessageCount, 2)
+        XCTAssertEqual(update.messages.count, 1)
+        XCTAssertEqual(remote.fetchCalls, 1)
+        XCTAssertEqual(resolver.calls, 1)
+
+        guard let blocks = update.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected realtime update to produce grouped sub-agent activity")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_1")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "tool_1")
+    }
+
+    func testMessageUpdatesDeduplicatesRealtimeRowsByMessageID() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xBD, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let firstPayload = #"{"role":"assistant","content":"first"}"#
+        let secondPayload = #"{"role":"assistant","content":"second"}"#
+        let encryptedFirst = try encrypt(plaintext: firstPayload, key: keyData)
+        let encryptedSecond = try encrypt(plaintext: secondPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(rows: [])
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let conversationService = MockConversationService()
+        let service = SessionDetailMessageService(
+            remoteSource: remote,
+            secretResolver: resolver,
+            conversationService: conversationService
+        )
+
+        let stream = service.messageUpdates(sessionId: sessionId)
+        let updatesTask = Task {
+            var iterator = stream.makeAsyncIterator()
+            var updates: [SessionDetailLoadResult] = []
+            while updates.count < 2, let next = try await iterator.next() {
+                updates.append(next)
+            }
+            return updates
+        }
+
+        await conversationService.waitForSubscription()
+        let senderDeviceID = UUID().uuidString.lowercased()
+
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "rt-1",
+                sequenceNumber: 1,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 1_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedFirst.ciphertextB64,
+                contentNonce: encryptedFirst.nonceB64
+            )
+        )
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "rt-1",
+                sequenceNumber: 1,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 2_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedSecond.ciphertextB64,
+                contentNonce: encryptedSecond.nonceB64
+            )
+        )
+        conversationService.finish()
+
+        let updates = try await updatesTask.value
+        XCTAssertEqual(updates.count, 2)
+
+        XCTAssertEqual(updates[0].decryptedMessageCount, 1)
+        XCTAssertEqual(updates[0].messages.map(\.content), ["first"])
+
+        XCTAssertEqual(updates[1].decryptedMessageCount, 1)
+        XCTAssertEqual(updates[1].messages.map(\.content), ["second"])
+    }
+
     private func encrypt(plaintext: String, key: Data) throws -> (ciphertextB64: String, nonceB64: String) {
         let symmetricKey = SymmetricKey(data: key)
         let sealed = try ChaChaPoly.seal(Data(plaintext.utf8), using: symmetricKey)
@@ -503,5 +644,33 @@ private final class MockSessionSecretResolver: SessionSecretResolving {
         _ = sessionId
         calls += 1
         return try result.get()
+    }
+}
+
+private final class MockConversationService: SessionDetailConversationStreaming {
+    private var continuation: AsyncThrowingStream<AblyConversationMessageEnvelope, Error>.Continuation?
+
+    func subscribe(sessionId _: UUID) -> AsyncThrowingStream<AblyConversationMessageEnvelope, Error> {
+        AsyncThrowingStream { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func yield(_ envelope: AblyConversationMessageEnvelope) {
+        continuation?.yield(envelope)
+    }
+
+    func finish() {
+        continuation?.finish()
+    }
+
+    func waitForSubscription(timeoutNanoseconds: UInt64 = 1_000_000_000) async {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while continuation == nil {
+            if DispatchTime.now().uptimeNanoseconds - start > timeoutNanoseconds {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 }

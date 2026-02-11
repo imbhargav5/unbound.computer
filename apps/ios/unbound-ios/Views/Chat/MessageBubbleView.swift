@@ -44,21 +44,53 @@ struct MessageBubbleView: View {
 
     @ViewBuilder
     private func parsedContentView(blocks: [SessionContentBlock]) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            ForEach(blocks) { block in
-                switch block {
-                case .text:
-                    SessionContentBlockView(block: block)
-                        .padding(.horizontal, AppTheme.spacingM)
-                        .padding(.vertical, AppTheme.spacingS + 2)
-                        .background(AppTheme.assistantBubble)
-                        .clipShape(MessageBubbleShape(isUser: false))
+        let displayBlocks = groupedParsedBlocks(from: blocks)
 
-                case .toolUse, .subAgentActivity, .error:
-                    SessionContentBlockView(block: block)
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            ForEach(displayBlocks) { displayBlock in
+                switch displayBlock {
+                case .standaloneToolUseGroup(let tools):
+                    StandaloneToolUseGroupCardView(tools: tools)
+
+                case .block(let block):
+                    switch block {
+                    case .text:
+                        SessionContentBlockView(block: block)
+                            .padding(.horizontal, AppTheme.spacingM)
+                            .padding(.vertical, AppTheme.spacingS + 2)
+                            .background(AppTheme.assistantBubble)
+                            .clipShape(MessageBubbleShape(isUser: false))
+
+                    case .toolUse, .subAgentActivity, .error:
+                        SessionContentBlockView(block: block)
+                    }
                 }
             }
         }
+    }
+
+    private func groupedParsedBlocks(from blocks: [SessionContentBlock]) -> [ParsedDisplayBlock] {
+        var grouped: [ParsedDisplayBlock] = []
+        var pendingStandaloneTools: [SessionToolUse] = []
+
+        func flushPendingTools() {
+            guard !pendingStandaloneTools.isEmpty else { return }
+            grouped.append(.standaloneToolUseGroup(pendingStandaloneTools))
+            pendingStandaloneTools.removeAll(keepingCapacity: true)
+        }
+
+        for block in blocks {
+            if case .toolUse(let tool) = block {
+                pendingStandaloneTools.append(tool)
+                continue
+            }
+
+            flushPendingTools()
+            grouped.append(.block(block))
+        }
+
+        flushPendingTools()
+        return grouped
     }
 
     private var assistantTextBubble: some View {
@@ -97,6 +129,81 @@ struct MessageBubbleView: View {
             .font(.caption2)
             .foregroundStyle(AppTheme.textTertiary)
             .padding(.horizontal, 4)
+    }
+}
+
+private enum ParsedDisplayBlock: Identifiable {
+    case block(SessionContentBlock)
+    case standaloneToolUseGroup([SessionToolUse])
+
+    var id: String {
+        switch self {
+        case .block(let block):
+            return "block:\(block.id)"
+        case .standaloneToolUseGroup(let tools):
+            let ids = tools.map { $0.id.uuidString }.joined(separator: ",")
+            return "tool-group:\(ids)"
+        }
+    }
+}
+
+private struct StandaloneToolUseGroupCardView: View {
+    let tools: [SessionToolUse]
+    @State private var isExpanded = false
+
+    private var primaryTitle: String {
+        if tools.count == 1, let tool = tools.first {
+            return tool.summary
+        }
+        return "Tool Use Activity"
+    }
+
+    private var secondaryTitle: String {
+        if tools.count == 1, let tool = tools.first {
+            return tool.toolName
+        }
+        return "\(tools.count) tool calls"
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+                ForEach(tools) { tool in
+                    SessionContentBlockView(block: .toolUse(tool))
+                }
+            }
+            .padding(.top, AppTheme.spacingXS)
+        } label: {
+            HStack(spacing: AppTheme.spacingS) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(primaryTitle)
+                        .font(Typography.footnote.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+
+                    Text(secondaryTitle)
+                        .font(Typography.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                Text("\(tools.count)")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .tint(AppTheme.textSecondary)
+        .padding(.horizontal, AppTheme.spacingS + 2)
+        .padding(.vertical, AppTheme.spacingXS + 2)
+        .background(AppTheme.backgroundSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
     }
 }
 

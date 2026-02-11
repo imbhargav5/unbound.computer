@@ -1,0 +1,103 @@
+import Foundation
+import XCTest
+
+@testable import unbound_ios
+
+final class SessionDetailMessageMapperTests: XCTestCase {
+    func testMapRowsGroupsSubAgentToolUsesAcrossMessages() {
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}"#
+        let childReadPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        let childGrepPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_2","name":"Grep","input":{"pattern":"TODO"}}]}}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 3,
+                createdAt: Date(timeIntervalSince1970: 30),
+                content: childGrepPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 2,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: childReadPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: taskPayload
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows, totalMessageCount: rows.count)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 1)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one grouped sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_1")
+        XCTAssertEqual(activity.subagentType, "Explore")
+        XCTAssertEqual(activity.tools.count, 2)
+        XCTAssertEqual(activity.tools.map(\.toolName), ["Read", "Grep"])
+    }
+
+    func testMapRowsMergesDuplicateSubAgentActivitiesAndDeduplicatesToolsById() {
+        let initialTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"general-purpose","description":"Initial scan"}}]}}"#
+        let updatedTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_1","name":"Task","input":{"subagent_type":"Plan","description":"Critical review"}}]}}"#
+        let firstToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_read","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        let secondToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_1","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_read","name":"Read","input":{"file_path":"docs/README.md"}}]}}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 4,
+                createdAt: Date(timeIntervalSince1970: 40),
+                content: secondToolPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 3,
+                createdAt: Date(timeIntervalSince1970: 30),
+                content: firstToolPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 2,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: updatedTaskPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: initialTaskPayload
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows, totalMessageCount: rows.count)
+
+        XCTAssertEqual(result.decryptedMessageCount, 4)
+        XCTAssertEqual(result.messages.count, 1)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one merged sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_1")
+        XCTAssertEqual(activity.subagentType, "Plan")
+        XCTAssertEqual(activity.description, "Critical review")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "tool_read")
+        XCTAssertEqual(activity.tools.first?.summary, "Read docs/README.md")
+    }
+}

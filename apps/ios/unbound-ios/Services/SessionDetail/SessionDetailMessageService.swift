@@ -23,18 +23,23 @@ struct SessionDetailLoadResult {
 
 protocol SessionDetailMessageLoading {
     func loadMessages(sessionId: UUID) async throws -> SessionDetailLoadResult
+    func messageUpdates(sessionId: UUID) -> AsyncThrowingStream<SessionDetailLoadResult, Error>
 }
 
 final class SessionDetailMessageService: SessionDetailMessageLoading {
     private let remoteSource: SessionDetailMessageRemoteSource
     private let secretResolver: SessionSecretResolving
+    private let conversationService: SessionDetailConversationStreaming
+    private let cache = SessionDetailMessageCache()
 
     init(
         remoteSource: SessionDetailMessageRemoteSource = SupabaseSessionDetailMessageRemoteSource(),
-        secretResolver: SessionSecretResolving = CodingSessionViewerService()
+        secretResolver: SessionSecretResolving = CodingSessionViewerService(),
+        conversationService: SessionDetailConversationStreaming = AblyConversationService()
     ) {
         self.remoteSource = remoteSource
         self.secretResolver = secretResolver
+        self.conversationService = conversationService
     }
 
     func loadMessages(sessionId: UUID) async throws -> SessionDetailLoadResult {
@@ -42,10 +47,90 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
         sessionDetailServiceLogger.debug(
             "Fetched \(rows.count) encrypted rows for session \(sessionId.uuidString.lowercased())"
         )
+        await cache.setRows(rows, for: sessionId)
+
         guard !rows.isEmpty else {
             return SessionDetailLoadResult(messages: [], decryptedMessageCount: 0)
         }
 
+        let sessionKey = try await resolveSessionKey(sessionId: sessionId)
+        await cache.setSessionKey(sessionKey, for: sessionId)
+        return try decryptAndMap(
+            rows: rows,
+            sessionKey: sessionKey,
+            sessionId: sessionId
+        )
+    }
+
+    func messageUpdates(sessionId: UUID) -> AsyncThrowingStream<SessionDetailLoadResult, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let sessionKey = try await ensureSessionKey(sessionId: sessionId)
+                    _ = try await ensureSeedRows(sessionId: sessionId)
+
+                    for try await envelope in conversationService.subscribe(sessionId: sessionId) {
+                        let mergedRows = await cache.upsert(
+                            envelope.toEncryptedRow(),
+                            for: sessionId
+                        )
+
+                        do {
+                            let result = try decryptAndMap(
+                                rows: mergedRows,
+                                sessionKey: sessionKey,
+                                sessionId: sessionId
+                            )
+                            continuation.yield(result)
+                        } catch let error as SessionDetailMessageError {
+                            sessionDetailServiceLogger.error(
+                                "Ignoring realtime session payload for session \(sessionId.uuidString.lowercased()): \(error.localizedDescription)"
+                            )
+                        } catch {
+                            sessionDetailServiceLogger.error(
+                                "Ignoring realtime session payload for session \(sessionId.uuidString.lowercased()): \(error.localizedDescription)"
+                            )
+                        }
+                    }
+
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    sessionDetailServiceLogger.error(
+                        "Session detail realtime subscription failed for session \(sessionId.uuidString.lowercased()): \(error.localizedDescription)"
+                    )
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func ensureSeedRows(sessionId: UUID) async throws -> [EncryptedSessionMessageRow] {
+        if let cachedRows = await cache.cachedRows(for: sessionId) {
+            return cachedRows
+        }
+
+        let rows = try await remoteSource.fetchEncryptedRows(sessionId: sessionId)
+        await cache.setRows(rows, for: sessionId)
+        return rows
+    }
+
+    private func ensureSessionKey(sessionId: UUID) async throws -> Data {
+        if let cachedSessionKey = await cache.sessionKey(for: sessionId) {
+            return cachedSessionKey
+        }
+
+        let resolvedSessionKey = try await resolveSessionKey(sessionId: sessionId)
+        await cache.setSessionKey(resolvedSessionKey, for: sessionId)
+        return resolvedSessionKey
+    }
+
+    private func resolveSessionKey(sessionId: UUID) async throws -> Data {
         let sessionSecret: String
         do {
             sessionSecret = try await secretResolver.joinCodingSession(sessionId)
@@ -63,9 +148,17 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
             throw SessionDetailMessageError.secretResolutionFailed
         }
 
+        return sessionKey
+    }
+
+    private func decryptAndMap(
+        rows: [EncryptedSessionMessageRow],
+        sessionKey: Data,
+        sessionId: UUID
+    ) throws -> SessionDetailLoadResult {
         do {
-            var mapped: [(sequenceNumber: Int, message: Message)] = []
-            mapped.reserveCapacity(rows.count)
+            var plaintextRows: [SessionDetailPlaintextMessageRow] = []
+            plaintextRows.reserveCapacity(rows.count)
 
             for row in rows {
                 let plaintext: String
@@ -78,31 +171,19 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
                     throw SessionDetailMessageError.decryptFailed
                 }
 
-                guard let entry = SessionMessagePayloadParser.timelineEntry(from: plaintext) else {
-                    continue
-                }
-
-                mapped.append((
-                    sequenceNumber: row.sequenceNumber,
-                    message: Message(
-                        id: row.stableUUID,
-                        content: entry.content,
-                        role: entry.role,
-                        timestamp: row.createdAt ?? Date(timeIntervalSince1970: 0),
-                        isStreaming: false,
-                        parsedContent: entry.blocks.isEmpty ? nil : entry.blocks
+                plaintextRows.append(
+                    SessionDetailPlaintextMessageRow(
+                        id: row.id,
+                        sequenceNumber: row.sequenceNumber,
+                        createdAt: row.createdAt,
+                        content: plaintext
                     )
-                ))
+                )
             }
 
-            let sortedMessages = mapped
-                .sorted { lhs, rhs in lhs.sequenceNumber < rhs.sequenceNumber }
-                .map(\.message)
-            let groupedMessages = groupSubAgentTools(messages: sortedMessages)
-
-            return SessionDetailLoadResult(
-                messages: groupedMessages,
-                decryptedMessageCount: rows.count
+            return SessionDetailMessageMapper.mapRows(
+                plaintextRows,
+                totalMessageCount: rows.count
             )
         } catch let error as SessionDetailMessageError {
             sessionDetailServiceLogger.error(
@@ -116,261 +197,48 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
             throw SessionDetailMessageError.payloadParseFailed
         }
     }
-
-    private func groupSubAgentTools(messages: [Message]) -> [Message] {
-        let subAgentParents = collectSubAgentParents(messages: messages)
-        guard !subAgentParents.isEmpty else { return messages }
-
-        var result: [Message] = []
-        var anchorByParent: [String: GroupAnchor] = [:]
-        var pendingToolsByParent: [String: [SessionToolUse]] = [:]
-
-        for message in messages {
-            guard let parsedContent = message.parsedContent, !parsedContent.isEmpty else {
-                result.append(message)
-                continue
-            }
-
-            var newBlocks: [SessionContentBlock] = []
-            var localIndexByParent: [String: Int] = [:]
-
-            for block in parsedContent {
-                switch block {
-                case .subAgentActivity(var activity):
-                    if let pending = pendingToolsByParent.removeValue(forKey: activity.parentToolUseId) {
-                        activity.tools = mergeTools(existing: activity.tools, incoming: pending)
-                    }
-                    activity.tools = mergeTools(existing: [], incoming: activity.tools)
-
-                    if let localIndex = localIndexByParent[activity.parentToolUseId] {
-                        merge(subAgentActivity: activity, toLocalIndex: localIndex, in: &newBlocks)
-                    } else if let anchor = anchorByParent[activity.parentToolUseId] {
-                        merge(subAgentActivity: activity, to: anchor, in: &result)
-                    } else {
-                        newBlocks.append(.subAgentActivity(activity))
-                        localIndexByParent[activity.parentToolUseId] = newBlocks.count - 1
-                    }
-
-                case .toolUse(let toolUse):
-                    if let parentId = toolUse.parentToolUseId,
-                       subAgentParents.contains(parentId) {
-                        if let localIndex = localIndexByParent[parentId] {
-                            append(toolUse: toolUse, toLocalIndex: localIndex, in: &newBlocks)
-                        } else if let anchor = anchorByParent[parentId] {
-                            append(toolUse: toolUse, to: anchor, in: &result)
-                        } else {
-                            pendingToolsByParent[parentId, default: []].append(toolUse)
-                        }
-                        continue
-                    }
-                    newBlocks.append(.toolUse(toolUse))
-
-                default:
-                    newBlocks.append(block)
-                }
-            }
-
-            if newBlocks.isEmpty {
-                continue
-            }
-
-            let rebuilt = rebuiltMessage(
-                from: message,
-                content: content(from: newBlocks),
-                parsedContent: newBlocks
-            )
-            result.append(rebuilt)
-
-            let messageIndex = result.count - 1
-            for (parentId, blockIndex) in localIndexByParent {
-                anchorByParent[parentId] = GroupAnchor(
-                    messageIndex: messageIndex,
-                    blockIndex: blockIndex
-                )
-            }
-        }
-
-        return result
-    }
-
-    private func collectSubAgentParents(messages: [Message]) -> Set<String> {
-        var parents: Set<String> = []
-
-        for message in messages {
-            guard let blocks = message.parsedContent else { continue }
-            for block in blocks {
-                if case .subAgentActivity(let activity) = block {
-                    parents.insert(activity.parentToolUseId)
-                }
-            }
-        }
-
-        return parents
-    }
-
-    private func append(toolUse: SessionToolUse, to anchor: GroupAnchor, in messages: inout [Message]) {
-        guard messages.indices.contains(anchor.messageIndex) else { return }
-        let message = messages[anchor.messageIndex]
-        guard var parsed = message.parsedContent,
-              parsed.indices.contains(anchor.blockIndex) else {
-            return
-        }
-
-        guard case .subAgentActivity(var activity) = parsed[anchor.blockIndex] else {
-            return
-        }
-
-        activity.tools = mergeTools(existing: activity.tools, incoming: [toolUse])
-        parsed[anchor.blockIndex] = .subAgentActivity(activity)
-
-        messages[anchor.messageIndex] = rebuiltMessage(
-            from: message,
-            content: content(from: parsed),
-            parsedContent: parsed
-        )
-    }
-
-    private func append(toolUse: SessionToolUse, toLocalIndex index: Int, in blocks: inout [SessionContentBlock]) {
-        guard blocks.indices.contains(index),
-              case .subAgentActivity(var activity) = blocks[index] else {
-            return
-        }
-
-        activity.tools = mergeTools(existing: activity.tools, incoming: [toolUse])
-        blocks[index] = .subAgentActivity(activity)
-    }
-
-    private func merge(subAgentActivity incoming: SessionSubAgentActivity, to anchor: GroupAnchor, in messages: inout [Message]) {
-        guard messages.indices.contains(anchor.messageIndex) else { return }
-        let message = messages[anchor.messageIndex]
-        guard var parsed = message.parsedContent,
-              parsed.indices.contains(anchor.blockIndex),
-              case .subAgentActivity(let existing) = parsed[anchor.blockIndex] else {
-            return
-        }
-
-        parsed[anchor.blockIndex] = .subAgentActivity(mergedActivity(existing: existing, incoming: incoming))
-
-        messages[anchor.messageIndex] = rebuiltMessage(
-            from: message,
-            content: content(from: parsed),
-            parsedContent: parsed
-        )
-    }
-
-    private func merge(subAgentActivity incoming: SessionSubAgentActivity, toLocalIndex index: Int, in blocks: inout [SessionContentBlock]) {
-        guard blocks.indices.contains(index),
-              case .subAgentActivity(let existing) = blocks[index] else {
-            return
-        }
-
-        blocks[index] = .subAgentActivity(mergedActivity(existing: existing, incoming: incoming))
-    }
-
-    private func mergedActivity(
-        existing: SessionSubAgentActivity,
-        incoming: SessionSubAgentActivity
-    ) -> SessionSubAgentActivity {
-        let resolvedSubagentType = mergedSubagentType(
-            existing: existing.subagentType,
-            incoming: incoming.subagentType
-        )
-        let resolvedDescription = mergedDescription(
-            existing: existing.description,
-            incoming: incoming.description
-        )
-
-        return SessionSubAgentActivity(
-            id: existing.id,
-            parentToolUseId: existing.parentToolUseId,
-            subagentType: resolvedSubagentType,
-            description: resolvedDescription,
-            tools: mergeTools(existing: existing.tools, incoming: incoming.tools)
-        )
-    }
-
-    private func mergedDescription(existing: String, incoming: String) -> String {
-        let trimmedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedIncoming.isEmpty else { return existing }
-        return incoming
-    }
-
-    private func mergedSubagentType(existing: String, incoming: String) -> String {
-        if isPlaceholderSubagentType(existing), !isPlaceholderSubagentType(incoming) {
-            return incoming
-        }
-        return existing
-    }
-
-    private func isPlaceholderSubagentType(_ value: String) -> Bool {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
-            || normalized == "general purpose" || normalized == "general"
-    }
-
-    private func mergeTools(existing: [SessionToolUse], incoming: [SessionToolUse]) -> [SessionToolUse] {
-        guard !incoming.isEmpty else { return existing }
-
-        var merged = existing
-        var indexByKey: [String: Int] = [:]
-
-        for (index, tool) in existing.enumerated() {
-            indexByKey[toolDedupKey(for: tool)] = index
-        }
-
-        for tool in incoming {
-            let key = toolDedupKey(for: tool)
-            if let existingIndex = indexByKey[key] {
-                merged[existingIndex] = tool
-            } else {
-                indexByKey[key] = merged.count
-                merged.append(tool)
-            }
-        }
-
-        return merged
-    }
-
-    private func toolDedupKey(for tool: SessionToolUse) -> String {
-        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
-            return "id:\(toolUseId)"
-        }
-
-        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
-    }
-
-    private func rebuiltMessage(from message: Message, content: String, parsedContent: [SessionContentBlock]) -> Message {
-        Message(
-            id: message.id,
-            content: content,
-            role: message.role,
-            timestamp: message.timestamp,
-            codeBlocks: message.codeBlocks,
-            isStreaming: message.isStreaming,
-            richContent: message.richContent,
-            parsedContent: parsedContent
-        )
-    }
-
-    private func content(from blocks: [SessionContentBlock]) -> String {
-        blocks.compactMap { block in
-            switch block {
-            case .text(let text):
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
-            case .error(let message):
-                let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
-            case .toolUse, .subAgentActivity:
-                return nil
-            }
-        }
-        .joined(separator: "\n")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
-private struct GroupAnchor {
-    let messageIndex: Int
-    let blockIndex: Int
+private actor SessionDetailMessageCache {
+    private var rowsBySession: [UUID: [EncryptedSessionMessageRow]] = [:]
+    private var sessionKeyBySession: [UUID: Data] = [:]
+
+    func setRows(_ rows: [EncryptedSessionMessageRow], for sessionId: UUID) {
+        rowsBySession[sessionId] = sortedRows(rows)
+    }
+
+    func cachedRows(for sessionId: UUID) -> [EncryptedSessionMessageRow]? {
+        rowsBySession[sessionId]
+    }
+
+    func setSessionKey(_ sessionKey: Data, for sessionId: UUID) {
+        sessionKeyBySession[sessionId] = sessionKey
+    }
+
+    func sessionKey(for sessionId: UUID) -> Data? {
+        sessionKeyBySession[sessionId]
+    }
+
+    func upsert(_ row: EncryptedSessionMessageRow, for sessionId: UUID) -> [EncryptedSessionMessageRow] {
+        var rows = rowsBySession[sessionId] ?? []
+
+        if let existingIndex = rows.firstIndex(where: { $0.id == row.id }) {
+            rows[existingIndex] = row
+        } else {
+            rows.append(row)
+        }
+
+        let sorted = sortedRows(rows)
+        rowsBySession[sessionId] = sorted
+        return sorted
+    }
+
+    private func sortedRows(_ rows: [EncryptedSessionMessageRow]) -> [EncryptedSessionMessageRow] {
+        rows.sorted { lhs, rhs in
+            if lhs.sequenceNumber == rhs.sequenceNumber {
+                return lhs.id < rhs.id
+            }
+            return lhs.sequenceNumber < rhs.sequenceNumber
+        }
+    }
 }

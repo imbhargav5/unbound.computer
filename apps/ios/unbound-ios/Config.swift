@@ -78,6 +78,15 @@ enum Config {
     static let remoteCommandAckEventName = "remote.command.ack.v1"
     static let sessionSecretResponseEventName = "session.secret.response.v1"
 
+    // MARK: - Ably Conversation
+
+    static let conversationMessageEventName = "conversation.message.v1"
+
+    /// Returns the Ably channel name for a session's conversation messages.
+    static func conversationChannel(sessionId: UUID) -> String {
+        "session:\(sessionId.uuidString.lowercased()):conversation"
+    }
+
     /// Force recreation of local SQLite database on app launch (debug only).
     /// Set `RECREATE_LOCAL_DB_ON_LAUNCH=1` in scheme environment variables.
     static var recreateLocalDatabaseOnLaunch: Bool {
