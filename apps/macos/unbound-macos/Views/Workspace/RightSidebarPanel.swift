@@ -2,8 +2,8 @@
 //  RightSidebarPanel.swift
 //  unbound-macos
 //
-//  Right panel with integrated file editor (top) and Changes/Files/Commits (bottom).
-//  Matches design: file tabs + editor content + changes section in a single column.
+//  Right panel with git operations: branch selector, commit/push actions,
+//  and Changes/Files/Commits tabs.
 //
 
 import Logging
@@ -88,12 +88,6 @@ struct RightSidebarPanel: View {
     // Working directory
     let workingDirectory: String?
 
-    @State private var pendingCloseTabId: UUID?
-    @State private var showUnsavedCloseDialog: Bool = false
-    @State private var conflictTabId: UUID?
-    @State private var conflictRevision: DaemonFileRevision?
-    @State private var showConflictDialog: Bool = false
-
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -127,86 +121,15 @@ struct RightSidebarPanel: View {
         return actions
     }
 
-    /// Currently selected editor tab
-    private var selectedEditorTab: EditorTab? {
-        if let id = editorState.selectedTabId {
-            return editorState.tabs.first { $0.id == id }
-        }
-        return editorState.tabs.first
-    }
-
-    private var selectedFileTab: EditorTab? {
-        guard let tab = selectedEditorTab, tab.kind == .file else { return nil }
-        return tab
-    }
-
-    private var dirtyTabIds: Set<UUID> {
-        Set(
-            editorState.documentsByTabId
-                .filter { $0.value.isDirty }
-                .map(\.key)
-        )
-    }
-
-    private var canSaveSelectedFile: Bool {
-        guard let selectedFileTab else { return false }
-        return editorState.canSave(tabId: selectedFileTab.id)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            VSplitView {
-                // Top section - File editor
-                VStack(spacing: 0) {
-                    FileEditorTabBar(
-                        files: editorState.tabs,
-                        dirtyTabIds: dirtyTabIds,
-                        selectedFileId: editorState.selectedTabId ?? editorState.tabs.first?.id,
-                        onSelectFile: { id in
-                            editorState.selectTab(id: id)
-                        },
-                        onCloseFile: { id in
-                            requestCloseTab(id)
-                        }
-                    ) {
-                        HStack(spacing: Spacing.sm) {
-                            branchSelector
-                            ForEach(gitToolbarActions, id: \.self) { action in
-                                GitToolbarActionButton(action: action, onTap: {
-                                    Task {
-                                        switch action {
-                                        case .commit:
-                                            await gitViewModel.commit()
-                                        case .push:
-                                            await gitViewModel.push()
-                                        }
-                                    }
-                                })
-                                .disabled(gitViewModel.isPerformingAction)
-                            }
-                            saveButton
-                        }
-                    }
-
-                    ShadcnDivider()
-
-                    editorContent
-                }
-                .frame(minHeight: 200)
-                .background(colors.editorBackground)
-
-                // Bottom section - Changes/Files/Commits
-                VStack(spacing: 0) {
-                    changesHeader
-                    errorBanner
-                    ShadcnDivider()
-                    commitMessageInput
-                    bottomTabHeader
-                    ShadcnDivider()
-                    bottomTabContent
-                }
-                .frame(minHeight: 200)
-            }
+            sidebarHeader
+            ShadcnDivider()
+            errorBanner
+            commitMessageInput
+            bottomTabHeader
+            ShadcnDivider()
+            bottomTabContent
         }
         .background(colors.background)
         .onChange(of: selectedTab) { _, newTab in
@@ -231,87 +154,39 @@ struct RightSidebarPanel: View {
                 }
             }
         }
-        .confirmationDialog(
-            "Unsaved changes",
-            isPresented: $showUnsavedCloseDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Save") {
-                Task { await saveAndClosePendingTab() }
-            }
-            Button("Discard", role: .destructive) {
-                if let tabId = pendingCloseTabId {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingCloseTabId = nil
-            }
-        } message: {
-            Text("Save changes before closing this tab?")
-        }
-        .confirmationDialog(
-            "File changed on disk",
-            isPresented: $showConflictDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Reload") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
-                    clearConflictState()
-                }
-            }
-            Button("Overwrite") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await overwriteAfterConflict(tabId: tabId)
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                clearConflictState()
-            }
-        } message: {
-            if let revision = conflictRevision {
-                Text("Current revision token: \(revision.token)")
-            } else {
-                Text("The file was modified externally. Reload or overwrite your local edits.")
-            }
-        }
     }
 
-    // MARK: - Editor Content
+    // MARK: - Sidebar Header (branch left, git actions right)
 
-    @ViewBuilder
-    private var editorContent: some View {
-        if let tab = selectedEditorTab {
-            switch tab.kind {
-            case .file:
-                FileEditorView(tab: tab, editorState: editorState)
-            case .diff:
-                DiffEditorView(
-                    path: tab.path,
-                    diffState: editorState.diffStates[tab.path]
-                )
+    private var sidebarHeader: some View {
+        HStack(spacing: Spacing.sm) {
+            branchSelector
+
+            Spacer()
+
+            HStack(spacing: Spacing.xs) {
+                ForEach(gitToolbarActions, id: \.self) { action in
+                    GitToolbarActionButton(action: action, onTap: {
+                        Task {
+                            switch action {
+                            case .commit:
+                                await gitViewModel.commit()
+                            case .push:
+                                await gitViewModel.push()
+                            }
+                        }
+                    })
+                    .disabled(gitViewModel.isPerformingAction)
+                }
+
+                IconButton(systemName: "arrow.triangle.2.circlepath", action: {
+                    Task { await gitViewModel.refreshAll() }
+                })
             }
-        } else {
-            VStack(spacing: Spacing.md) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 32))
-                    .foregroundStyle(colors.mutedForeground)
-
-                Text("No file open")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-
-                Text("Select a file from the chat or file tree")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(colors.editorBackground)
         }
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: LayoutMetrics.toolbarHeight)
+        .background(colors.toolbarBackground)
     }
 
     // MARK: - Branch Selector
@@ -336,28 +211,6 @@ struct RightSidebarPanel: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
         }
         .buttonStyle(.plain)
-    }
-
-    private var saveButton: some View {
-        Button {
-            Task { await saveActiveFile() }
-        } label: {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.system(size: IconSize.xs))
-                Text("Save")
-                    .font(Typography.toolbar)
-            }
-            .foregroundStyle(colors.foreground)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(colors.muted)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("s", modifiers: .command)
-        .disabled(!canSaveSelectedFile)
-        .opacity(canSaveSelectedFile ? 1.0 : 0.55)
     }
 
     // MARK: - Error Banner
@@ -410,39 +263,6 @@ struct RightSidebarPanel: View {
                 ShadcnDivider()
             }
         }
-    }
-
-    // MARK: - Changes Header
-
-    private var changesHeader: some View {
-        HStack(spacing: Spacing.sm) {
-            Text("Changes")
-                .font(Typography.toolbar)
-                .foregroundStyle(colors.foreground)
-
-            if gitViewModel.changesCount > 0 {
-                Text("\(gitViewModel.changesCount)")
-                    .font(Typography.micro)
-                    .foregroundStyle(colors.mutedForeground)
-                    .padding(.horizontal, Spacing.xs)
-                    .padding(.vertical, Spacing.xxs)
-                    .background(colors.surface2)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .stroke(colors.border, lineWidth: BorderWidth.hairline)
-                    )
-            }
-
-            Spacer()
-
-            IconButton(systemName: "arrow.triangle.2.circlepath", action: {
-                Task { await gitViewModel.refreshAll() }
-            })
-        }
-        .padding(.horizontal, Spacing.lg)
-        .frame(height: LayoutMetrics.toolbarHeight)
-        .background(colors.toolbarBackground)
     }
 
     // MARK: - Bottom Tab Header
@@ -524,82 +344,6 @@ struct RightSidebarPanel: View {
                 sessionId: appState.selectedSessionId
             )
         }
-    }
-
-    private func requestCloseTab(_ tabId: UUID) {
-        if editorState.isDirty(tabId: tabId) {
-            pendingCloseTabId = tabId
-            showUnsavedCloseDialog = true
-            return
-        }
-        editorState.closeTab(id: tabId)
-    }
-
-    private func saveActiveFile() async {
-        guard let tab = selectedFileTab else { return }
-        await performSave(
-            tabId: tab.id,
-            forceOverwrite: false,
-            closeOnSuccess: false
-        )
-    }
-
-    private func saveAndClosePendingTab() async {
-        guard let tabId = pendingCloseTabId else { return }
-        await performSave(
-            tabId: tabId,
-            forceOverwrite: false,
-            closeOnSuccess: true
-        )
-    }
-
-    private func overwriteAfterConflict(tabId: UUID) async {
-        let shouldCloseAfterSave = pendingCloseTabId == tabId
-        await performSave(
-            tabId: tabId,
-            forceOverwrite: true,
-            closeOnSuccess: shouldCloseAfterSave
-        )
-        clearConflictState()
-    }
-
-    private func performSave(
-        tabId: UUID,
-        forceOverwrite: Bool,
-        closeOnSuccess: Bool
-    ) async {
-        do {
-            let outcome = try await editorState.saveFile(
-                tabId: tabId,
-                daemonClient: appState.daemonClient,
-                forceOverwrite: forceOverwrite
-            )
-            switch outcome {
-            case .saved:
-                if closeOnSuccess {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
-            case .noChanges:
-                if closeOnSuccess {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
-            case .conflict(let currentRevision):
-                conflictTabId = tabId
-                conflictRevision = currentRevision
-                showConflictDialog = true
-            }
-        } catch {
-            logger.warning("Save failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func clearConflictState() {
-        conflictTabId = nil
-        conflictRevision = nil
-        showConflictDialog = false
-        pendingCloseTabId = nil
     }
 
     private func resolveFullPath(for file: FileItem) -> String? {
