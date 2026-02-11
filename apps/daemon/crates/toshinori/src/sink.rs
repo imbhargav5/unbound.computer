@@ -403,7 +403,72 @@ impl SideEffectSink for ToshinoriSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::types::SessionId;
+    use armin::types::{AgentStatus, MessageId, RepositoryId, SessionId};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    // =========================================================================
+    // Mock implementations
+    // =========================================================================
+
+    struct MockMetadataProvider {
+        metadata: std::sync::Mutex<HashMap<String, SessionMetadata>>,
+    }
+
+    impl MockMetadataProvider {
+        fn new() -> Self {
+            Self {
+                metadata: std::sync::Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn insert(&self, session_id: &str, metadata: SessionMetadata) {
+            self.metadata
+                .lock()
+                .unwrap()
+                .insert(session_id.to_string(), metadata);
+        }
+    }
+
+    impl SessionMetadataProvider for MockMetadataProvider {
+        fn get_session_metadata(&self, session_id: &str) -> Option<SessionMetadata> {
+            self.metadata.lock().unwrap().get(session_id).cloned()
+        }
+    }
+
+    struct RecordingMessageSyncer {
+        requests: std::sync::Mutex<Vec<MessageSyncRequest>>,
+        call_count: AtomicUsize,
+    }
+
+    impl RecordingMessageSyncer {
+        fn new() -> Self {
+            Self {
+                requests: std::sync::Mutex::new(Vec::new()),
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+
+        fn requests(&self) -> Vec<MessageSyncRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    impl MessageSyncer for RecordingMessageSyncer {
+        fn enqueue(&self, request: MessageSyncRequest) {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            self.requests.lock().unwrap().push(request);
+        }
+    }
+
+    use std::collections::HashMap;
+
+    // =========================================================================
+    // Context management
+    // =========================================================================
 
     #[tokio::test]
     async fn test_sink_without_context() {
@@ -438,5 +503,406 @@ mod tests {
         sink.clear_context().await;
 
         assert!(!sink.is_enabled().await);
+    }
+
+    #[tokio::test]
+    async fn context_can_be_replaced() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token-1".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+        assert!(sink.is_enabled().await);
+
+        // Replace with new context
+        sink.set_context(SyncContext {
+            access_token: "token-2".to_string(),
+            user_id: "user-2".to_string(),
+            device_id: "device-2".to_string(),
+        })
+        .await;
+        assert!(sink.is_enabled().await);
+    }
+
+    // =========================================================================
+    // Metadata provider lifecycle
+    // =========================================================================
+
+    #[tokio::test]
+    async fn metadata_provider_set_and_clear() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        let provider = Arc::new(MockMetadataProvider::new());
+        sink.set_metadata_provider(provider).await;
+
+        // Verify it was set by checking the internal state
+        {
+            let guard = sink.metadata_provider.read().await;
+            assert!(guard.is_some());
+        }
+
+        sink.clear_metadata_provider().await;
+        {
+            let guard = sink.metadata_provider.read().await;
+            assert!(guard.is_none());
+        }
+    }
+
+    // =========================================================================
+    // Message syncer lifecycle
+    // =========================================================================
+
+    #[tokio::test]
+    async fn message_syncer_set_and_clear() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        let syncer = Arc::new(RecordingMessageSyncer::new());
+        sink.set_message_syncer(syncer).await;
+
+        {
+            let guard = sink.message_syncer.read().await;
+            assert!(guard.is_some());
+        }
+
+        sink.clear_message_syncer().await;
+        {
+            let guard = sink.message_syncer.read().await;
+            assert!(guard.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn realtime_syncer_set_and_clear() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        let syncer = Arc::new(RecordingMessageSyncer::new());
+        sink.set_realtime_message_syncer(syncer).await;
+
+        {
+            let guard = sink.realtime_message_syncer.read().await;
+            assert!(guard.is_some());
+        }
+
+        sink.clear_realtime_message_syncer().await;
+        {
+            let guard = sink.realtime_message_syncer.read().await;
+            assert!(guard.is_none());
+        }
+    }
+
+    // =========================================================================
+    // Message dispatch to syncers
+    // =========================================================================
+
+    #[tokio::test]
+    async fn message_appended_dispatches_to_message_syncer() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        let syncer = Arc::new(RecordingMessageSyncer::new());
+        sink.set_message_syncer(syncer.clone()).await;
+
+        sink.emit(SideEffect::MessageAppended {
+            session_id: SessionId::from_string("sess-1"),
+            message_id: MessageId::from_string("msg-1"),
+            sequence_number: 1,
+            content: "hello world".to_string(),
+        });
+
+        // Give spawned task time to execute
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        assert_eq!(syncer.count(), 1);
+        let requests = syncer.requests();
+        assert_eq!(requests[0].session_id, "sess-1");
+        assert_eq!(requests[0].message_id, "msg-1");
+        assert_eq!(requests[0].sequence_number, 1);
+        assert_eq!(requests[0].content, "hello world");
+    }
+
+    #[tokio::test]
+    async fn message_appended_dispatches_to_both_syncers() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        let supabase_syncer = Arc::new(RecordingMessageSyncer::new());
+        let realtime_syncer = Arc::new(RecordingMessageSyncer::new());
+        sink.set_message_syncer(supabase_syncer.clone()).await;
+        sink.set_realtime_message_syncer(realtime_syncer.clone())
+            .await;
+
+        sink.emit(SideEffect::MessageAppended {
+            session_id: SessionId::from_string("sess-1"),
+            message_id: MessageId::from_string("msg-1"),
+            sequence_number: 1,
+            content: "hello".to_string(),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        assert_eq!(supabase_syncer.count(), 1);
+        assert_eq!(realtime_syncer.count(), 1);
+    }
+
+    #[tokio::test]
+    async fn message_appended_without_syncers_does_not_panic() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        // No syncers set — should not panic
+        sink.emit(SideEffect::MessageAppended {
+            session_id: SessionId::from_string("sess-1"),
+            message_id: MessageId::from_string("msg-1"),
+            sequence_number: 1,
+            content: "hello".to_string(),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn message_appended_without_context_skips_dispatch() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        // No context set
+
+        let syncer = Arc::new(RecordingMessageSyncer::new());
+        sink.set_message_syncer(syncer.clone()).await;
+
+        sink.emit(SideEffect::MessageAppended {
+            session_id: SessionId::from_string("sess-1"),
+            message_id: MessageId::from_string("msg-1"),
+            sequence_number: 1,
+            content: "hello".to_string(),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        // Syncer should NOT have been called because context is missing
+        assert_eq!(syncer.count(), 0);
+    }
+
+    // =========================================================================
+    // Emit all side-effect variants without panic (smoke tests)
+    // =========================================================================
+
+    #[tokio::test]
+    async fn emit_all_side_effect_variants_without_context() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        // Emit every variant — none should panic
+        sink.emit(SideEffect::RepositoryCreated {
+            repository_id: RepositoryId::from_string("repo-1"),
+        });
+        sink.emit(SideEffect::RepositoryDeleted {
+            repository_id: RepositoryId::from_string("repo-1"),
+        });
+        sink.emit(SideEffect::SessionCreated {
+            session_id: SessionId::from_string("sess-1"),
+        });
+        sink.emit(SideEffect::SessionClosed {
+            session_id: SessionId::from_string("sess-1"),
+        });
+        sink.emit(SideEffect::SessionDeleted {
+            session_id: SessionId::from_string("sess-1"),
+        });
+        sink.emit(SideEffect::SessionUpdated {
+            session_id: SessionId::from_string("sess-1"),
+        });
+        sink.emit(SideEffect::MessageAppended {
+            session_id: SessionId::from_string("sess-1"),
+            message_id: MessageId::from_string("msg-1"),
+            sequence_number: 1,
+            content: "test".to_string(),
+        });
+        sink.emit(SideEffect::AgentStatusChanged {
+            session_id: SessionId::from_string("sess-1"),
+            status: AgentStatus::Running,
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn emit_session_created_without_metadata_provider() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        // No metadata provider set — should not panic, just warn
+        sink.emit(SideEffect::SessionCreated {
+            session_id: SessionId::from_string("sess-1"),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn emit_session_updated_without_metadata_provider() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        sink.emit(SideEffect::SessionUpdated {
+            session_id: SessionId::from_string("sess-1"),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn emit_session_created_with_provider_but_missing_metadata() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        let provider = Arc::new(MockMetadataProvider::new());
+        // Provider exists but has no metadata for "sess-1"
+        sink.set_metadata_provider(provider).await;
+
+        sink.emit(SideEffect::SessionCreated {
+            session_id: SessionId::from_string("sess-1"),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    // =========================================================================
+    // Debug impl
+    // =========================================================================
+
+    #[test]
+    fn toshinori_sink_debug_is_opaque() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let sink =
+            ToshinoriSink::new("https://test.supabase.co", "secret-key", runtime.handle().clone());
+        let debug = format!("{:?}", sink);
+        assert!(debug.contains("ToshinoriSink"));
+        assert!(!debug.contains("secret-key"));
+    }
+
+    // =========================================================================
+    // SyncContext / SessionMetadata / MessageSyncRequest struct tests
+    // =========================================================================
+
+    #[test]
+    fn sync_context_is_cloneable() {
+        let ctx = SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user".to_string(),
+            device_id: "device".to_string(),
+        };
+        let cloned = ctx.clone();
+        assert_eq!(cloned.access_token, "token");
+        assert_eq!(cloned.user_id, "user");
+        assert_eq!(cloned.device_id, "device");
+    }
+
+    #[test]
+    fn session_metadata_is_cloneable_and_debuggable() {
+        let meta = SessionMetadata {
+            repository_id: "repo-1".to_string(),
+            current_branch: Some("main".to_string()),
+            working_directory: Some("/home/user/project".to_string()),
+            is_worktree: false,
+            worktree_path: None,
+        };
+        let cloned = meta.clone();
+        assert_eq!(cloned.repository_id, "repo-1");
+        assert_eq!(cloned.current_branch, Some("main".to_string()));
+        assert!(!cloned.is_worktree);
+        assert!(cloned.worktree_path.is_none());
+        // Debug should not panic
+        let _ = format!("{:?}", cloned);
+    }
+
+    #[test]
+    fn message_sync_request_is_cloneable_and_debuggable() {
+        let req = MessageSyncRequest {
+            session_id: "sess-1".to_string(),
+            message_id: "msg-1".to_string(),
+            sequence_number: 42,
+            content: "test content".to_string(),
+        };
+        let cloned = req.clone();
+        assert_eq!(cloned.session_id, "sess-1");
+        assert_eq!(cloned.message_id, "msg-1");
+        assert_eq!(cloned.sequence_number, 42);
+        assert_eq!(cloned.content, "test content");
+        let _ = format!("{:?}", cloned);
+    }
+
+    // =========================================================================
+    // Mock metadata provider
+    // =========================================================================
+
+    #[test]
+    fn mock_metadata_provider_returns_none_for_unknown() {
+        let provider = MockMetadataProvider::new();
+        assert!(provider.get_session_metadata("unknown").is_none());
+    }
+
+    #[test]
+    fn mock_metadata_provider_returns_inserted_metadata() {
+        let provider = MockMetadataProvider::new();
+        provider.insert(
+            "sess-1",
+            SessionMetadata {
+                repository_id: "repo-1".to_string(),
+                current_branch: Some("main".to_string()),
+                working_directory: None,
+                is_worktree: false,
+                worktree_path: None,
+            },
+        );
+        let meta = provider.get_session_metadata("sess-1").unwrap();
+        assert_eq!(meta.repository_id, "repo-1");
     }
 }
