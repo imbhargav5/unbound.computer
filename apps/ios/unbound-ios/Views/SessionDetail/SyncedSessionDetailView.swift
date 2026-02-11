@@ -54,21 +54,32 @@ struct SyncedSessionDetailView: View {
     }
 
     private var contentView: some View {
-        ScrollView {
-            VStack(spacing: AppTheme.spacingM) {
-                headerCard
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: AppTheme.spacingM) {
+                    headerCard
 
-                LazyVStack(spacing: AppTheme.spacingS) {
-                    ForEach(visibleMessages) { message in
-                        MessageBubbleView(message: message)
+                    LazyVStack(spacing: AppTheme.spacingS) {
+                        ForEach(visibleMessages) { message in
+                            MessageBubbleView(message: message)
+                        }
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom")
+                }
+                .padding(.top, AppTheme.spacingM)
+                .padding(.bottom, AppTheme.spacingXL)
+            }
+            .refreshable {
+                await viewModel.loadMessages(force: true)
+            }
+            .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                if oldCount == 0, newCount > 0 {
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
-            .padding(.top, AppTheme.spacingM)
-            .padding(.bottom, AppTheme.spacingXL)
-        }
-        .refreshable {
-            await viewModel.loadMessages(force: true)
         }
     }
 
