@@ -147,10 +147,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.bodySmall)
-                .foregroundStyle(colors.sidebarText)
-                .onHover { hovering in
-                    // Hover effect handled by cursor
-                }
+                .foregroundStyle(colors.primaryAction)
             }
         }
     }

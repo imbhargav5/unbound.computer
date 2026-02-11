@@ -79,13 +79,10 @@ struct SignInFormView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .padding(.horizontal, Spacing.lg)
-                .background(colors.surface2)
-                .foregroundStyle(colors.foreground)
+                .background(colors.primaryAction)
+                .foregroundStyle(colors.primaryActionForeground)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(colors.border, lineWidth: 1)
-                )
+                .shadow(color: colors.primaryAction.opacity(0.3), radius: 8, y: 4)
             }
             .buttonStyle(.plain)
             .disabled(isLoading || email.isEmpty || password.isEmpty)
