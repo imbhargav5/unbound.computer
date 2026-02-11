@@ -25,6 +25,10 @@ struct SidebarHeader: View {
     var body: some View {
         HStack {
             HStack(spacing: Spacing.xs) {
+                Circle()
+                    .fill(colors.success)
+                    .frame(width: 8, height: 8)
+
                 Text(title)
                     .font(Typography.sidebarHeader)
                     .foregroundStyle(colors.foreground)
