@@ -77,6 +77,7 @@ enum Config {
     static let remoteCommandEventName = "remote.command.v1"
     static let remoteCommandAckEventName = "remote.command.ack.v1"
     static let sessionSecretResponseEventName = "session.secret.response.v1"
+    static let remoteCommandResponseEventName = "remote.command.response.v1"
 
     // MARK: - Ably Conversation
 

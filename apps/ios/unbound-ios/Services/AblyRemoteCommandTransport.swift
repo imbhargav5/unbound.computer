@@ -122,6 +122,109 @@ struct SessionSecretResponseEnvelope: Codable {
     }
 }
 
+/// Generic remote command envelope sent from iOS to daemon via Ably.
+struct RemoteCommandEnvelope: Codable {
+    let schemaVersion: Int
+    let type: String
+    let requestId: String
+    let requesterDeviceId: String
+    let targetDeviceId: String
+    let requestedAtMs: Int64
+    let params: [String: AnyCodableValue]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case type
+        case requestId = "request_id"
+        case requesterDeviceId = "requester_device_id"
+        case targetDeviceId = "target_device_id"
+        case requestedAtMs = "requested_at_ms"
+        case params
+    }
+}
+
+/// Response envelope published by daemon back to iOS via Falco.
+struct RemoteCommandResponse: Codable {
+    let schemaVersion: Int
+    let requestId: String
+    let type: String
+    let status: String
+    let result: AnyCodableValue?
+    let errorCode: String?
+    let errorMessage: String?
+    let createdAtMs: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestId = "request_id"
+        case type
+        case status
+        case result
+        case errorCode = "error_code"
+        case errorMessage = "error_message"
+        case createdAtMs = "created_at_ms"
+    }
+
+    var isOk: Bool { status == "ok" }
+}
+
+/// Type-erased JSON value for encoding/decoding arbitrary command params and results.
+enum AnyCodableValue: Codable, Equatable {
+    case string(String)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+    case object([String: AnyCodableValue])
+    case array([AnyCodableValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Int.self) {
+            self = .int(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .double(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: AnyCodableValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([AnyCodableValue].self) {
+            self = .array(value)
+        } else {
+            self = .null
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .int(let value): try container.encode(value)
+        case .double(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .null: try container.encodeNil()
+        }
+    }
+
+    /// Access as a dictionary for result parsing.
+    var objectValue: [String: AnyCodableValue]? {
+        if case .object(let dict) = self { return dict }
+        return nil
+    }
+
+    /// Access as a string.
+    var stringValue: String? {
+        if case .string(let str) = self { return str }
+        return nil
+    }
+}
+
 protocol RemoteCommandTransport {
     func publishRemoteCommand(
         channel: String,
