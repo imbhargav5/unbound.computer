@@ -1,11 +1,120 @@
 use crate::itachi::contracts::{
-    DecisionResultPayload, UmSecretRequestCommand, UM_SECRET_REQUEST_TYPE,
+    DecisionResultPayload, RemoteCommandEnvelope, UmSecretRequestCommand,
+    UM_SECRET_REQUEST_TYPE,
 };
 use crate::itachi::errors::DecisionReasonCode;
 use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
 use uuid::Uuid;
 
-/// Validate and route a remote command payload into deterministic effects.
+/// Supported generic remote command types.
+const SUPPORTED_COMMAND_TYPES: &[&str] = &[
+    "session.create.v1",
+    "claude.send.v1",
+    "claude.stop.v1",
+];
+
+/// Top-level router: tries generic envelope first, falls back to legacy UM secret format.
+pub fn handle_remote_command(payload: &[u8], deps: &HandlerDeps) -> Vec<Effect> {
+    // Try parsing as generic RemoteCommandEnvelope (has `params` field)
+    if let Ok(envelope) = serde_json::from_slice::<RemoteCommandEnvelope>(payload) {
+        // If it's the legacy um.secret.request type, delegate to legacy handler
+        if envelope.command_type == UM_SECRET_REQUEST_TYPE {
+            return handle_um_secret_request(payload, deps);
+        }
+        return handle_generic_command(envelope, deps);
+    }
+
+    // Fallback: try legacy UmSecretRequestCommand format (no `params` wrapper)
+    handle_um_secret_request(payload, deps)
+}
+
+/// Route a generic remote command envelope to the appropriate handler.
+fn handle_generic_command(envelope: RemoteCommandEnvelope, deps: &HandlerDeps) -> Vec<Effect> {
+    // Validate request_id is a UUID
+    if Uuid::parse_str(&envelope.request_id).is_err() {
+        return reject(
+            DecisionReasonCode::InvalidPayload,
+            "request_id must be a valid UUID".to_string(),
+            Some(envelope.request_id),
+            None,
+        );
+    }
+
+    // Validate requester_device_id is a UUID
+    if Uuid::parse_str(&envelope.requester_device_id).is_err() {
+        return reject(
+            DecisionReasonCode::InvalidPayload,
+            "requester_device_id must be a valid UUID".to_string(),
+            Some(envelope.request_id),
+            None,
+        );
+    }
+
+    // Validate target_device_id is a UUID
+    if Uuid::parse_str(&envelope.target_device_id).is_err() {
+        return reject(
+            DecisionReasonCode::InvalidPayload,
+            "target_device_id must be a valid UUID".to_string(),
+            Some(envelope.request_id),
+            None,
+        );
+    }
+
+    // Validate local device identity
+    let Some(local_device_id) = deps.local_device_id.as_deref() else {
+        return reject(
+            DecisionReasonCode::InternalError,
+            "local device identity is unavailable".to_string(),
+            Some(envelope.request_id),
+            None,
+        );
+    };
+
+    // Validate target matches local device
+    if envelope.target_device_id != local_device_id {
+        return reject(
+            DecisionReasonCode::TargetMismatch,
+            format!(
+                "target_device_id {} does not match local device",
+                envelope.target_device_id
+            ),
+            Some(envelope.request_id),
+            None,
+        );
+    }
+
+    // Check command type is supported
+    if !SUPPORTED_COMMAND_TYPES.contains(&envelope.command_type.as_str()) {
+        return reject(
+            DecisionReasonCode::UnsupportedCommandType,
+            format!("unsupported command type: {}", envelope.command_type),
+            Some(envelope.request_id),
+            None,
+        );
+    }
+
+    // Accept and emit execution effect
+    let accepted = DecisionResultPayload::accepted(envelope.request_id.clone(), String::new());
+    vec![
+        Effect::ReturnDecision {
+            decision: DecisionKind::AckMessage,
+            payload: accepted,
+        },
+        Effect::RecordMetric {
+            name: "remote_command_accepted_total",
+        },
+        Effect::Log {
+            level: LogLevel::Info,
+            message: format!(
+                "accepted remote command {} (type={})",
+                envelope.request_id, envelope.command_type
+            ),
+        },
+        Effect::ExecuteRemoteCommand { envelope },
+    ]
+}
+
+/// Validate and route a UM secret request payload into deterministic effects.
 pub fn handle_um_secret_request(payload: &[u8], deps: &HandlerDeps) -> Vec<Effect> {
     let parsed: UmSecretRequestCommand = match serde_json::from_slice(payload) {
         Ok(v) => v,
@@ -126,7 +235,7 @@ fn reject(
 
 #[cfg(test)]
 mod tests {
-    use super::handle_um_secret_request;
+    use super::{handle_remote_command, handle_um_secret_request};
     use crate::itachi::errors::DecisionReasonCode;
     use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps};
     use serde_json::json;
@@ -218,6 +327,109 @@ mod tests {
         });
 
         let effects = handle_um_secret_request(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { payload, .. } => {
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::TargetMismatch)
+                );
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+    }
+
+    // --- Generic remote command router tests ---
+
+    #[test]
+    fn generic_command_accepts_session_create() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": { "repository_id": "repo-1" }
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, .. } => {
+                assert_eq!(*decision, DecisionKind::AckMessage);
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_rejects_unsupported_type() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "unknown.command.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, payload } => {
+                assert_eq!(*decision, DecisionKind::DoNotAck);
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::UnsupportedCommandType)
+                );
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+    }
+
+    #[test]
+    fn generic_command_falls_back_to_legacy_um_secret() {
+        // Legacy format: has session_id at top level, no params field
+        let payload = json!({
+            "type": "um.secret.request.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "session_id": "session-1",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, .. } => {
+                assert_eq!(*decision, DecisionKind::AckMessage);
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+        // Should produce ProcessUmSecretRequest, NOT ExecuteRemoteCommand
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::ProcessUmSecretRequest { .. })));
+        assert!(!effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_target_mismatch_rejects() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "session.create.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000999",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
         match &effects[0] {
             Effect::ReturnDecision { payload, .. } => {
                 assert_eq!(

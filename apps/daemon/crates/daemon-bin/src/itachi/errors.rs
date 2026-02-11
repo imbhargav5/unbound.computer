@@ -9,6 +9,7 @@ pub enum DecisionReasonCode {
     NotFound,
     InternalError,
     TargetMismatch,
+    UnsupportedCommandType,
 }
 
 /// Response-level error codes published on session-secrets channel.

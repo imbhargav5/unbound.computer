@@ -1,4 +1,6 @@
-use crate::itachi::contracts::{DecisionResultPayload, UmSecretRequestCommand};
+use crate::itachi::contracts::{
+    DecisionResultPayload, RemoteCommandEnvelope, RemoteCommandResponse, UmSecretRequestCommand,
+};
 
 /// Daemon decision mapped to Nagato protocol values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +34,12 @@ pub enum Effect {
     },
     ProcessUmSecretRequest {
         request: UmSecretRequestCommand,
+    },
+    ExecuteRemoteCommand {
+        envelope: RemoteCommandEnvelope,
+    },
+    PublishRemoteResponse {
+        response: RemoteCommandResponse,
     },
     RecordMetric {
         name: &'static str,

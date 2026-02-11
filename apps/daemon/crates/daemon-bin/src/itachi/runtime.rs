@@ -1,11 +1,12 @@
 use crate::app::DaemonState;
 use crate::itachi::channels::build_session_secrets_channel;
 use crate::itachi::contracts::{
-    DecisionResultPayload, SessionSecretResponsePayload, UmSecretRequestCommand,
+    DecisionResultPayload, RemoteCommandEnvelope, RemoteCommandResponse,
+    SessionSecretResponsePayload, UmSecretRequestCommand, REMOTE_COMMAND_RESPONSE_EVENT,
     SESSION_SECRET_RESPONSE_EVENT,
 };
 use crate::itachi::errors::ResponseErrorCode;
-use crate::itachi::handler::handle_um_secret_request;
+use crate::itachi::handler::handle_remote_command;
 use crate::itachi::idempotency::BeginResult;
 use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
 use armin::SessionReader;
@@ -57,7 +58,7 @@ pub async fn handle_remote_command_payload(state: DaemonState, payload: &[u8]) -
         now_ms: chrono::Utc::now().timestamp_millis(),
     };
 
-    let effects = handle_um_secret_request(payload, &deps);
+    let effects = handle_remote_command(payload, &deps);
     evaluate_effects(state, effects).await
 }
 
@@ -81,6 +82,26 @@ async fn evaluate_effects(state: DaemonState, effects: Vec<Effect>) -> DecisionO
                 let state_for_task = state.clone();
                 tokio::spawn(async move {
                     process_um_secret_request(state_for_task, request).await;
+                });
+            }
+            Effect::ExecuteRemoteCommand { envelope } => {
+                let state_for_task = state.clone();
+                tokio::spawn(async move {
+                    execute_remote_command(state_for_task, envelope).await;
+                });
+            }
+            Effect::PublishRemoteResponse { response } => {
+                let state_for_task = state.clone();
+                tokio::spawn(async move {
+                    if let Err(err) =
+                        publish_remote_command_response(&state_for_task, &response).await
+                    {
+                        warn!(
+                            request_id = %response.request_id,
+                            error = %err,
+                            "Failed to publish remote command response"
+                        );
+                    }
                 });
             }
             Effect::RecordMetric { name } => {
@@ -156,6 +177,54 @@ async fn process_um_secret_request(state: DaemonState, request: UmSecretRequestC
         let mut store = state.itachi_idempotency.lock().unwrap();
         store.complete(&key, response, Instant::now());
     }
+}
+
+/// Execute a generic remote command and publish the response via Falco.
+async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvelope) {
+    let response = match envelope.command_type.as_str() {
+        // Command routing will be wired in Task 5
+        _ => RemoteCommandResponse::error(
+            envelope.request_id.clone(),
+            envelope.command_type.clone(),
+            "not_implemented",
+            format!("command type {} is not yet implemented", envelope.command_type),
+        ),
+    };
+
+    if let Err(err) = publish_remote_command_response(&state, &response).await {
+        warn!(
+            request_id = %envelope.request_id,
+            command_type = %envelope.command_type,
+            error = %err,
+            "Failed to publish remote command response"
+        );
+    }
+}
+
+/// Publish a remote command response via Falco to the requester's channel.
+async fn publish_remote_command_response(
+    state: &DaemonState,
+    response: &RemoteCommandResponse,
+) -> Result<(), String> {
+    let device_id = state
+        .device_id
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "local device_id unavailable".to_string())?;
+
+    let channel = format!("remote:{}:commands", device_id);
+    let envelope = FalcoPublishEnvelope {
+        effect_type: "remote_command_response",
+        channel,
+        event: REMOTE_COMMAND_RESPONSE_EVENT,
+        payload: response,
+    };
+
+    let json_payload =
+        serde_json::to_vec(&envelope).map_err(|err| format!("failed to encode response: {err}"))?;
+
+    publish_via_falco_with_retry(&state.paths.falco_socket_file(), &json_payload).await
 }
 
 async fn build_response_payload(
