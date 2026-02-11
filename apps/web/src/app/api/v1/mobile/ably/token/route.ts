@@ -2,8 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 
-export const runtime = "nodejs";
-
 const requestSchema = z.object({
   deviceId: z.string().uuid(),
 });
