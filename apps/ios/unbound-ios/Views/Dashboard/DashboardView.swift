@@ -65,10 +65,22 @@ struct DashboardView: View {
 
         if !recentSessions.isEmpty {
             VStack(alignment: .leading, spacing: AppTheme.spacingS) {
-                Text("Recent Sessions")
-                    .font(Typography.title3)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .padding(.top, AppTheme.spacingS)
+                HStack {
+                    Text("Recent Sessions")
+                        .font(Typography.title3)
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    Spacer()
+
+                    Button {
+                        // TODO: Navigate to full sessions list
+                    } label: {
+                        Text("See all")
+                            .font(Typography.caption)
+                            .foregroundStyle(AppTheme.amberAccent)
+                    }
+                }
+                .padding(.top, AppTheme.spacingS)
 
                 ForEach(recentSessions) { session in
                     RecentSessionCard(
@@ -136,53 +148,43 @@ struct RecentSessionCard: View {
 
     var body: some View {
         HStack(spacing: AppTheme.spacingM) {
-            // Status indicator
-            Circle()
-                .fill(session.isActive ? Color.green : Color.gray)
-                .frame(width: 8, height: 8)
+            // Amber bot icon
+            ZStack {
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
+                    .fill(AppTheme.amberAccent.opacity(0.15))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: "cpu.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(AppTheme.amberAccent)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 // Session title
                 Text(session.title)
-                    .font(Typography.subheadline)
+                    .font(Typography.subheadline.weight(.medium))
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
 
-                // Last active
-                Text(session.lastAccessedAt.formatted(.relative(presentation: .named)))
-                    .font(Typography.caption)
-                    .foregroundStyle(AppTheme.textTertiary)
+                // Compact metadata row
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(session.isActive ? Color.green : Color.gray)
+                        .frame(width: 6, height: 6)
 
-                // Repo + Device info
-                if repository != nil || device != nil {
-                    HStack(spacing: AppTheme.spacingS) {
-                        if let repository {
-                            HStack(spacing: 4) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 10, weight: .medium))
-                                Text(repository.name)
-                                    .lineLimit(1)
-                            }
+                    Text(session.lastAccessedAt.formatted(.relative(presentation: .named)))
+                        .font(Typography.caption)
+                        .foregroundStyle(AppTheme.textTertiary)
+
+                    if let repository {
+                        Image(systemName: "folder")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(AppTheme.textTertiary)
+
+                        Text(repository.name)
                             .font(Typography.caption)
                             .foregroundStyle(AppTheme.textTertiary)
-                        }
-
-                        if repository != nil, device != nil {
-                            Text("·")
-                                .font(Typography.caption)
-                                .foregroundStyle(AppTheme.textTertiary)
-                        }
-
-                        if let device {
-                            HStack(spacing: 4) {
-                                Image(systemName: device.deviceType.iconName)
-                                    .font(.system(size: 10, weight: .medium))
-                                Text(device.hostname ?? device.name)
-                                    .lineLimit(1)
-                            }
-                            .font(Typography.caption)
-                            .foregroundStyle(AppTheme.textTertiary)
-                        }
+                            .lineLimit(1)
                     }
                 }
             }
