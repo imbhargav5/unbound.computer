@@ -181,13 +181,25 @@ async fn process_um_secret_request(state: DaemonState, request: UmSecretRequestC
 
 /// Execute a generic remote command and publish the response via Falco.
 async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvelope) {
-    let response = match envelope.command_type.as_str() {
-        // Command routing will be wired in Task 5
-        _ => RemoteCommandResponse::error(
+    info!(
+        request_id = %envelope.request_id,
+        command_type = %envelope.command_type,
+        "Executing remote command"
+    );
+
+    let result = dispatch_command(&state, &envelope).await;
+
+    let response = match result {
+        Ok(value) => RemoteCommandResponse::ok(
             envelope.request_id.clone(),
             envelope.command_type.clone(),
-            "not_implemented",
-            format!("command type {} is not yet implemented", envelope.command_type),
+            value,
+        ),
+        Err((error_code, error_message)) => RemoteCommandResponse::error(
+            envelope.request_id.clone(),
+            envelope.command_type.clone(),
+            error_code,
+            error_message,
         ),
     };
 
@@ -198,6 +210,21 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
             error = %err,
             "Failed to publish remote command response"
         );
+    }
+}
+
+/// Dispatch a remote command to the appropriate handler function.
+/// Returns Ok(result_json) or Err((error_code, error_message)).
+pub async fn dispatch_command(
+    state: &DaemonState,
+    envelope: &RemoteCommandEnvelope,
+) -> Result<serde_json::Value, (String, String)> {
+    match envelope.command_type.as_str() {
+        // Wired in a subsequent commit once handler core functions are extracted
+        other => Err((
+            "not_implemented".to_string(),
+            format!("command type {other} is not yet implemented"),
+        )),
     }
 }
 
