@@ -133,6 +133,17 @@ pub async fn run_daemon(
             e
         ),
     }
+    let startup_sync_context = match auth_runtime.current_sync_context() {
+        Ok(sync_context) => sync_context,
+        Err(err) => {
+            warn!(
+                error = %err,
+                "Failed to resolve startup auth sync context; sidecars will remain disabled"
+            );
+            None
+        }
+    };
+    let has_startup_auth_context = startup_sync_context.is_some();
 
     let mut ably_broker_runtime = Some(
         start_ably_token_broker(paths.ably_auth_socket_file(), auth_runtime.clone())
@@ -147,6 +158,10 @@ pub async fn run_daemon(
         .as_ref()
         .map(|runtime| runtime.falco_token.clone())
         .unwrap_or_default();
+    let ably_broker_cache = ably_broker_runtime
+        .as_ref()
+        .map(|runtime| runtime.cache_handle.clone())
+        .expect("Ably broker runtime should always be available during init");
 
     // Resolve auth-dependent values from secure storage once at startup.
     let (db_encryption_key, device_id, device_private_key) = {
@@ -214,7 +229,7 @@ pub async fn run_daemon(
     ));
 
     let mut initial_falco_process: Option<Child> = None;
-    let initial_realtime_message_sync = if config.ably_api_key.is_some() {
+    let initial_realtime_message_sync = if has_startup_auth_context {
         let falco_socket_path = paths.falco_socket_file();
 
         if !falco_socket_path.exists() {
@@ -242,7 +257,7 @@ pub async fn run_daemon(
                     ),
                 },
                 None => warn!(
-                    "Ably API key configured but device ID is missing; disabling Ably hot-path message sync"
+                    "Authenticated session found, but device ID is missing; disabling Ably hot-path message sync"
                 ),
             }
         } else {
@@ -321,7 +336,7 @@ pub async fn run_daemon(
             None
         }
     } else {
-        info!("Ably API key not configured, skipping Ably hot-path sync worker");
+        info!("No authenticated session at startup; skipping Ably hot-path sync worker");
         None
     };
 
@@ -332,7 +347,7 @@ pub async fn run_daemon(
     message_sync.start();
 
     // If startup validation recovered an authenticated session, initialize sync contexts.
-    if let Ok(Some(sync)) = auth_runtime.current_sync_context() {
+    if let Some(sync) = startup_sync_context {
         let sync_context = SyncContext {
             access_token: sync.access_token,
             user_id: sync.user_id,
@@ -376,6 +391,7 @@ pub async fn run_daemon(
         nagato_server_task: Arc::new(Mutex::new(None)),
         ably_broker_nagato_token,
         ably_broker_falco_token,
+        ably_broker_cache,
         armin,
         gyomei,
     };
@@ -387,7 +403,7 @@ pub async fn run_daemon(
         *state.nagato_server_task.lock().unwrap() = Some(task);
     }
 
-    if state.config.ably_api_key.is_some() {
+    if has_startup_auth_context {
         match local_device_id.as_deref() {
             Some(device_id) => match start_nagato_sidecar(
                 state.paths.as_ref(),
@@ -409,11 +425,11 @@ pub async fn run_daemon(
                 ),
             },
             None => warn!(
-                "Ably API key configured but device ID is missing; disabling Nagato remote command ingress"
+                "Authenticated session found, but device ID is missing; disabling Nagato remote command ingress"
             ),
         }
     } else {
-        info!("Ably API key not configured, skipping Nagato remote command ingress");
+        info!("No authenticated session at startup; skipping Nagato remote command ingress");
     }
 
     // Load session secrets from Supabase into memory cache

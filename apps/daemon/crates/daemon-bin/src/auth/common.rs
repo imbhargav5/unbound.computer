@@ -35,14 +35,42 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
 pub async fn clear_login_side_effects(state: &DaemonState) {
     state.toshinori.clear_context().await;
     state.message_sync.clear_context().await;
-    let realtime_syncer = { state.realtime_message_sync.read().await.clone() };
+
+    let realtime_syncer = {
+        let mut guard = state.realtime_message_sync.write().await;
+        guard.take()
+    };
     if let Some(syncer) = realtime_syncer {
         syncer.clear_context().await;
     }
+    state.toshinori.clear_realtime_message_syncer().await;
+
+    if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
+        terminate_child(&mut child, "nagato");
+    }
+    if let Some(mut child) = state.falco_process.lock().unwrap().take() {
+        terminate_child(&mut child, "falco");
+    }
+
+    for socket_path in [state.paths.nagato_socket_file(), state.paths.falco_socket_file()] {
+        if socket_path.exists() {
+            if let Err(err) = std::fs::remove_file(&socket_path) {
+                warn!(
+                    socket = %socket_path.display(),
+                    error = %err,
+                    "Failed removing sidecar socket during logout cleanup"
+                );
+            }
+        }
+    }
+
+    state.ably_broker_cache.clear().await;
+    info!("Stopped Ably sidecars and cleared broker cache after logout");
 }
 
 async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResult) {
-    if state.config.ably_api_key.is_none() {
+    if state.ably_broker_falco_token.is_empty() {
+        warn!("Falco broker token missing; Ably hot-path sync remains disabled");
         return;
     }
 
@@ -52,9 +80,6 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 
     let falco_socket_path = state.paths.falco_socket_file();
     if !falco_socket_path.exists() {
-        if state.config.ably_api_key.is_none() {
-            return;
-        }
         match start_falco_sidecar(
             &state.paths,
             &login.device_id,
@@ -119,7 +144,8 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 }
 
 async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginResult) {
-    if state.config.ably_api_key.is_none() {
+    if state.ably_broker_nagato_token.is_empty() {
+        warn!("Nagato broker token missing; remote command ingress remains disabled");
         return;
     }
 

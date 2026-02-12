@@ -21,16 +21,6 @@ const CACHE_REFRESH_MARGIN_MS: i64 = 120_000;
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Runtime handles and credentials for the Ably token broker.
-pub struct AblyTokenBrokerRuntime {
-    #[allow(dead_code)]
-    pub falco_token: String,
-    #[allow(dead_code)]
-    pub nagato_token: String,
-    pub shutdown_tx: oneshot::Sender<()>,
-    pub task: JoinHandle<()>,
-}
-
 #[derive(Debug, Clone, Copy, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "snake_case")]
 enum BrokerAudience {
@@ -75,13 +65,38 @@ struct CachedToken {
     expires_ms: Option<i64>,
 }
 
+/// Handle used to clear cached broker tokens without restarting the broker.
+#[derive(Clone)]
+pub struct AblyTokenBrokerCacheHandle {
+    cache: Arc<RwLock<HashMap<CacheKey, CachedToken>>>,
+}
+
+impl AblyTokenBrokerCacheHandle {
+    /// Clears all cached token details for every audience/device pair.
+    pub async fn clear(&self) {
+        let mut guard = self.cache.write().await;
+        guard.clear();
+    }
+}
+
+/// Runtime handles and credentials for the Ably token broker.
+pub struct AblyTokenBrokerRuntime {
+    #[allow(dead_code)]
+    pub falco_token: String,
+    #[allow(dead_code)]
+    pub nagato_token: String,
+    pub cache_handle: AblyTokenBrokerCacheHandle,
+    pub shutdown_tx: oneshot::Sender<()>,
+    pub task: JoinHandle<()>,
+}
+
 struct BrokerState {
     auth_runtime: Arc<DaemonAuthRuntime>,
     http_client: reqwest::Client,
     web_app_url: String,
     falco_token: String,
     nagato_token: String,
-    cache: RwLock<HashMap<CacheKey, CachedToken>>,
+    cache: Arc<RwLock<HashMap<CacheKey, CachedToken>>>,
 }
 
 /// Start the local Ably token broker.
@@ -119,6 +134,7 @@ pub async fn start_ably_token_broker(
     let falco_token = Uuid::new_v4().to_string();
     let nagato_token = Uuid::new_v4().to_string();
     let web_app_url = resolve_web_app_url();
+    let cache = Arc::new(RwLock::new(HashMap::new()));
 
     let state = Arc::new(BrokerState {
         auth_runtime,
@@ -126,7 +142,7 @@ pub async fn start_ably_token_broker(
         web_app_url,
         falco_token: falco_token.clone(),
         nagato_token: nagato_token.clone(),
-        cache: RwLock::new(HashMap::new()),
+        cache: cache.clone(),
     });
 
     let socket_for_task = socket_path.clone();
@@ -152,6 +168,7 @@ pub async fn start_ably_token_broker(
     Ok(AblyTokenBrokerRuntime {
         falco_token,
         nagato_token,
+        cache_handle: AblyTokenBrokerCacheHandle { cache },
         shutdown_tx,
         task,
     })

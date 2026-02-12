@@ -1,6 +1,7 @@
 //! Daemon state definition.
 
 use crate::armin_adapter::DaemonArmin;
+use crate::ably::AblyTokenBrokerCacheHandle;
 use crate::itachi::idempotency::IdempotencyStore;
 use crate::utils::SessionSecretCache;
 use daemon_config_and_utils::{Config, Paths};
@@ -71,6 +72,8 @@ pub struct DaemonState {
     pub ably_broker_nagato_token: String,
     /// Token used by Falco sidecar when requesting Ably token details.
     pub ably_broker_falco_token: String,
+    /// Handle for clearing broker token cache on auth transitions (e.g. logout).
+    pub ably_broker_cache: AblyTokenBrokerCacheHandle,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.
