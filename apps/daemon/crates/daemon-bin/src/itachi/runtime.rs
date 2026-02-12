@@ -229,6 +229,21 @@ async fn dispatch_command(
         "claude.stop.v1" => {
             crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
         }
+        "gh.pr.create.v1" => crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
+            .await
+            .map_err(|err| (err.code, err.message)),
+        "gh.pr.view.v1" => crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
+            .await
+            .map_err(|err| (err.code, err.message)),
+        "gh.pr.list.v1" => crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
+            .await
+            .map_err(|err| (err.code, err.message)),
+        "gh.pr.checks.v1" => crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
+            .await
+            .map_err(|err| (err.code, err.message)),
+        "gh.pr.merge.v1" => crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
+            .await
+            .map_err(|err| (err.code, err.message)),
         other => Err((
             "unsupported_command_type".to_string(),
             format!("command type {other} is not supported"),

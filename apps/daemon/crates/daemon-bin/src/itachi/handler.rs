@@ -11,6 +11,11 @@ const SUPPORTED_COMMAND_TYPES: &[&str] = &[
     "session.create.v1",
     "claude.send.v1",
     "claude.stop.v1",
+    "gh.pr.create.v1",
+    "gh.pr.view.v1",
+    "gh.pr.list.v1",
+    "gh.pr.checks.v1",
+    "gh.pr.merge.v1",
 ];
 
 /// Top-level router: tries generic envelope first, falls back to legacy UM secret format.
@@ -91,6 +96,25 @@ fn handle_generic_command(envelope: RemoteCommandEnvelope, deps: &HandlerDeps) -
             Some(envelope.request_id),
             None,
         );
+    }
+
+    // GH remote commands require session_id in params.
+    if envelope.command_type.starts_with("gh.pr.") {
+        let has_session_id = envelope
+            .params
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
+
+        if !has_session_id {
+            return reject(
+                DecisionReasonCode::InvalidPayload,
+                "session_id is required for gh.pr.*.v1 commands".to_string(),
+                Some(envelope.request_id),
+                None,
+            );
+        }
     }
 
     // Accept and emit execution effect
@@ -463,6 +487,56 @@ mod tests {
         assert!(effects
             .iter()
             .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_accepts_gh_pr_view_with_session_id() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "gh.pr.view.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": { "session_id": "session-123" }
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, .. } => {
+                assert_eq!(*decision, DecisionKind::AckMessage);
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExecuteRemoteCommand { .. })));
+    }
+
+    #[test]
+    fn generic_command_rejects_gh_pr_without_session_id() {
+        let payload = json!({
+            "schema_version": 1,
+            "type": "gh.pr.list.v1",
+            "request_id": "11111111-1111-1111-1111-111111111111",
+            "requester_device_id": "22222222-2222-2222-2222-222222222222",
+            "target_device_id": "00000000-0000-0000-0000-000000000111",
+            "requested_at_ms": 1700000000000_i64,
+            "params": {}
+        });
+
+        let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
+        match &effects[0] {
+            Effect::ReturnDecision { decision, payload } => {
+                assert_eq!(*decision, DecisionKind::DoNotAck);
+                assert_eq!(
+                    payload.reason_code,
+                    Some(DecisionReasonCode::InvalidPayload)
+                );
+                assert!(payload.message.contains("session_id"));
+            }
+            _ => panic!("first effect must be ReturnDecision"),
+        }
     }
 
     #[test]
