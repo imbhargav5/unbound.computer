@@ -26,6 +26,15 @@ final class SyncedSessionDetailViewModel {
     private(set) var isSending = false
     private(set) var isStopping = false
     private(set) var commandError: String?
+    private(set) var pullRequests: [RemotePullRequest] = []
+    private(set) var selectedPullRequest: RemotePullRequest?
+    private(set) var selectedPullRequestChecks: PRChecksResult?
+    var prTitle = ""
+    var prBody = ""
+    var prMergeMethod = "squash"
+    private(set) var isLoadingPullRequests = false
+    private(set) var isCreatingPullRequest = false
+    private(set) var isMergingPullRequest = false
 
     private var hasLoaded = false
     private var realtimeUpdatesTask: Task<Void, Never>?
@@ -36,6 +45,10 @@ final class SyncedSessionDetailViewModel {
 
     var canStopClaude: Bool {
         session.deviceId != nil && !isStopping
+    }
+
+    var canRunPRActions: Bool {
+        session.deviceId != nil && !isSending && !isStopping && !isCreatingPullRequest && !isMergingPullRequest
     }
 
     init(
@@ -50,6 +63,7 @@ final class SyncedSessionDetailViewModel {
 
     func start() async {
         await loadMessages()
+        await refreshPullRequests()
         startRealtimeUpdates()
     }
 
@@ -127,6 +141,113 @@ final class SyncedSessionDetailViewModel {
             sessionDetailLogger.info("Claude stopped for session, stopped=\(result.stopped)")
         } catch {
             sessionDetailLogger.error("Failed to stop Claude: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func refreshPullRequests() async {
+        guard let deviceId = session.deviceId else { return }
+        guard !isLoadingPullRequests else { return }
+
+        isLoadingPullRequests = true
+        defer { isLoadingPullRequests = false }
+
+        do {
+            let result = try await remoteCommandService.listPRs(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                state: "open",
+                limit: 20
+            )
+            pullRequests = result.pullRequests
+            if let selected = selectedPullRequest,
+               let refreshed = pullRequests.first(where: { $0.number == selected.number }) {
+                selectedPullRequest = refreshed
+            } else {
+                selectedPullRequest = pullRequests.first
+            }
+            commandError = nil
+            await refreshSelectedPullRequestChecks()
+        } catch {
+            sessionDetailLogger.error("Failed to refresh pull requests: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func createPullRequest() async {
+        guard let deviceId = session.deviceId else { return }
+        guard canRunPRActions else { return }
+        let title = prTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+
+        isCreatingPullRequest = true
+        defer { isCreatingPullRequest = false }
+
+        do {
+            let body = prBody.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await remoteCommandService.createPR(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                title: title,
+                body: body.isEmpty ? nil : body
+            )
+            selectedPullRequest = result.pullRequest
+            prTitle = ""
+            prBody = ""
+            commandError = nil
+            await refreshPullRequests()
+        } catch {
+            sessionDetailLogger.error("Failed to create pull request: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func selectPullRequest(_ pullRequest: RemotePullRequest) async {
+        selectedPullRequest = pullRequest
+        await refreshSelectedPullRequestChecks()
+    }
+
+    func refreshSelectedPullRequestChecks() async {
+        guard let deviceId = session.deviceId else { return }
+        guard let selectedPullRequest else {
+            selectedPullRequestChecks = nil
+            return
+        }
+
+        do {
+            selectedPullRequestChecks = try await remoteCommandService.prChecks(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                selector: "\(selectedPullRequest.number)"
+            )
+            commandError = nil
+        } catch {
+            sessionDetailLogger.error("Failed to refresh PR checks: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func mergeSelectedPullRequest(deleteBranch: Bool = false) async {
+        guard let deviceId = session.deviceId else { return }
+        guard let selectedPullRequest else { return }
+        guard canRunPRActions else { return }
+
+        isMergingPullRequest = true
+        defer { isMergingPullRequest = false }
+
+        do {
+            let result = try await remoteCommandService.mergePR(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                selector: "\(selectedPullRequest.number)",
+                mergeMethod: prMergeMethod,
+                deleteBranch: deleteBranch
+            )
+            self.selectedPullRequest = result.pullRequest
+            commandError = nil
+            await refreshPullRequests()
+        } catch {
+            sessionDetailLogger.error("Failed to merge pull request: \(error.localizedDescription)")
             commandError = error.localizedDescription
         }
     }

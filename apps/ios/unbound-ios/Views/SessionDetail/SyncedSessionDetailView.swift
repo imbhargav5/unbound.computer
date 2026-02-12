@@ -5,6 +5,8 @@ struct SyncedSessionDetailView: View {
 
     @State private var viewModel: SyncedSessionDetailViewModel
     @State private var hasAppliedInitialBottomScroll = false
+    @State private var showCreatePRComposer = false
+    @State private var deleteBranchOnMerge = false
 
     init(
         session: SyncedSession,
@@ -65,9 +67,19 @@ struct SyncedSessionDetailView: View {
                         .disabled(viewModel.isStopping)
                     }
 
+                    if session.deviceId != nil {
+                        Button {
+                            showCreatePRComposer.toggle()
+                        } label: {
+                            Image(systemName: "arrow.triangle.pull")
+                        }
+                        .disabled(!viewModel.canRunPRActions)
+                    }
+
                     Button {
                         Task {
                             await viewModel.loadMessages(force: true)
+                            await viewModel.refreshPullRequests()
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -105,6 +117,9 @@ struct SyncedSessionDetailView: View {
             ScrollView {
                 VStack(spacing: AppTheme.spacingM) {
                     headerCard
+                    if session.deviceId != nil {
+                        pullRequestPanel
+                    }
 
                     LazyVStack(spacing: AppTheme.spacingS) {
                         ForEach(visibleMessages) { message in
@@ -170,6 +185,121 @@ struct SyncedSessionDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.spacingM)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium)
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private var pullRequestPanel: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingS) {
+            HStack {
+                Label("Pull Requests", systemImage: "arrow.triangle.pull")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer()
+                Button("Refresh") {
+                    Task { await viewModel.refreshPullRequests() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isLoadingPullRequests)
+            }
+
+            if showCreatePRComposer {
+                VStack(spacing: AppTheme.spacingS) {
+                    TextField("PR title", text: $viewModel.prTitle)
+                        .textFieldStyle(.roundedBorder)
+
+                    TextEditor(text: $viewModel.prBody)
+                        .frame(minHeight: 64, maxHeight: 96)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
+                                .stroke(AppTheme.cardBorder, lineWidth: 1)
+                        )
+
+                    HStack {
+                        Button("Create PR") {
+                            Task { await viewModel.createPullRequest() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(viewModel.prTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isCreatingPullRequest)
+
+                        Button("Cancel") {
+                            showCreatePRComposer = false
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                }
+            }
+
+            if viewModel.pullRequests.isEmpty {
+                Text(viewModel.isLoadingPullRequests ? "Loading PRs..." : "No pull requests")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+                    ForEach(viewModel.pullRequests.prefix(5), id: \.number) { pullRequest in
+                        Button {
+                            Task { await viewModel.selectPullRequest(pullRequest) }
+                        } label: {
+                            HStack(spacing: AppTheme.spacingXS) {
+                                Text("#\(pullRequest.number)")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                Text(pullRequest.title)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                Spacer()
+                                Text(pullRequest.state)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if let selected = viewModel.selectedPullRequest {
+                Divider()
+                HStack {
+                    Text("Selected: #\(selected.number)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Spacer()
+                    Picker("Merge", selection: $viewModel.prMergeMethod) {
+                        Text("Merge").tag("merge")
+                        Text("Squash").tag("squash")
+                        Text("Rebase").tag("rebase")
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 110)
+                }
+
+                if let checks = viewModel.selectedPullRequestChecks {
+                    Text("Checks: \(checks.summary.passing) pass, \(checks.summary.failing) fail, \(checks.summary.pending) pending")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+
+                Toggle("Delete branch", isOn: $deleteBranchOnMerge)
+                    .font(.caption)
+
+                Button("Merge Selected PR") {
+                    Task { await viewModel.mergeSelectedPullRequest(deleteBranch: deleteBranchOnMerge) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isMergingPullRequest || !viewModel.canRunPRActions)
+            }
+        }
         .padding(AppTheme.spacingM)
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
