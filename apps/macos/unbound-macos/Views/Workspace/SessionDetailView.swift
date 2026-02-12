@@ -12,7 +12,7 @@ struct SessionDetailView: View {
 
     let session: Session
     let messages: [ChatMessage]
-    let rawMessageCount: Int
+    let sourceMessageCount: Int
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -84,7 +84,7 @@ struct SessionDetailView: View {
 
             HStack(spacing: Spacing.lg) {
                 statPill(title: "Rendered", value: "\(messages.count)")
-                statPill(title: "Raw Fixture", value: "\(rawMessageCount)")
+                statPill(title: "Source Rows", value: "\(sourceMessageCount)")
             }
 
             HStack(spacing: Spacing.sm) {
@@ -156,7 +156,9 @@ struct SessionDetailView: View {
 }
 
 #if DEBUG
-private struct SessionDetailFixturePreview: View {
+private struct SessionDetailScenarioPreview: View {
+    let scenario: SessionDetailPreviewScenario
+
     @State private var previewData: SessionDetailPreviewData?
     @State private var loadError: String?
 
@@ -166,7 +168,7 @@ private struct SessionDetailFixturePreview: View {
                 SessionDetailView(
                     session: previewData.session,
                     messages: previewData.parsedMessages,
-                    rawMessageCount: previewData.rawMessageCount
+                    sourceMessageCount: previewData.sourceMessageCount
                 )
             } else if let loadError {
                 SessionDetailFixtureErrorView(errorMessage: loadError)
@@ -174,7 +176,7 @@ private struct SessionDetailFixturePreview: View {
                 VStack(spacing: Spacing.md) {
                     ProgressView()
 
-                    Text("Loading Session Detail Fixture...")
+                    Text(scenario.loadingTitle)
                         .font(Typography.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -190,17 +192,89 @@ private struct SessionDetailFixturePreview: View {
         guard previewData == nil && loadError == nil else { return }
 
         do {
-            let loaded = try await Task.detached(priority: .userInitiated) {
-                try SessionDetailFixtureLoader().loadPreviewData()
-            }.value
-
-            await MainActor.run {
-                previewData = loaded
-            }
+            previewData = try SessionDetailPreviewScenarioBuilder.load(scenario)
         } catch {
-            await MainActor.run {
-                loadError = error.localizedDescription
+            loadError = error.localizedDescription
+        }
+    }
+}
+
+private struct SessionDetailStatusVariantsPreview: View {
+    private enum StatusVariant: String, CaseIterable, Identifiable {
+        case archived
+        case error
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .archived:
+                return "Archived"
+            case .error:
+                return "Error"
             }
+        }
+    }
+
+    @State private var variants: SessionDetailStatusVariants?
+    @State private var selectedStatus: StatusVariant = .archived
+    @State private var loadError: String?
+
+    var body: some View {
+        Group {
+            if let variants {
+                let selectedData = selectedData(from: variants)
+                VStack(spacing: 0) {
+                    Picker("Status", selection: $selectedStatus) {
+                        ForEach(StatusVariant.allCases) { variant in
+                            Text(variant.label)
+                                .tag(variant)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.sm)
+
+                    SessionDetailView(
+                        session: selectedData.session,
+                        messages: selectedData.parsedMessages,
+                        sourceMessageCount: selectedData.sourceMessageCount
+                    )
+                }
+            } else if let loadError {
+                SessionDetailFixtureErrorView(errorMessage: loadError)
+            } else {
+                VStack(spacing: Spacing.md) {
+                    ProgressView()
+
+                    Text("Loading Status Variants...")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task {
+            await loadStatusVariantsIfNeeded()
+        }
+    }
+
+    private func selectedData(from variants: SessionDetailStatusVariants) -> SessionDetailPreviewData {
+        switch selectedStatus {
+        case .archived:
+            return variants.archived
+        case .error:
+            return variants.error
+        }
+    }
+
+    private func loadStatusVariantsIfNeeded() async {
+        guard variants == nil && loadError == nil else { return }
+
+        do {
+            variants = try SessionDetailPreviewScenarioBuilder.loadStatusVariants()
+        } catch {
+            loadError = error.localizedDescription
         }
     }
 }
@@ -233,8 +307,33 @@ private struct SessionDetailFixtureErrorView: View {
     }
 }
 
-#Preview("Session Detail Fixture") {
-    SessionDetailFixturePreview()
+#Preview("Session Detail - Fixture Max") {
+    SessionDetailScenarioPreview(scenario: .fixtureMax)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Fixture Short") {
+    SessionDetailScenarioPreview(scenario: .fixtureShort)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Empty Timeline") {
+    SessionDetailScenarioPreview(scenario: .emptyTimeline)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Text Heavy") {
+    SessionDetailScenarioPreview(scenario: .textHeavySynthetic)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Tool Heavy") {
+    SessionDetailScenarioPreview(scenario: .toolHeavySynthetic)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Status Variants") {
+    SessionDetailStatusVariantsPreview()
         .frame(width: 960, height: 700)
 }
 #endif

@@ -22,13 +22,24 @@ xcodebuild -project unbound-macos.xcodeproj \
   build
 ```
 
-## Session Detail Preview Fixture
+## Session Detail Canvas Previews
 
-The `SessionDetailView` canvas preview uses a committed fixture at:
+`SessionDetailView` includes six Xcode Canvas previews:
+
+1. `Session Detail - Fixture Max`
+2. `Session Detail - Fixture Short`
+3. `Session Detail - Empty Timeline`
+4. `Session Detail - Text Heavy`
+5. `Session Detail - Tool Heavy`
+6. `Session Detail - Status Variants`
+
+The preview suite keeps one exported fixture and derives short/empty/status variants in Swift, while text/tool-heavy scenarios use synthetic preview data.
+
+The base fixture-backed scenarios use:
 
 - `unbound-macos/Resources/PreviewFixtures/session-detail-max-messages.json`
 
-Regenerate it from the macOS SQLite database (run from repository root):
+Regenerate the fixture from the macOS SQLite database (run from repository root):
 
 ```bash
 ./apps/ios/scripts/export_max_session_fixture.sh \

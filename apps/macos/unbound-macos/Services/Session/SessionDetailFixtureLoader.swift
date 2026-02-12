@@ -69,7 +69,7 @@ enum SessionDetailFixtureLoaderError: Error, LocalizedError {
 
 struct SessionDetailPreviewData {
     let session: Session
-    let rawMessageCount: Int
+    let sourceMessageCount: Int
     let parsedMessages: [ChatMessage]
 }
 
@@ -136,7 +136,7 @@ final class SessionDetailFixtureLoader {
 
         return SessionDetailPreviewData(
             session: Self.mapSession(fixture.session, repositoryId: repositoryId),
-            rawMessageCount: fixture.messages.count,
+            sourceMessageCount: fixture.messages.count,
             parsedMessages: parsedMessages
         )
     }
