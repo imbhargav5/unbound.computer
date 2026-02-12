@@ -63,6 +63,14 @@ enum DaemonMethod: String, Codable {
     case gitCommit = "git.commit"
     case gitPush = "git.push"
 
+    // GitHub CLI operations
+    case ghAuthStatus = "gh.auth_status"
+    case ghPrCreate = "gh.pr_create"
+    case ghPrView = "gh.pr_view"
+    case ghPrList = "gh.pr_list"
+    case ghPrChecks = "gh.pr_checks"
+    case ghPrMerge = "gh.pr_merge"
+
     // System operations
     case systemCheckDependencies = "system.check_dependencies"
 

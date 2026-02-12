@@ -573,6 +573,118 @@ extension DaemonClient {
         let response = try await call(method: .gitPush, params: params)
         return try response.resultAs(GitPushResultResponse.self)
     }
+
+    // MARK: GitHub PR Workflows
+
+    /// Check GitHub CLI authentication status.
+    func ghAuthStatus(
+        hostname: String? = nil,
+        activeOnly: Bool = false
+    ) async throws -> GHAuthStatusResult {
+        var params: [String: Any] = [:]
+        if let hostname, !hostname.isEmpty {
+            params["hostname"] = hostname
+        }
+        if activeOnly {
+            params["active_only"] = true
+        }
+        let response = try await call(method: .ghAuthStatus, params: params.isEmpty ? nil : params)
+        return try response.resultAs(GHAuthStatusResult.self)
+    }
+
+    /// Create a pull request for the current repository context.
+    func ghCreatePR(
+        path: String,
+        title: String,
+        body: String? = nil,
+        base: String? = nil,
+        head: String? = nil,
+        draft: Bool = false,
+        reviewers: [String] = [],
+        labels: [String] = [],
+        maintainerCanModify: Bool? = nil
+    ) async throws -> GHPRCreateResponse {
+        var params: [String: Any] = [
+            "path": path,
+            "title": title,
+        ]
+        if let body { params["body"] = body }
+        if let base { params["base"] = base }
+        if let head { params["head"] = head }
+        if draft { params["draft"] = true }
+        if !reviewers.isEmpty { params["reviewers"] = reviewers }
+        if !labels.isEmpty { params["labels"] = labels }
+        if let maintainerCanModify { params["maintainer_can_modify"] = maintainerCanModify }
+
+        let response = try await call(method: .ghPrCreate, params: params)
+        return try response.resultAs(GHPRCreateResponse.self)
+    }
+
+    /// View pull request details.
+    func ghViewPR(path: String, selector: String? = nil) async throws -> GHPullRequest {
+        var params: [String: Any] = ["path": path]
+        if let selector, !selector.isEmpty {
+            params["selector"] = selector
+        }
+        let response = try await call(method: .ghPrView, params: params)
+        let wrapped = try response.resultAs(GHPRViewResponse.self)
+        return wrapped.pullRequest
+    }
+
+    /// List pull requests for repository context.
+    func ghListPRs(
+        path: String,
+        state: GHPRListState = .open,
+        limit: Int = 20,
+        base: String? = nil,
+        head: String? = nil
+    ) async throws -> GHPRListResponse {
+        var params: [String: Any] = [
+            "path": path,
+            "state": state.rawValue,
+            "limit": limit,
+        ]
+        if let base { params["base"] = base }
+        if let head { params["head"] = head }
+
+        let response = try await call(method: .ghPrList, params: params)
+        return try response.resultAs(GHPRListResponse.self)
+    }
+
+    /// Retrieve checks for a PR.
+    func ghPRChecks(path: String, selector: String? = nil) async throws -> GHPRChecksResponse {
+        var params: [String: Any] = ["path": path]
+        if let selector, !selector.isEmpty {
+            params["selector"] = selector
+        }
+
+        let response = try await call(method: .ghPrChecks, params: params)
+        return try response.resultAs(GHPRChecksResponse.self)
+    }
+
+    /// Merge a PR using the selected strategy.
+    func ghMergePR(
+        path: String,
+        selector: String? = nil,
+        mergeMethod: GHPRMergeMethod = .squash,
+        deleteBranch: Bool = false,
+        subject: String? = nil,
+        body: String? = nil
+    ) async throws -> GHPRMergeResponse {
+        var params: [String: Any] = [
+            "path": path,
+            "merge_method": mergeMethod.rawValue,
+            "delete_branch": deleteBranch,
+        ]
+        if let selector, !selector.isEmpty {
+            params["selector"] = selector
+        }
+        if let subject { params["subject"] = subject }
+        if let body { params["body"] = body }
+
+        let response = try await call(method: .ghPrMerge, params: params)
+        return try response.resultAs(GHPRMergeResponse.self)
+    }
 }
 
 // MARK: - Terminal

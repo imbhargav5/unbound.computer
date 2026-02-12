@@ -325,6 +325,187 @@ struct GitStatusResult: Codable {
     }
 }
 
+// MARK: - GitHub CLI Models
+
+/// Authentication host entry returned by `gh.auth_status`.
+struct GHAuthHost: Codable, Hashable, Identifiable {
+    let host: String
+    let login: String?
+    let state: String
+    let active: Bool
+    let tokenSource: String?
+    let gitProtocol: String?
+    let error: String?
+
+    var id: String { "\(host):\(login ?? "unknown")" }
+
+    enum CodingKeys: String, CodingKey {
+        case host
+        case login
+        case state
+        case active
+        case tokenSource = "token_source"
+        case gitProtocol = "git_protocol"
+        case error
+    }
+}
+
+/// Result payload for `gh.auth_status`.
+struct GHAuthStatusResult: Codable {
+    let hosts: [GHAuthHost]
+    let authenticatedHostCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case hosts
+        case authenticatedHostCount = "authenticated_host_count"
+    }
+}
+
+struct GHPullRequestAuthor: Codable, Hashable {
+    let login: String
+}
+
+struct GHPullRequestLabel: Codable, Hashable, Identifiable {
+    let name: String
+    var id: String { name }
+}
+
+/// Normalized PR detail returned across create/view/list/merge flows.
+struct GHPullRequest: Codable, Identifiable {
+    let number: Int
+    let title: String
+    let url: String
+    let state: String
+    let isDraft: Bool
+    let baseRefName: String?
+    let headRefName: String?
+    let mergeStateStatus: String?
+    let mergeable: String?
+    let reviewDecision: String?
+    let author: GHPullRequestAuthor?
+    let labels: [GHPullRequestLabel]
+    let body: String?
+    let createdAt: String?
+    let updatedAt: String?
+    let statusCheckRollup: AnyCodableValue?
+
+    var id: Int { number }
+
+    enum CodingKeys: String, CodingKey {
+        case number
+        case title
+        case url
+        case state
+        case isDraft = "is_draft"
+        case baseRefName = "base_ref_name"
+        case headRefName = "head_ref_name"
+        case mergeStateStatus = "merge_state_status"
+        case mergeable
+        case reviewDecision = "review_decision"
+        case author
+        case labels
+        case body
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case statusCheckRollup = "status_check_rollup"
+    }
+}
+
+struct GHPRCreateResponse: Codable {
+    let url: String
+    let pullRequest: GHPullRequest
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case pullRequest = "pull_request"
+    }
+}
+
+struct GHPRViewResponse: Codable {
+    let pullRequest: GHPullRequest
+
+    enum CodingKeys: String, CodingKey {
+        case pullRequest = "pull_request"
+    }
+}
+
+struct GHPRListResponse: Codable {
+    let pullRequests: [GHPullRequest]
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case pullRequests = "pull_requests"
+        case count
+    }
+}
+
+struct GHPRCheckItem: Codable, Hashable, Identifiable {
+    let name: String
+    let state: String?
+    let bucket: String?
+    let workflow: String?
+    let description: String?
+    let event: String?
+    let link: String?
+    let startedAt: String?
+    let completedAt: String?
+
+    var id: String { "\(name):\(workflow ?? "none")" }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case state
+        case bucket
+        case workflow
+        case description
+        case event
+        case link
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+    }
+}
+
+struct GHPRChecksSummary: Codable, Hashable {
+    let total: Int
+    let passing: Int
+    let failing: Int
+    let pending: Int
+    let skipped: Int
+    let cancelled: Int
+}
+
+struct GHPRChecksResponse: Codable {
+    let checks: [GHPRCheckItem]
+    let summary: GHPRChecksSummary
+}
+
+enum GHPRMergeMethod: String, Codable, CaseIterable {
+    case merge
+    case squash
+    case rebase
+}
+
+struct GHPRMergeResponse: Codable {
+    let merged: Bool
+    let mergeMethod: GHPRMergeMethod
+    let deletedBranch: Bool
+    let pullRequest: GHPullRequest
+
+    enum CodingKeys: String, CodingKey {
+        case merged
+        case mergeMethod = "merge_method"
+        case deletedBranch = "deleted_branch"
+        case pullRequest = "pull_request"
+    }
+}
+
+enum GHPRListState: String, Codable, CaseIterable {
+    case open
+    case closed
+    case merged
+    case all
+}
+
 // MARK: - Commit Graph
 
 /// Represents a node in the commit graph for visualization.
@@ -355,6 +536,7 @@ enum RightSidebarTab: String, CaseIterable, Identifiable {
     case changes = "Changes"
     case files = "Files"
     case commits = "Commits"
+    case pullRequests = "PRs"
 
     var id: String { rawValue }
 
@@ -364,6 +546,7 @@ enum RightSidebarTab: String, CaseIterable, Identifiable {
         case .changes: return "plus.forwardslash.minus"
         case .files: return "folder"
         case .commits: return "clock.arrow.circlepath"
+        case .pullRequests: return "arrow.triangle.pull"
         }
     }
 }
