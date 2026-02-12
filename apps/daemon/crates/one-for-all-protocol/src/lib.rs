@@ -95,6 +95,20 @@ pub enum Method {
     #[serde(rename = "git.push")]
     GitPush,
 
+    // GitHub CLI operations
+    #[serde(rename = "gh.auth_status")]
+    GhAuthStatus,
+    #[serde(rename = "gh.pr_create")]
+    GhPrCreate,
+    #[serde(rename = "gh.pr_view")]
+    GhPrView,
+    #[serde(rename = "gh.pr_list")]
+    GhPrList,
+    #[serde(rename = "gh.pr_checks")]
+    GhPrChecks,
+    #[serde(rename = "gh.pr_merge")]
+    GhPrMerge,
+
     // System operations
     #[serde(rename = "system.check_dependencies")]
     SystemCheckDependencies,
@@ -379,6 +393,12 @@ mod tests {
             (Method::GitDiscard, "\"git.discard\""),
             (Method::GitCommitChanges, "\"git.commit\""),
             (Method::GitPush, "\"git.push\""),
+            (Method::GhAuthStatus, "\"gh.auth_status\""),
+            (Method::GhPrCreate, "\"gh.pr_create\""),
+            (Method::GhPrView, "\"gh.pr_view\""),
+            (Method::GhPrList, "\"gh.pr_list\""),
+            (Method::GhPrChecks, "\"gh.pr_checks\""),
+            (Method::GhPrMerge, "\"gh.pr_merge\""),
             (
                 Method::SystemCheckDependencies,
                 "\"system.check_dependencies\"",
@@ -432,6 +452,12 @@ mod tests {
             Method::GitDiscard,
             Method::GitCommitChanges,
             Method::GitPush,
+            Method::GhAuthStatus,
+            Method::GhPrCreate,
+            Method::GhPrView,
+            Method::GhPrList,
+            Method::GhPrChecks,
+            Method::GhPrMerge,
             Method::SystemCheckDependencies,
             Method::TerminalRun,
             Method::TerminalStatus,
