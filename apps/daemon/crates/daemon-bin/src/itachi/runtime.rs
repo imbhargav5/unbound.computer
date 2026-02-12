@@ -219,35 +219,61 @@ async fn dispatch_command(
     state: &DaemonState,
     envelope: &RemoteCommandEnvelope,
 ) -> Result<serde_json::Value, (String, String)> {
-    match envelope.command_type.as_str() {
-        "session.create.v1" => {
+    match classify_remote_command_type(&envelope.command_type) {
+        Some(RemoteCommandType::SessionCreateV1) => {
             crate::ipc::handlers::session::create_session_core(state, &envelope.params).await
         }
-        "claude.send.v1" => {
+        Some(RemoteCommandType::ClaudeSendV1) => {
             crate::ipc::handlers::claude::claude_send_core(state, &envelope.params).await
         }
-        "claude.stop.v1" => {
+        Some(RemoteCommandType::ClaudeStopV1) => {
             crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
         }
-        "gh.pr.create.v1" => crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
+        Some(RemoteCommandType::GhPrCreateV1) => crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
             .await
             .map_err(|err| (err.code, err.message)),
-        "gh.pr.view.v1" => crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
+        Some(RemoteCommandType::GhPrViewV1) => crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
             .await
             .map_err(|err| (err.code, err.message)),
-        "gh.pr.list.v1" => crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
+        Some(RemoteCommandType::GhPrListV1) => crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
             .await
             .map_err(|err| (err.code, err.message)),
-        "gh.pr.checks.v1" => crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
+        Some(RemoteCommandType::GhPrChecksV1) => crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
             .await
             .map_err(|err| (err.code, err.message)),
-        "gh.pr.merge.v1" => crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
+        Some(RemoteCommandType::GhPrMergeV1) => crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
             .await
             .map_err(|err| (err.code, err.message)),
-        other => Err((
+        None => Err((
             "unsupported_command_type".to_string(),
-            format!("command type {other} is not supported"),
+            format!("command type {} is not supported", envelope.command_type),
         )),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemoteCommandType {
+    SessionCreateV1,
+    ClaudeSendV1,
+    ClaudeStopV1,
+    GhPrCreateV1,
+    GhPrViewV1,
+    GhPrListV1,
+    GhPrChecksV1,
+    GhPrMergeV1,
+}
+
+fn classify_remote_command_type(command_type: &str) -> Option<RemoteCommandType> {
+    match command_type {
+        "session.create.v1" => Some(RemoteCommandType::SessionCreateV1),
+        "claude.send.v1" => Some(RemoteCommandType::ClaudeSendV1),
+        "claude.stop.v1" => Some(RemoteCommandType::ClaudeStopV1),
+        "gh.pr.create.v1" => Some(RemoteCommandType::GhPrCreateV1),
+        "gh.pr.view.v1" => Some(RemoteCommandType::GhPrViewV1),
+        "gh.pr.list.v1" => Some(RemoteCommandType::GhPrListV1),
+        "gh.pr.checks.v1" => Some(RemoteCommandType::GhPrChecksV1),
+        "gh.pr.merge.v1" => Some(RemoteCommandType::GhPrMergeV1),
+        _ => None,
     }
 }
 
@@ -592,7 +618,10 @@ fn parse_publish_ack(data: &[u8]) -> Result<PublishAckFrame, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{idempotency_key, parse_publish_ack, FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK};
+    use super::{
+        classify_remote_command_type, idempotency_key, parse_publish_ack, RemoteCommandType,
+        FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
+    };
     use crate::itachi::contracts::UmSecretRequestCommand;
     use uuid::Uuid;
 
@@ -626,5 +655,30 @@ mod tests {
         assert_eq!(parsed.effect_id, effect_id);
         assert_eq!(parsed.status, FALCO_STATUS_SUCCESS);
         assert!(parsed.error_message.is_empty());
+    }
+
+    #[test]
+    fn classify_remote_command_type_supports_gh_pr_commands() {
+        assert_eq!(
+            classify_remote_command_type("gh.pr.create.v1"),
+            Some(RemoteCommandType::GhPrCreateV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("gh.pr.view.v1"),
+            Some(RemoteCommandType::GhPrViewV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("gh.pr.list.v1"),
+            Some(RemoteCommandType::GhPrListV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("gh.pr.checks.v1"),
+            Some(RemoteCommandType::GhPrChecksV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("gh.pr.merge.v1"),
+            Some(RemoteCommandType::GhPrMergeV1)
+        );
+        assert_eq!(classify_remote_command_type("gh.pr.unknown.v1"), None);
     }
 }

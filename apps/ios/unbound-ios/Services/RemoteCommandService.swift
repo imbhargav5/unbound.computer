@@ -120,6 +120,7 @@ final class RemoteCommandService {
     private let transport: RemoteCommandTransport
     private let authService: AuthService
     private let keychainService: KeychainService
+    private let authContextResolver: (() throws -> (userId: String, deviceId: String))?
     private let ackTimeout: TimeInterval
     private let responseTimeout: TimeInterval
 
@@ -127,12 +128,14 @@ final class RemoteCommandService {
         transport: RemoteCommandTransport = AblyRemoteCommandTransport(),
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared,
+        authContextResolver: (() throws -> (userId: String, deviceId: String))? = nil,
         ackTimeout: TimeInterval = 10,
         responseTimeout: TimeInterval = 30
     ) {
         self.transport = transport
         self.authService = authService
         self.keychainService = keychainService
+        self.authContextResolver = authContextResolver
         self.ackTimeout = ackTimeout
         self.responseTimeout = responseTimeout
     }
@@ -524,6 +527,11 @@ final class RemoteCommandService {
     }
 
     private func resolveAuthContext() throws -> AuthContext {
+        if let authContextResolver {
+            let context = try authContextResolver()
+            return AuthContext(userId: context.userId, deviceId: context.deviceId)
+        }
+
         guard let userId = authService.currentUserId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !userId.isEmpty else {
             throw RemoteCommandError.notAuthenticated

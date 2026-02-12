@@ -281,3 +281,64 @@ fn map_rpc_code(machine_code: &str) -> i32 {
         _ => error_codes::INTERNAL_ERROR,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        map_resolve_error, map_rpc_code, parse_input, GhCoreError,
+    };
+    use armin::ArminError;
+    use bakugou::PrListInput;
+    use daemon_ipc::error_codes;
+    use sakura_working_dir_resolution::ResolveError;
+
+    #[test]
+    fn parse_input_rejects_invalid_shape() {
+        let params = serde_json::json!({
+            "state": "open",
+            "limit": "twenty"
+        });
+
+        let err = parse_input::<PrListInput>(&params).expect_err("expected parse failure");
+        assert_eq!(err.code, "invalid_params");
+        assert!(err.message.contains("invalid parameters"));
+    }
+
+    #[test]
+    fn map_rpc_code_uses_expected_json_rpc_codes() {
+        assert_eq!(map_rpc_code("invalid_params"), error_codes::INVALID_PARAMS);
+        assert_eq!(map_rpc_code("invalid_repository"), error_codes::NOT_FOUND);
+        assert_eq!(map_rpc_code("not_found"), error_codes::NOT_FOUND);
+        assert_eq!(map_rpc_code("command_failed"), error_codes::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn resolve_error_maps_session_and_repo_not_found() {
+        let session = map_resolve_error(ResolveError::SessionNotFound("missing session".to_string()));
+        assert_eq!(session.code, "not_found");
+        assert_eq!(session.message, "missing session");
+
+        let repo = map_resolve_error(ResolveError::RepositoryNotFound("missing repo".to_string()));
+        assert_eq!(repo.code, "not_found");
+        assert_eq!(repo.message, "missing repo");
+    }
+
+    #[test]
+    fn resolve_error_maps_armin_to_command_failed() {
+        let err = map_resolve_error(ResolveError::Armin(ArminError::SessionNotFound(
+            "sess-1".to_string(),
+        )));
+        assert_eq!(err.code, "command_failed");
+        assert!(err.message.contains("failed to resolve working directory"));
+    }
+
+    #[test]
+    fn gh_core_error_struct_is_stable() {
+        let err = GhCoreError {
+            code: "timeout".to_string(),
+            message: "operation timed out".to_string(),
+        };
+        assert_eq!(err.code, "timeout");
+        assert_eq!(err.message, "operation timed out");
+    }
+}

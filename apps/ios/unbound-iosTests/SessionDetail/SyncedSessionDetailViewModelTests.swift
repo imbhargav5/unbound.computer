@@ -147,7 +147,189 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
         XCTAssertEqual(loader.updateCalls, 1)
     }
 
-    private func makeSession(id: String = UUID().uuidString) -> SyncedSession {
+    func testRefreshPullRequestsLoadsAndSelectsFirst() async {
+        let transport = MockGenericRemoteCommandTransport()
+        transport.resultByType["gh.pr.list.v1"] = [
+            "pull_requests": .array([
+                .object([
+                    "number": .int(42),
+                    "title": .string("Add bakugou crate"),
+                    "url": .string("https://github.com/unbound/repo/pull/42"),
+                    "state": .string("OPEN"),
+                    "is_draft": .bool(false),
+                ]),
+                .object([
+                    "number": .int(43),
+                    "title": .string("Wire gh IPC"),
+                    "url": .string("https://github.com/unbound/repo/pull/43"),
+                    "state": .string("OPEN"),
+                    "is_draft": .bool(false),
+                ]),
+            ]),
+            "count": .int(2),
+        ]
+        transport.resultByType["gh.pr.checks.v1"] = [
+            "checks": .array([
+                .object([
+                    "name": .string("CI"),
+                    "state": .string("completed"),
+                    "bucket": .string("pass"),
+                ]),
+            ]),
+            "summary": .object([
+                "total": .int(1),
+                "passing": .int(1),
+                "failing": .int(0),
+                "pending": .int(0),
+                "skipped": .int(0),
+                "cancelled": .int(0),
+            ]),
+        ]
+
+        let loader = MockSessionDetailMessageLoader(
+            result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
+        )
+        let service = makeRemoteCommandService(transport: transport)
+        let viewModel = await MainActor.run {
+            SyncedSessionDetailViewModel(
+                session: makeSession(deviceId: UUID().uuidString.lowercased()),
+                messageService: loader,
+                remoteCommandService: service
+            )
+        }
+
+        await viewModel.refreshPullRequests()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.pullRequests.count, 2)
+            XCTAssertEqual(viewModel.selectedPullRequest?.number, 42)
+            XCTAssertEqual(viewModel.selectedPullRequestChecks?.summary.total, 1)
+            XCTAssertNil(viewModel.commandError)
+        }
+        XCTAssertEqual(transport.publishedEnvelopes.map(\.type), ["gh.pr.list.v1", "gh.pr.checks.v1"])
+    }
+
+    func testCreatePullRequestClearsDraftFieldsOnSuccess() async {
+        let transport = MockGenericRemoteCommandTransport()
+        transport.resultByType["gh.pr.create.v1"] = [
+            "url": .string("https://github.com/unbound/repo/pull/44"),
+            "pull_request": .object([
+                "number": .int(44),
+                "title": .string("Create from iOS"),
+                "url": .string("https://github.com/unbound/repo/pull/44"),
+                "state": .string("OPEN"),
+                "is_draft": .bool(false),
+            ]),
+        ]
+        transport.resultByType["gh.pr.list.v1"] = [
+            "pull_requests": .array([
+                .object([
+                    "number": .int(44),
+                    "title": .string("Create from iOS"),
+                    "url": .string("https://github.com/unbound/repo/pull/44"),
+                    "state": .string("OPEN"),
+                    "is_draft": .bool(false),
+                ]),
+            ]),
+            "count": .int(1),
+        ]
+        transport.resultByType["gh.pr.checks.v1"] = [
+            "checks": .array([]),
+            "summary": .object([
+                "total": .int(0),
+                "passing": .int(0),
+                "failing": .int(0),
+                "pending": .int(0),
+                "skipped": .int(0),
+                "cancelled": .int(0),
+            ]),
+        ]
+
+        let loader = MockSessionDetailMessageLoader(
+            result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
+        )
+        let service = makeRemoteCommandService(transport: transport)
+        let viewModel = await MainActor.run {
+            SyncedSessionDetailViewModel(
+                session: makeSession(deviceId: UUID().uuidString.lowercased()),
+                messageService: loader,
+                remoteCommandService: service
+            )
+        }
+
+        await MainActor.run {
+            viewModel.prTitle = "Create from iOS"
+            viewModel.prBody = "PR body"
+        }
+        await viewModel.createPullRequest()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.selectedPullRequest?.number, 44)
+            XCTAssertTrue(viewModel.prTitle.isEmpty)
+            XCTAssertTrue(viewModel.prBody.isEmpty)
+            XCTAssertFalse(viewModel.isCreatingPullRequest)
+            XCTAssertNil(viewModel.commandError)
+        }
+        XCTAssertTrue(transport.publishedEnvelopes.map(\.type).contains("gh.pr.create.v1"))
+    }
+
+    func testMergePullRequestFailureSetsCommandError() async {
+        let transport = MockGenericRemoteCommandTransport()
+        transport.resultByType["gh.pr.list.v1"] = [
+            "pull_requests": .array([
+                .object([
+                    "number": .int(45),
+                    "title": .string("Merge test"),
+                    "url": .string("https://github.com/unbound/repo/pull/45"),
+                    "state": .string("OPEN"),
+                    "is_draft": .bool(false),
+                ]),
+            ]),
+            "count": .int(1),
+        ]
+        transport.resultByType["gh.pr.checks.v1"] = [
+            "checks": .array([]),
+            "summary": .object([
+                "total": .int(0),
+                "passing": .int(0),
+                "failing": .int(0),
+                "pending": .int(0),
+                "skipped": .int(0),
+                "cancelled": .int(0),
+            ]),
+        ]
+        transport.errorByType["gh.pr.merge.v1"] = (
+            code: "gh_not_authenticated",
+            message: "run gh auth login"
+        )
+
+        let loader = MockSessionDetailMessageLoader(
+            result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
+        )
+        let service = makeRemoteCommandService(transport: transport)
+        let viewModel = await MainActor.run {
+            SyncedSessionDetailViewModel(
+                session: makeSession(deviceId: UUID().uuidString.lowercased()),
+                messageService: loader,
+                remoteCommandService: service
+            )
+        }
+
+        await viewModel.refreshPullRequests()
+        await viewModel.mergeSelectedPullRequest()
+
+        await MainActor.run {
+            XCTAssertFalse(viewModel.isMergingPullRequest)
+            XCTAssertNotNil(viewModel.commandError)
+            XCTAssertTrue(viewModel.commandError?.contains("gh_not_authenticated") ?? false)
+        }
+        XCTAssertTrue(transport.publishedEnvelopes.map(\.type).contains("gh.pr.merge.v1"))
+    }
+
+    private func makeSession(
+        id: String = UUID().uuidString,
+        deviceId: String? = nil
+    ) -> SyncedSession {
         SyncedSession(
             from: SessionRecord(
                 id: id,
@@ -157,10 +339,25 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
                 isWorktree: false,
                 worktreePath: nil,
                 status: "active",
+                deviceId: deviceId,
                 createdAt: Date(timeIntervalSince1970: 1),
                 lastAccessedAt: Date(timeIntervalSince1970: 1),
                 updatedAt: Date(timeIntervalSince1970: 1)
             )
+        )
+    }
+
+    private func makeRemoteCommandService(
+        transport: RemoteCommandTransport
+    ) -> RemoteCommandService {
+        RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            }
         )
     }
 
@@ -210,5 +407,114 @@ private final class MockSessionDetailMessageLoader: SessionDetailMessageLoading 
         } else {
             bufferedUpdates.append(update)
         }
+    }
+}
+
+private final class MockGenericRemoteCommandTransport: RemoteCommandTransport {
+    var publishedEnvelopes: [RemoteCommandEnvelope] = []
+    var resultByType: [String: [String: AnyCodableValue]] = [:]
+    var errorByType: [String: (code: String?, message: String?)] = [:]
+    var publishError: Error?
+    var ackError: Error?
+    var responseError: Error?
+
+    func publishRemoteCommand(
+        channel _: String,
+        payload _: UMSecretRequestCommandPayload
+    ) async throws {}
+
+    func waitForAck(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandAckEnvelope {
+        if let ackError {
+            throw ackError
+        }
+
+        let decision = RemoteCommandDecisionResult(
+            schemaVersion: 1,
+            requestId: requestId,
+            sessionId: nil,
+            status: "accepted",
+            reasonCode: nil,
+            message: "accepted"
+        )
+        let encoded = try JSONEncoder().encode(decision).base64EncodedString()
+
+        return RemoteCommandAckEnvelope(
+            schemaVersion: 1,
+            commandId: UUID().uuidString.lowercased(),
+            status: "accepted",
+            createdAtMs: 1,
+            resultB64: encoded
+        )
+    }
+
+    func waitForSessionSecretResponse(
+        channel _: String,
+        requestId _: String,
+        sessionId _: String,
+        timeout _: TimeInterval
+    ) async throws -> SessionSecretResponseEnvelope {
+        SessionSecretResponseEnvelope(
+            schemaVersion: 1,
+            requestId: UUID().uuidString.lowercased(),
+            sessionId: UUID().uuidString.lowercased(),
+            senderDeviceId: UUID().uuidString.lowercased(),
+            receiverDeviceId: UUID().uuidString.lowercased(),
+            status: "error",
+            errorCode: "not_supported",
+            ciphertextB64: nil,
+            encapsulationPubkeyB64: nil,
+            nonceB64: nil,
+            algorithm: "",
+            createdAtMs: 1
+        )
+    }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope: RemoteCommandEnvelope
+    ) async throws {
+        if let publishError {
+            throw publishError
+        }
+        publishedEnvelopes.append(envelope)
+    }
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        if let responseError {
+            throw responseError
+        }
+
+        let type = publishedEnvelopes.last?.type ?? "mock.v1"
+        if let err = errorByType[type] {
+            return RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: requestId,
+                type: type,
+                status: "error",
+                result: nil,
+                errorCode: err.code,
+                errorMessage: err.message,
+                createdAtMs: 1
+            )
+        }
+
+        return RemoteCommandResponse(
+            schemaVersion: 1,
+            requestId: requestId,
+            type: type,
+            status: "ok",
+            result: resultByType[type].map(AnyCodableValue.object),
+            errorCode: nil,
+            errorMessage: nil,
+            createdAtMs: 1
+        )
     }
 }
