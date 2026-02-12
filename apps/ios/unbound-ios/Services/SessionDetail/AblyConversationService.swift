@@ -45,36 +45,25 @@ final class AblyConversationService: SessionDetailConversationStreaming {
 
     init(
         tokenAuthURL: URL = Config.ablyTokenAuthURL,
-        debugApiKey: String? = Config.ablyDevApiKey,
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared
     ) {
         #if canImport(Ably)
-        let normalizedDebugApiKey = debugApiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let normalizedDebugApiKey, !normalizedDebugApiKey.isEmpty {
-            let options = ARTClientOptions(key: normalizedDebugApiKey)
-            options.autoConnect = true
-            self.realtime = ARTRealtime(options: options)
-            ablyConversationLogger.warning(
-                "Ably conversation service initialized with debug API key auth (DEBUG-only override)"
+        let resolvedTokenAuthURL = tokenAuthURL
+        let resolvedAuthService = authService
+        let resolvedKeychainService = keychainService
+        let options = ARTClientOptions()
+        options.autoConnect = true
+        options.authCallback = { _, callback in
+            Self.fetchTokenDetails(
+                tokenAuthURL: resolvedTokenAuthURL,
+                authService: resolvedAuthService,
+                keychainService: resolvedKeychainService,
+                callback: callback
             )
-        } else {
-            let resolvedTokenAuthURL = tokenAuthURL
-            let resolvedAuthService = authService
-            let resolvedKeychainService = keychainService
-            let options = ARTClientOptions()
-            options.autoConnect = true
-            options.authCallback = { _, callback in
-                Self.fetchTokenDetails(
-                    tokenAuthURL: resolvedTokenAuthURL,
-                    authService: resolvedAuthService,
-                    keychainService: resolvedKeychainService,
-                    callback: callback
-                )
-            }
-            self.realtime = ARTRealtime(options: options)
-            ablyConversationLogger.info("Ably conversation service initialized with token auth")
         }
+        self.realtime = ARTRealtime(options: options)
+        ablyConversationLogger.info("Ably conversation service initialized with token auth")
         #endif
     }
 

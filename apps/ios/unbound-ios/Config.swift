@@ -52,23 +52,6 @@ enum Config {
 
     // MARK: - Ably
 
-    /// Debug-only Ably API key override for local testing.
-    ///
-    /// If set in DEBUG, iOS can use key auth temporarily instead of token auth.
-    /// Production builds always return nil.
-    static var ablyDevApiKey: String? {
-        #if DEBUG
-        let raw = ProcessInfo.processInfo.environment["ABLY_API_KEY"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let raw, !raw.isEmpty else {
-            return nil
-        }
-        return raw
-        #else
-        return nil
-        #endif
-    }
-
     /// Mobile token-auth endpoint used by the Ably realtime transport.
     static var ablyTokenAuthURL: URL {
         apiURL.appendingPathComponent("api/v1/mobile/ably/token")

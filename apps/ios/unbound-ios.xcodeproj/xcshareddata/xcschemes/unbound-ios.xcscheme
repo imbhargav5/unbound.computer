@@ -77,11 +77,6 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "ABLY_API_KEY"
-            value = "bkmMrw.URvp4A:U2dI0f-ntv6CKY5Kj47b_UIDgfje_DVMXyzwm_LUXrA"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
             key = "SUPABASE_URL"
             value = "http://127.0.0.1:54321"
             isEnabled = "YES">
