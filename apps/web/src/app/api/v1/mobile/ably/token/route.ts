@@ -2,8 +2,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 
-const requestSchema = z.object({
+export const audienceSchema = z.enum(["mobile", "daemon_falco", "daemon_nagato"]);
+export type AblyTokenAudience = z.infer<typeof audienceSchema>;
+
+export const requestSchema = z.object({
   deviceId: z.string().uuid(),
+  audience: audienceSchema.default("mobile"),
 });
 
 const corsHeaders = {
@@ -15,7 +19,7 @@ const corsHeaders = {
 const ABLY_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ABLY_TOKEN_ENDPOINT = "https://main.realtime.ably.net";
 
-type Capability = Record<string, string[]>;
+export type Capability = Record<string, string[]>;
 
 function parseAblyApiKey(rawApiKey: string): { keyName: string; keySecret: string } | null {
   const separatorIndex = rawApiKey.indexOf(":");
@@ -29,17 +33,49 @@ function parseAblyApiKey(rawApiKey: string): { keyName: string; keySecret: strin
   };
 }
 
-function buildDeviceCapability(deviceIds: string[], requesterDeviceId: string): Capability {
+export function buildMobileCapability(deviceIds: string[], requesterDeviceId: string): Capability {
   const normalizedIds = new Set(deviceIds.map((deviceId) => deviceId.toLowerCase()));
-  normalizedIds.add(requesterDeviceId);
+  normalizedIds.add(requesterDeviceId.toLowerCase());
 
   const capability: Capability = {};
   for (const deviceId of normalizedIds) {
     capability[`remote:${deviceId}:commands`] = ["publish", "subscribe"];
-    capability[`session:secrets:${deviceId}:${requesterDeviceId}`] = ["subscribe"];
+    capability[`session:secrets:${deviceId}:${requesterDeviceId.toLowerCase()}`] = ["subscribe"];
   }
+  capability["session:*:conversation"] = ["subscribe"];
 
   return capability;
+}
+
+export function buildDaemonNagatoCapability(requesterDeviceId: string): Capability {
+  const normalizedRequester = requesterDeviceId.toLowerCase();
+  return {
+    [`remote:${normalizedRequester}:commands`]: ["subscribe", "publish"],
+  };
+}
+
+export function buildDaemonFalcoCapability(requesterDeviceId: string): Capability {
+  const normalizedRequester = requesterDeviceId.toLowerCase();
+  return {
+    "session:*:conversation": ["publish"],
+    [`remote:${normalizedRequester}:commands`]: ["publish"],
+    [`session:secrets:${normalizedRequester}:*`]: ["publish"],
+  };
+}
+
+export function buildAudienceCapability(
+  audience: AblyTokenAudience,
+  deviceIds: string[],
+  requesterDeviceId: string
+): Capability {
+  switch (audience) {
+    case "mobile":
+      return buildMobileCapability(deviceIds, requesterDeviceId);
+    case "daemon_falco":
+      return buildDaemonFalcoCapability(requesterDeviceId);
+    case "daemon_nagato":
+      return buildDaemonNagatoCapability(requesterDeviceId);
+  }
 }
 
 export async function OPTIONS() {
@@ -86,6 +122,7 @@ export async function POST(req: NextRequest) {
     }
 
     const requesterDeviceId = parseResult.data.deviceId.toLowerCase();
+    const { audience } = parseResult.data;
 
     const { data: requesterDevice, error: requesterDeviceError } = await supabaseClient
       .from("devices")
@@ -119,7 +156,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const capability = buildDeviceCapability(
+    const capability = buildAudienceCapability(
+      audience,
       userDevices.map((device) => String(device.id)),
       requesterDeviceId
     );
