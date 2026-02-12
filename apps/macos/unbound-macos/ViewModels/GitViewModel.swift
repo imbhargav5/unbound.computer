@@ -87,12 +87,37 @@ class GitViewModel {
     /// Selected commit for details
     var selectedCommitOid: String?
 
+    // MARK: - Pull Request State
+
+    /// Pull requests for current repository context.
+    private(set) var pullRequests: [GHPullRequest] = []
+
+    /// Currently selected pull request.
+    var selectedPullRequest: GHPullRequest?
+
+    /// Latest checks payload for selected pull request.
+    private(set) var selectedPullRequestChecks: GHPRChecksResponse?
+
+    /// Last known GH auth status.
+    private(set) var ghAuthStatus: GHAuthStatusResult?
+
+    /// Draft title/body inputs for PR creation.
+    var prTitle: String = ""
+    var prBody: String = ""
+
+    /// Selected merge strategy.
+    var prMergeMethod: GHPRMergeMethod = .squash
+
     // MARK: - Loading States
 
     private(set) var isLoadingStatus: Bool = false
     private(set) var isLoadingCommits: Bool = false
     private(set) var isLoadingBranches: Bool = false
     private(set) var isPerformingAction: Bool = false
+    private(set) var isLoadingPullRequests: Bool = false
+    private(set) var isLoadingPullRequestChecks: Bool = false
+    private(set) var isCreatingPullRequest: Bool = false
+    private(set) var isMergingPullRequest: Bool = false
 
     // MARK: - Commit State
 
@@ -137,6 +162,13 @@ class GitViewModel {
         selectedBranch = nil
         selectedFilePath = nil
         selectedCommitOid = nil
+        pullRequests = []
+        selectedPullRequest = nil
+        selectedPullRequestChecks = nil
+        ghAuthStatus = nil
+        prTitle = ""
+        prBody = ""
+        prMergeMethod = .squash
         lastError = nil
     }
 
@@ -146,6 +178,8 @@ class GitViewModel {
             group.addTask { await self.refreshStatus() }
             group.addTask { await self.refreshBranches() }
             group.addTask { await self.refreshCommits() }
+            group.addTask { await self.refreshGHAuthStatus() }
+            group.addTask { await self.refreshPullRequests() }
         }
     }
 
@@ -355,6 +389,162 @@ class GitViewModel {
     func selectBranch(_ branchName: String?) async {
         selectedBranch = branchName
         await refreshCommits()
+    }
+
+    // MARK: - GitHub PR Operations
+
+    /// Refresh GH authentication status.
+    func refreshGHAuthStatus() async {
+        guard daemonClient != nil else { return }
+        guard let client = daemonClient else { return }
+
+        do {
+            ghAuthStatus = try await client.ghAuthStatus()
+            lastError = nil
+        } catch {
+            logger.warning("Failed to refresh gh auth status: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Refresh pull requests for current repository.
+    func refreshPullRequests(state: GHPRListState = .open) async {
+        guard let path = repositoryPath, let client = daemonClient else { return }
+
+        isLoadingPullRequests = true
+        defer { isLoadingPullRequests = false }
+
+        do {
+            let result = try await client.ghListPRs(path: path, state: state, limit: 20)
+            pullRequests = result.pullRequests
+
+            if let selected = selectedPullRequest,
+               let refreshedSelected = pullRequests.first(where: { $0.number == selected.number }) {
+                selectedPullRequest = refreshedSelected
+            } else {
+                selectedPullRequest = pullRequests.first
+            }
+
+            lastError = nil
+
+            if selectedPullRequest != nil {
+                await refreshSelectedPullRequestChecks()
+            } else {
+                selectedPullRequestChecks = nil
+            }
+        } catch {
+            logger.warning("Failed to refresh pull requests: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Select a pull request and refresh checks.
+    func selectPullRequest(_ pullRequest: GHPullRequest) async {
+        selectedPullRequest = pullRequest
+        await refreshSelectedPullRequestChecks()
+    }
+
+    /// Refresh selected pull request details.
+    func refreshSelectedPullRequest() async {
+        guard let path = repositoryPath, let client = daemonClient else { return }
+        guard let selected = selectedPullRequest else { return }
+
+        do {
+            let refreshed = try await client.ghViewPR(path: path, selector: "\(selected.number)")
+            selectedPullRequest = refreshed
+            lastError = nil
+        } catch {
+            logger.warning("Failed to refresh selected pull request: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Refresh checks for selected pull request.
+    func refreshSelectedPullRequestChecks() async {
+        guard let path = repositoryPath, let client = daemonClient else { return }
+        guard let selected = selectedPullRequest else { return }
+
+        isLoadingPullRequestChecks = true
+        defer { isLoadingPullRequestChecks = false }
+
+        do {
+            selectedPullRequestChecks = try await client.ghPRChecks(
+                path: path,
+                selector: "\(selected.number)"
+            )
+            lastError = nil
+        } catch {
+            logger.warning("Failed to refresh pull request checks: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Create a new pull request using current draft fields.
+    func createPullRequest(
+        reviewers: [String] = [],
+        labels: [String] = []
+    ) async {
+        guard let path = repositoryPath, let client = daemonClient else { return }
+        let title = prTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+
+        isCreatingPullRequest = true
+        isPerformingAction = true
+        defer {
+            isCreatingPullRequest = false
+            isPerformingAction = false
+        }
+
+        do {
+            let body = prBody.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await client.ghCreatePR(
+                path: path,
+                title: title,
+                body: body.isEmpty ? nil : body,
+                reviewers: reviewers,
+                labels: labels
+            )
+
+            selectedPullRequest = result.pullRequest
+            prTitle = ""
+            prBody = ""
+            lastError = nil
+
+            await refreshPullRequests()
+        } catch {
+            logger.error("Failed to create pull request: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Merge the selected pull request.
+    func mergeSelectedPullRequest(deleteBranch: Bool = false) async {
+        guard let path = repositoryPath, let client = daemonClient else { return }
+        guard let selected = selectedPullRequest else { return }
+
+        isMergingPullRequest = true
+        isPerformingAction = true
+        defer {
+            isMergingPullRequest = false
+            isPerformingAction = false
+        }
+
+        do {
+            _ = try await client.ghMergePR(
+                path: path,
+                selector: "\(selected.number)",
+                mergeMethod: prMergeMethod,
+                deleteBranch: deleteBranch
+            )
+
+            lastError = nil
+            await refreshPullRequests()
+            await refreshSelectedPullRequest()
+            await refreshSelectedPullRequestChecks()
+        } catch {
+            logger.error("Failed to merge pull request: \(error.localizedDescription)")
+            lastError = error.localizedDescription
+        }
     }
 
     // MARK: - Commit Graph Computation

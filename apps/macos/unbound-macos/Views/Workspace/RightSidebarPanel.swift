@@ -97,7 +97,7 @@ struct RightSidebarPanel: View {
     }
 
     private var bottomTabs: [RightSidebarTab] {
-        [.changes, .files, .commits]
+        [.changes, .files, .commits, .pullRequests]
     }
 
     private var currentLocalBranch: GitBranch? {
@@ -314,6 +314,8 @@ struct RightSidebarPanel: View {
             )
         case .commits:
             CommitsTabView(gitViewModel: gitViewModel)
+        case .pullRequests:
+            PullRequestsTabView(gitViewModel: gitViewModel)
         case .spec:
             ChangesTabView(
                 gitViewModel: gitViewModel,
@@ -371,6 +373,236 @@ struct RightSidebarPanel: View {
             logger.warning("Failed to load diff: \(error.localizedDescription)")
             editorState.setDiffError(for: path, message: error.localizedDescription)
         }
+    }
+}
+
+private struct PullRequestsTabView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openURL) private var openURL
+
+    @Bindable var gitViewModel: GitViewModel
+
+    @State private var showCreateForm = false
+    @State private var deleteBranchOnMerge = false
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+
+            if showCreateForm {
+                createForm
+                ShadcnDivider()
+            }
+
+            if gitViewModel.isLoadingPullRequests {
+                loadingView
+            } else if gitViewModel.pullRequests.isEmpty {
+                emptyView
+            } else {
+                listView
+            }
+
+            if let selected = gitViewModel.selectedPullRequest {
+                ShadcnDivider()
+                selectedPRFooter(selected)
+            }
+        }
+        .task {
+            if gitViewModel.pullRequests.isEmpty {
+                await gitViewModel.refreshPullRequests()
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: Spacing.xs) {
+            Button {
+                showCreateForm.toggle()
+            } label: {
+                Label(showCreateForm ? "Close" : "Create PR", systemImage: showCreateForm ? "xmark" : "plus")
+                    .font(Typography.toolbar)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button {
+                Task { await gitViewModel.refreshPullRequests() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: IconSize.xs))
+            }
+            .buttonStyle(.plain)
+            .disabled(gitViewModel.isLoadingPullRequests)
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(colors.toolbarBackground)
+    }
+
+    private var createForm: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            TextField("PR title", text: Bindable(gitViewModel).prTitle)
+                .textFieldStyle(.roundedBorder)
+
+            TextEditor(text: Bindable(gitViewModel).prBody)
+                .frame(height: 72)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.sm)
+                        .stroke(colors.border, lineWidth: BorderWidth.hairline)
+                )
+
+            HStack(spacing: Spacing.xs) {
+                Button("Create") {
+                    Task { await gitViewModel.createPullRequest() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(gitViewModel.prTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || gitViewModel.isCreatingPullRequest)
+
+                Button("Cancel") {
+                    showCreateForm = false
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+            }
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+    }
+
+    private var listView: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Spacing.xs) {
+                ForEach(gitViewModel.pullRequests) { pullRequest in
+                    Button {
+                        Task { await gitViewModel.selectPullRequest(pullRequest) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            HStack(spacing: Spacing.xs) {
+                                Text("#\(pullRequest.number)")
+                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .foregroundStyle(colors.mutedForeground)
+                                Text(pullRequest.title)
+                                    .font(Typography.bodySmall)
+                                    .foregroundStyle(colors.foreground)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(pullRequest.state)
+                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .foregroundStyle(colors.mutedForeground)
+                            }
+
+                            if let mergeState = pullRequest.mergeStateStatus {
+                                Text("merge: \(mergeState)")
+                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .foregroundStyle(colors.mutedForeground)
+                            }
+                        }
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            gitViewModel.selectedPullRequest?.number == pullRequest.number
+                                ? colors.selectionBackground
+                                : colors.background
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .stroke(
+                                    gitViewModel.selectedPullRequest?.number == pullRequest.number
+                                        ? colors.selectionBorder
+                                        : Color.clear,
+                                    lineWidth: BorderWidth.hairline
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(Spacing.xs)
+        }
+    }
+
+    private func selectedPRFooter(_ pullRequest: GHPullRequest) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.xs) {
+                Button("Open in GitHub") {
+                    if let url = URL(string: pullRequest.url) {
+                        openURL(url)
+                    }
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Picker("Merge", selection: Bindable(gitViewModel).prMergeMethod) {
+                    ForEach(GHPRMergeMethod.allCases, id: \.self) { method in
+                        Text(method.rawValue.capitalized).tag(method)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 110)
+            }
+
+            HStack(spacing: Spacing.xs) {
+                Toggle("Delete branch", isOn: $deleteBranchOnMerge)
+                    .toggleStyle(.checkbox)
+                    .font(Typography.caption)
+
+                Spacer()
+
+                Button("Refresh Checks") {
+                    Task { await gitViewModel.refreshSelectedPullRequestChecks() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(gitViewModel.isLoadingPullRequestChecks)
+
+                Button("Merge") {
+                    Task { await gitViewModel.mergeSelectedPullRequest(deleteBranch: deleteBranchOnMerge) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(gitViewModel.isMergingPullRequest)
+            }
+
+            if let checks = gitViewModel.selectedPullRequestChecks {
+                Text("checks: \(checks.summary.passing) pass, \(checks.summary.failing) fail, \(checks.summary.pending) pending")
+                    .font(.system(size: FontSize.xs, design: .monospaced))
+                    .foregroundStyle(colors.mutedForeground)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+    }
+
+    private var loadingView: some View {
+        VStack(spacing: Spacing.md) {
+            ProgressView()
+            Text("Loading PRs...")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(Spacing.xl)
+    }
+
+    private var emptyView: some View {
+        VStack(spacing: Spacing.sm) {
+            Text("No pull requests")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+            Button("Refresh") {
+                Task { await gitViewModel.refreshPullRequests() }
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(Spacing.xl)
     }
 }
 
