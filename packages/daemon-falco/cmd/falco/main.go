@@ -7,7 +7,8 @@
 //
 // Environment variables:
 //
-//	ABLY_API_KEY          - Ably API key (required)
+//	UNBOUND_ABLY_BROKER_SOCKET - Local Ably token broker socket path (required)
+//	UNBOUND_ABLY_BROKER_TOKEN  - Local Ably token broker auth token (required)
 //	FALCO_SOCKET          - Unix socket path (default: ~/.unbound/falco.sock)
 //	FALCO_PUBLISH_TIMEOUT - Ably publish timeout in seconds (default: 5)
 package main
@@ -94,10 +95,12 @@ func run() error {
 
 	// Create Ably publisher
 	pub, err := publisher.New(publisher.Options{
-		AblyKey:        cfg.AblyKey,
-		ChannelName:    cfg.ChannelName,
-		PublishTimeout: cfg.PublishTimeout,
-		Logger:         logger.Named("publisher"),
+		BrokerSocketPath: cfg.AblyBrokerSocketPath,
+		BrokerToken:      cfg.AblyBrokerToken,
+		DeviceID:         cfg.DeviceID,
+		ChannelName:      cfg.ChannelName,
+		PublishTimeout:   cfg.PublishTimeout,
+		Logger:           logger.Named("publisher"),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create publisher: %w", err)

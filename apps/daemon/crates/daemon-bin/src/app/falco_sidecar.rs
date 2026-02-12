@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 use tokio::net::UnixStream;
 use tracing::{debug, info, warn};
 
+const ENV_ABLY_BROKER_SOCKET: &str = "UNBOUND_ABLY_BROKER_SOCKET";
+const ENV_ABLY_BROKER_TOKEN: &str = "UNBOUND_ABLY_BROKER_TOKEN";
+
 /// Builds the list of Falco binary candidates in lookup order.
 pub fn falco_binary_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
@@ -68,13 +71,14 @@ fn infer_repo_root(exe_parent: &Path) -> Option<PathBuf> {
 pub fn spawn_falco_process(
     paths: &Paths,
     device_id: &str,
-    ably_api_key: &str,
+    ably_broker_token: &str,
     daemon_log_level: &str,
     source: &str,
 ) -> Result<Child, String> {
     let candidates = falco_binary_candidates();
     let mut attempted = Vec::new();
     let socket_path = paths.falco_socket_file();
+    let broker_socket_path = paths.ably_auth_socket_file();
 
     if candidates.is_empty() {
         return Err(
@@ -102,7 +106,8 @@ pub fn spawn_falco_process(
         command
             .arg("--device-id")
             .arg(device_id)
-            .env("ABLY_API_KEY", ably_api_key)
+            .env(ENV_ABLY_BROKER_SOCKET, &broker_socket_path)
+            .env(ENV_ABLY_BROKER_TOKEN, ably_broker_token)
             .env("FALCO_SOCKET", &socket_path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -202,12 +207,18 @@ pub async fn wait_for_falco_socket(
 pub async fn start_falco_sidecar(
     paths: &Paths,
     device_id: &str,
-    ably_api_key: &str,
+    ably_broker_token: &str,
     daemon_log_level: &str,
     timeout: Duration,
     source: &str,
 ) -> Result<Child, String> {
-    let mut child = spawn_falco_process(paths, device_id, ably_api_key, daemon_log_level, source)?;
+    let mut child = spawn_falco_process(
+        paths,
+        device_id,
+        ably_broker_token,
+        daemon_log_level,
+        source,
+    )?;
     let socket_path = paths.falco_socket_file();
     if let Err(err) = wait_for_falco_socket(&socket_path, &mut child, timeout, source).await {
         terminate_child(&mut child, "falco");

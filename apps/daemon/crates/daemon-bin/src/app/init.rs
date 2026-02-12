@@ -139,6 +139,14 @@ pub async fn run_daemon(
             .await
             .map_err(|err| format!("Failed to start Ably token broker: {}", err))?,
     );
+    let ably_broker_nagato_token = ably_broker_runtime
+        .as_ref()
+        .map(|runtime| runtime.nagato_token.clone())
+        .unwrap_or_default();
+    let ably_broker_falco_token = ably_broker_runtime
+        .as_ref()
+        .map(|runtime| runtime.falco_token.clone())
+        .unwrap_or_default();
 
     // Resolve auth-dependent values from secure storage once at startup.
     let (db_encryption_key, device_id, device_private_key) = {
@@ -206,7 +214,7 @@ pub async fn run_daemon(
     ));
 
     let mut initial_falco_process: Option<Child> = None;
-    let initial_realtime_message_sync = if let Some(ably_api_key) = config.ably_api_key.as_deref() {
+    let initial_realtime_message_sync = if config.ably_api_key.is_some() {
         let falco_socket_path = paths.falco_socket_file();
 
         if !falco_socket_path.exists() {
@@ -214,7 +222,7 @@ pub async fn run_daemon(
                 Some(device_id) => match start_falco_sidecar(
                     &paths,
                     device_id,
-                    ably_api_key,
+                    &ably_broker_falco_token,
                     &config.log_level,
                     Duration::from_secs(5),
                     "daemon_startup",
@@ -262,7 +270,7 @@ pub async fn run_daemon(
                     match start_falco_sidecar(
                         &paths,
                         device_id,
-                        ably_api_key,
+                        &ably_broker_falco_token,
                         &config.log_level,
                         Duration::from_secs(5),
                         "stale_socket_recovery",
@@ -343,14 +351,6 @@ pub async fn run_daemon(
 
     // Create shared state (Clone-able with internal Arc)
     let gyomei = Arc::new(Gyomei::with_defaults());
-    let ably_broker_nagato_token = ably_broker_runtime
-        .as_ref()
-        .map(|runtime| runtime.nagato_token.clone())
-        .unwrap_or_default();
-    let ably_broker_falco_token = ably_broker_runtime
-        .as_ref()
-        .map(|runtime| runtime.falco_token.clone())
-        .unwrap_or_default();
     let state = DaemonState {
         config: Arc::new(config),
         paths: Arc::new(paths.clone()),

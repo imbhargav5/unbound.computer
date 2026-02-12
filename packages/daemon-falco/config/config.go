@@ -15,16 +15,20 @@ const (
 	DefaultBaseDir        = ".unbound"
 
 	// Environment variable names
-	EnvAblyKey         = "ABLY_API_KEY"
-	EnvFalcoSocket     = "FALCO_SOCKET"
-	EnvPublishTimeout  = "FALCO_PUBLISH_TIMEOUT"
-	EnvUnboundBaseDir  = "UNBOUND_BASE_DIR"
+	EnvAblyBrokerSocket = "UNBOUND_ABLY_BROKER_SOCKET"
+	EnvAblyBrokerToken  = "UNBOUND_ABLY_BROKER_TOKEN"
+	EnvFalcoSocket      = "FALCO_SOCKET"
+	EnvPublishTimeout   = "FALCO_PUBLISH_TIMEOUT"
+	EnvUnboundBaseDir   = "UNBOUND_BASE_DIR"
 )
 
 // Config holds all configuration for the Falco publisher.
 type Config struct {
-	// AblyKey is the Ably API key for authentication.
-	AblyKey string
+	// AblyBrokerSocketPath is the local broker Unix socket path.
+	AblyBrokerSocketPath string
+
+	// AblyBrokerToken authenticates this sidecar to the local broker.
+	AblyBrokerToken string
 
 	// DeviceID is the unique identifier for this device.
 	// Used to construct the channel name: device-events:{device_id}
@@ -48,8 +52,9 @@ func New(deviceID string) (*Config, error) {
 		PublishTimeout: DefaultPublishTimeout,
 	}
 
-	// Ably API key (required)
-	cfg.AblyKey = os.Getenv(EnvAblyKey)
+	// Local Ably broker auth settings (required)
+	cfg.AblyBrokerSocketPath = os.Getenv(EnvAblyBrokerSocket)
+	cfg.AblyBrokerToken = os.Getenv(EnvAblyBrokerToken)
 
 	// Channel name derived from device ID
 	cfg.ChannelName = "device-events:" + deviceID
@@ -83,8 +88,17 @@ func New(deviceID string) (*Config, error) {
 
 // Validate checks that all required configuration is present.
 func (c *Config) Validate() error {
-	if c.AblyKey == "" {
-		return &ConfigError{Field: "AblyKey", Message: "ABLY_API_KEY environment variable is required"}
+	if c.AblyBrokerSocketPath == "" {
+		return &ConfigError{
+			Field:   "AblyBrokerSocketPath",
+			Message: "UNBOUND_ABLY_BROKER_SOCKET environment variable is required",
+		}
+	}
+	if c.AblyBrokerToken == "" {
+		return &ConfigError{
+			Field:   "AblyBrokerToken",
+			Message: "UNBOUND_ABLY_BROKER_TOKEN environment variable is required",
+		}
 	}
 	if c.DeviceID == "" {
 		return &ConfigError{Field: "DeviceID", Message: "device ID is required"}

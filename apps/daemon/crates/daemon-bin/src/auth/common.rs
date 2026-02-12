@@ -52,13 +52,13 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 
     let falco_socket_path = state.paths.falco_socket_file();
     if !falco_socket_path.exists() {
-        let Some(ably_api_key) = state.config.ably_api_key.as_deref() else {
+        if state.config.ably_api_key.is_none() {
             return;
-        };
+        }
         match start_falco_sidecar(
             &state.paths,
             &login.device_id,
-            ably_api_key,
+            &state.ably_broker_falco_token,
             &state.config.log_level,
             Duration::from_secs(5),
             "auth_login",
