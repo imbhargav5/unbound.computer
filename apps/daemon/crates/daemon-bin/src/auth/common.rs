@@ -119,9 +119,9 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 }
 
 async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginResult) {
-    let Some(ably_api_key) = state.config.ably_api_key.as_deref() else {
+    if state.config.ably_api_key.is_none() {
         return;
-    };
+    }
 
     let mut stale_child = None;
     let should_start = {
@@ -161,7 +161,7 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
     match start_nagato_sidecar(
         state.paths.as_ref(),
         &login.device_id,
-        ably_api_key,
+        &state.ably_broker_nagato_token,
         &state.config.log_level,
         Duration::from_secs(1),
         "auth_login",

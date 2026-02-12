@@ -67,6 +67,11 @@ pub struct DaemonState {
     pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// Join handle for Nagato socket listener task.
     pub nagato_server_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    /// Token used by Nagato sidecar when requesting Ably token details.
+    pub ably_broker_nagato_token: String,
+    /// Token used by Falco sidecar when requesting Ably token details.
+    #[allow(dead_code)]
+    pub ably_broker_falco_token: String,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.

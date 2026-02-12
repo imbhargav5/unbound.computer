@@ -78,11 +78,13 @@ func New(cfg *config.Config, logger *zap.Logger) (*Courier, error) {
 
 	// Create Ably consumer
 	cons, err := consumer.New(consumer.Options{
-		AblyKey:     cfg.AblyKey,
-		ChannelName: cfg.ChannelName,
-		EventName:   cfg.EventName,
-		Logger:      logger.Named("consumer"),
-		BufferSize:  1, // One-in-flight
+		BrokerSocketPath: cfg.AblyBrokerSocketPath,
+		BrokerToken:      cfg.AblyBrokerToken,
+		DeviceID:         cfg.DeviceID,
+		ChannelName:      cfg.ChannelName,
+		EventName:        cfg.EventName,
+		Logger:           logger.Named("consumer"),
+		BufferSize:       1, // One-in-flight
 	})
 	if err != nil {
 		return nil, err

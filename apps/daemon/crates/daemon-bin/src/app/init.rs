@@ -343,6 +343,14 @@ pub async fn run_daemon(
 
     // Create shared state (Clone-able with internal Arc)
     let gyomei = Arc::new(Gyomei::with_defaults());
+    let ably_broker_nagato_token = ably_broker_runtime
+        .as_ref()
+        .map(|runtime| runtime.nagato_token.clone())
+        .unwrap_or_default();
+    let ably_broker_falco_token = ably_broker_runtime
+        .as_ref()
+        .map(|runtime| runtime.falco_token.clone())
+        .unwrap_or_default();
     let state = DaemonState {
         config: Arc::new(config),
         paths: Arc::new(paths.clone()),
@@ -366,6 +374,8 @@ pub async fn run_daemon(
         itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
         nagato_shutdown_tx: Arc::new(Mutex::new(None)),
         nagato_server_task: Arc::new(Mutex::new(None)),
+        ably_broker_nagato_token,
+        ably_broker_falco_token,
         armin,
         gyomei,
     };
@@ -377,12 +387,12 @@ pub async fn run_daemon(
         *state.nagato_server_task.lock().unwrap() = Some(task);
     }
 
-    if let Some(ably_api_key) = state.config.ably_api_key.as_deref() {
+    if state.config.ably_api_key.is_some() {
         match local_device_id.as_deref() {
             Some(device_id) => match start_nagato_sidecar(
                 state.paths.as_ref(),
                 device_id,
-                ably_api_key,
+                &state.ably_broker_nagato_token,
                 &state.config.log_level,
                 Duration::from_secs(1),
                 "daemon_startup",
