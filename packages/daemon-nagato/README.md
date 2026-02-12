@@ -8,6 +8,9 @@ Nagato is a **stateless, crash-safe consumer** that receives remote commands fro
 
 When a remote client (e.g., mobile app, web dashboard) wants to send a command to a device, it publishes to the device's Ably channel. Nagato subscribes to this channel, receives the encrypted command, and forwards it to the daemon for execution.
 
+Nagato authenticates to Ably via the daemon-local broker socket (`~/.unbound/ably-auth.sock`).
+It does not use `ABLY_API_KEY` directly.
+
 ## Architecture
 
 ```
@@ -155,7 +158,8 @@ go build -o nagato ./cmd/nagato
 
 ```bash
 # Set required environment variables
-export ABLY_API_KEY="your-ably-api-key"
+export UNBOUND_ABLY_BROKER_SOCKET="$HOME/.unbound/ably-auth.sock"
+export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
 
 # Run Nagato
 ./nagato --device-id "device-uuid-here"
@@ -168,7 +172,8 @@ export ABLY_API_KEY="your-ably-api-key"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ABLY_API_KEY` | (required) | Ably API key for authentication |
+| `UNBOUND_ABLY_BROKER_SOCKET` | (required) | Daemon-local Ably broker Unix socket path |
+| `UNBOUND_ABLY_BROKER_TOKEN` | (required) | Broker auth token for Nagato audience |
 | `NAGATO_SOCKET` | `~/.unbound/nagato.sock` | Unix socket path |
 | `NAGATO_DAEMON_TIMEOUT` | `15` | Daemon response timeout in seconds |
 

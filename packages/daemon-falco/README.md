@@ -8,6 +8,9 @@ Falco is a **stateless, crash-safe publisher** that receives Armin side-effects 
 
 When Armin commits a fact to SQLite, it emits a side-effect. The daemon forwards these side-effects to Falco, which publishes them to Ably for other devices/clients to receive.
 
+Falco authenticates to Ably via the daemon-local broker socket (`~/.unbound/ably-auth.sock`).
+It does not use `ABLY_API_KEY` directly.
+
 ## Architecture
 
 ```
@@ -153,7 +156,8 @@ go build -o falco ./cmd/falco
 
 ```bash
 # Set required environment variables
-export ABLY_API_KEY="your-ably-api-key"
+export UNBOUND_ABLY_BROKER_SOCKET="$HOME/.unbound/ably-auth.sock"
+export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
 
 # Run Falco
 ./falco --device-id "device-uuid-here"
@@ -166,7 +170,8 @@ export ABLY_API_KEY="your-ably-api-key"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ABLY_API_KEY` | (required) | Ably API key for authentication |
+| `UNBOUND_ABLY_BROKER_SOCKET` | (required) | Daemon-local Ably broker Unix socket path |
+| `UNBOUND_ABLY_BROKER_TOKEN` | (required) | Broker auth token for Falco audience |
 | `FALCO_SOCKET` | `~/.unbound/falco.sock` | Unix socket path |
 | `FALCO_PUBLISH_TIMEOUT` | `5` | Ably publish timeout in seconds |
 

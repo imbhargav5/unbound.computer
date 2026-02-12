@@ -61,7 +61,7 @@ On `start`, the daemon boots services in dependency order:
 7. **SecretsManager** - Platform keychain access
 8. **SupabaseClient** - REST API client
 9. **Levi** - Supabase message sync worker (cold path)
-10. **AblyRealtimeSyncer** - Ably hot-path message publish worker (when `ABLY_API_KEY` is set)
+10. **AblyRealtimeSyncer** - Ably hot-path message publish worker (when authenticated session + Falco broker auth are available)
 11. **Gyomei** - Rope-backed file I/O with cache
 12. **Handler registration** - Wire IPC methods to handlers
 13. **Listen** - Accept client connections
@@ -69,6 +69,8 @@ On `start`, the daemon boots services in dependency order:
 When Ably hot-path is enabled, the daemon also ensures a Falco sidecar is available.
 It will use an existing Falco socket if present, otherwise it spawns the Falco binary
 packaged alongside the daemon and waits for `~/.unbound/falco.sock` before enabling hot-sync.
+Falco and Nagato both authenticate to Ably using daemon-issued broker tokens over
+`~/.unbound/ably-auth.sock`; sidecars never receive raw Ably API keys.
 
 ## Shared State
 
@@ -165,6 +167,15 @@ daemon-bin/
 **Shutdown**: `shutdown` IPC method → tokio cancellation → cleanup PID + socket files
 
 **Stop command**: Sends `shutdown` IPC call → waits 3s → SIGKILL if still running
+
+## Token Auth Migration Checklist
+
+- `api/v1/mobile/ably/token` supports audience-scoped token issuance (`daemon_falco` / `daemon_nagato` / mobile audiences).
+- Daemon Ably broker (`~/.unbound/ably-auth.sock`) is running and sidecars authenticate with broker tokens.
+- Runtime sidecar auth uses broker envs only (`UNBOUND_ABLY_BROKER_SOCKET`, `UNBOUND_ABLY_BROKER_TOKEN`).
+- iOS clients use token auth callback only (no `ABLY_API_KEY` fallback path).
+- Logout clears broker token cache and tears down Nagato/Falco sidecars.
+- Manual key rotation reminder: rotate legacy Ably API keys in server-side secret storage and revoke old keys after rollout verification.
 
 ## Dependencies
 
