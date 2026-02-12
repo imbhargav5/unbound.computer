@@ -1,5 +1,6 @@
 //! Daemon initialization.
 
+use crate::ably::start_ably_token_broker;
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_server::spawn_nagato_server;
 use crate::app::nagato_sidecar::start_nagato_sidecar;
@@ -132,6 +133,12 @@ pub async fn run_daemon(
             e
         ),
     }
+
+    let mut ably_broker_runtime = Some(
+        start_ably_token_broker(paths.ably_auth_socket_file(), auth_runtime.clone())
+            .await
+            .map_err(|err| format!("Failed to start Ably token broker: {}", err))?,
+    );
 
     // Resolve auth-dependent values from secure storage once at startup.
     let (db_encryption_key, device_id, device_private_key) = {
@@ -503,6 +510,13 @@ pub async fn run_daemon(
     if let Some(task) = nagato_task {
         if let Err(err) = task.await {
             warn!(error = %err, "Nagato socket listener task join failed");
+        }
+    }
+
+    if let Some(runtime) = ably_broker_runtime.take() {
+        let _ = runtime.shutdown_tx.send(());
+        if let Err(err) = runtime.task.await {
+            warn!(error = %err, "Ably broker task join failed");
         }
     }
 
