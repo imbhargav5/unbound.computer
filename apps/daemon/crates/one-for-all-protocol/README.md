@@ -68,7 +68,7 @@ let event = Event::new(
 );
 ```
 
-## Methods (35 total)
+## Methods (41 total)
 
 ### Health & Lifecycle
 
@@ -141,6 +141,17 @@ let event = Event::new(
 | `GitStage` | `git.stage` |
 | `GitUnstage` | `git.unstage` |
 | `GitDiscard` | `git.discard` |
+
+### GitHub CLI
+
+| Method | Wire Name |
+|--------|-----------|
+| `GhAuthStatus` | `gh.auth_status` |
+| `GhPrCreate` | `gh.pr_create` |
+| `GhPrView` | `gh.pr_view` |
+| `GhPrList` | `gh.pr_list` |
+| `GhPrChecks` | `gh.pr_checks` |
+| `GhPrMerge` | `gh.pr_merge` |
 
 ### Terminal
 
