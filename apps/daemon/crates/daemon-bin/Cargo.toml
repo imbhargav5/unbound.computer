@@ -16,6 +16,7 @@ daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
 piccolo = { workspace = true }
 tien = { workspace = true }
+bakugou = { workspace = true }
 ymir = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }
@@ -23,6 +24,7 @@ levi = { workspace = true }
 deku = { workspace = true }
 yagami = { workspace = true }
 gyomei = { workspace = true }
+sakura-working-dir-resolution = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
