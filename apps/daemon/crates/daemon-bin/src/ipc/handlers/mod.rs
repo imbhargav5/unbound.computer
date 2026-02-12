@@ -9,4 +9,5 @@ pub mod health;
 pub mod message;
 pub mod repository;
 pub mod session;
+pub mod system;
 pub mod terminal;

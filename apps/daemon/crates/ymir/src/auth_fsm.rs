@@ -50,8 +50,14 @@ state_machine! {
     pub auth_machine(NotLoggedIn)
 
     NotLoggedIn => {
+        SessionDetected => PendingValidation,
         LoginAttempt => LoggingIn,
         ValidateSession => Validating
+    },
+    PendingValidation => {
+        ValidateSession => Validating,
+        LoginAttempt => LoggingIn,
+        NoSession => NotLoggedIn
     },
     Validating => {
         // Token not expired locally - must verify with server
@@ -98,6 +104,8 @@ pub use auth_machine::StateMachine as AuthMachine;
 pub enum AuthState {
     /// Not logged in.
     NotLoggedIn,
+    /// Stored credentials exist but have not yet been validated.
+    PendingValidation,
     /// Currently logging in.
     LoggingIn,
     /// Validating existing session (checking local storage).
@@ -122,7 +130,8 @@ impl AuthState {
     pub fn is_transient(&self) -> bool {
         matches!(
             self,
-            AuthState::LoggingIn
+            AuthState::PendingValidation
+                | AuthState::LoggingIn
                 | AuthState::Validating
                 | AuthState::VerifyingWithServer
                 | AuthState::Refreshing
@@ -135,6 +144,7 @@ impl From<&AuthMachineState> for AuthState {
     fn from(state: &AuthMachineState) -> Self {
         match state {
             AuthMachineState::NotLoggedIn => AuthState::NotLoggedIn,
+            AuthMachineState::PendingValidation => AuthState::PendingValidation,
             AuthMachineState::LoggingIn => AuthState::LoggingIn,
             AuthMachineState::Validating => AuthState::Validating,
             AuthMachineState::VerifyingWithServer => AuthState::VerifyingWithServer,
@@ -211,6 +221,14 @@ mod tests {
         let result = machine.consume(&AuthMachineInput::LoginSuccess);
         assert!(result.is_ok());
         assert_eq!(*machine.state(), AuthMachineState::LoggedIn);
+    }
+
+    #[test]
+    fn test_session_detected_transitions_to_pending_validation() {
+        let mut machine = AuthMachine::new();
+
+        machine.consume(&AuthMachineInput::SessionDetected).unwrap();
+        assert_eq!(*machine.state(), AuthMachineState::PendingValidation);
     }
 
     #[test]
@@ -402,6 +420,10 @@ mod tests {
             AuthState::NotLoggedIn
         );
         assert_eq!(
+            AuthState::from(&AuthMachineState::PendingValidation),
+            AuthState::PendingValidation
+        );
+        assert_eq!(
             AuthState::from(&AuthMachineState::LoggingIn),
             AuthState::LoggingIn
         );
@@ -430,6 +452,7 @@ mod tests {
     #[test]
     fn test_auth_state_is_authenticated() {
         assert!(!AuthState::NotLoggedIn.is_authenticated());
+        assert!(!AuthState::PendingValidation.is_authenticated());
         assert!(!AuthState::LoggingIn.is_authenticated());
         assert!(!AuthState::Validating.is_authenticated());
         assert!(!AuthState::VerifyingWithServer.is_authenticated());
@@ -441,6 +464,7 @@ mod tests {
     #[test]
     fn test_auth_state_is_transient() {
         assert!(!AuthState::NotLoggedIn.is_transient());
+        assert!(AuthState::PendingValidation.is_transient());
         assert!(AuthState::LoggingIn.is_transient());
         assert!(AuthState::Validating.is_transient());
         assert!(AuthState::VerifyingWithServer.is_transient());

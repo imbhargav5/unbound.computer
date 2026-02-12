@@ -38,6 +38,15 @@ enum ThemeMode: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Dependency Check State
+
+enum DependencyCheckStatus: Equatable {
+    case unchecked
+    case checking
+    case satisfied
+    case claudeMissing
+}
+
 // MARK: - Daemon Connection State
 
 enum DaemonConnectionState: Equatable {
@@ -86,8 +95,23 @@ class AppState {
     // MARK: - Authentication State (from daemon)
 
     private(set) var isAuthenticated: Bool = false
+    private(set) var hasStoredSession: Bool = false
+    private(set) var authState: DaemonAuthState?
     private(set) var currentUserId: String?
     private(set) var currentUserEmail: String?
+
+    var isAuthValidationPending: Bool {
+        hasStoredSession && !isAuthenticated && (authState?.isValidationInFlight ?? false)
+    }
+
+    // MARK: - Dependency Check State
+
+    private(set) var dependencyStatus: DependencyCheckStatus = .unchecked
+    private(set) var isGhInstalled: Bool?
+
+    var dependenciesSatisfied: Bool {
+        dependencyStatus == .satisfied
+    }
 
     // MARK: - UI State
 
@@ -153,9 +177,12 @@ class AppState {
             // Refresh auth status
             await refreshAuthStatus()
 
-            // If authenticated, load data
+            // If authenticated, check dependencies then load data
             if isAuthenticated {
-                await loadDataAsync()
+                await checkDependencies()
+                if dependenciesSatisfied {
+                    await loadDataAsync()
+                }
             }
         } catch {
             logger.error("Failed to connect to daemon: \(error)")
@@ -185,13 +212,19 @@ class AppState {
     func refreshAuthStatus() async {
         do {
             let status = try await daemonClient.getAuthStatus()
-            isAuthenticated = status.authenticated
+            isAuthenticated = status.effectiveSessionValid
+            hasStoredSession = status.effectiveHasStoredSession
+            authState = status.state
             currentUserId = status.userId
             currentUserEmail = status.email
-            logger.info("Auth status: authenticated=\(status.authenticated), email=\(status.email ?? "nil")")
+            logger.info(
+                "Auth status: authenticated=\(status.effectiveSessionValid), hasStoredSession=\(status.effectiveHasStoredSession), state=\(status.state?.rawValue ?? "nil"), email=\(status.email ?? "nil")"
+            )
         } catch {
             logger.error("Failed to get auth status: \(error)")
             isAuthenticated = false
+            hasStoredSession = false
+            authState = nil
             currentUserId = nil
             currentUserEmail = nil
         }
@@ -203,7 +236,10 @@ class AppState {
         await refreshAuthStatus()
 
         if isAuthenticated {
-            await loadDataAsync()
+            await checkDependencies()
+            if dependenciesSatisfied {
+                await loadDataAsync()
+            }
         }
     }
 
@@ -216,7 +252,10 @@ class AppState {
         await refreshAuthStatus()
 
         if isAuthenticated {
-            await loadDataAsync()
+            await checkDependencies()
+            if dependenciesSatisfied {
+                await loadDataAsync()
+            }
         }
     }
 
@@ -224,9 +263,45 @@ class AppState {
     func logout() async throws {
         try await daemonClient.logout()
         isAuthenticated = false
+        hasStoredSession = false
+        authState = .notLoggedIn
         currentUserId = nil
         currentUserEmail = nil
+        dependencyStatus = .unchecked
+        isGhInstalled = nil
         clearCachedData()
+    }
+
+    // MARK: - Dependency Checking
+
+    /// Check system dependencies via the daemon.
+    func checkDependencies() async {
+        dependencyStatus = .checking
+        do {
+            let result = try await daemonClient.checkDependencies()
+            isGhInstalled = result.gh.installed
+            if result.claude.installed {
+                dependencyStatus = .satisfied
+                logger.info("Dependency check passed: claude=\(result.claude.path ?? "?"), gh=\(result.gh.installed)")
+            } else {
+                dependencyStatus = .claudeMissing
+                logger.warning("Claude Code CLI not found")
+            }
+        } catch {
+            logger.error("Dependency check failed: \(error)")
+            // On error, assume missing so user can retry
+            dependencyStatus = .claudeMissing
+        }
+    }
+
+    /// Reset and re-check dependencies.
+    /// If the check passes, loads workspace data.
+    func recheckDependencies() async {
+        dependencyStatus = .unchecked
+        await checkDependencies()
+        if dependenciesSatisfied {
+            await loadDataAsync()
+        }
     }
 
     // MARK: - Data Loading
@@ -418,15 +493,21 @@ class AppState {
         selectedRepositoryId: UUID? = nil,
         selectedSessionId: UUID? = nil,
         isAuthenticated: Bool = true,
-        email: String? = "dev@unbound.computer"
+        email: String? = "dev@unbound.computer",
+        dependencyStatus: DependencyCheckStatus = .satisfied,
+        isGhInstalled: Bool? = true
     ) {
         self.daemonConnectionState = .connected
         self.isAuthenticated = isAuthenticated
+        self.hasStoredSession = isAuthenticated
+        self.authState = isAuthenticated ? .loggedIn : .notLoggedIn
         self.currentUserEmail = email
         self.repositories = repositories
         self.sessions = sessions
         self.selectedRepositoryId = selectedRepositoryId
         self.selectedSessionId = selectedSessionId
+        self.dependencyStatus = dependencyStatus
+        self.isGhInstalled = isGhInstalled
     }
     #endif
 }

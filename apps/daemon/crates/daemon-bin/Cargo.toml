@@ -15,6 +15,7 @@ daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
 piccolo = { workspace = true }
+tien = { workspace = true }
 ymir = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }

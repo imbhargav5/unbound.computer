@@ -8,11 +8,14 @@ use crate::auth_fsm::{
     AuthMachine, AuthMachineInput, AuthState, AuthStateChangedPayload, RefreshConfig,
 };
 use crate::{AuthError, AuthResult};
-use chrono::{Duration, Utc};
+use chrono::{Duration as ChronoDuration, Utc};
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::sync::Notify;
 use tracing::{debug, info, warn};
 
 /// Authentication status (backward-compatible public API).
@@ -24,6 +27,19 @@ pub enum AuthStatus {
     NotLoggedIn,
     /// Session expired and refresh failed.
     Expired,
+}
+
+/// Canonical auth snapshot used by daemon IPC and app startup gating.
+#[derive(Debug, Clone)]
+pub struct AuthSnapshot {
+    pub state: AuthState,
+    pub has_stored_session: bool,
+    pub session_valid: bool,
+    /// Backward-compatible alias for `session_valid`.
+    pub authenticated: bool,
+    pub user_id: Option<String>,
+    pub email: Option<String>,
+    pub expires_at: Option<String>,
 }
 
 /// Supabase token refresh request.
@@ -75,6 +91,10 @@ pub struct SessionManager {
     refresh_config: RefreshConfig,
     /// Optional callback for state change notifications.
     state_callback: Mutex<Option<AuthStateCallback>>,
+    /// Starts at most one background worker for clock-driven reconciliation.
+    clock_worker_started: AtomicBool,
+    /// Wakes the background worker when session credentials change.
+    clock_reconcile_notify: Notify,
 }
 
 impl SessionManager {
@@ -84,7 +104,7 @@ impl SessionManager {
         supabase_url: &str,
         supabase_publishable_key: &str,
     ) -> Self {
-        Self {
+        let manager = Self {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
@@ -92,7 +112,11 @@ impl SessionManager {
             fsm: Mutex::new(AuthMachine::new()),
             refresh_config: RefreshConfig::default(),
             state_callback: Mutex::new(None),
-        }
+            clock_worker_started: AtomicBool::new(false),
+            clock_reconcile_notify: Notify::new(),
+        };
+        let _ = manager.bootstrap_pending_validation_state();
+        manager
     }
 
     /// Create a new session manager with custom refresh configuration.
@@ -102,7 +126,7 @@ impl SessionManager {
         supabase_publishable_key: &str,
         refresh_config: RefreshConfig,
     ) -> Self {
-        Self {
+        let manager = Self {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
@@ -110,7 +134,11 @@ impl SessionManager {
             fsm: Mutex::new(AuthMachine::new()),
             refresh_config,
             state_callback: Mutex::new(None),
-        }
+            clock_worker_started: AtomicBool::new(false),
+            clock_reconcile_notify: Notify::new(),
+        };
+        let _ = manager.bootstrap_pending_validation_state();
+        manager
     }
 
     /// Set a callback to be notified of auth state changes.
@@ -125,6 +153,140 @@ impl SessionManager {
     pub fn fsm_state(&self) -> AuthState {
         let fsm = self.fsm.lock().unwrap();
         AuthState::from(fsm.state())
+    }
+
+    /// Start background clock reconciliation once.
+    ///
+    /// This implements the "proactive" part of the hybrid model.
+    pub fn start_hybrid_clock_reconciliation(self: &Arc<Self>) {
+        if self.clock_worker_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
+        if tokio::runtime::Handle::try_current().is_err() {
+            // Unit tests without a runtime still use lazy reconciliation.
+            self.clock_worker_started.store(false, Ordering::SeqCst);
+            warn!("No Tokio runtime; skipping background auth clock reconciliation worker");
+            return;
+        }
+
+        let weak_self = Arc::downgrade(self);
+        tokio::spawn(async move {
+            loop {
+                let Some(manager) = weak_self.upgrade() else {
+                    break;
+                };
+
+                let sleep_for = manager.next_clock_check_interval();
+
+                tokio::select! {
+                    _ = tokio::time::sleep(sleep_for) => {
+                        if let Err(error) = manager.reconcile_clock_expiry_if_needed().await {
+                            warn!(error = %error, "Background auth clock reconciliation failed");
+                        }
+                    }
+                    _ = manager.clock_reconcile_notify.notified() => {
+                        continue;
+                    }
+                }
+            }
+        });
+
+        self.notify_clock_reconcile();
+    }
+
+    /// Return canonical auth snapshot, reconciling clock/state lazily on read.
+    pub async fn status_snapshot(&self) -> AuthResult<AuthSnapshot> {
+        self.bootstrap_pending_validation_state()?;
+
+        self.reconcile_clock_expiry_if_needed().await?;
+
+        let state = self.fsm_state();
+        let has_stored_session = self.secrets.has_supabase_session()?;
+        let meta = self.secrets.get_supabase_session_meta()?;
+        let expired = if has_stored_session {
+            self.secrets.is_supabase_session_expired().unwrap_or(true)
+        } else {
+            true
+        };
+
+        let session_valid = has_stored_session && !expired && state == AuthState::LoggedIn;
+
+        Ok(AuthSnapshot {
+            state,
+            has_stored_session,
+            session_valid,
+            authenticated: session_valid,
+            user_id: meta.as_ref().map(|m| m.user_id.clone()),
+            email: meta.as_ref().and_then(|m| m.email.clone()),
+            expires_at: meta.as_ref().map(|m| m.expires_at.clone()),
+        })
+    }
+
+    fn bootstrap_pending_validation_state(&self) -> AuthResult<()> {
+        let has_stored_session = self.secrets.has_supabase_session()?;
+        let state = self.fsm_state();
+
+        if has_stored_session && state == AuthState::NotLoggedIn {
+            self.transition(&AuthMachineInput::SessionDetected)?;
+        } else if !has_stored_session && state == AuthState::PendingValidation {
+            let _ = self.transition(&AuthMachineInput::NoSession);
+        }
+
+        Ok(())
+    }
+
+    fn notify_clock_reconcile(&self) {
+        self.clock_reconcile_notify.notify_one();
+    }
+
+    fn next_clock_check_interval(&self) -> Duration {
+        let Ok(true) = self.secrets.has_supabase_session() else {
+            return Duration::from_secs(300);
+        };
+
+        let Ok(Some(meta)) = self.secrets.get_supabase_session_meta() else {
+            return Duration::from_secs(60);
+        };
+
+        let Ok(expires_at) = chrono::DateTime::parse_from_rfc3339(&meta.expires_at) else {
+            // Parse failure will be handled by lazy reconciliation soon.
+            return Duration::from_secs(1);
+        };
+
+        let trigger_at = expires_at.with_timezone(&Utc) - ChronoDuration::seconds(60);
+        let now = Utc::now();
+        let seconds_until_trigger = trigger_at.signed_duration_since(now).num_seconds();
+
+        if seconds_until_trigger <= 0 {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_secs(seconds_until_trigger as u64)
+        }
+    }
+
+    async fn reconcile_clock_expiry_if_needed(&self) -> AuthResult<()> {
+        if !self.secrets.has_supabase_session()? {
+            return Ok(());
+        }
+
+        if !self.secrets.is_supabase_session_expired()? {
+            return Ok(());
+        }
+
+        match self.fsm_state() {
+            AuthState::LoggedIn | AuthState::Refreshing => {
+                let _ = self.get_valid_token().await;
+            }
+            AuthState::PendingValidation
+            | AuthState::Validating
+            | AuthState::VerifyingWithServer => {
+                let _ = self.validate_session_on_startup().await;
+            }
+            AuthState::NotLoggedIn | AuthState::LoggingIn | AuthState::LoggingOut => {}
+        }
+
+        Ok(())
     }
 
     /// Transition the FSM and notify callback if state changed.
@@ -193,13 +355,29 @@ impl SessionManager {
     /// - `Ok(false)` if no session exists
     /// - `Err(...)` if session was invalid and has been cleared
     pub async fn validate_session_on_startup(&self) -> AuthResult<bool> {
-        // Transition to validating state
-        self.transition(&AuthMachineInput::ValidateSession)?;
+        self.bootstrap_pending_validation_state()?;
+
+        // Transition to validating state when pending validation is required.
+        match self.fsm_state() {
+            AuthState::PendingValidation | AuthState::NotLoggedIn => {
+                self.transition(&AuthMachineInput::ValidateSession)?;
+            }
+            AuthState::Validating | AuthState::VerifyingWithServer | AuthState::Refreshing => {}
+            AuthState::LoggedIn => {
+                if self.secrets.has_supabase_session()?
+                    && !self.secrets.is_supabase_session_expired().unwrap_or(true)
+                {
+                    return Ok(true);
+                }
+            }
+            AuthState::LoggingIn | AuthState::LoggingOut => {}
+        }
 
         // Check if we have a session at all
         if !self.secrets.has_supabase_session()? {
             info!("No existing session found on startup");
             self.transition(&AuthMachineInput::NoSession)?;
+            self.notify_clock_reconcile();
             return Ok(false);
         }
 
@@ -210,6 +388,7 @@ impl SessionManager {
                 info!("Session tokens exist but metadata is missing, clearing session");
                 self.secrets.clear_supabase_session()?;
                 self.transition(&AuthMachineInput::NoSession)?;
+                self.notify_clock_reconcile();
                 return Ok(false);
             }
         };
@@ -221,6 +400,7 @@ impl SessionManager {
                 info!("Session metadata exists but access token is missing, clearing session");
                 self.secrets.clear_supabase_session()?;
                 self.transition(&AuthMachineInput::NoSession)?;
+                self.notify_clock_reconcile();
                 return Ok(false);
             }
         };
@@ -234,7 +414,11 @@ impl SessionManager {
                 user_id = %meta.user_id,
                 "Session expired on startup, attempting refresh"
             );
-            self.transition(&AuthMachineInput::SessionExpired)?;
+            if self.fsm_state() == AuthState::LoggedIn {
+                self.transition(&AuthMachineInput::TokenExpired)?;
+            } else {
+                self.transition(&AuthMachineInput::SessionExpired)?;
+            }
 
             let refresh_token = match self.secrets.get_supabase_refresh_token()? {
                 Some(t) => t,
@@ -242,6 +426,7 @@ impl SessionManager {
                     warn!("Session expired but no refresh token found, clearing session");
                     self.secrets.clear_supabase_session()?;
                     self.transition(&AuthMachineInput::RefreshFailed)?;
+                    self.notify_clock_reconcile();
                     return Err(AuthError::TokenRefresh(
                         "No refresh token available".to_string(),
                     ));
@@ -255,10 +440,12 @@ impl SessionManager {
             {
                 Ok((_, user_id)) => {
                     info!(user_id = %user_id, "Session refreshed successfully on startup");
+                    self.notify_clock_reconcile();
                     return Ok(true);
                 }
                 Err(e) => {
                     warn!("Session refresh failed on startup, session cleared: {}", e);
+                    self.notify_clock_reconcile();
                     return Err(e);
                 }
             }
@@ -279,6 +466,7 @@ impl SessionManager {
                     "Session validated on startup (verified with server)"
                 );
                 self.transition(&AuthMachineInput::ServerVerified)?;
+                self.notify_clock_reconcile();
                 Ok(true)
             }
             Err(e) => {
@@ -289,6 +477,7 @@ impl SessionManager {
                 );
                 self.secrets.clear_supabase_session()?;
                 self.transition(&AuthMachineInput::ServerRejected)?;
+                self.notify_clock_reconcile();
                 Err(e)
             }
         }
@@ -369,9 +558,20 @@ impl SessionManager {
     /// Uses the FSM to track the refresh operation if needed.
     /// Returns the access token and user ID if successful.
     pub async fn get_valid_token(&self) -> AuthResult<(String, String)> {
-        // Check if logged in
+        self.bootstrap_pending_validation_state()?;
+
         if !self.secrets.has_supabase_session()? {
             return Err(AuthError::NotLoggedIn);
+        }
+
+        // Force a startup-style validation when we're still in pre-validated states.
+        if matches!(
+            self.fsm_state(),
+            AuthState::PendingValidation | AuthState::Validating | AuthState::VerifyingWithServer
+        ) {
+            if !self.validate_session_on_startup().await? {
+                return Err(AuthError::NotLoggedIn);
+            }
         }
 
         // Get current session data
@@ -388,18 +588,42 @@ impl SessionManager {
             .get_supabase_session_meta()?
             .ok_or(AuthError::NotLoggedIn)?;
 
-        // Check if token is still valid
-        if !self.secrets.is_supabase_session_expired()? {
+        // Token still valid and the FSM already confirmed this session.
+        if !self.secrets.is_supabase_session_expired()? && self.fsm_state() == AuthState::LoggedIn {
             debug!("Token still valid");
             return Ok((access_token, meta.user_id));
         }
 
-        // Token expired - transition FSM and try to refresh
+        // If we are not in LoggedIn, try to reconcile once via startup validation path.
+        if self.fsm_state() != AuthState::LoggedIn {
+            let validated = self.validate_session_on_startup().await?;
+            if !validated {
+                return Err(AuthError::NotLoggedIn);
+            }
+
+            let reconciled_token = self
+                .secrets
+                .get_supabase_access_token()?
+                .ok_or(AuthError::NotLoggedIn)?;
+            let reconciled_meta = self
+                .secrets
+                .get_supabase_session_meta()?
+                .ok_or(AuthError::NotLoggedIn)?;
+
+            if !self.secrets.is_supabase_session_expired()? {
+                return Ok((reconciled_token, reconciled_meta.user_id));
+            }
+        }
+
+        // Token expired while we are in LoggedIn -> transition to Refreshing and refresh.
         info!("Token expired, attempting refresh");
         self.transition(&AuthMachineInput::TokenExpired)?;
 
-        self.refresh_with_backoff(&refresh_token, &meta.project_ref)
-            .await
+        let result = self
+            .refresh_with_backoff(&refresh_token, &meta.project_ref)
+            .await;
+        self.notify_clock_reconcile();
+        result
     }
 
     /// Refresh the session with exponential backoff retry.
@@ -414,6 +638,7 @@ impl SessionManager {
             match self.try_refresh(refresh_token, project_ref).await {
                 Ok(result) => {
                     self.transition(&AuthMachineInput::RefreshSuccess)?;
+                    self.notify_clock_reconcile();
                     return Ok(result);
                 }
                 Err(e) if e.is_transient() => {
@@ -438,6 +663,7 @@ impl SessionManager {
                     warn!("Refresh failed with non-transient error: {}", e);
                     self.secrets.clear_supabase_session()?;
                     self.transition(&AuthMachineInput::RefreshFailed)?;
+                    self.notify_clock_reconcile();
                     return Err(e);
                 }
             }
@@ -450,6 +676,7 @@ impl SessionManager {
         );
         self.secrets.clear_supabase_session()?;
         self.transition(&AuthMachineInput::RefreshFailed)?;
+        self.notify_clock_reconcile();
 
         Err(last_error.unwrap_or(AuthError::RefreshExhausted(self.refresh_config.max_retries)))
     }
@@ -495,7 +722,7 @@ impl SessionManager {
         let data: RefreshResponse = response.json().await?;
 
         // Calculate new expiration time
-        let expires_at = Utc::now() + Duration::seconds(data.expires_in);
+        let expires_at = Utc::now() + ChronoDuration::seconds(data.expires_in);
 
         // Store new tokens
         self.secrets.set_supabase_access_token(&data.access_token)?;
@@ -574,7 +801,7 @@ impl SessionManager {
         };
 
         // Calculate expiration time
-        let expires_at = Utc::now() + Duration::seconds(data.expires_in);
+        let expires_at = Utc::now() + ChronoDuration::seconds(data.expires_in);
 
         // Extract project ref from Supabase URL (e.g., "abc123" from "https://abc123.supabase.co")
         let project_ref = self
@@ -599,6 +826,7 @@ impl SessionManager {
 
         // Transition to logged in
         self.transition(&AuthMachineInput::LoginSuccess)?;
+        self.notify_clock_reconcile();
 
         info!(user_id = %data.user.id, "Login successful");
 
@@ -616,6 +844,7 @@ impl SessionManager {
         self.secrets.clear_supabase_session()?;
 
         let _ = self.transition(&AuthMachineInput::LogoutComplete);
+        self.notify_clock_reconcile();
 
         info!("Logged out");
         Ok(())
@@ -673,6 +902,17 @@ mod tests {
         SessionManager::new(secrets, "https://test.supabase.co", "test-publishable-key")
     }
 
+    fn create_test_manager_with_refresh_config(refresh_config: RefreshConfig) -> SessionManager {
+        let storage = Box::new(MemoryStorage::new());
+        let secrets = SecretsManager::new(storage);
+        SessionManager::with_refresh_config(
+            secrets,
+            "not-a-url",
+            "test-publishable-key",
+            refresh_config,
+        )
+    }
+
     #[test]
     fn test_initial_fsm_state() {
         let manager = create_test_manager();
@@ -695,7 +935,7 @@ mod tests {
         let manager = create_test_manager();
 
         // Simulate a login by directly storing session data
-        let expires_at = (Utc::now() + Duration::hours(1)).to_rfc3339();
+        let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
         manager
             .secrets
             .set_supabase_session(
@@ -719,7 +959,7 @@ mod tests {
         let manager = create_test_manager();
 
         // Simulate a login
-        let expires_at = (Utc::now() + Duration::hours(1)).to_rfc3339();
+        let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
         manager
             .secrets
             .set_supabase_session(
@@ -750,7 +990,7 @@ mod tests {
         let manager = create_test_manager();
 
         // Simulate a login
-        let expires_at = (Utc::now() + Duration::hours(1)).to_rfc3339();
+        let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
         manager
             .secrets
             .set_supabase_session(
@@ -794,6 +1034,95 @@ mod tests {
         // No session found
         manager.transition(&AuthMachineInput::NoSession).unwrap();
         assert_eq!(manager.fsm_state(), AuthState::NotLoggedIn);
+    }
+
+    #[tokio::test]
+    async fn test_status_snapshot_reports_pending_validation_for_stored_session() {
+        let manager = create_test_manager();
+        let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
+
+        manager
+            .secrets
+            .set_supabase_session(
+                "test-access-token",
+                "test-refresh-token",
+                "user-pending",
+                Some("pending@example.com"),
+                &expires_at,
+            )
+            .unwrap();
+
+        let snapshot = manager.status_snapshot().await.unwrap();
+        assert_eq!(snapshot.state, AuthState::PendingValidation);
+        assert!(snapshot.has_stored_session);
+        assert!(!snapshot.session_valid);
+        assert!(!snapshot.authenticated);
+    }
+
+    #[tokio::test]
+    async fn test_status_snapshot_reports_valid_session_for_logged_in_state() {
+        let manager = create_test_manager();
+        let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
+
+        manager
+            .secrets
+            .set_supabase_session(
+                "test-access-token",
+                "test-refresh-token",
+                "user-valid",
+                Some("valid@example.com"),
+                &expires_at,
+            )
+            .unwrap();
+
+        manager.transition(&AuthMachineInput::LoginAttempt).unwrap();
+        manager.transition(&AuthMachineInput::LoginSuccess).unwrap();
+
+        let snapshot = manager.status_snapshot().await.unwrap();
+        assert_eq!(snapshot.state, AuthState::LoggedIn);
+        assert!(snapshot.has_stored_session);
+        assert!(snapshot.session_valid);
+        assert!(snapshot.authenticated);
+    }
+
+    #[tokio::test]
+    async fn test_status_snapshot_reconciles_expired_session_and_clears_invalid_credentials() {
+        let manager = create_test_manager_with_refresh_config(RefreshConfig {
+            max_retries: 0,
+            initial_delay_ms: 0,
+            max_delay_ms: 0,
+        });
+        let expires_at = (Utc::now() - ChronoDuration::hours(1)).to_rfc3339();
+
+        manager
+            .secrets
+            .set_supabase_session(
+                "test-access-token",
+                "test-refresh-token",
+                "user-expired",
+                Some("expired@example.com"),
+                &expires_at,
+            )
+            .unwrap();
+        manager.transition(&AuthMachineInput::LoginAttempt).unwrap();
+        manager.transition(&AuthMachineInput::LoginSuccess).unwrap();
+        assert_eq!(manager.fsm_state(), AuthState::LoggedIn);
+
+        let snapshot = manager.status_snapshot().await.unwrap();
+        assert_eq!(snapshot.state, AuthState::NotLoggedIn);
+        assert!(!snapshot.has_stored_session);
+        assert!(!snapshot.session_valid);
+        assert!(!snapshot.authenticated);
+        assert!(manager
+            .secrets
+            .get_supabase_access_token()
+            .unwrap()
+            .is_none());
+        assert!(manager
+            .secrets
+            .get_supabase_session_meta()
+            .unwrap()
+            .is_none());
     }
 
     #[test]

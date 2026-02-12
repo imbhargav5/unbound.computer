@@ -108,53 +108,59 @@ struct WorkspaceView: View {
 
         ZStack {
             ZStack(alignment: .top) {
-                HSplitView {
-                    // Left sidebar - Sessions
-                    WorkspacesSidebar(
-                        onOpenSettings: {
-                            appState.showSettings = true
-                        },
-                        onAddRepository: {
-                            addRepository()
-                        },
-                        onCreateSessionForRepository: { repository, locationType in
-                            createSession(for: repository, locationType: locationType)
-                        },
-                        onRequestRemoveRepository: { repository in
-                            requestRemoveRepository(repository)
-                        }
-                    )
-                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
-
-                    // Center - Chat Panel
-                    if selectedSession != nil {
-                        ChatPanel(
-                            session: selectedSession,
-                            repository: selectedRepository,
-                            chatInput: $chatInput,
-                            selectedModel: $selectedModel,
-                            selectedThinkMode: $selectedThinkMode,
-                            isPlanMode: $isPlanMode,
-                            editorState: editorState
-                        )
-                        .frame(minWidth: 400)
-                    } else {
-                        WorkspaceEmptyState(
-                            hasRepositories: !sessions.isEmpty,
-                            onAddRepository: { addRepository() }
-                        )
-                        .frame(minWidth: 400)
+                VStack(spacing: 0) {
+                    if appState.isGhInstalled == false {
+                        GhMissingBanner()
                     }
 
-                    // Right sidebar - Git Operations
-                    RightSidebarPanel(
-                        fileTreeViewModel: fileTreeViewModel,
-                        gitViewModel: gitViewModel,
-                        editorState: editorState,
-                        selectedTab: $selectedSidebarTab,
-                        workingDirectory: workingDirectoryPath
-                    )
-                    .frame(minWidth: 280, idealWidth: 400, maxWidth: 600)
+                    HSplitView {
+                        // Left sidebar - Sessions
+                        WorkspacesSidebar(
+                            onOpenSettings: {
+                                appState.showSettings = true
+                            },
+                            onAddRepository: {
+                                addRepository()
+                            },
+                            onCreateSessionForRepository: { repository, locationType in
+                                createSession(for: repository, locationType: locationType)
+                            },
+                            onRequestRemoveRepository: { repository in
+                                requestRemoveRepository(repository)
+                            }
+                        )
+                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
+
+                        // Center - Chat Panel
+                        if selectedSession != nil {
+                            ChatPanel(
+                                session: selectedSession,
+                                repository: selectedRepository,
+                                chatInput: $chatInput,
+                                selectedModel: $selectedModel,
+                                selectedThinkMode: $selectedThinkMode,
+                                isPlanMode: $isPlanMode,
+                                editorState: editorState
+                            )
+                            .frame(minWidth: 400)
+                        } else {
+                            WorkspaceEmptyState(
+                                hasRepositories: !sessions.isEmpty,
+                                onAddRepository: { addRepository() }
+                            )
+                            .frame(minWidth: 400)
+                        }
+
+                        // Right sidebar - Git Operations
+                        RightSidebarPanel(
+                            fileTreeViewModel: fileTreeViewModel,
+                            gitViewModel: gitViewModel,
+                            editorState: editorState,
+                            selectedTab: $selectedSidebarTab,
+                            workingDirectory: workingDirectoryPath
+                        )
+                        .frame(minWidth: 280, idealWidth: 400, maxWidth: 600)
+                    }
                 }
                 .padding(.top, titlebarHeight)
 

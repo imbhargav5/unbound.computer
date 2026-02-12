@@ -22,6 +22,28 @@ xcodebuild -project unbound-macos.xcodeproj \
   build
 ```
 
+## Session Detail Preview Fixture
+
+The `SessionDetailView` canvas preview uses a committed fixture at:
+
+- `unbound-macos/Resources/PreviewFixtures/session-detail-max-messages.json`
+
+Regenerate it from the macOS SQLite database (run from repository root):
+
+```bash
+./apps/ios/scripts/export_max_session_fixture.sh \
+  "<db-path>" \
+  "apps/macos/unbound-macos/Resources/PreviewFixtures/session-detail-max-messages.json"
+```
+
+Example with the default local database path:
+
+```bash
+./apps/ios/scripts/export_max_session_fixture.sh \
+  "$HOME/Library/Application Support/com.unbound.macos/unbound.sqlite" \
+  "apps/macos/unbound-macos/Resources/PreviewFixtures/session-detail-max-messages.json"
+```
+
 ## Bundle Configuration
 
 | Setting | Value |

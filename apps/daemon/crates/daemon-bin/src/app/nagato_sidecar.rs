@@ -199,7 +199,12 @@ fn build_nagato_binary_candidates(
 
             // Best-effort local-dev fallback to monorepo package binary.
             if let Some(repo_root) = infer_repo_root(parent) {
-                candidates.push(repo_root.join("packages").join("daemon-nagato").join("nagato"));
+                candidates.push(
+                    repo_root
+                        .join("packages")
+                        .join("daemon-nagato")
+                        .join("nagato"),
+                );
             }
         }
     }
@@ -247,7 +252,10 @@ mod tests {
         );
 
         assert_eq!(candidates[0], PathBuf::from("/custom/nagato"));
-        assert_eq!(candidates[1], PathBuf::from("/tmp/app/Contents/MacOS/nagato"));
+        assert_eq!(
+            candidates[1],
+            PathBuf::from("/tmp/app/Contents/MacOS/nagato")
+        );
     }
 
     #[test]
@@ -264,7 +272,9 @@ mod tests {
     #[test]
     fn includes_app_bundle_paths() {
         let candidates = build_nagato_binary_candidates(
-            Some(Path::new("/Applications/Unbound.app/Contents/MacOS/unbound-daemon")),
+            Some(Path::new(
+                "/Applications/Unbound.app/Contents/MacOS/unbound-daemon",
+            )),
             None,
         );
 

@@ -23,6 +23,7 @@ members = [
     "crates/rengoku-sessions",
     "crates/sasuke-crypto",
     "crates/historia-lifecycle",
+    "crates/tien",
 ]
 
 [workspace.package]
@@ -106,6 +107,7 @@ eren-machines = { path = "crates/eren-machines" }
 rengoku-sessions = { path = "crates/rengoku-sessions" }
 sasuke-crypto = { path = "crates/sasuke-crypto" }
 historia-lifecycle = { path = "crates/historia-lifecycle" }
+tien = { path = "crates/tien" }
 
 # Redis
 redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

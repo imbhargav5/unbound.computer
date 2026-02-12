@@ -19,10 +19,8 @@ pub use auth_fsm::{
     AuthMachine, AuthMachineInput, AuthMachineState, AuthState, AuthStateChangedPayload,
     RefreshConfig,
 };
-pub use daemon_runtime::{
-    AuthLoginResult, AuthSnapshot, AuthSyncContext, DaemonAuthRuntime, SocialLoginStart,
-};
+pub use daemon_runtime::{AuthLoginResult, AuthSyncContext, DaemonAuthRuntime, SocialLoginStart};
 pub use error::{AuthError, AuthResult};
 pub use oauth::{OAuthCallbackServer, OAuthResult};
-pub use session::{AuthStatus, SessionManager};
+pub use session::{AuthSnapshot, AuthStatus, SessionManager};
 pub use supabase_client::{CodingSessionSecretRecord, DeviceInfo, SupabaseClient};

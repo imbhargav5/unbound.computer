@@ -456,6 +456,16 @@ extension DaemonClient {
     }
 }
 
+// MARK: - System
+
+extension DaemonClient {
+    /// Check system dependencies (Claude Code CLI, GitHub CLI).
+    func checkDependencies() async throws -> DaemonDependencyStatus {
+        let response = try await call(method: .systemCheckDependencies)
+        return try response.resultAs(DaemonDependencyStatus.self)
+    }
+}
+
 // MARK: - Git
 
 extension DaemonClient {

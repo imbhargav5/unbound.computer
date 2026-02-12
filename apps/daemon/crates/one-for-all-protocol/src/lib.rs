@@ -90,6 +90,14 @@ pub enum Method {
     GitUnstage,
     #[serde(rename = "git.discard")]
     GitDiscard,
+    #[serde(rename = "git.commit")]
+    GitCommitChanges,
+    #[serde(rename = "git.push")]
+    GitPush,
+
+    // System operations
+    #[serde(rename = "system.check_dependencies")]
+    SystemCheckDependencies,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]
@@ -369,6 +377,12 @@ mod tests {
             (Method::GitStage, "\"git.stage\""),
             (Method::GitUnstage, "\"git.unstage\""),
             (Method::GitDiscard, "\"git.discard\""),
+            (Method::GitCommitChanges, "\"git.commit\""),
+            (Method::GitPush, "\"git.push\""),
+            (
+                Method::SystemCheckDependencies,
+                "\"system.check_dependencies\"",
+            ),
             (Method::TerminalRun, "\"terminal.run\""),
             (Method::TerminalStatus, "\"terminal.status\""),
             (Method::TerminalStop, "\"terminal.stop\""),
@@ -416,6 +430,9 @@ mod tests {
             Method::GitStage,
             Method::GitUnstage,
             Method::GitDiscard,
+            Method::GitCommitChanges,
+            Method::GitPush,
+            Method::SystemCheckDependencies,
             Method::TerminalRun,
             Method::TerminalStatus,
             Method::TerminalStop,

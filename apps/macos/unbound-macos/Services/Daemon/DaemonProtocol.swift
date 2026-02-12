@@ -63,6 +63,9 @@ enum DaemonMethod: String, Codable {
     case gitCommit = "git.commit"
     case gitPush = "git.push"
 
+    // System operations
+    case systemCheckDependencies = "system.check_dependencies"
+
     // Terminal operations
     case terminalRun = "terminal.run"
     case terminalStatus = "terminal.status"
@@ -354,14 +357,52 @@ struct AnyCodableValue: Codable {
 // MARK: - Response Types
 
 /// Auth status response from daemon.
+enum DaemonAuthState: String, Codable {
+    case notLoggedIn = "not_logged_in"
+    case pendingValidation = "pending_validation"
+    case loggingIn = "logging_in"
+    case validating = "validating"
+    case verifyingWithServer = "verifying_with_server"
+    case loggedIn = "logged_in"
+    case refreshing = "refreshing"
+    case loggingOut = "logging_out"
+
+    var isValidationInFlight: Bool {
+        switch self {
+        case .pendingValidation, .validating, .verifyingWithServer, .refreshing:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 struct DaemonAuthStatus: Codable {
     let authenticated: Bool
+    let sessionValid: Bool?
+    let hasStoredSession: Bool?
+    let state: DaemonAuthState?
     let userId: String?
     let email: String?
     let expiresAt: String?  // RFC3339 string from daemon
 
+    var effectiveSessionValid: Bool {
+        sessionValid ?? authenticated
+    }
+
+    var effectiveHasStoredSession: Bool {
+        hasStoredSession ?? (userId != nil || expiresAt != nil)
+    }
+
+    var isValidationPending: Bool {
+        effectiveHasStoredSession && !effectiveSessionValid && (state?.isValidationInFlight ?? false)
+    }
+
     enum CodingKeys: String, CodingKey {
         case authenticated
+        case sessionValid = "session_valid"
+        case hasStoredSession = "has_stored_session"
+        case state
         case userId = "user_id"
         case email
         case expiresAt = "expires_at"
@@ -614,6 +655,18 @@ struct GitPushResultResponse: Codable {
     let remote: String
     let branch: String
     let success: Bool
+}
+
+/// Dependency check result from daemon.
+struct DaemonDependencyStatus: Codable {
+    let claude: DependencyInfo
+    let gh: DependencyInfo
+
+    struct DependencyInfo: Codable {
+        let name: String
+        let installed: Bool
+        let path: String?
+    }
 }
 
 /// Git status from daemon.

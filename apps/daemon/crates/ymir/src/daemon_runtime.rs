@@ -3,7 +3,7 @@
 //! This module centralizes daemon auth behavior so IPC handlers and startup
 //! flow use one shared authority for login/logout/status and social completion.
 
-use crate::{AuthError, AuthResult, AuthState, SessionManager, SupabaseClient};
+use crate::{AuthError, AuthResult, AuthSnapshot, SessionManager, SupabaseClient};
 use base64::Engine;
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use serde::Deserialize;
@@ -14,16 +14,6 @@ use uuid::Uuid;
 
 const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
 const SOCIAL_LOGIN_POLL_INTERVAL_SECS: u64 = 2;
-
-/// Snapshot of authentication state for IPC/status reporting.
-#[derive(Debug, Clone)]
-pub struct AuthSnapshot {
-    pub authenticated: bool,
-    pub user_id: Option<String>,
-    pub email: Option<String>,
-    pub expires_at: Option<String>,
-    pub state: AuthState,
-}
 
 /// Sync context derived from a valid auth session.
 #[derive(Debug, Clone)]
@@ -95,8 +85,11 @@ impl DaemonAuthRuntime {
             .trim_end_matches('/')
             .to_string();
 
+        let session_manager = Arc::new(session_manager);
+        session_manager.start_hybrid_clock_reconciliation();
+
         Self {
-            session_manager: Arc::new(session_manager),
+            session_manager,
             supabase_client,
             secrets,
             http_client: reqwest::Client::new(),
@@ -111,24 +104,8 @@ impl DaemonAuthRuntime {
     }
 
     /// Current auth status snapshot.
-    pub fn status(&self) -> AuthResult<AuthSnapshot> {
-        let state = self.session_manager.fsm_state();
-        let meta = self.read_session_meta()?;
-        let expired = self
-            .secrets
-            .lock()
-            .unwrap()
-            .is_supabase_session_expired()
-            .unwrap_or(true);
-        let authenticated = meta.is_some() && !expired;
-
-        Ok(AuthSnapshot {
-            authenticated,
-            user_id: meta.as_ref().map(|m| m.user_id.clone()),
-            email: meta.as_ref().and_then(|m| m.email.clone()),
-            expires_at: meta.as_ref().map(|m| m.expires_at.clone()),
-            state,
-        })
+    pub async fn status(&self) -> AuthResult<AuthSnapshot> {
+        self.session_manager.status_snapshot().await
     }
 
     /// Login directly with Supabase email/password.

@@ -35,7 +35,12 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
 
             // Best-effort local-dev fallback to monorepo package binary.
             if let Some(repo_root) = infer_repo_root(parent) {
-                candidates.push(repo_root.join("packages").join("daemon-falco").join("falco"));
+                candidates.push(
+                    repo_root
+                        .join("packages")
+                        .join("daemon-falco")
+                        .join("falco"),
+                );
             }
         }
     }

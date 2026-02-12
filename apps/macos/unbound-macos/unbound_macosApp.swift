@@ -12,6 +12,14 @@ import Logging
 
 private let logger = Logger(label: "app.main")
 
+private enum AppRuntime {
+    static var isPreview: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" ||
+            environment["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
+    }
+}
+
 /// Initialization state for the app
 enum InitializationState: Equatable {
     case loading(message: String, progress: Double)
@@ -41,70 +49,78 @@ struct unbound_macosApp: App {
     @State private var appState: AppState?
 
     init() {
-        // Register Geist fonts on app startup
-        FontRegistration.registerFonts()
-        LoggingService.bootstrap()
+        if !AppRuntime.isPreview {
+            // Register Geist fonts and logging only for real app runtime.
+            // Previews don't need global bootstrap and should stay minimal.
+            FontRegistration.registerFonts()
+            LoggingService.bootstrap()
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                switch initializationState {
-                case .loading(let message, let progress):
-                    SplashView(statusMessage: message, progress: progress)
-                        .frame(minWidth: 900, minHeight: 600)
-
-                case .ready, .readyOffline:
-                    if let appState {
-                        ContentView()
-                            .environment(appState)
-                            .environment(\.themeColors, ThemeColors(appState.themeMode.colorScheme ?? .dark))
-                            .preferredColorScheme(appState.themeMode.colorScheme)
+            if AppRuntime.isPreview {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            } else {
+                Group {
+                    switch initializationState {
+                    case .loading(let message, let progress):
+                        SplashView(statusMessage: message, progress: progress)
                             .frame(minWidth: 900, minHeight: 600)
-                            .overlay(alignment: .top) {
-                                // Show connection status banner when offline
-                                if initializationState == .readyOffline || !appState.isDaemonConnected {
-                                    DaemonConnectionBanner(
-                                        state: appState.daemonConnectionState,
-                                        onRetry: {
-                                            Task {
-                                                await appState.retryDaemonConnection()
-                                                if appState.isDaemonConnected {
-                                                    initializationState = .ready
+
+                    case .ready, .readyOffline:
+                        if let appState {
+                            ContentView()
+                                .environment(appState)
+                                .environment(\.themeColors, ThemeColors(appState.themeMode.colorScheme ?? .dark))
+                                .preferredColorScheme(appState.themeMode.colorScheme)
+                                .frame(minWidth: 900, minHeight: 600)
+                                .overlay(alignment: .top) {
+                                    // Show connection status banner when offline
+                                    if initializationState == .readyOffline || !appState.isDaemonConnected {
+                                        DaemonConnectionBanner(
+                                            state: appState.daemonConnectionState,
+                                            onRetry: {
+                                                Task {
+                                                    await appState.retryDaemonConnection()
+                                                    if appState.isDaemonConnected {
+                                                        initializationState = .ready
+                                                    }
                                                 }
                                             }
-                                        }
-                                    )
-                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                        )
+                                        .transition(.move(edge: .top).combined(with: .opacity))
+                                    }
                                 }
-                            }
-                            .animation(.easeInOut(duration: 0.3), value: appState.isDaemonConnected)
-                    }
-
-                case .failed(let errorMessage):
-                    InitializationErrorView(error: DaemonError.connectionFailed(errorMessage)) {
-                        // Retry initialization
-                        Task {
-                            await initialize()
+                                .animation(.easeInOut(duration: 0.3), value: appState.isDaemonConnected)
                         }
-                    }
-                    .frame(minWidth: 900, minHeight: 600)
-                }
-            }
-            .task {
-                await initialize()
-            }
-            .onOpenURL { url in
-                // Handle deep links (OAuth callbacks)
-                // Daemon handles auth, so just log for now
-                logger.info("Deep link received: \(url.absoluteString)")
 
-                // If this is an auth callback, refresh auth status
-                if url.scheme == "unbound" && url.host == "auth" {
-                    Task {
-                        await appState?.refreshAuthStatus()
-                        if appState?.isAuthenticated == true {
-                            await appState?.loadDataAsync()
+                    case .failed(let errorMessage):
+                        InitializationErrorView(error: DaemonError.connectionFailed(errorMessage)) {
+                            // Retry initialization
+                            Task {
+                                await initialize()
+                            }
+                        }
+                        .frame(minWidth: 900, minHeight: 600)
+                    }
+                }
+                .task {
+                    await initialize()
+                }
+                .onOpenURL { url in
+                    // Handle deep links (OAuth callbacks)
+                    // Daemon handles auth, so just log for now
+                    logger.info("Deep link received: \(url.absoluteString)")
+
+                    // If this is an auth callback, refresh auth status
+                    if url.scheme == "unbound" && url.host == "auth" {
+                        Task {
+                            await appState?.refreshAuthStatus()
+                            if appState?.isAuthenticated == true {
+                                await appState?.loadDataAsync()
+                            }
                         }
                     }
                 }
@@ -115,7 +131,7 @@ struct unbound_macosApp: App {
 
         // Settings window - only show when app is ready
         Settings {
-            if let appState {
+            if !AppRuntime.isPreview, let appState {
                 SettingsView()
                     .environment(appState)
                     .environment(\.themeColors, ThemeColors(appState.themeMode.colorScheme ?? .dark))

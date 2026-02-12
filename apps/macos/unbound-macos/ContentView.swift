@@ -51,21 +51,60 @@ struct ContentView: View {
     @ViewBuilder
     private var connectedContent: some View {
         if appState.isAuthenticated {
-            // Show main app
-            ZStack {
-                WorkspaceView()
-                    .opacity(appState.showSettings ? 0 : 1)
+            if appState.dependenciesSatisfied {
+                // Show main app
+                ZStack {
+                    WorkspaceView()
+                        .opacity(appState.showSettings ? 0 : 1)
 
-                if appState.showSettings {
-                    SettingsView()
+                    if appState.showSettings {
+                        SettingsView()
+                    }
                 }
+                .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
+            } else {
+                // Dependency check gate
+                DependencyCheckView()
+                    .transition(.opacity)
             }
-            .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
+        } else if appState.isAuthValidationPending {
+            AuthRestoringView()
+                .transition(.opacity)
         } else {
             // Show login
             OnboardingView()
                 .transition(.opacity)
         }
+    }
+}
+
+// MARK: - Auth Restoring View
+
+struct AuthRestoringView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .scaleEffect(1.5)
+
+            VStack(spacing: Spacing.sm) {
+                Text("Restoring Session")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(colors.foreground)
+
+                Text("Validating saved credentials...")
+                    .font(.body)
+                    .foregroundColor(colors.mutedForeground)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

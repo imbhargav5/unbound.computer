@@ -1,8 +1,8 @@
 //! Daemon initialization.
 
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
-use crate::app::nagato_sidecar::start_nagato_sidecar;
 use crate::app::nagato_server::spawn_nagato_server;
+use crate::app::nagato_sidecar::start_nagato_sidecar;
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;

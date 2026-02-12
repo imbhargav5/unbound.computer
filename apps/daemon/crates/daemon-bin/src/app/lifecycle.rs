@@ -2,6 +2,41 @@
 
 use daemon_config_and_utils::Paths;
 use daemon_ipc::Method;
+use std::path::Path;
+use std::process::Command;
+
+fn socket_is_connectable(socket_path: &Path) -> bool {
+    std::os::unix::net::UnixStream::connect(socket_path).is_ok()
+}
+
+fn cleanup_runtime_files(socket_path: &Path, pid_path: &Path) {
+    if socket_path.exists() {
+        let _ = std::fs::remove_file(socket_path);
+    }
+    if pid_path.exists() {
+        let _ = std::fs::remove_file(pid_path);
+    }
+}
+
+fn pid_looks_like_daemon(pid: i32) -> bool {
+    let output = match Command::new("ps")
+        .arg("-p")
+        .arg(pid.to_string())
+        .arg("-o")
+        .arg("command=")
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return false,
+    };
+
+    if !output.status.success() {
+        return false;
+    }
+
+    let command = String::from_utf8_lossy(&output.stdout);
+    command.contains("unbound-daemon")
+}
 
 /// Stop the daemon.
 pub async fn stop_daemon(paths: &Paths) -> Result<(), Box<dyn std::error::Error>> {
@@ -30,6 +65,11 @@ pub async fn stop_daemon(paths: &Paths) -> Result<(), Box<dyn std::error::Error>
         }
         Err(e) => {
             println!("Failed to connect to daemon: {}", e);
+            if !socket_is_connectable(&socket_path) {
+                cleanup_runtime_files(&socket_path, &pid_path);
+                println!("Cleaned up stale daemon socket/PID files");
+                return Ok(());
+            }
         }
     }
 
@@ -46,26 +86,34 @@ pub async fn stop_daemon(paths: &Paths) -> Result<(), Box<dyn std::error::Error>
     if pid_path.exists() {
         if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
             if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                if pid_looks_like_daemon(pid) {
+                    println!(
+                        "Daemon did not stop gracefully, sending SIGKILL to PID {}",
+                        pid
+                    );
+                    unsafe {
+                        libc::kill(pid, libc::SIGKILL);
+                    }
+                    cleanup_runtime_files(&socket_path, &pid_path);
+                    println!("Daemon killed");
+                    return Ok(());
+                }
+
                 println!(
-                    "Daemon did not stop gracefully, sending SIGKILL to PID {}",
+                    "PID {} does not look like unbound-daemon; skipping SIGKILL and cleaning stale files",
                     pid
                 );
-                unsafe {
-                    libc::kill(pid, libc::SIGKILL);
-                }
-                // Clean up files
-                let _ = std::fs::remove_file(&socket_path);
-                let _ = std::fs::remove_file(&pid_path);
-                println!("Daemon killed");
+                cleanup_runtime_files(&socket_path, &pid_path);
+                println!("Cleaned up stale daemon socket/PID files");
                 return Ok(());
             }
         }
     }
 
     // Last resort: clean up socket file
-    if socket_path.exists() {
-        let _ = std::fs::remove_file(&socket_path);
-        println!("Cleaned up stale socket file");
+    if socket_path.exists() || pid_path.exists() {
+        cleanup_runtime_files(&socket_path, &pid_path);
+        println!("Cleaned up stale daemon socket/PID files");
     }
 
     Ok(())
