@@ -60,6 +60,30 @@ final class RemoteCommandEnvelopeTests: XCTestCase {
         XCTAssertEqual(decoded.params["session_id"], .string("session-1"))
         XCTAssertEqual(decoded.params["content"], .string("hello world"))
     }
+
+    func testEnvelopeSupportsGhCommandType() throws {
+        let original = RemoteCommandEnvelope(
+            schemaVersion: 1,
+            type: "gh.pr.list.v1",
+            requestId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            requesterDeviceId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            targetDeviceId: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+            requestedAtMs: 1700000000000,
+            params: [
+                "session_id": .string("session-1"),
+                "state": .string("open"),
+                "limit": .int(20),
+            ]
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(RemoteCommandEnvelope.self, from: data)
+
+        XCTAssertEqual(decoded.type, "gh.pr.list.v1")
+        XCTAssertEqual(decoded.params["session_id"], .string("session-1"))
+        XCTAssertEqual(decoded.params["state"], .string("open"))
+        XCTAssertEqual(decoded.params["limit"], .int(20))
+    }
 }
 
 final class RemoteCommandResponseTests: XCTestCase {
@@ -135,6 +159,38 @@ final class RemoteCommandResponseTests: XCTestCase {
         XCTAssertNil(response.result)
         XCTAssertNil(response.errorCode)
         XCTAssertNil(response.errorMessage)
+    }
+
+    func testResponseDecodesGhPrListPayload() throws {
+        let json = """
+        {
+            "schema_version": 1,
+            "request_id": "req-gh-list",
+            "type": "gh.pr.list.v1",
+            "status": "ok",
+            "result": {
+                "pull_requests": [
+                    {
+                        "number": 42,
+                        "title": "Add gh integration",
+                        "url": "https://github.com/unbound/repo/pull/42",
+                        "state": "OPEN",
+                        "is_draft": false
+                    }
+                ],
+                "count": 1
+            },
+            "created_at_ms": 1700000000000
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RemoteCommandResponse.self, from: json)
+        XCTAssertTrue(response.isOk)
+        let result = response.result?.objectValue
+        XCTAssertEqual(result?["count"]?.intValue, 1)
+        let prs = result?["pull_requests"]?.arrayValue
+        XCTAssertEqual(prs?.count, 1)
+        XCTAssertEqual(prs?.first?.objectValue?["number"]?.intValue, 42)
     }
 }
 

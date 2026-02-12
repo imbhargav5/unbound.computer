@@ -223,6 +223,30 @@ enum AnyCodableValue: Codable, Equatable {
         if case .string(let str) = self { return str }
         return nil
     }
+
+    /// Access as an integer.
+    var intValue: Int? {
+        switch self {
+        case .int(let value):
+            return value
+        case .double(let value):
+            return Int(value)
+        default:
+            return nil
+        }
+    }
+
+    /// Access as a boolean.
+    var boolValue: Bool? {
+        if case .bool(let value) = self { return value }
+        return nil
+    }
+
+    /// Access as an array.
+    var arrayValue: [AnyCodableValue]? {
+        if case .array(let values) = self { return values }
+        return nil
+    }
 }
 
 protocol RemoteCommandTransport {

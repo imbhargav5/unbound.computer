@@ -66,6 +66,54 @@ struct StopClaudeResult {
     let message: String?
 }
 
+struct RemotePullRequest {
+    let number: Int
+    let title: String
+    let url: String
+    let state: String
+    let isDraft: Bool
+    let mergeStateStatus: String?
+    let reviewDecision: String?
+}
+
+struct CreatePRResult {
+    let url: String
+    let pullRequest: RemotePullRequest
+}
+
+struct ListPRsResult {
+    let pullRequests: [RemotePullRequest]
+    let count: Int
+}
+
+struct PRChecksSummary {
+    let total: Int
+    let passing: Int
+    let failing: Int
+    let pending: Int
+    let skipped: Int
+    let cancelled: Int
+}
+
+struct PRCheckItem {
+    let name: String
+    let state: String?
+    let bucket: String?
+    let workflow: String?
+}
+
+struct PRChecksResult {
+    let checks: [PRCheckItem]
+    let summary: PRChecksSummary
+}
+
+struct MergePRResult {
+    let merged: Bool
+    let mergeMethod: String
+    let deletedBranch: Bool
+    let pullRequest: RemotePullRequest
+}
+
 final class RemoteCommandService {
     static let shared = RemoteCommandService()
 
@@ -168,6 +216,224 @@ final class RemoteCommandService {
             sessionId: result?["session_id"]?.stringValue ?? sessionId,
             stopped: result?["stopped"] == .bool(true),
             message: result?["message"]?.stringValue
+        )
+    }
+
+    func createPR(
+        targetDeviceId: String,
+        sessionId: String,
+        title: String,
+        body: String? = nil,
+        base: String? = nil,
+        head: String? = nil,
+        draft: Bool = false,
+        reviewers: [String] = [],
+        labels: [String] = [],
+        maintainerCanModify: Bool? = nil
+    ) async throws -> CreatePRResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+            "title": .string(title),
+        ]
+        if let body { params["body"] = .string(body) }
+        if let base { params["base"] = .string(base) }
+        if let head { params["head"] = .string(head) }
+        if draft { params["draft"] = .bool(true) }
+        if !reviewers.isEmpty {
+            params["reviewers"] = .array(reviewers.map(AnyCodableValue.string))
+        }
+        if !labels.isEmpty {
+            params["labels"] = .array(labels.map(AnyCodableValue.string))
+        }
+        if let maintainerCanModify {
+            params["maintainer_can_modify"] = .bool(maintainerCanModify)
+        }
+
+        let response = try await sendCommand(
+            type: "gh.pr.create.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue,
+              let url = result["url"]?.stringValue,
+              let pullRequestPayload = result["pull_request"]?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing create PR result fields"
+            )
+        }
+
+        return CreatePRResult(
+            url: url,
+            pullRequest: parsePullRequest(from: pullRequestPayload)
+        )
+    }
+
+    func viewPR(
+        targetDeviceId: String,
+        sessionId: String,
+        selector: String? = nil
+    ) async throws -> RemotePullRequest {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+        ]
+        if let selector, !selector.isEmpty {
+            params["selector"] = .string(selector)
+        }
+
+        let response = try await sendCommand(
+            type: "gh.pr.view.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue,
+              let pullRequestPayload = result["pull_request"]?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing pull request detail"
+            )
+        }
+
+        return parsePullRequest(from: pullRequestPayload)
+    }
+
+    func listPRs(
+        targetDeviceId: String,
+        sessionId: String,
+        state: String = "open",
+        limit: Int = 20,
+        base: String? = nil,
+        head: String? = nil
+    ) async throws -> ListPRsResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+            "state": .string(state),
+            "limit": .int(limit),
+        ]
+        if let base, !base.isEmpty {
+            params["base"] = .string(base)
+        }
+        if let head, !head.isEmpty {
+            params["head"] = .string(head)
+        }
+
+        let response = try await sendCommand(
+            type: "gh.pr.list.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing list PRs result"
+            )
+        }
+
+        let pullRequests = result["pull_requests"]?.arrayValue?.compactMap { item -> RemotePullRequest? in
+            guard let payload = item.objectValue else { return nil }
+            return parsePullRequest(from: payload)
+        } ?? []
+
+        return ListPRsResult(
+            pullRequests: pullRequests,
+            count: result["count"]?.intValue ?? pullRequests.count
+        )
+    }
+
+    func prChecks(
+        targetDeviceId: String,
+        sessionId: String,
+        selector: String? = nil
+    ) async throws -> PRChecksResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+        ]
+        if let selector, !selector.isEmpty {
+            params["selector"] = .string(selector)
+        }
+
+        let response = try await sendCommand(
+            type: "gh.pr.checks.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing PR checks result"
+            )
+        }
+
+        let checks = result["checks"]?.arrayValue?.compactMap { item -> PRCheckItem? in
+            guard let payload = item.objectValue else { return nil }
+            return PRCheckItem(
+                name: payload["name"]?.stringValue ?? "unknown",
+                state: payload["state"]?.stringValue,
+                bucket: payload["bucket"]?.stringValue,
+                workflow: payload["workflow"]?.stringValue
+            )
+        } ?? []
+
+        let summaryPayload = result["summary"]?.objectValue ?? [:]
+        let summary = PRChecksSummary(
+            total: summaryPayload["total"]?.intValue ?? checks.count,
+            passing: summaryPayload["passing"]?.intValue ?? 0,
+            failing: summaryPayload["failing"]?.intValue ?? 0,
+            pending: summaryPayload["pending"]?.intValue ?? 0,
+            skipped: summaryPayload["skipped"]?.intValue ?? 0,
+            cancelled: summaryPayload["cancelled"]?.intValue ?? 0
+        )
+
+        return PRChecksResult(checks: checks, summary: summary)
+    }
+
+    func mergePR(
+        targetDeviceId: String,
+        sessionId: String,
+        selector: String? = nil,
+        mergeMethod: String = "squash",
+        deleteBranch: Bool = false,
+        subject: String? = nil,
+        body: String? = nil
+    ) async throws -> MergePRResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+            "merge_method": .string(mergeMethod),
+            "delete_branch": .bool(deleteBranch),
+        ]
+        if let selector, !selector.isEmpty {
+            params["selector"] = .string(selector)
+        }
+        if let subject, !subject.isEmpty {
+            params["subject"] = .string(subject)
+        }
+        if let body {
+            params["body"] = .string(body)
+        }
+
+        let response = try await sendCommand(
+            type: "gh.pr.merge.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue,
+              let pullRequestPayload = result["pull_request"]?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing merge PR result"
+            )
+        }
+
+        return MergePRResult(
+            merged: result["merged"]?.boolValue ?? true,
+            mergeMethod: result["merge_method"]?.stringValue ?? mergeMethod,
+            deletedBranch: result["deleted_branch"]?.boolValue ?? deleteBranch,
+            pullRequest: parsePullRequest(from: pullRequestPayload)
         )
     }
 
@@ -300,6 +566,18 @@ final class RemoteCommandService {
             }
         }
         return .transport(error)
+    }
+
+    private func parsePullRequest(from payload: [String: AnyCodableValue]) -> RemotePullRequest {
+        RemotePullRequest(
+            number: payload["number"]?.intValue ?? 0,
+            title: payload["title"]?.stringValue ?? "",
+            url: payload["url"]?.stringValue ?? "",
+            state: payload["state"]?.stringValue ?? "UNKNOWN",
+            isDraft: payload["is_draft"]?.boolValue ?? false,
+            mergeStateStatus: payload["merge_state_status"]?.stringValue,
+            reviewDecision: payload["review_decision"]?.stringValue
+        )
     }
 
     private static func nowMs() -> Int64 {
