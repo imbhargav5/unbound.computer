@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -105,7 +106,7 @@ func (f *fakeServerManager) emitFirst(msg *InboundMessage) bool {
 
 func TestServerMalformedFrameKeepsConnectionUsable(t *testing.T) {
 	manager := newFakeServerManager()
-	server := NewServer("/tmp/unused.sock", manager, zap.NewNop())
+	server := NewServer("/tmp/unused.sock", 2*1024*1024, manager, zap.NewNop())
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
@@ -138,7 +139,7 @@ func TestServerMalformedFrameKeepsConnectionUsable(t *testing.T) {
 
 func TestServerPublishRejectsInvalidBase64Payload(t *testing.T) {
 	manager := newFakeServerManager()
-	server := NewServer("/tmp/unused.sock", manager, zap.NewNop())
+	server := NewServer("/tmp/unused.sock", 2*1024*1024, manager, zap.NewNop())
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
@@ -167,7 +168,7 @@ func TestServerPublishRejectsInvalidBase64Payload(t *testing.T) {
 
 func TestServerSubscribeAckAndMessageDelivery(t *testing.T) {
 	manager := newFakeServerManager()
-	server := NewServer("/tmp/unused.sock", manager, zap.NewNop())
+	server := NewServer("/tmp/unused.sock", 2*1024*1024, manager, zap.NewNop())
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
@@ -214,7 +215,7 @@ func TestServerSubscribeAckAndMessageDelivery(t *testing.T) {
 
 func TestServerPublishAckUsesNagatoClientPath(t *testing.T) {
 	manager := newFakeServerManager()
-	server := NewServer("/tmp/unused.sock", manager, zap.NewNop())
+	server := NewServer("/tmp/unused.sock", 2*1024*1024, manager, zap.NewNop())
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
@@ -236,6 +237,27 @@ func TestServerPublishAckUsesNagatoClientPath(t *testing.T) {
 	defer manager.mu.Unlock()
 	if len(manager.publishAckCalls) != 1 {
 		t.Fatalf("expected one publish.ack call, got %d", len(manager.publishAckCalls))
+	}
+}
+
+func TestServerOversizeFrameClosesConnectionDeterministically(t *testing.T) {
+	manager := newFakeServerManager()
+	server := NewServer("/tmp/unused.sock", 128, manager, zap.NewNop())
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go server.handleConnection(ctx, serverConn)
+
+	oversizeFrame := `{"op":"publish.v1","request_id":"too-big","channel":"chan","event":"evt","payload_b64":"` +
+		strings.Repeat("A", 512) + `"}` + "\n"
+	_, _ = clientConn.Write([]byte(oversizeFrame))
+
+	time.Sleep(50 * time.Millisecond)
+	_, err := clientConn.Write([]byte(`{"op":"publish.v1","request_id":"next","channel":"chan","event":"evt","payload_b64":"` + base64.StdEncoding.EncodeToString([]byte("x")) + `"}` + "\n"))
+	if err == nil {
+		t.Fatalf("expected connection to be closed after oversize frame")
 	}
 }
 

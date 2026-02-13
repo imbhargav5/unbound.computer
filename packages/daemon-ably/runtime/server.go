@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	ablyconfig "github.com/unbound-computer/daemon-ably/config"
 )
 
 const (
@@ -86,9 +88,10 @@ type serverManager interface {
 }
 
 type Server struct {
-	socketPath string
-	manager    serverManager
-	logger     *zap.Logger
+	socketPath    string
+	maxFrameBytes int
+	manager       serverManager
+	logger        *zap.Logger
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -96,14 +99,18 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
-func NewServer(socketPath string, manager serverManager, logger *zap.Logger) *Server {
+func NewServer(socketPath string, maxFrameBytes int, manager serverManager, logger *zap.Logger) *Server {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	if maxFrameBytes <= 0 {
+		maxFrameBytes = ablyconfig.DefaultMaxFrameBytes
+	}
 	return &Server{
-		socketPath: socketPath,
-		manager:    manager,
-		logger:     logger,
+		socketPath:    socketPath,
+		maxFrameBytes: maxFrameBytes,
+		manager:       manager,
+		logger:        logger,
 	}
 }
 
@@ -201,7 +208,11 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	}()
 
 	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+	initialBufferCap := 64 * 1024
+	if s.maxFrameBytes < initialBufferCap {
+		initialBufferCap = s.maxFrameBytes
+	}
+	scanner.Buffer(make([]byte, 0, initialBufferCap), s.maxFrameBytes)
 
 	for scanner.Scan() {
 		select {
@@ -221,6 +232,14 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			s.logger.Warn(
+				"IPC connection frame exceeded max size",
+				zap.String("connection_id", state.id),
+				zap.Int("max_frame_bytes", s.maxFrameBytes),
+			)
+			return
+		}
 		s.logger.Warn("IPC connection read error", zap.String("connection_id", state.id), zap.Error(err))
 	}
 }

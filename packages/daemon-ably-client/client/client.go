@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,8 +24,10 @@ const (
 	opSubscribeAck      = "subscribe.ack.v1"
 	opMessage           = "message.v1"
 
-	defaultDialTimeout = 3 * time.Second
-	defaultAckTimeout  = 5 * time.Second
+	defaultDialTimeout   = 3 * time.Second
+	defaultAckTimeout    = 5 * time.Second
+	defaultMaxFrameBytes = 2 * 1024 * 1024
+	envMaxFrameBytes     = "DAEMON_ABLY_MAX_FRAME_BYTES"
 )
 
 var (
@@ -56,12 +60,12 @@ type requestAck struct {
 }
 
 type publishRequest struct {
-	Op        string `json:"op"`
-	RequestID string `json:"request_id"`
-	Channel   string `json:"channel"`
-	Event     string `json:"event"`
+	Op         string `json:"op"`
+	RequestID  string `json:"request_id"`
+	Channel    string `json:"channel"`
+	Event      string `json:"event"`
 	PayloadB64 string `json:"payload_b64"`
-	TimeoutMS int64  `json:"timeout_ms,omitempty"`
+	TimeoutMS  int64  `json:"timeout_ms,omitempty"`
 }
 
 type publishAck struct {
@@ -108,15 +112,21 @@ type Client struct {
 	pending       map[string]chan requestAck
 	subscriptions map[string]Subscription
 
-	writeMu  sync.Mutex
-	messages chan *Message
-	errors   chan error
+	writeMu       sync.Mutex
+	maxFrameBytes int
+	messages      chan *Message
+	errors        chan error
 }
 
 // New builds a new client bound to the daemon-ably socket path.
 func New(socketPath string) (*Client, error) {
 	if socketPath == "" {
 		return nil, fmt.Errorf("socket path is required")
+	}
+
+	maxFrameBytes, err := maxFrameBytesFromEnv()
+	if err != nil {
+		return nil, err
 	}
 
 	dialFn := func(ctx context.Context) (net.Conn, error) {
@@ -127,6 +137,7 @@ func New(socketPath string) (*Client, error) {
 	return &Client{
 		socketPath:    socketPath,
 		dialFn:        dialFn,
+		maxFrameBytes: maxFrameBytes,
 		pending:       make(map[string]chan requestAck),
 		subscriptions: make(map[string]Subscription),
 		messages:      make(chan *Message, 32),
@@ -148,6 +159,7 @@ func newWithDial(
 	return &Client{
 		socketPath:    socketPath,
 		dialFn:        dialFn,
+		maxFrameBytes: defaultMaxFrameBytes,
 		pending:       make(map[string]chan requestAck),
 		subscriptions: make(map[string]Subscription),
 		messages:      make(chan *Message, 32),
@@ -469,8 +481,15 @@ func (c *Client) writeJSON(payload any) error {
 
 func (c *Client) readLoop(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 2*1024*1024)
+	maxFrameBytes := c.maxFrameBytes
+	if maxFrameBytes <= 0 {
+		maxFrameBytes = defaultMaxFrameBytes
+	}
+	initialBufferCap := 64 * 1024
+	if maxFrameBytes < initialBufferCap {
+		initialBufferCap = maxFrameBytes
+	}
+	scanner.Buffer(make([]byte, 0, initialBufferCap), maxFrameBytes)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -480,7 +499,11 @@ func (c *Client) readLoop(conn net.Conn) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		c.emitError(fmt.Errorf("transport read error: %w", err))
+		if errors.Is(err, bufio.ErrTooLong) {
+			c.emitError(fmt.Errorf("transport frame exceeds max size of %d bytes", maxFrameBytes))
+		} else {
+			c.emitError(fmt.Errorf("transport read error: %w", err))
+		}
 	}
 
 	c.handleDisconnect(conn)
@@ -677,4 +700,19 @@ func (c *Client) emitError(err error) {
 	case c.errors <- err:
 	default:
 	}
+}
+
+func maxFrameBytesFromEnv() (int, error) {
+	raw := os.Getenv(envMaxFrameBytes)
+	if raw == "" {
+		return defaultMaxFrameBytes, nil
+	}
+	size, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", envMaxFrameBytes, err)
+	}
+	if size <= 0 {
+		return 0, fmt.Errorf("%s must be positive", envMaxFrameBytes)
+	}
+	return size, nil
 }
