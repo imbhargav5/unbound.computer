@@ -62,6 +62,8 @@ pub struct DaemonState {
     pub falco_process: Arc<Mutex<Option<Child>>>,
     /// Optional Nagato child process managed by this daemon instance.
     pub nagato_process: Arc<Mutex<Option<Child>>>,
+    /// Optional daemon-ably child process managed by this daemon instance.
+    pub daemon_ably_process: Arc<Mutex<Option<Child>>>,
     /// Itachi in-memory idempotency store for UM remote commands.
     pub itachi_idempotency: Arc<Mutex<IdempotencyStore>>,
     /// Shutdown signal sender for Nagato socket listener.

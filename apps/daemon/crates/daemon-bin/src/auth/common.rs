@@ -1,5 +1,6 @@
 //! Shared auth side effects for daemon state updates.
 
+use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daemon_ably_sidecar};
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_sidecar::start_nagato_sidecar;
 use crate::app::DaemonState;
@@ -14,6 +15,11 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
     *state.device_id.lock().unwrap() = Some(login.device_id.clone());
     *state.device_private_key.lock().unwrap() = Some(login.device_private_key);
     *state.db_encryption_key.lock().unwrap() = login.db_encryption_key;
+
+    let daemon_ably_ready = ensure_daemon_ably_started(state, login).await;
+    if !daemon_ably_ready {
+        warn!("daemon-ably sidecar unavailable after login; Ably sidecars remain disabled");
+    }
 
     ensure_nagato_ingress_started(state, login).await;
     ensure_realtime_sync_started(state, login).await;
@@ -51,8 +57,15 @@ pub async fn clear_login_side_effects(state: &DaemonState) {
     if let Some(mut child) = state.falco_process.lock().unwrap().take() {
         terminate_child(&mut child, "falco");
     }
+    if let Some(mut child) = state.daemon_ably_process.lock().unwrap().take() {
+        terminate_child(&mut child, "daemon-ably");
+    }
 
-    for socket_path in [state.paths.nagato_socket_file(), state.paths.falco_socket_file()] {
+    for socket_path in [
+        state.paths.nagato_socket_file(),
+        state.paths.falco_socket_file(),
+        state.paths.ably_socket_file(),
+    ] {
         if socket_path.exists() {
             if let Err(err) = std::fs::remove_file(&socket_path) {
                 warn!(
@@ -69,8 +82,11 @@ pub async fn clear_login_side_effects(state: &DaemonState) {
 }
 
 async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResult) {
-    if state.ably_broker_falco_token.is_empty() {
-        warn!("Falco broker token missing; Ably hot-path sync remains disabled");
+    if let Err(err) = ensure_daemon_ably_socket_connectable(&state.paths.ably_socket_file()).await {
+        warn!(
+            error = %err,
+            "daemon-ably socket unavailable; Ably hot-path sync remains disabled"
+        );
         return;
     }
 
@@ -83,7 +99,6 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
         match start_falco_sidecar(
             &state.paths,
             &login.device_id,
-            &state.ably_broker_falco_token,
             &state.config.log_level,
             Duration::from_secs(5),
             "auth_login",
@@ -144,8 +159,11 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 }
 
 async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginResult) {
-    if state.ably_broker_nagato_token.is_empty() {
-        warn!("Nagato broker token missing; remote command ingress remains disabled");
+    if let Err(err) = ensure_daemon_ably_socket_connectable(&state.paths.ably_socket_file()).await {
+        warn!(
+            error = %err,
+            "daemon-ably socket unavailable; remote command ingress remains disabled"
+        );
         return;
     }
 
@@ -187,7 +205,6 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
     match start_nagato_sidecar(
         state.paths.as_ref(),
         &login.device_id,
-        &state.ably_broker_nagato_token,
         &state.config.log_level,
         Duration::from_secs(1),
         "auth_login",
@@ -205,4 +222,106 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
             );
         }
     }
+}
+
+async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult) -> bool {
+    if state.ably_broker_falco_token.is_empty() || state.ably_broker_nagato_token.is_empty() {
+        warn!("Ably broker tokens missing; daemon-ably sidecar remains disabled");
+        return false;
+    }
+
+    let ably_socket_path = state.paths.ably_socket_file();
+    let mut stale_child = None;
+    let mut should_start = {
+        let mut process_guard = state.daemon_ably_process.lock().unwrap();
+        match process_guard.as_mut() {
+            Some(existing) => match existing.try_wait() {
+                Ok(None) => false,
+                Ok(Some(status)) => {
+                    warn!(
+                        status = %status,
+                        "daemon-ably sidecar exited unexpectedly; restarting after login"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        "Failed to inspect daemon-ably sidecar state; restarting after login"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+            },
+            None => true,
+        }
+    };
+
+    if let Some(mut child) = stale_child {
+        terminate_child(&mut child, "daemon-ably");
+    }
+
+    if !should_start {
+        if let Err(err) = ensure_daemon_ably_socket_connectable(&ably_socket_path).await {
+            warn!(
+                socket = %ably_socket_path.display(),
+                error = %err,
+                "daemon-ably process running but socket is unavailable; restarting"
+            );
+            let mut process_guard = state.daemon_ably_process.lock().unwrap();
+            if let Some(mut existing) = process_guard.take() {
+                terminate_child(&mut existing, "daemon-ably");
+            }
+            should_start = true;
+        }
+    }
+
+    if should_start {
+        if ably_socket_path.exists() {
+            if let Err(err) = std::fs::remove_file(&ably_socket_path) {
+                warn!(
+                    socket = %ably_socket_path.display(),
+                    error = %err,
+                    "Failed removing stale daemon-ably socket before restart"
+                );
+            }
+        }
+
+        match start_daemon_ably_sidecar(
+            state.paths.as_ref(),
+            &login.user_id,
+            &login.device_id,
+            &state.ably_broker_falco_token,
+            &state.ably_broker_nagato_token,
+            &state.config.log_level,
+            Duration::from_secs(5),
+            "auth_login",
+        )
+        .await
+        {
+            Ok(child) => {
+                *state.daemon_ably_process.lock().unwrap() = Some(child);
+                info!("Started daemon-ably sidecar after login");
+            }
+            Err(err) => {
+                warn!(
+                    error = %err,
+                    "Failed to start daemon-ably sidecar after login"
+                );
+                return false;
+            }
+        }
+    }
+
+    if let Err(err) = ensure_daemon_ably_socket_connectable(&ably_socket_path).await {
+        warn!(
+            socket = %ably_socket_path.display(),
+            error = %err,
+            "daemon-ably socket unavailable after startup"
+        );
+        return false;
+    }
+
+    true
 }

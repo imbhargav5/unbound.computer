@@ -1,6 +1,7 @@
 //! Daemon initialization.
 
 use crate::ably::start_ably_token_broker;
+use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daemon_ably_sidecar};
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_server::spawn_nagato_server;
 use crate::app::nagato_sidecar::start_nagato_sidecar;
@@ -144,6 +145,9 @@ pub async fn run_daemon(
         }
     };
     let has_startup_auth_context = startup_sync_context.is_some();
+    let startup_user_id = startup_sync_context
+        .as_ref()
+        .map(|sync| sync.user_id.clone());
 
     let mut ably_broker_runtime = Some(
         start_ably_token_broker(paths.ably_auth_socket_file(), auth_runtime.clone())
@@ -228,8 +232,73 @@ pub async fn run_daemon(
         db_encryption_key_arc.clone(),
     ));
 
+    let mut initial_daemon_ably_process: Option<Child> = None;
+    let mut daemon_ably_ready = false;
+    let daemon_ably_socket_path = paths.ably_socket_file();
+
+    if has_startup_auth_context {
+        if daemon_ably_socket_path.exists() {
+            match ensure_daemon_ably_socket_connectable(&daemon_ably_socket_path).await {
+                Ok(()) => {
+                    daemon_ably_ready = true;
+                    info!(
+                        socket = %daemon_ably_socket_path.display(),
+                        "Using existing daemon-ably socket for shared Ably transport"
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        socket = %daemon_ably_socket_path.display(),
+                        error = %err,
+                        "daemon-ably socket exists but is not connectable; removing stale socket"
+                    );
+                    let _ = std::fs::remove_file(&daemon_ably_socket_path);
+                }
+            }
+        }
+
+        if !daemon_ably_ready {
+            match (startup_user_id.as_deref(), local_device_id.as_deref()) {
+                (Some(user_id), Some(device_id)) => {
+                    match start_daemon_ably_sidecar(
+                        &paths,
+                        user_id,
+                        device_id,
+                        &ably_broker_falco_token,
+                        &ably_broker_nagato_token,
+                        &config.log_level,
+                        Duration::from_secs(5),
+                        "daemon_startup",
+                    )
+                    .await
+                    {
+                        Ok(child) => {
+                            daemon_ably_ready = true;
+                            initial_daemon_ably_process = Some(child);
+                            info!(
+                                socket = %daemon_ably_socket_path.display(),
+                                "Started daemon-ably sidecar for shared Ably transport"
+                            );
+                        }
+                        Err(err) => {
+                            warn!(
+                                error = %err,
+                                "Failed to start daemon-ably sidecar; Falco/Nagato sidecars remain disabled"
+                            );
+                        }
+                    }
+                }
+                _ => warn!(
+                    "Authenticated session found, but user/device identifiers are missing; daemon-ably remains disabled"
+                ),
+            }
+        }
+    } else {
+        info!("No authenticated session at startup; skipping daemon-ably sidecar");
+    }
+
     let mut initial_falco_process: Option<Child> = None;
-    let initial_realtime_message_sync = if has_startup_auth_context {
+    let initial_realtime_message_sync = if has_startup_auth_context && daemon_ably_ready {
         let falco_socket_path = paths.falco_socket_file();
 
         if !falco_socket_path.exists() {
@@ -237,7 +306,6 @@ pub async fn run_daemon(
                 Some(device_id) => match start_falco_sidecar(
                     &paths,
                     device_id,
-                    &ably_broker_falco_token,
                     &config.log_level,
                     Duration::from_secs(5),
                     "daemon_startup",
@@ -285,7 +353,6 @@ pub async fn run_daemon(
                     match start_falco_sidecar(
                         &paths,
                         device_id,
-                        &ably_broker_falco_token,
                         &config.log_level,
                         Duration::from_secs(5),
                         "stale_socket_recovery",
@@ -336,7 +403,7 @@ pub async fn run_daemon(
             None
         }
     } else {
-        info!("No authenticated session at startup; skipping Ably hot-path sync worker");
+        info!("Ably hot-path sync worker disabled at startup");
         None
     };
 
@@ -386,6 +453,7 @@ pub async fn run_daemon(
         realtime_message_sync: Arc::new(tokio::sync::RwLock::new(initial_realtime_message_sync)),
         falco_process: Arc::new(Mutex::new(initial_falco_process)),
         nagato_process: Arc::new(Mutex::new(None)),
+        daemon_ably_process: Arc::new(Mutex::new(initial_daemon_ably_process)),
         itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
         nagato_shutdown_tx: Arc::new(Mutex::new(None)),
         nagato_server_task: Arc::new(Mutex::new(None)),
@@ -403,12 +471,11 @@ pub async fn run_daemon(
         *state.nagato_server_task.lock().unwrap() = Some(task);
     }
 
-    if has_startup_auth_context {
+    if has_startup_auth_context && daemon_ably_ready {
         match local_device_id.as_deref() {
             Some(device_id) => match start_nagato_sidecar(
                 state.paths.as_ref(),
                 device_id,
-                &state.ably_broker_nagato_token,
                 &state.config.log_level,
                 Duration::from_secs(1),
                 "daemon_startup",
@@ -429,7 +496,7 @@ pub async fn run_daemon(
             ),
         }
     } else {
-        info!("No authenticated session at startup; skipping Nagato remote command ingress");
+        info!("Nagato remote command ingress disabled at startup");
     }
 
     // Load session secrets from Supabase into memory cache
@@ -553,10 +620,17 @@ pub async fn run_daemon(
     if let Some(mut child) = runtime_state.falco_process.lock().unwrap().take() {
         terminate_child(&mut child, "falco");
     }
+    if let Some(mut child) = runtime_state.daemon_ably_process.lock().unwrap().take() {
+        terminate_child(&mut child, "daemon-ably");
+    }
 
     // Cleanup
     let _ = std::fs::remove_file(paths.pid_file());
     let _ = std::fs::remove_file(paths.socket_file());
+    let _ = std::fs::remove_file(paths.falco_socket_file());
+    let _ = std::fs::remove_file(paths.nagato_socket_file());
+    let _ = std::fs::remove_file(paths.ably_socket_file());
+    let _ = std::fs::remove_file(paths.ably_auth_socket_file());
 
     info!("Daemon stopped");
 

@@ -1,5 +1,6 @@
 //! Application wiring and lifecycle management.
 
+pub(crate) mod ably_sidecar;
 pub(crate) mod falco_sidecar;
 mod init;
 mod lifecycle;
