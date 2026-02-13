@@ -50,7 +50,7 @@ Falco and Nagato no longer create their own Ably SDK clients. They use `daemon-a
 
 | Field | Value |
 |-------|-------|
-| Channel | `session:presence:{user_id}:conversation` |
+| Channel | `presence:{user_id}` |
 | Event | `daemon.presence.v1` |
 | Source | `daemon-ably` |
 | Status values | `online`, `offline` |

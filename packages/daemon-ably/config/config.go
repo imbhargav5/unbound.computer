@@ -72,7 +72,7 @@ func New(deviceID string, userID string) (*Config, error) {
 	cfg.BrokerSocketPath = os.Getenv(EnvAblyBrokerSocket)
 	cfg.BrokerFalcoToken = os.Getenv(EnvAblyBrokerTokenFalco)
 	cfg.BrokerNagatoToken = os.Getenv(EnvAblyBrokerTokenNagato)
-	cfg.PresenceChannel = fmt.Sprintf("session:presence:%s:conversation", userID)
+	cfg.PresenceChannel = fmt.Sprintf("presence:%s", userID)
 
 	if heartbeatSeconds := os.Getenv(EnvHeartbeatIntervalSec); heartbeatSeconds != "" {
 		seconds, err := strconv.Atoi(heartbeatSeconds)
