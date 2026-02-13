@@ -5,8 +5,11 @@ private let logger = Logger(label: "app.ui")
 
 struct AccountSettingsView: View {
     @Environment(AuthService.self) private var authService
+    @Environment(\.openURL) private var openURL
     @State private var showLogoutAlert = false
     @State private var isLoggingOut = false
+    @State private var billingUsageState: BillingUsageCardState = .loading
+    @State private var isRefreshingBilling = false
 
     var body: some View {
         ScrollView {
@@ -22,6 +25,9 @@ struct AccountSettingsView: View {
         .background(AppTheme.backgroundPrimary)
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.large)
+        .task(id: authService.currentUserId) {
+            await refreshBillingUsage(forceLoading: true)
+        }
     }
 
     // MARK: - Account Header
@@ -44,12 +50,12 @@ struct AccountSettingsView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
 
-                Text("Pro Plan")
+                Text(planBadgeTitle)
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(planBadgeColor)
                     .padding(.horizontal, AppTheme.spacingS)
                     .padding(.vertical, AppTheme.spacingXS)
-                    .background(AppTheme.toolBadgeBg)
+                    .background(planBadgeBackgroundColor)
                     .clipShape(Capsule())
             }
         }
@@ -64,10 +70,48 @@ struct AccountSettingsView: View {
         return String(initials)
     }
 
+    private var planBadgeTitle: String {
+        guard let status = currentBillingStatus else {
+            switch billingUsageState {
+            case .loading:
+                return "Loading plan…"
+            case .error:
+                return "Plan unavailable"
+            default:
+                return "Free Plan"
+            }
+        }
+        return status.plan == .paid ? "Paid Plan" : "Free Plan"
+    }
+
+    private var planBadgeColor: Color {
+        switch billingUsageState {
+        case .nearLimit:
+            return .orange
+        case .overLimit:
+            return .red
+        default:
+            return AppTheme.accent
+        }
+    }
+
+    private var planBadgeBackgroundColor: Color {
+        switch billingUsageState {
+        case .nearLimit:
+            return Color.orange.opacity(0.15)
+        case .overLimit:
+            return Color.red.opacity(0.15)
+        default:
+            return AppTheme.toolBadgeBg
+        }
+    }
+
     // MARK: - Settings Sections
 
     private var settingsSections: some View {
         VStack(spacing: AppTheme.spacingM) {
+            billingUsageSection
+
             // Preferences section
             SettingsSection(title: "Preferences") {
                 SettingsRow(icon: "bell.badge", title: "Notifications", subtitle: "Manage alerts")
@@ -93,6 +137,167 @@ struct AccountSettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, AppTheme.spacingM)
+        }
+    }
+
+    // MARK: - Billing & Usage
+
+    private var billingUsageSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingS) {
+            HStack {
+                Text("Billing & Usage")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.leading, AppTheme.spacingXS)
+
+                Spacer()
+
+                Button {
+                    Task {
+                        await refreshBillingUsage()
+                    }
+                } label: {
+                    if isRefreshingBilling {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.textSecondary)
+                .disabled(isRefreshingBilling)
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.spacingS) {
+                switch billingUsageState {
+                case .loading:
+                    HStack(spacing: AppTheme.spacingS) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading your current plan and usage…")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                case .active(let status):
+                    usageSummaryRow(
+                        icon: "checkmark.circle.fill",
+                        iconColor: .green,
+                        title: "Usage in range",
+                        subtitle: usageSubtitle(for: status)
+                    )
+                case .nearLimit(let status):
+                    usageSummaryRow(
+                        icon: "exclamationmark.triangle.fill",
+                        iconColor: .orange,
+                        title: "Near command limit",
+                        subtitle: usageSubtitle(for: status)
+                    )
+                case .overLimit(let status):
+                    usageSummaryRow(
+                        icon: "xmark.octagon.fill",
+                        iconColor: .red,
+                        title: "Command limit reached",
+                        subtitle: usageSubtitle(for: status)
+                    )
+                case .error(let message):
+                    usageSummaryRow(
+                        icon: "exclamationmark.circle.fill",
+                        iconColor: .red,
+                        title: "Unable to load billing usage",
+                        subtitle: message
+                    )
+                }
+
+                Text("Quota status can lag slightly. Usage may take up to ~5 minutes to fully refresh.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                Button {
+                    openURL(Config.apiURL.appendingPathComponent("pricing"))
+                } label: {
+                    Text(billingActionTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppTheme.spacingS)
+                        .background(AppTheme.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(AppTheme.spacingM)
+            .background(AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            )
+        }
+    }
+
+    private func usageSummaryRow(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            HStack(spacing: AppTheme.spacingS) {
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+    }
+
+    private var currentBillingStatus: BillingUsageStatus? {
+        switch billingUsageState {
+        case .active(let status), .nearLimit(let status), .overLimit(let status):
+            return status
+        default:
+            return nil
+        }
+    }
+
+    private var billingActionTitle: String {
+        guard let status = currentBillingStatus else {
+            return "Manage Billing"
+        }
+        if status.plan == .free || status.enforcementState != .ok {
+            return "Upgrade Plan"
+        }
+        return "Manage Billing"
+    }
+
+    private func usageSubtitle(for status: BillingUsageStatus) -> String {
+        let planName = status.plan == .paid ? "Paid" : "Free"
+        return "\(planName) plan • \(status.commandsUsed)/\(status.commandsLimit) commands used • \(status.commandsRemaining) remaining"
+    }
+
+    @MainActor
+    private func refreshBillingUsage(forceLoading: Bool = false) async {
+        if forceLoading {
+            billingUsageState = .loading
+        }
+        isRefreshingBilling = true
+        defer {
+            isRefreshingBilling = false
+        }
+
+        do {
+            let status = try await BillingUsageService.fetchUsageStatus(authService: authService)
+            billingUsageState = BillingUsageCardState.from(status: status)
+        } catch {
+            logger.error("Failed to load billing usage status: \(error)")
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            billingUsageState = .error(message)
         }
     }
 
