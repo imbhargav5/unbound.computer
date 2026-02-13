@@ -386,6 +386,7 @@ pub async fn create_session_core(
 
     let session_id = SessionId::new();
     let session_secret = SecretsManager::generate_session_secret();
+    let mut worktree_cleanup_context: Option<(String, String)> = None;
 
     let worktree_path = if is_worktree {
         let repo_id = RepositoryId::from_string(&repository_id);
@@ -484,6 +485,7 @@ pub async fn create_session_core(
             return Err(hook_error);
         }
 
+        worktree_cleanup_context = Some((repo.path.clone(), created_worktree_path.clone()));
         Some(created_worktree_path)
     } else {
         None
@@ -501,6 +503,25 @@ pub async fn create_session_core(
     let created_session = match state.armin.create_session_with_metadata(new_session) {
         Ok(s) => s,
         Err(e) => {
+            if let Some((repo_path, created_worktree_path)) = worktree_cleanup_context.take() {
+                if let Err(cleanup_error) =
+                    remove_worktree(Path::new(&repo_path), Path::new(&created_worktree_path))
+                {
+                    let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
+                    return Err(SessionCreateCoreError::with_data(
+                        "internal_error",
+                        format!(
+                            "Failed to create session: {}; cleanup failed: {}",
+                            e, cleanup_error
+                        ),
+                        serde_json::json!({
+                            "cleanup_error": cleanup_summary,
+                            "worktree_path": created_worktree_path,
+                        }),
+                    ));
+                }
+            }
+
             return Err(SessionCreateCoreError::new(
                 "internal_error",
                 format!("Failed to create session: {}", e),
