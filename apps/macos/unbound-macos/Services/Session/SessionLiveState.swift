@@ -690,6 +690,32 @@ class SessionLiveState {
     }
 
     private func handleResultEvent(_ json: [String: Any]) {
+        let isError = json["is_error"] as? Bool ?? false
+        let terminalStatus: ToolStatus = isError ? .failed : .completed
+
+        for index in activeTools.indices where activeTools[index].status == .running {
+            activeTools[index].status = terminalStatus
+        }
+
+        for subAgentIndex in activeSubAgents.indices {
+            if activeSubAgents[subAgentIndex].status == .running {
+                activeSubAgents[subAgentIndex].status = terminalStatus
+            }
+
+            for childIndex in activeSubAgents[subAgentIndex].childTools.indices
+            where activeSubAgents[subAgentIndex].childTools[childIndex].status == .running {
+                activeSubAgents[subAgentIndex].childTools[childIndex].status = terminalStatus
+            }
+        }
+
+        for parentId in pendingSubAgentTools.keys {
+            guard var pendingTools = pendingSubAgentTools[parentId] else { continue }
+            for index in pendingTools.indices where pendingTools[index].status == .running {
+                pendingTools[index].status = terminalStatus
+            }
+            pendingSubAgentTools[parentId] = pendingTools
+        }
+
         logger.info("Claude run completed for session \(sessionId), fetching final messages")
         claudeRunning = false
         streamingContent = nil
