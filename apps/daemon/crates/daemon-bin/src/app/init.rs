@@ -13,6 +13,7 @@ use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
 use crate::itachi::idempotency::IdempotencyStore;
+use crate::itachi::runtime::spawn_billing_quota_refresh_loop;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
@@ -504,7 +505,10 @@ pub async fn run_daemon(
         ably_broker_cache,
         armin,
         gyomei,
+        billing_quota_cache: Arc::new(Mutex::new(Default::default())),
     };
+
+    spawn_billing_quota_refresh_loop(state.clone());
 
     {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
