@@ -85,6 +85,32 @@ fn is_legacy_worktree_root(root_dir: &str) -> bool {
         .unwrap_or(trimmed == ".unbound-worktrees")
 }
 
+fn validate_worktree_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("worktree_name must not be empty or whitespace".to_string());
+    }
+    if trimmed != name {
+        return Err("worktree_name must not have leading or trailing whitespace".to_string());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("worktree_name must not contain path separators".to_string());
+    }
+    if trimmed.contains("..") {
+        return Err("worktree_name must not contain '..'".to_string());
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(
+            "worktree_name may only contain ASCII letters, numbers, '.', '_', and '-'"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 fn resolve_worktree_branch(params: &serde_json::Value) -> Option<String> {
     normalize_optional_string(params.get("worktree_branch").and_then(|v| v.as_str()))
         .or_else(|| normalize_optional_string(params.get("branch_name").and_then(|v| v.as_str())))
@@ -383,6 +409,10 @@ pub async fn create_session_core(
             "repository_id is required",
         ));
     };
+    if let Some(name) = worktree_name.as_deref() {
+        validate_worktree_name(name)
+            .map_err(|msg| SessionCreateCoreError::new("invalid_params", msg))?;
+    }
 
     let session_id = SessionId::new();
     let session_secret = SecretsManager::generate_session_secret();
@@ -845,6 +875,46 @@ mod tests {
         assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees"));
         assert!(!is_legacy_worktree_root(".unbound/worktrees"));
         assert!(!is_legacy_worktree_root("custom/worktrees"));
+    }
+
+    #[test]
+    fn validate_worktree_name_accepts_safe_values() {
+        let valid = [
+            "session-1",
+            "unbound_123",
+            "release.2026.02",
+            "abcDEF-123_.name",
+        ];
+        for name in valid {
+            assert!(
+                validate_worktree_name(name).is_ok(),
+                "expected valid worktree name: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn validate_worktree_name_rejects_unsafe_values() {
+        let invalid = [
+            "",
+            "   ",
+            " session",
+            "session ",
+            "foo/bar",
+            "foo\\bar",
+            "..",
+            "a..b",
+            "semi;colon",
+            "emoji-\u{1F680}",
+        ];
+        for name in invalid {
+            assert!(
+                validate_worktree_name(name).is_err(),
+                "expected invalid worktree name: {:?}",
+                name
+            );
+        }
     }
 
     #[tokio::test]
