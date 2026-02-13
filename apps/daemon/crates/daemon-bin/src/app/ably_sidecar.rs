@@ -72,8 +72,8 @@ pub fn spawn_daemon_ably_process(
             .env(ENV_ABLY_BROKER_TOKEN_NAGATO, nagato_broker_token)
             .env(ENV_ABLY_SOCKET, &socket_path)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         if daemon_log_level.eq_ignore_ascii_case("debug")
             || daemon_log_level.eq_ignore_ascii_case("trace")
@@ -152,7 +152,12 @@ pub async fn wait_for_daemon_ably_socket(
                 ));
             }
             Ok(None) => {}
-            Err(err) => return Err(format!("failed to check daemon-ably process state: {}", err)),
+            Err(err) => {
+                return Err(format!(
+                    "failed to check daemon-ably process state: {}",
+                    err
+                ))
+            }
         }
 
         if Instant::now() >= deadline {

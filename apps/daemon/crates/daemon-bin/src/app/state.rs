@@ -1,7 +1,8 @@
 //! Daemon state definition.
 
-use crate::armin_adapter::DaemonArmin;
 use crate::ably::AblyTokenBrokerCacheHandle;
+use crate::app::sidecar_logs::SidecarLogTask;
+use crate::armin_adapter::DaemonArmin;
 use crate::itachi::idempotency::IdempotencyStore;
 use crate::utils::SessionSecretCache;
 use daemon_config_and_utils::{Config, Paths};
@@ -15,7 +16,7 @@ use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, oneshot, RwLock};
-use tokio::task::JoinHandle;
+use tokio::task::JoinHandle as TokioJoinHandle;
 use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
 
@@ -64,12 +65,14 @@ pub struct DaemonState {
     pub nagato_process: Arc<Mutex<Option<Child>>>,
     /// Optional daemon-ably child process managed by this daemon instance.
     pub daemon_ably_process: Arc<Mutex<Option<Child>>>,
+    /// Background stdout/stderr reader tasks for sidecar processes.
+    pub sidecar_log_tasks: Arc<Mutex<HashMap<String, Vec<SidecarLogTask>>>>,
     /// Itachi in-memory idempotency store for UM remote commands.
     pub itachi_idempotency: Arc<Mutex<IdempotencyStore>>,
     /// Shutdown signal sender for Nagato socket listener.
     pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// Join handle for Nagato socket listener task.
-    pub nagato_server_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    pub nagato_server_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
     /// Token used by Nagato sidecar when requesting Ably token details.
     pub ably_broker_nagato_token: String,
     /// Token used by Falco sidecar when requesting Ably token details.

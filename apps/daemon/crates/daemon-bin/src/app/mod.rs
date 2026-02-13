@@ -6,6 +6,7 @@ mod init;
 mod lifecycle;
 pub(crate) mod nagato_server;
 pub(crate) mod nagato_sidecar;
+pub(crate) mod sidecar_logs;
 mod state;
 
 pub use init::run_daemon;

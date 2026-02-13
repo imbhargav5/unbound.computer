@@ -107,8 +107,8 @@ pub fn spawn_falco_process(
             .env(ENV_ABLY_SOCKET, &ably_socket_path)
             .env("FALCO_SOCKET", &socket_path)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         if daemon_log_level.eq_ignore_ascii_case("debug")
             || daemon_log_level.eq_ignore_ascii_case("trace")

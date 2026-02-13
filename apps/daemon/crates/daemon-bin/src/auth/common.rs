@@ -3,6 +3,9 @@
 use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daemon_ably_sidecar};
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_sidecar::start_nagato_sidecar;
+use crate::app::sidecar_logs::{
+    attach_sidecar_log_streams, reap_sidecar_log_tasks, replace_sidecar_log_tasks,
+};
 use crate::app::DaemonState;
 use std::sync::Arc;
 use std::time::Duration;
@@ -54,12 +57,15 @@ pub async fn clear_login_side_effects(state: &DaemonState) {
     if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
         terminate_child(&mut child, "nagato");
     }
+    reap_sidecar_log_tasks(state, "nagato");
     if let Some(mut child) = state.falco_process.lock().unwrap().take() {
         terminate_child(&mut child, "falco");
     }
+    reap_sidecar_log_tasks(state, "falco");
     if let Some(mut child) = state.daemon_ably_process.lock().unwrap().take() {
         terminate_child(&mut child, "daemon-ably");
     }
+    reap_sidecar_log_tasks(state, "daemon-ably");
 
     for socket_path in [
         state.paths.nagato_socket_file(),
@@ -105,12 +111,15 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
         )
         .await
         {
-            Ok(child) => {
+            Ok(mut child) => {
+                let tasks = attach_sidecar_log_streams(&mut child, "falco", "auth_login");
                 let mut process_guard = state.falco_process.lock().unwrap();
                 if let Some(mut existing) = process_guard.take() {
                     terminate_child(&mut existing, "falco");
                 }
                 *process_guard = Some(child);
+                drop(process_guard);
+                replace_sidecar_log_tasks(state, "falco", tasks);
                 info!(
                     socket = %falco_socket_path.display(),
                     "Started Falco sidecar after login for Ably hot-path sync"
@@ -196,6 +205,7 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
 
     if let Some(mut child) = stale_child {
         terminate_child(&mut child, "nagato");
+        reap_sidecar_log_tasks(state, "nagato");
     }
 
     if !should_start {
@@ -211,8 +221,10 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
     )
     .await
     {
-        Ok(child) => {
+        Ok(mut child) => {
+            let tasks = attach_sidecar_log_streams(&mut child, "nagato", "auth_login");
             *state.nagato_process.lock().unwrap() = Some(child);
+            replace_sidecar_log_tasks(state, "nagato", tasks);
             info!("Started Nagato sidecar after login for remote command ingress");
         }
         Err(err) => {
@@ -260,6 +272,7 @@ async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult
 
     if let Some(mut child) = stale_child {
         terminate_child(&mut child, "daemon-ably");
+        reap_sidecar_log_tasks(state, "daemon-ably");
     }
 
     if !should_start {
@@ -272,6 +285,10 @@ async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult
             let mut process_guard = state.daemon_ably_process.lock().unwrap();
             if let Some(mut existing) = process_guard.take() {
                 terminate_child(&mut existing, "daemon-ably");
+                drop(process_guard);
+                reap_sidecar_log_tasks(state, "daemon-ably");
+            } else {
+                drop(process_guard);
             }
             should_start = true;
         }
@@ -300,8 +317,10 @@ async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult
         )
         .await
         {
-            Ok(child) => {
+            Ok(mut child) => {
+                let tasks = attach_sidecar_log_streams(&mut child, "daemon-ably", "auth_login");
                 *state.daemon_ably_process.lock().unwrap() = Some(child);
+                replace_sidecar_log_tasks(state, "daemon-ably", tasks);
                 info!("Started daemon-ably sidecar after login");
             }
             Err(err) => {

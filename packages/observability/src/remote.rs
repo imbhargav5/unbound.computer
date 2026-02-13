@@ -338,11 +338,12 @@ fn build_posthog_properties(
 
 fn build_dev_properties(entry: &LogEntry, environment: &str) -> Map<String, Value> {
     let mut props = Map::new();
+    let runtime = runtime_from_entry(entry);
     props.insert(
         "timestamp".to_string(),
         Value::String(entry.timestamp.clone()),
     );
-    props.insert("runtime".to_string(), Value::String(entry.service.clone()));
+    props.insert("runtime".to_string(), Value::String(runtime));
     props.insert("service".to_string(), Value::String(entry.service.clone()));
     props.insert(
         "component".to_string(),
@@ -375,11 +376,12 @@ fn build_dev_properties(entry: &LogEntry, environment: &str) -> Map<String, Valu
 
 fn build_prod_properties(entry: &LogEntry, environment: &str) -> Map<String, Value> {
     let mut props = Map::new();
+    let runtime = runtime_from_entry(entry);
     props.insert(
         "timestamp".to_string(),
         Value::String(entry.timestamp.clone()),
     );
-    props.insert("runtime".to_string(), Value::String(entry.service.clone()));
+    props.insert("runtime".to_string(), Value::String(runtime));
     props.insert("service".to_string(), Value::String(entry.service.clone()));
     props.insert(
         "component".to_string(),
@@ -546,6 +548,10 @@ fn component_from_entry(entry: &LogEntry) -> String {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "unknown".to_string())
     })
+}
+
+fn runtime_from_entry(entry: &LogEntry) -> String {
+    read_string_field(&entry.fields, "runtime").unwrap_or_else(|| entry.service.clone())
 }
 
 fn should_sample(entry: &LogEntry, sampling: &SamplingConfig) -> bool {

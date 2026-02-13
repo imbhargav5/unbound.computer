@@ -5,6 +5,10 @@ use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daem
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_server::spawn_nagato_server;
 use crate::app::nagato_sidecar::start_nagato_sidecar;
+use crate::app::sidecar_logs::{
+    attach_sidecar_log_streams, reap_all_sidecar_log_tasks, register_sidecar_log_tasks,
+    SidecarLogTask,
+};
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
@@ -235,6 +239,7 @@ pub async fn run_daemon(
     let mut initial_daemon_ably_process: Option<Child> = None;
     let mut daemon_ably_ready = false;
     let daemon_ably_socket_path = paths.ably_socket_file();
+    let mut initial_sidecar_log_tasks: HashMap<String, Vec<SidecarLogTask>> = HashMap::new();
 
     if has_startup_auth_context {
         if daemon_ably_socket_path.exists() {
@@ -272,7 +277,15 @@ pub async fn run_daemon(
                     )
                     .await
                     {
-                        Ok(child) => {
+                        Ok(mut child) => {
+                            let tasks =
+                                attach_sidecar_log_streams(&mut child, "daemon-ably", "daemon_startup");
+                            if !tasks.is_empty() {
+                                initial_sidecar_log_tasks
+                                    .entry("daemon-ably".to_string())
+                                    .or_default()
+                                    .extend(tasks);
+                            }
                             daemon_ably_ready = true;
                             initial_daemon_ably_process = Some(child);
                             info!(
@@ -312,7 +325,15 @@ pub async fn run_daemon(
                 )
                 .await
                 {
-                    Ok(child) => {
+                    Ok(mut child) => {
+                        let tasks =
+                            attach_sidecar_log_streams(&mut child, "falco", "daemon_startup");
+                        if !tasks.is_empty() {
+                            initial_sidecar_log_tasks
+                                .entry("falco".to_string())
+                                .or_default()
+                                .extend(tasks);
+                        }
                         info!(
                             socket = %falco_socket_path.display(),
                             "Started Falco sidecar for Ably hot-path sync"
@@ -359,7 +380,27 @@ pub async fn run_daemon(
                     )
                     .await
                     {
-                        Ok(child) => {
+                        Ok(mut child) => {
+                            if let Some(mut existing) = initial_falco_process.take() {
+                                terminate_child(&mut existing, "falco");
+                            }
+                            if let Some(stale_tasks) = initial_sidecar_log_tasks.remove("falco") {
+                                for task in stale_tasks {
+                                    let _ = task.join();
+                                }
+                            }
+
+                            let tasks = attach_sidecar_log_streams(
+                                &mut child,
+                                "falco",
+                                "stale_socket_recovery",
+                            );
+                            if !tasks.is_empty() {
+                                initial_sidecar_log_tasks
+                                    .entry("falco".to_string())
+                                    .or_default()
+                                    .extend(tasks);
+                            }
                             info!(
                                 socket = %falco_socket_path.display(),
                                 "Re-started Falco sidecar after stale socket cleanup"
@@ -454,6 +495,7 @@ pub async fn run_daemon(
         falco_process: Arc::new(Mutex::new(initial_falco_process)),
         nagato_process: Arc::new(Mutex::new(None)),
         daemon_ably_process: Arc::new(Mutex::new(initial_daemon_ably_process)),
+        sidecar_log_tasks: Arc::new(Mutex::new(initial_sidecar_log_tasks)),
         itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
         nagato_shutdown_tx: Arc::new(Mutex::new(None)),
         nagato_server_task: Arc::new(Mutex::new(None)),
@@ -482,7 +524,10 @@ pub async fn run_daemon(
             )
             .await
             {
-                Ok(child) => {
+                Ok(mut child) => {
+                    let tasks =
+                        attach_sidecar_log_streams(&mut child, "nagato", "daemon_startup");
+                    register_sidecar_log_tasks(&state, "nagato", tasks);
                     *state.nagato_process.lock().unwrap() = Some(child);
                     info!("Started Nagato sidecar for remote command ingress");
                 }
@@ -623,6 +668,7 @@ pub async fn run_daemon(
     if let Some(mut child) = runtime_state.daemon_ably_process.lock().unwrap().take() {
         terminate_child(&mut child, "daemon-ably");
     }
+    reap_all_sidecar_log_tasks(&runtime_state);
 
     // Cleanup
     let _ = std::fs::remove_file(paths.pid_file());
