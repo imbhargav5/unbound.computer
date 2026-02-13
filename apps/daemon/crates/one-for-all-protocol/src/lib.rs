@@ -23,6 +23,10 @@ pub enum Method {
     #[serde(rename = "auth.logout")]
     AuthLogout,
 
+    // Billing
+    #[serde(rename = "billing.usage_status")]
+    BillingUsageStatus,
+
     // Sessions
     #[serde(rename = "session.list")]
     SessionList,
@@ -362,6 +366,7 @@ mod tests {
             (Method::AuthLogin, "\"auth.login\""),
             (Method::AuthCompleteSocial, "\"auth.complete_social\""),
             (Method::AuthLogout, "\"auth.logout\""),
+            (Method::BillingUsageStatus, "\"billing.usage_status\""),
             (Method::SessionList, "\"session.list\""),
             (Method::SessionCreate, "\"session.create\""),
             (Method::SessionGet, "\"session.get\""),
@@ -432,6 +437,7 @@ mod tests {
             Method::AuthLogin,
             Method::AuthCompleteSocial,
             Method::AuthLogout,
+            Method::BillingUsageStatus,
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
@@ -899,6 +905,7 @@ mod tests {
             Method::AuthLogin,
             Method::AuthCompleteSocial,
             Method::AuthLogout,
+            Method::BillingUsageStatus,
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
@@ -941,6 +948,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 47);
+        assert_eq!(methods.len(), 48);
     }
 }

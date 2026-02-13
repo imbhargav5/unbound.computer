@@ -25,6 +25,10 @@ use ymir::{DaemonAuthRuntime, SupabaseClient};
 pub struct BillingQuotaSnapshot {
     pub user_id: String,
     pub device_id: String,
+    pub plan: String,
+    pub gateway: String,
+    pub period_start: String,
+    pub period_end: String,
     pub enforcement_state: String,
     pub commands_limit: i64,
     pub commands_used: i64,

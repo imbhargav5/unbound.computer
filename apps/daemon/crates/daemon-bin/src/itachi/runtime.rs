@@ -40,6 +40,10 @@ const FALCO_BACKOFF_BASE_MS: u64 = 200;
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BillingUsageStatusPayload {
+    plan: String,
+    gateway: String,
+    period_start: String,
+    period_end: String,
     commands_limit: i64,
     commands_used: i64,
     commands_remaining: i64,
@@ -339,6 +343,8 @@ async fn refresh_billing_usage_cache(state: &DaemonState, reason: &str) {
         Ok(Some(snapshot)) => {
             debug!(
                 reason,
+                plan = %snapshot.plan,
+                gateway = %snapshot.gateway,
                 enforcement_state = %snapshot.enforcement_state,
                 commands_limit = snapshot.commands_limit,
                 commands_used = snapshot.commands_used,
@@ -411,6 +417,10 @@ async fn fetch_usage_status_snapshot(state: &DaemonState) -> Result<Option<Billi
     Ok(Some(BillingQuotaSnapshot {
         user_id: sync_context.user_id,
         device_id: sync_context.device_id,
+        plan: payload.plan,
+        gateway: payload.gateway,
+        period_start: payload.period_start,
+        period_end: payload.period_end,
         enforcement_state: payload.enforcement_state,
         commands_limit: payload.commands_limit,
         commands_used: payload.commands_used,
@@ -969,6 +979,10 @@ mod tests {
         let snapshot = BillingQuotaSnapshot {
             user_id: "user-1".to_string(),
             device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
             enforcement_state: "over_quota".to_string(),
             commands_limit: 100,
             commands_used: 100,
@@ -984,6 +998,10 @@ mod tests {
         let snapshot = BillingQuotaSnapshot {
             user_id: "user-1".to_string(),
             device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
             enforcement_state: "over_quota".to_string(),
             commands_limit: 100,
             commands_used: 100,
@@ -999,6 +1017,10 @@ mod tests {
         let snapshot = BillingQuotaSnapshot {
             user_id: "user-1".to_string(),
             device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
             enforcement_state: "ok".to_string(),
             commands_limit: 100,
             commands_used: 12,
