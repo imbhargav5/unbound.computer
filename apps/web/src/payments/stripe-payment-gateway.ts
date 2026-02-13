@@ -280,7 +280,8 @@ export class StripePaymentGateway implements PaymentGateway {
       const { data, error } = await supabaseAdminClient
         .from("billing_invoices")
         .select("*, billing_products(*), billing_prices(*)")
-        .eq("id", invoiceId)
+        .eq("gateway_invoice_id", invoiceId)
+        .eq("gateway_name", this.getName())
         .single();
 
       if (error) throw error;
@@ -412,10 +413,16 @@ export class StripePaymentGateway implements PaymentGateway {
     getUserPaymentMethods: async (
       userId: string
     ): Promise<DBTable<"billing_payment_methods">[]> => {
+      const customer = await this.util.getCustomerByUserId(userId);
+      if (!customer) {
+        return [];
+      }
+
       const { data, error } = await supabaseAdminClient
         .from("billing_payment_methods")
         .select("*")
-        .eq("user_id", userId);
+        .eq("gateway_customer_id", customer.gateway_customer_id)
+        .order("is_default", { ascending: false });
       if (error) throw error;
       return data;
     },
