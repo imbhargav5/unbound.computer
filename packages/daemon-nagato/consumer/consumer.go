@@ -1,71 +1,76 @@
-// Package consumer provides the Ably message consumer for Nagato.
+// Package consumer provides the command consumer transport for Nagato.
 //
-// The consumer subscribes to a device-specific Ably channel and receives
-// encrypted command payloads from remote clients.
+// The consumer subscribes to a device-specific channel via daemon-ably and
+// forwards encrypted command payloads to the courier.
 package consumer
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net"
 	"sync"
+	"time"
 
-	"github.com/ably/ably-go/ably"
 	"go.uber.org/zap"
+
+	ablyclient "github.com/unbound-computer/daemon-ably-client/client"
 )
 
 var (
-	ErrNotConnected = errors.New("not connected to Ably")
+	ErrNotConnected = errors.New("not connected to daemon-ably")
 	ErrClosed       = errors.New("consumer closed")
 )
 
-// Message represents a message received from Ably.
+// Message represents a message received from daemon-ably.
 type Message struct {
-	// ID is the unique message identifier from Ably.
+	// ID is the unique message identifier from the message transport.
 	ID string
 
 	// Payload is the encrypted command data.
 	Payload []byte
 }
 
-// Consumer receives messages from an Ably channel.
+// Consumer receives messages from a channel through daemon-ably.
 type Consumer struct {
-	client      *ably.Realtime
-	channel     *ably.RealtimeChannel
-	channelName string
-	eventName   string
-	logger      *zap.Logger
+	client         transportClient
+	channelName    string
+	eventName      string
+	subscriptionID string
+	logger         *zap.Logger
 
 	messages chan *Message
 	errors   chan error
 
-	mu       sync.Mutex
-	closed   bool
-	closedCh chan struct{}
-	unsub    func()
-	cancelFn context.CancelFunc
+	mu              sync.Mutex
+	closed          bool
+	forwardersReady bool
+	closedCh        chan struct{}
+	wg              sync.WaitGroup
+}
+
+type transportClient interface {
+	Connect(context.Context) error
+	Subscribe(context.Context, ablyclient.Subscription) error
+	PublishAck(context.Context, string, string, []byte, time.Duration) error
+	Messages() <-chan *ablyclient.Message
+	Errors() <-chan error
+	Close() error
+	IsConnected() bool
 }
 
 // Options configures the Consumer.
 type Options struct {
-	// BrokerSocketPath is the Unix socket path for local Ably token broker.
-	BrokerSocketPath string
+	// AblySocketPath is the Unix socket path for daemon-ably.
+	AblySocketPath string
 
-	// BrokerToken authenticates Nagato to the local token broker.
-	BrokerToken string
-
-	// DeviceID identifies this client in Ably token requests.
-	DeviceID string
-
-	// ChannelName is the Ably channel to subscribe to.
+	// ChannelName is the channel to subscribe to.
 	ChannelName string
 
-	// EventName is the Ably event name to process.
+	// EventName is the event name to process.
 	// If empty, all events are accepted.
 	EventName string
+
+	// SubscriptionID identifies this consumer in daemon-ably.
+	SubscriptionID string
 
 	// Logger is the zap logger instance.
 	Logger *zap.Logger
@@ -75,209 +80,102 @@ type Options struct {
 	BufferSize int
 }
 
-// New creates a new Ably consumer.
+// New creates a new consumer.
 func New(opts Options) (*Consumer, error) {
 	if opts.Logger == nil {
 		opts.Logger = zap.NewNop()
 	}
 	if opts.BufferSize <= 0 {
-		opts.BufferSize = 1 // One-in-flight by default
+		opts.BufferSize = 1
+	}
+	if opts.SubscriptionID == "" {
+		opts.SubscriptionID = "nagato"
 	}
 
-	client, err := ably.NewRealtime(
-		ably.WithClientID(opts.DeviceID),
-		ably.WithAuthCallback(func(ctx context.Context, _ ably.TokenParams) (ably.Tokener, error) {
-			return requestBrokerToken(
-				ctx,
-				opts.BrokerSocketPath,
-				opts.BrokerToken,
-				opts.DeviceID,
-				"daemon_nagato",
-			)
-		}),
-		ably.WithAutoConnect(false), // We'll connect manually
-	)
+	client, err := ablyclient.New(opts.AblySocketPath)
 	if err != nil {
 		return nil, err
 	}
 
+	return newWithClient(client, opts), nil
+}
+
+func newWithClient(client transportClient, opts Options) *Consumer {
+	if opts.Logger == nil {
+		opts.Logger = zap.NewNop()
+	}
+	if opts.BufferSize <= 0 {
+		opts.BufferSize = 1
+	}
+	if opts.SubscriptionID == "" {
+		opts.SubscriptionID = "nagato"
+	}
+
 	return &Consumer{
-		client:      client,
-		channelName: opts.ChannelName,
-		eventName:   opts.EventName,
-		logger:      opts.Logger,
-		messages:    make(chan *Message, opts.BufferSize),
-		errors:      make(chan error, 1),
-		closedCh:    make(chan struct{}),
-	}, nil
+		client:         client,
+		channelName:    opts.ChannelName,
+		eventName:      opts.EventName,
+		subscriptionID: opts.SubscriptionID,
+		logger:         opts.Logger,
+		messages:       make(chan *Message, opts.BufferSize),
+		errors:         make(chan error, 8),
+		closedCh:       make(chan struct{}),
+	}
 }
 
-// Connect establishes connection to Ably and subscribes to the channel.
+// Connect establishes connection and subscribes to the configured channel.
 func (c *Consumer) Connect(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.closed {
-		return ErrClosed
-	}
-
-	c.logger.Info("connecting to Ably",
-		zap.String("channel", c.channelName),
-	)
-
-	// Connect to Ably
-	c.client.Connect()
-
-	// Wait for connection
-	connCtx, cancel := context.WithCancel(ctx)
-	c.cancelFn = cancel
-
-	connected := make(chan struct{})
-	var connErr error
-
-	c.client.Connection.OnAll(func(change ably.ConnectionStateChange) {
-		c.logger.Debug("connection state change",
-			zap.Any("previous", change.Previous),
-			zap.Any("current", change.Current),
-		)
-
-		switch change.Current {
-		case ably.ConnectionStateConnected:
-			select {
-			case connected <- struct{}{}:
-			default:
-			}
-		case ably.ConnectionStateFailed:
-			connErr = change.Reason
-			select {
-			case connected <- struct{}{}:
-			default:
-			}
-		}
-	})
-
-	select {
-	case <-connCtx.Done():
-		return connCtx.Err()
-	case <-connected:
-		if connErr != nil {
-			return connErr
-		}
-	}
-
-	c.logger.Info("connected to Ably",
-		zap.String("connection_id", c.client.Connection.ID()),
-	)
-
-	// Get channel and attach
-	c.channel = c.client.Channels.Get(c.channelName)
-
-	if err := c.channel.Attach(ctx); err != nil {
-		return err
-	}
-
-	c.logger.Info("attached to channel",
-		zap.String("channel", c.channelName),
-	)
-
-	// Subscribe to all messages
-	unsub, err := c.channel.SubscribeAll(ctx, c.handleMessage)
-	if err != nil {
-		return err
-	}
-	c.unsub = unsub
-
-	c.logger.Info("subscribed to channel",
-		zap.String("channel", c.channelName),
-	)
-
-	return nil
-}
-
-// handleMessage processes incoming Ably messages.
-func (c *Consumer) handleMessage(msg *ably.Message) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		return
+		return ErrClosed
 	}
 	c.mu.Unlock()
 
-	c.logger.Debug("received message",
-		zap.String("id", msg.ID),
-		zap.String("name", msg.Name),
+	c.logger.Info("connecting to daemon-ably",
+		zap.String("channel", c.channelName),
+		zap.String("event", c.eventName),
 	)
 
-	if c.eventName != "" && msg.Name != c.eventName {
-		c.logger.Debug("skipping non-command event",
-			zap.String("id", msg.ID),
-			zap.String("name", msg.Name),
-			zap.String("expected_event", c.eventName),
-		)
-		return
+	if err := c.client.Connect(ctx); err != nil {
+		return err
 	}
 
-	// Extract payload - Ably messages can have various data types
-	var payload []byte
-	switch data := msg.Data.(type) {
-	case []byte:
-		payload = data
-	case string:
-		payload = []byte(data)
-	default:
-		marshaled, err := json.Marshal(data)
-		if err != nil {
-			c.logger.Error("unexpected message data type",
-				zap.String("id", msg.ID),
-				zap.Any("data_type", data),
-				zap.Error(err),
-			)
-			return
-		}
-		payload = marshaled
-		c.logger.Debug("marshaled structured message data",
-			zap.String("id", msg.ID),
-			zap.Int("payload_len", len(payload)),
-		)
+	if err := c.client.Subscribe(ctx, ablyclient.Subscription{
+		SubscriptionID: c.subscriptionID,
+		Channel:        c.channelName,
+		Event:          c.eventName,
+	}); err != nil {
+		return err
 	}
 
-	message := &Message{
-		ID:      msg.ID,
-		Payload: payload,
-	}
-
-	// Send to channel - this blocks if buffer is full (backpressure)
-	select {
-	case c.messages <- message:
-	case <-c.closedCh:
-		return
-	}
+	c.startForwardersOnce()
+	c.logger.Info("consumer subscribed", zap.String("subscription_id", c.subscriptionID))
+	return nil
 }
 
-// Receive returns a channel for receiving messages.
-// Only one message is delivered at a time (one-in-flight guarantee).
+// Receive returns the inbound message channel.
 func (c *Consumer) Receive() <-chan *Message {
 	return c.messages
 }
 
-// Publish sends a message to the currently attached channel.
+// Publish sends an event on the configured command channel using publish.ack.v1.
 func (c *Consumer) Publish(ctx context.Context, eventName string, payload []byte) error {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return ErrClosed
 	}
-	if c.channel == nil {
-		c.mu.Unlock()
-		return ErrNotConnected
-	}
-	channel := c.channel
 	c.mu.Unlock()
 
-	return channel.Publish(ctx, eventName, payload)
+	if !c.client.IsConnected() {
+		return ErrNotConnected
+	}
+
+	return c.client.PublishAck(ctx, c.channelName, eventName, payload, 0)
 }
 
-// Errors returns a channel for receiving errors.
+// Errors returns asynchronous transport/protocol errors.
 func (c *Consumer) Errors() <-chan error {
 	return c.errors
 }
@@ -285,137 +183,92 @@ func (c *Consumer) Errors() <-chan error {
 // Close shuts down the consumer and releases resources.
 func (c *Consumer) Close() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.closed {
+		c.mu.Unlock()
 		return nil
 	}
 	c.closed = true
 	close(c.closedCh)
+	c.mu.Unlock()
 
 	c.logger.Info("closing consumer")
+	_ = c.client.Close()
 
-	if c.unsub != nil {
-		c.unsub()
-	}
-
-	if c.cancelFn != nil {
-		c.cancelFn()
-	}
-
-	if c.channel != nil {
-		ctx := context.Background()
-		if err := c.channel.Detach(ctx); err != nil {
-			c.logger.Warn("error detaching channel", zap.Error(err))
-		}
-	}
-
-	if c.client != nil {
-		c.client.Close()
-	}
-
+	c.wg.Wait()
 	close(c.messages)
 	close(c.errors)
-
 	return nil
 }
 
-// ConnectionState returns the current Ably connection state.
-func (c *Consumer) ConnectionState() ably.ConnectionState {
-	if c.client == nil {
-		return ably.ConnectionStateInitialized
-	}
-	return c.client.Connection.State()
-}
-
-// IsConnected returns true if connected to Ably.
+// IsConnected reports whether the underlying daemon-ably transport is connected.
 func (c *Consumer) IsConnected() bool {
-	return c.ConnectionState() == ably.ConnectionStateConnected
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return false
+	}
+	return c.client.IsConnected()
 }
 
-type brokerTokenRequest struct {
-	BrokerToken string `json:"broker_token"`
-	Audience    string `json:"audience"`
-	DeviceID    string `json:"device_id"`
+func (c *Consumer) startForwardersOnce() {
+	c.mu.Lock()
+	if c.forwardersReady {
+		c.mu.Unlock()
+		return
+	}
+	c.forwardersReady = true
+	c.wg.Add(2)
+	c.mu.Unlock()
+
+	go c.forwardMessages()
+	go c.forwardErrors()
 }
 
-type brokerTokenResponse struct {
-	OK           bool            `json:"ok"`
-	TokenDetails json.RawMessage `json:"token_details"`
-	Error        string          `json:"error"`
-}
+func (c *Consumer) forwardMessages() {
+	defer c.wg.Done()
 
-type brokerTokenDetails struct {
-	Token      string `json:"token"`
-	Expires    int64  `json:"expires"`
-	ClientID   string `json:"clientId"`
-	Issued     int64  `json:"issued"`
-	Capability string `json:"capability"`
-}
+	source := c.client.Messages()
+	for {
+		select {
+		case <-c.closedCh:
+			return
+		case message := <-source:
+			if message == nil {
+				continue
+			}
 
-func requestBrokerToken(
-	ctx context.Context,
-	socketPath string,
-	brokerToken string,
-	deviceID string,
-	audience string,
-) (*ably.TokenDetails, error) {
-	requestPayload, err := json.Marshal(brokerTokenRequest{
-		BrokerToken: brokerToken,
-		Audience:    audience,
-		DeviceID:    deviceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize broker request: %w", err)
-	}
+			out := &Message{
+				ID:      message.MessageID,
+				Payload: message.Payload,
+			}
 
-	dialer := net.Dialer{}
-	conn, err := dialer.DialContext(ctx, "unix", socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Ably broker socket: %w", err)
-	}
-	defer conn.Close()
-
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
-
-	if _, err := conn.Write(requestPayload); err != nil {
-		return nil, fmt.Errorf("failed to write broker request: %w", err)
-	}
-	if unixConn, ok := conn.(*net.UnixConn); ok {
-		_ = unixConn.CloseWrite()
-	}
-
-	responsePayload, err := io.ReadAll(conn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read broker response: %w", err)
-	}
-
-	var response brokerTokenResponse
-	if err := json.Unmarshal(responsePayload, &response); err != nil {
-		return nil, fmt.Errorf("invalid broker response: %w", err)
-	}
-	if !response.OK {
-		if response.Error == "" {
-			return nil, errors.New("broker rejected token request")
+			// Intentional blocking semantics preserve one-in-flight behavior.
+			select {
+			case c.messages <- out:
+			case <-c.closedCh:
+				return
+			}
 		}
-		return nil, fmt.Errorf("broker rejected token request: %s", response.Error)
 	}
+}
 
-	var tokenDetails brokerTokenDetails
-	if err := json.Unmarshal(response.TokenDetails, &tokenDetails); err != nil {
-		return nil, fmt.Errorf("invalid broker token details payload: %w", err)
-	}
-	if tokenDetails.Token == "" {
-		return nil, errors.New("broker response missing token")
-	}
+func (c *Consumer) forwardErrors() {
+	defer c.wg.Done()
 
-	return &ably.TokenDetails{
-		Token:      tokenDetails.Token,
-		Expires:    tokenDetails.Expires,
-		ClientID:   tokenDetails.ClientID,
-		Issued:     tokenDetails.Issued,
-		Capability: tokenDetails.Capability,
-	}, nil
+	source := c.client.Errors()
+	for {
+		select {
+		case <-c.closedCh:
+			return
+		case err := <-source:
+			if err == nil {
+				continue
+			}
+			select {
+			case c.errors <- err:
+			case <-c.closedCh:
+				return
+			}
+		}
+	}
 }

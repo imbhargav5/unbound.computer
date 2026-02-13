@@ -7,8 +7,7 @@
 //
 // Environment variables:
 //
-//	UNBOUND_ABLY_BROKER_SOCKET - Local Ably token broker socket path (required)
-//	UNBOUND_ABLY_BROKER_TOKEN  - Local Ably token broker auth token (required)
+//	UNBOUND_ABLY_SOCKET   - Local daemon-ably socket path (required)
 //	NAGATO_SOCKET         - Unix socket path (default: ~/.unbound/nagato.sock)
 //	NAGATO_DAEMON_TIMEOUT - Daemon response timeout in seconds (default: 15)
 package main

@@ -18,20 +18,16 @@ const (
 	DefaultEventName     = "remote.command.v1"
 
 	// Environment variable names
-	EnvAblyBrokerSocket = "UNBOUND_ABLY_BROKER_SOCKET"
-	EnvAblyBrokerToken  = "UNBOUND_ABLY_BROKER_TOKEN"
-	EnvNagatoSocket     = "NAGATO_SOCKET"
-	EnvDaemonTimeout    = "NAGATO_DAEMON_TIMEOUT"
-	EnvUnboundBaseDir   = "UNBOUND_BASE_DIR"
+	EnvAblySocket     = "UNBOUND_ABLY_SOCKET"
+	EnvNagatoSocket   = "NAGATO_SOCKET"
+	EnvDaemonTimeout  = "NAGATO_DAEMON_TIMEOUT"
+	EnvUnboundBaseDir = "UNBOUND_BASE_DIR"
 )
 
 // Config holds all configuration for the Nagato consumer.
 type Config struct {
-	// AblyBrokerSocketPath is the local broker Unix socket path.
-	AblyBrokerSocketPath string
-
-	// AblyBrokerToken authenticates this sidecar to the local broker.
-	AblyBrokerToken string
+	// AblySocketPath is the local daemon-ably Unix socket path.
+	AblySocketPath string
 
 	// DeviceID is the unique identifier for this device.
 	// Used to construct the channel name: remote:{device_id}:commands
@@ -65,8 +61,7 @@ func New(deviceID string) (*Config, error) {
 	}
 
 	// Local Ably broker auth settings (required)
-	cfg.AblyBrokerSocketPath = os.Getenv(EnvAblyBrokerSocket)
-	cfg.AblyBrokerToken = os.Getenv(EnvAblyBrokerToken)
+	cfg.AblySocketPath = os.Getenv(EnvAblySocket)
 
 	// Channel name derived from device ID
 	cfg.ChannelName = "remote:" + deviceID + ":commands"
@@ -100,16 +95,10 @@ func New(deviceID string) (*Config, error) {
 
 // Validate checks that all required configuration is present.
 func (c *Config) Validate() error {
-	if c.AblyBrokerSocketPath == "" {
+	if c.AblySocketPath == "" {
 		return &ConfigError{
-			Field:   "AblyBrokerSocketPath",
-			Message: "UNBOUND_ABLY_BROKER_SOCKET environment variable is required",
-		}
-	}
-	if c.AblyBrokerToken == "" {
-		return &ConfigError{
-			Field:   "AblyBrokerToken",
-			Message: "UNBOUND_ABLY_BROKER_TOKEN environment variable is required",
+			Field:   "AblySocketPath",
+			Message: "UNBOUND_ABLY_SOCKET environment variable is required",
 		}
 	}
 	if c.DeviceID == "" {
