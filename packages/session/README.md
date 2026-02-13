@@ -1,0 +1,62 @@
+# @unbound/session
+
+Multi-device session management primitives.
+
+This package provides a simple in-memory session manager that handles participant membership and fan-out encryption for multi-device sessions.
+
+## What It Provides
+
+- Session creation with host identity
+- Participant add/remove flows
+- Pairwise session keys derived per participant
+- Encrypted broadcast payloads for viewers
+
+## Core Exports
+
+| Export | Purpose |
+|---|---|
+| `MultiDeviceSessionManager` | Session + participant management |
+| `createSessionManager` | Convenience constructor |
+| `ParticipantEncryption` | Encrypt/decrypt helpers per participant |
+| `generateWebSessionKey` | Web pairing key derivation |
+
+## Example
+
+```ts
+import { createSessionManager } from "@unbound/session";
+
+const manager = createSessionManager({
+  hostPrivateKey,
+  hostPublicKey,
+  hostDeviceId: "device-1",
+});
+
+const session = manager.createSession({
+  sessionId: "session-123",
+  hostDeviceId: "device-1",
+  hostPublicKey: hostPublicKeyB64,
+});
+
+manager.addParticipant(session.id, {
+  deviceId: "device-2",
+  devicePublicKey: viewerPublicKeyB64,
+  role: "viewer",
+});
+```
+
+## Module Layout
+
+```
+src/
+├── manager.ts     # MultiDeviceSessionManager
+├── participant.ts # per-participant encryption helpers
+├── types.ts       # session + participant types
+└── index.ts       # public exports
+```
+
+## Development
+
+```bash
+pnpm -C packages/session build
+pnpm -C packages/session test
+```

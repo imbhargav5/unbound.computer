@@ -1,0 +1,46 @@
+# @unbound/redis
+
+Redis utilities with typed helpers for Unbound services.
+
+Supports both **Upstash** (HTTP) and **ioredis** (TCP) clients, plus wrappers for common operations and streams.
+
+## What It Provides
+
+- Shared Redis config parsing via Zod
+- Singleton client factories (Upstash + TCP)
+- Convenience wrappers for `get/set/mget/mset` and hashes
+- Stream helpers for `xadd`, `xread`, `xrange`, `xrevrange`, `xlen`
+- Pipelined stream writes for throughput
+
+## Example
+
+```ts
+import { createRedisClient, xadd } from "@unbound/redis";
+
+const redis = createRedisClient({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+await xadd("events", "*", { type: "session.started" });
+```
+
+## Module Layout
+
+```
+src/
+├── client.ts          # Upstash client
+├── tcp-client.ts      # ioredis TCP client
+├── operations.ts      # get/set helpers
+├── hash.ts            # hash helpers
+├── streams.ts         # xadd/xread helpers
+├── streams-pipelined.ts # pipelined stream writes
+└── config.ts          # config schema
+```
+
+## Development
+
+```bash
+pnpm -C packages/redis build
+pnpm -C packages/redis test
+```

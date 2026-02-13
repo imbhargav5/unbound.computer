@@ -1,0 +1,63 @@
+# @unbound/crypto
+
+Shared cryptography primitives for Unbound clients and services.
+
+This package focuses on deterministic, interoperable crypto used across the daemon, web, and native apps.
+
+## Included Primitives
+
+- **X25519** key generation and shared secret derivation
+- **XChaCha20-Poly1305** encryption/decryption (nonce + ciphertext)
+- **HKDF** key derivation helpers
+- **Pairwise session secrets** for device-to-device encryption
+- **Web session QR utilities** (token + key derivation)
+- **Encoding helpers** for base64/base64url/hex
+
+## Example
+
+```ts
+import { generateKeyPair, computeSharedSecret, encrypt, decrypt } from "@unbound/crypto";
+
+const alice = generateKeyPair();
+const bob = generateKeyPair();
+
+const secret = computeSharedSecret(alice.privateKey, bob.publicKey);
+const message = new TextEncoder().encode("hello");
+
+const { nonce, ciphertext } = encrypt(secret, message);
+const plaintext = decrypt(secret, nonce, ciphertext);
+```
+
+## Web Session Helpers
+
+```ts
+import {
+  generateSessionToken,
+  deriveWebSessionKey,
+  createWebSessionQRData,
+} from "@unbound/crypto";
+
+const token = generateSessionToken();
+const key = deriveWebSessionKey(token);
+const qr = createWebSessionQRData({ token, deviceId: "device-1" });
+```
+
+## Module Layout
+
+```
+src/
+├── x25519.ts      # keypairs + shared secrets
+├── xchacha20.ts   # encrypt/decrypt helpers
+├── hkdf.ts        # key derivation
+├── pairwise.ts    # per-device secrets
+├── web.ts         # web session QR helpers
+├── encoding.ts    # base64/hex helpers
+└── random.ts      # secure random bytes
+```
+
+## Development
+
+```bash
+pnpm -C packages/crypto build
+pnpm -C packages/crypto test
+```

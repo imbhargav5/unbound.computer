@@ -1,0 +1,55 @@
+# @unbound/transport-reliability
+
+Schemas and helpers for Unbound's reliable transport layer.
+
+This package defines the canonical Zod schemas for relay envelopes, handshake events, session events, and ACK frames used across the multi-device transport pipeline.
+
+## What It Covers
+
+- Relay envelope schema (channel + payload)
+- Handshake events (pairing, acceptance, failure)
+- Session events (commands + updates)
+- ACK frames for delivery confirmation
+- Channel mapping helpers for event routing
+
+## Example
+
+```ts
+import { RelayEnvelopeSchema, HandshakeEvent } from "@unbound/transport-reliability";
+
+const envelope = RelayEnvelopeSchema.parse(payload);
+if (HandshakeEvent.safeParse(envelope.event).success) {
+  // handle pairing flow
+}
+```
+
+## Codegen
+
+This package supports JSON schema and Swift generation:
+
+```bash
+pnpm -C packages/transport-reliability generate:json-schemas
+pnpm -C packages/transport-reliability generate:swift
+```
+
+## Module Layout
+
+```
+src/
+├── schemas/
+│   ├── relay-envelope.ts
+│   ├── handshake-events.ts
+│   ├── session-events.ts
+│   ├── session-messages.ts
+│   ├── channel-mapping.ts
+│   ├── ack.ts
+│   └── index.ts
+└── index.ts
+```
+
+## Development
+
+```bash
+pnpm -C packages/transport-reliability build
+pnpm -C packages/transport-reliability test
+```

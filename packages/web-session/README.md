@@ -1,0 +1,43 @@
+# @unbound/web-session
+
+Web session orchestration for multi-device access to Unbound.
+
+This package manages session lifecycle, authorizing devices, and relaying encrypted session messages over the web relay layer.
+
+## What It Provides
+
+- `WebSessionManager` for session lifecycle and authorization
+- `WebRelayClient` for relay transport connectivity
+- Storage adapters for browser or memory
+- Shared types for session status, permissions, and responses
+
+## Example
+
+```ts
+import { WebSessionManager } from "@unbound/web-session";
+
+const manager = new WebSessionManager({
+  deviceId: "device-1",
+  relayUrl: "wss://relay.example.com",
+});
+
+await manager.start();
+```
+
+## Module Layout
+
+```
+src/
+├── manager.ts      # WebSessionManager
+├── relay-client.ts # WebRelayClient
+├── storage.ts      # Browser + memory storage
+├── types.ts        # session types + defaults
+└── index.ts        # public exports
+```
+
+## Development
+
+```bash
+pnpm -C packages/web-session build
+pnpm -C packages/web-session test
+```
