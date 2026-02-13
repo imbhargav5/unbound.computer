@@ -2,7 +2,8 @@
 
 use crate::app::DaemonState;
 use crate::utils::repository_config::{
-    load_repository_config, update_repository_config, RepositoryConfig, RepositoryConfigUpdate,
+    default_worktree_root_dir_for_repo, load_repository_config, update_repository_config,
+    RepositoryConfig, RepositoryConfigUpdate,
 };
 use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
@@ -198,7 +199,10 @@ async fn register_repository_get_settings(server: &IpcServer, state: DaemonState
                     }
                 };
 
-                let repo_config = match load_repository_config(Path::new(&repo.path)) {
+                let default_worktree_root_dir = default_worktree_root_dir_for_repo(repo.id.as_str());
+                let repo_config =
+                    match load_repository_config(Path::new(&repo.path), &default_worktree_root_dir)
+                    {
                     Ok(config) => config,
                     Err(e) => {
                         return Response::error(
@@ -270,10 +274,12 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     Ok(None) => current.default_remote.clone(),
                     Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
                 };
+                let default_worktree_root_dir =
+                    default_worktree_root_dir_for_repo(current.id.as_str());
                 let worktree_root_dir =
                     match parse_optional_string_param(&params, "worktree_root_dir") {
                         Ok(Some(Some(v))) => Some(v),
-                        Ok(Some(None)) => Some(".unbound/worktrees".to_string()),
+                        Ok(Some(None)) => Some(default_worktree_root_dir.clone()),
                         Ok(None) => None,
                         Err(msg) => {
                             return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
@@ -347,17 +353,20 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     post_create_command,
                     post_create_timeout_seconds,
                 };
-                let repo_config =
-                    match update_repository_config(Path::new(&current.path), &config_update) {
-                        Ok(config) => config,
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &format!("Failed to update repository config: {}", e),
-                            );
-                        }
-                    };
+                let repo_config = match update_repository_config(
+                    Path::new(&current.path),
+                    &config_update,
+                    &default_worktree_root_dir,
+                ) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to update repository config: {}", e),
+                        );
+                    }
+                };
 
                 let repo = match armin.get_repository(&repo_id) {
                     Ok(Some(repo)) => repo,

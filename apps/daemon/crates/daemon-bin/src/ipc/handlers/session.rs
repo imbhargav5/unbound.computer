@@ -1,7 +1,9 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
-use crate::utils::repository_config::{load_repository_config, SetupHookStageConfig};
+use crate::utils::repository_config::{
+    default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
+};
 use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
@@ -13,7 +15,6 @@ use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
 
 const MAX_HOOK_STDERR_CHARS: usize = 1200;
-const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
 
 #[derive(Debug, Clone)]
 pub struct SessionCreateCoreError {
@@ -318,7 +319,8 @@ pub async fn create_session_core(
         };
 
         let repo_path = Path::new(&repo.path);
-        let repo_config = load_repository_config(repo_path).map_err(|e| {
+        let default_worktree_root_dir = default_worktree_root_dir_for_repo(repo.id.as_str());
+        let repo_config = load_repository_config(repo_path, &default_worktree_root_dir).map_err(|e| {
             SessionCreateCoreError::new(
                 "internal_error",
                 format!("Failed to load repository config: {}", e),
@@ -332,7 +334,7 @@ pub async fn create_session_core(
         );
         let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
         let root_dir = if repo_config.worktree.root_dir.trim().is_empty() {
-            DEFAULT_WORKTREE_ROOT_DIR.to_string()
+            default_worktree_root_dir.clone()
         } else {
             repo_config.worktree.root_dir.clone()
         };
@@ -340,10 +342,10 @@ pub async fn create_session_core(
         if is_legacy_worktree_root(&root_dir) {
             return Err(SessionCreateCoreError::with_data(
                 "legacy_worktree_unsupported",
-                "legacy worktree root '.unbound-worktrees' is not supported; use '.unbound/worktrees'",
+                "legacy worktree root '.unbound-worktrees' is not supported; use '~/.unbound/<repo_id>/worktrees'",
                 serde_json::json!({
                     "configured_root_dir": root_dir,
-                    "supported_root_dir": DEFAULT_WORKTREE_ROOT_DIR,
+                    "supported_root_dir": default_worktree_root_dir,
                 }),
             ));
         }

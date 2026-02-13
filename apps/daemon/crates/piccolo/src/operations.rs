@@ -911,11 +911,33 @@ pub fn push(
 
 const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
 
+fn expand_home_dir(path: &Path) -> PathBuf {
+    let Some(raw_path) = path.to_str() else {
+        return path.to_path_buf();
+    };
+
+    if raw_path == "~" {
+        return std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| path.to_path_buf());
+    }
+
+    if let Some(suffix) = raw_path.strip_prefix("~/") {
+        return std::env::var("HOME")
+            .map(|home| PathBuf::from(home).join(suffix))
+            .unwrap_or_else(|_| path.to_path_buf());
+    }
+
+    path.to_path_buf()
+}
+
 fn resolve_worktrees_dir(repo_path: &Path, root_dir: &Path) -> PathBuf {
-    if root_dir.is_absolute() {
-        root_dir.to_path_buf()
+    let resolved_root = expand_home_dir(root_dir);
+
+    if resolved_root.is_absolute() {
+        resolved_root
     } else {
-        repo_path.join(root_dir)
+        repo_path.join(resolved_root)
     }
 }
 
@@ -939,7 +961,7 @@ fn resolve_base_commit<'repo>(
         .map_err(|e| format!("Failed to resolve base commit '{}': {}", base_branch, e))
 }
 
-/// Create a git worktree at `<repo>/<root_dir>/<worktree_name>/`.
+/// Create a git worktree at `<root_dir>/<worktree_name>/`.
 ///
 /// Creates a linked worktree with a corresponding branch for parallel
 /// development workflows.
@@ -959,14 +981,10 @@ fn resolve_base_commit<'repo>(
 /// # Worktree Layout
 ///
 /// ```text
-/// /path/to/repo/
-/// ├── .git/
-/// ├── .unbound/
-/// │   └── worktrees/
-/// │       └── session-123/      <- Created worktree
-/// │           ├── .git          <- File pointing to main .git
-/// │           └── ...           <- Working tree files
-/// └── ...
+/// /Users/alice/.unbound/repo-123/worktrees/
+/// └── session-123/              <- Created worktree
+///     ├── .git                  <- File pointing to main repo .git
+///     └── ...                   <- Working tree files
 /// ```
 ///
 /// # Errors
@@ -983,7 +1001,7 @@ fn resolve_base_commit<'repo>(
 /// let path = create_worktree_with_options(
 ///     repo_path,
 ///     "session-123",
-///     Path::new(".unbound/worktrees"),
+///     Path::new("~/.unbound/repo-123/worktrees"),
 ///     Some("origin/main"),
 ///     None,
 /// )?;
@@ -993,7 +1011,7 @@ fn resolve_base_commit<'repo>(
 /// let path = create_worktree_with_options(
 ///     repo_path,
 ///     "feature",
-///     Path::new(".unbound/worktrees"),
+///     Path::new("~/.unbound/repo-123/worktrees"),
 ///     None,
 ///     Some("feature/my-feature"),
 /// )?;

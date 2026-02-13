@@ -98,13 +98,13 @@
 //!
 //! // Create a worktree for a session
 //! let worktree_path = create_worktree(repo_path, "session-123", None)?;
-//! // Worktree created at: /path/to/repo/.unbound/worktrees/session-123/
+//! // Worktree created at (wrapper default): /path/to/repo/.unbound/worktrees/session-123/
 //!
 //! // Create with explicit root/base/branch options
 //! let worktree_path = create_worktree_with_options(
 //!     repo_path,
 //!     "session-124",
-//!     Path::new(".unbound/worktrees"),
+//!     Path::new("~/.unbound/repo-123/worktrees"),
 //!     Some("origin/main"),
 //!     Some("feature/session-124"),
 //! )?;

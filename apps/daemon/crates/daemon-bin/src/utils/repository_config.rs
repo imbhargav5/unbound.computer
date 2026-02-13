@@ -9,8 +9,12 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 const SCHEMA_VERSION: u32 = 1;
-const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
+const DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE: &str = "~/.unbound/{repo_id}/worktrees";
 const DEFAULT_HOOK_TIMEOUT_SECONDS: u64 = 300;
+
+pub fn default_worktree_root_dir_for_repo(repo_id: &str) -> String {
+    DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE.replace("{repo_id}", repo_id)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepositoryConfig {
@@ -38,7 +42,7 @@ pub struct WorktreeConfig {
 impl Default for WorktreeConfig {
     fn default() -> Self {
         Self {
-            root_dir: DEFAULT_WORKTREE_ROOT_DIR.to_string(),
+            root_dir: DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE.to_string(),
             default_base_branch: None,
         }
     }
@@ -86,9 +90,12 @@ pub struct RepositoryConfigUpdate {
 }
 
 /// Load repository config, applying defaults for missing managed keys.
-pub fn load_repository_config(repo_path: &Path) -> Result<RepositoryConfig, String> {
+pub fn load_repository_config(
+    repo_path: &Path,
+    default_worktree_root_dir: &str,
+) -> Result<RepositoryConfig, String> {
     let root = read_config_root(repo_path)?;
-    Ok(extract_managed_config(&root))
+    Ok(extract_managed_config(&root, default_worktree_root_dir))
 }
 
 /// Merge managed keys into repository config and write atomically.
@@ -97,9 +104,10 @@ pub fn load_repository_config(repo_path: &Path) -> Result<RepositoryConfig, Stri
 pub fn update_repository_config(
     repo_path: &Path,
     update: &RepositoryConfigUpdate,
+    default_worktree_root_dir: &str,
 ) -> Result<RepositoryConfig, String> {
     let mut root = read_config_root(repo_path)?;
-    let mut managed = extract_managed_config(&root);
+    let mut managed = extract_managed_config(&root, default_worktree_root_dir);
 
     apply_update(&mut managed, update);
     merge_managed_into_root(&mut root, &managed);
@@ -128,7 +136,7 @@ fn read_config_root(repo_path: &Path) -> Result<Map<String, Value>, String> {
         .ok_or_else(|| format!("config root at {} must be a JSON object", path.display()))
 }
 
-fn extract_managed_config(root: &Map<String, Value>) -> RepositoryConfig {
+fn extract_managed_config(root: &Map<String, Value>, default_worktree_root_dir: &str) -> RepositoryConfig {
     let schema_version = root
         .get("schema_version")
         .and_then(Value::as_u64)
@@ -141,7 +149,7 @@ fn extract_managed_config(root: &Map<String, Value>) -> RepositoryConfig {
     let root_dir = worktree_obj
         .and_then(|w| w.get("root_dir"))
         .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_WORKTREE_ROOT_DIR)
+        .unwrap_or(default_worktree_root_dir)
         .to_string();
     let default_base_branch = worktree_obj
         .and_then(|w| w.get("default_base_branch"))
@@ -315,14 +323,19 @@ mod tests {
     #[test]
     fn load_defaults_when_config_missing() {
         let repo_path = temp_repo_path();
-        let loaded = load_repository_config(&repo_path).unwrap();
-        assert_eq!(loaded, RepositoryConfig::default());
+        let default_root = default_worktree_root_dir_for_repo("repo-123");
+        let loaded = load_repository_config(&repo_path, &default_root).unwrap();
+        assert_eq!(loaded.worktree.root_dir, default_root);
+        assert_eq!(loaded.worktree.default_base_branch, None);
+        assert_eq!(loaded.setup_hooks.pre_create.timeout_seconds, 300);
+        assert_eq!(loaded.setup_hooks.post_create.timeout_seconds, 300);
         let _ = fs::remove_dir_all(repo_path);
     }
 
     #[test]
     fn update_creates_unbound_config_and_persists_values() {
         let repo_path = temp_repo_path();
+        let default_root = default_worktree_root_dir_for_repo("repo-123");
         let updated = update_repository_config(
             &repo_path,
             &RepositoryConfigUpdate {
@@ -333,10 +346,11 @@ mod tests {
                 post_create_timeout_seconds: Some(180),
                 ..Default::default()
             },
+            &default_root,
         )
         .unwrap();
 
-        assert_eq!(updated.worktree.root_dir, ".unbound/worktrees");
+        assert_eq!(updated.worktree.root_dir, default_root);
         assert_eq!(updated.worktree.default_base_branch, Some("main".to_string()));
         assert_eq!(
             updated.setup_hooks.pre_create.command,
@@ -352,7 +366,7 @@ mod tests {
         let config_file = repo_path.join(".unbound").join("config.json");
         assert!(config_file.exists());
 
-        let loaded = load_repository_config(&repo_path).unwrap();
+        let loaded = load_repository_config(&repo_path, &default_root).unwrap();
         assert_eq!(loaded, updated);
         let _ = fs::remove_dir_all(repo_path);
     }
@@ -395,6 +409,7 @@ mod tests {
                 pre_create_command: Some(Some("echo new".to_string())),
                 ..Default::default()
             },
+            &default_worktree_root_dir_for_repo("repo-123"),
         )
         .unwrap();
 
