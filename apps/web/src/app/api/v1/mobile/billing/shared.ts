@@ -191,18 +191,20 @@ export async function recordBillingUsageEvent({
   quantity: number;
   occurredAt?: string;
 }): Promise<number | null> {
-  const adminClient = supabaseAdminClient as any;
-  const { data, error } = await adminClient.rpc("record_billing_usage_event", {
-    p_gateway_name: "stripe",
-    p_gateway_customer_id: gatewayCustomerId,
-    p_usage_type: usageType,
-    p_request_id: requestId,
-    p_period_start: periodStart,
-    p_period_end: periodEnd,
-    p_quantity: quantity,
-    p_event_timestamp: occurredAt ?? new Date().toISOString(),
-    p_metadata: {},
-  });
+  const { data, error } = await supabaseAdminClient.rpc(
+    "record_billing_usage_event",
+    {
+      p_gateway_name: "stripe",
+      p_gateway_customer_id: gatewayCustomerId,
+      p_usage_type: usageType,
+      p_request_id: requestId,
+      p_period_start: periodStart,
+      p_period_end: periodEnd,
+      p_quantity: quantity,
+      p_event_timestamp: occurredAt ?? new Date().toISOString(),
+      p_metadata: {},
+    }
+  );
 
   if (error) {
     throw error;
@@ -222,8 +224,7 @@ export async function getUsageCount({
   periodStart: string;
   periodEnd: string;
 }): Promise<number> {
-  const adminClient = supabaseAdminClient as any;
-  const { data, error } = await adminClient
+  const { data, error } = await supabaseAdminClient
     .from("billing_usage_counters")
     .select("usage_count")
     .eq("gateway_name", "stripe")
