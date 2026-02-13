@@ -61,16 +61,16 @@ On `start`, the daemon boots services in dependency order:
 7. **SecretsManager** - Platform keychain access
 8. **SupabaseClient** - REST API client
 9. **Levi** - Supabase message sync worker (cold path)
-10. **AblyRealtimeSyncer** - Ably hot-path message publish worker (when authenticated session + Falco broker auth are available)
-11. **Gyomei** - Rope-backed file I/O with cache
-12. **Handler registration** - Wire IPC methods to handlers
-13. **Listen** - Accept client connections
+10. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists)
+11. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
+12. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
+13. **Gyomei** - Rope-backed file I/O with cache
+14. **Handler registration** - Wire IPC methods to handlers
+15. **Listen** - Accept client connections
 
-When Ably hot-path is enabled, the daemon also ensures a Falco sidecar is available.
-It will use an existing Falco socket if present, otherwise it spawns the Falco binary
-packaged alongside the daemon and waits for `~/.unbound/falco.sock` before enabling hot-sync.
-Falco and Nagato both authenticate to Ably using daemon-issued broker tokens over
-`~/.unbound/ably-auth.sock`; sidecars never receive raw Ably API keys.
+The daemon starts the Ably token broker (`~/.unbound/ably-auth.sock`) and mints audience-scoped tokens.
+`daemon-ably` receives those broker credentials and exposes one local socket at `~/.unbound/ably.sock`.
+Falco and Nagato only receive `UNBOUND_ABLY_SOCKET`; they never receive broker tokens or raw Ably API keys.
 
 ## Shared State
 
@@ -119,7 +119,7 @@ Armin commit
     ├──► DaemonSideEffectSink  -> broadcast to IPC clients
     └──► ToshinoriSink
             ├──► Levi (cold path) -> Supabase messages/session tables
-            └──► AblyRealtimeSyncer (hot path) -> Falco -> Ably
+            └──► AblyRealtimeSyncer (hot path) -> Falco -> daemon-ably -> Ably
 ```
 
 `MessageAppended` is fanned out to both cold and hot paths. Hot path uses channel
@@ -172,10 +172,50 @@ daemon-bin/
 
 - `api/v1/mobile/ably/token` supports audience-scoped token issuance (`daemon_falco` / `daemon_nagato` / mobile audiences).
 - Daemon Ably broker (`~/.unbound/ably-auth.sock`) is running and sidecars authenticate with broker tokens.
-- Runtime sidecar auth uses broker envs only (`UNBOUND_ABLY_BROKER_SOCKET`, `UNBOUND_ABLY_BROKER_TOKEN`).
+- `daemon-ably` receives broker envs (`UNBOUND_ABLY_BROKER_SOCKET`, `UNBOUND_ABLY_BROKER_TOKEN_FALCO`, `UNBOUND_ABLY_BROKER_TOKEN_NAGATO`).
+- Runtime sidecars (`falco`, `nagato`) use local transport env only (`UNBOUND_ABLY_SOCKET`).
 - iOS clients use token auth callback only (no `ABLY_API_KEY` fallback path).
-- Logout clears broker token cache and tears down Nagato/Falco sidecars.
+- Logout clears broker token cache, tears down daemon-ably/Falco/Nagato sidecars, and removes `ably.sock`, `falco.sock`, `nagato.sock`.
 - Manual key rotation reminder: rotate legacy Ably API keys in server-side secret storage and revoke old keys after rollout verification.
+
+## Presence Heartbeat Contract
+
+`daemon-ably` emits message-based presence heartbeats for iOS remote-command gating.
+
+| Field | Value |
+|-------|-------|
+| Channel | `session:presence:{user_id}:conversation` |
+| Event | `daemon.presence.v1` |
+| Producer | `daemon-ably` |
+| Status values | `online`, `offline` |
+| Online cadence | immediate publish on startup + periodic heartbeat |
+| Offline signal | best-effort publish during graceful shutdown |
+
+Payload schema:
+
+```json
+{
+  "schema_version": 1,
+  "user_id": "user-uuid",
+  "device_id": "device-uuid",
+  "status": "online",
+  "source": "daemon-ably",
+  "sent_at_ms": 1739030400000
+}
+```
+
+## Regression Matrix
+
+Use this matrix for QA and release checks after sidecar changes:
+
+| Scenario | Expected Result |
+|----------|-----------------|
+| Falco side-effect publish with channel/event/payload overrides | Override behavior matches pre-migration output exactly |
+| Nagato command handling under load | One-in-flight processing remains enforced |
+| Nagato daemon timeout | Fail-open behavior publishes timeout ACK and continues |
+| daemon-ably restart while daemon stays up | Falco/Nagato recover transport without process restart |
+| Login/logout transitions | Sidecars start/stop deterministically and sockets are cleaned |
+| iOS target-device gating | Remote actions disable after heartbeat TTL and re-enable after next heartbeat |
 
 ## Dependencies
 
@@ -189,7 +229,9 @@ This crate depends on nearly every other workspace crate:
 - **ymir** - OAuth flow and token/session management
 - **toshinori** - Supabase sync sink
 - **levi** - Message sync worker
+- **daemon-ably** (runtime process) - Shared Ably transport + heartbeat publisher
 - **daemon-falco** (runtime process) - Ably publisher for hot-path payloads
+- **daemon-nagato** (runtime process) - Remote command ingress sidecar
 - **deku** - Claude CLI process manager
 - **piccolo** - Native git operations (libgit2)
 - **gyomei** - Rope-backed file I/O

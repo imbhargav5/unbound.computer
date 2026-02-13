@@ -8,8 +8,8 @@ Falco is a **stateless, crash-safe publisher** that receives Armin side-effects 
 
 When Armin commits a fact to SQLite, it emits a side-effect. The daemon forwards these side-effects to Falco, which publishes them to Ably for other devices/clients to receive.
 
-Falco authenticates to Ably via the daemon-local broker socket (`~/.unbound/ably-auth.sock`).
-It does not use `ABLY_API_KEY` directly.
+Falco now publishes through the local `daemon-ably` transport socket (`~/.unbound/ably.sock`).
+Falco does not use Ably SDK credentials, broker tokens, or `ABLY_API_KEY` directly.
 
 ## Architecture
 
@@ -28,9 +28,21 @@ It does not use `ABLY_API_KEY` directly.
 │                            Falco                                     │
 │                                                                      │
 │  • Receives SideEffectFrame from daemon                             │
-│  • Publishes to a default channel or per-message override channel   │
+│  • Applies channel/event/payload overrides                          │
+│  • Sends publish requests to daemon-ably over local IPC             │
 │  • Sends PublishAckFrame back to daemon                             │
-│  • Handles backpressure and retries                                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ NDJSON IPC (`publish.v1`)
+                              │ ~/.unbound/ably.sock
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         daemon-ably sidecar                          │
+│                                                                      │
+│  • Owns Ably realtime connection + reconnect behavior               │
+│  • Publishes Falco egress messages                                 │
+│  • Publishes daemon heartbeat stream                               │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -40,11 +52,6 @@ It does not use `ABLY_API_KEY` directly.
 │                            Ably                                      │
 │ Default channel: device-events:{device_id}                           │
 │ Override channel example: session:{session_id}:conversation          │
-│                                                                      │
-│  ┌───────────────┬───────────────────────────────┬───────────────┐  │
-│  │ session_created │ conversation.message.v1      │ ...           │  │
-│  │ repository_...  │ session_updated              │               │  │
-│  └───────────────┴───────────────────────────────┴───────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -129,14 +136,14 @@ Offset  Size  Field
 
 ## Process Model
 
-The daemon spawns Falco as a child process:
+The daemon manages Falco as one sidecar in a transport chain:
 
-1. Daemon starts and spawns Falco with device ID
-2. Falco creates `falco.sock` and listens for connections
-3. Daemon connects to Falco's socket
-4. When Armin emits side-effects, daemon sends SideEffectFrame
-5. Falco publishes to Ably and sends PublishAckFrame
-6. On shutdown, daemon terminates Falco
+1. Daemon starts `daemon-ably` and waits for `~/.unbound/ably.sock`
+2. Daemon starts Falco with `UNBOUND_ABLY_SOCKET=~/.unbound/ably.sock`
+3. Falco creates `falco.sock` and listens for daemon side-effect frames
+4. When Armin emits side-effects, daemon sends `SideEffectFrame`
+5. Falco publishes via daemon-ably and sends `PublishAckFrame` to daemon
+6. On logout/shutdown, daemon stops sidecars and cleans socket files
 
 ## Non-Negotiable Invariants
 
@@ -156,8 +163,7 @@ go build -o falco ./cmd/falco
 
 ```bash
 # Set required environment variables
-export UNBOUND_ABLY_BROKER_SOCKET="$HOME/.unbound/ably-auth.sock"
-export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
+export UNBOUND_ABLY_SOCKET="$HOME/.unbound/ably.sock"
 
 # Run Falco
 ./falco --device-id "device-uuid-here"
@@ -170,10 +176,9 @@ export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `UNBOUND_ABLY_BROKER_SOCKET` | (required) | Daemon-local Ably broker Unix socket path |
-| `UNBOUND_ABLY_BROKER_TOKEN` | (required) | Broker auth token for Falco audience |
+| `UNBOUND_ABLY_SOCKET` | (required) | daemon-ably local IPC socket path |
 | `FALCO_SOCKET` | `~/.unbound/falco.sock` | Unix socket path |
-| `FALCO_PUBLISH_TIMEOUT` | `5` | Ably publish timeout in seconds |
+| `FALCO_PUBLISH_TIMEOUT` | `5` | Publish timeout in seconds (used on `publish.v1`) |
 
 ## Package Structure
 
@@ -181,7 +186,7 @@ export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
 packages/daemon-falco/
 ├── cmd/falco/main.go       # CLI entry point
 ├── config/config.go        # Configuration management
-├── publisher/publisher.go  # Ably publisher
+├── publisher/publisher.go  # daemon-ably transport publisher
 ├── server/server.go        # Unix socket server
 ├── protocol/
 │   ├── protocol.go         # Binary wire protocol
@@ -197,7 +202,7 @@ packages/daemon-falco/
 
 | Error Type | Action |
 |-----------|--------|
-| Ably connection lost | Reconnect with backoff |
+| daemon-ably socket disconnected | Retry publish, reconnect via shared client |
 | Publish timeout | Retry up to 3 times, then fail |
 | Socket error | Log and continue |
 | Invalid frame | Log error, skip frame |

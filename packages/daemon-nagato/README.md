@@ -8,8 +8,8 @@ Nagato is a **stateless, crash-safe consumer** that receives remote commands fro
 
 When a remote client (e.g., mobile app, web dashboard) wants to send a command to a device, it publishes to the device's Ably channel. Nagato subscribes to this channel, receives the encrypted command, and forwards it to the daemon for execution.
 
-Nagato authenticates to Ably via the daemon-local broker socket (`~/.unbound/ably-auth.sock`).
-It does not use `ABLY_API_KEY` directly.
+Nagato now subscribes through the local `daemon-ably` transport socket (`~/.unbound/ably.sock`).
+Nagato does not use Ably SDK credentials, broker tokens, or `ABLY_API_KEY` directly.
 
 ## Architecture
 
@@ -25,17 +25,28 @@ It does not use `ABLY_API_KEY` directly.
 │  └─────────────┴─────────────┴─────────────┴─────────────┘         │
 └─────────────────────────────────────────────────────────────────────┘
                               │
-                              │ Ably Realtime Subscribe
-                              │ (one message at a time)
+                              │ Ably Realtime Subscribe + Publish ACK
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         daemon-ably sidecar                          │
+│                                                                      │
+│  • Owns Ably realtime connection + reconnect behavior               │
+│  • Restores subscriptions after reconnect                           │
+│  • Pushes message stream over local IPC                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ NDJSON IPC (`subscribe.v1`, `message.v1`)
+                              │ ~/.unbound/ably.sock
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           Nagato                                    │
 │                                                                      │
 │  • Subscribes to `remote.command.v1` on device-specific channel     │
 │  • Generates command_id (UUID) for each message                     │
-│  • Forwards encrypted payload to daemon                              │
+│  • Forwards encrypted payload to daemon                             │
 │  • Waits for daemon decision (ACK_MESSAGE or DO_NOT_ACK)            │
-│  • Publishes command ACKs using `command_id` correlation            │
+│  • Publishes command ACKs via daemon-ably `publish.ack.v1`          │
 │  • Handles timeout fail-open behavior                               │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
@@ -63,7 +74,7 @@ Nagato and Falco are complementary:
 | **Nagato** | Ably → Daemon | Receives remote commands |
 | **Falco** | Daemon → Ably | Publishes side-effects |
 
-Together they enable bidirectional real-time sync:
+Together they enable bidirectional real-time sync through one shared local transport:
 - Commands flow **in** via Nagato
 - Events flow **out** via Falco
 
@@ -158,8 +169,7 @@ go build -o nagato ./cmd/nagato
 
 ```bash
 # Set required environment variables
-export UNBOUND_ABLY_BROKER_SOCKET="$HOME/.unbound/ably-auth.sock"
-export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
+export UNBOUND_ABLY_SOCKET="$HOME/.unbound/ably.sock"
 
 # Run Nagato
 ./nagato --device-id "device-uuid-here"
@@ -172,8 +182,7 @@ export UNBOUND_ABLY_BROKER_TOKEN="broker-token-issued-by-daemon"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `UNBOUND_ABLY_BROKER_SOCKET` | (required) | Daemon-local Ably broker Unix socket path |
-| `UNBOUND_ABLY_BROKER_TOKEN` | (required) | Broker auth token for Nagato audience |
+| `UNBOUND_ABLY_SOCKET` | (required) | daemon-ably local IPC socket path |
 | `NAGATO_SOCKET` | `~/.unbound/nagato.sock` | Unix socket path |
 | `NAGATO_DAEMON_TIMEOUT` | `15` | Daemon response timeout in seconds |
 
@@ -198,7 +207,7 @@ packages/daemon-nagato/
 
 | Error Type | Action |
 |-----------|--------|
-| Ably connection lost | Reconnect with backoff (handled by Ably SDK) |
+| daemon-ably socket disconnect | reconnect + restore subscriptions via shared client |
 | Daemon connection error | Retry connection on next message |
 | Daemon timeout | Fail-open, continue processing |
 | Protocol error | Log and continue |
