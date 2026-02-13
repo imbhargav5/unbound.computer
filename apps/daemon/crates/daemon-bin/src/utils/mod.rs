@@ -1,5 +1,6 @@
 //! Utility functions for the daemon.
 
+pub mod repository_config;
 mod secrets;
 mod session_secret_cache;
 
