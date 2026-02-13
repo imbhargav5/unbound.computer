@@ -165,13 +165,13 @@ let worktree_path = create_worktree(
     "session-123",  // worktree name
     None,           // uses branch: unbound/session-123
 )?;
-// Created at: /path/to/repo/.unbound/worktrees/session-123/
+// Created at (wrapper default): /path/to/repo/.unbound/worktrees/session-123/
 
 // With explicit root/base/branch
 let worktree_path = create_worktree_with_options(
     repo_path,
     "feature-work",
-    Path::new(".unbound/worktrees"),
+    Path::new("~/.unbound/repo-123/worktrees"),
     Some("origin/main"),
     Some("feature/my-feature"),
 )?;
