@@ -7,6 +7,7 @@ use crate::app::sidecar_logs::{
     attach_sidecar_log_streams, reap_sidecar_log_tasks, replace_sidecar_log_tasks,
 };
 use crate::app::DaemonState;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use toshinori::{AblyRealtimeSyncer, AblySyncConfig, SyncContext};
@@ -19,13 +20,10 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
     *state.device_private_key.lock().unwrap() = Some(login.device_private_key);
     *state.db_encryption_key.lock().unwrap() = login.db_encryption_key;
 
-    let daemon_ably_ready = ensure_daemon_ably_started(state, login).await;
-    if !daemon_ably_ready {
+    let sidecars_ready = ensure_sidecars_for_session(state, &login.user_id, &login.device_id).await;
+    if !sidecars_ready {
         warn!("daemon-ably sidecar unavailable after login; Ably sidecars remain disabled");
     }
-
-    ensure_nagato_ingress_started(state, login).await;
-    ensure_realtime_sync_started(state, login).await;
 
     let sync_context = SyncContext {
         access_token: login.access_token.clone(),
@@ -44,75 +42,99 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
 pub async fn clear_login_side_effects(state: &DaemonState) {
     state.toshinori.clear_context().await;
     state.message_sync.clear_context().await;
-
-    let realtime_syncer = {
-        let mut guard = state.realtime_message_sync.write().await;
-        guard.take()
-    };
-    if let Some(syncer) = realtime_syncer {
-        syncer.clear_context().await;
-    }
-    state.toshinori.clear_realtime_message_syncer().await;
-
-    if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
-        terminate_child(&mut child, "nagato");
-    }
-    reap_sidecar_log_tasks(state, "nagato");
-    if let Some(mut child) = state.falco_process.lock().unwrap().take() {
-        terminate_child(&mut child, "falco");
-    }
-    reap_sidecar_log_tasks(state, "falco");
-    if let Some(mut child) = state.daemon_ably_process.lock().unwrap().take() {
-        terminate_child(&mut child, "daemon-ably");
-    }
-    reap_sidecar_log_tasks(state, "daemon-ably");
-
-    for socket_path in [
-        state.paths.nagato_socket_file(),
-        state.paths.falco_socket_file(),
-        state.paths.ably_socket_file(),
-    ] {
-        if socket_path.exists() {
-            if let Err(err) = std::fs::remove_file(&socket_path) {
-                warn!(
-                    socket = %socket_path.display(),
-                    error = %err,
-                    "Failed removing sidecar socket during logout cleanup"
-                );
-            }
-        }
-    }
-
-    state.ably_broker_cache.clear().await;
-    info!("Stopped Ably sidecars and cleared broker cache after logout");
+    stop_managed_sidecars(state, true).await;
 }
 
-async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResult) {
+/// Reconcile managed sidecars with the current auth session.
+///
+/// Returns `true` when sidecars are healthy or intentionally stopped due to no auth context.
+pub async fn reconcile_sidecars_with_auth(state: &DaemonState) -> bool {
+    match state.auth_runtime.current_sync_context() {
+        Ok(Some(sync)) => ensure_sidecars_for_session(state, &sync.user_id, &sync.device_id).await,
+        Ok(None) => {
+            state.toshinori.clear_context().await;
+            state.message_sync.clear_context().await;
+            stop_managed_sidecars(state, false).await;
+            true
+        }
+        Err(err) => {
+            warn!(
+                error = %err,
+                "Failed to resolve auth sync context while reconciling sidecars"
+            );
+            false
+        }
+    }
+}
+
+async fn ensure_sidecars_for_session(state: &DaemonState, user_id: &str, device_id: &str) -> bool {
+    let _lifecycle_guard = state.sidecar_lifecycle_lock.lock().await;
+
+    let daemon_ably_ready = ensure_daemon_ably_started_locked(state, user_id, device_id).await;
+    if !daemon_ably_ready {
+        return false;
+    }
+
+    let nagato_ready = ensure_nagato_ingress_started_locked(state, device_id).await;
+    let realtime_ready = ensure_realtime_sync_started_locked(state, device_id).await;
+    nagato_ready && realtime_ready
+}
+
+async fn ensure_realtime_sync_started_locked(state: &DaemonState, device_id: &str) -> bool {
     if let Err(err) = ensure_daemon_ably_socket_connectable(&state.paths.ably_socket_file()).await {
         warn!(
             error = %err,
             "daemon-ably socket unavailable; Ably hot-path sync remains disabled"
         );
-        return;
-    }
-
-    if state.realtime_message_sync.read().await.is_some() {
-        return;
+        return false;
     }
 
     let falco_socket_path = state.paths.falco_socket_file();
-    if !falco_socket_path.exists() {
+    let mut stale_child = None;
+    let should_start = {
+        let mut process_guard = state.falco_process.lock().unwrap();
+        match process_guard.as_mut() {
+            Some(existing) => match existing.try_wait() {
+                Ok(None) => false,
+                Ok(Some(status)) => {
+                    warn!(
+                        status = %status,
+                        "Falco sidecar exited unexpectedly; restarting"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        "Failed to inspect Falco sidecar state; restarting"
+                    );
+                    stale_child = process_guard.take();
+                    true
+                }
+            },
+            None => true,
+        }
+    };
+
+    if let Some(mut child) = stale_child {
+        terminate_child(&mut child, "falco");
+        reap_sidecar_log_tasks(state, "falco");
+    }
+
+    if should_start {
+        remove_stale_socket(&falco_socket_path, "falco");
         match start_falco_sidecar(
             &state.paths,
-            &login.device_id,
+            device_id,
             &state.config.log_level,
             Duration::from_secs(5),
-            "auth_login",
+            "supervisor",
         )
         .await
         {
             Ok(mut child) => {
-                let tasks = attach_sidecar_log_streams(&mut child, "falco", "auth_login");
+                let tasks = attach_sidecar_log_streams(&mut child, "falco", "supervisor");
                 let mut process_guard = state.falco_process.lock().unwrap();
                 if let Some(mut existing) = process_guard.take() {
                     terminate_child(&mut existing, "falco");
@@ -122,15 +144,15 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
                 replace_sidecar_log_tasks(state, "falco", tasks);
                 info!(
                     socket = %falco_socket_path.display(),
-                    "Started Falco sidecar after login for Ably hot-path sync"
+                    "Started Falco sidecar for Ably hot-path sync"
                 );
             }
             Err(err) => {
                 warn!(
                     error = %err,
-                    "Failed to start Falco sidecar after login; Ably hot-path sync remains disabled"
+                    "Failed to start Falco sidecar; Ably hot-path sync remains disabled"
                 );
-                return;
+                return false;
             }
         }
     }
@@ -139,9 +161,43 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
         warn!(
             socket = %falco_socket_path.display(),
             error = %err,
-            "Falco socket unavailable after login; Ably hot-path sync remains disabled"
+            "Falco socket unavailable; restarting sidecar"
         );
-        return;
+        if let Some(mut child) = state.falco_process.lock().unwrap().take() {
+            terminate_child(&mut child, "falco");
+            reap_sidecar_log_tasks(state, "falco");
+        }
+        remove_stale_socket(&falco_socket_path, "falco");
+        match start_falco_sidecar(
+            &state.paths,
+            device_id,
+            &state.config.log_level,
+            Duration::from_secs(5),
+            "socket_recovery",
+        )
+        .await
+        {
+            Ok(mut child) => {
+                let tasks = attach_sidecar_log_streams(&mut child, "falco", "socket_recovery");
+                *state.falco_process.lock().unwrap() = Some(child);
+                replace_sidecar_log_tasks(state, "falco", tasks);
+            }
+            Err(restart_err) => {
+                warn!(
+                    error = %restart_err,
+                    "Failed to restart Falco sidecar after socket failure"
+                );
+                return false;
+            }
+        }
+        if let Err(recheck_err) = ensure_socket_connectable(&falco_socket_path).await {
+            warn!(
+                socket = %falco_socket_path.display(),
+                error = %recheck_err,
+                "Falco socket still unavailable after restart"
+            );
+            return false;
+        }
     }
 
     let syncer = Arc::new(AblyRealtimeSyncer::new(
@@ -153,7 +209,7 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
 
     let mut guard = state.realtime_message_sync.write().await;
     if guard.is_some() {
-        return;
+        return true;
     }
     *guard = Some(syncer.clone());
     drop(guard);
@@ -164,16 +220,17 @@ async fn ensure_realtime_sync_started(state: &DaemonState, login: &AuthLoginResu
         .set_realtime_message_syncer(syncer.clone())
         .await;
     syncer.start();
-    info!("Initialized Ably hot-path message sync worker after login");
+    info!("Initialized Ably hot-path message sync worker");
+    true
 }
 
-async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginResult) {
+async fn ensure_nagato_ingress_started_locked(state: &DaemonState, device_id: &str) -> bool {
     if let Err(err) = ensure_daemon_ably_socket_connectable(&state.paths.ably_socket_file()).await {
         warn!(
             error = %err,
             "daemon-ably socket unavailable; remote command ingress remains disabled"
         );
-        return;
+        return false;
     }
 
     let mut stale_child = None;
@@ -209,34 +266,40 @@ async fn ensure_nagato_ingress_started(state: &DaemonState, login: &AuthLoginRes
     }
 
     if !should_start {
-        return;
+        return true;
     }
 
     match start_nagato_sidecar(
         state.paths.as_ref(),
-        &login.device_id,
+        device_id,
         &state.config.log_level,
         Duration::from_secs(1),
-        "auth_login",
+        "supervisor",
     )
     .await
     {
         Ok(mut child) => {
-            let tasks = attach_sidecar_log_streams(&mut child, "nagato", "auth_login");
+            let tasks = attach_sidecar_log_streams(&mut child, "nagato", "supervisor");
             *state.nagato_process.lock().unwrap() = Some(child);
             replace_sidecar_log_tasks(state, "nagato", tasks);
-            info!("Started Nagato sidecar after login for remote command ingress");
+            info!("Started Nagato sidecar for remote command ingress");
+            true
         }
         Err(err) => {
             warn!(
                 error = %err,
-                "Failed to start Nagato sidecar after login; remote command ingress remains disabled"
+                "Failed to start Nagato sidecar; remote command ingress remains disabled"
             );
+            false
         }
     }
 }
 
-async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult) -> bool {
+async fn ensure_daemon_ably_started_locked(
+    state: &DaemonState,
+    user_id: &str,
+    device_id: &str,
+) -> bool {
     if state.ably_broker_falco_token.is_empty() || state.ably_broker_nagato_token.is_empty() {
         warn!("Ably broker tokens missing; daemon-ably sidecar remains disabled");
         return false;
@@ -307,18 +370,18 @@ async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult
 
         match start_daemon_ably_sidecar(
             state.paths.as_ref(),
-            &login.user_id,
-            &login.device_id,
+            user_id,
+            device_id,
             &state.ably_broker_falco_token,
             &state.ably_broker_nagato_token,
             &state.config.log_level,
             Duration::from_secs(5),
-            "auth_login",
+            "supervisor",
         )
         .await
         {
             Ok(mut child) => {
-                let tasks = attach_sidecar_log_streams(&mut child, "daemon-ably", "auth_login");
+                let tasks = attach_sidecar_log_streams(&mut child, "daemon-ably", "supervisor");
                 *state.daemon_ably_process.lock().unwrap() = Some(child);
                 replace_sidecar_log_tasks(state, "daemon-ably", tasks);
                 info!("Started daemon-ably sidecar after login");
@@ -343,4 +406,59 @@ async fn ensure_daemon_ably_started(state: &DaemonState, login: &AuthLoginResult
     }
 
     true
+}
+
+async fn stop_managed_sidecars(state: &DaemonState, clear_broker_cache: bool) {
+    let _lifecycle_guard = state.sidecar_lifecycle_lock.lock().await;
+    stop_managed_sidecars_locked(state, clear_broker_cache).await;
+}
+
+async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: bool) {
+    let realtime_syncer = {
+        let mut guard = state.realtime_message_sync.write().await;
+        guard.take()
+    };
+    if let Some(syncer) = realtime_syncer {
+        syncer.clear_context().await;
+    }
+    state.toshinori.clear_realtime_message_syncer().await;
+
+    if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
+        terminate_child(&mut child, "nagato");
+    }
+    reap_sidecar_log_tasks(state, "nagato");
+
+    if let Some(mut child) = state.falco_process.lock().unwrap().take() {
+        terminate_child(&mut child, "falco");
+    }
+    reap_sidecar_log_tasks(state, "falco");
+
+    if let Some(mut child) = state.daemon_ably_process.lock().unwrap().take() {
+        terminate_child(&mut child, "daemon-ably");
+    }
+    reap_sidecar_log_tasks(state, "daemon-ably");
+
+    for socket_path in state.paths.sidecar_socket_files() {
+        remove_stale_socket(&socket_path, "managed sidecar");
+    }
+
+    if clear_broker_cache {
+        state.ably_broker_cache.clear().await;
+        info!("Stopped Ably sidecars and cleared broker cache after logout");
+    }
+}
+
+fn remove_stale_socket(path: &Path, scope: &str) {
+    if !path.exists() {
+        return;
+    }
+
+    if let Err(err) = std::fs::remove_file(path) {
+        warn!(
+            socket = %path.display(),
+            scope = scope,
+            error = %err,
+            "Failed removing stale sidecar socket"
+        );
+    }
 }

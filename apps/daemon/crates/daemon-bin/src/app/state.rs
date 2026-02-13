@@ -15,7 +15,7 @@ use levi::SessionSyncService;
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{broadcast, oneshot, RwLock};
+use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
 use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
@@ -97,6 +97,12 @@ pub struct DaemonState {
     pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// Join handle for Nagato socket listener task.
     pub nagato_server_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
+    /// Shutdown signal sender for the sidecar supervisor task.
+    pub sidecar_supervisor_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    /// Join handle for sidecar supervisor task.
+    pub sidecar_supervisor_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
+    /// Serializes sidecar start/stop/restart transitions across login and supervisor flows.
+    pub sidecar_lifecycle_lock: Arc<TokioMutex<()>>,
     /// Token used by Nagato sidecar when requesting Ably token details.
     pub ably_broker_nagato_token: String,
     /// Token used by Falco sidecar when requesting Ably token details.

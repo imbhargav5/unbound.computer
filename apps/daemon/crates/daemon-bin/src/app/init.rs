@@ -1,7 +1,7 @@
 //! Daemon initialization.
 
 use crate::ably::start_ably_token_broker;
-use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daemon_ably_sidecar};
+use crate::app::ably_sidecar::start_daemon_ably_sidecar;
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_server::spawn_nagato_server;
 use crate::app::nagato_sidecar::start_nagato_sidecar;
@@ -9,6 +9,7 @@ use crate::app::sidecar_logs::{
     attach_sidecar_log_streams, reap_all_sidecar_log_tasks, register_sidecar_log_tasks,
     SidecarLogTask,
 };
+use crate::app::sidecar_supervisor::spawn_sidecar_supervisor;
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
@@ -243,69 +244,57 @@ pub async fn run_daemon(
     let mut initial_sidecar_log_tasks: HashMap<String, Vec<SidecarLogTask>> = HashMap::new();
 
     if has_startup_auth_context {
-        if daemon_ably_socket_path.exists() {
-            match ensure_daemon_ably_socket_connectable(&daemon_ably_socket_path).await {
-                Ok(()) => {
-                    daemon_ably_ready = true;
-                    info!(
-                        socket = %daemon_ably_socket_path.display(),
-                        "Using existing daemon-ably socket for shared Ably transport"
-                    );
-                }
-                Err(err) => {
-                    warn!(
-                        socket = %daemon_ably_socket_path.display(),
-                        error = %err,
-                        "daemon-ably socket exists but is not connectable; removing stale socket"
-                    );
-                    let _ = std::fs::remove_file(&daemon_ably_socket_path);
-                }
-            }
-        }
-
-        if !daemon_ably_ready {
-            match (startup_user_id.as_deref(), local_device_id.as_deref()) {
-                (Some(user_id), Some(device_id)) => {
-                    match start_daemon_ably_sidecar(
-                        &paths,
-                        user_id,
-                        device_id,
-                        &ably_broker_falco_token,
-                        &ably_broker_nagato_token,
-                        &config.log_level,
-                        Duration::from_secs(5),
-                        "daemon_startup",
-                    )
-                    .await
-                    {
-                        Ok(mut child) => {
-                            let tasks =
-                                attach_sidecar_log_streams(&mut child, "daemon-ably", "daemon_startup");
-                            if !tasks.is_empty() {
-                                initial_sidecar_log_tasks
-                                    .entry("daemon-ably".to_string())
-                                    .or_default()
-                                    .extend(tasks);
-                            }
-                            daemon_ably_ready = true;
-                            initial_daemon_ably_process = Some(child);
-                            info!(
-                                socket = %daemon_ably_socket_path.display(),
-                                "Started daemon-ably sidecar for shared Ably transport"
-                            );
-                        }
-                        Err(err) => {
-                            warn!(
-                                error = %err,
-                                "Failed to start daemon-ably sidecar; Falco/Nagato sidecars remain disabled"
-                            );
-                        }
+        match (startup_user_id.as_deref(), local_device_id.as_deref()) {
+            (Some(user_id), Some(device_id)) => {
+                // Strict ownership: never adopt a socket from another daemon instance.
+                if daemon_ably_socket_path.exists() {
+                    if let Err(err) = std::fs::remove_file(&daemon_ably_socket_path) {
+                        warn!(
+                            socket = %daemon_ably_socket_path.display(),
+                            error = %err,
+                            "Failed removing stale daemon-ably socket before startup"
+                        );
                     }
                 }
-                _ => warn!(
-                    "Authenticated session found, but user/device identifiers are missing; daemon-ably remains disabled"
-                ),
+                match start_daemon_ably_sidecar(
+                    &paths,
+                    user_id,
+                    device_id,
+                    &ably_broker_falco_token,
+                    &ably_broker_nagato_token,
+                    &config.log_level,
+                    Duration::from_secs(5),
+                    "daemon_startup",
+                )
+                .await
+                {
+                    Ok(mut child) => {
+                        let tasks =
+                            attach_sidecar_log_streams(&mut child, "daemon-ably", "daemon_startup");
+                        if !tasks.is_empty() {
+                            initial_sidecar_log_tasks
+                                .entry("daemon-ably".to_string())
+                                .or_default()
+                                .extend(tasks);
+                        }
+                        daemon_ably_ready = true;
+                        initial_daemon_ably_process = Some(child);
+                        info!(
+                            socket = %daemon_ably_socket_path.display(),
+                            "Started daemon-ably sidecar for shared Ably transport"
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            error = %err,
+                            "Failed to start daemon-ably sidecar; Falco/Nagato sidecars remain disabled"
+                        );
+                    }
+                }
             }
+            _ => warn!(
+                "Authenticated session found, but user/device identifiers are missing; daemon-ably remains disabled"
+            ),
         }
     } else {
         info!("No authenticated session at startup; skipping daemon-ably sidecar");
@@ -315,9 +304,20 @@ pub async fn run_daemon(
     let initial_realtime_message_sync = if has_startup_auth_context && daemon_ably_ready {
         let falco_socket_path = paths.falco_socket_file();
 
-        if !falco_socket_path.exists() {
-            match local_device_id.as_deref() {
-                Some(device_id) => match start_falco_sidecar(
+        match local_device_id.as_deref() {
+            Some(device_id) => {
+                // Strict ownership: never adopt a pre-existing Falco socket.
+                if falco_socket_path.exists() {
+                    if let Err(err) = std::fs::remove_file(&falco_socket_path) {
+                        warn!(
+                            socket = %falco_socket_path.display(),
+                            error = %err,
+                            "Failed removing stale Falco socket before startup"
+                        );
+                    }
+                }
+
+                match start_falco_sidecar(
                     &paths,
                     device_id,
                     &config.log_level,
@@ -335,114 +335,46 @@ pub async fn run_daemon(
                                 .or_default()
                                 .extend(tasks);
                         }
-                        info!(
-                            socket = %falco_socket_path.display(),
-                            "Started Falco sidecar for Ably hot-path sync"
-                        );
                         initial_falco_process = Some(child);
-                    }
-                    Err(err) => warn!(
-                        error = %err,
-                        "Falco did not become ready; disabling Ably hot-path message sync"
-                    ),
-                },
-                None => warn!(
-                    "Authenticated session found, but device ID is missing; disabling Ably hot-path message sync"
-                ),
-            }
-        } else {
-            info!(
-                socket = %falco_socket_path.display(),
-                "Using existing Falco socket for Ably hot-path sync"
-            );
-        }
-
-        // If socket exists but isn't connectable, clean up and re-spawn.
-        if falco_socket_path.exists() {
-            if let Err(err) = ensure_socket_connectable(&falco_socket_path).await {
-                warn!(
-                    socket = %falco_socket_path.display(),
-                    error = %err,
-                    "Falco socket exists but is not connectable; removing stale socket and re-spawning"
-                );
-                if let Err(rm_err) = std::fs::remove_file(&falco_socket_path) {
-                    warn!(
-                        socket = %falco_socket_path.display(),
-                        error = %rm_err,
-                        "Failed to remove stale Falco socket; disabling Ably hot-path message sync"
-                    );
-                } else if let Some(device_id) = local_device_id.as_deref() {
-                    match start_falco_sidecar(
-                        &paths,
-                        device_id,
-                        &config.log_level,
-                        Duration::from_secs(5),
-                        "stale_socket_recovery",
-                    )
-                    .await
-                    {
-                        Ok(mut child) => {
-                            if let Some(mut existing) = initial_falco_process.take() {
-                                terminate_child(&mut existing, "falco");
+                        match ensure_socket_connectable(&falco_socket_path).await {
+                            Ok(()) => {
+                                let armin_handle: toshinori::AblyArminHandle = armin.clone();
+                                let syncer = Arc::new(AblyRealtimeSyncer::new(
+                                    AblySyncConfig::default(),
+                                    armin_handle,
+                                    db_encryption_key_arc.clone(),
+                                    falco_socket_path,
+                                ));
+                                toshinori.set_realtime_message_syncer(syncer.clone()).await;
+                                syncer.start();
+                                info!("Initialized Ably hot-path message sync worker");
+                                Some(syncer)
                             }
-                            if let Some(stale_tasks) = initial_sidecar_log_tasks.remove("falco") {
-                                for task in stale_tasks {
-                                    let _ = task.join();
-                                }
+                            Err(err) => {
+                                warn!(
+                                    socket = %falco_socket_path.display(),
+                                    error = %err,
+                                    "Falco socket unavailable after startup; disabling Ably hot-path message sync"
+                                );
+                                None
                             }
-
-                            let tasks = attach_sidecar_log_streams(
-                                &mut child,
-                                "falco",
-                                "stale_socket_recovery",
-                            );
-                            if !tasks.is_empty() {
-                                initial_sidecar_log_tasks
-                                    .entry("falco".to_string())
-                                    .or_default()
-                                    .extend(tasks);
-                            }
-                            info!(
-                                socket = %falco_socket_path.display(),
-                                "Re-started Falco sidecar after stale socket cleanup"
-                            );
-                            initial_falco_process = Some(child);
                         }
-                        Err(spawn_err) => warn!(
-                            error = %spawn_err,
-                            "Failed to re-start Falco after stale socket cleanup; disabling Ably hot-path message sync"
-                        ),
+                    }
+                    Err(err) => {
+                        warn!(
+                            error = %err,
+                            "Falco did not become ready; disabling Ably hot-path message sync"
+                        );
+                        None
                     }
                 }
             }
-        }
-
-        if falco_socket_path.exists() {
-            match ensure_socket_connectable(&falco_socket_path).await {
-                Ok(()) => {
-                    let armin_handle: toshinori::AblyArminHandle = armin.clone();
-                    let syncer = Arc::new(AblyRealtimeSyncer::new(
-                        AblySyncConfig::default(),
-                        armin_handle,
-                        db_encryption_key_arc.clone(),
-                        falco_socket_path,
-                    ));
-                    toshinori.set_realtime_message_syncer(syncer.clone()).await;
-                    syncer.start();
-                    info!("Initialized Ably hot-path message sync worker");
-                    Some(syncer)
-                }
-                Err(err) => {
-                    warn!(
-                        socket = %falco_socket_path.display(),
-                        error = %err,
-                        "Falco socket not connectable after recovery attempt; disabling Ably hot-path message sync"
-                    );
-                    None
-                }
+            None => {
+                warn!(
+                    "Authenticated session found, but device ID is missing; disabling Ably hot-path message sync"
+                );
+                None
             }
-        } else {
-            None
         }
     } else {
         info!("Ably hot-path sync worker disabled at startup");
@@ -500,6 +432,9 @@ pub async fn run_daemon(
         itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
         nagato_shutdown_tx: Arc::new(Mutex::new(None)),
         nagato_server_task: Arc::new(Mutex::new(None)),
+        sidecar_supervisor_shutdown_tx: Arc::new(Mutex::new(None)),
+        sidecar_supervisor_task: Arc::new(Mutex::new(None)),
+        sidecar_lifecycle_lock: Arc::new(tokio::sync::Mutex::new(())),
         ably_broker_nagato_token,
         ably_broker_falco_token,
         ably_broker_cache,
@@ -546,6 +481,13 @@ pub async fn run_daemon(
         }
     } else {
         info!("Nagato remote command ingress disabled at startup");
+    }
+
+    {
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let task = spawn_sidecar_supervisor(state.clone(), shutdown_rx);
+        *state.sidecar_supervisor_shutdown_tx.lock().unwrap() = Some(shutdown_tx);
+        *state.sidecar_supervisor_task.lock().unwrap() = Some(task);
     }
 
     // Load session secrets from Supabase into memory cache
@@ -654,6 +596,20 @@ pub async fn run_daemon(
             warn!(error = %err, "Nagato socket listener task join failed");
         }
     }
+    if let Some(shutdown_tx) = runtime_state
+        .sidecar_supervisor_shutdown_tx
+        .lock()
+        .unwrap()
+        .take()
+    {
+        let _ = shutdown_tx.send(());
+    }
+    let supervisor_task = runtime_state.sidecar_supervisor_task.lock().unwrap().take();
+    if let Some(task) = supervisor_task {
+        if let Err(err) = task.await {
+            warn!(error = %err, "Sidecar supervisor task join failed");
+        }
+    }
 
     if let Some(runtime) = ably_broker_runtime.take() {
         let _ = runtime.shutdown_tx.send(());
@@ -677,9 +633,9 @@ pub async fn run_daemon(
     // Cleanup
     let _ = std::fs::remove_file(paths.pid_file());
     let _ = std::fs::remove_file(paths.socket_file());
-    let _ = std::fs::remove_file(paths.falco_socket_file());
-    let _ = std::fs::remove_file(paths.nagato_socket_file());
-    let _ = std::fs::remove_file(paths.ably_socket_file());
+    for sidecar_socket in paths.sidecar_socket_files() {
+        let _ = std::fs::remove_file(sidecar_socket);
+    }
     let _ = std::fs::remove_file(paths.ably_auth_socket_file());
 
     info!("Daemon stopped");
