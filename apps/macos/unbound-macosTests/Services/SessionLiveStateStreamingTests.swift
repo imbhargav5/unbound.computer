@@ -77,6 +77,56 @@ final class SessionLiveStateStreamingTests: XCTestCase {
         XCTAssertEqual(state.activeSubAgents.first?.childTools.first?.status, .completed)
     }
 
+    func testDuplicateStandaloneToolUseKeepsLatestState() {
+        let state = SessionLiveState(sessionId: UUID())
+
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(id: "tool_dup", name: "Read", input: ["file_path": "README.md"])
+        ]))
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(id: "tool_dup", name: "Read", input: ["file_path": "ARCHITECTURE.md"])
+        ]))
+
+        XCTAssertEqual(state.activeTools.count, 1)
+        XCTAssertEqual(state.activeTools.first?.id, "tool_dup")
+        XCTAssertEqual(state.activeTools.first?.inputPreview, "ARCHITECTURE.md")
+    }
+
+    func testDuplicateChildToolUseKeepsLatestState() {
+        let state = SessionLiveState(sessionId: UUID())
+
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(id: "task_dup", name: "Task", input: ["subagent_type": "Explore", "description": "Search codebase"])
+        ]))
+
+        state.ingestClaudeEventForTests(assistantEvent(
+            toolUses: [toolUse(id: "tool_child_dup", name: "Read", input: ["file_path": "README.md"])],
+            parent: "task_dup"
+        ))
+
+        state.ingestClaudeEventForTests(assistantEvent(
+            toolUses: [toolUse(id: "tool_child_dup", name: "Read", input: ["file_path": "ARCHITECTURE.md"])],
+            parent: "task_dup"
+        ))
+
+        XCTAssertEqual(state.activeSubAgents.first?.childTools.count, 1)
+        XCTAssertEqual(state.activeSubAgents.first?.childTools.first?.id, "tool_child_dup")
+        XCTAssertEqual(state.activeSubAgents.first?.childTools.first?.inputPreview, "ARCHITECTURE.md")
+    }
+
+    func testWrappedRawJSONUserToolResultUpdatesStatus() {
+        let state = SessionLiveState(sessionId: UUID())
+
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(id: "tool_wrapped_result", name: "Read", input: ["file_path": "README.md"])
+        ]))
+
+        let wrapped = wrappedRawJSON(userToolResultEvent(toolUseId: "tool_wrapped_result"))
+        state.ingestClaudeEventForTests(wrapped)
+
+        XCTAssertEqual(state.activeTools.first?.status, .completed)
+    }
+
     // MARK: - Helpers
 
     private func assistantEvent(toolUses: [[String: Any]], parent: String? = nil) -> String {
@@ -120,5 +170,9 @@ final class SessionLiveStateStreamingTests: XCTestCase {
     private func jsonString(_ payload: [String: Any]) -> String {
         let data = try! JSONSerialization.data(withJSONObject: payload)
         return String(data: data, encoding: .utf8)!
+    }
+
+    private func wrappedRawJSON(_ rawJSON: String) -> String {
+        jsonString(["raw_json": rawJSON])
     }
 }
