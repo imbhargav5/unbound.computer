@@ -48,7 +48,7 @@
 //! ```
 
 use base64::Engine;
-use daemon_database::{queries, AsyncDatabase};
+use daemon_database::{queries, AgentCodingSession, AsyncDatabase, Repository};
 use daemon_storage::SecretsManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -84,6 +84,9 @@ pub enum SyncError {
     /// Contains the repository ID that was not found.
     RepositoryNotFound(String),
 
+    /// Referenced session was not found in local database.
+    SessionNotFound(String),
+
     /// Supabase API request failed.
     ///
     /// Could be network error, authentication expired, or server error.
@@ -103,6 +106,7 @@ impl std::fmt::Display for SyncError {
             SyncError::NotAuthenticated => write!(f, "Not authenticated"),
             SyncError::NoDeviceIdentity => write!(f, "No device identity configured"),
             SyncError::RepositoryNotFound(id) => write!(f, "Repository not found: {}", id),
+            SyncError::SessionNotFound(id) => write!(f, "Session not found: {}", id),
             SyncError::Supabase(msg) => write!(f, "Supabase error: {}", msg),
             SyncError::Encryption(msg) => write!(f, "Encryption error: {}", msg),
         }
@@ -110,6 +114,36 @@ impl std::fmt::Display for SyncError {
 }
 
 impl std::error::Error for SyncError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RepositorySyncFields<'a> {
+    remote_url: Option<&'a str>,
+    default_branch: Option<&'a str>,
+    is_worktree: bool,
+    worktree_branch: Option<&'a str>,
+}
+
+fn repository_sync_fields(repo: &Repository) -> RepositorySyncFields<'_> {
+    RepositorySyncFields {
+        remote_url: repo.default_remote.as_deref(),
+        default_branch: repo.default_branch.as_deref(),
+        is_worktree: false,
+        worktree_branch: None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SessionSyncFields<'a> {
+    is_worktree: bool,
+    worktree_path: Option<&'a str>,
+}
+
+fn session_sync_fields(session: &AgentCodingSession) -> SessionSyncFields<'_> {
+    SessionSyncFields {
+        is_worktree: session.is_worktree,
+        worktree_path: session.worktree_path.as_deref(),
+    }
+}
 
 /// Service for synchronizing sessions and secrets to Supabase.
 ///
@@ -243,6 +277,7 @@ impl SessionSyncService {
             .await
             .map_err(|e| SyncError::Supabase(e.to_string()))?
             .ok_or_else(|| SyncError::RepositoryNotFound(repository_id.to_string()))?;
+        let sync_fields = repository_sync_fields(&repo);
 
         self.supabase_client
             .upsert_repository(
@@ -251,10 +286,10 @@ impl SessionSyncService {
                 &device_id,
                 &repo.name,
                 &repo.path,
-                None,  // remote_url - TODO: add to local DB
-                None,  // default_branch - TODO: add to local DB
-                false, // is_worktree
-                None,  // worktree_branch
+                sync_fields.remote_url,
+                sync_fields.default_branch,
+                sync_fields.is_worktree,
+                sync_fields.worktree_branch,
                 &access_token,
             )
             .await
@@ -287,18 +322,35 @@ impl SessionSyncService {
         status: &str,
     ) -> SyncResult<()> {
         let (user_id, device_id, access_token) = self.get_auth_context()?;
+        let session_id_owned = session_id.to_string();
+        let session = self
+            .db
+            .call(move |conn| queries::get_session(conn, &session_id_owned))
+            .await
+            .map_err(|e| SyncError::Supabase(e.to_string()))?
+            .ok_or_else(|| SyncError::SessionNotFound(session_id.to_string()))?;
+        let sync_fields = session_sync_fields(&session);
+
+        if session.repository_id != repository_id {
+            warn!(
+                session_id = %session_id,
+                requested_repository_id = %repository_id,
+                actual_repository_id = %session.repository_id,
+                "sync_session repository_id did not match local session record; using local value"
+            );
+        }
 
         self.supabase_client
             .upsert_coding_session(
                 session_id,
                 &user_id,
                 &device_id,
-                repository_id,
+                &session.repository_id,
                 status,
-                None,  // current_branch
-                None,  // working_directory
-                false, // is_worktree
-                None,  // worktree_path
+                None, // current_branch
+                None, // working_directory
+                sync_fields.is_worktree,
+                sync_fields.worktree_path,
                 &access_token,
             )
             .await
@@ -599,6 +651,12 @@ mod tests {
     }
 
     #[test]
+    fn sync_error_display_session_not_found() {
+        let err = SyncError::SessionNotFound("session-123".to_string());
+        assert_eq!(err.to_string(), "Session not found: session-123");
+    }
+
+    #[test]
     fn sync_error_display_supabase() {
         let err = SyncError::Supabase("connection refused".to_string());
         assert_eq!(err.to_string(), "Supabase error: connection refused");
@@ -622,6 +680,58 @@ mod tests {
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("RepositoryNotFound"));
         assert!(debug_str.contains("abc"));
+    }
+
+    // ========================================================================
+    // Sync metadata projection tests
+    // ========================================================================
+
+    #[test]
+    fn repository_sync_fields_use_local_default_branch_and_remote() {
+        let now = chrono::Utc::now();
+        let repo = Repository {
+            id: "repo-1".to_string(),
+            path: "/tmp/repo".to_string(),
+            name: "repo".to_string(),
+            last_accessed_at: now,
+            added_at: now,
+            is_git_repository: true,
+            sessions_path: Some("/tmp/repo/.unbound/worktrees".to_string()),
+            default_branch: Some("main".to_string()),
+            default_remote: Some("origin".to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        let fields = repository_sync_fields(&repo);
+        assert_eq!(fields.remote_url, Some("origin"));
+        assert_eq!(fields.default_branch, Some("main"));
+        assert!(!fields.is_worktree);
+        assert_eq!(fields.worktree_branch, None);
+    }
+
+    #[test]
+    fn session_sync_fields_use_local_worktree_metadata() {
+        let now = chrono::Utc::now();
+        let session = AgentCodingSession {
+            id: "session-1".to_string(),
+            repository_id: "repo-1".to_string(),
+            title: "Session".to_string(),
+            claude_session_id: None,
+            status: daemon_database::SessionStatus::Active,
+            is_worktree: true,
+            worktree_path: Some("/tmp/repo/.unbound/worktrees/session-1".to_string()),
+            created_at: now,
+            last_accessed_at: now,
+            updated_at: now,
+        };
+
+        let fields = session_sync_fields(&session);
+        assert!(fields.is_worktree);
+        assert_eq!(
+            fields.worktree_path,
+            Some("/tmp/repo/.unbound/worktrees/session-1")
+        );
     }
 
     // ========================================================================
