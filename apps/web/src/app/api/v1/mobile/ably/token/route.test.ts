@@ -6,6 +6,7 @@ import {
 } from "./route";
 
 const requesterDeviceId = "6f5db7f9-c6ef-4d60-88f8-39f62f272f07";
+const userId = "2f42d6c9-95fb-420d-9800-fd83a75e3bc5";
 
 describe("Ably token route schema", () => {
   test("defaults audience to mobile", () => {
@@ -35,10 +36,12 @@ describe("buildAudienceCapability", () => {
         "12703f8a-39f6-43b9-8d68-fd748ca0b949",
         "3e435221-0a3a-4bad-a5d4-e1e47c7ce2ef",
       ],
-      requesterDeviceId.toUpperCase()
+      requesterDeviceId.toUpperCase(),
+      userId.toUpperCase()
     );
 
     expect(capability["session:*:conversation"]).toEqual(["subscribe"]);
+    expect(capability["presence:2f42d6c9-95fb-420d-9800-fd83a75e3bc5"]).toEqual(["subscribe"]);
     expect(capability["remote:12703f8a-39f6-43b9-8d68-fd748ca0b949:commands"]).toEqual([
       "publish",
       "subscribe",
@@ -54,7 +57,12 @@ describe("buildAudienceCapability", () => {
   });
 
   test("builds daemon_nagato capability", () => {
-    const capability = buildAudienceCapability("daemon_nagato", [], requesterDeviceId) as Capability;
+    const capability = buildAudienceCapability(
+      "daemon_nagato",
+      [],
+      requesterDeviceId,
+      userId
+    ) as Capability;
 
     expect(capability).toEqual({
       [`remote:${requesterDeviceId}:commands`]: ["subscribe", "publish"],
@@ -62,10 +70,11 @@ describe("buildAudienceCapability", () => {
   });
 
   test("builds daemon_falco capability", () => {
-    const capability = buildAudienceCapability("daemon_falco", [], requesterDeviceId);
+    const capability = buildAudienceCapability("daemon_falco", [], requesterDeviceId, userId);
 
     expect(capability).toEqual({
       "session:*:conversation": ["publish"],
+      [`presence:${userId}`]: ["publish"],
       [`remote:${requesterDeviceId}:commands`]: ["publish"],
       [`session:secrets:${requesterDeviceId}:*`]: ["publish"],
     });
