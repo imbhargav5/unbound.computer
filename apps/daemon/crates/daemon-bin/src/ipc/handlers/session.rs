@@ -1,12 +1,201 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
+use crate::utils::repository_config::{load_repository_config, SetupHookStageConfig};
 use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
-use piccolo::{create_worktree, remove_worktree};
+use piccolo::{create_worktree_with_options, remove_worktree};
 use std::path::Path;
+use std::process::Stdio;
+use tokio::process::Command;
+use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
+
+const MAX_HOOK_STDERR_CHARS: usize = 1200;
+const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
+
+#[derive(Debug, Clone)]
+pub struct SessionCreateCoreError {
+    code: String,
+    message: String,
+    data: Option<serde_json::Value>,
+}
+
+impl SessionCreateCoreError {
+    fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            data: None,
+        }
+    }
+
+    fn with_data(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        data: serde_json::Value,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            data: Some(data),
+        }
+    }
+
+    pub fn into_pair(self) -> (String, String) {
+        (self.code, self.message)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HookStage {
+    PreCreate,
+    PostCreate,
+}
+
+impl HookStage {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::PreCreate => "pre_create",
+            Self::PostCreate => "post_create",
+        }
+    }
+}
+
+fn normalize_optional_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(String::from)
+}
+
+fn is_legacy_worktree_root(root_dir: &str) -> bool {
+    let trimmed = root_dir.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|v| v.to_str())
+        .map(|v| v == ".unbound-worktrees")
+        .unwrap_or(trimmed == ".unbound-worktrees")
+}
+
+fn resolve_worktree_branch(params: &serde_json::Value) -> Option<String> {
+    normalize_optional_string(params.get("worktree_branch").and_then(|v| v.as_str()))
+        .or_else(|| normalize_optional_string(params.get("branch_name").and_then(|v| v.as_str())))
+}
+
+fn resolve_base_branch(
+    request_base_branch: Option<String>,
+    config_default_base_branch: Option<String>,
+    repository_default_branch: Option<String>,
+) -> Option<String> {
+    request_base_branch
+        .or(config_default_base_branch)
+        .or(repository_default_branch)
+}
+
+fn truncate_for_error(text: &str, max_chars: usize) -> String {
+    if max_chars == 0 {
+        return String::new();
+    }
+
+    let mut chars = text.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+async fn run_setup_hook(
+    stage: HookStage,
+    hook: &SetupHookStageConfig,
+    cwd: &Path,
+) -> Result<(), SessionCreateCoreError> {
+    let Some(command) = normalize_optional_string(hook.command.as_deref()) else {
+        return Ok(());
+    };
+
+    let timeout_seconds = hook.timeout_seconds.max(1);
+    let timeout_duration = Duration::from_secs(timeout_seconds);
+
+    let mut process = Command::new("/bin/zsh");
+    process
+        .arg("-lc")
+        .arg(&command)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    let output = match timeout(timeout_duration, process.output()).await {
+        Ok(result) => result.map_err(|e| {
+            SessionCreateCoreError::with_data(
+                "setup_hook_failed",
+                format!(
+                    "setup hook failed at stage {}: failed to execute command: {}",
+                    stage.as_str(),
+                    e
+                ),
+                serde_json::json!({
+                    "stage": stage.as_str(),
+                }),
+            )
+        })?,
+        Err(_) => {
+            return Err(SessionCreateCoreError::with_data(
+                "setup_hook_failed",
+                format!(
+                    "setup hook timed out at stage {} after {}s",
+                    stage.as_str(),
+                    timeout_seconds
+                ),
+                serde_json::json!({
+                    "stage": stage.as_str(),
+                    "timeout_seconds": timeout_seconds,
+                }),
+            ));
+        }
+    };
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stderr_trimmed = stderr.trim();
+    let stderr_summary = truncate_for_error(stderr_trimmed, MAX_HOOK_STDERR_CHARS);
+    let exit_code = output.status.code();
+    let mut message = format!(
+        "setup hook failed at stage {} with exit code {:?}",
+        stage.as_str(),
+        exit_code
+    );
+
+    if !stderr_summary.is_empty() {
+        message.push_str(": ");
+        message.push_str(&stderr_summary);
+    }
+
+    Err(SessionCreateCoreError::with_data(
+        "setup_hook_failed",
+        message,
+        serde_json::json!({
+            "stage": stage.as_str(),
+            "exit_code": exit_code,
+            "stderr": if stderr_summary.is_empty() {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(stderr_summary)
+            }
+        }),
+    ))
+}
 
 /// Register session handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -75,7 +264,7 @@ async fn register_session_list(server: &IpcServer, state: DaemonState) {
 pub async fn create_session_core(
     state: &DaemonState,
     params: &serde_json::Value,
-) -> Result<serde_json::Value, (String, String)> {
+) -> Result<serde_json::Value, SessionCreateCoreError> {
     let repository_id = params
         .get("repository_id")
         .and_then(|v| v.as_str())
@@ -95,15 +284,16 @@ pub async fn create_session_core(
     let worktree_name = params
         .get("worktree_name")
         .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let branch_name = params
-        .get("branch_name")
-        .and_then(|v| v.as_str())
-        .map(String::from);
+        .and_then(|s| normalize_optional_string(Some(s)));
+    let requested_base_branch =
+        normalize_optional_string(params.get("base_branch").and_then(|v| v.as_str()));
+    let requested_worktree_branch = resolve_worktree_branch(params);
 
     let Some(repository_id) = repository_id else {
-        return Err(("invalid_params".to_string(), "repository_id is required".to_string()));
+        return Err(SessionCreateCoreError::new(
+            "invalid_params",
+            "repository_id is required",
+        ));
     };
 
     let session_id = SessionId::new();
@@ -114,21 +304,98 @@ pub async fn create_session_core(
         let repo = match state.armin.get_repository(&repo_id) {
             Ok(Some(r)) => r,
             Ok(None) => {
-                return Err(("not_found".to_string(), "Repository not found".to_string()));
+                return Err(SessionCreateCoreError::new(
+                    "not_found",
+                    "Repository not found",
+                ));
             }
             Err(e) => {
-                return Err(("internal_error".to_string(), format!("Failed to get repository: {}", e)));
+                return Err(SessionCreateCoreError::new(
+                    "internal_error",
+                    format!("Failed to get repository: {}", e),
+                ));
             }
         };
 
-        let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
+        let repo_path = Path::new(&repo.path);
+        let repo_config = load_repository_config(repo_path).map_err(|e| {
+            SessionCreateCoreError::new(
+                "internal_error",
+                format!("Failed to load repository config: {}", e),
+            )
+        })?;
 
-        match create_worktree(Path::new(&repo.path), wt_name, branch_name.as_deref()) {
-            Ok(path) => Some(path),
-            Err(e) => {
-                return Err(("internal_error".to_string(), format!("Failed to create worktree: {}", e)));
-            }
+        let effective_base_branch = resolve_base_branch(
+            requested_base_branch,
+            repo_config.worktree.default_base_branch.clone(),
+            repo.default_branch.clone(),
+        );
+        let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
+        let root_dir = if repo_config.worktree.root_dir.trim().is_empty() {
+            DEFAULT_WORKTREE_ROOT_DIR.to_string()
+        } else {
+            repo_config.worktree.root_dir.clone()
+        };
+
+        if is_legacy_worktree_root(&root_dir) {
+            return Err(SessionCreateCoreError::with_data(
+                "legacy_worktree_unsupported",
+                "legacy worktree root '.unbound-worktrees' is not supported; use '.unbound/worktrees'",
+                serde_json::json!({
+                    "configured_root_dir": root_dir,
+                    "supported_root_dir": DEFAULT_WORKTREE_ROOT_DIR,
+                }),
+            ));
         }
+
+        run_setup_hook(
+            HookStage::PreCreate,
+            &repo_config.setup_hooks.pre_create,
+            repo_path,
+        )
+        .await?;
+
+        let created_worktree_path = match create_worktree_with_options(
+            repo_path,
+            wt_name,
+            Path::new(&root_dir),
+            effective_base_branch.as_deref(),
+            requested_worktree_branch.as_deref(),
+        ) {
+            Ok(path) => path,
+            Err(e) => {
+                return Err(SessionCreateCoreError::new(
+                    "internal_error",
+                    format!("Failed to create worktree: {}", e),
+                ));
+            }
+        };
+
+        if let Err(mut hook_error) = run_setup_hook(
+            HookStage::PostCreate,
+            &repo_config.setup_hooks.post_create,
+            Path::new(&created_worktree_path),
+        )
+        .await
+        {
+            if let Err(cleanup_error) =
+                remove_worktree(repo_path, Path::new(&created_worktree_path))
+            {
+                let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
+                if let Some(data) = hook_error.data.as_mut() {
+                    data["cleanup_error"] = serde_json::json!(cleanup_summary);
+                } else {
+                    hook_error.data = Some(serde_json::json!({
+                        "cleanup_error": cleanup_summary,
+                    }));
+                }
+                hook_error.message =
+                    format!("{}; cleanup failed: {}", hook_error.message, cleanup_error);
+            }
+            return Err(hook_error);
+        }
+
+        Some(created_worktree_path)
     } else {
         None
     };
@@ -145,7 +412,10 @@ pub async fn create_session_core(
     let created_session = match state.armin.create_session_with_metadata(new_session) {
         Ok(s) => s,
         Err(e) => {
-            return Err(("internal_error".to_string(), format!("Failed to create session: {}", e)));
+            return Err(SessionCreateCoreError::new(
+                "internal_error",
+                format!("Failed to create session: {}", e),
+            ));
         }
     };
 
@@ -163,11 +433,7 @@ pub async fn create_session_core(
         async move {
             if let Some(db_key) = *state.db_encryption_key.lock().unwrap() {
                 let nonce = daemon_database::generate_nonce();
-                match daemon_database::encrypt_content(
-                    &db_key,
-                    &nonce,
-                    session_secret.as_bytes(),
-                ) {
+                match daemon_database::encrypt_content(&db_key, &nonce, session_secret.as_bytes()) {
                     Ok(encrypted) => {
                         debug!(
                             session_id = %session_id.as_str(),
@@ -245,16 +511,24 @@ async fn register_session_create(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::SessionCreate, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match create_session_core(&state, &params).await {
                     Ok(data) => Response::success(&req.id, data),
-                    Err((code, msg)) => {
-                        let error_code = match code.as_str() {
+                    Err(err) => {
+                        let error_code = match err.code.as_str() {
                             "invalid_params" => error_codes::INVALID_PARAMS,
                             "not_found" => error_codes::NOT_FOUND,
                             _ => error_codes::INTERNAL_ERROR,
                         };
-                        Response::error(&req.id, error_code, &msg)
+                        if let Some(data) = err.data {
+                            Response::error_with_data(&req.id, error_code, &err.message, data)
+                        } else {
+                            Response::error(&req.id, error_code, &err.message)
+                        }
                     }
                 }
             }
@@ -389,4 +663,113 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn has_zsh() -> bool {
+        Path::new("/bin/zsh").exists()
+    }
+
+    #[test]
+    fn resolve_worktree_branch_prefers_new_param() {
+        let params = serde_json::json!({
+            "worktree_branch": "feature/new-branch",
+            "branch_name": "legacy/branch-name"
+        });
+
+        assert_eq!(
+            resolve_worktree_branch(&params),
+            Some("feature/new-branch".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_worktree_branch_uses_legacy_alias_when_needed() {
+        let params = serde_json::json!({
+            "branch_name": "legacy/branch-name"
+        });
+
+        assert_eq!(
+            resolve_worktree_branch(&params),
+            Some("legacy/branch-name".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_base_branch_precedence() {
+        let resolved = resolve_base_branch(
+            Some("request-base".to_string()),
+            Some("config-base".to_string()),
+            Some("db-base".to_string()),
+        );
+        assert_eq!(resolved.as_deref(), Some("request-base"));
+
+        let resolved = resolve_base_branch(
+            None,
+            Some("config-base".to_string()),
+            Some("db-base".to_string()),
+        );
+        assert_eq!(resolved.as_deref(), Some("config-base"));
+
+        let resolved = resolve_base_branch(None, None, Some("db-base".to_string()));
+        assert_eq!(resolved.as_deref(), Some("db-base"));
+    }
+
+    #[test]
+    fn legacy_worktree_root_detection() {
+        assert!(is_legacy_worktree_root(".unbound-worktrees"));
+        assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees"));
+        assert!(!is_legacy_worktree_root(".unbound/worktrees"));
+        assert!(!is_legacy_worktree_root("custom/worktrees"));
+    }
+
+    #[tokio::test]
+    async fn run_setup_hook_non_zero_includes_stage_and_stderr() {
+        if !has_zsh() {
+            return;
+        }
+
+        let hook = SetupHookStageConfig {
+            command: Some("echo hook failed >&2; exit 7".to_string()),
+            timeout_seconds: 5,
+        };
+        let cwd = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let err = run_setup_hook(HookStage::PreCreate, &hook, cwd)
+            .await
+            .expect_err("hook should fail");
+
+        assert_eq!(err.code, "setup_hook_failed");
+        assert!(err.message.contains("pre_create"));
+        let data = err.data.expect("expected structured hook error data");
+        assert_eq!(data["stage"], "pre_create");
+        assert!(data["stderr"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hook failed"));
+    }
+
+    #[tokio::test]
+    async fn run_setup_hook_timeout_includes_stage() {
+        if !has_zsh() {
+            return;
+        }
+
+        let hook = SetupHookStageConfig {
+            command: Some("sleep 2".to_string()),
+            timeout_seconds: 1,
+        };
+        let cwd = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let err = run_setup_hook(HookStage::PostCreate, &hook, cwd)
+            .await
+            .expect_err("hook should timeout");
+
+        assert_eq!(err.code, "setup_hook_failed");
+        assert!(err.message.contains("timed out"));
+        let data = err.data.expect("expected structured hook timeout data");
+        assert_eq!(data["stage"], "post_create");
+        assert_eq!(data["timeout_seconds"], 1);
+    }
 }

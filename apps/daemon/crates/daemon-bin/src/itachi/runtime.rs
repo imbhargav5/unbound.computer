@@ -221,7 +221,9 @@ async fn dispatch_command(
 ) -> Result<serde_json::Value, (String, String)> {
     match classify_remote_command_type(&envelope.command_type) {
         Some(RemoteCommandType::SessionCreateV1) => {
-            crate::ipc::handlers::session::create_session_core(state, &envelope.params).await
+            crate::ipc::handlers::session::create_session_core(state, &envelope.params)
+                .await
+                .map_err(|err| err.into_pair())
         }
         Some(RemoteCommandType::ClaudeSendV1) => {
             crate::ipc::handlers::claude::claude_send_core(state, &envelope.params).await
@@ -229,21 +231,31 @@ async fn dispatch_command(
         Some(RemoteCommandType::ClaudeStopV1) => {
             crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
         }
-        Some(RemoteCommandType::GhPrCreateV1) => crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
-            .await
-            .map_err(|err| (err.code, err.message)),
-        Some(RemoteCommandType::GhPrViewV1) => crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
-            .await
-            .map_err(|err| (err.code, err.message)),
-        Some(RemoteCommandType::GhPrListV1) => crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
-            .await
-            .map_err(|err| (err.code, err.message)),
-        Some(RemoteCommandType::GhPrChecksV1) => crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
-            .await
-            .map_err(|err| (err.code, err.message)),
-        Some(RemoteCommandType::GhPrMergeV1) => crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
-            .await
-            .map_err(|err| (err.code, err.message)),
+        Some(RemoteCommandType::GhPrCreateV1) => {
+            crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message))
+        }
+        Some(RemoteCommandType::GhPrViewV1) => {
+            crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message))
+        }
+        Some(RemoteCommandType::GhPrListV1) => {
+            crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message))
+        }
+        Some(RemoteCommandType::GhPrChecksV1) => {
+            crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message))
+        }
+        Some(RemoteCommandType::GhPrMergeV1) => {
+            crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message))
+        }
         None => Err((
             "unsupported_command_type".to_string(),
             format!("command type {} is not supported", envelope.command_type),
