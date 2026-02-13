@@ -281,7 +281,7 @@ final class RemoteCommandAvailabilityTests: XCTestCase {
                     deviceId: "11111111-1111-1111-1111-111111111111"
                 )
             },
-            targetAvailabilityResolver: { _ in false }
+            targetAvailabilityResolver: { _ in .offline }
         )
 
         do {
@@ -301,6 +301,27 @@ final class RemoteCommandAvailabilityTests: XCTestCase {
             XCTFail("Unexpected error type: \(error)")
         }
     }
+
+    func testCreateSessionAllowsUnknownTargetAvailability() async throws {
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .unknown }
+        )
+
+        let result = try await service.createSession(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            repositoryId: "33333333-3333-3333-3333-333333333333"
+        )
+
+        XCTAssertEqual(result.id, "session-1")
+    }
 }
 
 final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
@@ -314,7 +335,7 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
                     deviceId: "11111111-1111-1111-1111-111111111111"
                 )
             },
-            targetAvailabilityResolver: { _ in true }
+            targetAvailabilityResolver: { _ in .online }
         )
 
         _ = try await service.createSession(
@@ -338,7 +359,7 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
                     deviceId: "11111111-1111-1111-1111-111111111111"
                 )
             },
-            targetAvailabilityResolver: { _ in true }
+            targetAvailabilityResolver: { _ in .online }
         )
 
         _ = try await service.createSession(
