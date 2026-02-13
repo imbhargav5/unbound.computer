@@ -72,9 +72,22 @@ type messageEnvelope struct {
 	ReceivedAtMS   int64  `json:"received_at_ms"`
 }
 
+type serverManager interface {
+	Publish(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error
+	PublishAck(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error
+	Subscribe(
+		ctx context.Context,
+		subscriptionID string,
+		channel string,
+		event string,
+		onMessage func(*InboundMessage),
+	) error
+	Unsubscribe(subscriptionID string)
+}
+
 type Server struct {
 	socketPath string
-	manager    *Manager
+	manager    serverManager
 	logger     *zap.Logger
 
 	mu       sync.Mutex
@@ -83,7 +96,7 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
-func NewServer(socketPath string, manager *Manager, logger *zap.Logger) *Server {
+func NewServer(socketPath string, manager serverManager, logger *zap.Logger) *Server {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
