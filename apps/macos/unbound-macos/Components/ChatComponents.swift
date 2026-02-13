@@ -332,6 +332,21 @@ struct ModelSelector: View {
 
 // MARK: - Chat Message View
 
+private enum ChatMessageRenderBlock: Identifiable {
+    case content(MessageContent)
+    case standaloneTools([ToolUse])
+
+    var id: String {
+        switch self {
+        case .content(let content):
+            return "content:\(content.id.uuidString)"
+        case .standaloneTools(let tools):
+            let identity = tools.map { $0.toolUseId ?? $0.id.uuidString }.joined(separator: "|")
+            return "tools:\(identity)"
+        }
+    }
+}
+
 struct ChatMessageView: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -411,16 +426,32 @@ struct ChatMessageView: View {
         }
     }
 
-    private var nonFileContent: [MessageContent] {
-        if isUser {
-            return displayContent
+    private var renderBlocks: [ChatMessageRenderBlock] {
+        var blocks: [ChatMessageRenderBlock] = []
+        var pendingStandaloneTools: [ToolUse] = []
+
+        func flushPendingTools() {
+            guard !pendingStandaloneTools.isEmpty else { return }
+            blocks.append(.standaloneTools(pendingStandaloneTools))
+            pendingStandaloneTools.removeAll()
         }
-        return displayContent.filter { content in
-            if case .fileChange = content {
-                return false
+
+        for content in displayContent {
+            if !isUser, case .fileChange = content {
+                continue
             }
-            return true
+
+            if case .toolUse(let toolUse) = content {
+                pendingStandaloneTools.append(toolUse)
+                continue
+            }
+
+            flushPendingTools()
+            blocks.append(.content(content))
         }
+
+        flushPendingTools()
+        return blocks
     }
 
     /// Get all copyable text from the message
@@ -430,7 +461,7 @@ struct ChatMessageView: View {
             case .text(let textContent):
                 return textContent.text
             case .codeBlock(let codeBlock):
-                return "```\(codeBlock.language ?? "")\n\(codeBlock.code)\n```"
+                return "```\(codeBlock.language)\n\(codeBlock.code)\n```"
             case .error(let error):
                 return "Error: \(error.message)\(error.details.map { "\n\($0)" } ?? "")"
             case .todoList(let todoList):
@@ -513,12 +544,17 @@ struct ChatMessageView: View {
                     TypingDotsIndicator()
                 }
 
-                // Render content blocks (deduplicated for display)
-                ForEach(nonFileContent) { content in
-                    MessageContentView(
-                        content: content,
-                        onQuestionSubmit: onQuestionSubmit
-                    )
+                // Render content blocks (deduplicated and grouped for display)
+                ForEach(renderBlocks) { block in
+                    switch block {
+                    case .content(let content):
+                        MessageContentView(
+                            content: content,
+                            onQuestionSubmit: onQuestionSubmit
+                        )
+                    case .standaloneTools(let tools):
+                        StandaloneToolCallsView(historyTools: tools)
+                    }
                 }
 
                 if !isUser && !fileChanges.isEmpty {
@@ -643,64 +679,24 @@ struct TextContentView: View {
         ThemeColors(colorScheme)
     }
 
-    /// Protocol JSON patterns that should never be displayed to users
-    private static let protocolPatterns = [
-        "{\"type\":\"user\"",
-        "{\"type\":\"system\"",
-        "{\"type\":\"assistant\"",
-        "{\"type\":\"result\""
-    ]
+    /// Protocol payload types that should never be surfaced as text rows.
+    private static let protocolTypes: Set<String> = ["user", "system", "assistant", "result", "tool_result"]
 
-    /// Extract text from JSON result if present, strip protocol JSON
     private var displayText: String {
-        var text = textContent.text
-
-        // Strip ALL protocol JSON patterns
-        for pattern in Self.protocolPatterns {
-            text = stripProtocolJSON(from: text, pattern: pattern)
-        }
-
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = textContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return isProtocolArtifact(trimmed) ? "" : trimmed
     }
 
-    /// Strip protocol JSON from text, extracting result field if applicable
-    private func stripProtocolJSON(from text: String, pattern: String) -> String {
-        guard let startRange = text.range(of: pattern) else { return text }
-
-        var braceCount = 0
-        var endIndex: String.Index?
-
-        for index in text[startRange.lowerBound...].indices {
-            let char = text[index]
-            if char == "{" {
-                braceCount += 1
-            } else if char == "}" {
-                braceCount -= 1
-                if braceCount == 0 {
-                    endIndex = text.index(after: index)
-                    break
-                }
-            }
+    private func isProtocolArtifact(_ text: String) -> Bool {
+        guard text.hasPrefix("{"), text.hasSuffix("}"),
+              let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = (json["type"] as? String)?.lowercased() else {
+            return false
         }
 
-        guard let end = endIndex else { return text }
-
-        // For result type, extract the actual result field
-        if pattern == "{\"type\":\"result\"" {
-            let jsonString = String(text[startRange.lowerBound..<end])
-            if let data = jsonString.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let result = json["result"] as? String {
-                var modified = text
-                modified.replaceSubrange(startRange.lowerBound..<end, with: result)
-                return stripProtocolJSON(from: modified, pattern: pattern)
-            }
-        }
-
-        // Remove the protocol JSON entirely
-        var modified = text
-        modified.removeSubrange(startRange.lowerBound..<end)
-        return stripProtocolJSON(from: modified, pattern: pattern)
+        return Self.protocolTypes.contains(type)
     }
 
     private var segments: [TextContentSegment] {

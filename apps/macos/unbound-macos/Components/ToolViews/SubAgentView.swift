@@ -14,22 +14,25 @@ private enum SubAgentPayload {
 
 struct SubAgentView: View {
     private let payload: SubAgentPayload
+    private let initiallyExpanded: Bool
 
-    init(activeSubAgent: ActiveSubAgent) {
+    init(activeSubAgent: ActiveSubAgent, initiallyExpanded: Bool = true) {
         self.payload = .active(activeSubAgent)
+        self.initiallyExpanded = initiallyExpanded
     }
 
-    init(activity: SubAgentActivity) {
+    init(activity: SubAgentActivity, initiallyExpanded: Bool = false) {
         self.payload = .historical(activity)
+        self.initiallyExpanded = initiallyExpanded
     }
 
     var body: some View {
         switch payload {
         case .active(let subAgent):
-            AgentCardView(subAgent: subAgent)
+            AgentCardView(subAgent: subAgent, initiallyExpanded: initiallyExpanded)
 
         case .historical(let activity):
-            HistoricalAgentCardView(activity: activity)
+            HistoricalAgentCardView(activity: activity, initiallyExpanded: initiallyExpanded)
         }
     }
 }
@@ -94,8 +97,10 @@ private enum SubAgentPreviewData {
         SubAgentView(activeSubAgent: SubAgentPreviewData.activeRunning)
         SubAgentView(activeSubAgent: SubAgentPreviewData.activeCompleted)
         SubAgentView(activeSubAgent: SubAgentPreviewData.activeFailed)
+        SubAgentView(activeSubAgent: SubAgentPreviewData.activeCompleted, initiallyExpanded: false)
         SubAgentView(activity: SubAgentPreviewData.historicalCompleted)
         SubAgentView(activity: SubAgentPreviewData.historicalCompact)
+        SubAgentView(activity: SubAgentPreviewData.historicalCompleted, initiallyExpanded: true)
     }
     .frame(width: 540)
     .padding()
