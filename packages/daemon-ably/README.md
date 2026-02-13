@@ -138,6 +138,7 @@ Inbound push frame:
 | `UNBOUND_ABLY_BROKER_SOCKET` | (required) | Broker socket path from daemon (`~/.unbound/ably-auth.sock`) |
 | `UNBOUND_ABLY_BROKER_TOKEN_FALCO` | (required) | Audience token used by Falco publish client |
 | `UNBOUND_ABLY_BROKER_TOKEN_NAGATO` | (required) | Audience token used by Nagato subscribe/ack client |
+| `DAEMON_ABLY_MAX_FRAME_BYTES` | `2097152` | Maximum NDJSON frame size accepted on IPC socket |
 | `DAEMON_ABLY_HEARTBEAT_INTERVAL` | `5` | Heartbeat interval in seconds |
 | `DAEMON_ABLY_PUBLISH_TIMEOUT` | `5` | Publish/subscribe timeout in seconds |
 | `DAEMON_ABLY_SHUTDOWN_TIMEOUT` | `2` | Graceful shutdown timeout in seconds |
@@ -172,4 +173,5 @@ packages/daemon-ably/
 | ACK publish through `publish.ack.v1` | `remote.command.ack.v1` publishes succeed via Nagato audience |
 | Ably reconnect while process stays alive | daemon-ably reconnects and restores active subscriptions |
 | malformed NDJSON frame | request is rejected, connection remains usable |
+| oversized NDJSON frame | connection closes and logs max-frame violation |
 | graceful shutdown | sidecar attempts offline heartbeat and removes `ably.sock` |

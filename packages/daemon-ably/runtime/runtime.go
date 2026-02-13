@@ -97,7 +97,7 @@ func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
 		subs:          make(map[string]*subscription),
 		heartbeatDone: make(chan struct{}),
 	}
-	manager.server = NewServer(cfg.SocketPath, manager, logger.Named("ipc"))
+	manager.server = NewServer(cfg.SocketPath, cfg.MaxFrameBytes, manager, logger.Named("ipc"))
 
 	manager.nagatoClient.Connection.OnAll(func(change ably.ConnectionStateChange) {
 		switch change.Current {

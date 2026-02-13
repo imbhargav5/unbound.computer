@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -189,6 +190,54 @@ func TestReconnectRestoresSubscription(t *testing.T) {
 
 	if atomic.LoadInt32(&restored) != 1 {
 		t.Fatalf("subscription was not restored after reconnect")
+	}
+}
+
+func TestNewRejectsInvalidMaxFrameBytesEnv(t *testing.T) {
+	t.Setenv(envMaxFrameBytes, "not-an-int")
+	_, err := New("/tmp/ably.sock")
+	if err == nil {
+		t.Fatalf("expected invalid max frame bytes env to fail")
+	}
+	if !strings.Contains(err.Error(), envMaxFrameBytes) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestReadLoopReportsOversizeFrame(t *testing.T) {
+	serverConns := make(chan net.Conn, 1)
+	client, err := newWithDial("test-socket", func(context.Context) (net.Conn, error) {
+		clientConn, serverConn := net.Pipe()
+		serverConns <- serverConn
+		return clientConn, nil
+	})
+	if err != nil {
+		t.Fatalf("newWithDial: %v", err)
+	}
+	client.maxFrameBytes = 64
+	defer client.Close()
+
+	go func() {
+		conn := <-serverConns
+		defer conn.Close()
+		// Exceed configured scanner max frame size.
+		_, _ = conn.Write([]byte(strings.Repeat("x", 256) + "\n"))
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	select {
+	case transportErr := <-client.Errors():
+		expected := "transport frame exceeds max size of 64 bytes"
+		if !strings.Contains(transportErr.Error(), expected) {
+			t.Fatalf("expected oversize error %q, got %v", expected, transportErr)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for oversize-frame error")
 	}
 }
 
