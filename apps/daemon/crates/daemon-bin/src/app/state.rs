@@ -20,6 +20,26 @@ use tokio::task::JoinHandle as TokioJoinHandle;
 use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
 
+/// Cached billing usage-status snapshot for relaxed local quota enforcement.
+#[derive(Debug, Clone)]
+pub struct BillingQuotaSnapshot {
+    pub user_id: String,
+    pub device_id: String,
+    pub enforcement_state: String,
+    pub commands_limit: i64,
+    pub commands_used: i64,
+    pub commands_remaining: i64,
+    pub updated_at: String,
+    pub fetched_at_ms: i64,
+}
+
+/// Mutable quota cache state used by background refresh workers.
+#[derive(Debug, Clone, Default)]
+pub struct BillingQuotaCacheState {
+    pub snapshot: Option<BillingQuotaSnapshot>,
+    pub refresh_in_flight: bool,
+}
+
 /// Shared daemon state (thread-safe).
 #[derive(Clone)]
 pub struct DaemonState {
@@ -85,4 +105,6 @@ pub struct DaemonState {
     pub armin: Arc<DaemonArmin>,
     /// Rope-backed secure file reader/writer service.
     pub gyomei: Arc<Gyomei>,
+    /// Local cached billing usage status used by itachi quota gate.
+    pub billing_quota_cache: Arc<Mutex<BillingQuotaCacheState>>,
 }
