@@ -239,4 +239,10 @@ observability::init("daemon");
 // - Emit metrics to Prometheus
 ```
 
+## Policy Contract
+
+Cross-runtime payload policy, redaction requirements, shared field contract, and release acceptance queries are defined in:
+
+- `docs/observability-policy-contract.md`
+
 Services remain pure producers. The observability crate handles the rest.
