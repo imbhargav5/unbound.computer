@@ -14,6 +14,7 @@ private let logger = Logger(label: "app.remote-command")
 enum RemoteCommandError: Error, LocalizedError {
     case notAuthenticated
     case noDeviceId
+    case targetUnavailable(String)
     case sessionNotFound(String)
     case commandRejected(reasonCode: String?, message: String)
     case commandFailed(errorCode: String?, errorMessage: String?)
@@ -26,6 +27,8 @@ enum RemoteCommandError: Error, LocalizedError {
             return "User not authenticated"
         case .noDeviceId:
             return "Device ID not found in keychain"
+        case .targetUnavailable(let targetDeviceId):
+            return "Target device daemon is offline: \(targetDeviceId)"
         case .sessionNotFound(let id):
             return "Session not found: \(id)"
         case .commandRejected(let reasonCode, let message):
@@ -115,12 +118,17 @@ struct MergePRResult {
 }
 
 final class RemoteCommandService {
-    static let shared = RemoteCommandService()
+    static let shared = RemoteCommandService(
+        targetAvailabilityResolver: { targetDeviceId in
+            DevicePresenceService.shared.isDeviceDaemonAvailable(id: targetDeviceId.lowercased())
+        }
+    )
 
     private let transport: RemoteCommandTransport
     private let authService: AuthService
     private let keychainService: KeychainService
     private let authContextResolver: (() throws -> (userId: String, deviceId: String))?
+    private let targetAvailabilityResolver: ((String) -> Bool)?
     private let ackTimeout: TimeInterval
     private let responseTimeout: TimeInterval
 
@@ -129,6 +137,7 @@ final class RemoteCommandService {
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared,
         authContextResolver: (() throws -> (userId: String, deviceId: String))? = nil,
+        targetAvailabilityResolver: ((String) -> Bool)? = nil,
         ackTimeout: TimeInterval = 10,
         responseTimeout: TimeInterval = 30
     ) {
@@ -136,6 +145,7 @@ final class RemoteCommandService {
         self.authService = authService
         self.keychainService = keychainService
         self.authContextResolver = authContextResolver
+        self.targetAvailabilityResolver = targetAvailabilityResolver
         self.ackTimeout = ackTimeout
         self.responseTimeout = responseTimeout
     }
@@ -447,22 +457,28 @@ final class RemoteCommandService {
         targetDeviceId: String,
         params: [String: AnyCodableValue]
     ) async throws -> RemoteCommandResponse {
+        let normalizedTargetDeviceId = targetDeviceId.lowercased()
+        if let targetAvailabilityResolver,
+           !targetAvailabilityResolver(normalizedTargetDeviceId) {
+            throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
+        }
+
         let context = try resolveAuthContext()
         let requestId = UUID().uuidString.lowercased()
-        let channel = "remote:\(targetDeviceId):commands"
+        let channel = "remote:\(normalizedTargetDeviceId):commands"
 
         let envelope = RemoteCommandEnvelope(
             schemaVersion: 1,
             type: type,
             requestId: requestId,
             requesterDeviceId: context.deviceId,
-            targetDeviceId: targetDeviceId,
+            targetDeviceId: normalizedTargetDeviceId,
             requestedAtMs: Self.nowMs(),
             params: params
         )
 
         logger.info(
-            "Sending remote command type=\(type), request_id=\(requestId), target=\(targetDeviceId)"
+            "Sending remote command type=\(type), request_id=\(requestId), target=\(normalizedTargetDeviceId)"
         )
 
         // Subscribe for ACK and response before publishing

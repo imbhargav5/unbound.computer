@@ -61,6 +61,11 @@ enum Config {
     static let remoteCommandAckEventName = "remote.command.ack.v1"
     static let sessionSecretResponseEventName = "session.secret.response.v1"
     static let remoteCommandResponseEventName = "remote.command.response.v1"
+    static let daemonPresenceEventName = "daemon.presence.v1"
+
+    static func daemonPresenceChannel(userId: String) -> String {
+        "session:presence:\(userId):conversation"
+    }
 
     // MARK: - Ably Conversation
 

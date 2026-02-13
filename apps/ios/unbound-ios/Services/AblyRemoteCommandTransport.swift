@@ -695,6 +695,26 @@ final class AblyRemoteCommandTransport: RemoteCommandTransport {
     #endif
 }
 
+#if canImport(Ably)
+extension AblyRemoteCommandTransport {
+    static func fetchRealtimeTokenDetails(
+        tokenAuthURL: URL = Config.ablyTokenAuthURL,
+        authService: AuthService = .shared,
+        keychainService: KeychainService = .shared
+    ) async throws -> ARTTokenDetails {
+        try await requestTokenDetails(
+            tokenAuthURL: tokenAuthURL,
+            authService: authService,
+            keychainService: keychainService
+        )
+    }
+
+    static func tokenAuthNSError(_ error: Error) -> NSError {
+        mapTokenAuthError(error).asNSError()
+    }
+}
+#endif
+
 private extension RemoteCommandTransportError {
     func asNSError() -> NSError {
         NSError(

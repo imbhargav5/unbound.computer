@@ -12,6 +12,10 @@ import Network
 import Supabase
 import Realtime
 
+#if canImport(Ably)
+import Ably
+#endif
+
 private let logger = Logger(label: "app.device")
 
 /// Represents a monitored device with its online status
@@ -54,6 +58,14 @@ final class DevicePresenceService {
     private var statusCheckTimer: Timer?
     private var networkMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.unbound.presence.network")
+    private var daemonLastHeartbeatAt: [String: Date] = [:]
+    private let daemonHeartbeatTTL: TimeInterval = 12.0
+
+    #if canImport(Ably)
+    private var daemonPresenceRealtime: ARTRealtime?
+    private var daemonPresenceChannel: ARTRealtimeChannel?
+    private var daemonPresenceListener: ARTEventListener?
+    #endif
 
     // MARK: - Initialization
 
@@ -79,6 +91,7 @@ final class DevicePresenceService {
         Task {
             await sendHeartbeat()
             await fetchAndSubscribeToDevices()
+            await startDaemonPresenceSubscription()
         }
 
         logger.info("DevicePresenceService started for device: \(deviceId)")
@@ -90,11 +103,13 @@ final class DevicePresenceService {
         stopNetworkMonitoring()
         stopStatusCheckTimer()
         unsubscribeFromDevices()
+        stopDaemonPresenceSubscription()
 
         supabase = nil
         deviceId = nil
         userId = nil
         monitoredDevices = []
+        daemonLastHeartbeatAt = [:]
 
         logger.info("DevicePresenceService stopped")
     }
@@ -113,6 +128,16 @@ final class DevicePresenceService {
     func isDeviceOnline(id: String) -> Bool {
         guard let device = getDevice(id: id) else { return false }
         return device.isOnline
+    }
+
+    /// Check if a device daemon is available for remote commands.
+    /// Availability is based on daemon.presence.v1 heartbeat TTL.
+    func isDeviceDaemonAvailable(id: String) -> Bool {
+        let normalizedID = id.lowercased()
+        guard let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] else {
+            return false
+        }
+        return Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL
     }
 
     // MARK: - Heartbeat
@@ -305,6 +330,116 @@ final class DevicePresenceService {
     private func stopStatusCheckTimer() {
         statusCheckTimer?.invalidate()
         statusCheckTimer = nil
+    }
+
+    // MARK: - Daemon Presence via Ably
+
+    private struct DaemonPresencePayload: Decodable {
+        let schemaVersion: Int
+        let userID: String
+        let deviceID: String
+        let status: String
+        let source: String?
+        let sentAtMS: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case schemaVersion = "schema_version"
+            case userID = "user_id"
+            case deviceID = "device_id"
+            case status
+            case source
+            case sentAtMS = "sent_at_ms"
+        }
+    }
+
+    private func startDaemonPresenceSubscription() async {
+        #if canImport(Ably)
+        guard let userId else { return }
+
+        stopDaemonPresenceSubscription()
+
+        let tokenAuthURL = Config.ablyTokenAuthURL
+        let options = ARTClientOptions()
+        options.autoConnect = true
+        options.authCallback = { _, callback in
+            Task {
+                do {
+                    let details = try await AblyRemoteCommandTransport.fetchRealtimeTokenDetails(
+                        tokenAuthURL: tokenAuthURL,
+                        authService: .shared,
+                        keychainService: .shared
+                    )
+                    callback(details, nil)
+                } catch {
+                    callback(nil, AblyRemoteCommandTransport.tokenAuthNSError(error))
+                }
+            }
+        }
+
+        let realtime = ARTRealtime(options: options)
+        let channelName = Config.daemonPresenceChannel(userId: userId)
+        let channel = realtime.channels.get(channelName)
+        let listener = channel.subscribe(Config.daemonPresenceEventName) { [weak self] message in
+            guard let self else { return }
+            guard let payload = Self.decodeDaemonPresencePayload(message.data) else { return }
+            self.consumeDaemonPresencePayload(payload)
+        }
+
+        daemonPresenceRealtime = realtime
+        daemonPresenceChannel = channel
+        daemonPresenceListener = listener
+
+        logger.info("Subscribed to daemon presence heartbeat stream on channel: \(channelName)")
+        #endif
+    }
+
+    private func stopDaemonPresenceSubscription() {
+        #if canImport(Ably)
+        if let channel = daemonPresenceChannel, let listener = daemonPresenceListener {
+            channel.unsubscribe(listener)
+        }
+        daemonPresenceListener = nil
+        daemonPresenceChannel = nil
+
+        daemonPresenceRealtime?.close()
+        daemonPresenceRealtime = nil
+        #endif
+    }
+
+    private func consumeDaemonPresencePayload(_ payload: DaemonPresencePayload) {
+        guard let userId else { return }
+        guard payload.userID == userId else { return }
+
+        let normalizedDeviceID = payload.deviceID.lowercased()
+        let heartbeatDate = Date(timeIntervalSince1970: TimeInterval(payload.sentAtMS) / 1000)
+
+        switch payload.status {
+        case "online":
+            daemonLastHeartbeatAt[normalizedDeviceID] = heartbeatDate
+        case "offline":
+            daemonLastHeartbeatAt.removeValue(forKey: normalizedDeviceID)
+        default:
+            // Ignore unknown statuses to preserve forward compatibility.
+            break
+        }
+    }
+
+    private static func decodeDaemonPresencePayload(_ data: Any?) -> DaemonPresencePayload? {
+        guard let data else { return nil }
+
+        let decodedData: Data?
+        if let typed = data as? Data {
+            decodedData = typed
+        } else if let typed = data as? String {
+            decodedData = typed.data(using: .utf8)
+        } else if JSONSerialization.isValidJSONObject(data) {
+            decodedData = try? JSONSerialization.data(withJSONObject: data)
+        } else {
+            decodedData = nil
+        }
+
+        guard let decodedData else { return nil }
+        return try? JSONDecoder().decode(DaemonPresencePayload.self, from: decodedData)
     }
 
     // MARK: - Network Monitoring

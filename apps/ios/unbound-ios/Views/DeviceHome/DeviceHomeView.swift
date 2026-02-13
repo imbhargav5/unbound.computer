@@ -8,6 +8,7 @@ struct DeviceHomeView: View {
 
     private let syncedDataService = SyncedDataService.shared
     private let remoteCommandService = RemoteCommandService.shared
+    private let presenceService = DevicePresenceService.shared
 
     @State private var selectedDevice: SyncedDevice?
     @State private var expandedRepoIds: Set<UUID> = []
@@ -18,6 +19,11 @@ struct DeviceHomeView: View {
 
     private var executorDevices: [SyncedDevice] {
         syncedDataService.executorDevices
+    }
+
+    private var isSelectedDeviceRemoteAvailable: Bool {
+        guard let selectedDevice else { return false }
+        return presenceService.isDeviceDaemonAvailable(id: selectedDevice.id.uuidString.lowercased())
     }
 
     var body: some View {
@@ -48,7 +54,7 @@ struct DeviceHomeView: View {
                                 onSessionTap: { session in
                                     navigationManager.navigateToSyncedSession(session)
                                 },
-                                onCreateSession: selectedDevice != nil ? {
+                                onCreateSession: selectedDevice != nil && isSelectedDeviceRemoteAvailable ? {
                                     createSession(repositoryId: repo.id)
                                 } : nil
                             )
@@ -109,7 +115,10 @@ struct DeviceHomeView: View {
         .onChange(of: executorDevices) { _, newDevices in
             // Auto-select first online executor device if current selection goes away
             if selectedDevice == nil || !newDevices.contains(where: { $0.id == selectedDevice?.id }) {
-                selectedDevice = newDevices.first(where: { $0.status == .online }) ?? newDevices.first
+                selectedDevice = newDevices.first(where: {
+                    $0.status == .online &&
+                    presenceService.isDeviceDaemonAvailable(id: $0.id.uuidString.lowercased())
+                }) ?? newDevices.first(where: { $0.status == .online }) ?? newDevices.first
             }
         }
     }
@@ -195,7 +204,10 @@ struct DeviceHomeView: View {
 
     private func initializeState() {
         // Default select first online executor device
-        selectedDevice = executorDevices.first(where: { $0.status == .online }) ?? executorDevices.first
+        selectedDevice = executorDevices.first(where: {
+            $0.status == .online &&
+            presenceService.isDeviceDaemonAvailable(id: $0.id.uuidString.lowercased())
+        }) ?? executorDevices.first(where: { $0.status == .online }) ?? executorDevices.first
 
         // Expand all repos by default
         expandedRepoIds = Set(syncedDataService.repositories.map(\.id))
@@ -217,6 +229,10 @@ struct DeviceHomeView: View {
     private func createSession(repositoryId: UUID) {
         guard let device = selectedDevice else { return }
         guard !isCreatingSession else { return }
+        guard presenceService.isDeviceDaemonAvailable(id: device.id.uuidString.lowercased()) else {
+            sessionCreationError = "Selected device daemon is offline. Try again when it comes online."
+            return
+        }
 
         isCreatingSession = true
         sessionCreationError = nil

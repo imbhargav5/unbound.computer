@@ -176,6 +176,11 @@ final class SyncedDataService {
         devices.filter { $0.status == .online }
     }
 
+    /// Check daemon heartbeat-based remote availability for a given device.
+    func isDaemonAvailable(deviceId: UUID) -> Bool {
+        DevicePresenceService.shared.isDeviceDaemonAvailable(id: deviceId.uuidString.lowercased())
+    }
+
     /// Get device by ID
     func device(id: UUID) -> SyncedDevice? {
         devices.first { $0.id == id }

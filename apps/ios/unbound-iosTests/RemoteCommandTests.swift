@@ -270,3 +270,100 @@ final class AnyCodableValueTests: XCTestCase {
         XCTAssertEqual(decoded, value)
     }
 }
+
+final class RemoteCommandAvailabilityTests: XCTestCase {
+    func testCreateSessionFailsWhenTargetDaemonUnavailable() async {
+        let service = RemoteCommandService(
+            transport: NoopRemoteTransport(),
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in false }
+        )
+
+        do {
+            _ = try await service.createSession(
+                targetDeviceId: "22222222-2222-2222-2222-222222222222",
+                repositoryId: "33333333-3333-3333-3333-333333333333"
+            )
+            XCTFail("Expected target unavailable error")
+        } catch let error as RemoteCommandError {
+            switch error {
+            case .targetUnavailable(let target):
+                XCTAssertEqual(target, "22222222-2222-2222-2222-222222222222")
+            default:
+                XCTFail("Unexpected error: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+}
+
+private final class NoopRemoteTransport: RemoteCommandTransport {
+    func publishRemoteCommand(
+        channel _: String,
+        payload _: UMSecretRequestCommandPayload
+    ) async throws {}
+
+    func waitForAck(
+        channel _: String,
+        requestId _: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandAckEnvelope {
+        RemoteCommandAckEnvelope(
+            schemaVersion: 1,
+            commandId: "noop",
+            status: "accepted",
+            createdAtMs: 1,
+            resultB64: nil
+        )
+    }
+
+    func waitForSessionSecretResponse(
+        channel _: String,
+        requestId _: String,
+        sessionId _: String,
+        timeout _: TimeInterval
+    ) async throws -> SessionSecretResponseEnvelope {
+        SessionSecretResponseEnvelope(
+            schemaVersion: 1,
+            requestId: "noop",
+            sessionId: "noop",
+            senderDeviceId: "noop",
+            receiverDeviceId: "noop",
+            status: "error",
+            errorCode: nil,
+            ciphertextB64: nil,
+            encapsulationPubkeyB64: nil,
+            nonceB64: nil,
+            algorithm: "noop",
+            createdAtMs: 1
+        )
+    }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope _: RemoteCommandEnvelope
+    ) async throws {}
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId _: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        RemoteCommandResponse(
+            schemaVersion: 1,
+            requestId: "noop",
+            type: "noop",
+            status: "ok",
+            result: nil,
+            errorCode: nil,
+            errorMessage: nil,
+            createdAtMs: 1
+        )
+    }
+}
