@@ -16,6 +16,10 @@ It is the source of truth for:
 - environment behavior
 - acceptance queries and release validation checks
 
+Operational rollout details (dashboards, alerts, big-bang checklist) are in:
+
+- `/docs/observability-rollout-runbook.md`
+
 ## Vendor Destinations
 
 - PostHog is the primary structured log sink (`app_log` event).

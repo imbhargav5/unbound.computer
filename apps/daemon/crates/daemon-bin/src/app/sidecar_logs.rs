@@ -119,6 +119,8 @@ fn spawn_reader(
 
                     tracing::info!(
                         runtime = "sidecar",
+                        component = %format!("sidecar.{}", sidecar_name),
+                        event_code = "daemon.sidecar.log_line",
                         sidecar_name = sidecar_name,
                         sidecar_source = source,
                         stream = stream_name,
@@ -129,6 +131,8 @@ fn spawn_reader(
                 Err(err) => {
                     warn!(
                         runtime = "sidecar",
+                        component = %format!("sidecar.{}", sidecar_name),
+                        event_code = "daemon.sidecar.stream_read_failed",
                         sidecar_name = sidecar_name,
                         sidecar_source = source,
                         stream = stream_name,
@@ -141,6 +145,8 @@ fn spawn_reader(
         }
 
         debug!(
+            component = %format!("sidecar.{}", sidecar_name),
+            event_code = "daemon.sidecar.stream_ended",
             sidecar_name = sidecar_name,
             sidecar_source = source,
             stream = stream_name,
@@ -152,7 +158,13 @@ fn spawn_reader(
 fn join_tasks(tasks: Vec<SidecarLogTask>) {
     for task in tasks {
         if let Err(err) = task.join() {
-            warn!(error = ?err, "Failed joining sidecar log task");
+            warn!(
+                runtime = "sidecar",
+                component = "sidecar.supervisor",
+                event_code = "daemon.sidecar.task_join_failed",
+                error = ?err,
+                "Failed joining sidecar log task"
+            );
         }
     }
 }
