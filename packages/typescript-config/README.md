@@ -1,0 +1,18 @@
+# @unbound/typescript-config
+
+Shared TypeScript base configuration for the Unbound monorepo.
+
+## Contents
+
+- `tsconfig.base.json` with shared compiler options
+
+## Usage
+
+```json
+{
+  "extends": "@unbound/typescript-config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  }
+}
+```

@@ -1,0 +1,53 @@
+# @unbound/protocol
+
+Shared message protocol types and validators for Unbound clients and services.
+
+This package defines the canonical Zod schemas used for session commands, control messages, presence, pairing flows, and multi-device events.
+
+## What It Contains
+
+- **Session commands** (start, pause, input/output, etc.)
+- **Control messages** (typing, ready, waiting, error, ack)
+- **Presence** payloads
+- **Pairing** flows (request/response/confirmation)
+- **Multi-device** role announcements and stream chunks
+- **Envelope** types for relayed messages
+
+## Example
+
+```ts
+import { parseSessionCommand } from "@unbound/protocol";
+
+const command = parseSessionCommand(payload);
+if (command.command === "input") {
+  // handle input
+}
+```
+
+## Exports
+
+The root module re-exports schemas, types, and helpers:
+
+- `parse*` and `validate*` helpers for runtime validation
+- Zod schemas for generating JSON schema or types
+- Typed interfaces for all protocol shapes
+
+## Module Layout
+
+```
+src/
+├── session.ts     # session commands
+├── control.ts     # control messages
+├── presence.ts    # presence messages
+├── pairing.ts     # pairing flows
+├── multidevice.ts # roles + stream chunks
+├── envelope.ts    # relay envelope
+└── index.ts       # public exports
+```
+
+## Development
+
+```bash
+pnpm -C packages/protocol build
+pnpm -C packages/protocol test
+```

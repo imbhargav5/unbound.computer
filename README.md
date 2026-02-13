@@ -8,7 +8,7 @@ Unbound is a development tool that pairs a background Rust daemon with native cl
 
 The system follows a local-first architecture: all session data lives in SQLite on your machine, and the daemon operates fully offline. When signed in, sessions optionally sync to Supabase with end-to-end encryption (X25519 + ChaCha20-Poly1305), enabling cross-device access through the web app.
 
-Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar, which forwards them to the daemon for processing.
+Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar through `daemon-ably`), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar (also through `daemon-ably`), which forwards them to the daemon for processing.
 
 ## Architecture
 
@@ -24,11 +24,14 @@ CLI (Rust/ratatui) ───┘                              |
                                  Claude  libgit2  Groq
                                   CLI    (git)   (titles)
 
-                          ┌────── Daemon Sidecars ──────┐
-                          │                              │
-                     Falco (Go)                    Nagato (Go)
-                   Publishes state              Consumes remote
-                   changes to Ably              commands from Ably
+                          ┌────────── Daemon Sidecars ──────────┐
+                          │                                     │
+                   daemon-ably (Go)                       Nagato (Go)
+                 Ably transport + IPC               Consumes remote
+                        for sidecars                commands from Ably
+                          │                                     │
+                        Falco (Go)                              │
+                  Publishes state changes to Ably               │
 ```
 
 Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages Claude CLI processes, persists all session data to SQLite, and syncs encrypted messages through two paths:
@@ -42,7 +45,7 @@ Clients connect to the daemon over a Unix domain socket using an NDJSON-based pr
 ```
 unbound.computer/
 ├── apps/
-│   ├── daemon/          # Rust daemon (21 crates)
+│   ├── daemon/          # Rust daemon (23 crates)
 │   ├── macos/           # macOS native app (SwiftUI)
 │   ├── cli-new/         # Terminal client (Rust/ratatui)
 │   ├── web/             # Web app (Next.js)
@@ -50,6 +53,8 @@ unbound.computer/
 │   ├── email/           # Transactional email templates
 │   └── ios/             # iOS app (placeholder)
 ├── packages/
+│   ├── daemon-ably/     # Ably transport sidecar (Go)
+│   ├── daemon-ably-client/ # daemon-ably IPC client (Go)
 │   ├── daemon-falco/    # Ably publisher sidecar (Go)
 │   ├── daemon-nagato/   # Ably consumer sidecar (Go)
 │   ├── protocol/        # Shared message protocol types
@@ -59,6 +64,7 @@ unbound.computer/
 │   ├── observability/   # Shared logging (Rust + TS)
 │   ├── agent-runtime/   # Agent execution runtime
 │   ├── git-worktree/    # Git worktree utilities
+│   ├── redis/           # Redis helpers (Upstash + ioredis)
 │   ├── web-session/     # Web session management
 │   └── typescript-config/ # Shared TS config
 ├── supabase/            # Supabase project configuration
@@ -81,6 +87,7 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `armin` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
 | `deku` | Claude CLI process manager: spawning, streaming, event parsing |
 | `piccolo` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
+| `bakugou` | GitHub CLI orchestration for PR workflows |
 | `levi` | Supabase message sync worker with batching, encryption, and retries |
 | `toshinori` | Supabase + Ably sync sink for Armin side-effects |
 | `yamcha` | Session title generation via Groq Llama 3.1 8B |
@@ -93,13 +100,15 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `one-for-all-protocol` | Shared protocol types (extracted from daemon-ipc) |
 | `sasuke-crypto` | Device identity and crypto coordination |
 | `historia-lifecycle` | Daemon lifecycle and startup orchestration |
+| `tien` | System dependency detection for required CLI tools |
 
 ## Daemon Sidecars
 
-The daemon communicates with two Go sidecar processes over Unix domain sockets using a custom binary frame protocol:
+The daemon communicates with Go sidecar processes over Unix domain sockets using a custom binary frame protocol:
 
 | Sidecar | Language | Purpose |
 |---------|----------|---------|
+| **daemon-ably** | Go | Owns the Ably realtime connection and exposes an IPC transport socket for Falco/Nagato. |
 | **Falco** | Go | Publishes Armin side-effects (messages, session events) to Ably channels for real-time cross-device sync. Implements at-least-once delivery with retry. |
 | **Nagato** | Go | Subscribes to Ably for inbound remote commands and forwards them to the daemon. Implements fail-open timeouts (15s) to prevent blocking. |
 
@@ -116,7 +125,7 @@ Both sidecars are stateless and crash-safe -- the daemon tracks unacknowledged e
 - clap for CLI, tracing for logging
 
 **Daemon Sidecars (Go)**
-- Ably SDK for real-time pub/sub
+- Ably SDK for real-time pub/sub (via `daemon-ably`)
 - Binary frame protocol over Unix domain sockets
 - Stateless, crash-safe design
 
