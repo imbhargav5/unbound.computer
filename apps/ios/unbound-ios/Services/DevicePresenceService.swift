@@ -34,6 +34,7 @@ struct MonitoredDevice: Identifiable, Equatable {
 
 /// Service for managing device presence and heartbeat
 @Observable
+@MainActor
 final class DevicePresenceService {
     static let shared = DevicePresenceService()
 
@@ -197,19 +198,17 @@ final class DevicePresenceService {
                 .execute()
                 .value
 
-            await MainActor.run {
-                self.monitoredDevices = response.map { record in
-                    MonitoredDevice(
-                        id: record.id,
-                        name: record.name,
-                        deviceType: record.deviceType,
+            monitoredDevices = response.map { record in
+                MonitoredDevice(
+                    id: record.id,
+                    name: record.name,
+                    deviceType: record.deviceType,
+                    lastSeenAt: record.lastSeenAt ?? Date.distantPast,
+                    isOnline: MonitoredDevice.checkOnline(
                         lastSeenAt: record.lastSeenAt ?? Date.distantPast,
-                        isOnline: MonitoredDevice.checkOnline(
-                            lastSeenAt: record.lastSeenAt ?? Date.distantPast,
-                            threshold: self.offlineThreshold
-                        )
+                        threshold: offlineThreshold
                     )
-                }
+                )
             }
 
             logger.info("Fetched \(monitoredDevices.count) mac devices to monitor")
@@ -269,20 +268,18 @@ final class DevicePresenceService {
                         threshold: self.offlineThreshold
                     )
 
-                    await MainActor.run {
-                        if let index = self.monitoredDevices.firstIndex(where: { $0.id == id }) {
-                            self.monitoredDevices[index].lastSeenAt = lastSeenAt
-                            self.monitoredDevices[index].isOnline = isOnline
-                        } else {
-                            // New device
-                            self.monitoredDevices.append(MonitoredDevice(
-                                id: id,
-                                name: name,
-                                deviceType: deviceType,
-                                lastSeenAt: lastSeenAt,
-                                isOnline: isOnline
-                            ))
-                        }
+                    if let index = self.monitoredDevices.firstIndex(where: { $0.id == id }) {
+                        self.monitoredDevices[index].lastSeenAt = lastSeenAt
+                        self.monitoredDevices[index].isOnline = isOnline
+                    } else {
+                        // New device
+                        self.monitoredDevices.append(MonitoredDevice(
+                            id: id,
+                            name: name,
+                            deviceType: deviceType,
+                            lastSeenAt: lastSeenAt,
+                            isOnline: isOnline
+                        ))
                     }
 
                     logger.debug("Device \(name) updated: online=\(isOnline)")
@@ -382,7 +379,9 @@ final class DevicePresenceService {
         let listener = channel.subscribe(Config.daemonPresenceEventName) { [weak self] message in
             guard let self else { return }
             guard let payload = Self.decodeDaemonPresencePayload(message.data) else { return }
-            self.consumeDaemonPresencePayload(payload)
+            Task { @MainActor [weak self] in
+                self?.consumeDaemonPresencePayload(payload)
+            }
         }
 
         daemonPresenceRealtime = realtime
@@ -451,23 +450,20 @@ final class DevicePresenceService {
         networkMonitor?.pathUpdateHandler = { [weak self] path in
             guard let self else { return }
 
-            let wasAvailable = self.isNetworkAvailable
             let nowAvailable = path.status == .satisfied
-
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let wasAvailable = self.isNetworkAvailable
                 self.isNetworkAvailable = nowAvailable
-            }
-
-            // Send immediate heartbeat when network becomes available
-            if !wasAvailable && nowAvailable {
-                logger.info("Network restored - sending immediate heartbeat")
-                Task {
+                // Send immediate heartbeat when network becomes available.
+                if !wasAvailable && nowAvailable {
+                    logger.info("Network restored - sending immediate heartbeat")
                     await self.sendHeartbeat()
                 }
-            }
 
-            if !nowAvailable {
-                logger.warning("Network unavailable")
+                if !nowAvailable {
+                    logger.warning("Network unavailable")
+                }
             }
         }
 
