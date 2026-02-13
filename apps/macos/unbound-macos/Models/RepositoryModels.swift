@@ -63,6 +63,16 @@ struct Repository: Identifiable, Codable, Hashable {
     }
 }
 
+struct RepositorySettings: Equatable {
+    var repository: Repository
+    var worktreeRootDir: String
+    var worktreeDefaultBaseBranch: String?
+    var preCreateCommand: String?
+    var preCreateTimeoutSeconds: Int
+    var postCreateCommand: String?
+    var postCreateTimeoutSeconds: Int
+}
+
 // MARK: - Repositories Store (for JSON persistence)
 
 struct RepositoriesStore: Codable {

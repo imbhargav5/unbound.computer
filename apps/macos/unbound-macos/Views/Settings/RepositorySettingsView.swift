@@ -21,6 +21,11 @@ struct RepositorySettingsView: View {
     @State private var sessionsPath: String = ""
     @State private var selectedBranch: String = ""
     @State private var selectedRemote: String = ""
+    @State private var worktreeRootDir: String = ".unbound/worktrees"
+    @State private var preCreateCommand: String = ""
+    @State private var preCreateTimeoutSeconds: String = "300"
+    @State private var postCreateCommand: String = ""
+    @State private var postCreateTimeoutSeconds: String = "300"
 
     // Loading states
     @State private var branches: [String] = []
@@ -32,6 +37,8 @@ struct RepositorySettingsView: View {
     @State private var showRemoveConfirmation = false
     @State private var isSaving = false
     @State private var hasChanges = false
+    @State private var settingsError: String?
+    @State private var isApplyingLoadedSettings = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -41,11 +48,17 @@ struct RepositorySettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xxl) {
                 headerSection
+                if let settingsError {
+                    Text(settingsError)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.destructive)
+                }
                 ShadcnDivider()
                 repositoryPathSection
                 sessionsPathSection
                 branchingSection
                 remoteSection
+                setupHooksSection
                 ShadcnDivider()
                 dangerZoneSection
                 Spacer()
@@ -58,9 +71,13 @@ struct RepositorySettingsView: View {
         .task {
             await loadInitialData()
         }
-        .onChange(of: sessionsPath) { _, _ in hasChanges = true }
-        .onChange(of: selectedBranch) { _, _ in hasChanges = true }
-        .onChange(of: selectedRemote) { _, _ in hasChanges = true }
+        .onChange(of: sessionsPath) { _, _ in markChanged() }
+        .onChange(of: selectedBranch) { _, _ in markChanged() }
+        .onChange(of: selectedRemote) { _, _ in markChanged() }
+        .onChange(of: preCreateCommand) { _, _ in markChanged() }
+        .onChange(of: preCreateTimeoutSeconds) { _, _ in markChanged() }
+        .onChange(of: postCreateCommand) { _, _ in markChanged() }
+        .onChange(of: postCreateTimeoutSeconds) { _, _ in markChanged() }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
@@ -291,6 +308,77 @@ struct RepositorySettingsView: View {
     }
 
     @ViewBuilder
+    private var setupHooksSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Setup Hooks")
+                .font(Typography.h4)
+                .foregroundStyle(colors.foreground)
+
+            Text("Commands run for worktree sessions. Failures stop session creation.")
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground)
+
+            hookEditor(
+                title: "Pre-create hook",
+                description: "Runs in the repository root before creating the worktree.",
+                command: $preCreateCommand,
+                timeoutSeconds: $preCreateTimeoutSeconds
+            )
+
+            hookEditor(
+                title: "Post-create hook",
+                description: "Runs in the created worktree after creation succeeds.",
+                command: $postCreateCommand,
+                timeoutSeconds: $postCreateTimeoutSeconds
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func hookEditor(
+        title: String,
+        description: String,
+        command: Binding<String>,
+        timeoutSeconds: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(title)
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground)
+            Text(description)
+                .font(Typography.micro)
+                .foregroundStyle(colors.mutedForeground.opacity(0.75))
+
+            TextField("Command (optional, /bin/zsh -lc)", text: command)
+                .textFieldStyle(.plain)
+                .font(Typography.code)
+                .padding(Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .fill(colors.background)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.md)
+                                .stroke(colors.border, lineWidth: BorderWidth.default)
+                        )
+                )
+
+            HStack(spacing: Spacing.sm) {
+                Text("Timeout (seconds)")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                TextField("300", text: timeoutSeconds)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+            }
+        }
+        .padding(Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.md)
+                .fill(colors.muted.opacity(0.25))
+        )
+    }
+
+    @ViewBuilder
     private var dangerZoneSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("Danger Zone")
@@ -328,18 +416,29 @@ struct RepositorySettingsView: View {
     // MARK: - Data Loading
 
     private func loadInitialData() async {
-        // Initialize with current values
-        sessionsPath = repository.sessionsPath ?? ""
-        selectedBranch = repository.defaultBranch ?? ""
-        selectedRemote = repository.defaultRemote ?? ""
+        apply(repositorySettings: RepositorySettings(
+            repository: repository,
+            worktreeRootDir: ".unbound/worktrees",
+            worktreeDefaultBaseBranch: repository.defaultBranch,
+            preCreateCommand: nil,
+            preCreateTimeoutSeconds: 300,
+            postCreateCommand: nil,
+            postCreateTimeoutSeconds: 300
+        ))
+
+        do {
+            let settings = try await appState.getRepositorySettings(repository.id)
+            apply(repositorySettings: settings)
+            settingsError = nil
+        } catch {
+            settingsError = "Failed to load repository settings: \(error.localizedDescription)"
+            logger.error("Failed to load repository settings: \(error)")
+        }
 
         // TODO: Load branches and remotes from daemon git.status/git.list_branches
         // For now, just mark loading as complete
         isLoadingBranches = false
         isLoadingRemotes = false
-
-        // Reset changes flag after initial load
-        hasChanges = false
     }
 
     // MARK: - Actions
@@ -359,10 +458,80 @@ struct RepositorySettingsView: View {
     }
 
     private func saveSettings() {
-        // TODO: Implement repository settings update via daemon
+        guard let preTimeout = parseTimeout(preCreateTimeoutSeconds),
+              let postTimeout = parseTimeout(postCreateTimeoutSeconds) else {
+            settingsError = "Hook timeout must be a positive integer."
+            return
+        }
+
+        let sessionsPathValue = normalizedOptionalValue(sessionsPath)
+        let branchValue = normalizedOptionalValue(selectedBranch)
+        let remoteValue = normalizedOptionalValue(selectedRemote)
+        let preCommand = normalizedOptionalValue(preCreateCommand)
+        let postCommand = normalizedOptionalValue(postCreateCommand)
+
         isSaving = true
+        settingsError = nil
+
+        Task {
+            do {
+                let updated = try await appState.updateRepositorySettings(
+                    repository.id,
+                    sessionsPath: sessionsPathValue,
+                    defaultBranch: branchValue,
+                    defaultRemote: remoteValue,
+                    worktreeRootDir: worktreeRootDir,
+                    worktreeDefaultBaseBranch: branchValue,
+                    preCreateCommand: preCommand,
+                    preCreateTimeoutSeconds: preTimeout,
+                    postCreateCommand: postCommand,
+                    postCreateTimeoutSeconds: postTimeout
+                )
+                apply(repositorySettings: updated)
+                settingsError = nil
+            } catch {
+                settingsError = "Failed to save settings: \(error.localizedDescription)"
+                logger.error("Failed to save repository settings: \(error)")
+            }
+            isSaving = false
+        }
+    }
+
+    private func markChanged() {
+        if isApplyingLoadedSettings {
+            return
+        }
+        hasChanges = true
+    }
+
+    private func apply(repositorySettings: RepositorySettings) {
+        isApplyingLoadedSettings = true
+        sessionsPath = repositorySettings.repository.sessionsPath ?? ""
+        selectedBranch =
+            repositorySettings.repository.defaultBranch
+            ?? repositorySettings.worktreeDefaultBaseBranch
+            ?? ""
+        selectedRemote = repositorySettings.repository.defaultRemote ?? ""
+        worktreeRootDir = repositorySettings.worktreeRootDir
+        preCreateCommand = repositorySettings.preCreateCommand ?? ""
+        preCreateTimeoutSeconds = String(repositorySettings.preCreateTimeoutSeconds)
+        postCreateCommand = repositorySettings.postCreateCommand ?? ""
+        postCreateTimeoutSeconds = String(repositorySettings.postCreateTimeoutSeconds)
         hasChanges = false
-        isSaving = false
+        isApplyingLoadedSettings = false
+    }
+
+    private func normalizedOptionalValue(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func parseTimeout(_ value: String) -> Int? {
+        guard let parsed = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              parsed > 0 else {
+            return nil
+        }
+        return parsed
     }
 
     private func removeRepository() {

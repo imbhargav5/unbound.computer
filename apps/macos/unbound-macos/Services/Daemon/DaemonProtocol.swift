@@ -509,7 +509,74 @@ struct DaemonRepository: Codable, Identifiable {
             name: name,
             lastAccessed: lastAccessed,
             addedAt: lastAccessed,  // Daemon doesn't send created_at, use last_accessed
-            isGitRepository: isGitRepository ?? true
+            isGitRepository: isGitRepository ?? true,
+            sessionsPath: sessionsPath,
+            defaultBranch: defaultBranch,
+            defaultRemote: defaultRemote
+        )
+    }
+}
+
+struct DaemonRepositorySettings: Codable {
+    let repository: DaemonRepository
+    let config: DaemonRepositoryConfig
+}
+
+struct DaemonRepositoryConfig: Codable {
+    let schemaVersion: Int
+    let worktree: DaemonWorktreeConfig
+    let setupHooks: DaemonSetupHooksConfig
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case worktree
+        case setupHooks = "setup_hooks"
+    }
+}
+
+struct DaemonWorktreeConfig: Codable {
+    let rootDir: String
+    let defaultBaseBranch: String?
+
+    enum CodingKeys: String, CodingKey {
+        case rootDir = "root_dir"
+        case defaultBaseBranch = "default_base_branch"
+    }
+}
+
+struct DaemonSetupHooksConfig: Codable {
+    let preCreate: DaemonSetupHookStageConfig
+    let postCreate: DaemonSetupHookStageConfig
+
+    enum CodingKeys: String, CodingKey {
+        case preCreate = "pre_create"
+        case postCreate = "post_create"
+    }
+}
+
+struct DaemonSetupHookStageConfig: Codable {
+    let command: String?
+    let timeoutSeconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case command
+        case timeoutSeconds = "timeout_seconds"
+    }
+}
+
+extension DaemonRepositorySettings {
+    func toRepositorySettings() -> RepositorySettings? {
+        guard let repository = repository.toRepository() else {
+            return nil
+        }
+        return RepositorySettings(
+            repository: repository,
+            worktreeRootDir: config.worktree.rootDir,
+            worktreeDefaultBaseBranch: config.worktree.defaultBaseBranch,
+            preCreateCommand: config.setupHooks.preCreate.command,
+            preCreateTimeoutSeconds: config.setupHooks.preCreate.timeoutSeconds,
+            postCreateCommand: config.setupHooks.postCreate.command,
+            postCreateTimeoutSeconds: config.setupHooks.postCreate.timeoutSeconds
         )
     }
 }

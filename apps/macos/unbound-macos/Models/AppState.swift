@@ -396,6 +396,50 @@ class AppState {
         }
     }
 
+    /// Get repository settings (DB defaults + repo-local hook configuration).
+    func getRepositorySettings(_ repositoryId: UUID) async throws -> RepositorySettings {
+        let daemonSettings = try await daemonClient.getRepositorySettings(
+            repositoryId: repositoryId.uuidString
+        )
+        guard let settings = daemonSettings.toRepositorySettings() else {
+            throw DaemonError.decodingFailed("Invalid repository settings data")
+        }
+        mergeRepository(settings.repository)
+        return settings
+    }
+
+    /// Update repository settings and merge the updated repository into cache.
+    func updateRepositorySettings(
+        _ repositoryId: UUID,
+        sessionsPath: String?,
+        defaultBranch: String?,
+        defaultRemote: String?,
+        worktreeRootDir: String,
+        worktreeDefaultBaseBranch: String?,
+        preCreateCommand: String?,
+        preCreateTimeoutSeconds: Int,
+        postCreateCommand: String?,
+        postCreateTimeoutSeconds: Int
+    ) async throws -> RepositorySettings {
+        let daemonSettings = try await daemonClient.updateRepositorySettings(
+            repositoryId: repositoryId.uuidString,
+            sessionsPath: sessionsPath,
+            defaultBranch: defaultBranch,
+            defaultRemote: defaultRemote,
+            worktreeRootDir: worktreeRootDir,
+            worktreeDefaultBaseBranch: worktreeDefaultBaseBranch,
+            preCreateCommand: preCreateCommand,
+            preCreateTimeoutSeconds: preCreateTimeoutSeconds,
+            postCreateCommand: postCreateCommand,
+            postCreateTimeoutSeconds: postCreateTimeoutSeconds
+        )
+        guard let settings = daemonSettings.toRepositorySettings() else {
+            throw DaemonError.decodingFailed("Invalid repository settings data")
+        }
+        mergeRepository(settings.repository)
+        return settings
+    }
+
     // MARK: - Session Management
 
     /// Create a new session.
@@ -409,10 +453,12 @@ class AppState {
         locationType: SessionLocationType = .mainDirectory
     ) async throws -> Session {
         let isWorktree = locationType == .worktree
+        let repositoryDefaults = repositories.first(where: { $0.id == repositoryId })
         let daemonSession = try await daemonClient.createSession(
             repositoryId: repositoryId.uuidString,
             title: title,
-            isWorktree: isWorktree
+            isWorktree: isWorktree,
+            baseBranch: isWorktree ? repositoryDefaults?.defaultBranch : nil
         )
         guard let session = daemonSession.toSession() else {
             throw DaemonError.decodingFailed("Invalid session data")
@@ -451,6 +497,14 @@ class AppState {
             }
         }
         return nil
+    }
+
+    private func mergeRepository(_ repository: Repository) {
+        if let index = repositories.firstIndex(where: { $0.id == repository.id }) {
+            repositories[index] = repository
+            return
+        }
+        repositories.append(repository)
     }
 
     // MARK: - Selection

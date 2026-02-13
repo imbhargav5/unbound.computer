@@ -1,6 +1,9 @@
 //! Repository handlers.
 
 use crate::app::DaemonState;
+use crate::utils::repository_config::{
+    load_repository_config, update_repository_config, RepositoryConfig, RepositoryConfigUpdate,
+};
 use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use gyomei::{FileRevision, GyomeiError};
@@ -195,19 +198,22 @@ async fn register_repository_get_settings(server: &IpcServer, state: DaemonState
                     }
                 };
 
+                let repo_config = match load_repository_config(Path::new(&repo.path)) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to load repository config: {}", e),
+                        );
+                    }
+                };
+
                 Response::success(
                     &req.id,
                     serde_json::json!({
-                        "repository": {
-                            "id": repo.id.as_str(),
-                            "path": repo.path,
-                            "name": repo.name,
-                            "is_git_repository": repo.is_git_repository,
-                            "sessions_path": repo.sessions_path,
-                            "default_branch": repo.default_branch,
-                            "default_remote": repo.default_remote,
-                            "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
-                        }
+                        "repository": repository_json(&repo),
+                        "config": repository_config_json(&repo_config),
                     }),
                 )
             }
@@ -264,6 +270,50 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     Ok(None) => current.default_remote.clone(),
                     Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
                 };
+                let worktree_root_dir =
+                    match parse_optional_string_param(&params, "worktree_root_dir") {
+                        Ok(Some(Some(v))) => Some(v),
+                        Ok(Some(None)) => Some(".unbound/worktrees".to_string()),
+                        Ok(None) => None,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
+                let worktree_default_base_branch =
+                    match parse_optional_string_param(&params, "worktree_default_base_branch") {
+                        Ok(value) => value,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
+                let pre_create_command =
+                    match parse_optional_string_param(&params, "pre_create_command") {
+                        Ok(value) => value,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
+                let pre_create_timeout_seconds =
+                    match parse_optional_u64_param(&params, "pre_create_timeout_seconds") {
+                        Ok(value) => value,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
+                let post_create_command =
+                    match parse_optional_string_param(&params, "post_create_command") {
+                        Ok(value) => value,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
+                let post_create_timeout_seconds =
+                    match parse_optional_u64_param(&params, "post_create_timeout_seconds") {
+                        Ok(value) => value,
+                        Err(msg) => {
+                            return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg);
+                        }
+                    };
 
                 let updated = match armin.update_repository_settings(
                     &repo_id,
@@ -289,6 +339,26 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     );
                 }
 
+                let config_update = RepositoryConfigUpdate {
+                    worktree_root_dir,
+                    worktree_default_base_branch,
+                    pre_create_command,
+                    pre_create_timeout_seconds,
+                    post_create_command,
+                    post_create_timeout_seconds,
+                };
+                let repo_config =
+                    match update_repository_config(Path::new(&current.path), &config_update) {
+                        Ok(config) => config,
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to update repository config: {}", e),
+                            );
+                        }
+                    };
+
                 let repo = match armin.get_repository(&repo_id) {
                     Ok(Some(repo)) => repo,
                     Ok(None) => {
@@ -311,16 +381,8 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     &req.id,
                     serde_json::json!({
                         "updated": true,
-                        "repository": {
-                            "id": repo.id.as_str(),
-                            "path": repo.path,
-                            "name": repo.name,
-                            "is_git_repository": repo.is_git_repository,
-                            "sessions_path": repo.sessions_path,
-                            "default_branch": repo.default_branch,
-                            "default_remote": repo.default_remote,
-                            "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
-                        }
+                        "repository": repository_json(&repo),
+                        "config": repository_config_json(&repo_config),
                     }),
                 )
             }
@@ -892,6 +954,52 @@ fn parse_optional_string_param(
     Err(format!("{key} must be a string or null"))
 }
 
+fn parse_optional_u64_param(params: &serde_json::Value, key: &str) -> Result<Option<u64>, String> {
+    let Some(value) = params.get(key) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    value
+        .as_u64()
+        .map(Some)
+        .ok_or_else(|| format!("{key} must be an unsigned integer"))
+}
+
+fn repository_json(repo: &armin::Repository) -> serde_json::Value {
+    serde_json::json!({
+        "id": repo.id.as_str(),
+        "path": repo.path,
+        "name": repo.name,
+        "is_git_repository": repo.is_git_repository,
+        "sessions_path": repo.sessions_path,
+        "default_branch": repo.default_branch,
+        "default_remote": repo.default_remote,
+        "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
+    })
+}
+
+fn repository_config_json(config: &RepositoryConfig) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": config.schema_version,
+        "worktree": {
+            "root_dir": config.worktree.root_dir,
+            "default_base_branch": config.worktree.default_base_branch,
+        },
+        "setup_hooks": {
+            "pre_create": {
+                "command": config.setup_hooks.pre_create.command,
+                "timeout_seconds": config.setup_hooks.pre_create.timeout_seconds,
+            },
+            "post_create": {
+                "command": config.setup_hooks.post_create.command,
+                "timeout_seconds": config.setup_hooks.post_create.timeout_seconds,
+            },
+        },
+    })
+}
+
 fn parse_expected_revision(
     params: Option<&serde_json::Value>,
 ) -> Result<Option<FileRevision>, String> {
@@ -999,5 +1107,23 @@ mod tests {
             data["current_revision"]["token"].as_str(),
             Some("conflict-token")
         );
+    }
+
+    #[test]
+    fn parse_optional_u64_accepts_valid_value() {
+        let params = serde_json::json!({
+            "timeout": 300
+        });
+        let parsed = parse_optional_u64_param(&params, "timeout").expect("timeout should parse");
+        assert_eq!(parsed, Some(300));
+    }
+
+    #[test]
+    fn parse_optional_u64_rejects_non_numeric_value() {
+        let params = serde_json::json!({
+            "timeout": "fast"
+        });
+        let err = parse_optional_u64_param(&params, "timeout").expect_err("should fail");
+        assert!(err.contains("timeout must be an unsigned integer"));
     }
 }

@@ -129,7 +129,10 @@ extension DaemonClient {
     func createSession(
         repositoryId: String,
         title: String? = nil,
-        isWorktree: Bool = false
+        isWorktree: Bool = false,
+        worktreeName: String? = nil,
+        baseBranch: String? = nil,
+        worktreeBranch: String? = nil
     ) async throws -> DaemonSession {
         var params: [String: Any] = ["repository_id": repositoryId]
         if let title {
@@ -137,6 +140,15 @@ extension DaemonClient {
         }
         if isWorktree {
             params["is_worktree"] = true
+        }
+        if let worktreeName, !worktreeName.isEmpty {
+            params["worktree_name"] = worktreeName
+        }
+        if let baseBranch, !baseBranch.isEmpty {
+            params["base_branch"] = baseBranch
+        }
+        if let worktreeBranch, !worktreeBranch.isEmpty {
+            params["worktree_branch"] = worktreeBranch
         }
         let response = try await call(method: .sessionCreate, params: params)
 
@@ -317,6 +329,45 @@ extension DaemonClient {
         _ = try await call(method: .repositoryRemove, params: ["repository_id": repositoryId])
     }
 
+    /// Get repository settings including repo-local `.unbound/config.json` values.
+    func getRepositorySettings(repositoryId: String) async throws -> DaemonRepositorySettings {
+        let response = try await call(method: .repositoryGetSettings, params: [
+            "repository_id": repositoryId
+        ])
+        return try response.resultAs(DaemonRepositorySettings.self)
+    }
+
+    /// Update repository settings (DB defaults + repo-local hook config).
+    func updateRepositorySettings(
+        repositoryId: String,
+        sessionsPath: String?,
+        defaultBranch: String?,
+        defaultRemote: String?,
+        worktreeRootDir: String?,
+        worktreeDefaultBaseBranch: String?,
+        preCreateCommand: String?,
+        preCreateTimeoutSeconds: Int,
+        postCreateCommand: String?,
+        postCreateTimeoutSeconds: Int
+    ) async throws -> DaemonRepositorySettings {
+        var params: [String: Any] = [
+            "repository_id": repositoryId,
+            "pre_create_timeout_seconds": preCreateTimeoutSeconds,
+            "post_create_timeout_seconds": postCreateTimeoutSeconds
+        ]
+        params["sessions_path"] = sessionsPath ?? NSNull()
+        params["default_branch"] = defaultBranch ?? NSNull()
+        params["default_remote"] = defaultRemote ?? NSNull()
+        params["worktree_root_dir"] = worktreeRootDir ?? NSNull()
+        params["worktree_default_base_branch"] = worktreeDefaultBaseBranch ?? NSNull()
+        params["pre_create_command"] = preCreateCommand ?? NSNull()
+        params["post_create_command"] = postCreateCommand ?? NSNull()
+
+        let response = try await call(method: .repositoryUpdateSettings, params: params)
+        let updated = try response.resultAs(DaemonRepositoryUpdateSettingsResponse.self)
+        return DaemonRepositorySettings(repository: updated.repository, config: updated.config)
+    }
+
     /// List files for a session root or subdirectory (relative path).
     func listRepositoryFiles(
         sessionId: String,
@@ -454,6 +505,12 @@ extension DaemonClient {
         let response = try await call(method: .repositoryReplaceFileRange, params: params)
         return try response.resultAs(DaemonWriteResult.self)
     }
+}
+
+private struct DaemonRepositoryUpdateSettingsResponse: Codable {
+    let updated: Bool
+    let repository: DaemonRepository
+    let config: DaemonRepositoryConfig
 }
 
 // MARK: - System
