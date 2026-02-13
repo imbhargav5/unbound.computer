@@ -21,7 +21,7 @@ struct RepositorySettingsView: View {
     @State private var sessionsPath: String = ""
     @State private var selectedBranch: String = ""
     @State private var selectedRemote: String = ""
-    @State private var worktreeRootDir: String = ".unbound/worktrees"
+    @State private var worktreeRootDir: String = ""
     @State private var preCreateCommand: String = ""
     @State private var preCreateTimeoutSeconds: String = "300"
     @State private var postCreateCommand: String = ""
@@ -44,6 +44,10 @@ struct RepositorySettingsView: View {
         ThemeColors(colorScheme)
     }
 
+    private var defaultWorktreeRootDir: String {
+        "~/.unbound/\(repository.id.uuidString.lowercased())/worktrees"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xxl) {
@@ -56,6 +60,7 @@ struct RepositorySettingsView: View {
                 ShadcnDivider()
                 repositoryPathSection
                 sessionsPathSection
+                worktreeRootSection
                 branchingSection
                 remoteSection
                 setupHooksSection
@@ -74,6 +79,7 @@ struct RepositorySettingsView: View {
         .onChange(of: sessionsPath) { _, _ in markChanged() }
         .onChange(of: selectedBranch) { _, _ in markChanged() }
         .onChange(of: selectedRemote) { _, _ in markChanged() }
+        .onChange(of: worktreeRootDir) { _, _ in markChanged() }
         .onChange(of: preCreateCommand) { _, _ in markChanged() }
         .onChange(of: preCreateTimeoutSeconds) { _, _ in markChanged() }
         .onChange(of: postCreateCommand) { _, _ in markChanged() }
@@ -162,16 +168,16 @@ struct RepositorySettingsView: View {
     @ViewBuilder
     private var sessionsPathSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Sessions")
+            Text("Repository Metadata")
                 .font(Typography.h4)
                 .foregroundStyle(colors.foreground)
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Sessions path")
+                Text("Sessions path (metadata only)")
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                Text("Where worktrees for new sessions will be created")
+                Text("Optional repository metadata value. Worktree location is controlled below.")
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground.opacity(0.7))
 
@@ -197,6 +203,55 @@ struct RepositorySettingsView: View {
                     }
                     .buttonGhost(size: .icon)
                     .help("Choose folder")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var worktreeRootSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Worktree Location")
+                .font(Typography.h4)
+                .foregroundStyle(colors.foreground)
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Worktree root directory")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+
+                Text("Default: \(defaultWorktreeRootDir)")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
+
+                HStack {
+                    TextField(defaultWorktreeRootDir, text: $worktreeRootDir)
+                        .textFieldStyle(.plain)
+                        .font(Typography.code)
+                        .padding(Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.md)
+                                .fill(colors.background)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Radius.md)
+                                        .stroke(colors.border, lineWidth: BorderWidth.default)
+                                )
+                        )
+
+                    Button {
+                        selectWorktreeRootDir()
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: IconSize.sm))
+                    }
+                    .buttonGhost(size: .icon)
+                    .help("Choose folder")
+
+                    Button("Reset") {
+                        worktreeRootDir = defaultWorktreeRootDir
+                    }
+                    .buttonGhost(size: .sm)
+                    .help("Reset to daemon default")
                 }
             }
         }
@@ -418,7 +473,7 @@ struct RepositorySettingsView: View {
     private func loadInitialData() async {
         apply(repositorySettings: RepositorySettings(
             repository: repository,
-            worktreeRootDir: ".unbound/worktrees",
+            worktreeRootDir: defaultWorktreeRootDir,
             worktreeDefaultBaseBranch: repository.defaultBranch,
             preCreateCommand: nil,
             preCreateTimeoutSeconds: 300,
@@ -450,10 +505,24 @@ struct RepositorySettingsView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.prompt = "Select"
-        panel.message = "Choose where to create session worktrees"
+        panel.message = "Optional repository sessions metadata path"
 
         if panel.runModal() == .OK, let url = panel.url {
             sessionsPath = url.path
+        }
+    }
+
+    private func selectWorktreeRootDir() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Select"
+        panel.message = "Choose default worktree root directory"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            worktreeRootDir = (url.path as NSString).abbreviatingWithTildeInPath
         }
     }
 
@@ -467,6 +536,7 @@ struct RepositorySettingsView: View {
         let sessionsPathValue = normalizedOptionalValue(sessionsPath)
         let branchValue = normalizedOptionalValue(selectedBranch)
         let remoteValue = normalizedOptionalValue(selectedRemote)
+        let worktreeRootValue = normalizedOptionalValue(worktreeRootDir) ?? defaultWorktreeRootDir
         let preCommand = normalizedOptionalValue(preCreateCommand)
         let postCommand = normalizedOptionalValue(postCreateCommand)
 
@@ -480,7 +550,7 @@ struct RepositorySettingsView: View {
                     sessionsPath: sessionsPathValue,
                     defaultBranch: branchValue,
                     defaultRemote: remoteValue,
-                    worktreeRootDir: worktreeRootDir,
+                    worktreeRootDir: worktreeRootValue,
                     worktreeDefaultBaseBranch: branchValue,
                     preCreateCommand: preCommand,
                     preCreateTimeoutSeconds: preTimeout,
@@ -512,7 +582,9 @@ struct RepositorySettingsView: View {
             ?? repositorySettings.worktreeDefaultBaseBranch
             ?? ""
         selectedRemote = repositorySettings.repository.defaultRemote ?? ""
-        worktreeRootDir = repositorySettings.worktreeRootDir
+        worktreeRootDir = repositorySettings.worktreeRootDir.isEmpty
+            ? defaultWorktreeRootDir
+            : repositorySettings.worktreeRootDir
         preCreateCommand = repositorySettings.preCreateCommand ?? ""
         preCreateTimeoutSeconds = String(repositorySettings.preCreateTimeoutSeconds)
         postCreateCommand = repositorySettings.postCreateCommand ?? ""
