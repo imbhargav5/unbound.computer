@@ -321,30 +321,6 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                         }
                     };
 
-                let updated = match armin.update_repository_settings(
-                    &repo_id,
-                    sessions_path,
-                    default_branch,
-                    default_remote,
-                ) {
-                    Ok(updated) => updated,
-                    Err(e) => {
-                        return Response::error(
-                            &req.id,
-                            error_codes::INTERNAL_ERROR,
-                            &format!("Failed to update repository settings: {}", e),
-                        );
-                    }
-                };
-
-                if !updated {
-                    return Response::error(
-                        &req.id,
-                        error_codes::NOT_FOUND,
-                        "Repository not found",
-                    );
-                }
-
                 let config_update = RepositoryConfigUpdate {
                     worktree_root_dir,
                     worktree_default_base_branch,
@@ -352,6 +328,19 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                     pre_create_timeout_seconds,
                     post_create_command,
                     post_create_timeout_seconds,
+                };
+                let previous_config = match load_repository_config(
+                    Path::new(&current.path),
+                    &default_worktree_root_dir,
+                ) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to load repository config: {}", e),
+                        );
+                    }
                 };
                 let repo_config = match update_repository_config(
                     Path::new(&current.path),
@@ -367,6 +356,59 @@ async fn register_repository_update_settings(server: &IpcServer, state: DaemonSt
                         );
                     }
                 };
+
+                let updated = match armin.update_repository_settings(
+                    &repo_id,
+                    sessions_path,
+                    default_branch,
+                    default_remote,
+                ) {
+                    Ok(updated) => updated,
+                    Err(e) => {
+                        if let Err(rollback_error) = rollback_repository_config(
+                            Path::new(&current.path),
+                            &default_worktree_root_dir,
+                            &previous_config,
+                        ) {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!(
+                                    "Failed to update repository settings: {}; failed to rollback repository config: {}",
+                                    e, rollback_error
+                                ),
+                            );
+                        }
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to update repository settings: {}", e),
+                        );
+                    }
+                };
+
+                if !updated {
+                    if let Err(rollback_error) = rollback_repository_config(
+                        Path::new(&current.path),
+                        &default_worktree_root_dir,
+                        &previous_config,
+                    ) {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!(
+                                "Repository not found after update attempt; failed to rollback repository config: {}",
+                                rollback_error
+                            ),
+                        );
+                    }
+
+                    return Response::error(
+                        &req.id,
+                        error_codes::NOT_FOUND,
+                        "Repository not found",
+                    );
+                }
 
                 let repo = match armin.get_repository(&repo_id) {
                     Ok(Some(repo)) => repo,
@@ -1009,6 +1051,26 @@ fn repository_config_json(config: &RepositoryConfig) -> serde_json::Value {
     })
 }
 
+fn rollback_update_from_config(previous: &RepositoryConfig) -> RepositoryConfigUpdate {
+    RepositoryConfigUpdate {
+        worktree_root_dir: Some(previous.worktree.root_dir.clone()),
+        worktree_default_base_branch: Some(previous.worktree.default_base_branch.clone()),
+        pre_create_command: Some(previous.setup_hooks.pre_create.command.clone()),
+        pre_create_timeout_seconds: Some(previous.setup_hooks.pre_create.timeout_seconds),
+        post_create_command: Some(previous.setup_hooks.post_create.command.clone()),
+        post_create_timeout_seconds: Some(previous.setup_hooks.post_create.timeout_seconds),
+    }
+}
+
+fn rollback_repository_config(
+    repo_path: &Path,
+    default_worktree_root_dir: &str,
+    previous: &RepositoryConfig,
+) -> Result<(), String> {
+    let rollback_update = rollback_update_from_config(previous);
+    update_repository_config(repo_path, &rollback_update, default_worktree_root_dir).map(|_| ())
+}
+
 fn parse_expected_revision(
     params: Option<&serde_json::Value>,
 ) -> Result<Option<FileRevision>, String> {
@@ -1134,5 +1196,46 @@ mod tests {
         });
         let err = parse_optional_u64_param(&params, "timeout").expect_err("should fail");
         assert!(err.contains("timeout must be an unsigned integer"));
+    }
+
+    #[test]
+    fn rollback_update_from_config_roundtrip_values() {
+        let previous = RepositoryConfig {
+            schema_version: 1,
+            worktree: crate::utils::repository_config::WorktreeConfig {
+                root_dir: "~/.unbound/repo-123/worktrees".to_string(),
+                default_base_branch: Some("main".to_string()),
+            },
+            setup_hooks: crate::utils::repository_config::SetupHooksConfig {
+                pre_create: crate::utils::repository_config::SetupHookStageConfig {
+                    command: Some("echo pre".to_string()),
+                    timeout_seconds: 111,
+                },
+                post_create: crate::utils::repository_config::SetupHookStageConfig {
+                    command: Some("echo post".to_string()),
+                    timeout_seconds: 222,
+                },
+            },
+        };
+
+        let rollback = rollback_update_from_config(&previous);
+        assert_eq!(
+            rollback.worktree_root_dir,
+            Some("~/.unbound/repo-123/worktrees".to_string())
+        );
+        assert_eq!(
+            rollback.worktree_default_base_branch,
+            Some(Some("main".to_string()))
+        );
+        assert_eq!(
+            rollback.pre_create_command,
+            Some(Some("echo pre".to_string()))
+        );
+        assert_eq!(rollback.pre_create_timeout_seconds, Some(111));
+        assert_eq!(
+            rollback.post_create_command,
+            Some(Some("echo post".to_string()))
+        );
+        assert_eq!(rollback.post_create_timeout_seconds, Some(222));
     }
 }
