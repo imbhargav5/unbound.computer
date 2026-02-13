@@ -153,6 +153,23 @@ fn create_worktree_non_repo_returns_error() {
 }
 
 #[test]
+fn create_worktree_invalid_name_returns_error() {
+    let (_dir, repo_path) = common::init_test_repo();
+    let invalid = ["", "   ", "foo/bar", "foo\\bar", "..", "a..b"];
+
+    for name in invalid {
+        let result = create_worktree(&repo_path, name, None);
+        let err = result.err().unwrap_or_else(|| "unexpected success".to_string());
+        assert!(
+            err.contains("Invalid worktree name"),
+            "expected invalid name error for {:?}, got: {:?}",
+            name,
+            err
+        );
+    }
+}
+
+#[test]
 fn unbound_worktrees_dir_created_automatically() {
     let (_dir, repo_path) = common::init_test_repo();
 

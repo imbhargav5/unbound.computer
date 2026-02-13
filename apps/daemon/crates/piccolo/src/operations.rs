@@ -941,6 +941,34 @@ fn resolve_worktrees_dir(repo_path: &Path, root_dir: &Path) -> PathBuf {
     }
 }
 
+fn validate_worktree_name(worktree_name: &str) -> Result<(), String> {
+    let trimmed = worktree_name.trim();
+    if trimmed.is_empty() {
+        return Err("Invalid worktree name: cannot be empty or whitespace".to_string());
+    }
+    if trimmed != worktree_name {
+        return Err(
+            "Invalid worktree name: leading or trailing whitespace is not allowed".to_string(),
+        );
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("Invalid worktree name: path separators are not allowed".to_string());
+    }
+    if trimmed.contains("..") {
+        return Err("Invalid worktree name: '..' is not allowed".to_string());
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(
+            "Invalid worktree name: only ASCII letters, numbers, '.', '_', and '-' are allowed"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 fn resolve_base_commit<'repo>(
     repo: &'repo Repository,
     base_branch: &str,
@@ -1023,6 +1051,8 @@ pub fn create_worktree_with_options(
     base_branch: Option<&str>,
     worktree_branch: Option<&str>,
 ) -> Result<String, String> {
+    validate_worktree_name(worktree_name)?;
+
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
@@ -1214,6 +1244,46 @@ mod tests {
             GitFileStatus::from_delta(Delta::Untracked),
             GitFileStatus::Untracked
         );
+    }
+
+    #[test]
+    fn test_validate_worktree_name_accepts_safe_values() {
+        let valid = [
+            "session-1",
+            "unbound_123",
+            "release.2026.02",
+            "abcDEF-123_.name",
+        ];
+        for name in valid {
+            assert!(
+                validate_worktree_name(name).is_ok(),
+                "expected valid worktree name: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_worktree_name_rejects_unsafe_values() {
+        let invalid = [
+            "",
+            "   ",
+            " session",
+            "session ",
+            "foo/bar",
+            "foo\\bar",
+            "..",
+            "a..b",
+            "semi;colon",
+            "emoji-\u{1F680}",
+        ];
+        for name in invalid {
+            assert!(
+                validate_worktree_name(name).is_err(),
+                "expected invalid worktree name: {:?}",
+                name
+            );
+        }
     }
 
     #[test]
