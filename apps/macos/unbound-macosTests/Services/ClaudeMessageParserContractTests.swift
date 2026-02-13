@@ -10,6 +10,34 @@ import XCTest
 
 final class ClaudeMessageParserContractTests: XCTestCase {
 
+    func testAssistantTextAndToolUseParsing() {
+        let assistantPayload = jsonString([
+            "type": "assistant",
+            "message": [
+                "content": [
+                    ["type": "text", "text": "Reviewing parser contracts"],
+                    [
+                        "type": "tool_use",
+                        "id": "tool_text_mix",
+                        "name": "Read",
+                        "input": ["file_path": "SessionLiveState.swift"]
+                    ]
+                ]
+            ]
+        ])
+
+        let parsed = parse(assistantPayload)
+        XCTAssertEqual(parsed?.role, .assistant)
+        XCTAssertEqual(parsed?.textContent, "Reviewing parser contracts")
+
+        let toolUses = parsed?.content.compactMap { content -> ToolUse? in
+            guard case .toolUse(let toolUse) = content else { return nil }
+            return toolUse
+        } ?? []
+        XCTAssertEqual(toolUses.count, 1)
+        XCTAssertEqual(toolUses.first?.toolUseId, "tool_text_mix")
+    }
+
     func testWrappedRawJSONAssistantIsParsed() {
         let assistantPayload = jsonString([
             "type": "assistant",
@@ -44,6 +72,29 @@ final class ClaudeMessageParserContractTests: XCTestCase {
         let errorMessage = parse(error)
         XCTAssertEqual(errorMessage?.role, .system)
         XCTAssertEqual(errorMessage?.textContent, "Error: Tool failed with exit code 1")
+    }
+
+    func testWrappedResultSuccessHiddenAndWrappedResultErrorVisible() {
+        let wrappedSuccess = jsonString([
+            "raw_json": jsonString([
+                "type": "result",
+                "is_error": false,
+                "result": "Wrapped success"
+            ])
+        ])
+        let wrappedError = jsonString([
+            "raw_json": jsonString([
+                "type": "result",
+                "is_error": true,
+                "result": "Wrapped failure"
+            ])
+        ])
+
+        XCTAssertNil(parse(wrappedSuccess))
+
+        let parsedError = parse(wrappedError)
+        XCTAssertEqual(parsedError?.role, .system)
+        XCTAssertEqual(parsedError?.textContent, "Error: Wrapped failure")
     }
 
     func testUserProtocolArtifactOnlyRowIsHidden() {
@@ -136,6 +187,27 @@ final class ClaudeMessageParserContractTests: XCTestCase {
         XCTAssertEqual(toolUses.count, 1)
         XCTAssertEqual(toolUses.first?.toolUseId, "tool_dup")
         XCTAssertTrue(toolUses.first?.input?.contains("ARCHITECTURE.md") == true)
+    }
+
+    func testUnknownPayloadFallsBackToDeterministicSystemText() {
+        let unknown = jsonString([
+            "type": "unknown_protocol_type",
+            "foo": "bar"
+        ])
+
+        let parsed = parse(unknown)
+        XCTAssertEqual(parsed?.role, .system)
+        XCTAssertTrue(parsed?.textContent.contains("\"type\":\"unknown_protocol_type\"") == true)
+    }
+
+    func testMalformedWrappedRawJSONFallsBackToDeterministicSystemText() {
+        let malformedWrapped = jsonString([
+            "raw_json": "{not-json"
+        ])
+
+        let parsed = parse(malformedWrapped)
+        XCTAssertEqual(parsed?.role, .system)
+        XCTAssertTrue(parsed?.textContent.contains("\"raw_json\":\"{not-json\"") == true)
     }
 
     private func parse(_ json: String) -> ChatMessage? {
