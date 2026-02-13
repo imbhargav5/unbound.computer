@@ -93,9 +93,6 @@
     "@supabase/sentry-js-integration": "^0.3.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.79.0",
-    "@unbound/crypto": "workspace:*",
-    "@unbound/protocol": "workspace:*",
-    "@unbound/redis": "workspace:*",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.1.13",
@@ -131,6 +128,10 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/unist": "^3.0.3",
     "@types/uuid": "^11.0.0",
+    "@unbound/crypto": "workspace:*",
+    "@unbound/database": "workspace:*",
+    "@unbound/protocol": "workspace:*",
+    "@unbound/redis": "workspace:*",
     "@unkey/api": "^2.0.5",
     "@unkey/nextjs": "^2.0.0",
     "@vercel/analytics": "^1.5.0",
@@ -150,7 +151,6 @@
     "cross-env": "^10.0.0",
     "crypto-js": "^4.2.0",
     "d3-scale": "^4.0.2",
-    "@unbound/database": "workspace:*",
     "date-fns": "^4.1.0",
     "debug": "^4.4.3",
     "dotenv": "^17.2.2",
@@ -189,7 +189,7 @@
     "next-cool-action": "^0.0.5",
     "next-cool-cache": "^0.3.1",
     "next-devtools-mcp": "^0.3.0",
-    "next-mdx-remote": "^5.0.0",
+    "next-mdx-remote": "^6.0.0",
     "next-nprogress-bar": "^2.4.7",
     "next-themes": "^0.4.6",
     "node-gyp-build": "^4.8.4",
@@ -260,9 +260,9 @@
     "zod-form-data": "^3.0.1"
   },
   "devDependencies": {
-    "@unbound/typescript-config": "workspace:*",
     "@types/canvas-confetti": "^1.9.0",
     "@types/chance": "^1.1.7",
+    "@unbound/typescript-config": "workspace:*",
     "chance": "^1.1.13",
     "prettier": "^3.3.3"
   }
