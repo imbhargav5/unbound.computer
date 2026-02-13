@@ -303,6 +303,57 @@ final class RemoteCommandAvailabilityTests: XCTestCase {
     }
 }
 
+final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
+    func testCreateSessionMainDirectorySendsIsWorktreeFalse() async throws {
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in true }
+        )
+
+        _ = try await service.createSession(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            repositoryId: "33333333-3333-3333-3333-333333333333",
+            isWorktree: false
+        )
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["is_worktree"], .bool(false))
+        XCTAssertNil(params?["base_branch"])
+    }
+
+    func testCreateSessionWorktreeSendsBaseBranch() async throws {
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in true }
+        )
+
+        _ = try await service.createSession(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            repositoryId: "33333333-3333-3333-3333-333333333333",
+            isWorktree: true,
+            baseBranch: "main"
+        )
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["is_worktree"], .bool(true))
+        XCTAssertEqual(params?["base_branch"], .string("main"))
+    }
+}
+
 private final class NoopRemoteTransport: RemoteCommandTransport {
     func publishRemoteCommand(
         channel _: String,
@@ -361,6 +412,93 @@ private final class NoopRemoteTransport: RemoteCommandTransport {
             type: "noop",
             status: "ok",
             result: nil,
+            errorCode: nil,
+            errorMessage: nil,
+            createdAtMs: 1
+        )
+    }
+}
+
+private final class CapturingRemoteTransport: RemoteCommandTransport {
+    var publishedEnvelopes: [RemoteCommandEnvelope] = []
+
+    func publishRemoteCommand(
+        channel _: String,
+        payload _: UMSecretRequestCommandPayload
+    ) async throws {}
+
+    func waitForAck(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandAckEnvelope {
+        let decision = RemoteCommandDecisionResult(
+            schemaVersion: 1,
+            requestId: requestId,
+            sessionId: nil,
+            status: "accepted",
+            reasonCode: nil,
+            message: "accepted"
+        )
+        let encoded = try JSONEncoder().encode(decision).base64EncodedString()
+
+        return RemoteCommandAckEnvelope(
+            schemaVersion: 1,
+            commandId: "noop",
+            status: "accepted",
+            createdAtMs: 1,
+            resultB64: encoded
+        )
+    }
+
+    func waitForSessionSecretResponse(
+        channel _: String,
+        requestId _: String,
+        sessionId _: String,
+        timeout _: TimeInterval
+    ) async throws -> SessionSecretResponseEnvelope {
+        SessionSecretResponseEnvelope(
+            schemaVersion: 1,
+            requestId: "noop",
+            sessionId: "noop",
+            senderDeviceId: "noop",
+            receiverDeviceId: "noop",
+            status: "error",
+            errorCode: nil,
+            ciphertextB64: nil,
+            encapsulationPubkeyB64: nil,
+            nonceB64: nil,
+            algorithm: "noop",
+            createdAtMs: 1
+        )
+    }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope: RemoteCommandEnvelope
+    ) async throws {
+        publishedEnvelopes.append(envelope)
+    }
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        RemoteCommandResponse(
+            schemaVersion: 1,
+            requestId: requestId,
+            type: "session.create.v1",
+            status: "ok",
+            result: .object([
+                "id": .string("session-1"),
+                "repository_id": .string("repo-1"),
+                "title": .string("Session"),
+                "status": .string("active"),
+                "is_worktree": publishedEnvelopes.last?.params["is_worktree"] ?? .bool(false),
+                "worktree_path": .null,
+                "created_at": .string("2026-01-01T00:00:00Z"),
+            ]),
             errorCode: nil,
             errorMessage: nil,
             createdAtMs: 1

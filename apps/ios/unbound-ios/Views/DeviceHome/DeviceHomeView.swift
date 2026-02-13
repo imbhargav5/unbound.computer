@@ -4,6 +4,11 @@ import Logging
 private let logger = Logger(label: "app.ui")
 
 struct DeviceHomeView: View {
+    private enum SessionCreationMode {
+        case mainDirectory
+        case worktree
+    }
+
     @Environment(\.navigationManager) private var navigationManager
 
     private let syncedDataService = SyncedDataService.shared
@@ -16,6 +21,8 @@ struct DeviceHomeView: View {
     @State private var hasInitialized = false
     @State private var isCreatingSession = false
     @State private var sessionCreationError: String?
+    @State private var pendingSessionRepositoryId: UUID?
+    @State private var showSessionTypeChooser = false
 
     private var executorDevices: [SyncedDevice] {
         syncedDataService.executorDevices
@@ -55,7 +62,7 @@ struct DeviceHomeView: View {
                                     navigationManager.navigateToSyncedSession(session)
                                 },
                                 onCreateSession: selectedDevice != nil && isSelectedDeviceRemoteAvailable ? {
-                                    createSession(repositoryId: repo.id)
+                                    promptSessionCreation(repositoryId: repo.id)
                                 } : nil
                             )
                         }
@@ -81,6 +88,27 @@ struct DeviceHomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showDevicePicker) {
             devicePickerSheet
+        }
+        .confirmationDialog(
+            "Create Session",
+            isPresented: $showSessionTypeChooser,
+            titleVisibility: .visible
+        ) {
+            Button("Main Directory") {
+                guard let repositoryId = pendingSessionRepositoryId else { return }
+                pendingSessionRepositoryId = nil
+                createSession(repositoryId: repositoryId, mode: .mainDirectory)
+            }
+            Button("Worktree") {
+                guard let repositoryId = pendingSessionRepositoryId else { return }
+                pendingSessionRepositoryId = nil
+                createSession(repositoryId: repositoryId, mode: .worktree)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingSessionRepositoryId = nil
+            }
+        } message: {
+            Text("Choose where this session should run.")
         }
         .overlay {
             if isCreatingSession {
@@ -226,7 +254,12 @@ struct DeviceHomeView: View {
         )
     }
 
-    private func createSession(repositoryId: UUID) {
+    private func promptSessionCreation(repositoryId: UUID) {
+        pendingSessionRepositoryId = repositoryId
+        showSessionTypeChooser = true
+    }
+
+    private func createSession(repositoryId: UUID, mode: SessionCreationMode) {
         guard let device = selectedDevice else { return }
         guard !isCreatingSession else { return }
         guard presenceService.isDeviceDaemonAvailable(id: device.id.uuidString.lowercased()) else {
@@ -240,9 +273,15 @@ struct DeviceHomeView: View {
         Task {
             defer { isCreatingSession = false }
             do {
+                let defaultBaseBranch = syncedDataService.repository(id: repositoryId)?
+                    .defaultBranch?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let normalizedBaseBranch = (defaultBaseBranch?.isEmpty == false) ? defaultBaseBranch : nil
                 let result = try await remoteCommandService.createSession(
                     targetDeviceId: device.id.uuidString.lowercased(),
-                    repositoryId: repositoryId.uuidString.lowercased()
+                    repositoryId: repositoryId.uuidString.lowercased(),
+                    isWorktree: mode == .worktree,
+                    baseBranch: mode == .worktree ? normalizedBaseBranch : nil
                 )
                 logger.info("Created session \(result.id) for repo \(repositoryId)")
 

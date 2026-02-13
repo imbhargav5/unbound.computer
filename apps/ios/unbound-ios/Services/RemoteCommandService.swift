@@ -157,14 +157,27 @@ final class RemoteCommandService {
         repositoryId: String,
         title: String? = nil,
         isWorktree: Bool = false,
+        baseBranch: String? = nil,
+        worktreeBranch: String? = nil,
+        worktreeName: String? = nil,
         branchName: String? = nil
     ) async throws -> CreateSessionResult {
         var params: [String: AnyCodableValue] = [
             "repository_id": .string(repositoryId),
+            "is_worktree": .bool(isWorktree),
         ]
         if let title { params["title"] = .string(title) }
-        if isWorktree { params["is_worktree"] = .bool(true) }
-        if let branchName { params["branch_name"] = .string(branchName) }
+        if let baseBranch, !baseBranch.isEmpty {
+            params["base_branch"] = .string(baseBranch)
+        }
+        if let worktreeBranch, !worktreeBranch.isEmpty {
+            params["worktree_branch"] = .string(worktreeBranch)
+        } else if let branchName, !branchName.isEmpty {
+            params["branch_name"] = .string(branchName)
+        }
+        if let worktreeName, !worktreeName.isEmpty {
+            params["worktree_name"] = .string(worktreeName)
+        }
 
         let response = try await sendCommand(
             type: "session.create.v1",
