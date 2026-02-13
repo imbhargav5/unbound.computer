@@ -18,6 +18,12 @@ import Ably
 
 private let logger = Logger(label: "app.device")
 
+enum DeviceDaemonAvailability: Equatable {
+    case online
+    case offline
+    case unknown
+}
+
 /// Represents a monitored device with its online status
 struct MonitoredDevice: Identifiable, Equatable {
     let id: String
@@ -60,6 +66,7 @@ final class DevicePresenceService {
     private var networkMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.unbound.presence.network")
     private var daemonLastHeartbeatAt: [String: Date] = [:]
+    private var daemonExplicitOfflineDevices: Set<String> = []
     private let daemonHeartbeatTTL: TimeInterval = 12.0
 
     #if canImport(Ably)
@@ -111,6 +118,7 @@ final class DevicePresenceService {
         userId = nil
         monitoredDevices = []
         daemonLastHeartbeatAt = [:]
+        daemonExplicitOfflineDevices = []
 
         logger.info("DevicePresenceService stopped")
     }
@@ -132,13 +140,24 @@ final class DevicePresenceService {
     }
 
     /// Check if a device daemon is available for remote commands.
-    /// Availability is based on daemon.presence.v1 heartbeat TTL.
+    /// Availability allows `unknown` bootstrap state and only blocks explicit/derived offline.
     func isDeviceDaemonAvailable(id: String) -> Bool {
+        daemonAvailability(id: id) != .offline
+    }
+
+    /// Resolve daemon availability state from heartbeat stream.
+    func daemonAvailability(id: String) -> DeviceDaemonAvailability {
         let normalizedID = id.lowercased()
-        guard let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] else {
-            return false
+        if let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] {
+            if Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL {
+                return .online
+            }
+            return .offline
         }
-        return Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL
+        if daemonExplicitOfflineDevices.contains(normalizedID) {
+            return .offline
+        }
+        return .unknown
     }
 
     // MARK: - Heartbeat
@@ -368,7 +387,10 @@ final class DevicePresenceService {
                     )
                     callback(details, nil)
                 } catch {
-                    callback(nil, AblyRemoteCommandTransport.tokenAuthNSError(error))
+                    let nsError = await MainActor.run {
+                        AblyRemoteCommandTransport.tokenAuthNSError(error)
+                    }
+                    callback(nil, nsError)
                 }
             }
         }
@@ -415,8 +437,10 @@ final class DevicePresenceService {
         switch payload.status {
         case "online":
             daemonLastHeartbeatAt[normalizedDeviceID] = heartbeatDate
+            daemonExplicitOfflineDevices.remove(normalizedDeviceID)
         case "offline":
             daemonLastHeartbeatAt.removeValue(forKey: normalizedDeviceID)
+            daemonExplicitOfflineDevices.insert(normalizedDeviceID)
         default:
             // Ignore unknown statuses to preserve forward compatibility.
             break

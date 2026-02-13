@@ -120,7 +120,9 @@ struct MergePRResult {
 final class RemoteCommandService {
     static let shared = RemoteCommandService(
         targetAvailabilityResolver: { targetDeviceId in
-            DevicePresenceService.shared.isDeviceDaemonAvailable(id: targetDeviceId.lowercased())
+            await MainActor.run {
+                DevicePresenceService.shared.daemonAvailability(id: targetDeviceId.lowercased())
+            }
         }
     )
 
@@ -128,7 +130,7 @@ final class RemoteCommandService {
     private let authService: AuthService
     private let keychainService: KeychainService
     private let authContextResolver: (() throws -> (userId: String, deviceId: String))?
-    private let targetAvailabilityResolver: ((String) -> Bool)?
+    private let targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)?
     private let ackTimeout: TimeInterval
     private let responseTimeout: TimeInterval
 
@@ -137,7 +139,7 @@ final class RemoteCommandService {
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared,
         authContextResolver: (() throws -> (userId: String, deviceId: String))? = nil,
-        targetAvailabilityResolver: ((String) -> Bool)? = nil,
+        targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)? = nil,
         ackTimeout: TimeInterval = 10,
         responseTimeout: TimeInterval = 30
     ) {
@@ -471,9 +473,11 @@ final class RemoteCommandService {
         params: [String: AnyCodableValue]
     ) async throws -> RemoteCommandResponse {
         let normalizedTargetDeviceId = targetDeviceId.lowercased()
-        if let targetAvailabilityResolver,
-           !targetAvailabilityResolver(normalizedTargetDeviceId) {
-            throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
+        if let targetAvailabilityResolver {
+            let availability = await targetAvailabilityResolver(normalizedTargetDeviceId)
+            if availability == .offline {
+                throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
+            }
         }
 
         let context = try resolveAuthContext()
