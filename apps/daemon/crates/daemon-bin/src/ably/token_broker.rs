@@ -341,7 +341,10 @@ impl BrokerState {
             return Err("Ably token API response missing token".to_string());
         }
 
-        debug!(audience = audience.as_str(), "Fetched fresh Ably token details");
+        debug!(
+            audience = audience.as_str(),
+            "Fetched fresh Ably token details"
+        );
         Ok(payload)
     }
 }
@@ -373,7 +376,10 @@ async fn read_request(stream: &mut UnixStream) -> Result<BrokerTokenRequest, Str
     serde_json::from_slice(&bytes).map_err(|err| format!("invalid broker request JSON: {}", err))
 }
 
-async fn write_response(stream: &mut UnixStream, response: BrokerTokenResponse) -> Result<(), String> {
+async fn write_response(
+    stream: &mut UnixStream,
+    response: BrokerTokenResponse,
+) -> Result<(), String> {
     let payload = serde_json::to_vec(&response)
         .map_err(|err| format!("failed serializing broker response: {}", err))?;
 

@@ -821,8 +821,11 @@ mod tests {
     #[test]
     fn toshinori_sink_debug_is_opaque() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let sink =
-            ToshinoriSink::new("https://test.supabase.co", "secret-key", runtime.handle().clone());
+        let sink = ToshinoriSink::new(
+            "https://test.supabase.co",
+            "secret-key",
+            runtime.handle().clone(),
+        );
         let debug = format!("{:?}", sink);
         assert!(debug.contains("ToshinoriSink"));
         assert!(!debug.contains("secret-key"));

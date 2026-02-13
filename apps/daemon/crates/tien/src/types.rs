@@ -42,10 +42,7 @@ mod tests {
 
         assert_eq!(deserialized.name, "claude");
         assert!(deserialized.installed);
-        assert_eq!(
-            deserialized.path,
-            Some("/usr/local/bin/claude".to_string())
-        );
+        assert_eq!(deserialized.path, Some("/usr/local/bin/claude".to_string()));
     }
 
     #[test]
@@ -80,8 +77,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&result).expect("serialize");
-        let deserialized: DependencyCheckResult =
-            serde_json::from_str(&json).expect("deserialize");
+        let deserialized: DependencyCheckResult = serde_json::from_str(&json).expect("deserialize");
 
         assert!(deserialized.claude.installed);
         assert!(!deserialized.gh.installed);

@@ -27,10 +27,7 @@ pub enum BakugouError {
     },
 
     #[error("GitHub CLI command timed out after {timeout_secs}s: {command}")]
-    Timeout {
-        command: String,
-        timeout_secs: u64,
-    },
+    Timeout { command: String, timeout_secs: u64 },
 
     #[error("Failed to parse GitHub CLI output: {message}")]
     ParseError { message: String },

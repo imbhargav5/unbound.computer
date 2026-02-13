@@ -108,11 +108,7 @@ fn resolve_gh_executable() -> String {
     "gh".to_string()
 }
 
-fn classify_failed_command(
-    exit_code: Option<i32>,
-    stdout: &str,
-    stderr: &str,
-) -> BakugouError {
+fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -> BakugouError {
     let combined = format!("{stderr}\n{stdout}").to_ascii_lowercase();
 
     if combined.contains("not logged into")

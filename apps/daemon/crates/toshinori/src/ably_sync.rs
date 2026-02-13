@@ -734,7 +734,10 @@ mod tests {
         let frame = encode_side_effect_frame(effect_id, payload);
 
         // 4 bytes length prefix + 24 header + 5 payload = 33
-        assert_eq!(frame.len(), 4 + FALCO_SIDE_EFFECT_HEADER_SIZE + payload.len());
+        assert_eq!(
+            frame.len(),
+            4 + FALCO_SIDE_EFFECT_HEADER_SIZE + payload.len()
+        );
 
         // Length prefix (LE u32) = 24 + 5 = 29
         let frame_len = u32::from_le_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
@@ -753,8 +756,7 @@ mod tests {
         assert_eq!(parsed_id, effect_id);
 
         // Payload length (LE u32 at offset 24..28)
-        let payload_len =
-            u32::from_le_bytes([frame[24], frame[25], frame[26], frame[27]]) as usize;
+        let payload_len = u32::from_le_bytes([frame[24], frame[25], frame[26], frame[27]]) as usize;
         assert_eq!(payload_len, payload.len());
 
         // Payload bytes
@@ -769,8 +771,7 @@ mod tests {
         assert_eq!(frame.len(), 4 + FALCO_SIDE_EFFECT_HEADER_SIZE);
 
         // Payload length should be 0
-        let payload_len =
-            u32::from_le_bytes([frame[24], frame[25], frame[26], frame[27]]) as usize;
+        let payload_len = u32::from_le_bytes([frame[24], frame[25], frame[26], frame[27]]) as usize;
         assert_eq!(payload_len, 0);
     }
 

@@ -41,11 +41,10 @@ pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, Bak
 
     let output = runner.run(&args, None, TIMEOUT_SHORT_SECS).await?;
 
-    let parsed: GhAuthStatusEnvelope = serde_json::from_str(&output.stdout).map_err(|err| {
-        BakugouError::ParseError {
+    let parsed: GhAuthStatusEnvelope =
+        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
             message: format!("failed to parse gh auth status output: {err}"),
-        }
-    })?;
+        })?;
 
     let mut hosts = Vec::new();
     for (host_key, entries) in parsed.hosts {
@@ -137,8 +136,13 @@ pub async fn pr_create(
         message: "could not extract pull request URL from gh pr create output".to_string(),
     })?;
 
-    let pull_request =
-        pr_view(working_dir, PrViewInput { selector: Some(url.clone()) }).await?;
+    let pull_request = pr_view(
+        working_dir,
+        PrViewInput {
+            selector: Some(url.clone()),
+        },
+    )
+    .await?;
 
     Ok(PrCreateResult { url, pull_request })
 }
@@ -160,20 +164,18 @@ pub async fn pr_view(
     args.push("--json".to_string());
     args.push(PR_JSON_FIELDS.to_string());
 
-    let output = runner.run(&args, Some(working_dir), TIMEOUT_SHORT_SECS).await?;
-    let parsed: GhPullRequest = serde_json::from_str(&output.stdout).map_err(|err| {
-        BakugouError::ParseError {
+    let output = runner
+        .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
+        .await?;
+    let parsed: GhPullRequest =
+        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
             message: format!("failed to parse gh pr view output: {err}"),
-        }
-    })?;
+        })?;
 
     Ok(map_pull_request(parsed))
 }
 
-pub async fn pr_list(
-    working_dir: &Path,
-    input: PrListInput,
-) -> Result<PrListResult, BakugouError> {
+pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, BakugouError> {
     let runner = GhCommandRunner::new();
 
     let limit = if input.limit == 0 { 20 } else { input.limit };
@@ -203,12 +205,13 @@ pub async fn pr_list(
         }
     }
 
-    let output = runner.run(&args, Some(working_dir), TIMEOUT_SHORT_SECS).await?;
-    let parsed: Vec<GhPullRequest> = serde_json::from_str(&output.stdout).map_err(|err| {
-        BakugouError::ParseError {
+    let output = runner
+        .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
+        .await?;
+    let parsed: Vec<GhPullRequest> =
+        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
             message: format!("failed to parse gh pr list output: {err}"),
-        }
-    })?;
+        })?;
 
     let pull_requests = parsed.into_iter().map(map_pull_request).collect::<Vec<_>>();
     let count = pull_requests.len();
@@ -236,12 +239,13 @@ pub async fn pr_checks(
     args.push("--json".to_string());
     args.push(CHECKS_JSON_FIELDS.to_string());
 
-    let output = runner.run(&args, Some(working_dir), TIMEOUT_SHORT_SECS).await?;
-    let parsed: Vec<GhPrCheck> = serde_json::from_str(&output.stdout).map_err(|err| {
-        BakugouError::ParseError {
+    let output = runner
+        .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
+        .await?;
+    let parsed: Vec<GhPrCheck> =
+        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
             message: format!("failed to parse gh pr checks output: {err}"),
-        }
-    })?;
+        })?;
 
     let checks = parsed
         .iter()
@@ -267,7 +271,8 @@ pub async fn pr_merge(
     working_dir: &Path,
     input: PrMergeInput,
 ) -> Result<PrMergeResult, BakugouError> {
-    let selector = if let Some(selector) = input.selector.as_ref().filter(|s| !s.trim().is_empty()) {
+    let selector = if let Some(selector) = input.selector.as_ref().filter(|s| !s.trim().is_empty())
+    {
         selector.to_string()
     } else {
         let current = pr_view(working_dir, PrViewInput::default()).await?;
@@ -337,7 +342,10 @@ fn summarize_checks(checks: &[GhPrCheck]) -> PrChecksSummary {
             summary.passing += 1;
         } else if bucket.contains("fail") || bucket.contains("error") {
             summary.failing += 1;
-        } else if bucket.contains("pending") || bucket.contains("queued") || bucket.contains("in_progress") {
+        } else if bucket.contains("pending")
+            || bucket.contains("queued")
+            || bucket.contains("in_progress")
+        {
             summary.pending += 1;
         } else if bucket.contains("skip") {
             summary.skipped += 1;
