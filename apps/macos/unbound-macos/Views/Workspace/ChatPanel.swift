@@ -429,7 +429,7 @@ struct ChatPanel: View {
                                     if !activeSubAgents.isEmpty {
                                         VStack(alignment: .leading, spacing: Spacing.md) {
                                             ForEach(activeSubAgents) { subAgent in
-                                                AgentCardView(subAgent: subAgent)
+                                                SubAgentView(activeSubAgent: subAgent)
                                             }
                                         }
                                         .padding(.horizontal, Spacing.lg)
@@ -438,7 +438,7 @@ struct ChatPanel: View {
 
                                     // Render active standalone tools (if any)
                                     if !activeTools.isEmpty {
-                                        ActiveToolsView(tools: activeTools)
+                                        StandaloneToolCallsView(activeTools: activeTools)
                                             .padding(.horizontal, Spacing.lg)
                                             .padding(.vertical, Spacing.sm)
                                     }

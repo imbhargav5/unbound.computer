@@ -50,7 +50,7 @@ struct MessageBubbleView: View {
             ForEach(displayBlocks) { displayBlock in
                 switch displayBlock {
                 case .standaloneToolUseGroup(let tools):
-                    StandaloneToolUseGroupCardView(tools: tools)
+                    StandaloneToolCallsView(tools: tools)
 
                 case .block(let block):
                     switch block {
@@ -144,66 +144,6 @@ private enum ParsedDisplayBlock: Identifiable {
             let ids = tools.map { $0.id.uuidString }.joined(separator: ",")
             return "tool-group:\(ids)"
         }
-    }
-}
-
-private struct StandaloneToolUseGroupCardView: View {
-    let tools: [SessionToolUse]
-    @State private var isExpanded = false
-
-    private var primaryTitle: String {
-        if tools.count == 1, let tool = tools.first {
-            return tool.summary
-        }
-        return "Tool Use Activity"
-    }
-
-    private var secondaryTitle: String {
-        if tools.count == 1, let tool = tools.first {
-            return tool.toolName
-        }
-        return "\(tools.count) tool calls"
-    }
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                ForEach(tools) { tool in
-                    SessionContentBlockView(block: .toolUse(tool))
-                }
-            }
-            .padding(.top, AppTheme.spacingXS)
-        } label: {
-            HStack(spacing: AppTheme.spacingS) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
-                    .frame(width: 20)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(primaryTitle)
-                        .font(Typography.footnote.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-
-                    Text(secondaryTitle)
-                        .font(Typography.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 4)
-
-                Text("\(tools.count)")
-                    .font(Typography.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-        }
-        .tint(AppTheme.textSecondary)
-        .padding(.horizontal, AppTheme.spacingS + 2)
-        .padding(.vertical, AppTheme.spacingXS + 2)
-        .background(AppTheme.backgroundSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
     }
 }
 

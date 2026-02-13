@@ -1,0 +1,176 @@
+# Itachi
+
+**Inbound remote-command decision brain.** Itachi validates and routes remote commands received from other devices via Ably, delegating transport concerns to Nagato (ingress) and Falco (egress).
+
+## Overview
+
+Itachi uses a **pure functional core** architecture. The handler emits deterministic `Effect` values instead of performing I/O directly. The runtime then evaluates those effects asynchronously, spawning tasks, publishing responses, and logging.
+
+This separation makes the validation and routing logic fully unit-testable without mocking sockets, databases, or network calls.
+
+## Architecture
+
+```
+                       Ably (realtime)
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│  Nagato (ingress)                                        │
+│  Receives command payload from Ably subscription         │
+│                          │                               │
+│                          ▼                               │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Itachi                                            │  │
+│  │                                                    │  │
+│  │  handler.rs ─► parse + validate ─► Vec<Effect>     │  │
+│  │                                                    │  │
+│  │  runtime.rs ─► evaluate effects ─► spawn tasks     │  │
+│  │       │                                            │  │
+│  │       ├── process_um_secret_request                │  │
+│  │       ├── execute_remote_command                   │  │
+│  │       └── publish_remote_command_response          │  │
+│  └────────────────────────────────────────────────────┘  │
+│                          │                               │
+│              ┌───────────┴───────────┐                   │
+│              ▼                       ▼                   │
+│     DecisionOutcome           Falco (egress)             │
+│     (ack / do-not-ack)        publishes responses        │
+│     returned to Nagato        via Unix socket            │
+└──────────────────────────────────────────────────────────┘
+```
+
+## Command Types
+
+| Type | Format | Description |
+|------|--------|-------------|
+| `um.secret.request.v1` | Legacy | Cross-device session secret sharing via ECDH encryption |
+| `session.create.v1` | Generic | Create a session remotely |
+| `claude.send.v1` | Generic | Send a Claude message remotely |
+| `claude.stop.v1` | Generic | Stop a Claude process remotely |
+| `gh.pr.create.v1` | Generic | Create a GitHub PR remotely |
+| `gh.pr.view.v1` | Generic | View a GitHub PR remotely |
+| `gh.pr.list.v1` | Generic | List GitHub PRs remotely |
+| `gh.pr.checks.v1` | Generic | View GitHub PR checks remotely |
+| `gh.pr.merge.v1` | Generic | Merge a GitHub PR remotely |
+
+The router (`handle_remote_command`) tries to parse the payload as a generic `RemoteCommandEnvelope` first. If the type is `um.secret.request.v1`, it delegates to the legacy handler. Otherwise it routes through the generic command pipeline.
+
+## Effect System
+
+The pure handler emits a `Vec<Effect>` that the runtime evaluates:
+
+| Effect | Evaluation |
+|--------|------------|
+| `ReturnDecision` | Serializes the decision payload and returns it to Nagato for ack/nack |
+| `ProcessUmSecretRequest` | Spawns async task to encrypt and publish session secret via Falco |
+| `ExecuteRemoteCommand` | Spawns async task to dispatch command to the appropriate IPC handler |
+| `PublishRemoteResponse` | Spawns async task to publish response envelope via Falco |
+| `RecordMetric` | Logs a named metric counter |
+| `Log` | Emits a tracing log at the specified level |
+
+The handler also returns a `DecisionKind` (`AckMessage` or `DoNotAck`) that tells Nagato whether to acknowledge the Ably message.
+
+## Validation Pipeline
+
+Every command goes through these checks before acceptance:
+
+1. **Parse** - JSON deserialization into the appropriate struct
+2. **UUID validation** - `request_id`, `requester_device_id`, and `target_device_id` must be valid UUIDs
+3. **Device identity** - Local device identity must be available
+4. **Target match** - `target_device_id` must match the local device
+5. **Type support** - Command type must be in the supported list
+6. **Type-specific** - e.g., `gh.pr.*` commands require `session_id` in params
+
+Rejection at any step emits `DecisionKind::DoNotAck` with a reason code.
+
+## Decision Reason Codes
+
+| Code | Cause |
+|------|-------|
+| `invalid_payload` | Malformed JSON or failed field validation |
+| `unauthorized` | Authentication failure |
+| `not_found` | Referenced resource doesn't exist |
+| `internal_error` | Local device identity unavailable or other internal failure |
+| `target_mismatch` | Command targeted at a different device |
+| `unsupported_command_type` | Unknown command type |
+
+## Idempotency
+
+UM secret requests use an in-memory `IdempotencyStore` with a 5-minute TTL to handle duplicate Ably deliveries:
+
+- **New** - First time seeing this key; mark as in-flight and process
+- **InFlight** - Duplicate while still processing; silently drop
+- **Completed** - Already processed; replay the cached response
+
+The idempotency key is `{request_id}:{requester_device_id}:{target_device_id}`.
+
+## UM Secret Sharing Flow
+
+When a device requests a session secret:
+
+1. Itachi validates the request and checks idempotency
+2. Fetches the requester's public key from Supabase
+3. Decrypts the session secret from the local database
+4. Encrypts the secret for the requester using X25519-HKDF-SHA256-ChaCha20Poly1305
+5. Publishes the encrypted response on `session:secrets:{sender}:{receiver}` via Falco
+
+## Falco Wire Protocol
+
+Itachi publishes responses to Falco over a Unix socket using a binary framing protocol:
+
+**Side-effect frame (outbound):**
+```
+[4 bytes: frame_length (LE u32)]
+[1 byte: type = 0x03]
+[1 byte: flags]
+[2 bytes: reserved]
+[16 bytes: effect_id (UUID)]
+[4 bytes: payload_length (LE u32)]
+[N bytes: JSON payload]
+```
+
+**Publish-ack frame (inbound):**
+```
+[4 bytes: frame_length (LE u32)]
+[1 byte: type = 0x04]
+[1 byte: status (0x01 = success, 0x02 = failed)]
+[2 bytes: reserved]
+[16 bytes: effect_id (UUID)]
+[4 bytes: error_length (LE u32)]
+[N bytes: error message (UTF-8)]
+```
+
+Publishes retry up to 3 times with exponential backoff (200ms base).
+
+## Module Structure
+
+```
+itachi/
+├── mod.rs            # Module exports
+├── handler.rs        # Pure command validation and routing
+├── runtime.rs        # Async effect evaluation and Falco I/O
+├── contracts.rs      # Wire format types (envelopes, responses, payloads)
+├── ports.rs          # Effect enum, DecisionKind, HandlerDeps
+├── errors.rs         # DecisionReasonCode, ResponseErrorCode
+├── idempotency.rs    # TTL-based duplicate request store
+└── channels.rs       # Ably channel name builders
+```
+
+## Testing
+
+```bash
+cargo test -p daemon-bin -- itachi
+```
+
+Tests cover:
+- Valid request acceptance and effect emission
+- Invalid JSON rejection
+- Wrong command type rejection
+- Target device mismatch rejection
+- Generic command routing (session.create, claude.send, claude.stop, gh.pr.*)
+- Legacy UM secret format fallback
+- UUID validation on all ID fields
+- Idempotency store state transitions and TTL expiration
+- Falco publish-ack frame parsing
+- Channel name construction
+- Remote command envelope serialization round-trips

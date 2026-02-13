@@ -620,7 +620,7 @@ struct MessageContentView: View {
             ToolViewRouter(toolUse: toolUse)
 
         case .subAgentActivity(let activity):
-            HistoricalAgentCardView(activity: activity)
+            SubAgentView(activity: activity)
 
         case .error(let error):
             ErrorContentView(error: error)
