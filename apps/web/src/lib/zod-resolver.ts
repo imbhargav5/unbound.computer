@@ -9,6 +9,8 @@ import type { z } from "zod";
 export function zodResolver<T extends z.ZodType<FieldValues>>(
   schema: T
 ): Resolver<z.infer<T>> {
-  // biome-ignore lint/suspicious/noExplicitAny: Type assertion needed for Zod 4.1.x compatibility
-  return baseZodResolver(schema as any) as Resolver<z.infer<T>>;
+  type ZodResolverInput = Parameters<typeof baseZodResolver>[0];
+  return baseZodResolver(schema as ZodResolverInput) as unknown as Resolver<
+    z.infer<T>
+  >;
 }
