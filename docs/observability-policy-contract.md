@@ -91,6 +91,32 @@ Recommended when available:
 - `build_version`
 - `os_version`
 
+## Correlation Canonicalization and Fallback
+
+Runtimes must canonicalize correlation keys to snake_case before remote export:
+
+- `request_id`
+- `session_id`
+- `device_id_hash`
+- `user_id_hash`
+- `trace_id`
+- `span_id`
+
+Alias handling (runtime-local, duplicated logic is acceptable):
+
+- `request_id`: accept `request_id`, `requestId`, `request-id`.
+- `session_id`: accept `session_id`, `sessionId`.
+- `trace_id`: accept `trace_id`, `traceId`.
+- `span_id`: accept `span_id`, `spanId`.
+- `device_id_hash`: accept `device_id_hash`, `deviceIdHash`; fallback to `sha256(device_id|deviceId)`.
+- `user_id_hash`: accept `user_id_hash`, `userIdHash`; fallback to `sha256(user_id|userId)`.
+
+Fallback behavior when unavailable:
+
+- If a correlation value is missing, omit the key (do not emit placeholder values).
+- `device_id_hash` and `user_id_hash` must never export raw identifiers to remote sinks.
+- If provided hash fields are not prefixed with `sha256:`, runtimes should hash the value and emit `sha256:<digest>`.
+
 ## Production Allowed Fields (Remote Export)
 
 In `prod_metadata_only`, only the following fields may be exported:
@@ -171,6 +197,8 @@ Sentry tags must include:
 - `session_id` (if present)
 - `device_id_hash` (if present)
 - `user_id_hash` (if present)
+- `trace_id` (if present)
+- `span_id` (if present)
 
 Sentry payloads must follow the same redaction and production metadata rules.
 

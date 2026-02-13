@@ -39,7 +39,9 @@ private let sentryTagKeys: [String] = [
     "request_id",
     "session_id",
     "device_id_hash",
-    "user_id_hash"
+    "user_id_hash",
+    "trace_id",
+    "span_id"
 ]
 
 enum ObservabilityService {
@@ -156,6 +158,15 @@ struct ObservabilityEvent {
     let sentryTags: [String: String]
 }
 
+private struct CorrelationFields {
+    let requestId: String?
+    let sessionId: String?
+    let deviceIdHash: String?
+    let userIdHash: String?
+    let traceId: String?
+    let spanId: String?
+}
+
 struct ObservabilityPayloadBuilder {
     private static let timestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -241,31 +252,10 @@ struct ObservabilityPayloadBuilder {
                     properties[key] = sanitized
                 }
             }
-
-            if let deviceId = readString(metadataObject["device_id"]) {
-                properties["device_id_hash"] = sha256Prefixed(deviceId)
-            }
-
-            if let userId = readString(metadataObject["user_id"]) {
-                properties["user_id_hash"] = sha256Prefixed(userId)
-            }
-
-            if let requestID = readString(metadataObject["request_id"]) {
-                properties["request_id"] = requestID
-            }
-
-            if let sessionID = readString(metadataObject["session_id"]) {
-                properties["session_id"] = sessionID
-            }
-
-            if let traceID = readString(metadataObject["trace_id"]) {
-                properties["trace_id"] = traceID
-            }
-
-            if let spanID = readString(metadataObject["span_id"]) {
-                properties["span_id"] = spanID
-            }
         }
+
+        let correlation = extractCorrelationFields(from: metadataObject)
+        applyCorrelationFields(correlation, to: &properties)
 
         let distinctId = readString(properties["device_id_hash"]) ??
             readString(properties["user_id_hash"]) ??
@@ -627,6 +617,77 @@ private func isLongBase64(_ value: String) -> Bool {
     value.count > 48 && value.unicodeScalars.allSatisfy { scalar in
         CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=_-")
             .contains(scalar)
+    }
+}
+
+private func readFirstString(in object: [String: Any], keys: [String]) -> String? {
+    for key in keys {
+        if let value = readString(object[key]) {
+            return value
+        }
+    }
+    return nil
+}
+
+private func sanitizeCorrelationString(_ value: String) -> String {
+    sanitizeString(value)
+}
+
+private func normalizeHashIdentifier(_ value: String) -> String {
+    if value.lowercased().hasPrefix("sha256:") {
+        return value
+    }
+    return sha256Prefixed(value)
+}
+
+private func extractCorrelationFields(from metadata: [String: Any]) -> CorrelationFields {
+    let requestID = readFirstString(in: metadata, keys: ["request_id", "requestId", "request-id"])
+        .map(sanitizeCorrelationString(_:))
+    let sessionID = readFirstString(in: metadata, keys: ["session_id", "sessionId"])
+        .map(sanitizeCorrelationString(_:))
+    let traceID = readFirstString(in: metadata, keys: ["trace_id", "traceId"])
+        .map(sanitizeCorrelationString(_:))
+    let spanID = readFirstString(in: metadata, keys: ["span_id", "spanId"])
+        .map(sanitizeCorrelationString(_:))
+
+    let explicitDeviceHash = readFirstString(in: metadata, keys: ["device_id_hash", "deviceIdHash"])
+        .map(normalizeHashIdentifier(_:))
+    let fallbackDeviceHash = readFirstString(in: metadata, keys: ["device_id", "deviceId"])
+        .map(sha256Prefixed(_:))
+
+    let explicitUserHash = readFirstString(in: metadata, keys: ["user_id_hash", "userIdHash"])
+        .map(normalizeHashIdentifier(_:))
+    let fallbackUserHash = readFirstString(in: metadata, keys: ["user_id", "userId"])
+        .map(sha256Prefixed(_:))
+
+    return CorrelationFields(
+        requestId: requestID,
+        sessionId: sessionID,
+        deviceIdHash: explicitDeviceHash ?? fallbackDeviceHash,
+        userIdHash: explicitUserHash ?? fallbackUserHash,
+        traceId: traceID,
+        spanId: spanID
+    )
+}
+
+private func applyCorrelationFields(_ fields: CorrelationFields, to properties: inout [String: Any]) {
+    if let requestId = fields.requestId {
+        properties["request_id"] = requestId
+    }
+    if let sessionId = fields.sessionId {
+        properties["session_id"] = sessionId
+    }
+    if let deviceIdHash = fields.deviceIdHash {
+        properties["device_id_hash"] = deviceIdHash
+    }
+    if let userIdHash = fields.userIdHash {
+        properties["user_id_hash"] = userIdHash
+    }
+    if let traceId = fields.traceId {
+        properties["trace_id"] = traceId
+    }
+    if let spanId = fields.spanId {
+        properties["span_id"] = spanId
     }
 }
 

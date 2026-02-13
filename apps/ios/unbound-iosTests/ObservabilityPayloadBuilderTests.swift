@@ -1,3 +1,5 @@
+import CryptoKit
+import Foundation
 import Logging
 import XCTest
 
@@ -81,6 +83,34 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(first, second)
     }
 
+    func testCorrelationAliasesAreCanonicalizedAndTagged() {
+        let builder = makeBuilder(mode: .prodMetadataOnly)
+        let metadata: Logger.Metadata = [
+            "requestId": "req_alias",
+            "sessionId": "session_alias",
+            "traceId": "trace_alias",
+            "spanId": "span_alias",
+            "deviceId": "device_raw",
+            "user_id_hash": "sha256:user_prehashed"
+        ]
+
+        let event = builder.build(
+            level: .error,
+            label: "app.sync",
+            message: "sync failed",
+            metadata: metadata
+        )
+
+        XCTAssertEqual(event.posthogProperties["request_id"] as? String, "req_alias")
+        XCTAssertEqual(event.posthogProperties["session_id"] as? String, "session_alias")
+        XCTAssertEqual(event.posthogProperties["trace_id"] as? String, "trace_alias")
+        XCTAssertEqual(event.posthogProperties["span_id"] as? String, "span_alias")
+        XCTAssertEqual(event.posthogProperties["device_id_hash"] as? String, sha256("device_raw"))
+        XCTAssertEqual(event.posthogProperties["user_id_hash"] as? String, "sha256:user_prehashed")
+        XCTAssertEqual(event.sentryTags["trace_id"], "trace_alias")
+        XCTAssertEqual(event.sentryTags["span_id"], "span_alias")
+    }
+
     private func makeBuilder(mode: ObservabilityMode) -> ObservabilityPayloadBuilder {
         ObservabilityPayloadBuilder(
             config: ObservabilityRuntimeConfig(
@@ -95,5 +125,11 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
                 osVersion: "iOS 18.2"
             )
         )
+    }
+
+    private func sha256(_ rawValue: String) -> String {
+        let digest = SHA256.hash(data: Data(rawValue.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(hex)"
     }
 }

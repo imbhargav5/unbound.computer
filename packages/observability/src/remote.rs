@@ -31,16 +31,27 @@ const DENYLIST_KEYS: [&str; 13] = [
     "content_nonce",
 ];
 
-const PROD_ALLOWED_FIELDS: [&str; 8] = [
+const PROD_ALLOWED_FIELDS: [&str; 9] = [
     "request_id",
     "session_id",
+    "device_id_hash",
+    "user_id_hash",
     "trace_id",
     "span_id",
     "app_version",
     "build_version",
     "os_version",
-    "component",
 ];
+
+#[derive(Default)]
+struct CorrelationFields {
+    request_id: Option<String>,
+    session_id: Option<String>,
+    device_id_hash: Option<String>,
+    user_id_hash: Option<String>,
+    trace_id: Option<String>,
+    span_id: Option<String>,
+}
 
 #[derive(Clone)]
 pub struct RemoteExporter {
@@ -296,6 +307,8 @@ fn build_export_envelope(
         insert_tag_from_props(&mut tags, &props, "session_id");
         insert_tag_from_props(&mut tags, &props, "device_id_hash");
         insert_tag_from_props(&mut tags, &props, "user_id_hash");
+        insert_tag_from_props(&mut tags, &props, "trace_id");
+        insert_tag_from_props(&mut tags, &props, "span_id");
 
         let message = props
             .get("event_code")
@@ -371,6 +384,9 @@ fn build_dev_properties(entry: &LogEntry, environment: &str) -> Map<String, Valu
         props.insert("fields".to_string(), Value::Object(sanitized_fields));
     }
 
+    let correlation_fields = extract_correlation_fields(&entry.fields);
+    insert_correlation_fields(&mut props, &correlation_fields);
+
     props
 }
 
@@ -410,40 +426,8 @@ fn build_prod_properties(entry: &LogEntry, environment: &str) -> Map<String, Val
         }
     }
 
-    if let Some(raw_device) = read_string_field(&entry.fields, "device_id") {
-        props.insert(
-            "device_id_hash".to_string(),
-            Value::String(sha256_prefixed(&raw_device)),
-        );
-    }
-    if let Some(raw_user) = read_string_field(&entry.fields, "user_id") {
-        props.insert(
-            "user_id_hash".to_string(),
-            Value::String(sha256_prefixed(&raw_user)),
-        );
-    }
-
-    if let Some(request_id) = read_string_field(&entry.fields, "request_id") {
-        props.insert("request_id".to_string(), Value::String(request_id));
-    }
-    if let Some(session_id) = read_string_field(&entry.fields, "session_id") {
-        props.insert("session_id".to_string(), Value::String(session_id));
-    }
-    if let Some(trace_id) = read_string_field(&entry.fields, "trace_id") {
-        props.insert("trace_id".to_string(), Value::String(trace_id));
-    }
-    if let Some(span_id) = read_string_field(&entry.fields, "span_id") {
-        props.insert("span_id".to_string(), Value::String(span_id));
-    }
-    if let Some(app_version) = read_string_field(&entry.fields, "app_version") {
-        props.insert("app_version".to_string(), Value::String(app_version));
-    }
-    if let Some(build_version) = read_string_field(&entry.fields, "build_version") {
-        props.insert("build_version".to_string(), Value::String(build_version));
-    }
-    if let Some(os_version) = read_string_field(&entry.fields, "os_version") {
-        props.insert("os_version".to_string(), Value::String(os_version));
-    }
+    let correlation_fields = extract_correlation_fields(&entry.fields);
+    insert_correlation_fields(&mut props, &correlation_fields);
 
     props
 }
@@ -524,6 +508,75 @@ fn read_string_field(fields: &HashMap<String, Value>, key: &str) -> Option<Strin
         Value::Bool(b) => Some(b.to_string()),
         _ => None,
     })
+}
+
+fn read_first_string_field(fields: &HashMap<String, Value>, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(value) = read_string_field(fields, key) {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn sanitize_correlation_string(value: String) -> String {
+    match sanitize_string(&value) {
+        Value::String(sanitized) => sanitized,
+        _ => value,
+    }
+}
+
+fn normalize_hash_identifier(value: String) -> String {
+    if value.to_ascii_lowercase().starts_with("sha256:") {
+        return value;
+    }
+    sha256_prefixed(&value)
+}
+
+fn extract_correlation_fields(fields: &HashMap<String, Value>) -> CorrelationFields {
+    CorrelationFields {
+        request_id: read_first_string_field(fields, &["request_id", "requestId", "request-id"])
+            .map(sanitize_correlation_string),
+        session_id: read_first_string_field(fields, &["session_id", "sessionId"])
+            .map(sanitize_correlation_string),
+        device_id_hash: read_first_string_field(fields, &["device_id_hash", "deviceIdHash"])
+            .map(normalize_hash_identifier)
+            .or_else(|| {
+                read_first_string_field(fields, &["device_id", "deviceId"])
+                    .map(|raw| sha256_prefixed(&raw))
+            }),
+        user_id_hash: read_first_string_field(fields, &["user_id_hash", "userIdHash"])
+            .map(normalize_hash_identifier)
+            .or_else(|| {
+                read_first_string_field(fields, &["user_id", "userId"])
+                    .map(|raw| sha256_prefixed(&raw))
+            }),
+        trace_id: read_first_string_field(fields, &["trace_id", "traceId"])
+            .map(sanitize_correlation_string),
+        span_id: read_first_string_field(fields, &["span_id", "spanId"])
+            .map(sanitize_correlation_string),
+    }
+}
+
+fn insert_correlation_fields(props: &mut Map<String, Value>, fields: &CorrelationFields) {
+    if let Some(value) = &fields.request_id {
+        props.insert("request_id".to_string(), Value::String(value.clone()));
+    }
+    if let Some(value) = &fields.session_id {
+        props.insert("session_id".to_string(), Value::String(value.clone()));
+    }
+    if let Some(value) = &fields.device_id_hash {
+        props.insert("device_id_hash".to_string(), Value::String(value.clone()));
+    }
+    if let Some(value) = &fields.user_id_hash {
+        props.insert("user_id_hash".to_string(), Value::String(value.clone()));
+    }
+    if let Some(value) = &fields.trace_id {
+        props.insert("trace_id".to_string(), Value::String(value.clone()));
+    }
+    if let Some(value) = &fields.span_id {
+        props.insert("span_id".to_string(), Value::String(value.clone()));
+    }
 }
 
 fn event_code_from_entry(entry: &LogEntry) -> String {
@@ -664,5 +717,79 @@ mod tests {
         let first = should_sample(&entry, &sampling);
         let second = should_sample(&entry, &sampling);
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn prod_mode_canonicalizes_correlation_aliases_and_hashes_raw_ids() {
+        let mut entry = sample_entry("ERROR", "upstream request failed");
+        entry.fields.remove("request_id");
+        entry.fields.remove("device_id");
+        entry.fields.remove("user_id");
+        entry.fields.insert(
+            "requestId".to_string(),
+            Value::String("req_alias".to_string()),
+        );
+        entry.fields.insert(
+            "sessionId".to_string(),
+            Value::String("session_alias".to_string()),
+        );
+        entry.fields.insert(
+            "traceId".to_string(),
+            Value::String("trace_alias".to_string()),
+        );
+        entry.fields.insert("spanId".to_string(), Value::String("span_alias".to_string()));
+        entry.fields.insert(
+            "deviceId".to_string(),
+            Value::String("device_alias".to_string()),
+        );
+        entry.fields.insert("userId".to_string(), Value::String("user_alias".to_string()));
+
+        let props =
+            build_posthog_properties(&entry, ObservabilityMode::ProdMetadataOnly, "production");
+
+        assert_eq!(
+            props.get("request_id"),
+            Some(&Value::String("req_alias".to_string()))
+        );
+        assert_eq!(
+            props.get("session_id"),
+            Some(&Value::String("session_alias".to_string()))
+        );
+        assert_eq!(
+            props.get("trace_id"),
+            Some(&Value::String("trace_alias".to_string()))
+        );
+        assert_eq!(
+            props.get("span_id"),
+            Some(&Value::String("span_alias".to_string()))
+        );
+        assert_eq!(
+            props.get("device_id_hash"),
+            Some(&Value::String(sha256_prefixed("device_alias")))
+        );
+        assert_eq!(
+            props.get("user_id_hash"),
+            Some(&Value::String(sha256_prefixed("user_alias")))
+        );
+    }
+
+    #[test]
+    fn sentry_tags_include_trace_and_span_correlation_keys() {
+        let mut entry = sample_entry("ERROR", "failed");
+        entry
+            .fields
+            .insert("trace_id".to_string(), Value::String("trace-1".to_string()));
+        entry
+            .fields
+            .insert("span_id".to_string(), Value::String("span-1".to_string()));
+
+        let envelope = build_export_envelope(&entry, ObservabilityMode::ProdMetadataOnly, "prod");
+        let sentry = envelope.sentry.expect("expected sentry envelope for ERROR");
+
+        assert_eq!(
+            sentry.tags.get("trace_id"),
+            Some(&"trace-1".to_string())
+        );
+        assert_eq!(sentry.tags.get("span_id"), Some(&"span-1".to_string()));
     }
 }
