@@ -103,6 +103,26 @@ final class ChatMessageGroupingTests: XCTestCase {
         XCTAssertEqual(subAgent?.tools.count, 1, "Child tool should be grouped under Task")
     }
 
+    func testDuplicateChildToolUpdateKeepsLatestState() {
+        let taskJson = """
+        {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_dup","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}
+        """
+        let childReadV1 = """
+        {"type":"assistant","parent_tool_use_id":"task_dup","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_dup","name":"Read","input":{"file_path":"README.md"}}]}}
+        """
+        let childReadV2 = """
+        {"type":"assistant","parent_tool_use_id":"task_dup","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_dup","name":"Read","input":{"file_path":"ARCHITECTURE.md"}}]}}
+        """
+
+        let messages = parseMessages([taskJson, childReadV1, childReadV2])
+        let grouped = ChatMessageGrouper.groupSubAgentTools(messages: messages)
+
+        let subAgent = firstSubAgent(in: grouped)
+        XCTAssertEqual(subAgent?.tools.count, 1, "Expected duplicate tool updates to dedupe by tool_use_id")
+        XCTAssertEqual(subAgent?.tools.first?.toolUseId, "tool_dup")
+        XCTAssertTrue(subAgent?.tools.first?.input?.contains("ARCHITECTURE.md") == true)
+    }
+
     private func parseMessages(_ jsonMessages: [String]) -> [ChatMessage] {
         jsonMessages.enumerated().compactMap { index, json in
             let daemonMessage = DaemonMessage(

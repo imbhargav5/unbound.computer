@@ -323,7 +323,7 @@ class SessionLiveState {
                                 failedTools[index].status = .failed
                             }
                         }
-                        activeTools.append(contentsOf: failedTools)
+                        mergeTools(failedTools, into: &activeTools)
                     }
                     pendingSubAgentTools.removeAll()
                 }
@@ -499,7 +499,8 @@ class SessionLiveState {
             return
         }
 
-        guard let type = parsed["type"] as? String else {
+        let resolvedPayload = ClaudeMessageParser.resolvedPayload(from: parsed)
+        guard let type = ClaudeMessageParser.messageType(from: resolvedPayload) else {
             logger.warning(
                 "Claude event missing 'type' field for session \(sessionId), payload_summary=\(redactedPayloadSummary(json))"
             )
@@ -510,13 +511,13 @@ class SessionLiveState {
 
         switch type {
         case "assistant":
-            handleAssistantEvent(parsed)
+            handleAssistantEvent(resolvedPayload)
         case "user":
-            handleUserEvent(parsed)
+            handleUserEvent(resolvedPayload)
         case "result":
-            handleResultEvent(parsed)
+            handleResultEvent(resolvedPayload)
         case "system":
-            handleSystemEvent(parsed)
+            handleSystemEvent(resolvedPayload)
         default:
             logger.debug("Unhandled claude event type=\(type) for session \(sessionId)")
         }
@@ -576,6 +577,13 @@ class SessionLiveState {
 
         // Check for Task (sub-agent)
         if name == "Task" {
+            if let existingIndex = activeSubAgents.firstIndex(where: { $0.id == id }) {
+                if let pendingTools = pendingSubAgentTools.removeValue(forKey: id) {
+                    mergeTools(pendingTools, into: &activeSubAgents[existingIndex].childTools)
+                }
+                return
+            }
+
             if toolHistory.contains(where: { $0.subAgent?.id == id }) {
                 logger.debug("Sub-agent \(id) already in history, skipping creation")
                 return
@@ -593,7 +601,7 @@ class SessionLiveState {
             )
 
             if let pendingTools = pendingSubAgentTools.removeValue(forKey: id) {
-                subAgent.childTools.append(contentsOf: pendingTools)
+                mergeTools(pendingTools, into: &subAgent.childTools)
             }
 
             activeSubAgents.append(subAgent)
@@ -634,12 +642,14 @@ class SessionLiveState {
 
         if let parentToolUseId {
             if let index = activeSubAgents.firstIndex(where: { $0.id == parentToolUseId }) {
-                activeSubAgents[index].childTools.append(tool)
+                upsert(tool, in: &activeSubAgents[index].childTools)
             } else {
-                pendingSubAgentTools[parentToolUseId, default: []].append(tool)
+                var pending = pendingSubAgentTools[parentToolUseId, default: []]
+                upsert(tool, in: &pending)
+                pendingSubAgentTools[parentToolUseId] = pending
             }
         } else {
-            activeTools.append(tool)
+            upsert(tool, in: &activeTools)
         }
     }
 
@@ -673,20 +683,9 @@ class SessionLiveState {
     }
 
     private func handleUserEvent(_ json: [String: Any]) {
-        guard let message = json["message"] as? [String: Any],
-              let contentBlocks = message["content"] as? [[String: Any]] else {
-            return
-        }
-
-        for block in contentBlocks {
-            if let blockType = block["type"] as? String,
-               blockType == "tool_result",
-               let toolUseId = block["tool_use_id"] as? String {
-                let isError = block["is_error"] as? Bool ?? false
-                let status: ToolStatus = isError ? .failed : .completed
-                logger.debug("Tool result for \(toolUseId): \(status) (error=\(isError))")
-                updateToolStatus(toolUseId: toolUseId, status: status)
-            }
+        for update in ClaudeMessageParser.toolResultUpdates(fromUserPayload: json) {
+            logger.debug("Tool result for \(update.toolUseId): \(update.status)")
+            updateToolStatus(toolUseId: update.toolUseId, status: update.status)
         }
     }
 
@@ -744,7 +743,7 @@ class SessionLiveState {
         // Flush any pending sub-agent tools into standalone tools
         if hasPendingTools {
             for (_, tools) in pendingSubAgentTools {
-                activeTools.append(contentsOf: tools)
+                mergeTools(tools, into: &activeTools)
             }
             pendingSubAgentTools.removeAll()
         }
@@ -774,6 +773,21 @@ class SessionLiveState {
 
         activeTools.removeAll()
         activeSubAgents.removeAll()
+    }
+
+    private func upsert(_ tool: ActiveTool, in tools: inout [ActiveTool]) {
+        if let existingIndex = tools.firstIndex(where: { $0.id == tool.id }) {
+            tools[existingIndex] = tool
+        } else {
+            tools.append(tool)
+        }
+    }
+
+    private func mergeTools(_ incomingTools: [ActiveTool], into tools: inout [ActiveTool]) {
+        guard !incomingTools.isEmpty else { return }
+        for tool in incomingTools {
+            upsert(tool, in: &tools)
+        }
     }
 
     // MARK: - Private: Message Parsing
