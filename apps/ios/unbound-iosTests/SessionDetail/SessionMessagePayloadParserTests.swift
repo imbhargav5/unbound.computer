@@ -169,4 +169,70 @@ final class SessionMessagePayloadParserTests: XCTestCase {
 
         XCTAssertNil(SessionMessagePayloadParser.timelineEntry(from: wrapped))
     }
+
+    func testTimelineEntryUnwrapsNestedRawJsonAssistantPayload() {
+        let nested = #"{"raw_json":"{\"raw_json\":\"{\\\"type\\\":\\\"assistant\\\",\\\"message\\\":{\\\"role\\\":\\\"assistant\\\",\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"double wrapped\\\"}]}}\"}"}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: nested)
+
+        XCTAssertNotNil(entry)
+        XCTAssertEqual(entry?.role, .assistant)
+        XCTAssertEqual(entry?.content, "double wrapped")
+    }
+
+    func testRoleUsesResolvedRawJsonTypeWhenWrapped() {
+        let wrapped = #"{"raw_json":"{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"wrapped role\"}]}}"}"#
+        XCTAssertEqual(SessionMessagePayloadParser.role(from: wrapped), .assistant)
+    }
+
+    func testTimelineEntryKeepsRealUserTextWhenToolResultContainsProtocolArtifact() {
+        let payload = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_1","content":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"artifact\"}]}}"},{"type":"text","text":"real user text"}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+
+        XCTAssertNotNil(entry)
+        XCTAssertEqual(entry?.role, .user)
+        XCTAssertEqual(entry?.content, "real user text")
+        XCTAssertEqual(entry?.blocks.count, 1)
+    }
+
+    func testTimelineEntryDeduplicatesDuplicateStandaloneToolUsesByToolId() {
+        let payload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_dup","name":"Read","input":{"file_path":"README.md"}},{"type":"tool_use","id":"tool_dup","name":"Read","input":{"file_path":"docs/README.md"}}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+
+        XCTAssertNotNil(entry)
+        guard let blocks = entry?.blocks else {
+            XCTFail("Expected blocks")
+            return
+        }
+
+        let toolBlocks = blocks.compactMap { block -> SessionToolUse? in
+            guard case .toolUse(let toolUse) = block else { return nil }
+            return toolUse
+        }
+
+        XCTAssertEqual(toolBlocks.count, 1)
+        XCTAssertEqual(toolBlocks.first?.toolUseId, "tool_dup")
+        XCTAssertEqual(toolBlocks.first?.summary, "Read docs/README.md")
+    }
+
+    func testParseContentBlocksHidesSuccessfulResultAndShowsErrorResult() {
+        let success = #"{"type":"result","is_error":false,"result":"ok"}"#
+        XCTAssertEqual(SessionMessagePayloadParser.parseContentBlocks(from: success).count, 0)
+
+        let failure = #"{"type":"result","is_error":true,"result":"failed command"}"#
+        let blocks = SessionMessagePayloadParser.parseContentBlocks(from: failure)
+        XCTAssertEqual(blocks.count, 1)
+        guard case .error(let message) = blocks[0] else {
+            XCTFail("Expected error block")
+            return
+        }
+        XCTAssertEqual(message, "failed command")
+    }
+
+    func testRoleReturnsSystemForUnknownType() {
+        let payload = #"{"type":"unknown_type","content":"noop"}"#
+        XCTAssertEqual(SessionMessagePayloadParser.role(from: payload), .system)
+    }
 }
