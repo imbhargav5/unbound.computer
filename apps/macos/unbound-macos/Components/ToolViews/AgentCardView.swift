@@ -15,7 +15,12 @@ struct AgentCardView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let subAgent: ActiveSubAgent
-    @State private var isExpanded = true
+    @State private var isExpanded: Bool
+
+    init(subAgent: ActiveSubAgent, initiallyExpanded: Bool = true) {
+        self.subAgent = subAgent
+        _isExpanded = State(initialValue: initiallyExpanded)
+    }
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -407,7 +412,12 @@ struct HistoricalAgentCardView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let activity: SubAgentActivity
-    @State private var isExpanded = false
+    @State private var isExpanded: Bool
+
+    init(activity: SubAgentActivity, initiallyExpanded: Bool = false) {
+        self.activity = activity
+        _isExpanded = State(initialValue: initiallyExpanded)
+    }
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -674,6 +684,19 @@ struct HistoricalToolRow: View {
             ],
             status: .running
         ))
+
+        AgentCardView(
+            subAgent: ActiveSubAgent(
+                id: "agent-4",
+                subagentType: "general-purpose",
+                description: "long summary and fallback icon handling for preview validation",
+                childTools: [
+                    ActiveTool(id: "t6", name: "CustomTool", inputPreview: "fallback preview content", status: .completed),
+                ],
+                status: .completed
+            ),
+            initiallyExpanded: false
+        )
     }
     .padding(Spacing.lg)
     .frame(width: 500)
@@ -692,6 +715,17 @@ struct HistoricalToolRow: View {
             ],
             status: .completed
         ))
+
+        HistoricalAgentCardView(
+            activity: SubAgentActivity(
+                parentToolUseId: "hist-2",
+                subagentType: "general-purpose",
+                description: "collapsed historical card preview state",
+                tools: [],
+                status: .completed
+            ),
+            initiallyExpanded: true
+        )
     }
     .padding(Spacing.lg)
     .frame(width: 500)
