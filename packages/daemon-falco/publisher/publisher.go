@@ -1,7 +1,7 @@
-// Package publisher provides the Ably publisher for Falco.
+// Package publisher provides the transport publisher for Falco.
 //
 // The publisher receives side-effects from the daemon and publishes them
-// to Ably for real-time sync to other devices/clients.
+// through daemon-ably for real-time sync to other devices/clients.
 package publisher
 
 import (
@@ -9,14 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"sync"
 	"time"
 
-	"github.com/ably/ably-go/ably"
 	"go.uber.org/zap"
 
+	ablyclient "github.com/unbound-computer/daemon-ably-client/client"
 	"github.com/unbound-computer/daemon-falco/sideeffect"
 )
 
@@ -30,18 +28,16 @@ const (
 )
 
 var (
-	ErrNotConnected   = errors.New("not connected to Ably")
+	ErrNotConnected   = errors.New("not connected to daemon-ably")
 	ErrClosed         = errors.New("publisher closed")
 	ErrPublishFailed  = errors.New("publish failed after retries")
 	ErrInvalidEvent   = errors.New("event name is required")
 	ErrInvalidChannel = errors.New("channel name is required")
 )
 
-// Publisher publishes side-effects to Ably.
+// Publisher publishes side-effects via daemon-ably.
 type Publisher struct {
-	client         *ably.Realtime
-	channel        *ably.RealtimeChannel
-	channels       map[string]*ably.RealtimeChannel
+	client         ipcClient
 	channelName    string
 	publishTimeout time.Duration
 	logger         *zap.Logger
@@ -51,18 +47,22 @@ type Publisher struct {
 	closedCh chan struct{}
 }
 
+type ipcClient interface {
+	Connect(context.Context) error
+	Publish(context.Context, string, string, []byte, time.Duration) error
+	Close() error
+	IsConnected() bool
+}
+
 // Options configures the Publisher.
 type Options struct {
-	// BrokerSocketPath is the Unix socket path for local Ably token broker.
-	BrokerSocketPath string
+	// AblySocketPath is the Unix socket path for daemon-ably.
+	AblySocketPath string
 
-	// BrokerToken authenticates Falco to the local token broker.
-	BrokerToken string
-
-	// DeviceID identifies this client in Ably token requests.
+	// DeviceID identifies this sidecar instance in logs.
 	DeviceID string
 
-	// ChannelName is the Ably channel to publish to.
+	// ChannelName is the default channel to publish to.
 	ChannelName string
 
 	// PublishTimeout is the timeout for each publish operation.
@@ -72,7 +72,7 @@ type Options struct {
 	Logger *zap.Logger
 }
 
-// New creates a new Ably publisher.
+// New creates a new publisher.
 func New(opts Options) (*Publisher, error) {
 	if opts.Logger == nil {
 		opts.Logger = zap.NewNop()
@@ -81,101 +81,46 @@ func New(opts Options) (*Publisher, error) {
 		opts.PublishTimeout = DefaultPublishTimeout
 	}
 
-	client, err := ably.NewRealtime(
-		ably.WithClientID(opts.DeviceID),
-		ably.WithAuthCallback(func(ctx context.Context, _ ably.TokenParams) (ably.Tokener, error) {
-			return requestBrokerToken(
-				ctx,
-				opts.BrokerSocketPath,
-				opts.BrokerToken,
-				opts.DeviceID,
-				"daemon_falco",
-			)
-		}),
-		ably.WithAutoConnect(false),
-	)
+	client, err := ablyclient.New(opts.AblySocketPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Publisher{
-		client:         client,
-		channels:       make(map[string]*ably.RealtimeChannel),
-		channelName:    opts.ChannelName,
-		publishTimeout: opts.PublishTimeout,
-		logger:         opts.Logger,
-		closedCh:       make(chan struct{}),
-	}, nil
+	return newWithClient(client, opts), nil
 }
 
-// Connect establishes connection to Ably.
+func newWithClient(client ipcClient, opts Options) *Publisher {
+	return &Publisher{
+		client:         client,
+		channelName:    opts.ChannelName,
+		publishTimeout: opts.PublishTimeout,
+		logger: opts.Logger.With(
+			zap.String("device_id", opts.DeviceID),
+		),
+		closedCh: make(chan struct{}),
+	}
+}
+
+// Connect establishes connection to daemon-ably.
 func (p *Publisher) Connect(ctx context.Context) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.closed {
+		p.mu.Unlock()
 		return ErrClosed
 	}
+	p.mu.Unlock()
 
-	p.logger.Info("connecting to Ably",
-		zap.String("channel", p.channelName),
-	)
-
-	// Connect to Ably
-	p.client.Connect()
-
-	// Wait for connection
-	connected := make(chan struct{})
-	var connErr error
-
-	p.client.Connection.OnAll(func(change ably.ConnectionStateChange) {
-		p.logger.Debug("connection state change",
-			zap.Any("previous", change.Previous),
-			zap.Any("current", change.Current),
-		)
-
-		switch change.Current {
-		case ably.ConnectionStateConnected:
-			select {
-			case connected <- struct{}{}:
-			default:
-			}
-		case ably.ConnectionStateFailed:
-			connErr = change.Reason
-			select {
-			case connected <- struct{}{}:
-			default:
-			}
-		}
-	})
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-connected:
-		if connErr != nil {
-			return connErr
-		}
+	p.logger.Info("connecting to daemon-ably", zap.String("channel", p.channelName))
+	if err := p.client.Connect(ctx); err != nil {
+		return err
 	}
-
-	p.logger.Info("connected to Ably",
-		zap.String("connection_id", p.client.Connection.ID()),
-	)
-
-	// Get default channel
-	p.channel = p.getChannelLocked(p.channelName)
-
-	p.logger.Info("publisher ready",
-		zap.String("channel", p.channelName),
-	)
-
+	p.logger.Info("publisher ready", zap.String("channel", p.channelName))
 	return nil
 }
 
-// Publish publishes a side-effect to Ably.
+// Publish publishes a side-effect to daemon-ably.
 // Returns nil on success, or an error if the publish failed after retries.
 func (p *Publisher) Publish(ctx context.Context, effect *sideeffect.SideEffect) error {
-	// Serialize side-effect to JSON
 	payload, err := json.Marshal(effect)
 	if err != nil {
 		return err
@@ -212,12 +157,12 @@ func (p *Publisher) Publish(ctx context.Context, effect *sideeffect.SideEffect) 
 	return p.publishToChannel(ctx, channelName, eventName, publishPayload)
 }
 
-// PublishJSON publishes raw JSON payload to Ably with the given event name.
+// PublishJSON publishes raw JSON payload with the given event name.
 func (p *Publisher) PublishJSON(ctx context.Context, eventName string, jsonPayload []byte) error {
 	return p.PublishJSONToChannel(ctx, p.channelName, eventName, jsonPayload)
 }
 
-// PublishJSONToChannel publishes raw JSON payload to a specific Ably channel.
+// PublishJSONToChannel publishes raw JSON payload to a specific channel.
 func (p *Publisher) PublishJSONToChannel(
 	ctx context.Context,
 	channelName string,
@@ -246,17 +191,18 @@ func (p *Publisher) publishToChannel(
 	eventName string,
 	payload []byte,
 ) error {
-	channel, publishTimeout, err := p.channelForPublish(channelName)
-	if err != nil {
-		return err
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return ErrClosed
 	}
+	publishTimeout := p.publishTimeout
+	p.mu.Unlock()
 
-	// Retry loop
 	var lastErr error
 	for attempt := 1; attempt <= MaxRetries; attempt++ {
 		pubCtx, cancel := context.WithTimeout(ctx, publishTimeout)
-
-		err := channel.Publish(pubCtx, eventName, payload)
+		err := p.client.Publish(pubCtx, channelName, eventName, payload, publishTimeout)
 		cancel()
 
 		if err == nil {
@@ -268,7 +214,15 @@ func (p *Publisher) publishToChannel(
 			return nil
 		}
 
-		lastErr = err
+		if errors.Is(err, ablyclient.ErrClosed) {
+			return ErrClosed
+		}
+		if errors.Is(err, ablyclient.ErrNotConnected) {
+			lastErr = ErrNotConnected
+		} else {
+			lastErr = err
+		}
+
 		p.logger.Warn("publish attempt failed",
 			zap.String("channel", channelName),
 			zap.String("event", eventName),
@@ -300,33 +254,6 @@ func (p *Publisher) publishToChannel(
 	return ErrPublishFailed
 }
 
-func (p *Publisher) channelForPublish(channelName string) (*ably.RealtimeChannel, time.Duration, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return nil, 0, ErrClosed
-	}
-	if p.channel == nil {
-		return nil, 0, ErrNotConnected
-	}
-
-	channel := p.getChannelLocked(channelName)
-	return channel, p.publishTimeout, nil
-}
-
-func (p *Publisher) getChannelLocked(channelName string) *ably.RealtimeChannel {
-	if channelName == "" {
-		channelName = p.channelName
-	}
-	if ch, ok := p.channels[channelName]; ok {
-		return ch
-	}
-	ch := p.client.Channels.Get(channelName)
-	p.channels[channelName] = ch
-	return ch
-}
-
 // Close shuts down the publisher and releases resources.
 func (p *Publisher) Close() error {
 	p.mu.Lock()
@@ -339,108 +266,15 @@ func (p *Publisher) Close() error {
 	close(p.closedCh)
 
 	p.logger.Info("closing publisher")
-
-	if p.client != nil {
-		p.client.Close()
-	}
-
-	return nil
+	return p.client.Close()
 }
 
-// IsConnected returns true if connected to Ably.
+// IsConnected returns true if connected to daemon-ably.
 func (p *Publisher) IsConnected() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	if p.client == nil {
+	if p.closed {
 		return false
 	}
-	return p.client.Connection.State() == ably.ConnectionStateConnected
-}
-
-type brokerTokenRequest struct {
-	BrokerToken string `json:"broker_token"`
-	Audience    string `json:"audience"`
-	DeviceID    string `json:"device_id"`
-}
-
-type brokerTokenResponse struct {
-	OK           bool            `json:"ok"`
-	TokenDetails json.RawMessage `json:"token_details"`
-	Error        string          `json:"error"`
-}
-
-type brokerTokenDetails struct {
-	Token      string `json:"token"`
-	Expires    int64  `json:"expires"`
-	ClientID   string `json:"clientId"`
-	Issued     int64  `json:"issued"`
-	Capability string `json:"capability"`
-}
-
-func requestBrokerToken(
-	ctx context.Context,
-	socketPath string,
-	brokerToken string,
-	deviceID string,
-	audience string,
-) (*ably.TokenDetails, error) {
-	requestPayload, err := json.Marshal(brokerTokenRequest{
-		BrokerToken: brokerToken,
-		Audience:    audience,
-		DeviceID:    deviceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize broker request: %w", err)
-	}
-
-	dialer := net.Dialer{}
-	conn, err := dialer.DialContext(ctx, "unix", socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Ably broker socket: %w", err)
-	}
-	defer conn.Close()
-
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
-
-	if _, err := conn.Write(requestPayload); err != nil {
-		return nil, fmt.Errorf("failed to write broker request: %w", err)
-	}
-	if unixConn, ok := conn.(*net.UnixConn); ok {
-		_ = unixConn.CloseWrite()
-	}
-
-	responsePayload, err := io.ReadAll(conn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read broker response: %w", err)
-	}
-
-	var response brokerTokenResponse
-	if err := json.Unmarshal(responsePayload, &response); err != nil {
-		return nil, fmt.Errorf("invalid broker response: %w", err)
-	}
-	if !response.OK {
-		if response.Error == "" {
-			return nil, errors.New("broker rejected token request")
-		}
-		return nil, fmt.Errorf("broker rejected token request: %s", response.Error)
-	}
-
-	var tokenDetails brokerTokenDetails
-	if err := json.Unmarshal(response.TokenDetails, &tokenDetails); err != nil {
-		return nil, fmt.Errorf("invalid broker token details payload: %w", err)
-	}
-	if tokenDetails.Token == "" {
-		return nil, errors.New("broker response missing token")
-	}
-
-	return &ably.TokenDetails{
-		Token:      tokenDetails.Token,
-		Expires:    tokenDetails.Expires,
-		ClientID:   tokenDetails.ClientID,
-		Issued:     tokenDetails.Issued,
-		Capability: tokenDetails.Capability,
-	}, nil
+	return p.client.IsConnected()
 }
