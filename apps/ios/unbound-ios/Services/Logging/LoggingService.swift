@@ -7,14 +7,29 @@ enum LoggingService {
     static func bootstrap() {
         LoggingSystem.bootstrap { label in
             let category = label.split(separator: ".").dropFirst().first.map(String.init) ?? label
+            let osLogHandler = OSLogHandler(subsystem: subsystem, category: category)
+            let observabilityHandler = ObservabilityService.makeHandler(label: label)
 
             #if DEBUG
+            if let observabilityHandler {
+                return MultiplexLogHandler([
+                    osLogHandler,
+                    observabilityHandler,
+                    ComponentColorLogHandler(label: label)
+                ])
+            }
             return MultiplexLogHandler([
-                OSLogHandler(subsystem: subsystem, category: category),
+                osLogHandler,
                 ComponentColorLogHandler(label: label)
             ])
             #else
-            return OSLogHandler(subsystem: subsystem, category: category)
+            if let observabilityHandler {
+                return MultiplexLogHandler([
+                    osLogHandler,
+                    observabilityHandler
+                ])
+            }
+            return osLogHandler
             #endif
         }
     }
