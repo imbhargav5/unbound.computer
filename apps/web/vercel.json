@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/persist-events",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/billing/reconcile-usage",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
