@@ -2,9 +2,9 @@
 
 use crate::app::DaemonState;
 use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
-use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use gyomei::{FileRevision, GyomeiError};
+use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use std::path::Path;
 use tokio::task;
 use yagami::{ListOptions, YagamiError};
@@ -363,7 +363,7 @@ async fn register_repository_list_files(server: &IpcServer, state: DaemonState) 
 
                 let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
-                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                    Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
                 let options = ListOptions {
@@ -438,7 +438,7 @@ async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
 
                 let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
-                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                    Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
                 let gyomei = state.gyomei.clone();
@@ -546,7 +546,7 @@ async fn register_repository_read_file_slice(server: &IpcServer, state: DaemonSt
 
                 let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
-                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                    Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
                 let gyomei = state.gyomei.clone();
@@ -650,7 +650,7 @@ async fn register_repository_write_file(server: &IpcServer, state: DaemonState) 
 
                 let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
-                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                    Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
                 let gyomei = state.gyomei.clone();
@@ -772,7 +772,7 @@ async fn register_repository_replace_file_range(server: &IpcServer, state: Daemo
 
                 let root_path = match resolve_session_root(&state, session_id).await {
                     Ok(root) => root,
-                    Err((code, message)) => return Response::error(&req.id, code, &message),
+                    Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
                 let gyomei = state.gyomei.clone();
@@ -816,30 +816,28 @@ async fn register_repository_replace_file_range(server: &IpcServer, state: Daemo
 async fn resolve_session_root(
     state: &DaemonState,
     session_id: &str,
-) -> Result<String, (i32, String)> {
-    let session_id_owned = session_id.to_string();
-    let result = state
-        .db
-        .call(move |conn| {
-            let session = queries::get_session(conn, &session_id_owned)?.ok_or_else(|| {
-                daemon_database::DatabaseError::NotFound("Session not found".to_string())
-            })?;
-            let repo = queries::get_repository(conn, &session.repository_id)?.ok_or_else(|| {
-                daemon_database::DatabaseError::NotFound("Repository not found".to_string())
-            })?;
-            let root_path = if session.is_worktree {
-                session.worktree_path.unwrap_or(repo.path)
-            } else {
-                repo.path
-            };
-            Ok(root_path)
-        })
-        .await;
+) -> Result<String, ResolveError> {
+    resolve_working_dir_from_str(&*state.armin, session_id).map(|resolved| resolved.working_dir)
+}
 
-    match result {
-        Ok(path) => Ok(path),
-        Err(daemon_database::DatabaseError::NotFound(msg)) => Err((error_codes::NOT_FOUND, msg)),
-        Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
+fn repository_resolve_error_response(id: &str, err: ResolveError) -> Response {
+    match err {
+        ResolveError::SessionNotFound(message) | ResolveError::RepositoryNotFound(message) => {
+            Response::error(id, error_codes::NOT_FOUND, &message)
+        }
+        ResolveError::LegacyWorktreeUnsupported(message) => Response::error_with_data(
+            id,
+            error_codes::INTERNAL_ERROR,
+            &message,
+            serde_json::json!({
+                "machine_code": "legacy_worktree_unsupported",
+            }),
+        ),
+        ResolveError::Armin(err) => Response::error(
+            id,
+            error_codes::INTERNAL_ERROR,
+            &format!("Failed to resolve session root: {}", err),
+        ),
     }
 }
 

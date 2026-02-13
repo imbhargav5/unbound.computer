@@ -1,12 +1,12 @@
 //! Git handlers.
 
 use crate::app::DaemonState;
-use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use piccolo::{
     commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
     unstage_files,
 };
+use sakura_working_dir_resolution::{resolve_repository_path, ResolveError};
 
 /// Register git handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -26,50 +26,9 @@ async fn register_git_status(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitStatus, move |req| {
             let state = state.clone();
             async move {
-                // Get repository path from params (either by ID or direct path)
-                let repo_path = if let Some(repo_id) = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("repository_id"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_lowercase())
-                {
-                    // Look up repository path from database
-                    let repo_id_owned = repo_id.clone();
-                    match state
-                        .db
-                        .call(move |conn| queries::get_repository(conn, &repo_id_owned))
-                        .await
-                    {
-                        Ok(Some(repo)) => repo.path,
-                        Ok(None) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::NOT_FOUND,
-                                "Repository not found",
-                            )
-                        }
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            )
-                        }
-                    }
-                } else if let Some(path) = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("path"))
-                    .and_then(|v| v.as_str())
-                {
-                    path.to_string()
-                } else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "repository_id or path is required",
-                    );
+                let repo_path = match extract_repo_path(&state, &req.params).await {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
 
                 // Get git status
@@ -94,49 +53,9 @@ async fn register_git_diff_file(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitDiffFile, move |req| {
             let state = state.clone();
             async move {
-                // Get repository path
-                let repo_path = if let Some(repo_id) = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("repository_id"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_lowercase())
-                {
-                    let repo_id_owned = repo_id.clone();
-                    match state
-                        .db
-                        .call(move |conn| queries::get_repository(conn, &repo_id_owned))
-                        .await
-                    {
-                        Ok(Some(repo)) => repo.path,
-                        Ok(None) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::NOT_FOUND,
-                                "Repository not found",
-                            )
-                        }
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            )
-                        }
-                    }
-                } else if let Some(path) = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("path"))
-                    .and_then(|v| v.as_str())
-                {
-                    path.to_string()
-                } else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "repository_id or path is required",
-                    );
+                let repo_path = match extract_repo_path(&state, &req.params).await {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
                 };
 
                 // Get file path
@@ -193,16 +112,7 @@ async fn extract_repo_path(
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase())
     {
-        let repo_id_owned = repo_id.clone();
-        match state
-            .db
-            .call(move |conn| queries::get_repository(conn, &repo_id_owned))
-            .await
-        {
-            Ok(Some(repo)) => Ok(repo.path),
-            Ok(None) => Err((error_codes::NOT_FOUND, "Repository not found".to_string())),
-            Err(e) => Err((error_codes::INTERNAL_ERROR, e.to_string())),
-        }
+        resolve_repository_path(&*state.armin, &repo_id).map_err(map_resolve_error)
     } else if let Some(path) = params
         .as_ref()
         .and_then(|p| p.get("path"))
@@ -214,6 +124,19 @@ async fn extract_repo_path(
             error_codes::INVALID_PARAMS,
             "repository_id or path is required".to_string(),
         ))
+    }
+}
+
+fn map_resolve_error(err: ResolveError) -> (i32, String) {
+    match err {
+        ResolveError::SessionNotFound(message) | ResolveError::RepositoryNotFound(message) => {
+            (error_codes::NOT_FOUND, message)
+        }
+        ResolveError::LegacyWorktreeUnsupported(message) => (error_codes::INTERNAL_ERROR, message),
+        ResolveError::Armin(err) => (
+            error_codes::INTERNAL_ERROR,
+            format!("Failed to resolve repository path: {}", err),
+        ),
     }
 }
 

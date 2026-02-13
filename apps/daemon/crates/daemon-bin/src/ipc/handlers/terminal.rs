@@ -2,8 +2,8 @@
 
 use crate::app::DaemonState;
 use crate::machines::terminal::handle_terminal_process;
-use daemon_database::queries;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
+use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::sync::broadcast;
@@ -53,38 +53,9 @@ async fn register_terminal_run(server: &IpcServer, state: DaemonState) {
                 let working_dir = if let Some(dir) = working_dir {
                     dir
                 } else {
-                    // Get from session's repository
-                    let session_id_owned = session_id.clone();
-                    let result = state
-                        .db
-                        .call(move |conn| {
-                            let session = queries::get_session(conn, &session_id_owned)?
-                                .ok_or_else(|| {
-                                    daemon_database::DatabaseError::NotFound(
-                                        "Session not found".to_string(),
-                                    )
-                                })?;
-                            let repo = queries::get_repository(conn, &session.repository_id)?
-                                .ok_or_else(|| {
-                                    daemon_database::DatabaseError::NotFound(
-                                        "Repository not found".to_string(),
-                                    )
-                                })?;
-                            Ok(session.worktree_path.unwrap_or(repo.path))
-                        })
-                        .await;
-                    match result {
-                        Ok(path) => path,
-                        Err(daemon_database::DatabaseError::NotFound(msg)) => {
-                            return Response::error(&req.id, error_codes::NOT_FOUND, &msg)
-                        }
-                        Err(e) => {
-                            return Response::error(
-                                &req.id,
-                                error_codes::INTERNAL_ERROR,
-                                &e.to_string(),
-                            )
-                        }
+                    match resolve_working_dir_from_str(&*state.armin, &session_id) {
+                        Ok(resolved) => resolved.working_dir,
+                        Err(err) => return terminal_resolve_error_response(&req.id, err),
                     }
                 };
 
@@ -148,6 +119,27 @@ async fn register_terminal_run(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
+}
+
+fn terminal_resolve_error_response(id: &str, err: ResolveError) -> Response {
+    match err {
+        ResolveError::SessionNotFound(message) | ResolveError::RepositoryNotFound(message) => {
+            Response::error(id, error_codes::NOT_FOUND, &message)
+        }
+        ResolveError::LegacyWorktreeUnsupported(message) => Response::error_with_data(
+            id,
+            error_codes::INTERNAL_ERROR,
+            &message,
+            serde_json::json!({
+                "machine_code": "legacy_worktree_unsupported",
+            }),
+        ),
+        ResolveError::Armin(err) => Response::error(
+            id,
+            error_codes::INTERNAL_ERROR,
+            &format!("Failed to resolve working directory: {}", err),
+        ),
+    }
 }
 
 async fn register_terminal_status(server: &IpcServer, state: DaemonState) {

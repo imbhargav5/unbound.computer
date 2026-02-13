@@ -5,6 +5,7 @@ use crate::machines::claude::handle_claude_events;
 use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use deku::{ClaudeConfig, ClaudeProcess};
+use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use tracing::{info, warn};
 
 /// Register Claude handlers.
@@ -21,41 +22,28 @@ pub async fn claude_send_core(
 ) -> Result<serde_json::Value, (String, String)> {
     info!("Received claude.send request");
 
-    let session_id = params.get("session_id").and_then(|v| v.as_str()).map(String::from);
-    let content = params.get("content").and_then(|v| v.as_str()).map(String::from);
+    let session_id = params
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let content = params
+        .get("content")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let (Some(session_id), Some(content)) = (session_id, content) else {
-        return Err(("invalid_params".to_string(), "session_id and content are required".to_string()));
+        return Err((
+            "invalid_params".to_string(),
+            "session_id and content are required".to_string(),
+        ));
     };
 
     info!(session_id = %session_id, content_len = content.len(), "claude.send params");
 
-    // Get session and repository to find working directory
-    let (working_dir, claude_session_id) = {
-        let armin_session_id = SessionId::from_string(&session_id);
-        let session = match state.armin.get_session(&armin_session_id) {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                return Err(("not_found".to_string(), "Session not found".to_string()));
-            }
-            Err(e) => {
-                return Err(("internal_error".to_string(), format!("Failed to get session: {}", e)));
-            }
-        };
-
-        let repo = match state.armin.get_repository(&session.repository_id) {
-            Ok(Some(r)) => r,
-            Ok(None) => {
-                return Err(("not_found".to_string(), "Repository not found".to_string()));
-            }
-            Err(e) => {
-                return Err(("internal_error".to_string(), format!("Failed to get repository: {}", e)));
-            }
-        };
-
-        let working_dir = session.worktree_path.unwrap_or(repo.path);
-        (working_dir, session.claude_session_id)
-    };
+    let resolved_workspace =
+        resolve_working_dir_from_str(&*state.armin, &session_id).map_err(map_resolve_error)?;
+    let working_dir = resolved_workspace.working_dir;
+    let claude_session_id = resolved_workspace.session.claude_session_id;
 
     info!(working_dir = %working_dir, "claude.send working directory");
 
@@ -69,7 +57,10 @@ pub async fn claude_send_core(
             },
         ) {
             Ok(message) => {
-                info!(seq = message.sequence_number, "Stored user message via Armin");
+                info!(
+                    seq = message.sequence_number,
+                    "Stored user message via Armin"
+                );
             }
             Err(e) => {
                 warn!("Failed to store user message: {}", e);
@@ -93,7 +84,10 @@ pub async fn claude_send_core(
             p
         }
         Err(e) => {
-            return Err(("internal_error".to_string(), format!("Failed to spawn claude: {}", e)));
+            return Err((
+                "internal_error".to_string(),
+                format!("Failed to spawn claude: {}", e),
+            ));
         }
     };
 
@@ -101,7 +95,10 @@ pub async fn claude_send_core(
     let stream = match process.take_stream() {
         Some(s) => s,
         None => {
-            return Err(("internal_error".to_string(), "Failed to get event stream".to_string()));
+            return Err((
+                "internal_error".to_string(),
+                "Failed to get event stream".to_string(),
+            ));
         }
     };
 
@@ -130,10 +127,16 @@ pub async fn claude_stop_core(
     state: &DaemonState,
     params: &serde_json::Value,
 ) -> Result<serde_json::Value, (String, String)> {
-    let session_id = params.get("session_id").and_then(|v| v.as_str()).map(String::from);
+    let session_id = params
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let Some(session_id) = session_id else {
-        return Err(("invalid_params".to_string(), "session_id is required".to_string()));
+        return Err((
+            "invalid_params".to_string(),
+            "session_id is required".to_string(),
+        ));
     };
 
     let stop_tx = {
@@ -161,7 +164,11 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ClaudeSend, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match claude_send_core(&state, &params).await {
                     Ok(data) => Response::success(&req.id, data),
                     Err((code, msg)) => {
@@ -170,12 +177,37 @@ async fn register_claude_send(server: &IpcServer, state: DaemonState) {
                             "not_found" => error_codes::NOT_FOUND,
                             _ => error_codes::INTERNAL_ERROR,
                         };
-                        Response::error(&req.id, error_code, &msg)
+                        if code == "legacy_worktree_unsupported" {
+                            Response::error_with_data(
+                                &req.id,
+                                error_code,
+                                &msg,
+                                serde_json::json!({
+                                    "machine_code": "legacy_worktree_unsupported",
+                                }),
+                            )
+                        } else {
+                            Response::error(&req.id, error_code, &msg)
+                        }
                     }
                 }
             }
         })
         .await;
+}
+
+fn map_resolve_error(err: ResolveError) -> (String, String) {
+    match err {
+        ResolveError::SessionNotFound(message) => ("not_found".to_string(), message),
+        ResolveError::RepositoryNotFound(message) => ("not_found".to_string(), message),
+        ResolveError::LegacyWorktreeUnsupported(message) => {
+            ("legacy_worktree_unsupported".to_string(), message)
+        }
+        ResolveError::Armin(err) => (
+            "internal_error".to_string(),
+            format!("Failed to resolve working directory: {}", err),
+        ),
+    }
 }
 
 async fn register_claude_status(server: &IpcServer, state: DaemonState) {
@@ -231,7 +263,11 @@ async fn register_claude_stop(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ClaudeStop, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match claude_stop_core(&state, &params).await {
                     Ok(data) => Response::success(&req.id, data),
                     Err((code, msg)) => {

@@ -5,6 +5,7 @@
 //! across handlers.
 
 use armin::{ArminError, Repository, RepositoryId, Session, SessionId, SessionReader};
+use std::path::Path;
 use thiserror::Error;
 
 /// Errors that can occur during workspace resolution.
@@ -14,6 +15,10 @@ pub enum ResolveError {
     SessionNotFound(String),
     #[error("Repository not found: {0}")]
     RepositoryNotFound(String),
+    #[error(
+        "Legacy worktree path is unsupported: {0}. Use '.unbound/worktrees' and recreate the session."
+    )]
+    LegacyWorktreeUnsupported(String),
     #[error("Armin error: {0}")]
     Armin(#[from] ArminError),
 }
@@ -50,7 +55,12 @@ pub fn resolve_working_dir<R: SessionReader>(
         })?;
 
     let (working_dir, is_worktree) = match &session.worktree_path {
-        Some(wt_path) => (wt_path.clone(), true),
+        Some(wt_path) => {
+            if is_legacy_worktree_path(wt_path) {
+                return Err(ResolveError::LegacyWorktreeUnsupported(wt_path.clone()));
+            }
+            (wt_path.clone(), true)
+        }
         None => (repository.path.clone(), false),
     };
 
@@ -60,6 +70,12 @@ pub fn resolve_working_dir<R: SessionReader>(
         repository,
         is_worktree,
     })
+}
+
+fn is_legacy_worktree_path(path: &str) -> bool {
+    Path::new(path)
+        .components()
+        .any(|c| c.as_os_str().to_string_lossy() == ".unbound-worktrees")
 }
 
 /// Resolve the working directory from a session ID string.
@@ -337,6 +353,23 @@ mod tests {
         assert_ne!(result.working_dir, "/original/path");
     }
 
+    #[test]
+    fn resolve_rejects_legacy_worktree_path() {
+        let reader = MockReader::new()
+            .with_repo("repo-1", "/original/path")
+            .with_session(
+                "sess-1",
+                "repo-1",
+                Some("/original/path/.unbound-worktrees/sess-1"),
+            );
+
+        let result = resolve_working_dir_from_str(&reader, "sess-1");
+        assert!(matches!(
+            result,
+            Err(ResolveError::LegacyWorktreeUnsupported(_))
+        ));
+    }
+
     // =========================================================================
     // resolve_repository_path tests
     // =========================================================================
@@ -384,6 +417,15 @@ mod tests {
     fn error_repository_not_found_message() {
         let e = ResolveError::RepositoryNotFound("repo-abc".to_string());
         assert!(e.to_string().contains("repo-abc"));
+    }
+
+    #[test]
+    fn error_legacy_worktree_message() {
+        let e = ResolveError::LegacyWorktreeUnsupported(
+            "/tmp/repo/.unbound-worktrees/sess-1".to_string(),
+        );
+        assert!(e.to_string().contains("Legacy"));
+        assert!(e.to_string().contains(".unbound/worktrees"));
     }
 
     // =========================================================================

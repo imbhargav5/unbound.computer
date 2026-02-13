@@ -29,7 +29,9 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
 }
 
 /// Core logic for gh.auth_status shared between IPC and other call sites.
-pub async fn gh_auth_status_core(params: &serde_json::Value) -> Result<serde_json::Value, GhCoreError> {
+pub async fn gh_auth_status_core(
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, GhCoreError> {
     let input: AuthStatusInput = parse_input(params)?;
     let result = auth_status(input).await.map_err(map_bakugou_error)?;
     Ok(serde_json::to_value(result).unwrap())
@@ -109,7 +111,11 @@ pub async fn gh_pr_merge_core(
 async fn register_gh_auth_status(server: &IpcServer) {
     server
         .register_handler(Method::GhAuthStatus, move |req| async move {
-            let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+            let params = req
+                .params
+                .as_ref()
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
             match gh_auth_status_core(&params).await {
                 Ok(result) => Response::success(&req.id, result),
                 Err(err) => gh_core_error_response(&req.id, err),
@@ -123,7 +129,11 @@ async fn register_gh_pr_create(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GhPrCreate, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match gh_pr_create_core(&state, &params).await {
                     Ok(result) => Response::success(&req.id, result),
                     Err(err) => gh_core_error_response(&req.id, err),
@@ -138,7 +148,11 @@ async fn register_gh_pr_view(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GhPrView, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match gh_pr_view_core(&state, &params).await {
                     Ok(result) => Response::success(&req.id, result),
                     Err(err) => gh_core_error_response(&req.id, err),
@@ -153,7 +167,11 @@ async fn register_gh_pr_list(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GhPrList, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match gh_pr_list_core(&state, &params).await {
                     Ok(result) => Response::success(&req.id, result),
                     Err(err) => gh_core_error_response(&req.id, err),
@@ -168,7 +186,11 @@ async fn register_gh_pr_checks(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GhPrChecks, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match gh_pr_checks_core(&state, &params).await {
                     Ok(result) => Response::success(&req.id, result),
                     Err(err) => gh_core_error_response(&req.id, err),
@@ -183,7 +205,11 @@ async fn register_gh_pr_merge(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GhPrMerge, move |req| {
             let state = state.clone();
             async move {
-                let params = req.params.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
                 match gh_pr_merge_core(&state, &params).await {
                     Ok(result) => Response::success(&req.id, result),
                     Err(err) => gh_core_error_response(&req.id, err),
@@ -200,7 +226,10 @@ fn parse_input<T: DeserializeOwned>(params: &serde_json::Value) -> Result<T, GhC
     })
 }
 
-fn resolve_working_dir(state: &DaemonState, params: &serde_json::Value) -> Result<String, GhCoreError> {
+fn resolve_working_dir(
+    state: &DaemonState,
+    params: &serde_json::Value,
+) -> Result<String, GhCoreError> {
     if let Some(session_id) = params.get("session_id").and_then(|v| v.as_str()) {
         if session_id.trim().is_empty() {
             return Err(GhCoreError {
@@ -249,6 +278,10 @@ fn map_resolve_error(err: ResolveError) -> GhCoreError {
             code: "not_found".to_string(),
             message,
         },
+        ResolveError::LegacyWorktreeUnsupported(message) => GhCoreError {
+            code: "legacy_worktree_unsupported".to_string(),
+            message,
+        },
         ResolveError::Armin(err) => GhCoreError {
             code: "command_failed".to_string(),
             message: format!("failed to resolve working directory: {err}"),
@@ -284,9 +317,7 @@ fn map_rpc_code(machine_code: &str) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        map_resolve_error, map_rpc_code, parse_input, GhCoreError,
-    };
+    use super::{map_resolve_error, map_rpc_code, parse_input, GhCoreError};
     use armin::ArminError;
     use bakugou::PrListInput;
     use daemon_ipc::error_codes;
@@ -309,18 +340,32 @@ mod tests {
         assert_eq!(map_rpc_code("invalid_params"), error_codes::INVALID_PARAMS);
         assert_eq!(map_rpc_code("invalid_repository"), error_codes::NOT_FOUND);
         assert_eq!(map_rpc_code("not_found"), error_codes::NOT_FOUND);
+        assert_eq!(
+            map_rpc_code("legacy_worktree_unsupported"),
+            error_codes::INTERNAL_ERROR
+        );
         assert_eq!(map_rpc_code("command_failed"), error_codes::INTERNAL_ERROR);
     }
 
     #[test]
     fn resolve_error_maps_session_and_repo_not_found() {
-        let session = map_resolve_error(ResolveError::SessionNotFound("missing session".to_string()));
+        let session =
+            map_resolve_error(ResolveError::SessionNotFound("missing session".to_string()));
         assert_eq!(session.code, "not_found");
         assert_eq!(session.message, "missing session");
 
         let repo = map_resolve_error(ResolveError::RepositoryNotFound("missing repo".to_string()));
         assert_eq!(repo.code, "not_found");
         assert_eq!(repo.message, "missing repo");
+    }
+
+    #[test]
+    fn resolve_error_maps_legacy_worktree_to_machine_code() {
+        let err = map_resolve_error(ResolveError::LegacyWorktreeUnsupported(
+            "/repo/.unbound-worktrees/sess-1".to_string(),
+        ));
+        assert_eq!(err.code, "legacy_worktree_unsupported");
+        assert!(err.message.contains(".unbound-worktrees"));
     }
 
     #[test]
