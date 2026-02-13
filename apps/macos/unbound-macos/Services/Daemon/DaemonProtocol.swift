@@ -37,6 +37,8 @@ enum DaemonMethod: String, Codable {
     case repositoryList = "repository.list"
     case repositoryAdd = "repository.add"
     case repositoryRemove = "repository.remove"
+    case repositoryGetSettings = "repository.get_settings"
+    case repositoryUpdateSettings = "repository.update_settings"
     case repositoryListFiles = "repository.list_files"
     case repositoryReadFile = "repository.read_file"
     case repositoryReadFileSlice = "repository.read_file_slice"
@@ -474,6 +476,9 @@ struct DaemonRepository: Codable, Identifiable {
     let name: String
     let path: String
     let isGitRepository: Bool?
+    let sessionsPath: String?
+    let defaultBranch: String?
+    let defaultRemote: String?
     let lastAccessedAt: String  // RFC3339 string from daemon
 
     enum CodingKeys: String, CodingKey {
@@ -481,6 +486,9 @@ struct DaemonRepository: Codable, Identifiable {
         case name
         case path
         case isGitRepository = "is_git_repository"
+        case sessionsPath = "sessions_path"
+        case defaultBranch = "default_branch"
+        case defaultRemote = "default_remote"
         case lastAccessedAt = "last_accessed_at"
     }
 

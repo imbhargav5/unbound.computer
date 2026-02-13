@@ -191,6 +191,19 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         Ok(deleted)
     }
 
+    fn update_repository_settings(
+        &self,
+        id: &RepositoryId,
+        sessions_path: Option<String>,
+        default_branch: Option<String>,
+        default_remote: Option<String>,
+    ) -> Result<bool, ArminError> {
+        // 1. Commit fact to SQLite
+        self.sqlite
+            .update_repository_settings(id, sessions_path, default_branch, default_remote)
+            .map_err(ArminError::from)
+    }
+
     // ========================================================================
     // Session operations (full metadata)
     // ========================================================================

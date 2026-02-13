@@ -36,6 +36,17 @@ pub trait SessionWriter {
     /// Returns true if the repository was deleted.
     fn delete_repository(&self, id: &RepositoryId) -> Result<bool, ArminError>;
 
+    /// Updates repository settings.
+    ///
+    /// This updates the repository defaults persisted in SQLite.
+    fn update_repository_settings(
+        &self,
+        id: &RepositoryId,
+        sessions_path: Option<String>,
+        default_branch: Option<String>,
+        default_remote: Option<String>,
+    ) -> Result<bool, ArminError>;
+
     // ========================================================================
     // Session operations (full metadata)
     // ========================================================================

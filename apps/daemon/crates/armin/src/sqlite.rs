@@ -429,6 +429,31 @@ impl SqliteStore {
         Ok(count > 0)
     }
 
+    /// Updates repository settings.
+    pub fn update_repository_settings(
+        &self,
+        id: &RepositoryId,
+        sessions_path: Option<String>,
+        default_branch: Option<String>,
+        default_remote: Option<String>,
+    ) -> SqliteResult<bool> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now = Self::now_rfc3339();
+        let count = conn.execute(
+            "UPDATE repositories
+             SET sessions_path = ?1, default_branch = ?2, default_remote = ?3, updated_at = ?4
+             WHERE id = ?5",
+            params![
+                sessions_path,
+                default_branch,
+                default_remote,
+                now,
+                id.as_str()
+            ],
+        )?;
+        Ok(count > 0)
+    }
+
     // ========================================================================
     // Agent coding session operations (full metadata)
     // ========================================================================
@@ -1480,6 +1505,34 @@ mod tests {
 
         let retrieved = store.get_agent_session(&id).unwrap().unwrap();
         assert_eq!(retrieved.id.as_str(), "my-custom-session-id");
+    }
+
+    #[test]
+    fn update_repository_settings_roundtrip() {
+        let store = SqliteStore::in_memory().unwrap();
+        let repo_id = create_test_repo(&store);
+
+        assert!(store
+            .update_repository_settings(
+                &repo_id,
+                Some("/tmp/sessions".to_string()),
+                Some("main".to_string()),
+                Some("origin".to_string()),
+            )
+            .unwrap());
+
+        let updated = store.get_repository(&repo_id).unwrap().unwrap();
+        assert_eq!(updated.sessions_path, Some("/tmp/sessions".to_string()));
+        assert_eq!(updated.default_branch, Some("main".to_string()));
+        assert_eq!(updated.default_remote, Some("origin".to_string()));
+
+        assert!(store
+            .update_repository_settings(&repo_id, None, None, None)
+            .unwrap());
+        let cleared = store.get_repository(&repo_id).unwrap().unwrap();
+        assert_eq!(cleared.sessions_path, None);
+        assert_eq!(cleared.default_branch, None);
+        assert_eq!(cleared.default_remote, None);
     }
 
     #[test]

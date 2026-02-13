@@ -14,6 +14,8 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_repository_list(server, state.clone()).await;
     register_repository_add(server, state.clone()).await;
     register_repository_remove(server, state.clone()).await;
+    register_repository_get_settings(server, state.clone()).await;
+    register_repository_update_settings(server, state.clone()).await;
     register_repository_list_files(server, state.clone()).await;
     register_repository_read_file(server, state.clone()).await;
     register_repository_read_file_slice(server, state.clone()).await;
@@ -44,6 +46,9 @@ async fn register_repository_list(server: &IpcServer, state: DaemonState) {
                             "path": r.path,
                             "name": r.name,
                             "is_git_repository": r.is_git_repository,
+                            "sessions_path": r.sessions_path,
+                            "default_branch": r.default_branch,
+                            "default_remote": r.default_remote,
                             "last_accessed_at": r.last_accessed_at.to_rfc3339(),
                         })
                     })
@@ -156,6 +161,168 @@ async fn register_repository_remove(server: &IpcServer, state: DaemonState) {
                 } else {
                     Response::error(&req.id, error_codes::NOT_FOUND, "Repository not found")
                 }
+            }
+        })
+        .await;
+}
+
+async fn register_repository_get_settings(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::RepositoryGetSettings, move |req| {
+            let armin = state.armin.clone();
+            async move {
+                let repository_id = match parse_repository_id(req.params.as_ref()) {
+                    Ok(id) => id,
+                    Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
+                };
+
+                let repo_id = RepositoryId::from_string(repository_id);
+                let repo = match armin.get_repository(&repo_id) {
+                    Ok(Some(repo)) => repo,
+                    Ok(None) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            "Repository not found",
+                        );
+                    }
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to get repository settings: {}", e),
+                        );
+                    }
+                };
+
+                Response::success(
+                    &req.id,
+                    serde_json::json!({
+                        "repository": {
+                            "id": repo.id.as_str(),
+                            "path": repo.path,
+                            "name": repo.name,
+                            "is_git_repository": repo.is_git_repository,
+                            "sessions_path": repo.sessions_path,
+                            "default_branch": repo.default_branch,
+                            "default_remote": repo.default_remote,
+                            "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
+                        }
+                    }),
+                )
+            }
+        })
+        .await;
+}
+
+async fn register_repository_update_settings(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::RepositoryUpdateSettings, move |req| {
+            let armin = state.armin.clone();
+            async move {
+                let repository_id = match parse_repository_id(req.params.as_ref()) {
+                    Ok(id) => id,
+                    Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
+                };
+                let params = req
+                    .params
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+
+                let repo_id = RepositoryId::from_string(repository_id);
+                let current = match armin.get_repository(&repo_id) {
+                    Ok(Some(repo)) => repo,
+                    Ok(None) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            "Repository not found",
+                        );
+                    }
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to get repository settings: {}", e),
+                        );
+                    }
+                };
+
+                let sessions_path = match parse_optional_string_param(&params, "sessions_path") {
+                    Ok(Some(v)) => v,
+                    Ok(None) => current.sessions_path.clone(),
+                    Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
+                };
+                let default_branch = match parse_optional_string_param(&params, "default_branch") {
+                    Ok(Some(v)) => v,
+                    Ok(None) => current.default_branch.clone(),
+                    Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
+                };
+                let default_remote = match parse_optional_string_param(&params, "default_remote") {
+                    Ok(Some(v)) => v,
+                    Ok(None) => current.default_remote.clone(),
+                    Err(msg) => return Response::error(&req.id, error_codes::INVALID_PARAMS, &msg),
+                };
+
+                let updated = match armin.update_repository_settings(
+                    &repo_id,
+                    sessions_path,
+                    default_branch,
+                    default_remote,
+                ) {
+                    Ok(updated) => updated,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to update repository settings: {}", e),
+                        );
+                    }
+                };
+
+                if !updated {
+                    return Response::error(
+                        &req.id,
+                        error_codes::NOT_FOUND,
+                        "Repository not found",
+                    );
+                }
+
+                let repo = match armin.get_repository(&repo_id) {
+                    Ok(Some(repo)) => repo,
+                    Ok(None) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            "Repository not found",
+                        );
+                    }
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to get repository settings: {}", e),
+                        );
+                    }
+                };
+
+                Response::success(
+                    &req.id,
+                    serde_json::json!({
+                        "updated": true,
+                        "repository": {
+                            "id": repo.id.as_str(),
+                            "path": repo.path,
+                            "name": repo.name,
+                            "is_git_repository": repo.is_git_repository,
+                            "sessions_path": repo.sessions_path,
+                            "default_branch": repo.default_branch,
+                            "default_remote": repo.default_remote,
+                            "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
+                        }
+                    }),
+                )
             }
         })
         .await;
@@ -692,6 +859,39 @@ fn validate_relative_path_params(id: &str, relative_path: &str) -> Option<Respon
         ));
     }
     None
+}
+
+fn parse_repository_id(params: Option<&serde_json::Value>) -> Result<String, String> {
+    let Some(params) = params else {
+        return Err("id is required".to_string());
+    };
+    let value = params
+        .get("id")
+        .and_then(|v| v.as_str())
+        .or_else(|| params.get("repository_id").and_then(|v| v.as_str()));
+    let Some(id) = value else {
+        return Err("id is required".to_string());
+    };
+    if id.trim().is_empty() {
+        return Err("id must not be empty".to_string());
+    }
+    Ok(id.to_string())
+}
+
+fn parse_optional_string_param(
+    params: &serde_json::Value,
+    key: &str,
+) -> Result<Option<Option<String>>, String> {
+    let Some(value) = params.get(key) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(Some(None));
+    }
+    if let Some(s) = value.as_str() {
+        return Ok(Some(Some(s.to_string())));
+    }
+    Err(format!("{key} must be a string or null"))
 }
 
 fn parse_expected_revision(

@@ -50,6 +50,10 @@ pub enum Method {
     RepositoryAdd,
     #[serde(rename = "repository.remove")]
     RepositoryRemove,
+    #[serde(rename = "repository.get_settings")]
+    RepositoryGetSettings,
+    #[serde(rename = "repository.update_settings")]
+    RepositoryUpdateSettings,
     #[serde(rename = "repository.list_files")]
     RepositoryListFiles,
     #[serde(rename = "repository.read_file")]
@@ -368,6 +372,11 @@ mod tests {
             (Method::RepositoryList, "\"repository.list\""),
             (Method::RepositoryAdd, "\"repository.add\""),
             (Method::RepositoryRemove, "\"repository.remove\""),
+            (Method::RepositoryGetSettings, "\"repository.get_settings\""),
+            (
+                Method::RepositoryUpdateSettings,
+                "\"repository.update_settings\"",
+            ),
             (Method::RepositoryListFiles, "\"repository.list_files\""),
             (Method::RepositoryReadFile, "\"repository.read_file\""),
             (
@@ -433,6 +442,8 @@ mod tests {
             Method::RepositoryList,
             Method::RepositoryAdd,
             Method::RepositoryRemove,
+            Method::RepositoryGetSettings,
+            Method::RepositoryUpdateSettings,
             Method::RepositoryListFiles,
             Method::RepositoryReadFile,
             Method::RepositoryReadFileSlice,
@@ -880,7 +891,7 @@ mod tests {
 
     #[test]
     fn all_method_count() {
-        // Ensure we have exactly 36 methods by trying to serialize each
+        // Ensure we have exactly 47 methods by trying to serialize each.
         let methods = vec![
             Method::Health,
             Method::Shutdown,
@@ -898,6 +909,8 @@ mod tests {
             Method::RepositoryList,
             Method::RepositoryAdd,
             Method::RepositoryRemove,
+            Method::RepositoryGetSettings,
+            Method::RepositoryUpdateSettings,
             Method::RepositoryListFiles,
             Method::RepositoryReadFile,
             Method::RepositoryReadFileSlice,
@@ -915,10 +928,19 @@ mod tests {
             Method::GitStage,
             Method::GitUnstage,
             Method::GitDiscard,
+            Method::GitCommitChanges,
+            Method::GitPush,
+            Method::GhAuthStatus,
+            Method::GhPrCreate,
+            Method::GhPrView,
+            Method::GhPrList,
+            Method::GhPrChecks,
+            Method::GhPrMerge,
+            Method::SystemCheckDependencies,
             Method::TerminalRun,
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 36);
+        assert_eq!(methods.len(), 47);
     }
 }

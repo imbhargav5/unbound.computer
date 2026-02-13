@@ -132,6 +132,26 @@ pub fn delete_repository(conn: &Connection, id: &str) -> DatabaseResult<bool> {
     Ok(count > 0)
 }
 
+/// Update repository settings.
+///
+/// This updates the repository defaults stored in SQLite.
+pub fn update_repository_settings(
+    conn: &Connection,
+    id: &str,
+    sessions_path: Option<&str>,
+    default_branch: Option<&str>,
+    default_remote: Option<&str>,
+) -> DatabaseResult<bool> {
+    let now = Utc::now().to_rfc3339();
+    let count = conn.execute(
+        "UPDATE repositories
+         SET sessions_path = ?1, default_branch = ?2, default_remote = ?3, updated_at = ?4
+         WHERE id = ?5",
+        params![sessions_path, default_branch, default_remote, now, id],
+    )?;
+    Ok(count > 0)
+}
+
 // ==========================================
 // Sessions
 // ==========================================
@@ -822,6 +842,38 @@ mod tests {
         assert!(get_repository(&conn, "repo-1").unwrap().is_none());
         // Deleting again returns false
         assert!(!delete_repository(&conn, "repo-1").unwrap());
+    }
+
+    #[test]
+    fn repository_update_settings() {
+        let conn = setup_conn();
+        insert_test_repo(&conn);
+
+        // Set all settings.
+        assert!(update_repository_settings(
+            &conn,
+            "repo-1",
+            Some("/tmp/sessions"),
+            Some("main"),
+            Some("origin"),
+        )
+        .unwrap());
+
+        let updated = get_repository(&conn, "repo-1").unwrap().unwrap();
+        assert_eq!(updated.sessions_path, Some("/tmp/sessions".to_string()));
+        assert_eq!(updated.default_branch, Some("main".to_string()));
+        assert_eq!(updated.default_remote, Some("origin".to_string()));
+
+        // Clear settings via NULL updates.
+        assert!(update_repository_settings(&conn, "repo-1", None, None, None).unwrap());
+
+        let cleared = get_repository(&conn, "repo-1").unwrap().unwrap();
+        assert_eq!(cleared.sessions_path, None);
+        assert_eq!(cleared.default_branch, None);
+        assert_eq!(cleared.default_remote, None);
+
+        // Missing repository returns false.
+        assert!(!update_repository_settings(&conn, "missing-repo", None, None, None).unwrap());
     }
 
     // =========================================================================
