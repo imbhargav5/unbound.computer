@@ -4,6 +4,7 @@
 //! store, store_stream, and machines modules.
 
 pub mod claude;
+pub mod billing;
 pub mod gh;
 pub mod git;
 pub mod health;

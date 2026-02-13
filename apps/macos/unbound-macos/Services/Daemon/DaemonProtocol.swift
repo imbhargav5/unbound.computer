@@ -22,6 +22,7 @@ enum DaemonMethod: String, Codable {
     case authLogin = "auth.login"
     case authCompleteSocial = "auth.complete_social"
     case authLogout = "auth.logout"
+    case billingUsageStatus = "billing.usage_status"
 
     // Sessions
     case sessionList = "session.list"
@@ -416,6 +417,52 @@ struct DaemonAuthStatus: Codable {
         case userId = "user_id"
         case email
         case expiresAt = "expires_at"
+    }
+}
+
+enum DaemonBillingEnforcementState: String, Codable, Equatable {
+    case ok
+    case nearLimit = "near_limit"
+    case overQuota = "over_quota"
+}
+
+struct DaemonBillingUsageStatus: Codable, Equatable {
+    let plan: String
+    let gateway: String
+    let periodStart: String
+    let periodEnd: String
+    let commandsLimit: Int
+    let commandsUsed: Int
+    let commandsRemaining: Int
+    let enforcementState: DaemonBillingEnforcementState
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case plan
+        case gateway
+        case periodStart = "period_start"
+        case periodEnd = "period_end"
+        case commandsLimit = "commands_limit"
+        case commandsUsed = "commands_used"
+        case commandsRemaining = "commands_remaining"
+        case enforcementState = "enforcement_state"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonBillingUsageStatusResponse: Codable, Equatable {
+    let available: Bool
+    let stale: Bool
+    let delayHintMinutes: Int
+    let status: DaemonBillingUsageStatus?
+    let fetchedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case available
+        case stale
+        case delayHintMinutes = "delay_hint_minutes"
+        case status
+        case fetchedAt = "fetched_at"
     }
 }
 
