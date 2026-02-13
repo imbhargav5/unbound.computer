@@ -4,6 +4,7 @@
 //! by external tools. Multi-process safe via append-only semantics.
 
 use crate::json_layer::JsonLayer;
+use crate::remote::RemoteExporter;
 use crate::LogConfig;
 use parking_lot::Mutex;
 use std::fs::{File, OpenOptions};
@@ -85,9 +86,10 @@ pub fn init_dev_subscriber(config: &LogConfig) {
         .unwrap_or_else(|e| panic!("failed to open log file {:?}: {}", log_path, e));
 
     let writer_factory = WriterFactory { writer };
+    let remote_exporter = RemoteExporter::from_config(config);
 
     // Build the custom JSON logging layer
-    let json_layer = JsonLayer::new(config.service_name.clone(), writer_factory);
+    let json_layer = JsonLayer::new(config.service_name.clone(), writer_factory, remote_exporter);
 
     // Optional: stderr layer for immediate feedback during dev
     let stderr_layer = if config.also_stderr {

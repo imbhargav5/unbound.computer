@@ -21,8 +21,10 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
+use crate::remote::RemoteExporter;
+
 /// A single structured log entry.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct LogEntry {
     /// RFC 3339 timestamp
     pub timestamp: String,
@@ -133,14 +135,20 @@ pub struct JsonLayer<W> {
     service_name: String,
     pid: u32,
     make_writer: W,
+    remote_exporter: Option<RemoteExporter>,
 }
 
 impl<W> JsonLayer<W> {
-    pub fn new(service_name: String, make_writer: W) -> Self {
+    pub fn new(
+        service_name: String,
+        make_writer: W,
+        remote_exporter: Option<RemoteExporter>,
+    ) -> Self {
         Self {
             service_name,
             pid: std::process::id(),
             make_writer,
+            remote_exporter,
         }
     }
 }
@@ -179,6 +187,10 @@ where
         if let Ok(json) = serde_json::to_string(&entry) {
             let mut writer = self.make_writer.make_writer();
             let _ = writeln!(writer, "{}", json);
+        }
+
+        if let Some(exporter) = &self.remote_exporter {
+            exporter.export(&entry);
         }
     }
 }

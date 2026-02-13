@@ -54,8 +54,70 @@
 mod dev;
 
 mod json_layer;
+mod remote;
 
 use std::path::PathBuf;
+
+/// Runtime export policy mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObservabilityMode {
+    /// Development mode: include verbose payloads after basic secret redaction.
+    DevVerbose,
+    /// Production mode: export metadata only (no raw payloads).
+    ProdMetadataOnly,
+}
+
+impl Default for ObservabilityMode {
+    fn default() -> Self {
+        Self::DevVerbose
+    }
+}
+
+/// PostHog sink configuration.
+#[derive(Debug, Clone)]
+pub struct PosthogConfig {
+    /// Project API key.
+    pub api_key: String,
+    /// PostHog ingest host, e.g. https://us.i.posthog.com.
+    pub host: String,
+    /// Max events per batch flush.
+    pub batch_size: usize,
+    /// Internal queue capacity.
+    pub queue_capacity: usize,
+    /// Flush interval in milliseconds.
+    pub flush_interval_ms: u64,
+}
+
+/// Sentry sink configuration.
+#[derive(Debug, Clone)]
+pub struct SentryConfig {
+    /// Sentry DSN.
+    pub dsn: String,
+}
+
+/// Per-level sampling configuration for remote export.
+#[derive(Debug, Clone)]
+pub struct SamplingConfig {
+    /// DEBUG and TRACE sample rate.
+    pub debug_rate: f64,
+    /// INFO and NOTICE sample rate.
+    pub info_rate: f64,
+    /// WARN sample rate.
+    pub warn_rate: f64,
+    /// ERROR sample rate.
+    pub error_rate: f64,
+}
+
+impl Default for SamplingConfig {
+    fn default() -> Self {
+        Self {
+            debug_rate: 0.0,
+            info_rate: 0.1,
+            warn_rate: 1.0,
+            error_rate: 1.0,
+        }
+    }
+}
 
 /// Configuration for the logging system.
 #[derive(Debug, Clone)]
@@ -75,6 +137,21 @@ pub struct LogConfig {
     /// Also emit logs to stderr for immediate feedback.
     /// Defaults to false in dev mode.
     pub also_stderr: bool,
+
+    /// Runtime observability mode.
+    pub mode: ObservabilityMode,
+
+    /// Logical environment name written to remote payloads.
+    pub environment: String,
+
+    /// Optional PostHog sink configuration.
+    pub posthog: Option<PosthogConfig>,
+
+    /// Optional Sentry sink configuration.
+    pub sentry: Option<SentryConfig>,
+
+    /// Remote export sampling policy.
+    pub sampling: SamplingConfig,
 }
 
 impl Default for LogConfig {
@@ -84,6 +161,11 @@ impl Default for LogConfig {
             default_level: "info".into(),
             log_path: None,
             also_stderr: false,
+            mode: ObservabilityMode::DevVerbose,
+            environment: "development".into(),
+            posthog: None,
+            sentry: None,
+            sampling: SamplingConfig::default(),
         }
     }
 }
@@ -127,13 +209,23 @@ pub fn init_with_config(config: LogConfig) {
     let config = inject_service_context(config);
 
     #[cfg(feature = "dev")]
-    dev::init_dev_subscriber(&config);
+    {
+        dev::init_dev_subscriber(&config);
+        return;
+    }
 
-    #[cfg(feature = "prod")]
-    compile_error!("prod logging not yet implemented");
-
-    #[cfg(not(any(feature = "dev", feature = "prod")))]
-    compile_error!("enable either 'dev' or 'prod' feature");
+    #[cfg(not(feature = "dev"))]
+    {
+        use tracing_subscriber::util::SubscriberInitExt;
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.default_level)),
+            )
+            .with_target(true)
+            .compact()
+            .init();
+    }
 }
 
 /// Inject service-level context that will appear in all log lines.
@@ -163,5 +255,13 @@ mod tests {
         assert_eq!(config.default_level, "info");
         assert!(config.log_path.is_none());
         assert!(!config.also_stderr);
+        assert_eq!(config.mode, ObservabilityMode::DevVerbose);
+        assert_eq!(config.environment, "development");
+        assert!(config.posthog.is_none());
+        assert!(config.sentry.is_none());
+        assert_eq!(config.sampling.debug_rate, 0.0);
+        assert_eq!(config.sampling.info_rate, 0.1);
+        assert_eq!(config.sampling.warn_rate, 1.0);
+        assert_eq!(config.sampling.error_rate, 1.0);
     }
 }
