@@ -55,6 +55,35 @@ This separation makes the validation and routing logic fully unit-testable witho
 
 The router (`handle_remote_command`) tries to parse the payload as a generic `RemoteCommandEnvelope` first. If the type is `um.secret.request.v1`, it delegates to the legacy handler. Otherwise it routes through the generic command pipeline.
 
+### `session.create.v1` Params
+
+`params` supports the same contract as daemon IPC `session.create`:
+
+- Required:
+  - `repository_id` (string UUID)
+- Optional:
+  - `title` (string)
+  - `is_worktree` (bool)
+  - `worktree_name` (string)
+  - `base_branch` (string)
+  - `worktree_branch` (string)
+  - `branch_name` (string, legacy alias for `worktree_branch`)
+
+Main-directory creation should pass `is_worktree=false`. Worktree creation should pass `is_worktree=true` and may include `base_branch` / `worktree_branch`.
+
+### `session.create.v1` Error Semantics
+
+Remote responses are emitted as `remote.command.response.v1` with:
+
+- `status="error"`
+- `error_code` (machine-readable code)
+- `error_message` (human-readable detail)
+
+Notable `session.create.v1` failures:
+
+- `setup_hook_failed`: hook command failed/timed out; stage (`pre_create` / `post_create`) is included in `error_message`.
+- `legacy_worktree_unsupported`: legacy `.unbound-worktrees` usage is rejected.
+
 ## Effect System
 
 The pure handler emits a `Vec<Effect>` that the runtime evaluates:

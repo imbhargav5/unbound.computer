@@ -1,6 +1,5 @@
 use crate::itachi::contracts::{
-    DecisionResultPayload, RemoteCommandEnvelope, UmSecretRequestCommand,
-    UM_SECRET_REQUEST_TYPE,
+    DecisionResultPayload, RemoteCommandEnvelope, UmSecretRequestCommand, UM_SECRET_REQUEST_TYPE,
 };
 use crate::itachi::errors::DecisionReasonCode;
 use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
@@ -612,17 +611,14 @@ mod tests {
         match &effects[0] {
             Effect::ReturnDecision { decision, payload } => {
                 assert_eq!(*decision, DecisionKind::DoNotAck);
-                assert_eq!(
-                    payload.reason_code,
-                    Some(DecisionReasonCode::InternalError)
-                );
+                assert_eq!(payload.reason_code, Some(DecisionReasonCode::InternalError));
             }
             _ => panic!("first effect must be ReturnDecision"),
         }
     }
 
     #[test]
-    fn generic_command_envelope_preserved_in_effect() {
+    fn generic_session_create_worktree_params_preserved_in_effect() {
         let payload = json!({
             "schema_version": 1,
             "type": "session.create.v1",
@@ -630,7 +626,14 @@ mod tests {
             "requester_device_id": "22222222-2222-2222-2222-222222222222",
             "target_device_id": "00000000-0000-0000-0000-000000000111",
             "requested_at_ms": 1700000000000_i64,
-            "params": { "repository_id": "repo-abc", "title": "My Session" }
+            "params": {
+                "repository_id": "repo-abc",
+                "title": "My Session",
+                "is_worktree": true,
+                "worktree_name": "my-worktree",
+                "base_branch": "main",
+                "worktree_branch": "unbound/my-worktree"
+            }
         });
 
         let effects = handle_remote_command(payload.to_string().as_bytes(), &deps());
@@ -641,12 +644,13 @@ mod tests {
 
         if let Effect::ExecuteRemoteCommand { envelope } = exec_effect {
             assert_eq!(envelope.command_type, "session.create.v1");
-            assert_eq!(
-                envelope.request_id,
-                "11111111-1111-1111-1111-111111111111"
-            );
+            assert_eq!(envelope.request_id, "11111111-1111-1111-1111-111111111111");
             assert_eq!(envelope.params["repository_id"], "repo-abc");
             assert_eq!(envelope.params["title"], "My Session");
+            assert_eq!(envelope.params["is_worktree"], true);
+            assert_eq!(envelope.params["worktree_name"], "my-worktree");
+            assert_eq!(envelope.params["base_branch"], "main");
+            assert_eq!(envelope.params["worktree_branch"], "unbound/my-worktree");
         }
     }
 

@@ -672,6 +672,18 @@ mod tests {
     #[test]
     fn classify_remote_command_type_supports_gh_pr_commands() {
         assert_eq!(
+            classify_remote_command_type("session.create.v1"),
+            Some(RemoteCommandType::SessionCreateV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("claude.send.v1"),
+            Some(RemoteCommandType::ClaudeSendV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("claude.stop.v1"),
+            Some(RemoteCommandType::ClaudeStopV1)
+        );
+        assert_eq!(
             classify_remote_command_type("gh.pr.create.v1"),
             Some(RemoteCommandType::GhPrCreateV1)
         );
