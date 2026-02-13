@@ -8,6 +8,7 @@
 
 import Foundation
 import Logging
+import CryptoKit
 import UIKit
 import UserNotifications
 import SwiftUI
@@ -142,7 +143,7 @@ final class PushNotificationService: NSObject {
         // Cache the token
         cacheToken(tokenString)
 
-        logger.info("APNs registration successful. Token: \(tokenString)")
+        logger.info("APNs registration successful. Token fingerprint: \(redactedFingerprint(tokenString))")
 
         // Register token with backend
         Task {
@@ -184,8 +185,9 @@ final class PushNotificationService: NSObject {
             if httpResponse.statusCode == 200 {
                 logger.info("Push token registered with backend successfully")
             } else {
-                let responseBody = String(data: data, encoding: .utf8) ?? "Unknown error"
-                logger.error("Failed to register push token: \(httpResponse.statusCode) - \(responseBody)")
+                logger.error(
+                    "Failed to register push token: \(httpResponse.statusCode), response_summary=\(redactedResponseSummary(data))"
+                )
             }
         } catch {
             logger.error("Error registering push token with backend: \(error)")
@@ -232,6 +234,18 @@ final class PushNotificationService: NSObject {
         deviceToken = nil
         registrationState = .unknown
         try? keychainService.delete(forKey: .apnsDeviceToken)
+    }
+
+    private func redactedFingerprint(_ rawValue: String) -> String {
+        let digest = SHA256.hash(data: Data(rawValue.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(hex)"
+    }
+
+    private func redactedResponseSummary(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "bytes=\(data.count),sha256:\(hex)"
     }
 }
 

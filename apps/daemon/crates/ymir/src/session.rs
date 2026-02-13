@@ -12,11 +12,19 @@ use chrono::{Duration as ChronoDuration, Utc};
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
 use tracing::{debug, info, warn};
+
+fn summarize_response_body(body: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("len={},digest={:016x}", body.len(), hasher.finish())
+}
 
 /// Authentication status (backward-compatible public API).
 #[derive(Debug, Clone)]
@@ -503,11 +511,16 @@ impl SessionManager {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!(status = %status, body = %body, "Session verification failed");
+            let body_summary = summarize_response_body(&body);
+            warn!(
+                status = %status,
+                body_summary = %body_summary,
+                "Session verification failed"
+            );
 
             return Err(AuthError::SessionInvalid(format!(
-                "Server rejected session: HTTP {}: {}",
-                status, body
+                "Server rejected session: HTTP {} ({})",
+                status, body_summary
             )));
         }
 
@@ -710,12 +723,17 @@ impl SessionManager {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!(status = %status, body = %body, "Token refresh failed");
+            let body_summary = summarize_response_body(&body);
+            warn!(
+                status = %status,
+                body_summary = %body_summary,
+                "Token refresh failed"
+            );
 
             // Don't clear session here - let the caller handle it based on retry logic
             return Err(AuthError::TokenRefresh(format!(
-                "HTTP {}: {}",
-                status, body
+                "HTTP {} ({})",
+                status, body_summary
             )));
         }
 
@@ -784,11 +802,12 @@ impl SessionManager {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!(status = %status, body = %body, "Login failed");
+            let body_summary = summarize_response_body(&body);
+            warn!(status = %status, body_summary = %body_summary, "Login failed");
             self.transition(&AuthMachineInput::LoginFailed)?;
             return Err(AuthError::InvalidCredentials(format!(
-                "HTTP {}: {}",
-                status, body
+                "HTTP {} ({})",
+                status, body_summary
             )));
         }
 

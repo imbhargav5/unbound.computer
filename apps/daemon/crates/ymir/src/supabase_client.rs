@@ -6,6 +6,14 @@
 
 use crate::error::{AuthError, AuthResult};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+fn summarize_response_body(body: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("len={},digest={:016x}", body.len(), hasher.finish())
+}
 
 /// Supabase REST API client for device and session secret operations.
 #[derive(Clone)]
@@ -108,10 +116,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to fetch devices: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch devices");
             return Err(AuthError::OAuth(format!(
-                "Failed to fetch devices: {} - {}",
-                status, body
+                "Failed to fetch devices: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -148,10 +157,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to fetch device by id: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch device by id");
             return Err(AuthError::OAuth(format!(
-                "Failed to fetch device by id: {} - {}",
-                status, body
+                "Failed to fetch device by id: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -213,10 +223,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to upsert device: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status, body_summary = %body_summary, "Failed to upsert device");
             return Err(AuthError::OAuth(format!(
-                "Failed to upsert device: {} - {}",
-                status, body
+                "Failed to upsert device: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -283,10 +294,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to upsert repository: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status, body_summary = %body_summary, "Failed to upsert repository");
             return Err(AuthError::OAuth(format!(
-                "Failed to upsert repository: {} - {}",
-                status, body
+                "Failed to upsert repository: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -350,14 +362,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status_code = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!(
-                "Failed to upsert coding session: {} - {}",
-                status_code,
-                body
-            );
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status_code, body_summary = %body_summary, "Failed to upsert coding session");
             return Err(AuthError::OAuth(format!(
-                "Failed to upsert coding session: {} - {}",
-                status_code, body
+                "Failed to upsert coding session: {} ({})",
+                status_code, body_summary
             )));
         }
 
@@ -413,14 +422,15 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body_text = response.text().await.unwrap_or_default();
+            let body_summary = summarize_response_body(&body_text);
             tracing::error!(
-                "Failed to insert session secrets: {} - {}",
-                status,
-                body_text
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to insert session secrets"
             );
             return Err(AuthError::OAuth(format!(
-                "Failed to insert session secrets: {} - {}",
-                status, body_text
+                "Failed to insert session secrets: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -461,10 +471,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Failed to fetch session secrets: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch session secrets");
             return Err(AuthError::OAuth(format!(
-                "Failed to fetch session secrets: {} - {}",
-                status, body
+                "Failed to fetch session secrets: {} ({})",
+                status, body_summary
             )));
         }
 
@@ -502,7 +513,12 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::warn!("Failed to delete session secrets: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::warn!(
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to delete session secrets"
+            );
             // Don't fail on delete errors
         }
 

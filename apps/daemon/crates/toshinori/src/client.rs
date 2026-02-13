@@ -5,7 +5,15 @@
 
 use crate::error::{ToshinoriError, ToshinoriResult};
 use serde::Serialize;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use tracing::{debug, error, warn};
+
+fn summarize_response_body(body: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("len={},digest={:016x}", body.len(), hasher.finish())
+}
 
 /// Represents a message payload formatted for Supabase upsert operations.
 ///
@@ -355,7 +363,8 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!("Delete request failed: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            warn!(status = %status, body_summary = %body_summary, "Delete request failed");
         }
 
         Ok(())
@@ -369,10 +378,11 @@ impl SupabaseClient {
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            error!("Supabase request failed: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            error!(status, body_summary = %body_summary, "Supabase request failed");
             return Err(ToshinoriError::Supabase {
                 status,
-                message: body,
+                message: format!("upstream error ({body_summary})"),
             });
         }
         Ok(())

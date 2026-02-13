@@ -12,6 +12,12 @@ import Logging
 
 private let logger = Logger(label: "app.daemon.api")
 
+private func redactedDictionarySummary(_ dictionary: [String: Any]) -> String {
+    let keys = dictionary.keys.sorted()
+    let keyList = keys.prefix(12).joined(separator: ",")
+    return "keys=[\(keyList)],count=\(dictionary.count)"
+}
+
 // MARK: - Health
 
 extension DaemonClient {
@@ -113,13 +119,13 @@ extension DaemonClient {
 
         return sessionsData.compactMap { dict in
             guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
-                logger.warning("Failed to serialize session dict: \(dict)")
+                logger.warning("Failed to serialize session dict, summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
             do {
                 return try decoder.decode(DaemonSession.self, from: data)
             } catch {
-                logger.warning("Failed to decode session: \(error), dict: \(dict)")
+                logger.warning("Failed to decode session: \(error), summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
         }
@@ -294,13 +300,13 @@ extension DaemonClient {
 
         return reposData.compactMap { dict in
             guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
-                logger.warning("Failed to serialize repository dict: \(dict)")
+                logger.warning("Failed to serialize repository dict, summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
             do {
                 return try decoder.decode(DaemonRepository.self, from: data)
             } catch {
-                logger.warning("Failed to decode repository: \(error), dict: \(dict)")
+                logger.warning("Failed to decode repository: \(error), summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
         }
@@ -394,13 +400,13 @@ extension DaemonClient {
 
         return entriesData.compactMap { dict in
             guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
-                logger.warning("Failed to serialize file entry dict: \(dict)")
+                logger.warning("Failed to serialize file entry dict, summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
             do {
                 return try decoder.decode(DaemonFileEntry.self, from: data)
             } catch {
-                logger.warning("Failed to decode file entry: \(error), dict: \(dict)")
+                logger.warning("Failed to decode file entry: \(error), summary=\(redactedDictionarySummary(dict))")
                 return nil
             }
         }

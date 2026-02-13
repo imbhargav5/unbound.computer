@@ -5,9 +5,17 @@
 
 use crate::error::{YamchaError, YamchaResult};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 const GROQ_API_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL: &str = "llama-3.1-8b-instant";
+
+fn summarize_response_body(body: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("len={},digest={:016x}", body.len(), hasher.finish())
+}
 
 /// Groq API client for generating session titles.
 #[derive(Clone, Debug)]
@@ -109,10 +117,11 @@ impl GroqClient {
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Groq API error: {} - {}", status, body);
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(status, body_summary = %body_summary, "Groq API error");
             return Err(YamchaError::ApiError {
                 status,
-                message: body,
+                message: format!("upstream error ({body_summary})"),
             });
         }
 

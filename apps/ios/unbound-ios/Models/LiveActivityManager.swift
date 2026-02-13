@@ -1,5 +1,6 @@
 import ActivityKit
 import Logging
+import CryptoKit
 import SwiftUI
 
 private let logger = Logger(label: "app.ui")
@@ -109,7 +110,7 @@ class LiveActivityManager {
             await MainActor.run {
                 self.activityPushToken = tokenString
             }
-            logger.debug("Live Activity push token: \(tokenString)")
+            logger.debug("Live Activity push token fingerprint: \(redactedFingerprint(tokenString))")
 
             // Register the token with the backend
             await registerActivityPushToken(tokenString, activityId: activity.id)
@@ -150,8 +151,9 @@ class LiveActivityManager {
             if httpResponse.statusCode == 200 {
                 logger.info("Live Activity push token registered successfully")
             } else {
-                let responseBody = String(data: data, encoding: .utf8) ?? "Unknown error"
-                logger.error("Failed to register activity push token: \(httpResponse.statusCode) - \(responseBody)")
+                logger.error(
+                    "Failed to register activity push token: \(httpResponse.statusCode), response_summary=\(redactedResponseSummary(data))"
+                )
             }
         } catch {
             logger.error("Error registering activity push token: \(error)")
@@ -173,5 +175,17 @@ class LiveActivityManager {
             logger.info("Resumed existing Live Activity: \(activity.id)")
             break  // Only track one activity
         }
+    }
+
+    private func redactedFingerprint(_ rawValue: String) -> String {
+        let digest = SHA256.hash(data: Data(rawValue.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(hex)"
+    }
+
+    private func redactedResponseSummary(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "bytes=\(data.count),sha256:\(hex)"
     }
 }

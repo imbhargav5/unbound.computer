@@ -486,17 +486,23 @@ class SessionLiveState {
         let parsed: [String: Any]
         do {
             guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                logger.warning("Claude event is not a dictionary for session \(sessionId): \(json.prefix(200))")
+                logger.warning(
+                    "Claude event is not a dictionary for session \(sessionId), payload_summary=\(redactedPayloadSummary(json))"
+                )
                 return
             }
             parsed = dict
         } catch {
-            logger.warning("Failed to parse claude event JSON for session \(sessionId): \(error.localizedDescription), raw: \(json.prefix(200))")
+            logger.warning(
+                "Failed to parse claude event JSON for session \(sessionId): \(error.localizedDescription), payload_summary=\(redactedPayloadSummary(json))"
+            )
             return
         }
 
         guard let type = parsed["type"] as? String else {
-            logger.warning("Claude event missing 'type' field for session \(sessionId): \(json.prefix(200))")
+            logger.warning(
+                "Claude event missing 'type' field for session \(sessionId), payload_summary=\(redactedPayloadSummary(json))"
+            )
             return
         }
 
@@ -657,6 +663,13 @@ class SessionLiveState {
             break
         }
         return nil
+    }
+
+    private func redactedPayloadSummary(_ payload: String) -> String {
+        var hasher = Hasher()
+        hasher.combine(payload)
+        let digest = String(format: "%016llx", UInt64(bitPattern: Int64(hasher.finalize())))
+        return "chars=\(payload.count),digest=\(digest)"
     }
 
     private func handleUserEvent(_ json: [String: Any]) {
