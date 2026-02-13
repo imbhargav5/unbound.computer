@@ -10,6 +10,7 @@ use daemon_storage::SecretsManager;
 use piccolo::{create_worktree_with_options, remove_worktree};
 use std::path::Path;
 use std::process::Stdio;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
@@ -134,7 +135,43 @@ async fn run_setup_hook(
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
-    let output = match timeout(timeout_duration, process.output()).await {
+    #[cfg(unix)]
+    {
+        // Put the hook in its own process group so timeout cleanup can terminate
+        // both the shell and any spawned children.
+        unsafe {
+            process.pre_exec(|| {
+                if libc::setpgid(0, 0) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
+
+    let mut child = process.spawn().map_err(|e| {
+        SessionCreateCoreError::with_data(
+            "setup_hook_failed",
+            format!(
+                "setup hook failed at stage {}: failed to execute command: {}",
+                stage.as_str(),
+                e
+            ),
+            serde_json::json!({
+                "stage": stage.as_str(),
+            }),
+        )
+    })?;
+
+    let stderr_handle = child.stderr.take().map(|mut stderr| {
+        tokio::spawn(async move {
+            let mut buf = Vec::new();
+            let _ = stderr.read_to_end(&mut buf).await;
+            buf
+        })
+    });
+
+    let output = match timeout(timeout_duration, child.wait()).await {
         Ok(result) => result.map_err(|e| {
             SessionCreateCoreError::with_data(
                 "setup_hook_failed",
@@ -149,6 +186,51 @@ async fn run_setup_hook(
             )
         })?,
         Err(_) => {
+            let mut cleanup_error: Option<String> = None;
+
+            #[cfg(unix)]
+            {
+                if let Some(raw_pid) = child.id() {
+                    let rc = unsafe { libc::kill(-(raw_pid as i32), libc::SIGKILL) };
+                    if rc == -1 {
+                        let err = std::io::Error::last_os_error();
+                        // Ignore "no such process" because the child may have exited
+                        // naturally between timeout and kill.
+                        if err.raw_os_error() != Some(libc::ESRCH) {
+                            cleanup_error =
+                                Some(format!("failed to kill hook process group: {}", err));
+                        }
+                    }
+                }
+            }
+
+            #[cfg(not(unix))]
+            {
+                if let Err(e) = child.kill().await {
+                    cleanup_error = Some(format!("failed to kill hook process: {}", e));
+                }
+            }
+
+            if let Err(e) = child.wait().await {
+                let msg = format!("failed to reap timed out hook process: {}", e);
+                cleanup_error = match cleanup_error {
+                    Some(existing) => Some(format!("{existing}; {msg}")),
+                    None => Some(msg),
+                };
+            }
+
+            if let Some(handle) = stderr_handle {
+                let _ = handle.await;
+            }
+
+            let mut data = serde_json::json!({
+                "stage": stage.as_str(),
+                "timeout_seconds": timeout_seconds,
+            });
+            if let Some(cleanup_error) = cleanup_error {
+                data["cleanup_error"] = serde_json::json!(cleanup_error);
+            }
+
             return Err(SessionCreateCoreError::with_data(
                 "setup_hook_failed",
                 format!(
@@ -156,22 +238,27 @@ async fn run_setup_hook(
                     stage.as_str(),
                     timeout_seconds
                 ),
-                serde_json::json!({
-                    "stage": stage.as_str(),
-                    "timeout_seconds": timeout_seconds,
-                }),
+                data,
             ));
         }
     };
 
-    if output.status.success() {
+    let stderr = if let Some(handle) = stderr_handle {
+        match handle.await {
+            Ok(stderr_bytes) => String::from_utf8_lossy(&stderr_bytes).to_string(),
+            Err(_) => String::new(),
+        }
+    } else {
+        String::new()
+    };
+
+    if output.success() {
         return Ok(());
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let stderr_trimmed = stderr.trim();
     let stderr_summary = truncate_for_error(stderr_trimmed, MAX_HOOK_STDERR_CHARS);
-    let exit_code = output.status.code();
+    let exit_code = output.code();
     let mut message = format!(
         "setup hook failed at stage {} with exit code {:?}",
         stage.as_str(),
@@ -670,9 +757,20 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn has_zsh() -> bool {
         Path::new("/bin/zsh").exists()
+    }
+
+    fn unique_temp_path(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()))
     }
 
     #[test]
@@ -773,5 +871,39 @@ mod tests {
         let data = err.data.expect("expected structured hook timeout data");
         assert_eq!(data["stage"], "post_create");
         assert_eq!(data["timeout_seconds"], 1);
+    }
+
+    #[tokio::test]
+    async fn run_setup_hook_timeout_kills_background_children() {
+        if !has_zsh() {
+            return;
+        }
+
+        let marker_file = unique_temp_path("hook-leak-check");
+        let marker_path = marker_file
+            .to_string_lossy()
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
+
+        let hook = SetupHookStageConfig {
+            command: Some(format!(
+                "nohup /bin/zsh -lc 'sleep 2; echo leaked > \"{}\"' >/dev/null 2>&1 & sleep 30",
+                marker_path
+            )),
+            timeout_seconds: 1,
+        };
+
+        let cwd = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let err = run_setup_hook(HookStage::PreCreate, &hook, cwd)
+            .await
+            .expect_err("hook should timeout");
+
+        assert_eq!(err.code, "setup_hook_failed");
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        assert!(
+            !marker_file.exists(),
+            "timed-out hook leaked child process that wrote marker file"
+        );
+        let _ = fs::remove_file(marker_file);
     }
 }
