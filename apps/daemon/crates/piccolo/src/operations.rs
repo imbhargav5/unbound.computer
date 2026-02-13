@@ -4,7 +4,7 @@
 //! results. They do not maintain any state between calls.
 
 use git2::{BranchType, DiffOptions, Repository, Sort, StatusOptions};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::error::PiccoloError;
 use crate::types::{
@@ -909,7 +909,37 @@ pub fn push(
     Err(PiccoloError::PushFailed(stderr))
 }
 
-/// Create a git worktree at `<repo>/.unbound-worktrees/<worktree_name>/`.
+const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
+
+fn resolve_worktrees_dir(repo_path: &Path, root_dir: &Path) -> PathBuf {
+    if root_dir.is_absolute() {
+        root_dir.to_path_buf()
+    } else {
+        repo_path.join(root_dir)
+    }
+}
+
+fn resolve_base_commit<'repo>(
+    repo: &'repo Repository,
+    base_branch: &str,
+) -> Result<git2::Commit<'repo>, String> {
+    let base_object = repo
+        .revparse_single(base_branch)
+        .or_else(|_| repo.revparse_single(&format!("refs/heads/{}", base_branch)))
+        .or_else(|_| repo.revparse_single(&format!("refs/remotes/{}", base_branch)))
+        .map_err(|e| {
+            format!(
+                "Failed to resolve base branch reference '{}': {}",
+                base_branch, e
+            )
+        })?;
+
+    base_object
+        .peel_to_commit()
+        .map_err(|e| format!("Failed to resolve base commit '{}': {}", base_branch, e))
+}
+
+/// Create a git worktree at `<repo>/<root_dir>/<worktree_name>/`.
 ///
 /// Creates a linked worktree with a corresponding branch for parallel
 /// development workflows.
@@ -918,7 +948,9 @@ pub fn push(
 ///
 /// * `repo_path` - Path to the main repository
 /// * `worktree_name` - Name for the worktree directory (typically session ID)
-/// * `branch_name` - Optional branch name to use (defaults to `unbound/<worktree_name>`)
+/// * `root_dir` - Root worktree directory, absolute or relative to `repo_path`
+/// * `base_branch` - Optional branch/ref to create a new worktree branch from (defaults to `HEAD`)
+/// * `worktree_branch` - Optional branch name to use (defaults to `unbound/<worktree_name>`)
 ///
 /// # Returns
 ///
@@ -929,10 +961,11 @@ pub fn push(
 /// ```text
 /// /path/to/repo/
 /// ├── .git/
-/// ├── .unbound-worktrees/
-/// │   └── session-123/          <- Created worktree
-/// │       ├── .git              <- File pointing to main .git
-/// │       └── ...               <- Working tree files
+/// ├── .unbound/
+/// │   └── worktrees/
+/// │       └── session-123/      <- Created worktree
+/// │           ├── .git          <- File pointing to main .git
+/// │           └── ...           <- Working tree files
 /// └── ...
 /// ```
 ///
@@ -947,25 +980,37 @@ pub fn push(
 /// # Example
 ///
 /// ```ignore
-/// let path = create_worktree(repo_path, "session-123", None)?;
+/// let path = create_worktree_with_options(
+///     repo_path,
+///     "session-123",
+///     Path::new(".unbound/worktrees"),
+///     Some("origin/main"),
+///     None,
+/// )?;
 /// println!("Worktree created at: {}", path);
 ///
 /// // With custom branch name
-/// let path = create_worktree(repo_path, "feature", Some("feature/my-feature"))?;
+/// let path = create_worktree_with_options(
+///     repo_path,
+///     "feature",
+///     Path::new(".unbound/worktrees"),
+///     None,
+///     Some("feature/my-feature"),
+/// )?;
 /// ```
-pub fn create_worktree(
+pub fn create_worktree_with_options(
     repo_path: &Path,
     worktree_name: &str,
-    branch_name: Option<&str>,
+    root_dir: &Path,
+    base_branch: Option<&str>,
+    worktree_branch: Option<&str>,
 ) -> Result<String, String> {
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    // Construct worktree path: <repo>/.unbound-worktrees/<worktree_name>/
-    let worktrees_dir = repo_path.join(".unbound-worktrees");
+    let worktrees_dir = resolve_worktrees_dir(repo_path, root_dir);
     let worktree_path = worktrees_dir.join(worktree_name);
 
-    // Create the .unbound-worktrees directory if it doesn't exist
     std::fs::create_dir_all(&worktrees_dir)
         .map_err(|e| format!("Failed to create worktrees directory: {}", e))?;
 
@@ -977,18 +1022,10 @@ pub fn create_worktree(
         ));
     }
 
-    // Determine branch name
-    let branch = branch_name
+    // Determine target branch name
+    let branch = worktree_branch
         .map(String::from)
         .unwrap_or_else(|| format!("unbound/{}", worktree_name));
-
-    // Get HEAD commit to create branch from
-    let head = repo
-        .head()
-        .map_err(|e| format!("Failed to get HEAD: {}", e))?;
-    let head_commit = head
-        .peel_to_commit()
-        .map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
 
     // Check if branch already exists
     let branch_ref = match repo.find_branch(&branch, BranchType::Local) {
@@ -1001,9 +1038,20 @@ pub fn create_worktree(
                 .ok_or_else(|| "Branch reference has no name".to_string())?
         }
         Err(_) => {
-            // Create new branch from HEAD
+            let base_commit = match base_branch {
+                Some(base_branch) => resolve_base_commit(&repo, base_branch)?,
+                None => {
+                    let head = repo
+                        .head()
+                        .map_err(|e| format!("Failed to get HEAD: {}", e))?;
+                    head.peel_to_commit()
+                        .map_err(|e| format!("Failed to get HEAD commit: {}", e))?
+                }
+            };
+
+            // Create new branch from resolved base commit.
             let new_branch = repo
-                .branch(&branch, &head_commit, false)
+                .branch(&branch, &base_commit, false)
                 .map_err(|e| format!("Failed to create branch '{}': {}", branch, e))?;
             new_branch
                 .into_reference()
@@ -1014,18 +1062,13 @@ pub fn create_worktree(
     };
 
     // Create the worktree
-    repo.worktree(
-        worktree_name,
-        &worktree_path,
-        Some(
-            git2::WorktreeAddOptions::new().reference(Some(
-                &repo
-                    .find_reference(&branch_ref)
-                    .map_err(|e| format!("Failed to find branch reference: {}", e))?,
-            )),
-        ),
-    )
-    .map_err(|e| format!("Failed to create worktree: {}", e))?;
+    let branch_reference = repo
+        .find_reference(&branch_ref)
+        .map_err(|e| format!("Failed to find branch reference: {}", e))?;
+    let mut add_options = git2::WorktreeAddOptions::new();
+    add_options.reference(Some(&branch_reference));
+    repo.worktree(worktree_name, &worktree_path, Some(&add_options))
+        .map_err(|e| format!("Failed to create worktree: {}", e))?;
 
     // Return the absolute path
     let abs_path = worktree_path
@@ -1035,6 +1078,23 @@ pub fn create_worktree(
         .to_string();
 
     Ok(abs_path)
+}
+
+/// Backward-compatible wrapper around [`create_worktree_with_options`].
+///
+/// Defaults to `<repo>/.unbound/worktrees` and `HEAD` as base branch.
+pub fn create_worktree(
+    repo_path: &Path,
+    worktree_name: &str,
+    branch_name: Option<&str>,
+) -> Result<String, String> {
+    create_worktree_with_options(
+        repo_path,
+        worktree_name,
+        Path::new(DEFAULT_WORKTREE_ROOT_DIR),
+        None,
+        branch_name,
+    )
 }
 
 /// Remove a git worktree and its directory.
@@ -1057,7 +1117,7 @@ pub fn create_worktree(
 /// # Example
 ///
 /// ```ignore
-/// remove_worktree(repo_path, Path::new("/path/to/repo/.unbound-worktrees/session-123"))?;
+/// remove_worktree(repo_path, Path::new("/path/to/repo/.unbound/worktrees/session-123"))?;
 /// ```
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), String> {
     let repo =
@@ -1089,15 +1149,23 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), Str
             .map_err(|e| format!("Failed to remove worktree directory: {}", e))?;
     }
 
-    // Clean up the .unbound-worktrees directory if empty
+    // Clean up parent worktree folders if they are now empty.
     if let Some(parent) = worktree_path.parent() {
-        if parent
-            .file_name()
-            .map(|n| n == ".unbound-worktrees")
-            .unwrap_or(false)
-        {
-            // Try to remove if empty, ignore errors
-            let _ = std::fs::remove_dir(parent);
+        // Try to remove the direct parent first, ignore errors.
+        let _ = std::fs::remove_dir(parent);
+
+        // If we are under `.unbound/worktrees`, also attempt to remove `.unbound`.
+        if parent.file_name().map(|n| n == "worktrees").unwrap_or(false) {
+            if let Some(grandparent) = parent.parent() {
+                if grandparent
+                    .file_name()
+                    .map(|n| n == ".unbound")
+                    .unwrap_or(false)
+                {
+                    // Remove only if empty, ignore errors.
+                    let _ = std::fs::remove_dir(grandparent);
+                }
+            }
         }
     }
 

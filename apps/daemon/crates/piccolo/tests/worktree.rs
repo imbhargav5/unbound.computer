@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::{create_worktree, get_branches, remove_worktree};
+use piccolo::{create_worktree, create_worktree_with_options, get_branches, remove_worktree};
 use std::path::Path;
 
 #[test]
@@ -10,8 +10,8 @@ fn create_worktree_default_branch_name() {
     let wt_path = create_worktree(&repo_path, "session-1", None).expect("create_worktree failed");
 
     assert!(
-        wt_path.contains(".unbound-worktrees/session-1"),
-        "worktree path should contain .unbound-worktrees/session-1, got: {}",
+        wt_path.contains(".unbound/worktrees/session-1"),
+        "worktree path should contain .unbound/worktrees/session-1, got: {}",
         wt_path
     );
     assert!(
@@ -39,6 +39,66 @@ fn create_worktree_custom_branch_name() {
     assert!(
         branch.is_ok(),
         "custom branch feature/my-thing should exist"
+    );
+}
+
+#[test]
+fn create_worktree_with_options_custom_root_dir() {
+    let (_dir, repo_path) = common::init_test_repo();
+
+    let wt_path = create_worktree_with_options(
+        &repo_path,
+        "custom-root",
+        Path::new(".custom-worktrees"),
+        None,
+        None,
+    )
+    .expect("create_worktree_with_options failed");
+
+    assert!(
+        wt_path.contains(".custom-worktrees/custom-root"),
+        "worktree path should contain .custom-worktrees/custom-root, got: {}",
+        wt_path
+    );
+    assert!(Path::new(&wt_path).exists());
+}
+
+#[test]
+fn create_worktree_with_options_uses_base_branch_reference() {
+    let (_dir, repo_path) = common::init_test_repo();
+
+    let base_commit_id = {
+        let repo = git2::Repository::open(&repo_path).expect("open repo");
+        let head = repo.head().expect("head");
+        let head_commit = head.peel_to_commit().expect("peel");
+        repo.branch("base-branch", &head_commit, false)
+            .expect("create base branch");
+        head_commit.id()
+    };
+
+    common::create_file(&repo_path, "later-change.txt", "later change\n");
+    common::commit_all(&repo_path, "later change");
+
+    let wt_path = create_worktree_with_options(
+        &repo_path,
+        "from-base",
+        Path::new(".unbound/worktrees"),
+        Some("base-branch"),
+        Some("feature/from-base"),
+    )
+    .expect("create_worktree_with_options failed");
+    assert!(Path::new(&wt_path).exists());
+
+    let repo = git2::Repository::open(&repo_path).expect("open repo");
+    let feature_tip = repo
+        .find_branch("feature/from-base", git2::BranchType::Local)
+        .expect("feature branch")
+        .into_reference()
+        .target()
+        .expect("feature branch target");
+    assert_eq!(
+        feature_tip, base_commit_id,
+        "new worktree branch should start from explicit base branch"
     );
 }
 
@@ -96,17 +156,17 @@ fn create_worktree_non_repo_returns_error() {
 fn unbound_worktrees_dir_created_automatically() {
     let (_dir, repo_path) = common::init_test_repo();
 
-    let worktrees_dir = repo_path.join(".unbound-worktrees");
+    let worktrees_dir = repo_path.join(".unbound/worktrees");
     assert!(
         !worktrees_dir.exists(),
-        ".unbound-worktrees should not exist before creating worktree"
+        ".unbound/worktrees should not exist before creating worktree"
     );
 
     create_worktree(&repo_path, "auto-dir", None).expect("create_worktree failed");
 
     assert!(
         worktrees_dir.exists(),
-        ".unbound-worktrees should exist after creating worktree"
+        ".unbound/worktrees should exist after creating worktree"
     );
 }
 
@@ -137,10 +197,10 @@ fn remove_worktree_cleans_empty_parent() {
 
     remove_worktree(&repo_path, wt_path).expect("remove_worktree failed");
 
-    let worktrees_dir = repo_path.join(".unbound-worktrees");
+    let worktrees_dir = repo_path.join(".unbound/worktrees");
     assert!(
         !worktrees_dir.exists(),
-        ".unbound-worktrees should be removed when empty"
+        ".unbound/worktrees should be removed when empty"
     );
 }
 
@@ -148,7 +208,7 @@ fn remove_worktree_cleans_empty_parent() {
 fn remove_nonexistent_worktree_succeeds() {
     let (_dir, repo_path) = common::init_test_repo();
 
-    let fake_path = repo_path.join(".unbound-worktrees/nonexistent");
+    let fake_path = repo_path.join(".unbound/worktrees/nonexistent");
 
     // Should succeed gracefully (no error for missing directory)
     remove_worktree(&repo_path, &fake_path)
@@ -169,7 +229,7 @@ fn remove_worktree_invalid_path_returns_error() {
 fn remove_worktree_non_repo_returns_error() {
     let result = remove_worktree(
         Path::new("/nonexistent/path"),
-        Path::new("/nonexistent/path/.unbound-worktrees/test"),
+        Path::new("/nonexistent/path/.unbound/worktrees/test"),
     );
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Failed to open repository"));

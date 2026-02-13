@@ -47,7 +47,8 @@ The crate exposes pure functions that operate on repository paths. All operation
 | `stage_files` | Add files to the index | `git.stage` |
 | `unstage_files` | Remove files from the index | `git.unstage` |
 | `discard_changes` | Reset working tree changes | `git.discard` |
-| `create_worktree` | Create a linked worktree | - |
+| `create_worktree` | Create a linked worktree (default root) | - |
+| `create_worktree_with_options` | Create a linked worktree with root/base/branch options | - |
 | `remove_worktree` | Remove a linked worktree | - |
 
 ## Usage
@@ -155,7 +156,8 @@ discard_changes(repo_path, &["src/experimental.rs"])?;
 ### Worktree Management
 
 ```rust
-use piccolo::{create_worktree, remove_worktree};
+use piccolo::{create_worktree, create_worktree_with_options, remove_worktree};
+use std::path::Path;
 
 // Create a worktree for a session
 let worktree_path = create_worktree(
@@ -163,12 +165,14 @@ let worktree_path = create_worktree(
     "session-123",  // worktree name
     None,           // uses branch: unbound/session-123
 )?;
-// Created at: /path/to/repo/.unbound-worktrees/session-123/
+// Created at: /path/to/repo/.unbound/worktrees/session-123/
 
-// With custom branch name
-let worktree_path = create_worktree(
+// With explicit root/base/branch
+let worktree_path = create_worktree_with_options(
     repo_path,
     "feature-work",
+    Path::new(".unbound/worktrees"),
+    Some("origin/main"),
     Some("feature/my-feature"),
 )?;
 
@@ -263,13 +267,14 @@ When creating worktrees, Piccolo uses this structure:
 ```
 /path/to/repo/
 ├── .git/
-├── .unbound-worktrees/
-│   ├── session-abc/
-│   │   ├── .git           <- File pointing to main .git
-│   │   ├── src/
-│   │   └── Cargo.toml
-│   └── session-xyz/
-│       └── ...
+├── .unbound/
+│   └── worktrees/
+│       ├── session-abc/
+│       │   ├── .git           <- File pointing to main .git
+│       │   ├── src/
+│       │   └── Cargo.toml
+│       └── session-xyz/
+│           └── ...
 ├── src/
 └── Cargo.toml
 ```
