@@ -73,16 +73,14 @@ fn normalize_optional_string(value: Option<&str>) -> Option<String> {
 }
 
 fn is_legacy_worktree_root(root_dir: &str) -> bool {
-    let trimmed = root_dir.trim().trim_end_matches('/');
+    let trimmed = root_dir.trim();
     if trimmed.is_empty() {
         return false;
     }
 
     Path::new(trimmed)
-        .file_name()
-        .and_then(|v| v.to_str())
-        .map(|v| v == ".unbound-worktrees")
-        .unwrap_or(trimmed == ".unbound-worktrees")
+        .components()
+        .any(|component| component.as_os_str().to_string_lossy() == ".unbound-worktrees")
 }
 
 fn validate_worktree_name(name: &str) -> Result<(), String> {
@@ -873,8 +871,11 @@ mod tests {
     fn legacy_worktree_root_detection() {
         assert!(is_legacy_worktree_root(".unbound-worktrees"));
         assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees"));
+        assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees/nested"));
+        assert!(is_legacy_worktree_root("/tmp/repo/custom/.unbound-worktrees/root"));
         assert!(!is_legacy_worktree_root(".unbound/worktrees"));
         assert!(!is_legacy_worktree_root("custom/worktrees"));
+        assert!(!is_legacy_worktree_root("/tmp/repo/.unbound-worktrees-v2"));
     }
 
     #[test]
