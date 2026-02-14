@@ -23,25 +23,6 @@ import {
   type SubscriptionData,
 } from "./abstract-payment-gateway";
 
-type StripeCustomerLinkInput = {
-  gatewayCustomerId: string;
-  billingEmail: string;
-  linkedUserId: string | null;
-};
-
-export class StripeWebhookProcessingError extends Error {
-  constructor(
-    message: string,
-    public readonly statusCode: number,
-    public readonly eventId?: string,
-    public readonly eventType?: string,
-    public readonly cause?: unknown
-  ) {
-    super(message);
-    this.name = "StripeWebhookProcessingError";
-  }
-}
-
 export class StripePaymentGateway implements PaymentGateway {
   private stripe: Stripe;
 
@@ -164,8 +145,7 @@ export class StripePaymentGateway implements PaymentGateway {
       const { error } = await supabaseAdminClient
         .from("billing_customers")
         .delete()
-        .eq("gateway_customer_id", customerId)
-        .eq("gateway_name", this.getName());
+        .eq("gateway_customer_id", customerId);
 
       if (error) throw error;
     },
@@ -238,7 +218,6 @@ export class StripePaymentGateway implements PaymentGateway {
         .from("billing_subscriptions")
         .select("*, billing_products(*), billing_prices(*)")
         .eq("gateway_subscription_id", subscriptionId)
-        .eq("gateway_name", this.getName())
         .single();
 
       if (error) {
@@ -280,8 +259,7 @@ export class StripePaymentGateway implements PaymentGateway {
       const { data, error } = await supabaseAdminClient
         .from("billing_invoices")
         .select("*, billing_products(*), billing_prices(*)")
-        .eq("gateway_invoice_id", invoiceId)
-        .eq("gateway_name", this.getName())
+        .eq("id", invoiceId)
         .single();
 
       if (error) throw error;
@@ -413,16 +391,10 @@ export class StripePaymentGateway implements PaymentGateway {
     getUserPaymentMethods: async (
       userId: string
     ): Promise<DBTable<"billing_payment_methods">[]> => {
-      const customer = await this.util.getCustomerByUserId(userId);
-      if (!customer) {
-        return [];
-      }
-
       const { data, error } = await supabaseAdminClient
         .from("billing_payment_methods")
         .select("*")
-        .eq("gateway_customer_id", customer.gateway_customer_id)
-        .order("is_default", { ascending: false });
+        .eq("user_id", userId);
       if (error) throw error;
       return data;
     },
@@ -525,28 +497,13 @@ export class StripePaymentGateway implements PaymentGateway {
       body: string | Buffer,
       signature: string
     ): Promise<void> => {
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (!webhookSecret) {
-        throw new StripeWebhookProcessingError(
-          "Stripe webhook secret is not configured",
-          500
-        );
-      }
-
-      let event: Stripe.Event;
       try {
-        event = this.stripe.webhooks.constructEvent(body, signature, webhookSecret);
-      } catch (error) {
-        throw new StripeWebhookProcessingError(
-          "Invalid Stripe webhook signature or payload",
-          400,
-          undefined,
-          undefined,
-          error
+        const event = this.stripe.webhooks.constructEvent(
+          body,
+          signature,
+          process.env.STRIPE_WEBHOOK_SECRET
         );
-      }
 
-      try {
         switch (event.type) {
           case "customer.subscription.created":
           case "customer.subscription.updated":
@@ -554,38 +511,30 @@ export class StripePaymentGateway implements PaymentGateway {
             await this.handleSubscriptionChange(
               event.data.object as Stripe.Subscription
             );
-            return;
+            break;
           case "invoice.paid":
           case "invoice.payment_failed":
             await this.handleInvoiceChange(event.data.object as Stripe.Invoice);
-            return;
+            break;
           case "customer.updated":
             await this.handleCustomerUpdate(
               event.data.object as Stripe.Customer
             );
-            return;
+            break;
           case "product.created":
           case "product.updated":
             await this.handleProductChange(event.data.object as Stripe.Product);
-            return;
+            break;
           case "price.created":
           case "price.updated":
             await this.handlePriceChange(event.data.object as Stripe.Price);
-            return;
+            break;
           case "charge.succeeded":
             await this.handleChargeChange(event.data.object as Stripe.Charge);
-            return;
-          default:
-            return;
+            break;
         }
       } catch (error) {
-        throw new StripeWebhookProcessingError(
-          `Failed to process Stripe webhook event: ${event.type}`,
-          500,
-          event.id,
-          event.type,
-          error
-        );
+        this.util.handleStripeError(error);
       }
     },
     getSubscription: async (
@@ -600,114 +549,56 @@ export class StripePaymentGateway implements PaymentGateway {
     },
   };
 
-  private async getBillingCustomerByGatewayCustomerId(
-    gatewayCustomerId: string
-  ): Promise<DBTable<"billing_customers"> | null> {
-    const { data, error } = await supabaseAdminClient
-      .from("billing_customers")
-      .select("*")
-      .eq("gateway_customer_id", gatewayCustomerId)
-      .eq("gateway_name", this.getName())
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
-  }
-
-  private async upsertBillingCustomerLink({
-    gatewayCustomerId,
-    billingEmail,
-    linkedUserId,
-  }: StripeCustomerLinkInput): Promise<DBTable<"billing_customers">> {
-    const { data, error } = await supabaseAdminClient
-      .from("billing_customers")
-      .upsert(
-        {
-          gateway_customer_id: gatewayCustomerId,
-          gateway_name: this.getName(),
-          billing_email: billingEmail,
-          user_id: linkedUserId,
-        },
-        {
-          onConflict: "gateway_name,gateway_customer_id",
-        }
-      )
-      .select("*")
-      .single();
-
-    if (error) throw error;
-    return data;
-  }
-
-  private async fetchStripeCustomer(
-    customerReference:
-      | string
-      | Stripe.Customer
-      | Stripe.DeletedCustomer
-      | null
-      | undefined
-  ): Promise<Stripe.Customer | null> {
-    if (!customerReference) return null;
-    if (typeof customerReference === "string") {
-      const customer = await this.stripe.customers.retrieve(customerReference);
-      if ("deleted" in customer && customer.deleted) return null;
-      return customer;
-    }
-
-    if ("deleted" in customerReference && customerReference.deleted) {
-      return null;
-    }
-
-    return customerReference;
-  }
-
-  private async ensureBillingCustomerLink(
-    customerReference:
-      | string
-      | Stripe.Customer
-      | Stripe.DeletedCustomer
-      | null
-      | undefined
-  ): Promise<DBTable<"billing_customers">> {
-    const stripeCustomer = await this.fetchStripeCustomer(customerReference);
-    if (!stripeCustomer) {
-      throw new Error("Stripe customer not found");
-    }
-
-    const existingCustomer = await this.getBillingCustomerByGatewayCustomerId(
-      stripeCustomer.id
-    );
-    const metadataUserId = stripeCustomer.metadata?.user_id?.trim() || null;
-    const fallbackUserId = stripeCustomer.email
-      ? await superAdminGetUserIdByEmail(stripeCustomer.email)
-      : null;
-    const linkedUserId =
-      metadataUserId ?? fallbackUserId ?? existingCustomer?.user_id ?? null;
-    const billingEmail = stripeCustomer.email ?? existingCustomer?.billing_email;
-
-    if (!billingEmail) {
-      throw new Error("Stripe customer email not found");
-    }
-
-    return this.upsertBillingCustomerLink({
-      gatewayCustomerId: stripeCustomer.id,
-      billingEmail,
-      linkedUserId,
-    });
-  }
-
   private async handleSubscriptionChange(subscription: Stripe.Subscription) {
-    const billingCustomer = await this.ensureBillingCustomerLink(
-      subscription.customer
-    );
-    const stripeCustomerId = billingCustomer.gateway_customer_id;
-
-    const firstItem = subscription.items.data[0];
-    if (!firstItem) {
-      throw new Error("Subscription line item not found");
+    if (!subscription.customer) {
+      return this.util.handleStripeError(
+        new Error("Subscription customer not found")
+      );
+    }
+    const stripeCustomerId =
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : typeof subscription.customer === "object" &&
+            "id" in subscription.customer
+          ? subscription.customer.id
+          : null;
+    if (!stripeCustomerId) {
+      return this.util.handleStripeError(
+        new Error("Subscription customer not found")
+      );
     }
 
-    const { product } = firstItem.price;
+    const doesCustomerExist = await this.db.hasCustomer(stripeCustomerId);
+    if (!doesCustomerExist) {
+      // it is likely that a user with this billing email doesn't exist and this is the fast anon flow.
+      // user clicks on pricing table on home page with no account and after payment, they are redirected to signup.
+      // we need to create a user with this email and then create a customer for them.
+      const billingEmail =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : typeof subscription.customer === "object" &&
+              "email" in subscription.customer
+            ? subscription.customer.email
+            : null;
+      if (!billingEmail) {
+        return this.util.handleStripeError(
+          new Error("Subscription customer email not found")
+        );
+      }
+      const userId = await superAdminGetUserIdByEmail(billingEmail);
+      if (!userId) {
+        return this.util.handleStripeError(new Error("User not found"));
+      }
+      const { error: createUserError } =
+        await supabaseAdminClient.auth.admin.createUser({
+          email: billingEmail,
+          email_confirm: true,
+          id: userId,
+        });
+
+      if (createUserError) throw createUserError;
+    }
+    const { product } = subscription.items.data[0].price;
 
     const { error } = await supabaseAdminClient
       .from("billing_subscriptions")
@@ -720,16 +611,16 @@ export class StripePaymentGateway implements PaymentGateway {
             typeof product === "string" ? product : product.id,
           status: subscription.status,
           current_period_start: new Date(
-            firstItem.current_period_start * 1000
+            subscription.items.data[0].current_period_start * 1000
           ).toISOString(),
           current_period_end: new Date(
-            firstItem.current_period_end * 1000
+            subscription.items.data[0].current_period_end * 1000
           ).toISOString(),
           currency: subscription.currency,
           is_trial: subscription.trial_end !== null,
           cancel_at_period_end: subscription.cancel_at_period_end,
-          quantity: firstItem.quantity,
-          gateway_price_id: firstItem.price.id,
+          quantity: subscription.items.data[0].quantity,
+          gateway_price_id: subscription.items.data[0].price.id,
         },
         {
           onConflict: "gateway_name,gateway_subscription_id",
@@ -740,21 +631,39 @@ export class StripePaymentGateway implements PaymentGateway {
   }
 
   private async handleInvoiceChange(invoice: Stripe.Invoice) {
-    const billingCustomer = await this.ensureBillingCustomerLink(
-      invoice.customer
-    );
-    const customerId = billingCustomer.gateway_customer_id;
+    if (!invoice.customer) {
+      return this.util.handleStripeError(
+        new Error("Invoice customer not found")
+      );
+    }
+    const customerId =
+      typeof invoice.customer === "string"
+        ? invoice.customer
+        : typeof invoice.customer === "object" && "id" in invoice.customer
+          ? invoice.customer.id
+          : null;
+    if (!customerId) {
+      return this.util.handleStripeError(
+        new Error("Invoice customer not found")
+      );
+    }
 
     const dueDate = invoice.due_date;
+
     const paidDate = invoice.status_transitions.paid_at;
-    const firstLine = invoice.lines.data[0];
-    const priceId = firstLine?.pricing?.price_details?.price ?? null;
+    const priceId = invoice.lines.data[0].pricing?.price_details?.price ?? null;
     const productId =
-      firstLine?.pricing?.price_details?.product ?? null;
+      invoice.lines.data[0].pricing?.price_details?.product ?? null;
+
+    if (!(priceId && productId)) {
+      return this.util.handleStripeError(
+        new Error("Invoice price or product not found")
+      );
+    }
 
     const invoiceId = invoice.id;
     if (!invoiceId) {
-      throw new Error("Invoice ID not found");
+      return this.util.handleStripeError(new Error("Invoice ID not found"));
     }
 
     const { error } = await supabaseAdminClient.from("billing_invoices").upsert(
@@ -776,7 +685,9 @@ export class StripePaymentGateway implements PaymentGateway {
       }
     );
 
-    if (error) throw error;
+    if (error) {
+      return this.util.handleStripeError(error);
+    }
 
     const invoiceLines = invoice.lines.data;
     const isSubscriptionRelated =
@@ -801,8 +712,16 @@ export class StripePaymentGateway implements PaymentGateway {
         const priceId = line.pricing?.price_details?.price;
         const productId = line.pricing?.price_details?.product;
 
-        if (!(priceId && productId)) {
-          return;
+        if (!priceId) {
+          return this.util.handleStripeError(
+            new Error("Price ID is required for one-time payment")
+          );
+        }
+
+        if (!productId) {
+          return this.util.handleStripeError(
+            new Error("Product ID is required for one-time payment")
+          );
         }
 
         // If no direct charge ID, try to get it from payment intent
@@ -868,12 +787,18 @@ export class StripePaymentGateway implements PaymentGateway {
         }
 
         if (!chargeId) {
-          return;
+          return this.util.handleStripeError(
+            new Error(
+              "Invoice charge not found and could not be retrieved from Stripe API"
+            )
+          );
         }
 
         const charge = await this.stripe.charges.retrieve(chargeId);
         if (!invoice.id) {
-          throw new Error("Invoice ID is required for one-time payment record");
+          return this.util.handleStripeError(
+            new Error("Invoice ID is required for one-time payment record")
+          );
         }
 
         const upsertData = {
@@ -901,7 +826,18 @@ export class StripePaymentGateway implements PaymentGateway {
   }
 
   private async handleCustomerUpdate(customer: Stripe.Customer) {
-    await this.ensureBillingCustomerLink(customer);
+    const email = customer.email;
+    if (!email) {
+      return this.util.handleStripeError(new Error("Email is required"));
+    }
+    const { error } = await supabaseAdminClient
+      .from("billing_customers")
+      .update({
+        billing_email: email,
+      })
+      .eq("gateway_customer_id", customer.id);
+
+    if (error) throw error;
   }
 
   private async handleProductChange(product: Stripe.Product) {
@@ -936,7 +872,7 @@ export class StripePaymentGateway implements PaymentGateway {
         active: price.active,
       },
       {
-        onConflict: "gateway_name,gateway_price_id",
+        onConflict: "gateway_price_id",
       }
     );
 
@@ -948,11 +884,14 @@ export class StripePaymentGateway implements PaymentGateway {
       await supabaseAdminClient
         .from("billing_one_time_payments")
         .select("gateway_charge_id")
-        .eq("gateway_charge_id", charge.id)
-        .eq("gateway_name", this.getName());
+        .eq("gateway_charge_id", charge.id);
     if (chargeExistsError) throw chargeExistsError;
-    if ((chargeExists?.length ?? 0) === 0) {
-      return;
+    if (chargeExists?.length < 0) {
+      return this.util.handleStripeError(
+        new Error(
+          "This is likely not a charge for a one-time payment. Ignoring charge."
+        )
+      );
     }
 
     const { error } = await supabaseAdminClient
@@ -963,8 +902,7 @@ export class StripePaymentGateway implements PaymentGateway {
         status: charge.status,
         charge_date: new Date(charge.created * 1000).toISOString(),
       })
-      .eq("gateway_charge_id", charge.id)
-      .eq("gateway_name", this.getName());
+      .eq("gateway_charge_id", charge.id);
 
     if (error) throw error;
   }
@@ -1290,7 +1228,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const { error: priceUpsertError } = await supabaseAdminClient
         .from("billing_prices")
-        .upsert(pricesToUpsert, { onConflict: "gateway_name,gateway_price_id" });
+        .upsert(pricesToUpsert, { onConflict: "gateway_price_id" });
       if (priceUpsertError) {
         console.log("priceUpsertError", priceUpsertError);
         throw priceUpsertError;

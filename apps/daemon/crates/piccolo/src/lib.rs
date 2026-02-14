@@ -97,14 +97,14 @@
 //! let repo_path = Path::new("/path/to/repo");
 //!
 //! // Create a worktree for a session
-//! let worktree_path = create_worktree(repo_path, "repo-123", "session-123", None)?;
-//! // Worktree created at (wrapper default): ~/.unbound/repo-123/worktrees/session-123/
+//! let worktree_path = create_worktree(repo_path, "session-123", None)?;
+//! // Worktree created at: /path/to/repo/.unbound/worktrees/session-123/
 //!
 //! // Create with explicit root/base/branch options
 //! let worktree_path = create_worktree_with_options(
 //!     repo_path,
 //!     "session-124",
-//!     Path::new("~/.unbound/repo-123/worktrees"),
+//!     Path::new(".unbound/worktrees"),
 //!     Some("origin/main"),
 //!     Some("feature/session-124"),
 //! )?;
@@ -113,7 +113,7 @@
 //! remove_worktree(repo_path, Path::new(&worktree_path))?;
 //! ```
 //!
-//! Worktrees are created in `~/.unbound/<repo_id>/worktrees/<name>/` with a
+//! Worktrees are created in `<repo>/.unbound/worktrees/<name>/` with a
 //! corresponding branch `unbound/<name>` (or a custom branch name).
 
 mod error;

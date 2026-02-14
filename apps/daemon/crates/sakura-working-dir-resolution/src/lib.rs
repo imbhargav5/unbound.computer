@@ -16,7 +16,7 @@ pub enum ResolveError {
     #[error("Repository not found: {0}")]
     RepositoryNotFound(String),
     #[error(
-        "Legacy worktree path is unsupported: {0}. Use '~/.unbound/<repo_id>/worktrees' and recreate the session."
+        "Legacy worktree path is unsupported: {0}. Use '.unbound/worktrees' and recreate the session."
     )]
     LegacyWorktreeUnsupported(String),
     #[error("Armin error: {0}")]
@@ -370,23 +370,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn resolve_rejects_legacy_worktree_path_with_nested_component() {
-        let reader = MockReader::new()
-            .with_repo("repo-1", "/original/path")
-            .with_session(
-                "sess-1",
-                "repo-1",
-                Some("/original/path/custom/.unbound-worktrees/nested/sess-1"),
-            );
-
-        let result = resolve_working_dir_from_str(&reader, "sess-1");
-        assert!(matches!(
-            result,
-            Err(ResolveError::LegacyWorktreeUnsupported(_))
-        ));
-    }
-
     // =========================================================================
     // resolve_repository_path tests
     // =========================================================================
@@ -442,7 +425,7 @@ mod tests {
             "/tmp/repo/.unbound-worktrees/sess-1".to_string(),
         );
         assert!(e.to_string().contains("Legacy"));
-        assert!(e.to_string().contains("~/.unbound/<repo_id>/worktrees"));
+        assert!(e.to_string().contains(".unbound/worktrees"));
     }
 
     // =========================================================================

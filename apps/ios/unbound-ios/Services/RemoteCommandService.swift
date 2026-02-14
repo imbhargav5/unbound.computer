@@ -17,11 +17,7 @@ enum RemoteCommandError: Error, LocalizedError {
     case targetUnavailable(String)
     case sessionNotFound(String)
     case commandRejected(reasonCode: String?, message: String)
-    case commandFailed(
-        errorCode: String?,
-        errorMessage: String?,
-        errorData: AnyCodableValue?
-    )
+    case commandFailed(errorCode: String?, errorMessage: String?)
     case timeout
     case transport(Error)
 
@@ -40,75 +36,14 @@ enum RemoteCommandError: Error, LocalizedError {
                 return "Command rejected (\(reasonCode)): \(message)"
             }
             return "Command rejected: \(message)"
-        case .commandFailed(let errorCode, let errorMessage, let errorData):
+        case .commandFailed(let errorCode, let errorMessage):
             let code = errorCode ?? "unknown"
             let msg = errorMessage ?? "unknown error"
-            if let details = Self.formatErrorDetails(errorData), !details.isEmpty {
-                return "Command failed (\(code)): \(msg) [\(details)]"
-            }
             return "Command failed (\(code)): \(msg)"
         case .timeout:
             return "Timed out waiting for command response"
         case .transport(let error):
             return "Transport error: \(error.localizedDescription)"
-        }
-    }
-
-    private static func formatErrorDetails(_ errorData: AnyCodableValue?) -> String? {
-        guard let errorData else {
-            return nil
-        }
-
-        guard let data = errorData.objectValue else {
-            if let rendered = renderErrorDataValue(errorData), !rendered.isEmpty {
-                return "error_data=\(rendered)"
-            }
-            return nil
-        }
-
-        var parts: [String] = []
-        if let stage = data["stage"]?.stringValue, !stage.isEmpty {
-            parts.append("stage=\(stage)")
-        }
-        if let stderr = data["stderr"]?.stringValue, !stderr.isEmpty {
-            parts.append("stderr=\(stderr)")
-        }
-        if let cleanupError = data["cleanup_error"]?.stringValue, !cleanupError.isEmpty {
-            parts.append("cleanup_error=\(cleanupError)")
-        }
-        if parts.isEmpty, let rendered = renderErrorDataValue(errorData), !rendered.isEmpty {
-            parts.append("error_data=\(rendered)")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
-    }
-
-    private static func renderErrorDataValue(_ value: AnyCodableValue) -> String? {
-        switch value {
-        case .string(let text):
-            return text
-        case .int(let number):
-            return String(number)
-        case .double(let number):
-            return String(number)
-        case .bool(let flag):
-            return flag ? "true" : "false"
-        case .null:
-            return nil
-        case .object(let object):
-            let pairs = object
-                .keys
-                .sorted()
-                .compactMap { key -> String? in
-                    guard let rendered = renderErrorDataValue(object[key] ?? .null),
-                          !rendered.isEmpty else {
-                        return nil
-                    }
-                    return "\(key)=\(rendered)"
-                }
-            return pairs.isEmpty ? "{}" : "{\(pairs.joined(separator: ", "))}"
-        case .array(let values):
-            let rendered = values.compactMap { renderErrorDataValue($0) }
-            return "[\(rendered.joined(separator: ", "))]"
         }
     }
 }
@@ -185,9 +120,7 @@ struct MergePRResult {
 final class RemoteCommandService {
     static let shared = RemoteCommandService(
         targetAvailabilityResolver: { targetDeviceId in
-            await MainActor.run {
-                DevicePresenceService.shared.daemonAvailability(id: targetDeviceId.lowercased())
-            }
+            DevicePresenceService.shared.isDeviceDaemonAvailable(id: targetDeviceId.lowercased())
         }
     )
 
@@ -195,7 +128,7 @@ final class RemoteCommandService {
     private let authService: AuthService
     private let keychainService: KeychainService
     private let authContextResolver: (() throws -> (userId: String, deviceId: String))?
-    private let targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)?
+    private let targetAvailabilityResolver: ((String) -> Bool)?
     private let ackTimeout: TimeInterval
     private let responseTimeout: TimeInterval
 
@@ -204,7 +137,7 @@ final class RemoteCommandService {
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared,
         authContextResolver: (() throws -> (userId: String, deviceId: String))? = nil,
-        targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)? = nil,
+        targetAvailabilityResolver: ((String) -> Bool)? = nil,
         ackTimeout: TimeInterval = 10,
         responseTimeout: TimeInterval = 30
     ) {
@@ -253,11 +186,7 @@ final class RemoteCommandService {
         )
 
         guard let result = response.result?.objectValue else {
-            throw RemoteCommandError.commandFailed(
-                errorCode: "invalid_result",
-                errorMessage: "Missing result in response",
-                errorData: nil
-            )
+            throw RemoteCommandError.commandFailed(errorCode: "invalid_result", errorMessage: "Missing result in response")
         }
 
         return CreateSessionResult(
@@ -357,8 +286,7 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing create PR result fields",
-                errorData: nil
+                errorMessage: "Missing create PR result fields"
             )
         }
 
@@ -390,8 +318,7 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing pull request detail",
-                errorData: nil
+                errorMessage: "Missing pull request detail"
             )
         }
 
@@ -427,8 +354,7 @@ final class RemoteCommandService {
         guard let result = response.result?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing list PRs result",
-                errorData: nil
+                errorMessage: "Missing list PRs result"
             )
         }
 
@@ -464,8 +390,7 @@ final class RemoteCommandService {
         guard let result = response.result?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing PR checks result",
-                errorData: nil
+                errorMessage: "Missing PR checks result"
             )
         }
 
@@ -526,8 +451,7 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing merge PR result",
-                errorData: nil
+                errorMessage: "Missing merge PR result"
             )
         }
 
@@ -547,11 +471,9 @@ final class RemoteCommandService {
         params: [String: AnyCodableValue]
     ) async throws -> RemoteCommandResponse {
         let normalizedTargetDeviceId = targetDeviceId.lowercased()
-        if let targetAvailabilityResolver {
-            let availability = await targetAvailabilityResolver(normalizedTargetDeviceId)
-            if availability == .offline {
-                throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
-            }
+        if let targetAvailabilityResolver,
+           !targetAvailabilityResolver(normalizedTargetDeviceId) {
+            throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
         }
 
         let context = try resolveAuthContext()
@@ -615,8 +537,7 @@ final class RemoteCommandService {
         guard response.isOk else {
             throw RemoteCommandError.commandFailed(
                 errorCode: response.errorCode,
-                errorMessage: response.errorMessage,
-                errorData: response.errorData
+                errorMessage: response.errorMessage
             )
         }
 

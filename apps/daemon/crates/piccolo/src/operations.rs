@@ -909,81 +909,14 @@ pub fn push(
     Err(PiccoloError::PushFailed(stderr))
 }
 
-const DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE: &str = "~/.unbound/{repo_id}/worktrees";
-
-fn expand_home_dir(path: &Path) -> PathBuf {
-    let Some(raw_path) = path.to_str() else {
-        return path.to_path_buf();
-    };
-
-    if raw_path == "~" {
-        return std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| path.to_path_buf());
-    }
-
-    if let Some(suffix) = raw_path.strip_prefix("~/") {
-        return std::env::var("HOME")
-            .map(|home| PathBuf::from(home).join(suffix))
-            .unwrap_or_else(|_| path.to_path_buf());
-    }
-
-    path.to_path_buf()
-}
+const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
 
 fn resolve_worktrees_dir(repo_path: &Path, root_dir: &Path) -> PathBuf {
-    let resolved_root = expand_home_dir(root_dir);
-
-    if resolved_root.is_absolute() {
-        resolved_root
+    if root_dir.is_absolute() {
+        root_dir.to_path_buf()
     } else {
-        repo_path.join(resolved_root)
+        repo_path.join(root_dir)
     }
-}
-
-fn default_worktree_root_dir_for_repo(repository_id: &str) -> Result<String, String> {
-    let trimmed = repository_id.trim();
-    if trimmed.is_empty() {
-        return Err("Invalid repository id: cannot be empty or whitespace".to_string());
-    }
-    if trimmed != repository_id {
-        return Err(
-            "Invalid repository id: leading or trailing whitespace is not allowed".to_string(),
-        );
-    }
-
-    Ok(DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE.replace("{repo_id}", trimmed))
-}
-
-fn validate_worktree_name(worktree_name: &str) -> Result<(), String> {
-    let trimmed = worktree_name.trim();
-    if trimmed.is_empty() {
-        return Err("Invalid worktree name: cannot be empty or whitespace".to_string());
-    }
-    if trimmed != worktree_name {
-        return Err(
-            "Invalid worktree name: leading or trailing whitespace is not allowed".to_string(),
-        );
-    }
-    if trimmed.contains('/') || trimmed.contains('\\') {
-        return Err("Invalid worktree name: path separators are not allowed".to_string());
-    }
-    if trimmed == "." {
-        return Err("Invalid worktree name: '.' is not allowed".to_string());
-    }
-    if trimmed.contains("..") {
-        return Err("Invalid worktree name: '..' is not allowed".to_string());
-    }
-    if !trimmed
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
-    {
-        return Err(
-            "Invalid worktree name: only ASCII letters, numbers, '.', '_', and '-' are allowed"
-                .to_string(),
-        );
-    }
-    Ok(())
 }
 
 fn resolve_base_commit<'repo>(
@@ -1006,7 +939,7 @@ fn resolve_base_commit<'repo>(
         .map_err(|e| format!("Failed to resolve base commit '{}': {}", base_branch, e))
 }
 
-/// Create a git worktree at `<root_dir>/<worktree_name>/`.
+/// Create a git worktree at `<repo>/<root_dir>/<worktree_name>/`.
 ///
 /// Creates a linked worktree with a corresponding branch for parallel
 /// development workflows.
@@ -1026,10 +959,14 @@ fn resolve_base_commit<'repo>(
 /// # Worktree Layout
 ///
 /// ```text
-/// /Users/alice/.unbound/repo-123/worktrees/
-/// └── session-123/              <- Created worktree
-///     ├── .git                  <- File pointing to main repo .git
-///     └── ...                   <- Working tree files
+/// /path/to/repo/
+/// ├── .git/
+/// ├── .unbound/
+/// │   └── worktrees/
+/// │       └── session-123/      <- Created worktree
+/// │           ├── .git          <- File pointing to main .git
+/// │           └── ...           <- Working tree files
+/// └── ...
 /// ```
 ///
 /// # Errors
@@ -1046,7 +983,7 @@ fn resolve_base_commit<'repo>(
 /// let path = create_worktree_with_options(
 ///     repo_path,
 ///     "session-123",
-///     Path::new("~/.unbound/repo-123/worktrees"),
+///     Path::new(".unbound/worktrees"),
 ///     Some("origin/main"),
 ///     None,
 /// )?;
@@ -1056,7 +993,7 @@ fn resolve_base_commit<'repo>(
 /// let path = create_worktree_with_options(
 ///     repo_path,
 ///     "feature",
-///     Path::new("~/.unbound/repo-123/worktrees"),
+///     Path::new(".unbound/worktrees"),
 ///     None,
 ///     Some("feature/my-feature"),
 /// )?;
@@ -1068,8 +1005,6 @@ pub fn create_worktree_with_options(
     base_branch: Option<&str>,
     worktree_branch: Option<&str>,
 ) -> Result<String, String> {
-    validate_worktree_name(worktree_name)?;
-
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
@@ -1147,18 +1082,16 @@ pub fn create_worktree_with_options(
 
 /// Backward-compatible wrapper around [`create_worktree_with_options`].
 ///
-/// Defaults to `~/.unbound/<repository_id>/worktrees` and `HEAD` as base branch.
+/// Defaults to `<repo>/.unbound/worktrees` and `HEAD` as base branch.
 pub fn create_worktree(
     repo_path: &Path,
-    repository_id: &str,
     worktree_name: &str,
     branch_name: Option<&str>,
 ) -> Result<String, String> {
-    let default_root_dir = default_worktree_root_dir_for_repo(repository_id)?;
     create_worktree_with_options(
         repo_path,
         worktree_name,
-        Path::new(&default_root_dir),
+        Path::new(DEFAULT_WORKTREE_ROOT_DIR),
         None,
         branch_name,
     )
@@ -1184,7 +1117,7 @@ pub fn create_worktree(
 /// # Example
 ///
 /// ```ignore
-/// remove_worktree(repo_path, Path::new("/Users/alice/.unbound/repo-123/worktrees/session-123"))?;
+/// remove_worktree(repo_path, Path::new("/path/to/repo/.unbound/worktrees/session-123"))?;
 /// ```
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), String> {
     let repo =
@@ -1222,11 +1155,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), Str
         let _ = std::fs::remove_dir(parent);
 
         // If we are under `.unbound/worktrees`, also attempt to remove `.unbound`.
-        if parent
-            .file_name()
-            .map(|n| n == "worktrees")
-            .unwrap_or(false)
-        {
+        if parent.file_name().map(|n| n == "worktrees").unwrap_or(false) {
             if let Some(grandparent) = parent.parent() {
                 if grandparent
                     .file_name()
@@ -1267,59 +1196,6 @@ mod tests {
             GitFileStatus::from_delta(Delta::Untracked),
             GitFileStatus::Untracked
         );
-    }
-
-    #[test]
-    fn test_validate_worktree_name_accepts_safe_values() {
-        let valid = [
-            "session-1",
-            "unbound_123",
-            "release.2026.02",
-            "abcDEF-123_.name",
-        ];
-        for name in valid {
-            assert!(
-                validate_worktree_name(name).is_ok(),
-                "expected valid worktree name: {}",
-                name
-            );
-        }
-    }
-
-    #[test]
-    fn test_validate_worktree_name_rejects_unsafe_values() {
-        let invalid = [
-            "",
-            "   ",
-            " session",
-            "session ",
-            "foo/bar",
-            "foo\\bar",
-            ".",
-            "..",
-            "a..b",
-            "semi;colon",
-            "emoji-\u{1F680}",
-        ];
-        for name in invalid {
-            assert!(
-                validate_worktree_name(name).is_err(),
-                "expected invalid worktree name: {:?}",
-                name
-            );
-        }
-    }
-
-    #[test]
-    fn test_default_worktree_root_dir_for_repo_uses_repo_id() {
-        let root = default_worktree_root_dir_for_repo("repo-123").expect("default root");
-        assert_eq!(root, "~/.unbound/repo-123/worktrees");
-    }
-
-    #[test]
-    fn test_default_worktree_root_dir_for_repo_rejects_empty() {
-        let err = default_worktree_root_dir_for_repo("   ").expect_err("should reject empty");
-        assert!(err.contains("Invalid repository id"));
     }
 
     #[test]

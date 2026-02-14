@@ -22,18 +22,6 @@ xcodebuild -project unbound-macos.xcodeproj \
   build
 ```
 
-## Claude Parser Contract
-
-Canonical parser + live-stream behavior is documented in:
-
-- `apps/macos/unbound-macos/Services/Session/PARSER_CONTRACT.md`
-
-Use that document for:
-- behavior matrix and parser invariants
-- historical/live parity expectations
-- typed state to UI component mapping
-- fixture and preview validation workflow
-
 ## Session Detail Canvas Previews
 
 `SessionDetailView` includes six Xcode Canvas previews:
@@ -46,12 +34,6 @@ Use that document for:
 6. `Session Detail - Status Variants`
 
 The preview suite keeps one exported fixture and derives short/empty/status variants in Swift, while text/tool-heavy scenarios use synthetic preview data.
-
-Tool/sub-agent component preview matrices are maintained in:
-
-- `apps/macos/unbound-macos/Components/ToolViews/SubAgentView.swift`
-- `apps/macos/unbound-macos/Components/ToolViews/StandaloneToolCallsView.swift`
-- `apps/macos/unbound-macos/Components/ToolUseView.swift`
 
 The base fixture-backed scenarios use:
 

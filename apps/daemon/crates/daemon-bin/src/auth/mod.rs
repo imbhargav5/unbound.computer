@@ -2,7 +2,7 @@
 //!
 //! Handles user authentication, session management, and device identity.
 
-pub(crate) mod common;
+mod common;
 mod login;
 mod logout;
 mod social_complete;

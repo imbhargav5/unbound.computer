@@ -46,12 +46,6 @@ for msg := range client.Messages() {
 - Active subscriptions are replayed after reconnect.
 - In-flight requests are failed fast on disconnect.
 
-## Configuration
-
-| Variable | Default | Description |
-|---|---|---|
-| `DAEMON_ABLY_MAX_FRAME_BYTES` | `2097152` | Maximum NDJSON frame size accepted from daemon-ably |
-
 ## Package Layout
 
 ```

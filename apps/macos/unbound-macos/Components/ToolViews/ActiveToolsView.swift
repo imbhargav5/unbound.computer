@@ -11,12 +11,7 @@ struct ActiveToolsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let tools: [ActiveTool]
-    @State private var isExpanded: Bool
-
-    init(tools: [ActiveTool], initiallyExpanded: Bool = true) {
-        self.tools = tools
-        _isExpanded = State(initialValue: initiallyExpanded)
-    }
+    @State private var isExpanded = true
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -98,21 +93,11 @@ struct ActiveToolsView: View {
 }
 
 #Preview {
-    VStack(spacing: Spacing.md) {
-        ActiveToolsView(tools: [
-            ActiveTool(id: "t1", name: "Glob", inputPreview: "**/*.swift", status: .completed),
-            ActiveTool(id: "t2", name: "Grep", inputPreview: "authenticate", status: .running),
-            ActiveTool(id: "t3", name: "Read", inputPreview: "/src/auth/login.ts", status: .failed),
-        ])
-
-        ActiveToolsView(
-            tools: [
-                ActiveTool(id: "t4", name: "Read", inputPreview: "SessionDetailView.swift", status: .completed),
-                ActiveTool(id: "t5", name: "Write", inputPreview: "ParserSpec.md", status: .completed),
-            ],
-            initiallyExpanded: false
-        )
-    }
+    ActiveToolsView(tools: [
+        ActiveTool(id: "t1", name: "Glob", inputPreview: "**/*.swift", status: .completed),
+        ActiveTool(id: "t2", name: "Grep", inputPreview: "authenticate", status: .running),
+        ActiveTool(id: "t3", name: "Read", inputPreview: "/src/auth/login.ts", status: .failed)
+    ])
     .frame(width: 450)
     .padding()
 }
