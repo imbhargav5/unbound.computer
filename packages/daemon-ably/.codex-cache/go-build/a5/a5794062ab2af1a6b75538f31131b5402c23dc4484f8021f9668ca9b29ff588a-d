@@ -1,0 +1,6 @@
+./idempotent.go
+./merge.go
+./msgpack.go
+./regex.go
+./strings.go
+./time.go

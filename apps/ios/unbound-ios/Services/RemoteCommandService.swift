@@ -183,19 +183,13 @@ struct MergePRResult {
 }
 
 final class RemoteCommandService {
-    static let shared = RemoteCommandService(
-        targetAvailabilityResolver: { targetDeviceId in
-            await MainActor.run {
-                DevicePresenceService.shared.daemonAvailability(id: targetDeviceId.lowercased())
-            }
-        }
-    )
+    static let shared = RemoteCommandService()
 
     private let transport: RemoteCommandTransport
     private let authService: AuthService
     private let keychainService: KeychainService
     private let authContextResolver: (() throws -> (userId: String, deviceId: String))?
-    private let targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)?
+    private let targetAvailabilityResolver: ((String) -> DeviceDaemonAvailability)?
     private let ackTimeout: TimeInterval
     private let responseTimeout: TimeInterval
 
@@ -204,7 +198,7 @@ final class RemoteCommandService {
         authService: AuthService = .shared,
         keychainService: KeychainService = .shared,
         authContextResolver: (() throws -> (userId: String, deviceId: String))? = nil,
-        targetAvailabilityResolver: ((String) async -> DeviceDaemonAvailability)? = nil,
+        targetAvailabilityResolver: ((String) -> DeviceDaemonAvailability)? = nil,
         ackTimeout: TimeInterval = 10,
         responseTimeout: TimeInterval = 30
     ) {
@@ -547,11 +541,16 @@ final class RemoteCommandService {
         params: [String: AnyCodableValue]
     ) async throws -> RemoteCommandResponse {
         let normalizedTargetDeviceId = targetDeviceId.lowercased()
+        let availability: DeviceDaemonAvailability
         if let targetAvailabilityResolver {
-            let availability = await targetAvailabilityResolver(normalizedTargetDeviceId)
-            if availability == .offline {
-                throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
+            availability = targetAvailabilityResolver(normalizedTargetDeviceId)
+        } else {
+            availability = await MainActor.run {
+                DevicePresenceService.shared.daemonAvailability(id: normalizedTargetDeviceId)
             }
+        }
+        if availability == .offline {
+            throw RemoteCommandError.targetUnavailable(normalizedTargetDeviceId)
         }
 
         let context = try resolveAuthContext()

@@ -1,0 +1,34 @@
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: Unable to deliver request ({
+	    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+	    request = "set_developer_dir";
+	}) because we are not connected to CoreSimulatorService.
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Warning>: Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/bhargavponnapalli/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.
+Feb 14 22:14:45 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64473] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/bhargavponnapalli/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: Unable to deliver request ({
+	    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+	    request = "set_developer_dir";
+	}) because we are not connected to CoreSimulatorService.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Warning>: Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/bhargavponnapalli/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.
+Feb 14 22:14:51 Bhargavs-Mac-Studio-4 com.apple.dt.xcodebuild[64669] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/bhargavponnapalli/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.

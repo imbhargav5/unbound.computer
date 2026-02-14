@@ -361,7 +361,7 @@ final class AuthService {
     // MARK: - Private Helpers
 
     private func handleSession(_ session: Session) {
-        currentUserId = session.user.id.uuidString
+        currentUserId = session.user.id.uuidString.lowercased()
         currentUserEmail = session.user.email
 
         // Store tokens in Keychain
@@ -369,14 +369,14 @@ final class AuthService {
             try keychainService.setSupabaseSession(
                 accessToken: session.accessToken,
                 refreshToken: session.refreshToken,
-                userId: session.user.id.uuidString,
+                userId: session.user.id.uuidString.lowercased(),
                 email: session.user.email
             )
         } catch {
             logger.error("Failed to save session to Keychain: \(error)")
         }
 
-        authState = .authenticated(userId: session.user.id.uuidString)
+        authState = .authenticated(userId: session.user.id.uuidString.lowercased())
 
         // Register device in Supabase
         Task {

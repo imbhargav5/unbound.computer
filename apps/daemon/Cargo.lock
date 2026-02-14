@@ -650,6 +650,7 @@ dependencies = [
  "sakura-working-dir-resolution",
  "serde",
  "serde_json",
+ "sha2",
  "tien",
  "tokio",
  "toshinori",

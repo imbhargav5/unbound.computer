@@ -17,6 +17,12 @@ pub const DEFAULT_SUPABASE_PUBLISHABLE_KEY: &str = match option_env!("SUPABASE_P
     None => "random-key",
 };
 
+/// Default web app URL (can be overridden at compile time via UNBOUND_WEB_APP_URL env var).
+pub const DEFAULT_WEB_APP_URL: &str = match option_env!("UNBOUND_WEB_APP_URL") {
+    Some(url) => url,
+    None => "https://unbound.computer",
+};
+
 /// Default log level.
 pub const DEFAULT_LOG_LEVEL: &str = "info";
 /// Default observability mode (`dev` or `prod`).
@@ -65,6 +71,16 @@ fn default_supabase_url() -> String {
 
 fn default_supabase_publishable_key() -> String {
     DEFAULT_SUPABASE_PUBLISHABLE_KEY.to_string()
+}
+
+/// Resolve the compile-time configured web app URL with runtime normalization.
+pub fn compile_time_web_app_url() -> String {
+    let normalized = DEFAULT_WEB_APP_URL.trim().trim_end_matches('/');
+    if normalized.is_empty() {
+        "https://unbound.computer".to_string()
+    } else {
+        normalized.to_string()
+    }
 }
 
 fn default_observability_mode() -> String {

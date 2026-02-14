@@ -46,3 +46,14 @@ func TestValidateRejectsNonPositiveMaxFrameBytes(t *testing.T) {
 		t.Fatalf("expected validate error for non-positive max frame bytes")
 	}
 }
+
+func TestNewNormalizesPresenceChannelUserIDToLowercase(t *testing.T) {
+	cfg, err := New("device-1", "USER-ABC")
+	if err != nil {
+		t.Fatalf("new config: %v", err)
+	}
+
+	if cfg.PresenceChannel != "presence:user-abc" {
+		t.Fatalf("expected normalized presence channel, got %q", cfg.PresenceChannel)
+	}
+}

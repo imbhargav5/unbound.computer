@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 
@@ -30,6 +31,21 @@ function parseAblyApiKey(rawApiKey: string): { keyName: string; keySecret: strin
   return {
     keyName: rawApiKey.slice(0, separatorIndex),
     keySecret: rawApiKey.slice(separatorIndex + 1),
+  };
+}
+
+export function buildAblyTokenRequestBody(
+  keyName: string,
+  requesterDeviceId: string,
+  capability: Capability
+) {
+  return {
+    keyName,
+    clientId: requesterDeviceId,
+    ttl: ABLY_TOKEN_TTL_MS,
+    capability: JSON.stringify(capability),
+    timestamp: Date.now(),
+    nonce: randomBytes(16).toString("hex"),
   };
 }
 
@@ -182,11 +198,9 @@ export async function POST(req: NextRequest) {
           ).toString("base64")}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          clientId: requesterDeviceId,
-          ttl: ABLY_TOKEN_TTL_MS,
-          capability: JSON.stringify(capability),
-        }),
+        body: JSON.stringify(
+          buildAblyTokenRequestBody(parsedApiKey.keyName, requesterDeviceId, capability)
+        ),
       }
     );
 

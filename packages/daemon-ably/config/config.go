@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -76,7 +77,7 @@ func New(deviceID string, userID string) (*Config, error) {
 	cfg.BrokerSocketPath = os.Getenv(EnvAblyBrokerSocket)
 	cfg.BrokerFalcoToken = os.Getenv(EnvAblyBrokerTokenFalco)
 	cfg.BrokerNagatoToken = os.Getenv(EnvAblyBrokerTokenNagato)
-	cfg.PresenceChannel = fmt.Sprintf("presence:%s", userID)
+	cfg.PresenceChannel = fmt.Sprintf("presence:%s", strings.ToLower(strings.TrimSpace(userID)))
 
 	if heartbeatSeconds := os.Getenv(EnvHeartbeatIntervalSec); heartbeatSeconds != "" {
 		seconds, err := strconv.Atoi(heartbeatSeconds)

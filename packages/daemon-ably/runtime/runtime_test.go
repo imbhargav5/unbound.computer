@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -123,8 +124,9 @@ func TestHeartbeatLifecyclePublishesOnlineAndOfflinePresence(t *testing.T) {
 		if payload.SchemaVersion != 1 {
 			t.Fatalf("unexpected schema version: %d", payload.SchemaVersion)
 		}
-		if payload.UserID != cfg.UserID {
-			t.Fatalf("unexpected user id: %q", payload.UserID)
+		expectedUserID := strings.ToLower(cfg.UserID)
+		if payload.UserID != expectedUserID {
+			t.Fatalf("unexpected user id: got %q, expected %q", payload.UserID, expectedUserID)
 		}
 		if payload.DeviceID != cfg.DeviceID {
 			t.Fatalf("unexpected device id: %q", payload.DeviceID)
@@ -144,13 +146,41 @@ func TestHeartbeatLifecyclePublishesOnlineAndOfflinePresence(t *testing.T) {
 func testConfig() *ablyconfig.Config {
 	return &ablyconfig.Config{
 		DeviceID:          "11111111-1111-1111-1111-111111111111",
-		UserID:            "user-1",
+		UserID:            "USER-1",
 		PresenceChannel:   "presence:user-1",
 		PresenceEvent:     "daemon.presence.v1",
 		PresenceSource:    "daemon-ably",
 		HeartbeatInterval: 50 * time.Millisecond,
 		PublishTimeout:    50 * time.Millisecond,
 		ShutdownTimeout:   50 * time.Millisecond,
+	}
+}
+
+func TestPublishPresenceNormalizesUserID(t *testing.T) {
+	cfg := testConfig()
+	manager := &Manager{
+		cfg:    cfg,
+		logger: zap.NewNop(),
+	}
+
+	var decoded PresencePayload
+	manager.publishWithClientOverride = func(
+		_ context.Context,
+		_ *ably.Realtime,
+		_ string,
+		_ string,
+		payload []byte,
+		_ time.Duration,
+	) error {
+		return json.Unmarshal(payload, &decoded)
+	}
+
+	if err := manager.publishPresence(context.Background(), statusOnline); err != nil {
+		t.Fatalf("publish presence: %v", err)
+	}
+
+	if decoded.UserID != strings.ToLower(cfg.UserID) {
+		t.Fatalf("expected normalized user id %q, got %q", strings.ToLower(cfg.UserID), decoded.UserID)
 	}
 }
 

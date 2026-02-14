@@ -183,6 +183,17 @@ fn build_nagato_binary_candidates(
 
     if let Some(current_exe) = current_exe {
         if let Some(parent) = current_exe.parent() {
+            // Prefer monorepo package binary in local dev to avoid stale leftovers
+            // in apps/daemon/target/debug.
+            if let Some(repo_root) = infer_repo_root(parent) {
+                candidates.push(
+                    repo_root
+                        .join("packages")
+                        .join("daemon-nagato")
+                        .join("nagato"),
+                );
+            }
+
             // Primary production path: helper binary shipped next to daemon.
             candidates.push(parent.join("nagato"));
 
@@ -197,15 +208,6 @@ fn build_nagato_binary_candidates(
                 }
             }
 
-            // Best-effort local-dev fallback to monorepo package binary.
-            if let Some(repo_root) = infer_repo_root(parent) {
-                candidates.push(
-                    repo_root
-                        .join("packages")
-                        .join("daemon-nagato")
-                        .join("nagato"),
-                );
-            }
         }
     }
 

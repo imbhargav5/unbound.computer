@@ -12,7 +12,7 @@ use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
 use armin::SessionReader;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use daemon_config_and_utils::encrypt_for_device;
+use daemon_config_and_utils::{compile_time_web_app_url, encrypt_for_device};
 use std::path::Path;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -23,7 +23,6 @@ use uuid::Uuid;
 
 const NONCE_SIZE: usize = 12;
 const MIN_CIPHERTEXT_WITH_TAG_SIZE: usize = 16;
-const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
 const BILLING_USAGE_REFRESH_INTERVAL_SECS: u64 = 300;
 const BILLING_USAGE_STALE_AFTER_MS: i64 = 5 * 60 * 1000;
 
@@ -476,11 +475,7 @@ async fn emit_usage_event(state: &DaemonState, request_id: &str) -> Result<(), S
 }
 
 fn resolve_web_app_url() -> String {
-    std::env::var("UNBOUND_WEB_APP_URL")
-        .ok()
-        .map(|value| value.trim().trim_end_matches('/').to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_WEB_APP_URL.to_string())
+    compile_time_web_app_url()
 }
 
 /// Dispatch a remote command to the appropriate handler function.

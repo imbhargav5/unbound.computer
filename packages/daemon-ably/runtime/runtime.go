@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -508,7 +509,7 @@ func (m *Manager) heartbeatLoop() {
 func (m *Manager) publishPresence(ctx context.Context, status string) error {
 	payload := PresencePayload{
 		SchemaVersion: 1,
-		UserID:        m.cfg.UserID,
+		UserID:        strings.ToLower(strings.TrimSpace(m.cfg.UserID)),
 		DeviceID:      m.cfg.DeviceID,
 		Status:        status,
 		Source:        m.cfg.PresenceSource,

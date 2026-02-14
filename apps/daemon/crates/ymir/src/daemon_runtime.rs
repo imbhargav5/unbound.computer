@@ -5,6 +5,7 @@
 
 use crate::{AuthError, AuthResult, AuthSnapshot, SessionManager, SupabaseClient};
 use base64::Engine;
+use daemon_config_and_utils::compile_time_web_app_url;
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,7 +15,6 @@ use tien::collect_capabilities;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
 const SOCIAL_LOGIN_POLL_INTERVAL_SECS: u64 = 2;
 
 /// Sync context derived from a valid auth session.
@@ -80,12 +80,7 @@ impl DaemonAuthRuntime {
         secrets: Arc<Mutex<SecretsManager>>,
         supabase_url: impl Into<String>,
     ) -> Self {
-        let web_app_url = std::env::var("UNBOUND_WEB_APP_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_WEB_APP_URL.to_string())
-            .trim_end_matches('/')
-            .to_string();
+        let web_app_url = compile_time_web_app_url();
 
         let session_manager = Arc::new(session_manager);
         session_manager.start_hybrid_clock_reconciliation();

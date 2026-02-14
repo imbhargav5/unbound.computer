@@ -1,6 +1,7 @@
 //! Local Ably token broker for sidecars.
 
 use chrono::Utc;
+use daemon_config_and_utils::compile_time_web_app_url;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -16,7 +17,6 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 use ymir::DaemonAuthRuntime;
 
-const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
 const CACHE_REFRESH_MARGIN_MS: i64 = 120_000;
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -409,11 +409,7 @@ impl BrokerTokenResponse {
 }
 
 fn resolve_web_app_url() -> String {
-    std::env::var("UNBOUND_WEB_APP_URL")
-        .ok()
-        .map(|value| value.trim().trim_end_matches('/').to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_WEB_APP_URL.to_string())
+    compile_time_web_app_url()
 }
 
 fn normalize_device_id(raw_device_id: &str) -> Result<String, String> {

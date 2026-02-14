@@ -1,0 +1,4 @@
+=== RUN   TestServerObjectSetUsesObjectSetPath
+--- PASS: TestServerObjectSetUsesObjectSetPath (0.00s)
+PASS
+ok  	github.com/unbound-computer/daemon-ably/runtime	0.598s

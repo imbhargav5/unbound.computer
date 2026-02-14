@@ -6,6 +6,7 @@
 //  Also subscribes to other devices (macOS) via Supabase Realtime to track their online status.
 //
 
+import CryptoKit
 import Foundation
 import Logging
 import Network
@@ -60,6 +61,7 @@ final class DevicePresenceService {
     private var supabase: SupabaseClient?
     private var deviceId: String?
     private var userId: String?
+    private var normalizedDaemonPresenceUserID: String?
     private var heartbeatTask: Task<Void, Never>?
     private var realtimeChannel: RealtimeChannelV2?
     private var statusCheckTimer: Timer?
@@ -90,6 +92,7 @@ final class DevicePresenceService {
         self.supabase = supabase
         self.deviceId = deviceId
         self.userId = userId
+        normalizedDaemonPresenceUserID = Self.normalizeDaemonPresenceIdentifier(userId)
 
         startNetworkMonitoring()
         startHeartbeat()
@@ -116,6 +119,7 @@ final class DevicePresenceService {
         supabase = nil
         deviceId = nil
         userId = nil
+        normalizedDaemonPresenceUserID = nil
         monitoredDevices = []
         daemonLastHeartbeatAt = [:]
         daemonExplicitOfflineDevices = []
@@ -370,7 +374,7 @@ final class DevicePresenceService {
 
     private func startDaemonPresenceSubscription() async {
         #if canImport(Ably)
-        guard let userId else { return }
+        guard let normalizedUserID = normalizedDaemonPresenceUserID else { return }
 
         stopDaemonPresenceSubscription()
 
@@ -396,14 +400,45 @@ final class DevicePresenceService {
         }
 
         let realtime = ARTRealtime(options: options)
-        let channelName = Config.daemonPresenceChannel(userId: userId)
+        let channelName = Config.daemonPresenceChannel(userId: normalizedUserID)
+        logger.info(
+            "Starting daemon presence subscription",
+            metadata: daemonPresenceLogMetadata(
+                eventCode: "ios.presence.daemon.subscribe_start",
+                channel: channelName,
+                status: "subscribe_start"
+            )
+        )
+
         let channel = realtime.channels.get(channelName)
         let listener = channel.subscribe(Config.daemonPresenceEventName) { [weak self] message in
             guard let self else { return }
-            guard let payload = Self.decodeDaemonPresencePayload(message.data) else { return }
-            Task { @MainActor [weak self] in
-                self?.consumeDaemonPresencePayload(payload)
+            guard let payload = Self.decodeDaemonPresencePayload(message.data) else {
+                logger.warning(
+                    "Failed to decode daemon presence payload",
+                    metadata: self.daemonPresenceLogMetadata(
+                        eventCode: "ios.presence.daemon.decode_failed",
+                        channel: channelName,
+                        status: "decode_failed"
+                    )
+                )
+                return
             }
+            Task { @MainActor [weak self] in
+                self?.consumeDaemonPresencePayload(payload, channelName: channelName)
+            }
+        }
+
+        channel.attach { [weak self] error in
+            guard let self, let error else { return }
+            logger.warning(
+                "Failed to attach daemon presence channel: \(error.localizedDescription)",
+                metadata: self.daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.attach_failed",
+                    channel: channelName,
+                    status: "attach_failed"
+                )
+            )
         }
 
         daemonPresenceRealtime = realtime
@@ -427,9 +462,23 @@ final class DevicePresenceService {
         #endif
     }
 
-    private func consumeDaemonPresencePayload(_ payload: DaemonPresencePayload) {
-        guard let userId else { return }
-        guard payload.userID == userId else { return }
+    private func consumeDaemonPresencePayload(_ payload: DaemonPresencePayload, channelName: String) {
+        guard let normalizedExpectedUserID = normalizedDaemonPresenceUserID else { return }
+        if !Self.daemonPresenceUserIDsMatch(
+            expected: normalizedExpectedUserID,
+            payload: payload.userID
+        ) {
+            logger.warning(
+                "Ignoring daemon presence payload for unexpected user",
+                metadata: daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.payload_user_mismatch",
+                    channel: channelName,
+                    status: payload.status,
+                    payloadUserID: payload.userID
+                )
+            )
+            return
+        }
 
         let normalizedDeviceID = payload.deviceID.lowercased()
         let heartbeatDate = Date(timeIntervalSince1970: TimeInterval(payload.sentAtMS) / 1000)
@@ -463,6 +512,41 @@ final class DevicePresenceService {
 
         guard let decodedData else { return nil }
         return try? JSONDecoder().decode(DaemonPresencePayload.self, from: decodedData)
+    }
+
+    static func daemonPresenceUserIDsMatch(expected: String, payload: String) -> Bool {
+        normalizeDaemonPresenceIdentifier(expected) == normalizeDaemonPresenceIdentifier(payload)
+    }
+
+    private func daemonPresenceLogMetadata(
+        eventCode: String,
+        channel: String,
+        status: String,
+        payloadUserID: String? = nil
+    ) -> Logger.Metadata {
+        [
+            "event_code": .string(eventCode),
+            "component": .string("presence.daemon"),
+            "channel": .string(channel),
+            "event": .string(Config.daemonPresenceEventName),
+            "expected_user_id_hash": .string(Self.observabilityHash(normalizedDaemonPresenceUserID)),
+            "payload_user_id_hash": .string(Self.observabilityHash(payloadUserID)),
+            "device_id_hash": .string(Self.observabilityHash(deviceId)),
+            "status": .string(status),
+        ]
+    }
+
+    private static func normalizeDaemonPresenceIdentifier(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func observabilityHash(_ value: String?) -> String {
+        guard let value else { return "unknown" }
+        let normalized = normalizeDaemonPresenceIdentifier(value)
+        guard !normalized.isEmpty else { return "unknown" }
+        let digest = SHA256.hash(data: Data(normalized.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(hex)"
     }
 
     // MARK: - Network Monitoring

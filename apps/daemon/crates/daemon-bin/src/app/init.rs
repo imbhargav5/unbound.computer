@@ -23,6 +23,7 @@ use daemon_storage::create_secrets_manager;
 use gyomei::Gyomei;
 use levi::SessionSyncService;
 use levi::{Levi, LeviConfig};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
@@ -32,6 +33,8 @@ use toshinori::{
 };
 use tracing::{debug, info, warn};
 use ymir::{DaemonAuthRuntime, SessionManager, SupabaseClient};
+
+const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
 
 /// Run the daemon.
 pub async fn run_daemon(
@@ -256,6 +259,29 @@ pub async fn run_daemon(
     if has_startup_auth_context {
         match (startup_user_id.as_deref(), local_device_id.as_deref()) {
             (Some(user_id), Some(device_id)) => {
+                let presence_channel = format!("presence:{}", user_id.to_ascii_lowercase());
+                let user_id_hash = hash_identifier_for_observability(user_id);
+                let device_id_hash = hash_identifier_for_observability(device_id);
+                info!(
+                    runtime = "sidecar",
+                    component = "sidecar.daemon-ably",
+                    event_code = "daemon.presence.channel.configured",
+                    user_id_hash = %user_id_hash,
+                    device_id_hash = %device_id_hash,
+                    presence_channel = %presence_channel,
+                    presence_event = DAEMON_PRESENCE_EVENT,
+                    "Configured daemon presence channel"
+                );
+                info!(
+                    runtime = "sidecar",
+                    component = "sidecar.daemon-ably",
+                    event_code = "daemon.presence.sidecar.starting",
+                    user_id_hash = %user_id_hash,
+                    device_id_hash = %device_id_hash,
+                    presence_channel = %presence_channel,
+                    presence_event = DAEMON_PRESENCE_EVENT,
+                    "Starting daemon-ably sidecar for presence transport"
+                );
                 // Strict ownership: never adopt a socket from another daemon instance.
                 if daemon_ably_socket_path.exists() {
                     if let Err(err) = std::fs::remove_file(&daemon_ably_socket_path) {
@@ -290,12 +316,26 @@ pub async fn run_daemon(
                         daemon_ably_ready = true;
                         initial_daemon_ably_process = Some(child);
                         info!(
+                            runtime = "sidecar",
+                            component = "sidecar.daemon-ably",
+                            event_code = "daemon.presence.sidecar.started",
+                            user_id_hash = %user_id_hash,
+                            device_id_hash = %device_id_hash,
+                            presence_channel = %presence_channel,
+                            presence_event = DAEMON_PRESENCE_EVENT,
                             socket = %daemon_ably_socket_path.display(),
                             "Started daemon-ably sidecar for shared Ably transport"
                         );
                     }
                     Err(err) => {
                         warn!(
+                            runtime = "sidecar",
+                            component = "sidecar.daemon-ably",
+                            event_code = "daemon.presence.sidecar.start_failed",
+                            user_id_hash = %user_id_hash,
+                            device_id_hash = %device_id_hash,
+                            presence_channel = %presence_channel,
+                            presence_event = DAEMON_PRESENCE_EVENT,
                             error = %err,
                             "Failed to start daemon-ably sidecar; Falco/Nagato sidecars remain disabled"
                         );
@@ -669,4 +709,16 @@ pub async fn run_daemon(
     info!("Daemon stopped");
 
     server_result.map_err(|e| e.into())
+}
+
+fn hash_identifier_for_observability(value: &str) -> String {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return "unknown".to_string();
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    let digest = hasher.finalize();
+    format!("sha256:{:x}", digest)
 }

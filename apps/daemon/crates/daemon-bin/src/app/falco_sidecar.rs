@@ -1,7 +1,7 @@
 //! Falco sidecar process management utilities.
 
 use daemon_config_and_utils::Paths;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -21,6 +21,17 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
 
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
+            // Prefer monorepo package binary in local dev to avoid stale leftovers
+            // in apps/daemon/target/debug.
+            if let Some(repo_root) = infer_repo_root(parent) {
+                candidates.push(
+                    repo_root
+                        .join("packages")
+                        .join("daemon-falco")
+                        .join("falco"),
+                );
+            }
+
             // Primary production path: helper binary shipped next to daemon.
             candidates.push(parent.join("falco"));
 
@@ -35,15 +46,6 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
                 }
             }
 
-            // Best-effort local-dev fallback to monorepo package binary.
-            if let Some(repo_root) = infer_repo_root(parent) {
-                candidates.push(
-                    repo_root
-                        .join("packages")
-                        .join("daemon-falco")
-                        .join("falco"),
-                );
-            }
         }
     }
 
@@ -180,9 +182,16 @@ pub async fn wait_for_falco_socket(
 
         match child.try_wait() {
             Ok(Some(status)) => {
+                let stderr = read_startup_stderr(child);
+                if stderr.is_empty() {
+                    return Err(format!(
+                        "falco exited before socket became ready (status: {})",
+                        status
+                    ));
+                }
                 return Err(format!(
-                    "falco exited before socket became ready (status: {})",
-                    status
+                    "falco exited before socket became ready (status: {}): {}",
+                    status, stderr
                 ));
             }
             Ok(None) => {}
@@ -263,4 +272,16 @@ pub fn terminate_child(child: &mut Child, process_name: &str) {
             );
         }
     }
+}
+
+fn read_startup_stderr(child: &mut Child) -> String {
+    let Some(mut stderr) = child.stderr.take() else {
+        return String::new();
+    };
+
+    let mut output = String::new();
+    if stderr.read_to_string(&mut output).is_err() {
+        return String::new();
+    }
+    output.trim().to_string()
 }

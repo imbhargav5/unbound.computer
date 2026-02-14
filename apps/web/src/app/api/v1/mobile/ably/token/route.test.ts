@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAudienceCapability,
+  buildAblyTokenRequestBody,
   buildDaemonFalcoCapability,
   buildMobileCapability,
 } from "./route";
@@ -34,5 +35,24 @@ describe("Ably token capability builders", () => {
 
     expect(capability["session:*:status"]).toEqual(["object-subscribe"]);
     expect(capability["presence:user-id"]).toEqual(["subscribe"]);
+  });
+
+  it("buildAblyTokenRequestBody includes numeric timestamp and nonce", () => {
+    const capability = buildMobileCapability(
+      ["11111111-1111-1111-1111-111111111111"],
+      "22222222-2222-2222-2222-222222222222"
+    );
+    const body = buildAblyTokenRequestBody(
+      "app.key",
+      "22222222-2222-2222-2222-222222222222",
+      capability
+    );
+
+    expect(body.keyName).toBe("app.key");
+    expect(body.clientId).toBe("22222222-2222-2222-2222-222222222222");
+    expect(typeof body.timestamp).toBe("number");
+    expect(Number.isFinite(body.timestamp)).toBe(true);
+    expect(typeof body.nonce).toBe("string");
+    expect(body.nonce.length).toBeGreaterThan(0);
   });
 });

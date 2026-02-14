@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -135,7 +136,9 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		// Read data from connection
 		n, err := conn.Read(readBuf)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
+			if errors.Is(err, io.EOF) {
+				s.logger.Debug("daemon disconnected (EOF)")
+			} else if errors.Is(err, net.ErrClosed) {
 				s.logger.Info("daemon disconnected")
 			} else {
 				s.logger.Error("read error", zap.Error(err))

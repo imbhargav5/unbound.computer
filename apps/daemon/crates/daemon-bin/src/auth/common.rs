@@ -8,12 +8,15 @@ use crate::app::sidecar_logs::{
 };
 use crate::app::DaemonState;
 use armin::{CodingSessionStatus, SessionId, SessionWriter};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use tracing::{info, warn};
 use ymir::AuthLoginResult;
+
+const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
 
 /// Apply in-memory cache updates and sync contexts after successful login.
 pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResult) {
@@ -402,6 +405,20 @@ async fn ensure_daemon_ably_started_locked(
     }
 
     let ably_socket_path = state.paths.ably_socket_file();
+    let presence_channel = format!("presence:{}", user_id.to_ascii_lowercase());
+    let user_id_hash = hash_identifier_for_observability(user_id);
+    let device_id_hash = hash_identifier_for_observability(device_id);
+    info!(
+        runtime = "sidecar",
+        component = "sidecar.daemon-ably",
+        event_code = "daemon.presence.channel.configured",
+        user_id_hash = %user_id_hash,
+        device_id_hash = %device_id_hash,
+        presence_channel = %presence_channel,
+        presence_event = DAEMON_PRESENCE_EVENT,
+        "Configured daemon presence channel"
+    );
+
     let mut stale_child = None;
     let mut should_start = {
         let mut process_guard = state.daemon_ably_process.lock().unwrap();
@@ -454,6 +471,16 @@ async fn ensure_daemon_ably_started_locked(
     }
 
     if should_start {
+        info!(
+            runtime = "sidecar",
+            component = "sidecar.daemon-ably",
+            event_code = "daemon.presence.sidecar.starting",
+            user_id_hash = %user_id_hash,
+            device_id_hash = %device_id_hash,
+            presence_channel = %presence_channel,
+            presence_event = DAEMON_PRESENCE_EVENT,
+            "Starting daemon-ably sidecar for presence transport"
+        );
         if ably_socket_path.exists() {
             if let Err(err) = std::fs::remove_file(&ably_socket_path) {
                 warn!(
@@ -480,10 +507,26 @@ async fn ensure_daemon_ably_started_locked(
                 let tasks = attach_sidecar_log_streams(&mut child, "daemon-ably", "supervisor");
                 *state.daemon_ably_process.lock().unwrap() = Some(child);
                 replace_sidecar_log_tasks(state, "daemon-ably", tasks);
-                info!("Started daemon-ably sidecar after login");
+                info!(
+                    runtime = "sidecar",
+                    component = "sidecar.daemon-ably",
+                    event_code = "daemon.presence.sidecar.started",
+                    user_id_hash = %user_id_hash,
+                    device_id_hash = %device_id_hash,
+                    presence_channel = %presence_channel,
+                    presence_event = DAEMON_PRESENCE_EVENT,
+                    "Started daemon-ably sidecar after login"
+                );
             }
             Err(err) => {
                 warn!(
+                    runtime = "sidecar",
+                    component = "sidecar.daemon-ably",
+                    event_code = "daemon.presence.sidecar.start_failed",
+                    user_id_hash = %user_id_hash,
+                    device_id_hash = %device_id_hash,
+                    presence_channel = %presence_channel,
+                    presence_event = DAEMON_PRESENCE_EVENT,
                     error = %err,
                     "Failed to start daemon-ably sidecar after login"
                 );
@@ -566,4 +609,16 @@ fn remove_stale_socket(path: &Path, scope: &str) {
             "Failed removing stale sidecar socket"
         );
     }
+}
+
+fn hash_identifier_for_observability(value: &str) -> String {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return "unknown".to_string();
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    let digest = hasher.finalize();
+    format!("sha256:{:x}", digest)
 }
