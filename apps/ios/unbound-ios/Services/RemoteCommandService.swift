@@ -20,7 +20,7 @@ enum RemoteCommandError: Error, LocalizedError {
     case commandFailed(
         errorCode: String?,
         errorMessage: String?,
-        errorData: [String: AnyCodableValue]?
+        errorData: AnyCodableValue?
     )
     case timeout
     case transport(Error)
@@ -54,22 +54,62 @@ enum RemoteCommandError: Error, LocalizedError {
         }
     }
 
-    private static func formatErrorDetails(_ errorData: [String: AnyCodableValue]?) -> String? {
+    private static func formatErrorDetails(_ errorData: AnyCodableValue?) -> String? {
         guard let errorData else {
             return nil
         }
 
+        guard let data = errorData.objectValue else {
+            if let rendered = renderErrorDataValue(errorData), !rendered.isEmpty {
+                return "error_data=\(rendered)"
+            }
+            return nil
+        }
+
         var parts: [String] = []
-        if let stage = errorData["stage"]?.stringValue, !stage.isEmpty {
+        if let stage = data["stage"]?.stringValue, !stage.isEmpty {
             parts.append("stage=\(stage)")
         }
-        if let stderr = errorData["stderr"]?.stringValue, !stderr.isEmpty {
+        if let stderr = data["stderr"]?.stringValue, !stderr.isEmpty {
             parts.append("stderr=\(stderr)")
         }
-        if let cleanupError = errorData["cleanup_error"]?.stringValue, !cleanupError.isEmpty {
+        if let cleanupError = data["cleanup_error"]?.stringValue, !cleanupError.isEmpty {
             parts.append("cleanup_error=\(cleanupError)")
         }
+        if parts.isEmpty, let rendered = renderErrorDataValue(errorData), !rendered.isEmpty {
+            parts.append("error_data=\(rendered)")
+        }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
+    private static func renderErrorDataValue(_ value: AnyCodableValue) -> String? {
+        switch value {
+        case .string(let text):
+            return text
+        case .int(let number):
+            return String(number)
+        case .double(let number):
+            return String(number)
+        case .bool(let flag):
+            return flag ? "true" : "false"
+        case .null:
+            return nil
+        case .object(let object):
+            let pairs = object
+                .keys
+                .sorted()
+                .compactMap { key -> String? in
+                    guard let rendered = renderErrorDataValue(object[key] ?? .null),
+                          !rendered.isEmpty else {
+                        return nil
+                    }
+                    return "\(key)=\(rendered)"
+                }
+            return pairs.isEmpty ? "{}" : "{\(pairs.joined(separator: ", "))}"
+        case .array(let values):
+            let rendered = values.compactMap { renderErrorDataValue($0) }
+            return "[\(rendered.joined(separator: ", "))]"
+        }
     }
 }
 
