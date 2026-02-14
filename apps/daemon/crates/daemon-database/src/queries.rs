@@ -294,11 +294,21 @@ pub fn get_or_create_session_state(
         return Ok(state);
     }
 
-    let now = Utc::now().to_rfc3339();
+    let now_ms = now_timestamp_ms();
     conn.execute(
-        "INSERT INTO agent_coding_session_state (session_id, agent_status, updated_at)
-         VALUES (?1, 'idle', ?2)",
-        params![session_id, now],
+        "INSERT INTO agent_coding_session_state (session_id, state_json, updated_at_ms)
+         VALUES (
+            ?1,
+            json_object(
+                'schema_version', 1,
+                'coding_session', json_object('status', 'idle'),
+                'device_id', ?2,
+                'session_id', ?1,
+                'updated_at_ms', ?3
+            ),
+            ?3
+         )",
+        params![session_id, DEFAULT_RUNTIME_DEVICE_ID, now_ms],
     )?;
 
     get_session_state(conn, session_id)?
@@ -311,17 +321,22 @@ pub fn get_session_state(
     session_id: &str,
 ) -> DatabaseResult<Option<AgentCodingSessionState>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, agent_status, queued_commands, diff_summary, updated_at
+        "SELECT
+            session_id,
+            json_extract(state_json, '$.coding_session.status') AS agent_status,
+            updated_at_ms
          FROM agent_coding_session_state WHERE session_id = ?1",
     )?;
 
     let result = stmt.query_row(params![session_id], |row| {
+        let raw_status: Option<String> = row.get(1)?;
+        let updated_at_ms: i64 = row.get(2)?;
         Ok(AgentCodingSessionState {
             session_id: row.get(0)?,
-            agent_status: AgentStatus::from_str(&row.get::<_, String>(1)?),
-            queued_commands: row.get(2)?,
-            diff_summary: row.get(3)?,
-            updated_at: parse_datetime(row.get::<_, String>(4)?),
+            agent_status: AgentStatus::from_str(raw_status.as_deref().unwrap_or("idle")),
+            queued_commands: None,
+            diff_summary: None,
+            updated_at: parse_datetime_from_millis(updated_at_ms),
         })
     });
 
@@ -338,10 +353,37 @@ pub fn update_agent_status(
     session_id: &str,
     status: AgentStatus,
 ) -> DatabaseResult<bool> {
-    let now = Utc::now().to_rfc3339();
+    let now_ms = now_timestamp_ms();
     let count = conn.execute(
-        "UPDATE agent_coding_session_state SET agent_status = ?1, updated_at = ?2 WHERE session_id = ?3",
-        params![status.as_str(), now, session_id],
+        "UPDATE agent_coding_session_state
+         SET
+            state_json = json_remove(
+                json_set(
+                    COALESCE(
+                        state_json,
+                        json_object(
+                            'schema_version', 1,
+                            'coding_session', json_object('status', 'idle'),
+                            'device_id', ?1,
+                            'session_id', ?3,
+                            'updated_at_ms', ?2
+                        )
+                    ),
+                    '$.schema_version', 1,
+                    '$.coding_session.status', ?4,
+                    '$.session_id', ?3,
+                    '$.updated_at_ms', ?2
+                ),
+                '$.coding_session.error_message'
+            ),
+            updated_at_ms = ?2
+         WHERE session_id = ?3",
+        params![
+            DEFAULT_RUNTIME_DEVICE_ID,
+            now_ms,
+            session_id,
+            status.as_str()
+        ],
     )?;
     Ok(count > 0)
 }
@@ -699,6 +741,16 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
+}
+
+const DEFAULT_RUNTIME_DEVICE_ID: &str = "00000000-0000-0000-0000-000000000000";
+
+fn now_timestamp_ms() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
+fn parse_datetime_from_millis(ms: i64) -> DateTime<Utc> {
+    DateTime::<Utc>::from_timestamp_millis(ms).unwrap_or_else(Utc::now)
 }
 
 #[cfg(test)]

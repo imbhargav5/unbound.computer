@@ -100,6 +100,9 @@ impl SqliteStore {
         // Ensure Ably sync state table exists for existing databases
         self.ensure_ably_sync_state(&conn)?;
 
+        // Ensure runtime session state uses grouped JSON envelope schema
+        self.ensure_session_state_runtime_envelope(&conn)?;
+
         // Drop legacy outbox table if it exists
         conn.execute_batch("DROP TABLE IF EXISTS agent_coding_session_event_outbox;")?;
 
@@ -124,6 +127,131 @@ impl SqliteStore {
                 ON agent_coding_session_message_supabase_outbox(last_attempt_at);
             "#,
         )?;
+        Ok(())
+    }
+
+    /// Ensures session runtime state uses grouped JSON envelope storage.
+    fn ensure_session_state_runtime_envelope(&self, conn: &Connection) -> SqliteResult<()> {
+        let mut stmt = conn.prepare("PRAGMA table_info(agent_coding_session_state)")?;
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let has_state_json = columns.iter().any(|c| c == "state_json");
+        let has_updated_at_ms = columns.iter().any(|c| c == "updated_at_ms");
+        let has_agent_status = columns.iter().any(|c| c == "agent_status");
+
+        // Already in target shape.
+        if has_state_json && has_updated_at_ms && !has_agent_status {
+            return Ok(());
+        }
+
+        conn.execute_batch(
+            r#"
+            DROP TABLE IF EXISTS agent_coding_session_state_new;
+
+            CREATE TABLE agent_coding_session_state_new (
+                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+                state_json TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL,
+                CHECK (json_valid(state_json)),
+                CHECK (json_extract(state_json, '$.schema_version') = 1),
+                CHECK (json_type(state_json, '$.coding_session') = 'object'),
+                CHECK (json_extract(state_json, '$.coding_session.status') IN ('running', 'idle', 'waiting', 'not-available', 'error')),
+                CHECK (json_type(state_json, '$.device_id') = 'text'),
+                CHECK (json_type(state_json, '$.session_id') = 'text'),
+                CHECK (json_extract(state_json, '$.session_id') = session_id),
+                CHECK (json_type(state_json, '$.updated_at_ms') IN ('integer', 'real')),
+                CHECK (CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER) = updated_at_ms),
+                CHECK (
+                    json_type(state_json, '$.coding_session.error_message') IS NULL
+                    OR json_type(state_json, '$.coding_session.error_message') = 'text'
+                )
+            );
+            "#,
+        )?;
+
+        if columns.iter().any(|c| c == "session_id") {
+            if has_agent_status {
+                conn.execute_batch(
+                    r#"
+                    INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                    SELECT
+                        session_id,
+                        json_object(
+                            'schema_version', 1,
+                            'coding_session', json_object(
+                                'status',
+                                CASE lower(COALESCE(agent_status, 'idle'))
+                                    WHEN 'running' THEN 'running'
+                                    WHEN 'waiting' THEN 'waiting'
+                                    WHEN 'error' THEN 'error'
+                                    WHEN 'not-available' THEN 'not-available'
+                                    ELSE 'idle'
+                                END
+                            ),
+                            'device_id', '00000000-0000-0000-0000-000000000000',
+                            'session_id', session_id,
+                            'updated_at_ms',
+                            COALESCE(
+                                CAST(strftime('%s', updated_at) AS INTEGER) * 1000,
+                                CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                            )
+                        ),
+                        COALESCE(
+                            CAST(strftime('%s', updated_at) AS INTEGER) * 1000,
+                            CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                        )
+                    FROM agent_coding_session_state;
+                    "#,
+                )?;
+            } else if has_state_json {
+                conn.execute_batch(
+                    r#"
+                    INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                    SELECT
+                        session_id,
+                        json_object(
+                            'schema_version', 1,
+                            'coding_session', json_object(
+                                'status',
+                                CASE lower(COALESCE(json_extract(state_json, '$.coding_session.status'), 'idle'))
+                                    WHEN 'running' THEN 'running'
+                                    WHEN 'waiting' THEN 'waiting'
+                                    WHEN 'error' THEN 'error'
+                                    WHEN 'not-available' THEN 'not-available'
+                                    ELSE 'idle'
+                                END
+                            ),
+                            'device_id',
+                            COALESCE(
+                                NULLIF(json_extract(state_json, '$.device_id'), ''),
+                                '00000000-0000-0000-0000-000000000000'
+                            ),
+                            'session_id', session_id,
+                            'updated_at_ms',
+                            COALESCE(
+                                CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER),
+                                CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                            )
+                        ),
+                        COALESCE(
+                            CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER),
+                            CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                        )
+                    FROM agent_coding_session_state;
+                    "#,
+                )?;
+            }
+        }
+
+        conn.execute_batch(
+            r#"
+            DROP TABLE IF EXISTS agent_coding_session_state;
+            ALTER TABLE agent_coding_session_state_new RENAME TO agent_coding_session_state;
+            "#,
+        )?;
+
         Ok(())
     }
 
@@ -187,10 +315,21 @@ impl SqliteStore {
             r#"
             CREATE TABLE IF NOT EXISTS agent_coding_session_state (
                 session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
-                agent_status TEXT NOT NULL DEFAULT 'idle',
-                queued_commands TEXT,
-                diff_summary TEXT,
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                state_json TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL,
+                CHECK (json_valid(state_json)),
+                CHECK (json_extract(state_json, '$.schema_version') = 1),
+                CHECK (json_type(state_json, '$.coding_session') = 'object'),
+                CHECK (json_extract(state_json, '$.coding_session.status') IN ('running', 'idle', 'waiting', 'not-available', 'error')),
+                CHECK (json_type(state_json, '$.device_id') = 'text'),
+                CHECK (json_type(state_json, '$.session_id') = 'text'),
+                CHECK (json_extract(state_json, '$.session_id') = session_id),
+                CHECK (json_type(state_json, '$.updated_at_ms') IN ('integer', 'real')),
+                CHECK (CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER) = updated_at_ms),
+                CHECK (
+                    json_type(state_json, '$.coding_session.error_message') IS NULL
+                    OR json_type(state_json, '$.coding_session.error_message') = 'text'
+                )
             );
             "#,
         )?;
@@ -277,11 +416,10 @@ impl SqliteStore {
             "#,
         )?;
 
-        // Record migration as version 8 (matches daemon-database final version)
-        // This prevents daemon-database from trying to apply its migrations
-        // which expect the old encrypted schema
+        // Record migration as version 11 (matches daemon-database final version)
+        // so daemon-database won't attempt redundant schema transforms later.
         conn.execute(
-            "INSERT INTO migrations (version, name) VALUES (8, 'armin_full_schema')",
+            "INSERT INTO migrations (version, name) VALUES (11, 'armin_full_schema')",
             [],
         )?;
 
@@ -294,11 +432,21 @@ impl SqliteStore {
         Utc::now().to_rfc3339()
     }
 
+    const DEFAULT_RUNTIME_DEVICE_ID: &'static str = "00000000-0000-0000-0000-000000000000";
+
+    fn now_timestamp_ms() -> i64 {
+        Utc::now().timestamp_millis()
+    }
+
     /// Parses an RFC3339 datetime string, falling back to current time on error.
     fn parse_datetime(s: String) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(&s)
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now())
+    }
+
+    fn parse_datetime_from_millis(ms: i64) -> DateTime<Utc> {
+        DateTime::<Utc>::from_timestamp_millis(ms).unwrap_or_else(Utc::now)
     }
 
     // ========================================================================
@@ -689,11 +837,21 @@ impl SqliteStore {
         }
 
         let conn = self.conn.lock().expect("lock poisoned");
-        let now = Self::now_rfc3339();
+        let now_ms = Self::now_timestamp_ms();
         conn.execute(
-            "INSERT INTO agent_coding_session_state (session_id, agent_status, updated_at)
-             VALUES (?1, 'idle', ?2)",
-            params![session_id.as_str(), now],
+            "INSERT INTO agent_coding_session_state (session_id, state_json, updated_at_ms)
+             VALUES (
+                ?1,
+                json_object(
+                    'schema_version', 1,
+                    'coding_session', json_object('status', 'idle'),
+                    'device_id', ?2,
+                    'session_id', ?1,
+                    'updated_at_ms', ?3
+                ),
+                ?3
+             )",
+            params![session_id.as_str(), Self::DEFAULT_RUNTIME_DEVICE_ID, now_ms],
         )?;
         drop(conn);
 
@@ -705,17 +863,22 @@ impl SqliteStore {
     pub fn get_session_state(&self, session_id: &SessionId) -> SqliteResult<Option<SessionState>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT session_id, agent_status, queued_commands, diff_summary, updated_at
+            "SELECT
+                session_id,
+                json_extract(state_json, '$.coding_session.status') AS agent_status,
+                updated_at_ms
              FROM agent_coding_session_state WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id.as_str()], |row| {
+            let raw_status: Option<String> = row.get(1)?;
+            let updated_at_ms: i64 = row.get(2)?;
             Ok(SessionState {
                 session_id: SessionId::from_string(row.get::<_, String>(0)?),
-                agent_status: AgentStatus::from_str(&row.get::<_, String>(1)?),
-                queued_commands: row.get(2)?,
-                diff_summary: row.get(3)?,
-                updated_at: Self::parse_datetime(row.get::<_, String>(4)?),
+                agent_status: AgentStatus::from_str(raw_status.as_deref().unwrap_or("idle")),
+                queued_commands: None,
+                diff_summary: None,
+                updated_at: Self::parse_datetime_from_millis(updated_at_ms),
             })
         });
 
@@ -733,10 +896,37 @@ impl SqliteStore {
         status: AgentStatus,
     ) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
-        let now = Self::now_rfc3339();
+        let now_ms = Self::now_timestamp_ms();
         let count = conn.execute(
-            "UPDATE agent_coding_session_state SET agent_status = ?1, updated_at = ?2 WHERE session_id = ?3",
-            params![status.as_str(), now, session_id.as_str()],
+            "UPDATE agent_coding_session_state
+             SET
+                state_json = json_remove(
+                    json_set(
+                        COALESCE(
+                            state_json,
+                            json_object(
+                                'schema_version', 1,
+                                'coding_session', json_object('status', 'idle'),
+                                'device_id', ?1,
+                                'session_id', ?3,
+                                'updated_at_ms', ?2
+                            )
+                        ),
+                        '$.schema_version', 1,
+                        '$.coding_session.status', ?4,
+                        '$.session_id', ?3,
+                        '$.updated_at_ms', ?2
+                    ),
+                    '$.coding_session.error_message'
+                ),
+                updated_at_ms = ?2
+             WHERE session_id = ?3",
+            params![
+                Self::DEFAULT_RUNTIME_DEVICE_ID,
+                now_ms,
+                session_id.as_str(),
+                status.as_str()
+            ],
         )?;
         Ok(count > 0)
     }
@@ -1505,6 +1695,48 @@ mod tests {
 
         let retrieved = store.get_agent_session(&id).unwrap().unwrap();
         assert_eq!(retrieved.id.as_str(), "my-custom-session-id");
+    }
+
+    #[test]
+    fn session_state_runtime_envelope_lifecycle() {
+        let store = SqliteStore::in_memory().unwrap();
+        let repo_id = create_test_repo(&store);
+        let session_id = create_test_session(&store, &repo_id);
+
+        let state = store.get_or_create_session_state(&session_id).unwrap();
+        assert_eq!(state.agent_status, AgentStatus::Idle);
+        assert!(state.queued_commands.is_none());
+        assert!(state.diff_summary.is_none());
+
+        assert!(store
+            .update_agent_status(&session_id, AgentStatus::Running)
+            .unwrap());
+        let running = store.get_session_state(&session_id).unwrap().unwrap();
+        assert_eq!(running.agent_status, AgentStatus::Running);
+
+        assert!(store
+            .update_agent_status(&session_id, AgentStatus::Waiting)
+            .unwrap());
+        let waiting = store.get_session_state(&session_id).unwrap().unwrap();
+        assert_eq!(waiting.agent_status, AgentStatus::Waiting);
+    }
+
+    #[test]
+    fn session_state_schema_uses_json_blob() {
+        let store = SqliteStore::in_memory().unwrap();
+        let conn = store.conn.lock().expect("lock poisoned");
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(agent_coding_session_state)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert!(columns.contains(&"state_json".to_string()));
+        assert!(columns.contains(&"updated_at_ms".to_string()));
+        assert!(!columns.contains(&"agent_status".to_string()));
     }
 
     #[test]

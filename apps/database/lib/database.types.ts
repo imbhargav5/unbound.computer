@@ -136,6 +136,8 @@ export type Database = {
           is_worktree: boolean
           last_heartbeat_at: string | null
           repository_id: string
+          runtime_status: Json | null
+          runtime_status_updated_at: string | null
           session_ended_at: string | null
           session_pid: number | null
           session_started_at: string
@@ -153,6 +155,8 @@ export type Database = {
           is_worktree?: boolean
           last_heartbeat_at?: string | null
           repository_id: string
+          runtime_status?: Json | null
+          runtime_status_updated_at?: string | null
           session_ended_at?: string | null
           session_pid?: number | null
           session_started_at?: string
@@ -170,6 +174,8 @@ export type Database = {
           is_worktree?: boolean
           last_heartbeat_at?: string | null
           repository_id?: string
+          runtime_status?: Json | null
+          runtime_status_updated_at?: string | null
           session_ended_at?: string | null
           session_pid?: number | null
           session_started_at?: string
@@ -3126,4 +3132,3 @@ export const Constants = {
     },
   },
 } as const
-
