@@ -9,21 +9,23 @@ import (
 )
 
 const (
-	DefaultSocketName          = "ably.sock"
-	DefaultBaseDir             = ".unbound"
-	DefaultHeartbeatInterval   = 5 * time.Second
-	DefaultPublishTimeout      = 5 * time.Second
-	DefaultShutdownTimeout     = 2 * time.Second
-	DefaultPresenceEventName   = "daemon.presence.v1"
-	DefaultPresenceSource      = "daemon-ably"
-	EnvUnboundBaseDir          = "UNBOUND_BASE_DIR"
-	EnvAblySocket              = "UNBOUND_ABLY_SOCKET"
-	EnvAblyBrokerSocket        = "UNBOUND_ABLY_BROKER_SOCKET"
-	EnvAblyBrokerTokenFalco    = "UNBOUND_ABLY_BROKER_TOKEN_FALCO"
-	EnvAblyBrokerTokenNagato   = "UNBOUND_ABLY_BROKER_TOKEN_NAGATO"
-	EnvHeartbeatIntervalSec    = "DAEMON_ABLY_HEARTBEAT_INTERVAL"
-	EnvPublishTimeoutSec       = "DAEMON_ABLY_PUBLISH_TIMEOUT"
-	EnvShutdownTimeoutSec      = "DAEMON_ABLY_SHUTDOWN_TIMEOUT"
+	DefaultSocketName        = "ably.sock"
+	DefaultBaseDir           = ".unbound"
+	DefaultMaxFrameBytes     = 2 * 1024 * 1024
+	DefaultHeartbeatInterval = 5 * time.Second
+	DefaultPublishTimeout    = 5 * time.Second
+	DefaultShutdownTimeout   = 2 * time.Second
+	DefaultPresenceEventName = "daemon.presence.v1"
+	DefaultPresenceSource    = "daemon-ably"
+	EnvUnboundBaseDir        = "UNBOUND_BASE_DIR"
+	EnvAblySocket            = "UNBOUND_ABLY_SOCKET"
+	EnvAblyBrokerSocket      = "UNBOUND_ABLY_BROKER_SOCKET"
+	EnvAblyBrokerTokenFalco  = "UNBOUND_ABLY_BROKER_TOKEN_FALCO"
+	EnvAblyBrokerTokenNagato = "UNBOUND_ABLY_BROKER_TOKEN_NAGATO"
+	EnvMaxFrameBytes         = "DAEMON_ABLY_MAX_FRAME_BYTES"
+	EnvHeartbeatIntervalSec  = "DAEMON_ABLY_HEARTBEAT_INTERVAL"
+	EnvPublishTimeoutSec     = "DAEMON_ABLY_PUBLISH_TIMEOUT"
+	EnvShutdownTimeoutSec    = "DAEMON_ABLY_SHUTDOWN_TIMEOUT"
 )
 
 type Config struct {
@@ -34,6 +36,7 @@ type Config struct {
 	BrokerSocketPath  string
 	BrokerFalcoToken  string
 	BrokerNagatoToken string
+	MaxFrameBytes     int
 
 	HeartbeatInterval time.Duration
 	PublishTimeout    time.Duration
@@ -48,6 +51,7 @@ func New(deviceID string, userID string) (*Config, error) {
 	cfg := &Config{
 		DeviceID:          deviceID,
 		UserID:            userID,
+		MaxFrameBytes:     DefaultMaxFrameBytes,
 		HeartbeatInterval: DefaultHeartbeatInterval,
 		PublishTimeout:    DefaultPublishTimeout,
 		ShutdownTimeout:   DefaultShutdownTimeout,
@@ -72,7 +76,7 @@ func New(deviceID string, userID string) (*Config, error) {
 	cfg.BrokerSocketPath = os.Getenv(EnvAblyBrokerSocket)
 	cfg.BrokerFalcoToken = os.Getenv(EnvAblyBrokerTokenFalco)
 	cfg.BrokerNagatoToken = os.Getenv(EnvAblyBrokerTokenNagato)
-	cfg.PresenceChannel = fmt.Sprintf("session:presence:%s:conversation", userID)
+	cfg.PresenceChannel = fmt.Sprintf("presence:%s", userID)
 
 	if heartbeatSeconds := os.Getenv(EnvHeartbeatIntervalSec); heartbeatSeconds != "" {
 		seconds, err := strconv.Atoi(heartbeatSeconds)
@@ -96,6 +100,14 @@ func New(deviceID string, userID string) (*Config, error) {
 			return nil, fmt.Errorf("invalid %s: %w", EnvShutdownTimeoutSec, err)
 		}
 		cfg.ShutdownTimeout = time.Duration(seconds) * time.Second
+	}
+
+	if maxFrameBytes := os.Getenv(EnvMaxFrameBytes); maxFrameBytes != "" {
+		size, err := strconv.Atoi(maxFrameBytes)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %w", EnvMaxFrameBytes, err)
+		}
+		cfg.MaxFrameBytes = size
 	}
 
 	return cfg, nil
@@ -134,6 +146,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive")
+	}
+	if c.MaxFrameBytes <= 0 {
+		return fmt.Errorf("max frame bytes must be positive")
 	}
 	return nil
 }

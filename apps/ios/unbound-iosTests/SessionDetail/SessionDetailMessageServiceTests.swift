@@ -447,6 +447,54 @@ final class SessionDetailMessageServiceTests: XCTestCase {
         XCTAssertEqual(activity.tools.first?.summary, "Read docs/README.md")
     }
 
+    func testLoadMessagesDeduplicatesInitialRowsByMessageIdWithLatestWriteWins() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xAB, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let olderPayload = #"{"role":"assistant","content":"older"}"#
+        let newerPayload = #"{"role":"assistant","content":"newer"}"#
+        let trailingPayload = #"{"role":"assistant","content":"tail"}"#
+
+        let encryptedOlder = try encrypt(plaintext: olderPayload, key: keyData)
+        let encryptedNewer = try encrypt(plaintext: newerPayload, key: keyData)
+        let encryptedTrailing = try encrypt(plaintext: trailingPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "msg-tail",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedTrailing.ciphertextB64,
+                    contentNonce: encryptedTrailing.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "msg-dup",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedOlder.ciphertextB64,
+                    contentNonce: encryptedOlder.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "msg-dup",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedNewer.ciphertextB64,
+                    contentNonce: encryptedNewer.nonceB64
+                ),
+            ]
+        )
+
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let service = SessionDetailMessageService(remoteSource: remote, secretResolver: resolver)
+
+        let result = try await service.loadMessages(sessionId: sessionId)
+
+        XCTAssertEqual(result.decryptedMessageCount, 2)
+        XCTAssertEqual(result.messages.map(\.content), ["newer", "tail"])
+    }
+
     func testMessageUpdatesDecryptsRealtimeEnvelopeAndYieldsGroupedTimeline() async throws {
         let sessionId = UUID()
         let keyData = Data(repeating: 0xBC, count: 32)
@@ -586,6 +634,231 @@ final class SessionDetailMessageServiceTests: XCTestCase {
 
         XCTAssertEqual(updates[1].decryptedMessageCount, 1)
         XCTAssertEqual(updates[1].messages.map(\.content), ["second"])
+    }
+
+    func testMessageUpdatesConvergesWhenChildToolArrivesBeforeParentTask() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xBE, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let childPayload = #"{"type":"assistant","parent_tool_use_id":"task_early","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_early","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_early","name":"Task","input":{"subagent_type":"Explore","description":"Trace parser state"}}]}}"#
+
+        let encryptedChild = try encrypt(plaintext: childPayload, key: keyData)
+        let encryptedTask = try encrypt(plaintext: taskPayload, key: keyData)
+
+        let remote = MockSessionDetailRemoteSource(rows: [])
+        let resolver = MockSessionSecretResolver(result: .success(secret))
+        let conversationService = MockConversationService()
+        let service = SessionDetailMessageService(
+            remoteSource: remote,
+            secretResolver: resolver,
+            conversationService: conversationService
+        )
+
+        let stream = service.messageUpdates(sessionId: sessionId)
+        let updatesTask = Task {
+            var iterator = stream.makeAsyncIterator()
+            var updates: [SessionDetailLoadResult] = []
+            while updates.count < 2, let next = try await iterator.next() {
+                updates.append(next)
+            }
+            return updates
+        }
+
+        await conversationService.waitForSubscription()
+        let senderDeviceID = UUID().uuidString.lowercased()
+
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "rt-child",
+                sequenceNumber: 2,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 20_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedChild.ciphertextB64,
+                contentNonce: encryptedChild.nonceB64
+            )
+        )
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "rt-task",
+                sequenceNumber: 1,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 10_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedTask.ciphertextB64,
+                contentNonce: encryptedTask.nonceB64
+            )
+        )
+        conversationService.finish()
+
+        let updates = try await updatesTask.value
+        XCTAssertEqual(updates.count, 2)
+
+        XCTAssertEqual(updates[0].decryptedMessageCount, 1)
+        XCTAssertEqual(updates[0].messages.count, 1)
+
+        XCTAssertEqual(updates[1].decryptedMessageCount, 2)
+        XCTAssertEqual(updates[1].messages.count, 1)
+
+        guard let blocks = updates[1].messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected converged grouped sub-agent activity")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_early")
+        XCTAssertEqual(activity.subagentType, "Explore")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "tool_early")
+    }
+
+    func testInitialLoadAndRealtimeConvergeToSameTimelineForEquivalentRows() async throws {
+        let sessionId = UUID()
+        let keyData = Data(repeating: 0xBF, count: 32)
+        let secret = makeValidSecret(from: keyData)
+
+        let taskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_sync","name":"Task","input":{"subagent_type":"Plan","description":"Converge state"}}]}}"#
+        let childOlderPayload = #"{"type":"assistant","parent_tool_use_id":"task_sync","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_sync","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        let childNewerPayload = #"{"type":"assistant","parent_tool_use_id":"task_sync","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_sync","name":"Read","input":{"file_path":"docs/README.md"}}]}}"#
+
+        let encryptedTask = try encrypt(plaintext: taskPayload, key: keyData)
+        let encryptedChildOlder = try encrypt(plaintext: childOlderPayload, key: keyData)
+        let encryptedChildNewer = try encrypt(plaintext: childNewerPayload, key: keyData)
+
+        let loadRemote = MockSessionDetailRemoteSource(
+            rows: [
+                EncryptedSessionMessageRow(
+                    id: "msg-child",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 30),
+                    contentEncrypted: encryptedChildNewer.ciphertextB64,
+                    contentNonce: encryptedChildNewer.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "msg-task",
+                    sequenceNumber: 1,
+                    createdAt: Date(timeIntervalSince1970: 10),
+                    contentEncrypted: encryptedTask.ciphertextB64,
+                    contentNonce: encryptedTask.nonceB64
+                ),
+                EncryptedSessionMessageRow(
+                    id: "msg-child",
+                    sequenceNumber: 2,
+                    createdAt: Date(timeIntervalSince1970: 20),
+                    contentEncrypted: encryptedChildOlder.ciphertextB64,
+                    contentNonce: encryptedChildOlder.nonceB64
+                ),
+            ]
+        )
+
+        let loadResolver = MockSessionSecretResolver(result: .success(secret))
+        let loadService = SessionDetailMessageService(
+            remoteSource: loadRemote,
+            secretResolver: loadResolver
+        )
+        let loadResult = try await loadService.loadMessages(sessionId: sessionId)
+
+        let realtimeRemote = MockSessionDetailRemoteSource(rows: [])
+        let realtimeResolver = MockSessionSecretResolver(result: .success(secret))
+        let conversationService = MockConversationService()
+        let realtimeService = SessionDetailMessageService(
+            remoteSource: realtimeRemote,
+            secretResolver: realtimeResolver,
+            conversationService: conversationService
+        )
+
+        let stream = realtimeService.messageUpdates(sessionId: sessionId)
+        let updatesTask = Task {
+            var iterator = stream.makeAsyncIterator()
+            var updates: [SessionDetailLoadResult] = []
+            while updates.count < 3, let next = try await iterator.next() {
+                updates.append(next)
+            }
+            return updates
+        }
+
+        await conversationService.waitForSubscription()
+        let senderDeviceID = UUID().uuidString.lowercased()
+
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "msg-child",
+                sequenceNumber: 2,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 20_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedChildOlder.ciphertextB64,
+                contentNonce: encryptedChildOlder.nonceB64
+            )
+        )
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "msg-task",
+                sequenceNumber: 1,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 10_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedTask.ciphertextB64,
+                contentNonce: encryptedTask.nonceB64
+            )
+        )
+        conversationService.yield(
+            AblyConversationMessageEnvelope(
+                schemaVersion: 1,
+                sessionId: sessionId.uuidString.lowercased(),
+                messageId: "msg-child",
+                sequenceNumber: 2,
+                senderDeviceId: senderDeviceID,
+                createdAtMs: 30_000,
+                encryptionAlg: "chacha20poly1305",
+                contentEncrypted: encryptedChildNewer.ciphertextB64,
+                contentNonce: encryptedChildNewer.nonceB64
+            )
+        )
+        conversationService.finish()
+
+        let updates = try await updatesTask.value
+        let realtimeResult = try XCTUnwrap(updates.last)
+
+        XCTAssertEqual(loadResult.decryptedMessageCount, 2)
+        XCTAssertEqual(realtimeResult.decryptedMessageCount, 2)
+        XCTAssertEqual(
+            timelineSignature(loadResult.messages),
+            timelineSignature(realtimeResult.messages)
+        )
+    }
+
+    private func timelineSignature(_ messages: [Message]) -> [String] {
+        messages.map { message in
+            let blockSignature = (message.parsedContent ?? []).map { block in
+                switch block {
+                case .text(let text):
+                    return "text:\(text)"
+                case .error(let message):
+                    return "error:\(message)"
+                case .toolUse(let tool):
+                    return "tool:\(tool.toolUseId ?? "nil"):\(tool.parentToolUseId ?? "nil"):\(tool.toolName):\(tool.summary)"
+                case .subAgentActivity(let activity):
+                    let tools = activity.tools.map { tool in
+                        "\(tool.toolUseId ?? "nil"):\(tool.parentToolUseId ?? "nil"):\(tool.toolName):\(tool.summary)"
+                    }.joined(separator: ",")
+                    return "subagent:\(activity.parentToolUseId):\(activity.subagentType):\(activity.description):[\(tools)]"
+                }
+            }.joined(separator: "|")
+
+            return "\(message.role.rawValue)::\(message.content)::\(blockSignature)"
+        }
     }
 
     private func encrypt(plaintext: String, key: Data) throws -> (ciphertextB64: String, nonceB64: String) {

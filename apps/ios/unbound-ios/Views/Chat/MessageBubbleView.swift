@@ -44,7 +44,7 @@ struct MessageBubbleView: View {
 
     @ViewBuilder
     private func parsedContentView(blocks: [SessionContentBlock]) -> some View {
-        let displayBlocks = groupedParsedBlocks(from: blocks)
+        let displayBlocks = groupedParsedBlocks(from: deduplicatedParsedBlocks(from: blocks))
 
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
             ForEach(displayBlocks) { displayBlock in
@@ -91,6 +91,71 @@ struct MessageBubbleView: View {
 
         flushPendingTools()
         return grouped
+    }
+
+    private func deduplicatedParsedBlocks(from blocks: [SessionContentBlock]) -> [SessionContentBlock] {
+        var seenStandaloneToolKeys: Set<String> = []
+        var seenSubAgentParents: Set<String> = []
+        var deduplicatedReversed: [SessionContentBlock] = []
+        deduplicatedReversed.reserveCapacity(blocks.count)
+
+        for block in blocks.reversed() {
+            switch block {
+            case .toolUse(let tool):
+                let key = standaloneToolKey(for: tool)
+                if seenStandaloneToolKeys.contains(key) {
+                    continue
+                }
+                seenStandaloneToolKeys.insert(key)
+                deduplicatedReversed.append(.toolUse(tool))
+
+            case .subAgentActivity(let activity):
+                if seenSubAgentParents.contains(activity.parentToolUseId) {
+                    continue
+                }
+                seenSubAgentParents.insert(activity.parentToolUseId)
+
+                let deduplicatedTools = deduplicatedToolsForSubAgent(activity.tools)
+                let normalizedActivity = SessionSubAgentActivity(
+                    id: activity.id,
+                    parentToolUseId: activity.parentToolUseId,
+                    subagentType: activity.subagentType,
+                    description: activity.description,
+                    tools: deduplicatedTools
+                )
+                deduplicatedReversed.append(.subAgentActivity(normalizedActivity))
+
+            case .text, .error:
+                deduplicatedReversed.append(block)
+            }
+        }
+
+        return Array(deduplicatedReversed.reversed())
+    }
+
+    private func deduplicatedToolsForSubAgent(_ tools: [SessionToolUse]) -> [SessionToolUse] {
+        var seenKeys: Set<String> = []
+        var deduplicatedReversed: [SessionToolUse] = []
+        deduplicatedReversed.reserveCapacity(tools.count)
+
+        for tool in tools.reversed() {
+            let key = standaloneToolKey(for: tool)
+            if seenKeys.contains(key) {
+                continue
+            }
+            seenKeys.insert(key)
+            deduplicatedReversed.append(tool)
+        }
+
+        return Array(deduplicatedReversed.reversed())
+    }
+
+    private func standaloneToolKey(for tool: SessionToolUse) -> String {
+        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
+            return "id:\(toolUseId)"
+        }
+
+        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
     }
 
     private var assistantTextBubble: some View {
@@ -141,7 +206,7 @@ private enum ParsedDisplayBlock: Identifiable {
         case .block(let block):
             return "block:\(block.id)"
         case .standaloneToolUseGroup(let tools):
-            let ids = tools.map { $0.id.uuidString }.joined(separator: ",")
+            let ids = tools.map { $0.toolUseId ?? $0.id.uuidString }.joined(separator: ",")
             return "tool-group:\(ids)"
         }
     }
@@ -266,6 +331,61 @@ struct CodeBlockView: View {
             ForEach(PreviewData.messages) { message in
                 MessageBubbleView(message: message)
             }
+        }
+        .padding(.vertical)
+    }
+    .background(AppTheme.backgroundPrimary)
+}
+
+#Preview("Parsed Tool/SubAgent States") {
+    ScrollView {
+        VStack(spacing: 16) {
+            MessageBubbleView(
+                message: Message(
+                    content: "Parser-aligned block rendering",
+                    role: .assistant,
+                    parsedContent: [
+                        .text("Working through parser state transitions."),
+                        .toolUse(
+                            SessionToolUse(
+                                toolUseId: "tool-dup",
+                                toolName: "Read",
+                                summary: "Read README.md"
+                            )
+                        ),
+                        .toolUse(
+                            SessionToolUse(
+                                toolUseId: "tool-dup",
+                                toolName: "Read",
+                                summary: "Read docs/README.md"
+                            )
+                        ),
+                        .subAgentActivity(
+                            SessionSubAgentActivity(
+                                parentToolUseId: "task-1",
+                                subagentType: "Explore",
+                                description: "Investigate parser contract",
+                                tools: [
+                                    SessionToolUse(
+                                        toolUseId: "task-tool-1",
+                                        parentToolUseId: "task-1",
+                                        toolName: "Grep",
+                                        summary: "Grep raw_json"
+                                    ),
+                                    SessionToolUse(
+                                        toolUseId: "task-tool-1",
+                                        parentToolUseId: "task-1",
+                                        toolName: "Grep",
+                                        summary: "Grep raw_json"
+                                    ),
+                                ]
+                            )
+                        ),
+                        .error("Tool execution failed with exit code 1"),
+                    ]
+                ),
+                showRoleIcon: true
+            )
         }
         .padding(.vertical)
     }

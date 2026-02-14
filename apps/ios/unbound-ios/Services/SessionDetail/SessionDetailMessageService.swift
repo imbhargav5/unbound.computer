@@ -47,16 +47,16 @@ final class SessionDetailMessageService: SessionDetailMessageLoading {
         sessionDetailServiceLogger.debug(
             "Fetched \(rows.count) encrypted rows for session \(sessionId.uuidString.lowercased())"
         )
-        await cache.setRows(rows, for: sessionId)
+        let normalizedRows = await cache.setRows(rows, for: sessionId)
 
-        guard !rows.isEmpty else {
+        guard !normalizedRows.isEmpty else {
             return SessionDetailLoadResult(messages: [], decryptedMessageCount: 0)
         }
 
         let sessionKey = try await resolveSessionKey(sessionId: sessionId)
         await cache.setSessionKey(sessionKey, for: sessionId)
         return try decryptAndMap(
-            rows: rows,
+            rows: normalizedRows,
             sessionKey: sessionKey,
             sessionId: sessionId
         )
@@ -203,8 +203,11 @@ private actor SessionDetailMessageCache {
     private var rowsBySession: [UUID: [EncryptedSessionMessageRow]] = [:]
     private var sessionKeyBySession: [UUID: Data] = [:]
 
-    func setRows(_ rows: [EncryptedSessionMessageRow], for sessionId: UUID) {
-        rowsBySession[sessionId] = sortedRows(rows)
+    @discardableResult
+    func setRows(_ rows: [EncryptedSessionMessageRow], for sessionId: UUID) -> [EncryptedSessionMessageRow] {
+        let normalized = deduplicatedAndSortedRows(rows)
+        rowsBySession[sessionId] = normalized
+        return normalized
     }
 
     func cachedRows(for sessionId: UUID) -> [EncryptedSessionMessageRow]? {
@@ -233,12 +236,58 @@ private actor SessionDetailMessageCache {
         return sorted
     }
 
+    private func deduplicatedAndSortedRows(_ rows: [EncryptedSessionMessageRow]) -> [EncryptedSessionMessageRow] {
+        guard rows.count > 1 else { return rows }
+
+        var latestByID: [String: IndexedEncryptedRow] = [:]
+
+        for (index, row) in rows.enumerated() {
+            let candidate = IndexedEncryptedRow(row: row, index: index)
+            guard let existing = latestByID[row.id] else {
+                latestByID[row.id] = candidate
+                continue
+            }
+
+            if shouldPrefer(candidate, over: existing) {
+                latestByID[row.id] = candidate
+            }
+        }
+
+        return sortedRows(latestByID.values.map(\.row))
+    }
+
+    private func shouldPrefer(_ candidate: IndexedEncryptedRow, over existing: IndexedEncryptedRow) -> Bool {
+        if candidate.row.sequenceNumber != existing.row.sequenceNumber {
+            return candidate.row.sequenceNumber > existing.row.sequenceNumber
+        }
+
+        let candidateDate = candidate.row.createdAt ?? .distantPast
+        let existingDate = existing.row.createdAt ?? .distantPast
+        if candidateDate != existingDate {
+            return candidateDate > existingDate
+        }
+
+        return candidate.index > existing.index
+    }
+
     private func sortedRows(_ rows: [EncryptedSessionMessageRow]) -> [EncryptedSessionMessageRow] {
         rows.sorted { lhs, rhs in
-            if lhs.sequenceNumber == rhs.sequenceNumber {
-                return lhs.id < rhs.id
+            if lhs.sequenceNumber != rhs.sequenceNumber {
+                return lhs.sequenceNumber < rhs.sequenceNumber
             }
-            return lhs.sequenceNumber < rhs.sequenceNumber
+
+            let lhsDate = lhs.createdAt ?? .distantPast
+            let rhsDate = rhs.createdAt ?? .distantPast
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+
+            return lhs.id < rhs.id
         }
     }
+}
+
+private struct IndexedEncryptedRow {
+    let row: EncryptedSessionMessageRow
+    let index: Int
 }

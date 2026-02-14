@@ -60,6 +60,17 @@ type Manager struct {
 	subs          map[string]*subscription
 	closed        bool
 	heartbeatDone chan struct{}
+
+	// Test hooks.
+	publishWithClientOverride func(
+		ctx context.Context,
+		client *ably.Realtime,
+		channel string,
+		event string,
+		payload []byte,
+		timeout time.Duration,
+	) error
+	attachSubscriptionOverride func(ctx context.Context, sub *subscription) error
 }
 
 func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
@@ -86,7 +97,7 @@ func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
 		subs:          make(map[string]*subscription),
 		heartbeatDone: make(chan struct{}),
 	}
-	manager.server = NewServer(cfg.SocketPath, manager, logger.Named("ipc"))
+	manager.server = NewServer(cfg.SocketPath, cfg.MaxFrameBytes, manager, logger.Named("ipc"))
 
 	manager.nagatoClient.Connection.OnAll(func(change ably.ConnectionStateChange) {
 		switch change.Current {
@@ -183,10 +194,16 @@ func (m *Manager) Close() error {
 }
 
 func (m *Manager) Publish(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error {
+	if m.publishWithClientOverride != nil {
+		return m.publishWithClientOverride(ctx, m.falcoClient, channel, event, payload, timeout)
+	}
 	return m.publishWithClient(ctx, m.falcoClient, channel, event, payload, timeout)
 }
 
 func (m *Manager) PublishAck(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error {
+	if m.publishWithClientOverride != nil {
+		return m.publishWithClientOverride(ctx, m.nagatoClient, channel, event, payload, timeout)
+	}
 	return m.publishWithClient(ctx, m.nagatoClient, channel, event, payload, timeout)
 }
 
@@ -288,6 +305,10 @@ func (m *Manager) publishWithClient(
 }
 
 func (m *Manager) attachSubscription(ctx context.Context, sub *subscription) error {
+	if m.attachSubscriptionOverride != nil {
+		return m.attachSubscriptionOverride(ctx, sub)
+	}
+
 	channel := m.nagatoClient.Channels.Get(sub.channel)
 	if err := channel.Attach(ctx); err != nil {
 		return fmt.Errorf("failed attaching channel %s: %w", sub.channel, err)

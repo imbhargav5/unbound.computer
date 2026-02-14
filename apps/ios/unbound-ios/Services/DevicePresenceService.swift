@@ -18,6 +18,12 @@ import Ably
 
 private let logger = Logger(label: "app.device")
 
+enum DeviceDaemonAvailability: Equatable {
+    case online
+    case offline
+    case unknown
+}
+
 /// Represents a monitored device with its online status
 struct MonitoredDevice: Identifiable, Equatable {
     let id: String
@@ -34,6 +40,7 @@ struct MonitoredDevice: Identifiable, Equatable {
 
 /// Service for managing device presence and heartbeat
 @Observable
+@MainActor
 final class DevicePresenceService {
     static let shared = DevicePresenceService()
 
@@ -59,6 +66,7 @@ final class DevicePresenceService {
     private var networkMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.unbound.presence.network")
     private var daemonLastHeartbeatAt: [String: Date] = [:]
+    private var daemonExplicitOfflineDevices: Set<String> = []
     private let daemonHeartbeatTTL: TimeInterval = 12.0
 
     #if canImport(Ably)
@@ -110,6 +118,7 @@ final class DevicePresenceService {
         userId = nil
         monitoredDevices = []
         daemonLastHeartbeatAt = [:]
+        daemonExplicitOfflineDevices = []
 
         logger.info("DevicePresenceService stopped")
     }
@@ -131,13 +140,24 @@ final class DevicePresenceService {
     }
 
     /// Check if a device daemon is available for remote commands.
-    /// Availability is based on daemon.presence.v1 heartbeat TTL.
+    /// Availability allows `unknown` bootstrap state and only blocks explicit/derived offline.
     func isDeviceDaemonAvailable(id: String) -> Bool {
+        daemonAvailability(id: id) != .offline
+    }
+
+    /// Resolve daemon availability state from heartbeat stream.
+    func daemonAvailability(id: String) -> DeviceDaemonAvailability {
         let normalizedID = id.lowercased()
-        guard let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] else {
-            return false
+        if let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] {
+            if Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL {
+                return .online
+            }
+            return .offline
         }
-        return Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL
+        if daemonExplicitOfflineDevices.contains(normalizedID) {
+            return .offline
+        }
+        return .unknown
     }
 
     // MARK: - Heartbeat
@@ -197,19 +217,17 @@ final class DevicePresenceService {
                 .execute()
                 .value
 
-            await MainActor.run {
-                self.monitoredDevices = response.map { record in
-                    MonitoredDevice(
-                        id: record.id,
-                        name: record.name,
-                        deviceType: record.deviceType,
+            monitoredDevices = response.map { record in
+                MonitoredDevice(
+                    id: record.id,
+                    name: record.name,
+                    deviceType: record.deviceType,
+                    lastSeenAt: record.lastSeenAt ?? Date.distantPast,
+                    isOnline: MonitoredDevice.checkOnline(
                         lastSeenAt: record.lastSeenAt ?? Date.distantPast,
-                        isOnline: MonitoredDevice.checkOnline(
-                            lastSeenAt: record.lastSeenAt ?? Date.distantPast,
-                            threshold: self.offlineThreshold
-                        )
+                        threshold: offlineThreshold
                     )
-                }
+                )
             }
 
             logger.info("Fetched \(monitoredDevices.count) mac devices to monitor")
@@ -269,20 +287,18 @@ final class DevicePresenceService {
                         threshold: self.offlineThreshold
                     )
 
-                    await MainActor.run {
-                        if let index = self.monitoredDevices.firstIndex(where: { $0.id == id }) {
-                            self.monitoredDevices[index].lastSeenAt = lastSeenAt
-                            self.monitoredDevices[index].isOnline = isOnline
-                        } else {
-                            // New device
-                            self.monitoredDevices.append(MonitoredDevice(
-                                id: id,
-                                name: name,
-                                deviceType: deviceType,
-                                lastSeenAt: lastSeenAt,
-                                isOnline: isOnline
-                            ))
-                        }
+                    if let index = self.monitoredDevices.firstIndex(where: { $0.id == id }) {
+                        self.monitoredDevices[index].lastSeenAt = lastSeenAt
+                        self.monitoredDevices[index].isOnline = isOnline
+                    } else {
+                        // New device
+                        self.monitoredDevices.append(MonitoredDevice(
+                            id: id,
+                            name: name,
+                            deviceType: deviceType,
+                            lastSeenAt: lastSeenAt,
+                            isOnline: isOnline
+                        ))
                     }
 
                     logger.debug("Device \(name) updated: online=\(isOnline)")
@@ -371,7 +387,10 @@ final class DevicePresenceService {
                     )
                     callback(details, nil)
                 } catch {
-                    callback(nil, AblyRemoteCommandTransport.tokenAuthNSError(error))
+                    let nsError = await MainActor.run {
+                        AblyRemoteCommandTransport.tokenAuthNSError(error)
+                    }
+                    callback(nil, nsError)
                 }
             }
         }
@@ -382,7 +401,9 @@ final class DevicePresenceService {
         let listener = channel.subscribe(Config.daemonPresenceEventName) { [weak self] message in
             guard let self else { return }
             guard let payload = Self.decodeDaemonPresencePayload(message.data) else { return }
-            self.consumeDaemonPresencePayload(payload)
+            Task { @MainActor [weak self] in
+                self?.consumeDaemonPresencePayload(payload)
+            }
         }
 
         daemonPresenceRealtime = realtime
@@ -416,8 +437,10 @@ final class DevicePresenceService {
         switch payload.status {
         case "online":
             daemonLastHeartbeatAt[normalizedDeviceID] = heartbeatDate
+            daemonExplicitOfflineDevices.remove(normalizedDeviceID)
         case "offline":
             daemonLastHeartbeatAt.removeValue(forKey: normalizedDeviceID)
+            daemonExplicitOfflineDevices.insert(normalizedDeviceID)
         default:
             // Ignore unknown statuses to preserve forward compatibility.
             break
@@ -451,23 +474,20 @@ final class DevicePresenceService {
         networkMonitor?.pathUpdateHandler = { [weak self] path in
             guard let self else { return }
 
-            let wasAvailable = self.isNetworkAvailable
             let nowAvailable = path.status == .satisfied
-
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let wasAvailable = self.isNetworkAvailable
                 self.isNetworkAvailable = nowAvailable
-            }
-
-            // Send immediate heartbeat when network becomes available
-            if !wasAvailable && nowAvailable {
-                logger.info("Network restored - sending immediate heartbeat")
-                Task {
+                // Send immediate heartbeat when network becomes available.
+                if !wasAvailable && nowAvailable {
+                    logger.info("Network restored - sending immediate heartbeat")
                     await self.sendHeartbeat()
                 }
-            }
 
-            if !nowAvailable {
-                logger.warning("Network unavailable")
+                if !nowAvailable {
+                    logger.warning("Network unavailable")
+                }
             }
         }
 

@@ -1,5 +1,5 @@
 "use client";
-import { Computer, Lock, User } from "lucide-react";
+import { Computer, CreditCard, Lock, User } from "lucide-react";
 import { useMemo } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { TabsNavigation } from "@/components/tabs-navigation";
@@ -25,6 +25,11 @@ export default function UserSettingsClientLayout({
         label: "Security",
         href: "/user/settings/security",
         icon: <Lock />,
+      },
+      {
+        label: "Billing & Usage",
+        href: "/user/settings/billing",
+        icon: <CreditCard />,
       },
     ],
     []

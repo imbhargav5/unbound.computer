@@ -14,6 +14,9 @@ struct SessionTimelineEntry {
 }
 
 enum SessionMessagePayloadParser {
+    private static let maxRawJSONDepth = 4
+    private static let protocolTypes: Set<String> = ["user", "assistant", "system", "result", "tool_result"]
+
     static func timelineEntry(from plaintext: String) -> SessionTimelineEntry? {
         guard let payload = resolvedPayload(from: plaintext) else {
             let text = plaintext.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25,69 +28,36 @@ enum SessionMessagePayloadParser {
     }
 
     static func role(from plaintext: String) -> Message.MessageRole {
-        guard let payload = jsonPayload(from: plaintext) else {
-            return .system
-        }
+        guard let payload = jsonPayload(from: plaintext) else { return .system }
+        let resolved = resolvedPayload(from: payload)
 
-        if let rawRole = payload["role"] as? String,
-           let parsedRole = Message.MessageRole(rawValue: rawRole.lowercased()) {
+        if let parsedRole = explicitRole(from: resolved) {
             return parsedRole
         }
 
-        if let wrappedRawJSON = payload["raw_json"] as? String {
-            return role(from: wrappedRawJSON)
-        }
-
-        if let type = payload["type"] as? String {
-            switch type.lowercased() {
-            case "user", "user_prompt_command", "user_confirmation_command", "mcq_response_command":
-                return .user
-            case "assistant", "result", "output_chunk", "streaming_thinking", "streaming_generating":
-                return .assistant
-            default:
-                return .system
-            }
+        if let type = messageType(from: resolved) {
+            return role(forType: type)
         }
 
         return .system
     }
 
     static func displayText(from plaintext: String) -> String {
-        guard let payload = jsonPayload(from: plaintext) else {
-            return plaintext
-        }
+        guard let payload = jsonPayload(from: plaintext) else { return plaintext }
+        let resolved = resolvedPayload(from: payload)
 
-        if let wrappedRawJSON = payload["raw_json"] as? String {
-            return displayText(from: wrappedRawJSON)
-        }
-
-        if let text = payload["text"] as? String, !text.isEmpty {
+        if let text = extractVisibleText(from: resolved) {
             return text
         }
 
-        if let message = payload["message"] as? String, !message.isEmpty {
-            return message
-        }
-
-        if let content = payload["content"] as? String, !content.isEmpty {
-            return content
-        }
-
-        if let content = payload["content"] {
-            let fragments = textFragments(from: content)
-            if !fragments.isEmpty {
-                return fragments.joined(separator: "\n")
-            }
-        }
-
-        if let type = payload["type"] as? String,
-           type.lowercased() == "terminal_output",
-           let stream = payload["stream"] as? String,
-           let content = payload["content"] as? String {
+        if let type = messageType(from: resolved),
+           type == "terminal_output",
+           let stream = resolved["stream"] as? String,
+           let content = resolved["content"] as? String {
             return "[\(stream)] \(content)"
         }
 
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+        if let data = try? JSONSerialization.data(withJSONObject: resolved, options: []),
            let compact = String(data: data, encoding: .utf8) {
             return compact
         }
@@ -103,14 +73,14 @@ enum SessionMessagePayloadParser {
             return text.isEmpty ? [] : [.text(text)]
         }
 
-        guard let type = payload["type"] as? String else {
+        guard let type = messageType(from: payload) else {
             return fallbackBlocks(from: plaintext)
         }
 
-        switch type.lowercased() {
+        switch type {
         case "assistant":
             return parseAssistantBlocks(payload)
-        case "user", "user_prompt_command":
+        case "user", "user_prompt_command", "user_confirmation_command", "mcq_response_command":
             return parseUserBlocks(payload)
         case "result":
             return parseResultBlocks(payload)
@@ -121,10 +91,21 @@ enum SessionMessagePayloadParser {
 
     private static func resolvedPayload(from plaintext: String) -> [String: Any]? {
         guard let payload = jsonPayload(from: plaintext) else { return nil }
-        if let wrappedRawJSON = payload["raw_json"] as? String {
-            return jsonPayload(from: wrappedRawJSON) ?? payload
+        return resolvedPayload(from: payload)
+    }
+
+    private static func resolvedPayload(from payload: [String: Any]) -> [String: Any] {
+        var current = payload
+        var depth = 0
+
+        while depth < maxRawJSONDepth,
+              let wrappedRawJSON = current["raw_json"] as? String,
+              let wrappedPayload = jsonPayload(from: wrappedRawJSON) {
+            current = wrappedPayload
+            depth += 1
         }
-        return payload
+
+        return current
     }
 
     private static func parseAssistantBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
@@ -158,7 +139,7 @@ enum SessionMessagePayloadParser {
         var blocks: [SessionContentBlock] = []
         var subAgentIndexByParent: [String: Int] = [:]
         var pendingToolsByParent: [String: [SessionToolUse]] = [:]
-        var pendingToolOrder: [SessionToolUse] = []
+        var pendingParentOrder: [String] = []
         let messageParent = payload["parent_tool_use_id"] as? String
 
         for block in contentBlocks {
@@ -166,8 +147,7 @@ enum SessionMessagePayloadParser {
 
             switch blockType {
             case "text":
-                if let text = block["text"] as? String,
-                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let text = sanitizedText(block["text"] as? String) {
                     blocks.append(.text(text))
                 }
 
@@ -193,25 +173,35 @@ enum SessionMessagePayloadParser {
                     )
 
                     if let pendingTools = pendingToolsByParent.removeValue(forKey: taskId) {
-                        activity.tools.append(contentsOf: pendingTools)
+                        activity.tools = mergeTools(existing: activity.tools, incoming: pendingTools)
                     }
 
-                    blocks.append(.subAgentActivity(activity))
-                    subAgentIndexByParent[taskId] = blocks.count - 1
+                    if let existingIndex = subAgentIndexByParent[taskId],
+                       case .subAgentActivity(let existingActivity) = blocks[existingIndex] {
+                        blocks[existingIndex] = .subAgentActivity(
+                            mergedSubAgentActivity(existing: existingActivity, incoming: activity)
+                        )
+                    } else {
+                        blocks.append(.subAgentActivity(activity))
+                        subAgentIndexByParent[taskId] = blocks.count - 1
+                    }
                     continue
                 }
 
                 if let parentId = parentToolUseId {
                     if let index = subAgentIndexByParent[parentId],
                        case .subAgentActivity(var activity) = blocks[index] {
-                        activity.tools.append(toolUse)
+                        activity.tools = mergeTools(existing: activity.tools, incoming: [toolUse])
                         blocks[index] = .subAgentActivity(activity)
                     } else {
-                        pendingToolsByParent[parentId, default: []].append(toolUse)
-                        pendingToolOrder.append(toolUse)
+                        let existingPending = pendingToolsByParent[parentId, default: []]
+                        pendingToolsByParent[parentId] = mergeTools(existing: existingPending, incoming: [toolUse])
+                        if !pendingParentOrder.contains(parentId) {
+                            pendingParentOrder.append(parentId)
+                        }
                     }
                 } else {
-                    blocks.append(.toolUse(toolUse))
+                    appendOrUpdateStandaloneTool(toolUse, to: &blocks)
                 }
 
             default:
@@ -219,13 +209,10 @@ enum SessionMessagePayloadParser {
             }
         }
 
-        if !pendingToolOrder.isEmpty {
-            for toolUse in pendingToolOrder {
-                guard let parentId = toolUse.parentToolUseId,
-                      pendingToolsByParent[parentId] != nil else {
-                    continue
-                }
-                blocks.append(.toolUse(toolUse))
+        for parentId in pendingParentOrder {
+            guard let pendingTools = pendingToolsByParent[parentId] else { continue }
+            for toolUse in pendingTools {
+                appendOrUpdateStandaloneTool(toolUse, to: &blocks)
             }
         }
 
@@ -248,8 +235,7 @@ enum SessionMessagePayloadParser {
 
     private static func parseUserBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
         // User prompt commands with a direct message string
-        if let message = payload["message"] as? String,
-           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let message = sanitizedText(payload["message"] as? String) {
             return [.text(message)]
         }
 
@@ -265,21 +251,12 @@ enum SessionMessagePayloadParser {
 
             switch blockType {
             case "text":
-                if let text = block["text"] as? String,
-                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let text = sanitizedText(block["text"] as? String) {
                     blocks.append(.text(text))
                 }
             case "tool_result":
-                if let content = block["content"] as? String,
-                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    blocks.append(.text(content))
-                } else if let contentArray = block["content"] as? [[String: Any]] {
-                    for item in contentArray {
-                        if let text = item["text"] as? String,
-                           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            blocks.append(.text(text))
-                        }
-                    }
+                for text in visibleToolResultTextFragments(from: block) {
+                    blocks.append(.text(text))
                 }
             default:
                 break
@@ -291,9 +268,8 @@ enum SessionMessagePayloadParser {
 
     private static func parseResultBlocks(_ payload: [String: Any]) -> [SessionContentBlock] {
         let isError = payload["is_error"] as? Bool ?? false
-        if let result = payload["result"] as? String,
-           !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return isError ? [.error(result)] : [.text(result)]
+        if let result = sanitizedText(payload["result"] as? String) {
+            return isError ? [.error(result)] : []
         }
         return []
     }
@@ -376,7 +352,7 @@ enum SessionMessagePayloadParser {
     // MARK: - Timeline Entry Parsing
 
     private static func buildTimelineEntry(from payload: [String: Any], plaintext: String) -> SessionTimelineEntry? {
-        let type = (payload["type"] as? String)?.lowercased()
+        let type = messageType(from: payload)
 
         switch type {
         case "assistant":
@@ -460,12 +436,19 @@ enum SessionMessagePayloadParser {
 
                 switch blockType {
                 case "text":
-                    if let text = block["text"] as? String,
-                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if let text = sanitizedText(block["text"] as? String) {
                         userTextBlocks.append(.text(text))
                     }
-                case "tool_result", "tool_use":
-                    // Tool result summaries are protocol artifacts; hide them from timeline UI.
+                case "tool_result":
+                    let visibleFragments = visibleToolResultTextFragments(from: block)
+                    if visibleFragments.isEmpty {
+                        sawProtocolArtifact = true
+                    } else {
+                        for fragment in visibleFragments {
+                            userTextBlocks.append(.text(fragment))
+                        }
+                    }
+                case "tool_use":
                     sawProtocolArtifact = true
                 default:
                     if let text = extractVisibleText(from: block),
@@ -514,29 +497,15 @@ enum SessionMessagePayloadParser {
     }
 
     private static func resolvedRole(from payload: [String: Any], fallbackType: String?) -> Message.MessageRole {
-        if let rawRole = payload["role"] as? String,
-           let parsedRole = Message.MessageRole(rawValue: rawRole.lowercased()) {
-            return parsedRole
-        }
-
-        if let message = payload["message"] as? [String: Any],
-           let rawRole = message["role"] as? String,
-           let parsedRole = Message.MessageRole(rawValue: rawRole.lowercased()) {
+        if let parsedRole = explicitRole(from: payload) {
             return parsedRole
         }
 
         if let fallbackType {
-            switch fallbackType.lowercased() {
-            case "user", "user_prompt_command", "user_confirmation_command", "mcq_response_command":
-                return .user
-            case "assistant", "terminal_output":
-                return .assistant
-            default:
-                return .system
-            }
+            return role(forType: fallbackType)
         }
 
-        return .user
+        return .system
     }
 
     private static func timelineContent(from blocks: [SessionContentBlock]) -> String {
@@ -557,27 +526,12 @@ enum SessionMessagePayloadParser {
     }
 
     private static func extractVisibleText(from payload: [String: Any]) -> String? {
-        if let text = payload["text"] as? String {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
+        if let text = sanitizedText(payload["text"] as? String) { return text }
 
-        if let message = payload["message"] as? String {
-            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
+        if let message = sanitizedText(payload["message"] as? String) { return message }
 
         if let message = payload["message"] as? [String: Any] {
-            if let text = message["text"] as? String {
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    return trimmed
-                }
-            }
+            if let text = sanitizedText(message["text"] as? String) { return text }
 
             if let messageContent = message["content"] {
                 let fragments = textFragments(from: messageContent)
@@ -589,12 +543,7 @@ enum SessionMessagePayloadParser {
             }
         }
 
-        if let content = payload["content"] as? String {
-            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
+        if let content = sanitizedText(payload["content"] as? String) { return content }
 
         if let content = payload["content"] {
             let fragments = textFragments(from: content)
@@ -609,6 +558,147 @@ enum SessionMessagePayloadParser {
     }
 
     // MARK: - Private Helpers
+
+    private static func messageType(from payload: [String: Any]) -> String? {
+        guard let type = payload["type"] as? String else { return nil }
+        return type.lowercased()
+    }
+
+    private static func explicitRole(from payload: [String: Any]) -> Message.MessageRole? {
+        if let rawRole = payload["role"] as? String,
+           let parsedRole = Message.MessageRole(rawValue: rawRole.lowercased()) {
+            return parsedRole
+        }
+
+        if let message = payload["message"] as? [String: Any],
+           let rawRole = message["role"] as? String,
+           let parsedRole = Message.MessageRole(rawValue: rawRole.lowercased()) {
+            return parsedRole
+        }
+
+        return nil
+    }
+
+    private static func role(forType type: String) -> Message.MessageRole {
+        switch type.lowercased() {
+        case "user", "user_prompt_command", "user_confirmation_command", "mcq_response_command":
+            return .user
+        case "assistant", "result", "output_chunk", "streaming_thinking", "streaming_generating", "terminal_output":
+            return .assistant
+        default:
+            return .system
+        }
+    }
+
+    private static func sanitizedText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func visibleToolResultTextFragments(from block: [String: Any]) -> [String] {
+        if let content = sanitizedText(block["content"] as? String),
+           !looksLikeProtocolArtifact(content) {
+            return [content]
+        }
+
+        if let contentArray = block["content"] as? [[String: Any]] {
+            return contentArray.compactMap { item in
+                guard let text = sanitizedText(item["text"] as? String),
+                      !looksLikeProtocolArtifact(text) else {
+                    return nil
+                }
+                return text
+            }
+        }
+
+        return []
+    }
+
+    private static func looksLikeProtocolArtifact(_ text: String) -> Bool {
+        guard text.hasPrefix("{"), text.hasSuffix("}"),
+              let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = (json["type"] as? String)?.lowercased() else {
+            return false
+        }
+
+        return protocolTypes.contains(type)
+    }
+
+    private static func appendOrUpdateStandaloneTool(_ toolUse: SessionToolUse, to blocks: inout [SessionContentBlock]) {
+        let key = toolDedupKey(for: toolUse)
+        if let existingIndex = blocks.firstIndex(where: { block in
+            guard case .toolUse(let existingTool) = block else { return false }
+            return toolDedupKey(for: existingTool) == key
+        }) {
+            blocks[existingIndex] = .toolUse(toolUse)
+        } else {
+            blocks.append(.toolUse(toolUse))
+        }
+    }
+
+    private static func mergedSubAgentActivity(
+        existing: SessionSubAgentActivity,
+        incoming: SessionSubAgentActivity
+    ) -> SessionSubAgentActivity {
+        SessionSubAgentActivity(
+            id: existing.id,
+            parentToolUseId: existing.parentToolUseId,
+            subagentType: mergedSubagentType(existing: existing.subagentType, incoming: incoming.subagentType),
+            description: mergedDescription(existing: existing.description, incoming: incoming.description),
+            tools: mergeTools(existing: existing.tools, incoming: incoming.tools)
+        )
+    }
+
+    private static func mergedDescription(existing: String, incoming: String) -> String {
+        guard sanitizedText(incoming) != nil else { return existing }
+        return incoming
+    }
+
+    private static func mergedSubagentType(existing: String, incoming: String) -> String {
+        if isPlaceholderSubagentType(existing), !isPlaceholderSubagentType(incoming) {
+            return incoming
+        }
+        return existing
+    }
+
+    private static func isPlaceholderSubagentType(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
+            || normalized == "general purpose" || normalized == "general"
+    }
+
+    private static func mergeTools(existing: [SessionToolUse], incoming: [SessionToolUse]) -> [SessionToolUse] {
+        guard !incoming.isEmpty else { return existing }
+
+        var merged = existing
+        var indexByKey: [String: Int] = [:]
+
+        for (index, tool) in existing.enumerated() {
+            indexByKey[toolDedupKey(for: tool)] = index
+        }
+
+        for tool in incoming {
+            let key = toolDedupKey(for: tool)
+            if let existingIndex = indexByKey[key] {
+                merged[existingIndex] = tool
+            } else {
+                indexByKey[key] = merged.count
+                merged.append(tool)
+            }
+        }
+
+        return merged
+    }
+
+    private static func toolDedupKey(for tool: SessionToolUse) -> String {
+        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
+            return "id:\(toolUseId)"
+        }
+
+        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
+    }
 
     private static func jsonPayload(from plaintext: String) -> [String: Any]? {
         guard let data = plaintext.data(using: .utf8),

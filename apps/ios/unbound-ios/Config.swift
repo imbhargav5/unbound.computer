@@ -69,7 +69,7 @@ enum Config {
     static let daemonPresenceEventName = "daemon.presence.v1"
 
     static func daemonPresenceChannel(userId: String) -> String {
-        "session:presence:\(userId):conversation"
+        "presence:\(userId)"
     }
 
     // MARK: - Ably Conversation

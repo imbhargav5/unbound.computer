@@ -49,6 +49,12 @@ Optional arguments:
   "unbound-ios/Resources/PreviewFixtures/session-detail-max-messages.json"
 ```
 
+## Session Detail Parser Contract
+
+Parser/mapper/realtime behavior matrix, fixture parity workflow, and component preview expectations are documented in:
+
+- `unbound-ios/Services/SessionDetail/PARSER_CONTRACT.md`
+
 ## Bundle Configuration
 
 ### Main App

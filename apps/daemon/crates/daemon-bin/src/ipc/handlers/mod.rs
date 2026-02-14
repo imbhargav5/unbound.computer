@@ -3,6 +3,7 @@
 //! Each handler module contains thin handlers that compose the appropriate
 //! store, store_stream, and machines modules.
 
+pub mod billing;
 pub mod claude;
 pub mod gh;
 pub mod git;

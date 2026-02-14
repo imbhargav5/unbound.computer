@@ -100,4 +100,105 @@ final class SessionDetailMessageMapperTests: XCTestCase {
         XCTAssertEqual(activity.tools.first?.toolUseId, "tool_read")
         XCTAssertEqual(activity.tools.first?.summary, "Read docs/README.md")
     }
+
+    func testMapRowsHandlesNestedRawJsonAndResultVisibilityRules() {
+        let wrappedAssistant = #"{"raw_json":"{\"raw_json\":\"{\\\"type\\\":\\\"assistant\\\",\\\"message\\\":{\\\"role\\\":\\\"assistant\\\",\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"nested assistant\\\"}]}}\"}"}"#
+        let wrappedSuccessResult = #"{"raw_json":"{\"type\":\"result\",\"is_error\":false,\"result\":\"ok\"}"}"#
+        let wrappedErrorResult = #"{"raw_json":"{\"type\":\"result\",\"is_error\":true,\"result\":\"boom\"}"}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: wrappedAssistant
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 2,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: wrappedSuccessResult
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 3,
+                createdAt: Date(timeIntervalSince1970: 30),
+                content: wrappedErrorResult
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows, totalMessageCount: rows.count)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.count, 2)
+        XCTAssertEqual(result.messages.first?.role, .assistant)
+        XCTAssertEqual(result.messages.first?.content, "nested assistant")
+        XCTAssertEqual(result.messages.last?.role, .system)
+        XCTAssertEqual(result.messages.last?.content, "boom")
+    }
+
+    func testMapRowsDeduplicatesDuplicateMessageIdsWithLatestWriteWins() {
+        let olderPayload = #"{"role":"assistant","content":"older content"}"#
+        let newerPayload = #"{"role":"assistant","content":"newer content"}"#
+        let trailingPayload = #"{"role":"assistant","content":"trailing content"}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: "dup-1",
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: olderPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: "tail-2",
+                sequenceNumber: 2,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: trailingPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: "dup-1",
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 30),
+                content: newerPayload
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows)
+
+        XCTAssertEqual(result.decryptedMessageCount, 2)
+        XCTAssertEqual(result.messages.map(\.content), ["newer content", "trailing content"])
+        XCTAssertEqual(result.messages.map(\.role), [.assistant, .assistant])
+    }
+
+    func testMapRowsSortsSequenceTiesByCreatedAtThenRowId() {
+        let earlyPayload = #"{"role":"assistant","content":"first"}"#
+        let middlePayload = #"{"role":"assistant","content":"second"}"#
+        let latePayload = #"{"role":"assistant","content":"third"}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: "row-c",
+                sequenceNumber: 42,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: latePayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: "row-b",
+                sequenceNumber: 42,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: middlePayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: "row-a",
+                sequenceNumber: 42,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: earlyPayload
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows, totalMessageCount: rows.count)
+
+        XCTAssertEqual(result.decryptedMessageCount, 3)
+        XCTAssertEqual(result.messages.map(\.content), ["first", "second", "third"])
+    }
 }

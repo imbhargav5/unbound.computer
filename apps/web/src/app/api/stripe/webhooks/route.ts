@@ -1,7 +1,10 @@
 // src/app/api/stripe/webhooks/route.ts
 
 import { type NextRequest, NextResponse } from "next/server";
-import { StripePaymentGateway } from "@/payments/stripe-payment-gateway";
+import {
+  StripePaymentGateway,
+  StripeWebhookProcessingError,
+} from "@/payments/stripe-payment-gateway";
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
@@ -16,9 +19,29 @@ export async function POST(req: NextRequest) {
   try {
     await stripeGateway.gateway.handleGatewayWebhook(Buffer.from(body), sig);
     return NextResponse.json({ received: true }, { status: 200 });
-  } catch (err) {
-    console.error("Error processing webhook:", err);
-    return NextResponse.json({ error: "Webhook error" }, { status: 400 });
+  } catch (error) {
+    const normalizedError =
+      error instanceof StripeWebhookProcessingError
+        ? error
+        : new StripeWebhookProcessingError(
+            "Webhook processing failed",
+            500,
+            undefined,
+            undefined,
+            error
+          );
+
+    console.error("Error processing Stripe webhook", {
+      message: normalizedError.message,
+      statusCode: normalizedError.statusCode,
+      eventId: normalizedError.eventId,
+      eventType: normalizedError.eventType,
+    });
+
+    return NextResponse.json(
+      { error: normalizedError.message },
+      { status: normalizedError.statusCode }
+    );
   }
 }
 

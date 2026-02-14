@@ -1,4 +1,4 @@
-use crate::app::DaemonState;
+use crate::app::{BillingQuotaSnapshot, DaemonState};
 use crate::itachi::channels::build_session_secrets_channel;
 use crate::itachi::contracts::{
     DecisionResultPayload, RemoteCommandEnvelope, RemoteCommandResponse,
@@ -17,12 +17,15 @@ use std::path::Path;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, sleep, Duration};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 const NONCE_SIZE: usize = 12;
 const MIN_CIPHERTEXT_WITH_TAG_SIZE: usize = 16;
+const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
+const BILLING_USAGE_REFRESH_INTERVAL_SECS: u64 = 300;
+const BILLING_USAGE_STALE_AFTER_MS: i64 = 5 * 60 * 1000;
 
 const FALCO_TYPE_SIDE_EFFECT: u8 = 0x03;
 const FALCO_TYPE_PUBLISH_ACK: u8 = 0x04;
@@ -33,6 +36,21 @@ const FALCO_PUBLISH_ACK_HEADER_SIZE: usize = 24;
 
 const FALCO_RETRY_ATTEMPTS: usize = 3;
 const FALCO_BACKOFF_BASE_MS: u64 = 200;
+type RemoteCommandDispatchError = (String, String, Option<serde_json::Value>);
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BillingUsageStatusPayload {
+    plan: String,
+    gateway: String,
+    period_start: String,
+    period_end: String,
+    commands_limit: i64,
+    commands_used: i64,
+    commands_remaining: i64,
+    enforcement_state: String,
+    updated_at: String,
+}
 
 pub struct DecisionOutcome {
     pub decision: DecisionKind,
@@ -60,6 +78,16 @@ pub async fn handle_remote_command_payload(state: DaemonState, payload: &[u8]) -
 
     let effects = handle_remote_command(payload, &deps);
     evaluate_effects(state, effects).await
+}
+
+pub fn spawn_billing_quota_refresh_loop(state: DaemonState) {
+    tokio::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(BILLING_USAGE_REFRESH_INTERVAL_SECS));
+        loop {
+            ticker.tick().await;
+            refresh_billing_usage_cache(&state, "periodic").await;
+        }
+    });
 }
 
 async fn evaluate_effects(state: DaemonState, effects: Vec<Effect>) -> DecisionOutcome {
@@ -187,6 +215,30 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
         "Executing remote command"
     );
 
+    if should_reject_for_cached_over_quota(&state) {
+        info!(
+            request_id = %envelope.request_id,
+            command_type = %envelope.command_type,
+            "Rejecting remote command due to cached over_quota status"
+        );
+        let response = RemoteCommandResponse::error(
+            envelope.request_id.clone(),
+            envelope.command_type.clone(),
+            "quota_exceeded",
+            "remote command quota exceeded",
+        );
+        if let Err(err) = publish_remote_command_response(&state, &response).await {
+            warn!(
+                request_id = %envelope.request_id,
+                command_type = %envelope.command_type,
+                error = %err,
+                "Failed to publish quota-exceeded remote command response"
+            );
+        }
+        schedule_quota_refresh(state, "post_command_over_quota");
+        return;
+    }
+
     let result = dispatch_command(&state, &envelope).await;
 
     let response = match result {
@@ -195,11 +247,12 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
             envelope.command_type.clone(),
             value,
         ),
-        Err((error_code, error_message)) => RemoteCommandResponse::error(
+        Err((error_code, error_message, error_data)) => RemoteCommandResponse::error_with_data(
             envelope.request_id.clone(),
             envelope.command_type.clone(),
             error_code,
             error_message,
+            error_data,
         ),
     };
 
@@ -211,54 +264,276 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
             "Failed to publish remote command response"
         );
     }
+
+    schedule_usage_event_and_refresh(
+        state,
+        envelope.request_id.clone(),
+        envelope.command_type.clone(),
+    );
+}
+
+fn schedule_quota_refresh(state: DaemonState, reason: &'static str) {
+    tokio::spawn(async move {
+        refresh_billing_usage_cache(&state, reason).await;
+    });
+}
+
+fn schedule_usage_event_and_refresh(state: DaemonState, request_id: String, command_type: String) {
+    tokio::spawn(async move {
+        if let Err(err) = emit_usage_event(&state, &request_id).await {
+            warn!(
+                request_id = %request_id,
+                command_type = %command_type,
+                error = %err,
+                "Failed to emit remote command billing usage event"
+            );
+        }
+        refresh_billing_usage_cache(&state, "post_command").await;
+    });
+}
+
+fn should_reject_for_cached_over_quota(state: &DaemonState) -> bool {
+    let sync_context = match state.auth_runtime.current_sync_context() {
+        Ok(Some(sync_context)) => sync_context,
+        Ok(None) => return false,
+        Err(err) => {
+            debug!(error = %err, "Quota gate skipped: auth context unavailable");
+            return false;
+        }
+    };
+
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let guard = state.billing_quota_cache.lock().unwrap();
+    let Some(snapshot) = guard.snapshot.as_ref() else {
+        return false;
+    };
+
+    if snapshot.user_id != sync_context.user_id || snapshot.device_id != sync_context.device_id {
+        return false;
+    }
+
+    should_enforce_over_quota(Some(snapshot), now_ms)
+}
+
+fn should_enforce_over_quota(snapshot: Option<&BillingQuotaSnapshot>, now_ms: i64) -> bool {
+    let Some(snapshot) = snapshot else {
+        return false;
+    };
+    if snapshot.enforcement_state != "over_quota" {
+        return false;
+    }
+    if now_ms - snapshot.fetched_at_ms > BILLING_USAGE_STALE_AFTER_MS {
+        return false;
+    }
+    true
+}
+
+async fn refresh_billing_usage_cache(state: &DaemonState, reason: &str) {
+    if !begin_cache_refresh(state) {
+        return;
+    }
+
+    let result = fetch_usage_status_snapshot(state).await;
+    let mut guard = state.billing_quota_cache.lock().unwrap();
+    guard.refresh_in_flight = false;
+
+    match result {
+        Ok(Some(snapshot)) => {
+            debug!(
+                reason,
+                plan = %snapshot.plan,
+                gateway = %snapshot.gateway,
+                enforcement_state = %snapshot.enforcement_state,
+                commands_limit = snapshot.commands_limit,
+                commands_used = snapshot.commands_used,
+                commands_remaining = snapshot.commands_remaining,
+                updated_at = %snapshot.updated_at,
+                "Updated billing quota cache snapshot"
+            );
+            guard.snapshot = Some(snapshot);
+        }
+        Ok(None) => {
+            guard.snapshot = None;
+        }
+        Err(err) => {
+            warn!(reason, error = %err, "Failed to refresh billing quota cache");
+        }
+    }
+}
+
+fn begin_cache_refresh(state: &DaemonState) -> bool {
+    let mut guard = state.billing_quota_cache.lock().unwrap();
+    if guard.refresh_in_flight {
+        return false;
+    }
+    guard.refresh_in_flight = true;
+    true
+}
+
+async fn fetch_usage_status_snapshot(
+    state: &DaemonState,
+) -> Result<Option<BillingQuotaSnapshot>, String> {
+    let sync_context = match state.auth_runtime.current_sync_context() {
+        Ok(Some(sync_context)) => sync_context,
+        Ok(None) => return Ok(None),
+        Err(err) => return Err(format!("failed to get auth sync context: {err}")),
+    };
+
+    let (access_token, _) = state
+        .auth_runtime
+        .session_manager()
+        .get_valid_token()
+        .await
+        .map_err(|err| format!("failed to obtain valid access token: {err}"))?;
+
+    let endpoint = format!(
+        "{}/api/v1/mobile/billing/usage-status?deviceId={}",
+        resolve_web_app_url(),
+        urlencoding::encode(&sync_context.device_id)
+    );
+
+    let response = reqwest::Client::new()
+        .get(endpoint)
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .map_err(|err| format!("failed to call billing usage-status endpoint: {err}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!(
+            "billing usage-status endpoint returned HTTP {}: {}",
+            status.as_u16(),
+            body
+        ));
+    }
+
+    let payload: BillingUsageStatusPayload = response
+        .json()
+        .await
+        .map_err(|err| format!("invalid billing usage-status payload: {err}"))?;
+
+    Ok(Some(BillingQuotaSnapshot {
+        user_id: sync_context.user_id,
+        device_id: sync_context.device_id,
+        plan: payload.plan,
+        gateway: payload.gateway,
+        period_start: payload.period_start,
+        period_end: payload.period_end,
+        enforcement_state: payload.enforcement_state,
+        commands_limit: payload.commands_limit,
+        commands_used: payload.commands_used,
+        commands_remaining: payload.commands_remaining,
+        updated_at: payload.updated_at,
+        fetched_at_ms: chrono::Utc::now().timestamp_millis(),
+    }))
+}
+
+async fn emit_usage_event(state: &DaemonState, request_id: &str) -> Result<(), String> {
+    let sync_context = match state.auth_runtime.current_sync_context() {
+        Ok(Some(sync_context)) => sync_context,
+        Ok(None) => return Ok(()),
+        Err(err) => return Err(format!("failed to get auth sync context: {err}")),
+    };
+
+    let (access_token, _) = state
+        .auth_runtime
+        .session_manager()
+        .get_valid_token()
+        .await
+        .map_err(|err| format!("failed to obtain valid access token: {err}"))?;
+
+    let endpoint = format!(
+        "{}/api/v1/mobile/billing/usage-events",
+        resolve_web_app_url()
+    );
+    let response = reqwest::Client::new()
+        .post(endpoint)
+        .bearer_auth(access_token)
+        .json(&serde_json::json!({
+            "deviceId": sync_context.device_id,
+            "requestId": request_id,
+            "usageType": "remote_commands",
+            "quantity": 1,
+            "occurredAt": chrono::Utc::now().to_rfc3339(),
+        }))
+        .send()
+        .await
+        .map_err(|err| format!("failed to call billing usage-events endpoint: {err}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!(
+            "billing usage-events endpoint returned HTTP {}: {}",
+            status.as_u16(),
+            body
+        ));
+    }
+
+    Ok(())
+}
+
+fn resolve_web_app_url() -> String {
+    std::env::var("UNBOUND_WEB_APP_URL")
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_WEB_APP_URL.to_string())
 }
 
 /// Dispatch a remote command to the appropriate handler function.
-/// Returns Ok(result_json) or Err((error_code, error_message)).
+/// Returns Ok(result_json) or Err((error_code, error_message, error_data)).
 async fn dispatch_command(
     state: &DaemonState,
     envelope: &RemoteCommandEnvelope,
-) -> Result<serde_json::Value, (String, String)> {
+) -> Result<serde_json::Value, RemoteCommandDispatchError> {
     match classify_remote_command_type(&envelope.command_type) {
         Some(RemoteCommandType::SessionCreateV1) => {
             crate::ipc::handlers::session::create_session_core(state, &envelope.params)
                 .await
-                .map_err(|err| err.into_pair())
+                .map_err(|err| err.into_response_parts())
         }
         Some(RemoteCommandType::ClaudeSendV1) => {
-            crate::ipc::handlers::claude::claude_send_core(state, &envelope.params).await
+            crate::ipc::handlers::claude::claude_send_core(state, &envelope.params)
+                .await
+                .map_err(|(code, message)| (code, message, None))
         }
         Some(RemoteCommandType::ClaudeStopV1) => {
-            crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
+            crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params)
+                .await
+                .map_err(|(code, message)| (code, message, None))
         }
         Some(RemoteCommandType::GhPrCreateV1) => {
             crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrViewV1) => {
             crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrListV1) => {
             crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrChecksV1) => {
             crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrMergeV1) => {
             crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         None => Err((
             "unsupported_command_type".to_string(),
             format!("command type {} is not supported", envelope.command_type),
+            None,
         )),
     }
 }
@@ -631,9 +906,10 @@ fn parse_publish_ack(data: &[u8]) -> Result<PublishAckFrame, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_remote_command_type, idempotency_key, parse_publish_ack, RemoteCommandType,
-        FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
+        classify_remote_command_type, idempotency_key, parse_publish_ack,
+        should_enforce_over_quota, RemoteCommandType, FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
     };
+    use crate::app::BillingQuotaSnapshot;
     use crate::itachi::contracts::UmSecretRequestCommand;
     use uuid::Uuid;
 
@@ -704,5 +980,65 @@ mod tests {
             Some(RemoteCommandType::GhPrMergeV1)
         );
         assert_eq!(classify_remote_command_type("gh.pr.unknown.v1"), None);
+    }
+
+    #[test]
+    fn quota_gate_blocks_when_snapshot_is_fresh_and_over_quota() {
+        let snapshot = BillingQuotaSnapshot {
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
+            enforcement_state: "over_quota".to_string(),
+            commands_limit: 100,
+            commands_used: 100,
+            commands_remaining: 0,
+            updated_at: "2026-02-13T00:00:00Z".to_string(),
+            fetched_at_ms: 1_000,
+        };
+        assert!(should_enforce_over_quota(Some(&snapshot), 1_000));
+    }
+
+    #[test]
+    fn quota_gate_allows_when_snapshot_is_stale() {
+        let snapshot = BillingQuotaSnapshot {
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
+            enforcement_state: "over_quota".to_string(),
+            commands_limit: 100,
+            commands_used: 100,
+            commands_remaining: 0,
+            updated_at: "2026-02-13T00:00:00Z".to_string(),
+            fetched_at_ms: 1_000,
+        };
+        assert!(!should_enforce_over_quota(
+            Some(&snapshot),
+            1_000 + (5 * 60 * 1000) + 1
+        ));
+    }
+
+    #[test]
+    fn quota_gate_allows_when_not_over_quota() {
+        let snapshot = BillingQuotaSnapshot {
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            plan: "free".to_string(),
+            gateway: "stripe".to_string(),
+            period_start: "2026-02-01T00:00:00Z".to_string(),
+            period_end: "2026-03-01T00:00:00Z".to_string(),
+            enforcement_state: "ok".to_string(),
+            commands_limit: 100,
+            commands_used: 12,
+            commands_remaining: 88,
+            updated_at: "2026-02-13T00:00:00Z".to_string(),
+            fetched_at_ms: 1_000,
+        };
+        assert!(!should_enforce_over_quota(Some(&snapshot), 2_000));
     }
 }

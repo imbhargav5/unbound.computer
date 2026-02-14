@@ -15,10 +15,34 @@ use levi::SessionSyncService;
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{broadcast, oneshot, RwLock};
+use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
 use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
+
+/// Cached billing usage-status snapshot for relaxed local quota enforcement.
+#[derive(Debug, Clone)]
+pub struct BillingQuotaSnapshot {
+    pub user_id: String,
+    pub device_id: String,
+    pub plan: String,
+    pub gateway: String,
+    pub period_start: String,
+    pub period_end: String,
+    pub enforcement_state: String,
+    pub commands_limit: i64,
+    pub commands_used: i64,
+    pub commands_remaining: i64,
+    pub updated_at: String,
+    pub fetched_at_ms: i64,
+}
+
+/// Mutable quota cache state used by background refresh workers.
+#[derive(Debug, Clone, Default)]
+pub struct BillingQuotaCacheState {
+    pub snapshot: Option<BillingQuotaSnapshot>,
+    pub refresh_in_flight: bool,
+}
 
 /// Shared daemon state (thread-safe).
 #[derive(Clone)]
@@ -73,6 +97,12 @@ pub struct DaemonState {
     pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// Join handle for Nagato socket listener task.
     pub nagato_server_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
+    /// Shutdown signal sender for the sidecar supervisor task.
+    pub sidecar_supervisor_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    /// Join handle for sidecar supervisor task.
+    pub sidecar_supervisor_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
+    /// Serializes sidecar start/stop/restart transitions across login and supervisor flows.
+    pub sidecar_lifecycle_lock: Arc<TokioMutex<()>>,
     /// Token used by Nagato sidecar when requesting Ably token details.
     pub ably_broker_nagato_token: String,
     /// Token used by Falco sidecar when requesting Ably token details.
@@ -85,4 +115,6 @@ pub struct DaemonState {
     pub armin: Arc<DaemonArmin>,
     /// Rope-backed secure file reader/writer service.
     pub gyomei: Arc<Gyomei>,
+    /// Local cached billing usage status used by itachi quota gate.
+    pub billing_quota_cache: Arc<Mutex<BillingQuotaCacheState>>,
 }
