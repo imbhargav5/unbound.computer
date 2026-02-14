@@ -187,6 +187,7 @@ impl SupabaseClient {
         device_type: &str,
         device_name: &str,
         public_key: &str,
+        capabilities: Option<serde_json::Value>,
         access_token: &str,
     ) -> AuthResult<()> {
         let url = self.rest_url("devices");
@@ -194,7 +195,7 @@ impl SupabaseClient {
         // Get current timestamp in ISO8601 format
         let now = chrono::Utc::now().to_rfc3339();
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "id": device_id,
             "user_id": user_id,
             "device_type": device_type,
@@ -206,6 +207,12 @@ impl SupabaseClient {
             "is_trusted": false,  // New devices are not trusted by default
             "has_seen_trust_prompt": false
         });
+
+        if let Some(capabilities) = capabilities {
+            if let Some(body_obj) = body.as_object_mut() {
+                body_obj.insert("capabilities".to_string(), capabilities);
+            }
+        }
 
         tracing::debug!("Upserting device {} in Supabase", device_id);
 
@@ -232,6 +239,53 @@ impl SupabaseClient {
         }
 
         tracing::info!("Device {} registered/updated in Supabase", device_id);
+        Ok(())
+    }
+
+    /// Update capabilities for an existing device.
+    pub async fn update_device_capabilities(
+        &self,
+        device_id: &str,
+        capabilities: serde_json::Value,
+        access_token: &str,
+    ) -> AuthResult<()> {
+        let url = format!("{}?id=eq.{}", self.rest_url("devices"), device_id);
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let body = serde_json::json!({
+            "capabilities": capabilities,
+            "last_seen_at": now,
+        });
+
+        tracing::debug!("Updating device {} capabilities in Supabase", device_id);
+
+        let response = self
+            .http_client
+            .patch(&url)
+            .header("apikey", &self.anon_key)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=minimal")
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            let body_summary = summarize_response_body(&body);
+            tracing::error!(
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to update device capabilities"
+            );
+            return Err(AuthError::OAuth(format!(
+                "Failed to update device capabilities: {} ({})",
+                status, body_summary
+            )));
+        }
+
+        tracing::info!("Device {} capabilities refreshed in Supabase", device_id);
         Ok(())
     }
 

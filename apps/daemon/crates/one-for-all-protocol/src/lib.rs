@@ -120,6 +120,8 @@ pub enum Method {
     // System operations
     #[serde(rename = "system.check_dependencies")]
     SystemCheckDependencies,
+    #[serde(rename = "system.refresh_capabilities")]
+    SystemRefreshCapabilities,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]
@@ -417,6 +419,10 @@ mod tests {
                 Method::SystemCheckDependencies,
                 "\"system.check_dependencies\"",
             ),
+            (
+                Method::SystemRefreshCapabilities,
+                "\"system.refresh_capabilities\"",
+            ),
             (Method::TerminalRun, "\"terminal.run\""),
             (Method::TerminalStatus, "\"terminal.status\""),
             (Method::TerminalStop, "\"terminal.stop\""),
@@ -476,6 +482,7 @@ mod tests {
             Method::GhPrChecks,
             Method::GhPrMerge,
             Method::SystemCheckDependencies,
+            Method::SystemRefreshCapabilities,
             Method::TerminalRun,
             Method::TerminalStatus,
             Method::TerminalStop,

@@ -133,7 +133,12 @@ pub async fn run_daemon(
     // If the user is already signed in, verify the session is still valid
     // and refresh if needed. If refresh fails, clean up the session.
     match auth_runtime.validate_session_on_startup().await {
-        Ok(true) => info!("Existing session validated successfully"),
+        Ok(true) => {
+            info!("Existing session validated successfully");
+            if let Err(error) = auth_runtime.refresh_device_capabilities().await {
+                warn!("Failed to refresh device capabilities on startup: {}", error);
+            }
+        }
         Ok(false) => info!("No existing session to validate"),
         Err(e) => warn!(
             "Session validation failed, user will need to re-authenticate: {}",

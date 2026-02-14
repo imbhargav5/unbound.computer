@@ -19,7 +19,7 @@ pub async fn register_handlers(server: &IpcServer, state: DaemonState) {
     handlers::terminal::register(server, state.clone()).await;
     handlers::git::register(server, state.clone()).await;
     handlers::gh::register(server, state.clone()).await;
-    handlers::system::register(server).await;
+    handlers::system::register(server, state.clone()).await;
 
     // Note: Socket-based subscriptions are deprecated. Clients should use
     // IpcClient::subscribe() which opens shared memory directly for low-latency
