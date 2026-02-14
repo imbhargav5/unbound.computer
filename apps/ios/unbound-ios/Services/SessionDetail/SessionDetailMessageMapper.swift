@@ -35,16 +35,19 @@ enum SessionDetailMessageMapper {
         _ rows: [SessionDetailPlaintextMessageRow],
         totalMessageCount: Int? = nil
     ) -> SessionDetailLoadResult {
-        var mapped: [(sequenceNumber: Int, message: Message)] = []
-        mapped.reserveCapacity(rows.count)
+        let normalizedRows = deduplicatedAndSortedRows(rows)
+        var mapped: [(sequenceNumber: Int, createdAt: Date?, rowID: String, message: Message)] = []
+        mapped.reserveCapacity(normalizedRows.count)
 
-        for row in rows {
+        for row in normalizedRows {
             guard let entry = SessionMessagePayloadParser.timelineEntry(from: row.content) else {
                 continue
             }
 
             mapped.append((
                 sequenceNumber: row.sequenceNumber,
+                createdAt: row.createdAt,
+                rowID: row.id,
                 message: Message(
                     id: row.stableUUID,
                     content: entry.content,
@@ -57,14 +60,84 @@ enum SessionDetailMessageMapper {
         }
 
         let sortedMessages = mapped
-            .sorted { lhs, rhs in lhs.sequenceNumber < rhs.sequenceNumber }
+            .sorted { lhs, rhs in
+                if lhs.sequenceNumber != rhs.sequenceNumber {
+                    return lhs.sequenceNumber < rhs.sequenceNumber
+                }
+
+                let lhsDate = lhs.createdAt ?? .distantPast
+                let rhsDate = rhs.createdAt ?? .distantPast
+                if lhsDate != rhsDate {
+                    return lhsDate < rhsDate
+                }
+
+                return lhs.rowID < rhs.rowID
+            }
             .map(\.message)
         let groupedMessages = groupSubAgentTools(messages: sortedMessages)
 
         return SessionDetailLoadResult(
             messages: groupedMessages,
-            decryptedMessageCount: totalMessageCount ?? rows.count
+            decryptedMessageCount: totalMessageCount ?? normalizedRows.count
         )
+    }
+
+    private static func deduplicatedAndSortedRows(
+        _ rows: [SessionDetailPlaintextMessageRow]
+    ) -> [SessionDetailPlaintextMessageRow] {
+        guard rows.count > 1 else { return rows }
+
+        var latestByID: [String: IndexedPlaintextRow] = [:]
+
+        for (index, row) in rows.enumerated() {
+            let candidate = IndexedPlaintextRow(row: row, index: index)
+            guard let existing = latestByID[row.id] else {
+                latestByID[row.id] = candidate
+                continue
+            }
+
+            if shouldPrefer(candidate, over: existing) {
+                latestByID[row.id] = candidate
+            }
+        }
+
+        return latestByID.values
+            .map(\.row)
+            .sorted(by: isEarlierTimelineRow)
+    }
+
+    private static func shouldPrefer(
+        _ candidate: IndexedPlaintextRow,
+        over existing: IndexedPlaintextRow
+    ) -> Bool {
+        if candidate.row.sequenceNumber != existing.row.sequenceNumber {
+            return candidate.row.sequenceNumber > existing.row.sequenceNumber
+        }
+
+        let candidateDate = candidate.row.createdAt ?? .distantPast
+        let existingDate = existing.row.createdAt ?? .distantPast
+        if candidateDate != existingDate {
+            return candidateDate > existingDate
+        }
+
+        return candidate.index > existing.index
+    }
+
+    private static func isEarlierTimelineRow(
+        lhs: SessionDetailPlaintextMessageRow,
+        rhs: SessionDetailPlaintextMessageRow
+    ) -> Bool {
+        if lhs.sequenceNumber != rhs.sequenceNumber {
+            return lhs.sequenceNumber < rhs.sequenceNumber
+        }
+
+        let lhsDate = lhs.createdAt ?? .distantPast
+        let rhsDate = rhs.createdAt ?? .distantPast
+        if lhsDate != rhsDate {
+            return lhsDate < rhsDate
+        }
+
+        return lhs.id < rhs.id
     }
 
     private static func groupSubAgentTools(messages: [Message]) -> [Message] {
@@ -323,4 +396,9 @@ enum SessionDetailMessageMapper {
 private struct GroupAnchor {
     let messageIndex: Int
     let blockIndex: Int
+}
+
+private struct IndexedPlaintextRow {
+    let row: SessionDetailPlaintextMessageRow
+    let index: Int
 }
