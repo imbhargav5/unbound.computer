@@ -136,7 +136,10 @@ fn read_config_root(repo_path: &Path) -> Result<Map<String, Value>, String> {
         .ok_or_else(|| format!("config root at {} must be a JSON object", path.display()))
 }
 
-fn extract_managed_config(root: &Map<String, Value>, default_worktree_root_dir: &str) -> RepositoryConfig {
+fn extract_managed_config(
+    root: &Map<String, Value>,
+    default_worktree_root_dir: &str,
+) -> RepositoryConfig {
     let schema_version = root
         .get("schema_version")
         .and_then(Value::as_u64)
@@ -351,7 +354,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(updated.worktree.root_dir, default_root);
-        assert_eq!(updated.worktree.default_base_branch, Some("main".to_string()));
+        assert_eq!(
+            updated.worktree.default_base_branch,
+            Some("main".to_string())
+        );
         assert_eq!(
             updated.setup_hooks.pre_create.command,
             Some("echo pre".to_string())
