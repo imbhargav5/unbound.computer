@@ -7,9 +7,11 @@ use crate::{AuthError, AuthResult, AuthSnapshot, SessionManager, SupabaseClient}
 use base64::Engine;
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use serde::Deserialize;
+use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::{info, warn};
+use tien::collect_capabilities;
 use uuid::Uuid;
 
 const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";
@@ -277,6 +279,32 @@ impl DaemonAuthRuntime {
         }))
     }
 
+    /// Refresh the current device capabilities in Supabase.
+    pub async fn refresh_device_capabilities(&self) -> AuthResult<Option<Value>> {
+        let sync_context = match self.current_sync_context()? {
+            Some(context) => context,
+            None => return Ok(None),
+        };
+
+        let capabilities = match collect_capabilities().await {
+            Ok(capabilities) => serde_json::to_value(capabilities)?,
+            Err(error) => {
+                warn!("Capability collection failed: {}", error);
+                return Ok(None);
+            }
+        };
+
+        self.supabase_client
+            .update_device_capabilities(
+                &sync_context.device_id,
+                capabilities.clone(),
+                &sync_context.access_token,
+            )
+            .await?;
+
+        Ok(Some(capabilities))
+    }
+
     /// Expose the underlying session manager for advanced callers.
     pub fn session_manager(&self) -> Arc<SessionManager> {
         self.session_manager.clone()
@@ -345,6 +373,7 @@ impl DaemonAuthRuntime {
                 device_type,
                 device_name,
                 &public_key_b64,
+                self.collect_capabilities_payload().await,
                 access_token,
             )
             .await
@@ -367,6 +396,22 @@ impl DaemonAuthRuntime {
             device_private_key: private_key_arr,
             db_encryption_key,
         })
+    }
+
+    async fn collect_capabilities_payload(&self) -> Option<Value> {
+        match collect_capabilities().await {
+            Ok(capabilities) => match serde_json::to_value(capabilities) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    warn!("Failed to serialize capabilities payload: {}", error);
+                    None
+                }
+            },
+            Err(error) => {
+                warn!("Capability collection failed: {}", error);
+                None
+            }
+        }
     }
 }
 
