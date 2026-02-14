@@ -16,6 +16,7 @@
 //! |----------|-------------|
 //! | [`check_dependency`] | Check if a single dependency is installed |
 //! | [`check_all`] | Check all required dependencies concurrently |
+//! | [`collect_capabilities`] | Collect the canonical capabilities payload |
 //!
 //! ## Example Usage
 //!
@@ -38,5 +39,8 @@ mod operations;
 mod types;
 
 pub use error::TienError;
-pub use operations::{check_all, check_dependency};
-pub use types::{DependencyCheckResult, DependencyInfo};
+pub use operations::{check_all, check_dependency, collect_capabilities};
+pub use types::{
+    Capabilities, CapabilitiesMetadata, CliCapabilities, DependencyCheckResult, DependencyInfo,
+    ToolCapabilities,
+};
