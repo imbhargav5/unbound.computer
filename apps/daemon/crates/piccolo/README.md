@@ -162,10 +162,11 @@ use std::path::Path;
 // Create a worktree for a session
 let worktree_path = create_worktree(
     repo_path,
+    "repo-123",   // repository id
     "session-123",  // worktree name
     None,           // uses branch: unbound/session-123
 )?;
-// Created at (wrapper default): /path/to/repo/.unbound/worktrees/session-123/
+// Created at (wrapper default): ~/.unbound/repo-123/worktrees/session-123/
 
 // With explicit root/base/branch
 let worktree_path = create_worktree_with_options(

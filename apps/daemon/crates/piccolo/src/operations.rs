@@ -909,7 +909,7 @@ pub fn push(
     Err(PiccoloError::PushFailed(stderr))
 }
 
-const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
+const DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE: &str = "~/.unbound/{repo_id}/worktrees";
 
 fn expand_home_dir(path: &Path) -> PathBuf {
     let Some(raw_path) = path.to_str() else {
@@ -939,6 +939,20 @@ fn resolve_worktrees_dir(repo_path: &Path, root_dir: &Path) -> PathBuf {
     } else {
         repo_path.join(resolved_root)
     }
+}
+
+fn default_worktree_root_dir_for_repo(repository_id: &str) -> Result<String, String> {
+    let trimmed = repository_id.trim();
+    if trimmed.is_empty() {
+        return Err("Invalid repository id: cannot be empty or whitespace".to_string());
+    }
+    if trimmed != repository_id {
+        return Err(
+            "Invalid repository id: leading or trailing whitespace is not allowed".to_string(),
+        );
+    }
+
+    Ok(DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE.replace("{repo_id}", trimmed))
 }
 
 fn validate_worktree_name(worktree_name: &str) -> Result<(), String> {
@@ -1130,16 +1144,18 @@ pub fn create_worktree_with_options(
 
 /// Backward-compatible wrapper around [`create_worktree_with_options`].
 ///
-/// Defaults to `<repo>/.unbound/worktrees` and `HEAD` as base branch.
+/// Defaults to `~/.unbound/<repository_id>/worktrees` and `HEAD` as base branch.
 pub fn create_worktree(
     repo_path: &Path,
+    repository_id: &str,
     worktree_name: &str,
     branch_name: Option<&str>,
 ) -> Result<String, String> {
+    let default_root_dir = default_worktree_root_dir_for_repo(repository_id)?;
     create_worktree_with_options(
         repo_path,
         worktree_name,
-        Path::new(DEFAULT_WORKTREE_ROOT_DIR),
+        Path::new(&default_root_dir),
         None,
         branch_name,
     )
@@ -1165,7 +1181,7 @@ pub fn create_worktree(
 /// # Example
 ///
 /// ```ignore
-/// remove_worktree(repo_path, Path::new("/path/to/repo/.unbound/worktrees/session-123"))?;
+/// remove_worktree(repo_path, Path::new("/Users/alice/.unbound/repo-123/worktrees/session-123"))?;
 /// ```
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), String> {
     let repo =
@@ -1203,7 +1219,11 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), Str
         let _ = std::fs::remove_dir(parent);
 
         // If we are under `.unbound/worktrees`, also attempt to remove `.unbound`.
-        if parent.file_name().map(|n| n == "worktrees").unwrap_or(false) {
+        if parent
+            .file_name()
+            .map(|n| n == "worktrees")
+            .unwrap_or(false)
+        {
             if let Some(grandparent) = parent.parent() {
                 if grandparent
                     .file_name()
@@ -1284,6 +1304,18 @@ mod tests {
                 name
             );
         }
+    }
+
+    #[test]
+    fn test_default_worktree_root_dir_for_repo_uses_repo_id() {
+        let root = default_worktree_root_dir_for_repo("repo-123").expect("default root");
+        assert_eq!(root, "~/.unbound/repo-123/worktrees");
+    }
+
+    #[test]
+    fn test_default_worktree_root_dir_for_repo_rejects_empty() {
+        let err = default_worktree_root_dir_for_repo("   ").expect_err("should reject empty");
+        assert!(err.contains("Invalid repository id"));
     }
 
     #[test]
