@@ -109,6 +109,7 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
 | Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, ... | piccolo |
+| GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | bakugou |
 | Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
 
 ## Side-Effect Bridge
