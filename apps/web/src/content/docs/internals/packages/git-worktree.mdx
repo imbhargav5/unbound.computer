@@ -1,3 +1,64 @@
 ---
-title: "Git Worktree"
+title: "@unbound/git-worktree"
 ---
+
+# @unbound/git-worktree
+
+Typed helpers for managing Git worktrees, branches, and cleanup policies.
+
+This package wraps core git commands, adds validation, and provides higher-level worktree management for Unbound sessions.
+
+## What It Provides
+
+- Worktree creation/removal/locking
+- Repository metadata inspection
+- Cleanup utilities for stale or merged worktrees
+- Disk usage and space checks
+- Safe command execution with typed results
+
+## Core Exports
+
+| Export | Purpose |
+|---|---|
+| `createWorktree` / `removeWorktree` | Manage worktree lifecycle |
+| `listWorktrees` / `getWorktree` | Inspect existing worktrees |
+| `cleanupWorktrees` | Cleanup based on strategy |
+| `getRepositoryInfo` | Collect repo metadata |
+| `WorktreeManager` | Orchestrate worktrees per session |
+
+## Example
+
+```ts
+import { createWorktree, cleanupWorktrees } from "@unbound/git-worktree";
+
+await createWorktree({
+  repoPath: "/path/to/repo",
+  branch: "feature/abc",
+  worktreePath: "/tmp/unbound/abc",
+});
+
+await cleanupWorktrees({
+  repoPath: "/path/to/repo",
+  strategy: "stale",
+  maxAgeHours: 24,
+});
+```
+
+## Module Layout
+
+```
+src/
+├── git.ts        # git wrappers + errors
+├── worktree.ts   # worktree lifecycle helpers
+├── manager.ts    # WorktreeManager orchestration
+├── cleanup.ts    # cleanup strategies
+├── repository.ts # repo inspection + disk usage
+└── types.ts      # shared types
+```
+
+## Development
+
+```bash
+pnpm -C packages/git-worktree build
+pnpm -C packages/git-worktree test
+```
