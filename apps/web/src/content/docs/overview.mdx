@@ -1,3 +1,36 @@
 ---
 title: "Overview"
+description: "A local-first AI coding assistant with native clients, a background daemon, and optional cloud sync."
 ---
+
+A local-first AI coding assistant with native clients, a background daemon, and optional cloud sync.
+
+## Architecture
+
+```
+macOS App (SwiftUI) ──┐
+                      ├── Unix Socket (NDJSON) ──> Daemon (Rust)
+CLI (Rust/ratatui) ───┘                              |
+                                          ┌──────────┼──────────┐
+                                       SQLite      Supabase     Ably
+                                       (local)   (cold sync)  (hot sync)
+                                          |
+                                    ┌─────┼──────┐
+                                 Claude  libgit2  Groq
+                                  CLI    (git)   (titles)
+
+                          ┌────────── Daemon Sidecars ──────────┐
+                          │                                     │
+                   daemon-ably (Go)                       Nagato (Go)
+                 Ably transport + IPC               Consumes remote
+                        for sidecars                commands from Ably
+                          │                                     │
+                        Falco (Go)                              │
+                  Publishes state changes to Ably               │
+```
+
+Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages Claude CLI processes, persists all session data to SQLite, and syncs encrypted messages through two paths:
+
+- **Hot path (Ably via Falco):** Every message is published to Ably in real-time for instant cross-device delivery. Falco is a Go sidecar that receives side-effects from the daemon over a Unix socket and publishes them to Ably channels.
+- **Cold path (Supabase via Levi):** Messages are batched, encrypted, and upserted to Supabase for durable storage and offline sync. Levi is a Rust worker with cursor-based sync, batching (50 messages / 500ms), and exponential backoff retries.
+- **Inbound commands (Ably via Nagato):** Remote commands (e.g., starting a session from the web) arrive on Ably, are consumed by the Nagato Go sidecar, and forwarded to the daemon over a Unix socket.
