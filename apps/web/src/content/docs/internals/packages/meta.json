@@ -1,0 +1,19 @@
+{
+  "title": "Packages",
+  "pages": [
+    "agent-runtime",
+    "protocol",
+    "session",
+    "web-session",
+    "redis",
+    "crypto",
+    "daemon-ably",
+    "daemon-ably-client",
+    "daemon-falco",
+    "daemon-nagato",
+    "transport-reliability",
+    "observability",
+    "git-worktree",
+    "typescript-config"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "title": "Daemon",
+  "pages": [
+    "daemon-bin",
+    "itachi",
+    "daemon-config-and-utils",
+    "daemon-ipc",
+    "daemon-auth",
+    "daemon-database",
+    "daemon-storage",
+    "armin",
+    "deku",
+    "piccolo",
+    "bakugou",
+    "levi",
+    "toshinori",
+    "yamcha",
+    "yagami",
+    "ymir",
+    "gyomei",
+    "rengoku-sessions",
+    "eren-machines",
+    "sakura-working-dir-resolution",
+    "one-for-all-protocol",
+    "sasuke-crypto",
+    "historia-lifecycle",
+    "tien"
+  ]
+}
