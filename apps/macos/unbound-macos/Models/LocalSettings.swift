@@ -52,6 +52,11 @@ class LocalSettings {
 
     private enum Keys {
         static let fontSizePreset = "fontSizePreset"
+        static let leftSidebarVisible = "leftSidebarVisible"
+        static let rightSidebarVisible = "rightSidebarVisible"
+        static let isZenModeEnabled = "isZenModeEnabled"
+        static let lastLeftSidebarVisible = "lastLeftSidebarVisible"
+        static let lastRightSidebarVisible = "lastRightSidebarVisible"
     }
 
     // MARK: - Properties
@@ -59,6 +64,36 @@ class LocalSettings {
     var fontSizePreset: FontSizePreset {
         didSet {
             UserDefaults.standard.set(fontSizePreset.rawValue, forKey: Keys.fontSizePreset)
+        }
+    }
+
+    var leftSidebarVisible: Bool {
+        didSet {
+            UserDefaults.standard.set(leftSidebarVisible, forKey: Keys.leftSidebarVisible)
+        }
+    }
+
+    var rightSidebarVisible: Bool {
+        didSet {
+            UserDefaults.standard.set(rightSidebarVisible, forKey: Keys.rightSidebarVisible)
+        }
+    }
+
+    var isZenModeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isZenModeEnabled, forKey: Keys.isZenModeEnabled)
+        }
+    }
+
+    private var lastLeftSidebarVisible: Bool {
+        didSet {
+            UserDefaults.standard.set(lastLeftSidebarVisible, forKey: Keys.lastLeftSidebarVisible)
+        }
+    }
+
+    private var lastRightSidebarVisible: Bool {
+        didSet {
+            UserDefaults.standard.set(lastRightSidebarVisible, forKey: Keys.lastRightSidebarVisible)
         }
     }
 
@@ -73,6 +108,23 @@ class LocalSettings {
             // Default to small (compact) preset
             self.fontSizePreset = .small
         }
+
+        let storedLeftSidebarVisible = UserDefaults.standard.object(forKey: Keys.leftSidebarVisible) as? Bool ?? true
+        let storedRightSidebarVisible = UserDefaults.standard.object(forKey: Keys.rightSidebarVisible) as? Bool ?? true
+        let storedZenModeEnabled = UserDefaults.standard.object(forKey: Keys.isZenModeEnabled) as? Bool ?? false
+        let storedLastLeftSidebarVisible = UserDefaults.standard.object(forKey: Keys.lastLeftSidebarVisible) as? Bool ?? storedLeftSidebarVisible
+        let storedLastRightSidebarVisible = UserDefaults.standard.object(forKey: Keys.lastRightSidebarVisible) as? Bool ?? storedRightSidebarVisible
+
+        self.leftSidebarVisible = storedLeftSidebarVisible
+        self.rightSidebarVisible = storedRightSidebarVisible
+        self.isZenModeEnabled = storedZenModeEnabled
+        self.lastLeftSidebarVisible = storedLastLeftSidebarVisible
+        self.lastRightSidebarVisible = storedLastRightSidebarVisible
+
+        if isZenModeEnabled {
+            leftSidebarVisible = false
+            rightSidebarVisible = false
+        }
     }
 
     // MARK: - Scaled Font Size
@@ -80,5 +132,21 @@ class LocalSettings {
     /// Returns a font size scaled according to the current preset
     func scaled(_ size: CGFloat) -> CGFloat {
         size * fontSizePreset.scaleFactor
+    }
+
+    func setZenModeEnabled(_ enabled: Bool) {
+        guard enabled != isZenModeEnabled else { return }
+
+        if enabled {
+            lastLeftSidebarVisible = leftSidebarVisible
+            lastRightSidebarVisible = rightSidebarVisible
+            leftSidebarVisible = false
+            rightSidebarVisible = false
+            isZenModeEnabled = true
+        } else {
+            isZenModeEnabled = false
+            leftSidebarVisible = lastLeftSidebarVisible
+            rightSidebarVisible = lastRightSidebarVisible
+        }
     }
 }
