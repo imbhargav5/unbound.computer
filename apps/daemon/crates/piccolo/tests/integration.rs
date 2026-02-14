@@ -67,8 +67,9 @@ fn worktree_lifecycle() {
     let (_dir, repo_path) = common::init_test_repo();
 
     // 1. Create worktree
-    let wt_path_str = piccolo::create_worktree(&repo_path, "lifecycle-test", None)
-        .expect("create_worktree failed");
+    let wt_path_str =
+        piccolo::create_worktree(&repo_path, "repo-lifecycle-test", "lifecycle-test", None)
+            .expect("create_worktree failed");
     let wt_path = Path::new(&wt_path_str);
     assert!(wt_path.exists());
 
