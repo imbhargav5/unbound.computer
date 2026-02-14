@@ -245,6 +245,149 @@ final class SessionLiveStateStreamingTests: XCTestCase {
         XCTAssertEqual(state.activeTools.map(\.id), historicalStandaloneToolIds)
     }
 
+    func testStatusChangeRuntimeEnvelopeTransitionFlow() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+        let normalizedSessionId = sessionId.uuidString.lowercased()
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "running",
+                updatedAtMs: 1_000
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .running)
+        XCTAssertTrue(state.claudeRunning)
+        XCTAssertTrue(state.canSendMessage)
+        XCTAssertNil(state.codingSessionErrorMessage)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "waiting",
+                updatedAtMs: 1_100
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .waiting)
+        XCTAssertTrue(state.claudeRunning)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "running",
+                updatedAtMs: 1_200
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .running)
+        XCTAssertTrue(state.claudeRunning)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "idle",
+                updatedAtMs: 1_300
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .idle)
+        XCTAssertFalse(state.claudeRunning)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "error",
+                errorMessage: "daemon exploded",
+                updatedAtMs: 1_400
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .error)
+        XCTAssertEqual(state.codingSessionErrorMessage, "daemon exploded")
+        XCTAssertFalse(state.claudeRunning)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "running",
+                updatedAtMs: 1_500
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .running)
+        XCTAssertNil(state.codingSessionErrorMessage)
+        XCTAssertTrue(state.claudeRunning)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "not-available",
+                updatedAtMs: 1_600
+            )
+        )
+        XCTAssertEqual(state.codingSessionStatus, .notAvailable)
+        XCTAssertFalse(state.canSendMessage)
+        XCTAssertFalse(state.claudeRunning)
+    }
+
+    func testStatusChangeIgnoresStaleRuntimeEnvelopeByUpdatedAtMs() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+        let normalizedSessionId = sessionId.uuidString.lowercased()
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "running",
+                updatedAtMs: 2_000
+            )
+        )
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: normalizedSessionId,
+                status: "idle",
+                updatedAtMs: 1_999
+            )
+        )
+
+        XCTAssertEqual(state.codingSessionStatus, .running)
+        XCTAssertTrue(state.claudeRunning)
+    }
+
+    func testStatusChangeLegacyFallbackCompatibility() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+
+        state.ingestDaemonEventForTests(
+            legacyStatusChangeEvent(
+                sessionId: sessionId.uuidString.lowercased(),
+                status: "error",
+                errorMessage: "legacy error",
+                sequence: 7
+            )
+        )
+
+        XCTAssertEqual(state.codingSessionStatus, .error)
+        XCTAssertEqual(state.codingSessionErrorMessage, "legacy error")
+        XCTAssertEqual(state.runtimeStatus?.schemaVersion, 1)
+        XCTAssertEqual(state.runtimeStatus?.deviceId, "legacy-ipc")
+        XCTAssertEqual(state.runtimeStatus?.updatedAtMs, 7)
+    }
+
+    func testUnknownRuntimeStatusFallsBackToNotAvailable() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+
+        state.ingestDaemonEventForTests(
+            runtimeStatusChangeEvent(
+                sessionId: sessionId.uuidString.lowercased(),
+                status: "definitely-new-status",
+                updatedAtMs: 42
+            )
+        )
+
+        XCTAssertEqual(state.codingSessionStatus, .notAvailable)
+        XCTAssertFalse(state.canSendMessage)
+    }
+
     // MARK: - Helpers
 
     private func assistantEvent(toolUses: [[String: Any]], parent: String? = nil) -> String {
@@ -322,5 +465,61 @@ final class SessionLiveStateStreamingTests: XCTestCase {
 
     private func wrappedRawJSON(_ rawJSON: String) -> String {
         jsonString(["raw_json": rawJSON])
+    }
+
+    private func runtimeStatusChangeEvent(
+        sessionId: String,
+        status: String,
+        errorMessage: String? = nil,
+        updatedAtMs: Int64
+    ) -> DaemonEvent {
+        var codingSession: [String: Any] = ["status": status]
+        if let errorMessage {
+            codingSession["error_message"] = errorMessage
+        }
+
+        let runtimeStatus: [String: Any] = [
+            "schema_version": 1,
+            "coding_session": codingSession,
+            "device_id": "device-test",
+            "session_id": sessionId,
+            "updated_at_ms": updatedAtMs
+        ]
+
+        var data: [String: AnyCodableValue] = [
+            "status": AnyCodableValue(status),
+            "runtime_status": AnyCodableValue(runtimeStatus)
+        ]
+        if let errorMessage {
+            data["error_message"] = AnyCodableValue(errorMessage)
+        }
+
+        return DaemonEvent(
+            type: .statusChange,
+            sessionId: sessionId,
+            data: data,
+            sequence: updatedAtMs
+        )
+    }
+
+    private func legacyStatusChangeEvent(
+        sessionId: String,
+        status: String,
+        errorMessage: String?,
+        sequence: Int64
+    ) -> DaemonEvent {
+        var data: [String: AnyCodableValue] = [
+            "status": AnyCodableValue(status)
+        ]
+        if let errorMessage {
+            data["error_message"] = AnyCodableValue(errorMessage)
+        }
+
+        return DaemonEvent(
+            type: .statusChange,
+            sessionId: sessionId,
+            data: data,
+            sequence: sequence
+        )
     }
 }

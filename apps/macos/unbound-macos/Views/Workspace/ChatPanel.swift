@@ -179,9 +179,22 @@ struct ChatPanel: View {
         liveState?.isLoadingMessages ?? false
     }
 
+    private var canSendMessages: Bool {
+        liveState?.canSendMessage ?? true
+    }
+
+    private var runtimeStatusSummary: (status: CodingSessionRuntimeStatus, errorMessage: String?)? {
+        guard let liveState else { return nil }
+        return (
+            status: liveState.codingSessionStatus,
+            errorMessage: liveState.codingSessionErrorMessage
+        )
+    }
+
     /// Check if Claude is currently running (streaming response)
     var isSessionStreaming: Bool {
-        liveState?.claudeRunning ?? false
+        guard let liveState else { return false }
+        return liveState.claudeRunning || liveState.codingSessionStatus == .waiting
     }
 
     /// Binding for error alert presentation
@@ -194,6 +207,19 @@ struct ChatPanel: View {
                 liveState?.dismissErrorAlert()
             }
         )
+    }
+
+    private func runtimeStatusColor(for status: CodingSessionRuntimeStatus) -> Color {
+        switch status {
+        case .running:
+            return colors.success
+        case .idle, .notAvailable:
+            return colors.mutedForeground
+        case .waiting:
+            return colors.warning
+        case .error:
+            return colors.destructive
+        }
     }
 
     var body: some View {
@@ -496,6 +522,30 @@ struct ChatPanel: View {
                         }
                     }
 
+                    if let runtimeStatusSummary {
+                        HStack(spacing: Spacing.sm) {
+                            Circle()
+                                .fill(runtimeStatusColor(for: runtimeStatusSummary.status))
+                                .frame(width: 8, height: 8)
+
+                            Text(runtimeStatusSummary.status.displayName)
+                                .font(Typography.caption)
+                                .foregroundStyle(runtimeStatusColor(for: runtimeStatusSummary.status))
+
+                            if let errorMessage = runtimeStatusSummary.errorMessage {
+                                Text(errorMessage)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(colors.destructive)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, Spacing.compact)
+                        .padding(.top, Spacing.xs)
+                    }
+
                     // Input field at bottom
                     ChatInputField(
                         text: $chatInput,
@@ -507,7 +557,7 @@ struct ChatPanel: View {
                         onCancel: cancelStream
                     )
                     .padding(Spacing.compact)
-                    .disabled(workspacePath == nil)
+                    .disabled(workspacePath == nil || !canSendMessages)
                 } else {
                     // No session selected
                     ContentUnavailableView(

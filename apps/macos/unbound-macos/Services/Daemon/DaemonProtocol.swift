@@ -237,6 +237,169 @@ struct DaemonEvent: Codable {
     var statusValue: String? {
         dataValue(for: "status")
     }
+
+    /// Get grouped runtime envelope for status change events.
+    ///
+    /// - Preferred source: `data.runtime_status` full envelope.
+    /// - Backward compatibility: synthesize envelope from legacy `status` and `error_message`.
+    var runtimeStatusEnvelope: RuntimeStatusEnvelope? {
+        if let raw = data["runtime_status"]?.value,
+           let decoded = try? RuntimeStatusEnvelope.decodeEnvelopePayload(raw) {
+            return decoded
+        }
+
+        guard let legacyStatus = statusValue else { return nil }
+        let status = CodingSessionRuntimeStatus(rawValueOrLegacy: legacyStatus)
+        let errorMessage: String? = dataValue(for: "error_message")
+        return RuntimeStatusEnvelope.legacyFallback(
+            status: status,
+            errorMessage: errorMessage,
+            sessionId: sessionId,
+            updatedAtMs: sequence
+        )
+    }
+}
+
+// MARK: - Runtime Status Envelope
+
+enum CodingSessionRuntimeStatus: String, Codable, CaseIterable {
+    case running
+    case idle
+    case waiting
+    case notAvailable = "not-available"
+    case error
+
+    init(rawValueOrLegacy rawValue: String) {
+        switch rawValue.lowercased() {
+        case "running":
+            self = .running
+        case "idle":
+            self = .idle
+        case "waiting":
+            self = .waiting
+        case "not-available", "not_available":
+            self = .notAvailable
+        case "error":
+            self = .error
+        default:
+            self = .notAvailable
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = CodingSessionRuntimeStatus(rawValueOrLegacy: raw)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    var isStreaming: Bool {
+        switch self {
+        case .running, .waiting:
+            return true
+        case .idle, .notAvailable, .error:
+            return false
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .running:
+            return "Running"
+        case .idle:
+            return "Idle"
+        case .waiting:
+            return "Waiting"
+        case .notAvailable:
+            return "Not Available"
+        case .error:
+            return "Error"
+        }
+    }
+}
+
+struct CodingSessionRuntimeState: Codable, Equatable {
+    let status: CodingSessionRuntimeStatus
+    let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case errorMessage = "error_message"
+    }
+
+    var normalizedErrorMessage: String? {
+        guard let trimmed = errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+}
+
+struct RuntimeStatusEnvelope: Codable, Equatable {
+    private static let legacyDeviceId = "legacy-ipc"
+    private static let legacySchemaVersion = 1
+
+    let schemaVersion: Int
+    let codingSession: CodingSessionRuntimeState
+    let deviceId: String
+    let sessionId: String
+    let updatedAtMs: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case codingSession = "coding_session"
+        case deviceId = "device_id"
+        case sessionId = "session_id"
+        case updatedAtMs = "updated_at_ms"
+    }
+
+    var normalizedSessionId: String {
+        sessionId.lowercased()
+    }
+
+    static func legacyFallback(
+        status: CodingSessionRuntimeStatus,
+        errorMessage: String?,
+        sessionId: String,
+        updatedAtMs: Int64
+    ) -> RuntimeStatusEnvelope {
+        RuntimeStatusEnvelope(
+            schemaVersion: legacySchemaVersion,
+            codingSession: CodingSessionRuntimeState(
+                status: status,
+                errorMessage: errorMessage
+            ),
+            deviceId: legacyDeviceId,
+            sessionId: sessionId.lowercased(),
+            updatedAtMs: updatedAtMs
+        )
+    }
+
+    static func decodeEnvelopePayload(_ data: Any?) throws -> RuntimeStatusEnvelope? {
+        guard let data else { return nil }
+
+        if let typed = data as? RuntimeStatusEnvelope {
+            return typed
+        }
+        if let rawData = data as? Data {
+            return try JSONDecoder().decode(RuntimeStatusEnvelope.self, from: rawData)
+        }
+        if let rawString = data as? String {
+            guard let rawData = rawString.data(using: .utf8) else { return nil }
+            return try JSONDecoder().decode(RuntimeStatusEnvelope.self, from: rawData)
+        }
+        if JSONSerialization.isValidJSONObject(data) {
+            let rawData = try JSONSerialization.data(withJSONObject: data)
+            return try JSONDecoder().decode(RuntimeStatusEnvelope.self, from: rawData)
+        }
+
+        return nil
+    }
 }
 
 // MARK: - Error Codes
@@ -759,11 +922,15 @@ struct DaemonClaudeStatus: Codable {
     let isRunning: Bool
     let sessionId: String?
     let processId: Int?
+    let agentStatus: CodingSessionRuntimeStatus?
+    let runtimeStatus: RuntimeStatusEnvelope?
 
     enum CodingKeys: String, CodingKey {
         case isRunning = "is_running"
         case sessionId = "session_id"
         case processId = "process_id"
+        case agentStatus = "agent_status"
+        case runtimeStatus = "runtime_status"
     }
 }
 

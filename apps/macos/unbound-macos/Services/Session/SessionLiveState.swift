@@ -89,6 +89,25 @@ class SessionLiveState {
 
     private(set) var streamingContent: String?
     private(set) var claudeRunning: Bool = false
+    private(set) var runtimeStatus: RuntimeStatusEnvelope?
+
+    var codingSessionStatus: CodingSessionRuntimeStatus {
+        if let status = runtimeStatus?.codingSession.status {
+            if !claudeRunning && status.isStreaming {
+                return .idle
+            }
+            return status
+        }
+        return claudeRunning ? .running : .idle
+    }
+
+    var codingSessionErrorMessage: String? {
+        runtimeStatus?.codingSession.normalizedErrorMessage
+    }
+
+    var canSendMessage: Bool {
+        codingSessionStatus != .notAvailable
+    }
 
     // MARK: - Tool State
 
@@ -108,6 +127,7 @@ class SessionLiveState {
     private var subscriptionTask: Task<Void, Never>?
     private var fetchDebounceTask: Task<Void, Never>?
     private var pendingSubAgentTools: [String: [ActiveTool]] = [:]
+    private var latestRuntimeStatusMs: Int64 = 0
 
     // MARK: - Initialization
 
@@ -152,13 +172,14 @@ class SessionLiveState {
         do {
             let eventStream = try await streamingClient.subscribe()
             subscriptionState = .subscribed
+            let localSessionId = sessionId
 
             let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
             logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
 
             // Start event handling task
-            subscriptionTask = Task { [weak self] in
-                logger.debug("Event loop started for session \(sessionId)")
+            subscriptionTask = Task { [weak self, localSessionId] in
+                logger.debug("Event loop started for session \(localSessionId)")
                 for await event in eventStream {
                     await MainActor.run {
                         self?.handleDaemonEvent(event)
@@ -166,11 +187,11 @@ class SessionLiveState {
                 }
 
                 // Stream ended
-                logger.info("Event stream ended for session \(sessionId)")
+                logger.info("Event stream ended for session \(localSessionId)")
                 await MainActor.run {
                     if self?.subscriptionState == .subscribed {
                         self?.subscriptionState = .disconnected
-                        logger.warning("Session \(sessionId) disconnected (stream ended)")
+                        logger.warning("Session \(localSessionId) disconnected (stream ended)")
                     }
                 }
             }
@@ -186,7 +207,21 @@ class SessionLiveState {
             let status = try await daemonClient.getClaudeStatus(
                 sessionId: sessionId.uuidString.lowercased()
             )
-            claudeRunning = status.isRunning
+            if let runtimeStatus = status.runtimeStatus {
+                applyRuntimeStatus(runtimeStatus, source: "claude.status")
+            } else if let agentStatus = status.agentStatus {
+                applyRuntimeStatus(
+                    RuntimeStatusEnvelope.legacyFallback(
+                        status: agentStatus,
+                        errorMessage: nil,
+                        sessionId: sessionId.uuidString.lowercased(),
+                        updatedAtMs: 0
+                    ),
+                    source: "claude.status"
+                )
+            } else {
+                claudeRunning = status.isRunning
+            }
         } catch {
             logger.debug("Failed to check Claude status: \(error)")
         }
@@ -451,14 +486,11 @@ class SessionLiveState {
             }
 
         case .statusChange:
-            if let status: String = event.dataValue(for: "status") {
-                logger.info("Received status change: \(status) for session \(sessionId)")
-                claudeRunning = (status == "running")
-                if !claudeRunning {
-                    moveToolsToHistory()
-                    streamingContent = nil
-                    debouncedFetchMessages()
-                }
+            if let runtimeStatus = event.runtimeStatusEnvelope {
+                logger.info(
+                    "Received runtime status change: \(runtimeStatus.codingSession.status.rawValue) for session \(sessionId)"
+                )
+                applyRuntimeStatus(runtimeStatus, source: "status_change")
             }
 
         case .terminalOutput, .terminalFinished:
@@ -474,6 +506,35 @@ class SessionLiveState {
         case .authStateChanged, .sessionCreated, .sessionDeleted:
             // Global events, not relevant for per-session state
             break
+        }
+    }
+
+    private func applyRuntimeStatus(_ envelope: RuntimeStatusEnvelope, source: String) {
+        let normalizedSessionId = sessionId.uuidString.lowercased()
+        guard envelope.normalizedSessionId == normalizedSessionId else {
+            logger.debug(
+                "Ignoring runtime status for mismatched session source=\(source) expected=\(normalizedSessionId) actual=\(envelope.normalizedSessionId)"
+            )
+            return
+        }
+
+        let incomingMs = envelope.updatedAtMs
+        if incomingMs < latestRuntimeStatusMs {
+            logger.debug(
+                "Ignoring stale runtime status source=\(source) incoming_ms=\(incomingMs) latest_ms=\(latestRuntimeStatusMs)"
+            )
+            return
+        }
+
+        let wasStreaming = claudeRunning
+        latestRuntimeStatusMs = incomingMs
+        runtimeStatus = envelope
+        claudeRunning = envelope.codingSession.status.isStreaming
+
+        if wasStreaming && !claudeRunning {
+            moveToolsToHistory()
+            streamingContent = nil
+            debouncedFetchMessages()
         }
     }
 
@@ -528,13 +589,26 @@ class SessionLiveState {
     func ingestClaudeEventForTests(_ json: String) {
         handleClaudeEvent(json)
     }
+
+    /// Testing hook: inject a daemon event directly.
+    func ingestDaemonEventForTests(_ event: DaemonEvent) {
+        handleDaemonEvent(event)
+    }
 #endif
 
     private func handleAssistantEvent(_ json: [String: Any]) {
         // Detect externally-triggered Claude run (e.g. from TUI)
         if !claudeRunning {
-            logger.info("Detected external Claude run for session \(sessionId), setting claudeRunning=true")
-            claudeRunning = true
+            logger.info("Detected external Claude run for session \(sessionId), setting runtime status=running")
+            applyRuntimeStatus(
+                RuntimeStatusEnvelope.legacyFallback(
+                    status: .running,
+                    errorMessage: nil,
+                    sessionId: sessionId.uuidString.lowercased(),
+                    updatedAtMs: max(latestRuntimeStatusMs + 1, 1)
+                ),
+                source: "assistant_event"
+            )
         }
 
         guard let message = json["message"] as? [String: Any],
