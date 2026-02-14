@@ -10,8 +10,8 @@
 //! - If SQLite write fails, nothing else happens
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession, NewSessionSecret,
-    Repository, RepositoryId, Session, SessionId, SessionUpdate,
+    AgentStatus, CodingSessionStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    NewSessionSecret, Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
 use crate::ArminError;
 
@@ -78,14 +78,32 @@ pub trait SessionWriter {
     // Session state operations
     // ========================================================================
 
-    /// Updates the agent status for a session.
+    /// Updates the canonical runtime status envelope for a session.
     ///
-    /// Creates the session state row if it doesn't exist.
+    /// `device_id` is required and persisted into the runtime envelope.
+    fn update_runtime_status(
+        &self,
+        session: &SessionId,
+        device_id: &str,
+        status: CodingSessionStatus,
+        error_message: Option<String>,
+    ) -> Result<(), ArminError>;
+
+    /// Legacy scalar status update helper kept during migration.
+    ///
+    /// Prefer `update_runtime_status`.
     fn update_agent_status(
         &self,
         session: &SessionId,
         status: AgentStatus,
-    ) -> Result<(), ArminError>;
+    ) -> Result<(), ArminError> {
+        self.update_runtime_status(
+            session,
+            "00000000-0000-0000-0000-000000000000",
+            status,
+            None,
+        )
+    }
 
     // ========================================================================
     // Message operations

@@ -372,11 +372,17 @@ mod tests {
 
         claude_bridge::set_running(&armin, &session_id).unwrap();
         let state = armin.get_session_state(&session_id).unwrap().unwrap();
-        assert_eq!(state.agent_status, AgentStatus::Running);
+        assert_eq!(
+            state.runtime_status.coding_session.status,
+            AgentStatus::Running
+        );
 
         claude_bridge::set_idle(&armin, &session_id).unwrap();
         let state = armin.get_session_state(&session_id).unwrap().unwrap();
-        assert_eq!(state.agent_status, AgentStatus::Idle);
+        assert_eq!(
+            state.runtime_status.coding_session.status,
+            AgentStatus::Idle
+        );
     }
 
     #[test]

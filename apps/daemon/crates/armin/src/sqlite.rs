@@ -15,9 +15,10 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use crate::types::{
-    AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession, NewSessionSecret,
-    Repository, RepositoryId, Session, SessionId, SessionSecret, SessionState, SessionStatus,
-    SessionUpdate, UserSetting,
+    AgentStatus, CodingSessionRuntimeState, CodingSessionStatus, Message, MessageId, NewMessage,
+    NewRepository, NewSession, NewSessionSecret, Repository, RepositoryId, RuntimeStatusEnvelope,
+    Session, SessionId, SessionSecret, SessionState, SessionStatus, SessionUpdate, UserSetting,
+    RUNTIME_STATUS_SCHEMA_VERSION,
 };
 
 /// Result of an atomic message insertion.
@@ -843,7 +844,7 @@ impl SqliteStore {
              VALUES (
                 ?1,
                 json_object(
-                    'schema_version', 1,
+                    'schema_version', ?4,
                     'coding_session', json_object('status', 'idle'),
                     'device_id', ?2,
                     'session_id', ?1,
@@ -851,7 +852,12 @@ impl SqliteStore {
                 ),
                 ?3
              )",
-            params![session_id.as_str(), Self::DEFAULT_RUNTIME_DEVICE_ID, now_ms],
+            params![
+                session_id.as_str(),
+                Self::DEFAULT_RUNTIME_DEVICE_ID,
+                now_ms,
+                RUNTIME_STATUS_SCHEMA_VERSION
+            ],
         )?;
         drop(conn);
 
@@ -865,19 +871,35 @@ impl SqliteStore {
         let mut stmt = conn.prepare_cached(
             "SELECT
                 session_id,
-                json_extract(state_json, '$.coding_session.status') AS agent_status,
+                json_extract(state_json, '$.coding_session.status') AS coding_session_status,
+                json_extract(state_json, '$.coding_session.error_message') AS error_message,
+                json_extract(state_json, '$.device_id') AS device_id,
                 updated_at_ms
              FROM agent_coding_session_state WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id.as_str()], |row| {
+            let session_id = SessionId::from_string(row.get::<_, String>(0)?);
             let raw_status: Option<String> = row.get(1)?;
-            let updated_at_ms: i64 = row.get(2)?;
+            let error_message: Option<String> = row.get(2)?;
+            let device_id: Option<String> = row.get(3)?;
+            let updated_at_ms: i64 = row.get(4)?;
+            let status = CodingSessionStatus::from_str(raw_status.as_deref().unwrap_or("idle"));
+
+            let runtime_status = RuntimeStatusEnvelope {
+                schema_version: RUNTIME_STATUS_SCHEMA_VERSION,
+                coding_session: CodingSessionRuntimeState {
+                    status,
+                    error_message,
+                },
+                device_id: device_id.unwrap_or_else(|| Self::DEFAULT_RUNTIME_DEVICE_ID.to_string()),
+                session_id: session_id.clone(),
+                updated_at_ms,
+            };
+
             Ok(SessionState {
-                session_id: SessionId::from_string(row.get::<_, String>(0)?),
-                agent_status: AgentStatus::from_str(raw_status.as_deref().unwrap_or("idle")),
-                queued_commands: None,
-                diff_summary: None,
+                session_id,
+                runtime_status,
                 updated_at: Self::parse_datetime_from_millis(updated_at_ms),
             })
         });
@@ -889,46 +911,96 @@ impl SqliteStore {
         }
     }
 
-    /// Updates agent status.
+    /// Updates the canonical runtime status envelope.
+    pub fn update_runtime_status(
+        &self,
+        session_id: &SessionId,
+        device_id: &str,
+        status: CodingSessionStatus,
+        error_message: Option<String>,
+    ) -> SqliteResult<bool> {
+        let conn = self.conn.lock().expect("lock poisoned");
+        let now_ms = Self::now_timestamp_ms();
+        let count = if let Some(error_message) = error_message {
+            conn.execute(
+                "UPDATE agent_coding_session_state
+                 SET
+                    state_json = json_set(
+                        COALESCE(
+                            state_json,
+                            json_object(
+                                'schema_version', ?5,
+                                'coding_session', json_object('status', 'idle'),
+                                'device_id', ?2,
+                                'session_id', ?1,
+                                'updated_at_ms', ?3
+                            )
+                        ),
+                        '$.schema_version', ?5,
+                        '$.coding_session.status', ?4,
+                        '$.coding_session.error_message', ?6,
+                        '$.device_id', ?2,
+                        '$.session_id', ?1,
+                        '$.updated_at_ms', ?3
+                    ),
+                    updated_at_ms = ?3
+                 WHERE session_id = ?1",
+                params![
+                    session_id.as_str(),
+                    device_id,
+                    now_ms,
+                    status.as_str(),
+                    RUNTIME_STATUS_SCHEMA_VERSION,
+                    error_message
+                ],
+            )?
+        } else {
+            conn.execute(
+                "UPDATE agent_coding_session_state
+                 SET
+                    state_json = json_remove(
+                        json_set(
+                            COALESCE(
+                                state_json,
+                                json_object(
+                                    'schema_version', ?5,
+                                    'coding_session', json_object('status', 'idle'),
+                                    'device_id', ?2,
+                                    'session_id', ?1,
+                                    'updated_at_ms', ?3
+                                )
+                            ),
+                            '$.schema_version', ?5,
+                            '$.coding_session.status', ?4,
+                            '$.device_id', ?2,
+                            '$.session_id', ?1,
+                            '$.updated_at_ms', ?3
+                        ),
+                        '$.coding_session.error_message'
+                    ),
+                    updated_at_ms = ?3
+                 WHERE session_id = ?1",
+                params![
+                    session_id.as_str(),
+                    device_id,
+                    now_ms,
+                    status.as_str(),
+                    RUNTIME_STATUS_SCHEMA_VERSION
+                ],
+            )?
+        };
+
+        Ok(count > 0)
+    }
+
+    /// Legacy scalar status writer kept during migration.
+    #[allow(dead_code)]
     pub fn update_agent_status(
         &self,
         session_id: &SessionId,
         status: AgentStatus,
     ) -> SqliteResult<bool> {
-        let conn = self.conn.lock().expect("lock poisoned");
-        let now_ms = Self::now_timestamp_ms();
-        let count = conn.execute(
-            "UPDATE agent_coding_session_state
-             SET
-                state_json = json_remove(
-                    json_set(
-                        COALESCE(
-                            state_json,
-                            json_object(
-                                'schema_version', 1,
-                                'coding_session', json_object('status', 'idle'),
-                                'device_id', ?1,
-                                'session_id', ?3,
-                                'updated_at_ms', ?2
-                            )
-                        ),
-                        '$.schema_version', 1,
-                        '$.coding_session.status', ?4,
-                        '$.session_id', ?3,
-                        '$.updated_at_ms', ?2
-                    ),
-                    '$.coding_session.error_message'
-                ),
-                updated_at_ms = ?2
-             WHERE session_id = ?3",
-            params![
-                Self::DEFAULT_RUNTIME_DEVICE_ID,
-                now_ms,
-                session_id.as_str(),
-                status.as_str()
-            ],
-        )?;
-        Ok(count > 0)
+        self.update_runtime_status(session_id, Self::DEFAULT_RUNTIME_DEVICE_ID, status, None)
     }
 
     // ========================================================================
@@ -1704,21 +1776,48 @@ mod tests {
         let session_id = create_test_session(&store, &repo_id);
 
         let state = store.get_or_create_session_state(&session_id).unwrap();
-        assert_eq!(state.agent_status, AgentStatus::Idle);
-        assert!(state.queued_commands.is_none());
-        assert!(state.diff_summary.is_none());
+        assert_eq!(
+            state.runtime_status.coding_session.status,
+            CodingSessionStatus::Idle
+        );
+        assert!(state.runtime_status.coding_session.error_message.is_none());
 
         assert!(store
-            .update_agent_status(&session_id, AgentStatus::Running)
+            .update_runtime_status(
+                &session_id,
+                "device-running",
+                CodingSessionStatus::Running,
+                None,
+            )
             .unwrap());
         let running = store.get_session_state(&session_id).unwrap().unwrap();
-        assert_eq!(running.agent_status, AgentStatus::Running);
+        assert_eq!(
+            running.runtime_status.coding_session.status,
+            CodingSessionStatus::Running
+        );
+        assert_eq!(running.runtime_status.device_id, "device-running");
 
         assert!(store
-            .update_agent_status(&session_id, AgentStatus::Waiting)
+            .update_runtime_status(
+                &session_id,
+                "device-running",
+                CodingSessionStatus::Waiting,
+                Some("waiting on user".to_string()),
+            )
             .unwrap());
         let waiting = store.get_session_state(&session_id).unwrap().unwrap();
-        assert_eq!(waiting.agent_status, AgentStatus::Waiting);
+        assert_eq!(
+            waiting.runtime_status.coding_session.status,
+            CodingSessionStatus::Waiting
+        );
+        assert_eq!(
+            waiting
+                .runtime_status
+                .coding_session
+                .error_message
+                .as_deref(),
+            Some("waiting on user")
+        );
     }
 
     #[test]

@@ -48,7 +48,7 @@ pub trait SessionReader {
     // Session state operations
     // ========================================================================
 
-    /// Gets the session state (agent status, etc.).
+    /// Gets the session runtime state envelope.
     fn get_session_state(&self, session: &SessionId) -> Result<Option<SessionState>, ArminError>;
 
     // ========================================================================

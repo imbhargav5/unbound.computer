@@ -360,11 +360,14 @@ impl ToshinoriSink {
                     }
                 }
 
-                SideEffect::AgentStatusChanged { session_id, status } => {
+                SideEffect::RuntimeStatusUpdated {
+                    session_id,
+                    runtime_status,
+                } => {
                     warn!(
                         session_id = session_id.as_str(),
-                        status = status.as_str(),
-                        "Agent status sync skipped (no agent_status column in Supabase schema)"
+                        status = runtime_status.coding_session.status.as_str(),
+                        "Runtime status sync deferred (handled by dedicated runtime fanout path)"
                     );
                     Ok(())
                 }
@@ -403,7 +406,10 @@ impl SideEffectSink for ToshinoriSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::types::{AgentStatus, MessageId, RepositoryId, SessionId};
+    use armin::types::{
+        CodingSessionRuntimeState, CodingSessionStatus, MessageId, RepositoryId,
+        RuntimeStatusEnvelope, SessionId, RUNTIME_STATUS_SCHEMA_VERSION,
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     // =========================================================================
@@ -744,9 +750,18 @@ mod tests {
             sequence_number: 1,
             content: "test".to_string(),
         });
-        sink.emit(SideEffect::AgentStatusChanged {
+        sink.emit(SideEffect::RuntimeStatusUpdated {
             session_id: SessionId::from_string("sess-1"),
-            status: AgentStatus::Running,
+            runtime_status: RuntimeStatusEnvelope {
+                schema_version: RUNTIME_STATUS_SCHEMA_VERSION,
+                coding_session: CodingSessionRuntimeState {
+                    status: CodingSessionStatus::Running,
+                    error_message: None,
+                },
+                device_id: "device-1".to_string(),
+                session_id: SessionId::from_string("sess-1"),
+                updated_at_ms: 1,
+            },
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;

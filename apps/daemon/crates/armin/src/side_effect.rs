@@ -10,7 +10,7 @@
 //! - Tests assert emission, not behavior
 //! - Recovery emits nothing
 
-use crate::types::{AgentStatus, MessageId, RepositoryId, SessionId};
+use crate::types::{MessageId, RepositoryId, RuntimeStatusEnvelope, SessionId};
 
 /// A side-effect emitted by Armin after committing a fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,10 +41,10 @@ pub enum SideEffect {
     },
 
     // Session state side-effects
-    /// Agent status changed.
-    AgentStatusChanged {
+    /// Runtime status envelope changed.
+    RuntimeStatusUpdated {
         session_id: SessionId,
-        status: AgentStatus,
+        runtime_status: RuntimeStatusEnvelope,
     },
 }
 

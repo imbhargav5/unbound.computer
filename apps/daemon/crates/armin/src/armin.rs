@@ -32,7 +32,7 @@ use crate::side_effect::{SideEffect, SideEffectSink};
 use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
 use crate::types::{
-    AblySyncState, AgentStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    AblySyncState, CodingSessionStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
     NewSessionSecret, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
     SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
     SupabaseSyncState,
@@ -279,21 +279,31 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
     // Session state operations
     // ========================================================================
 
-    fn update_agent_status(
+    fn update_runtime_status(
         &self,
         session: &SessionId,
-        status: AgentStatus,
+        device_id: &str,
+        status: CodingSessionStatus,
+        error_message: Option<String>,
     ) -> Result<(), ArminError> {
         // 1. Ensure session state exists, then update
         let _ = self.sqlite.get_or_create_session_state(session)?;
 
-        let updated = self.sqlite.update_agent_status(session, status)?;
+        let updated =
+            self.sqlite
+                .update_runtime_status(session, device_id, status, error_message)?;
 
         if updated {
             // 3. Emit side-effect
-            self.sink.emit(SideEffect::AgentStatusChanged {
+            let runtime_status = self
+                .sqlite
+                .get_session_state(session)?
+                .map(|state| state.runtime_status)
+                .ok_or_else(|| ArminError::SessionNotFound(session.as_str().to_string()))?;
+
+            self.sink.emit(SideEffect::RuntimeStatusUpdated {
                 session_id: session.clone(),
-                status,
+                runtime_status,
             });
         }
 
@@ -623,6 +633,7 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
 mod tests {
     use super::*;
     use crate::side_effect::RecordingSink;
+    use crate::types::CodingSessionStatus;
 
     #[test]
     fn create_session_emits_side_effect() {
@@ -689,6 +700,49 @@ mod tests {
                 session_id: session_id.clone()
             }
         );
+    }
+
+    #[test]
+    fn update_runtime_status_emits_runtime_envelope_side_effect() {
+        let sink = RecordingSink::new();
+        let armin = Armin::in_memory(sink).unwrap();
+
+        let session_id = armin.create_session().unwrap();
+        armin.sink().clear();
+
+        armin
+            .update_runtime_status(
+                &session_id,
+                "11111111-1111-1111-1111-111111111111",
+                CodingSessionStatus::Running,
+                Some("warming up".to_string()),
+            )
+            .unwrap();
+
+        let effects = armin.sink().effects();
+        assert_eq!(effects.len(), 1);
+        match &effects[0] {
+            SideEffect::RuntimeStatusUpdated {
+                session_id: emitted_session_id,
+                runtime_status,
+            } => {
+                assert_eq!(emitted_session_id, &session_id);
+                assert_eq!(runtime_status.session_id, session_id);
+                assert_eq!(
+                    runtime_status.device_id,
+                    "11111111-1111-1111-1111-111111111111"
+                );
+                assert_eq!(
+                    runtime_status.coding_session.status,
+                    CodingSessionStatus::Running
+                );
+                assert_eq!(
+                    runtime_status.coding_session.error_message.as_deref(),
+                    Some("warming up")
+                );
+            }
+            other => panic!("unexpected side effect: {other:?}"),
+        }
     }
 
     #[test]

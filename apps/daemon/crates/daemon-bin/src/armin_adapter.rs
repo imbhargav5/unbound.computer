@@ -149,11 +149,14 @@ impl SideEffectSink for DaemonSideEffectSink {
                 });
             }
 
-            SideEffect::AgentStatusChanged { session_id, status } => {
+            SideEffect::RuntimeStatusUpdated {
+                session_id,
+                runtime_status,
+            } => {
                 debug!(
                     session_id = %session_id,
-                    status = %status.as_str(),
-                    "Armin agent status changed"
+                    status = %runtime_status.coding_session.status.as_str(),
+                    "Armin runtime status updated"
                 );
                 // Broadcast status change so clients know when Claude starts/stops
                 let seq = self.next_sequence();
@@ -162,7 +165,9 @@ impl SideEffectSink for DaemonSideEffectSink {
                     session_id.as_str(),
                     serde_json::json!({
                         "session_id": session_id.as_str(),
-                        "status": status.as_str(),
+                        "status": runtime_status.coding_session.status.as_str(),
+                        "error_message": runtime_status.coding_session.error_message,
+                        "runtime_status": runtime_status,
                     }),
                     seq,
                 );
