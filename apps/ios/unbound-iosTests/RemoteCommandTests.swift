@@ -161,8 +161,27 @@ final class RemoteCommandResponseTests: XCTestCase {
 
         let response = try JSONDecoder().decode(RemoteCommandResponse.self, from: json)
         XCTAssertEqual(response.errorCode, "setup_hook_failed")
-        XCTAssertEqual(response.errorData?["stage"], .string("post_create"))
-        XCTAssertEqual(response.errorData?["stderr"], .string("command failed"))
+        XCTAssertEqual(response.errorData?.objectValue?["stage"], .string("post_create"))
+        XCTAssertEqual(response.errorData?.objectValue?["stderr"], .string("command failed"))
+    }
+
+    func testResponseDecodesScalarErrorData() throws {
+        let json = """
+        {
+            "schema_version": 1,
+            "request_id": "req-err-scalar",
+            "type": "session.create.v1",
+            "status": "error",
+            "error_code": "setup_hook_failed",
+            "error_message": "setup hook failed",
+            "error_data": "hook timeout",
+            "created_at_ms": 1700000000000
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RemoteCommandResponse.self, from: json)
+        XCTAssertEqual(response.errorCode, "setup_hook_failed")
+        XCTAssertEqual(response.errorData, .string("hook timeout"))
     }
 
     func testResponseWithNullableFieldsOmitted() throws {
@@ -407,10 +426,10 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
                 result: nil,
                 errorCode: "setup_hook_failed",
                 errorMessage: "setup hook failed",
-                errorData: [
+                errorData: .object([
                     "stage": .string("pre_create"),
                     "stderr": .string("hook failed")
-                ],
+                ]),
                 createdAtMs: 1
             )
         )
@@ -437,8 +456,58 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
             case .commandFailed(let errorCode, let errorMessage, let errorData):
                 XCTAssertEqual(errorCode, "setup_hook_failed")
                 XCTAssertEqual(errorMessage, "setup hook failed")
-                XCTAssertEqual(errorData?["stage"], .string("pre_create"))
-                XCTAssertEqual(errorData?["stderr"], .string("hook failed"))
+                XCTAssertEqual(errorData?.objectValue?["stage"], .string("pre_create"))
+                XCTAssertEqual(errorData?.objectValue?["stderr"], .string("hook failed"))
+            default:
+                XCTFail("Unexpected RemoteCommandError: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCreateSessionErrorWithScalarErrorDataStillThrowsCommandFailed() async {
+        let transport = ErrorResponseRemoteTransport(
+            response: RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: "req-error",
+                type: "session.create.v1",
+                status: "error",
+                result: nil,
+                errorCode: "setup_hook_failed",
+                errorMessage: "setup hook failed",
+                errorData: .string("hook timeout"),
+                createdAtMs: 1
+            )
+        )
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        do {
+            _ = try await service.createSession(
+                targetDeviceId: "22222222-2222-2222-2222-222222222222",
+                repositoryId: "33333333-3333-3333-3333-333333333333",
+                isWorktree: true
+            )
+            XCTFail("Expected commandFailed error")
+        } catch let error as RemoteCommandError {
+            switch error {
+            case .commandFailed(let errorCode, let errorMessage, let errorData):
+                XCTAssertEqual(errorCode, "setup_hook_failed")
+                XCTAssertEqual(errorMessage, "setup hook failed")
+                XCTAssertEqual(errorData, .string("hook timeout"))
+                XCTAssertEqual(
+                    error.localizedDescription,
+                    "Command failed (setup_hook_failed): setup hook failed [error_data=hook timeout]"
+                )
             default:
                 XCTFail("Unexpected RemoteCommandError: \(error)")
             }

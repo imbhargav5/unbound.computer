@@ -152,7 +152,7 @@ struct RemoteCommandResponse: Codable {
     let result: AnyCodableValue?
     let errorCode: String?
     let errorMessage: String?
-    let errorData: [String: AnyCodableValue]?
+    let errorData: AnyCodableValue?
     let createdAtMs: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -175,7 +175,7 @@ struct RemoteCommandResponse: Codable {
         result: AnyCodableValue?,
         errorCode: String?,
         errorMessage: String?,
-        errorData: [String: AnyCodableValue]? = nil,
+        errorData: AnyCodableValue? = nil,
         createdAtMs: Int64
     ) {
         self.schemaVersion = schemaVersion
