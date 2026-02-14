@@ -4,6 +4,7 @@
 //! to sync Armin's local state with the cloud database.
 
 use crate::error::{ToshinoriError, ToshinoriResult};
+use armin::RuntimeStatusEnvelope;
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -13,6 +14,12 @@ fn summarize_response_body(body: &str) -> String {
     let mut hasher = DefaultHasher::new();
     body.hash(&mut hasher);
     format!("len={},digest={:016x}", body.len(), hasher.finish())
+}
+
+fn runtime_status_updated_at(updated_at_ms: i64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(updated_at_ms)
+        .unwrap_or_else(chrono::Utc::now)
+        .to_rfc3339()
 }
 
 /// Represents a message payload formatted for Supabase upsert operations.
@@ -277,21 +284,39 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Placeholder for agent status updates (not yet implemented in Supabase schema).
+    /// Updates the runtime status envelope on an existing session.
     ///
-    /// Currently logs a warning and returns Ok. The agent_status column does not
-    /// exist in the current Supabase schema, so this is a no-op that allows the
-    /// calling code to remain forward-compatible.
-    pub async fn update_agent_status(
+    /// Mirrors Armin's canonical grouped runtime envelope into Supabase,
+    /// including a timestamp mirror for efficient ordering queries.
+    pub async fn update_runtime_status(
         &self,
         session_id: &str,
-        status: &str,
-        _access_token: &str,
+        runtime_status: &RuntimeStatusEnvelope,
+        access_token: &str,
     ) -> ToshinoriResult<()> {
-        warn!(
-            session_id,
-            status, "Agent status sync skipped (no agent_status column in Supabase schema)"
+        let url = format!(
+            "{}?id=eq.{}",
+            self.rest_url("agent_coding_sessions"),
+            session_id
         );
+
+        let updated_at = runtime_status_updated_at(runtime_status.updated_at_ms);
+        let body = serde_json::json!({
+            "runtime_status": runtime_status,
+            "runtime_status_updated_at": updated_at,
+            "last_heartbeat_at": updated_at,
+        });
+
+        debug!(
+            session_id,
+            updated_at_ms = runtime_status.updated_at_ms,
+            status = runtime_status.coding_session.status.as_str(),
+            "Updating runtime status envelope in Supabase"
+        );
+
+        self.patch(&url, &body, access_token).await?;
+
+        debug!(session_id, "Runtime status envelope updated in Supabase");
         Ok(())
     }
 
@@ -404,6 +429,10 @@ impl std::fmt::Debug for SupabaseClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use armin::{
+        CodingSessionRuntimeState, CodingSessionStatus, RuntimeStatusEnvelope, SessionId,
+        RUNTIME_STATUS_SCHEMA_VERSION,
+    };
 
     #[test]
     fn test_client_creation() {
@@ -507,13 +536,21 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn update_agent_status_is_noop() {
-        let client = SupabaseClient::new("https://test.supabase.co", "key");
-        // This is a placeholder that always returns Ok
-        let result = client
-            .update_agent_status("session-1", "running", "token")
-            .await;
-        assert!(result.is_ok());
+    #[test]
+    fn runtime_status_timestamp_uses_updated_at_ms() {
+        let envelope = RuntimeStatusEnvelope {
+            schema_version: RUNTIME_STATUS_SCHEMA_VERSION,
+            coding_session: CodingSessionRuntimeState {
+                status: CodingSessionStatus::Running,
+                error_message: None,
+            },
+            device_id: "device-1".to_string(),
+            session_id: SessionId::from_string("session-1"),
+            updated_at_ms: 1_700_000_000_123,
+        };
+
+        let timestamp = runtime_status_updated_at(envelope.updated_at_ms);
+        assert!(timestamp.starts_with("2023-11-14T22:13:20"));
+        assert!(timestamp.ends_with("+00:00") || timestamp.ends_with('Z'));
     }
 }

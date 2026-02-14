@@ -25,6 +25,6 @@ pub use ably_sync::{AblyArminAccess, AblyArminHandle, AblyRealtimeSyncer, AblySy
 pub use client::{MessageUpsert, SupabaseClient};
 pub use error::{ToshinoriError, ToshinoriResult};
 pub use sink::{
-    MessageSyncRequest, MessageSyncer, SessionMetadata, SessionMetadataProvider, SyncContext,
-    ToshinoriSink,
+    MessageSyncRequest, MessageSyncer, RuntimeStatusSyncRequest, RuntimeStatusSyncer,
+    SessionMetadata, SessionMetadataProvider, SyncContext, ToshinoriSink,
 };

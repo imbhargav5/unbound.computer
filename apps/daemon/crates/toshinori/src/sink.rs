@@ -4,10 +4,17 @@
 //! side-effects to Supabase and dispatches hot-path message sync notifications.
 
 use crate::client::SupabaseClient;
-use armin::{SideEffect, SideEffectSink};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use armin::{RuntimeStatusEnvelope, SideEffect, SideEffectSink};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
+
+/// Buffer size for queued runtime status updates.
+const RUNTIME_STATUS_QUEUE_CAPACITY: usize = 256;
+/// Flush cadence for runtime status coalescing worker.
+const RUNTIME_STATUS_FLUSH_INTERVAL: Duration = Duration::from_millis(120);
 
 /// Authentication and identity context required for Supabase sync operations.
 ///
@@ -79,6 +86,25 @@ pub trait MessageSyncer: Send + Sync {
     fn enqueue(&self, request: MessageSyncRequest);
 }
 
+/// Represents a runtime status envelope update that needs fanout.
+///
+/// The same request is fanned out to:
+/// - Hot path: optional realtime status syncer (LiveObjects transport)
+/// - Cold path: Supabase runtime_status JSON mirror
+#[derive(Clone, Debug)]
+pub struct RuntimeStatusSyncRequest {
+    /// Session identifier for routing and LWW coalescing.
+    pub session_id: String,
+    /// Canonical runtime status envelope payload.
+    pub runtime_status: RuntimeStatusEnvelope,
+}
+
+/// Trait for async runtime status fanout processing.
+pub trait RuntimeStatusSyncer: Send + Sync {
+    /// Enqueues a runtime status update for realtime publish.
+    fn enqueue(&self, request: RuntimeStatusSyncRequest);
+}
+
 /// Toshinori: A SideEffectSink that syncs to Supabase.
 ///
 /// When Armin commits facts to SQLite, Toshinori asynchronously syncs
@@ -99,6 +125,12 @@ pub struct ToshinoriSink {
     message_syncer: Arc<RwLock<Option<Arc<dyn MessageSyncer>>>>,
     /// Optional realtime message syncer for Ably hot-path publish.
     realtime_message_syncer: Arc<RwLock<Option<Arc<dyn MessageSyncer>>>>,
+    /// Optional realtime runtime-status syncer for LiveObjects hot-path publish.
+    realtime_runtime_status_syncer: Arc<RwLock<Option<Arc<dyn RuntimeStatusSyncer>>>>,
+    /// Runtime-status queue sender.
+    runtime_status_sender: mpsc::Sender<RuntimeStatusSyncRequest>,
+    /// Runtime-status queue receiver, consumed exactly once by worker startup.
+    runtime_status_receiver: Mutex<Option<mpsc::Receiver<RuntimeStatusSyncRequest>>>,
     /// Tokio runtime handle for spawning async tasks.
     runtime: tokio::runtime::Handle,
 }
@@ -115,14 +147,21 @@ impl ToshinoriSink {
         anon_key: impl Into<String>,
         runtime: tokio::runtime::Handle,
     ) -> Self {
-        Self {
+        let (runtime_status_sender, runtime_status_receiver) =
+            mpsc::channel(RUNTIME_STATUS_QUEUE_CAPACITY);
+        let sink = Self {
             client: SupabaseClient::new(api_url, anon_key),
             context: Arc::new(RwLock::new(None)),
             metadata_provider: Arc::new(RwLock::new(None)),
             message_syncer: Arc::new(RwLock::new(None)),
             realtime_message_syncer: Arc::new(RwLock::new(None)),
-            runtime,
-        }
+            realtime_runtime_status_syncer: Arc::new(RwLock::new(None)),
+            runtime_status_sender,
+            runtime_status_receiver: Mutex::new(Some(runtime_status_receiver)),
+            runtime: runtime.clone(),
+        };
+        sink.start_runtime_status_worker();
+        sink
     }
 
     /// Configures the sync context with authentication credentials.
@@ -191,11 +230,162 @@ impl ToshinoriSink {
         *guard = None;
     }
 
+    /// Registers a realtime runtime-status syncer for hot-path publish.
+    pub async fn set_realtime_runtime_status_syncer(&self, syncer: Arc<dyn RuntimeStatusSyncer>) {
+        let mut guard = self.realtime_runtime_status_syncer.write().await;
+        *guard = Some(syncer);
+    }
+
+    /// Removes the realtime runtime-status syncer reference.
+    pub async fn clear_realtime_runtime_status_syncer(&self) {
+        let mut guard = self.realtime_runtime_status_syncer.write().await;
+        *guard = None;
+    }
+
     /// Checks if Supabase sync is currently enabled.
     ///
     /// Returns true if a sync context has been set (user is authenticated).
     pub async fn is_enabled(&self) -> bool {
         self.context.read().await.is_some()
+    }
+
+    fn enqueue_runtime_status_update(&self, request: RuntimeStatusSyncRequest) {
+        match self.runtime_status_sender.try_send(request.clone()) {
+            Ok(()) => {}
+            Err(tokio::sync::mpsc::error::TrySendError::Full(request)) => {
+                let sender = self.runtime_status_sender.clone();
+                self.runtime.spawn(async move {
+                    if let Err(err) = sender.send(request).await {
+                        warn!(error = %err, "Toshinori runtime-status enqueue failed (channel closed)");
+                    }
+                });
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                warn!("Toshinori runtime-status worker channel is closed");
+            }
+        }
+    }
+
+    fn start_runtime_status_worker(&self) {
+        let Some(mut receiver) = self
+            .runtime_status_receiver
+            .lock()
+            .expect("lock poisoned")
+            .take()
+        else {
+            panic!("Toshinori runtime-status worker already started");
+        };
+
+        let client = self.client.clone();
+        let context = self.context.clone();
+        let realtime_runtime_status_syncer = self.realtime_runtime_status_syncer.clone();
+
+        self.runtime.spawn(async move {
+            let mut ticker = interval(RUNTIME_STATUS_FLUSH_INTERVAL);
+            let mut pending: HashMap<String, RuntimeStatusSyncRequest> = HashMap::new();
+            let mut last_synced_by_session: HashMap<String, i64> = HashMap::new();
+            let mut last_hot_path_by_session: HashMap<String, i64> = HashMap::new();
+
+            loop {
+                tokio::select! {
+                    maybe_request = receiver.recv() => {
+                        match maybe_request {
+                            Some(request) => {
+                                coalesce_runtime_status_request(
+                                    &mut pending,
+                                    &last_synced_by_session,
+                                    request,
+                                );
+                            }
+                            None => {
+                                debug!("Toshinori runtime-status worker stopped (channel closed)");
+                                break;
+                            }
+                        }
+                    }
+                    _ = ticker.tick() => {
+                        if pending.is_empty() {
+                            continue;
+                        }
+
+                        let ctx = {
+                            let guard = context.read().await;
+                            guard.clone()
+                        };
+                        let Some(ctx) = ctx else {
+                            debug!(
+                                queued = pending.len(),
+                                "Toshinori runtime-status worker dropped queued updates (no context)"
+                            );
+                            pending.clear();
+                            continue;
+                        };
+
+                        let realtime_syncer = {
+                            let guard = realtime_runtime_status_syncer.read().await;
+                            guard.as_ref().cloned()
+                        };
+
+                        let batch = std::mem::take(&mut pending);
+                        for request in batch.into_values() {
+                            if let Some(last_synced) = last_synced_by_session.get(&request.session_id)
+                            {
+                                if request.runtime_status.updated_at_ms < *last_synced {
+                                    debug!(
+                                        session_id = %request.session_id,
+                                        incoming_updated_at_ms = request.runtime_status.updated_at_ms,
+                                        last_synced_updated_at_ms = *last_synced,
+                                        "Skipping stale runtime status update"
+                                    );
+                                    continue;
+                                }
+                            }
+
+                            if let Some(syncer) = &realtime_syncer {
+                                let incoming_ms = request.runtime_status.updated_at_ms;
+                                let hot_path_ms =
+                                    last_hot_path_by_session.get(&request.session_id).copied();
+                                if hot_path_ms.map_or(true, |last_ms| incoming_ms > last_ms) {
+                                    syncer.enqueue(request.clone());
+                                    last_hot_path_by_session
+                                        .insert(request.session_id.clone(), incoming_ms);
+                                }
+                            }
+
+                            match client
+                                .update_runtime_status(
+                                    &request.session_id,
+                                    &request.runtime_status,
+                                    &ctx.access_token,
+                                )
+                                .await
+                            {
+                                Ok(()) => {
+                                    last_synced_by_session.insert(
+                                        request.session_id.clone(),
+                                        request.runtime_status.updated_at_ms,
+                                    );
+                                }
+                                Err(err) => {
+                                    warn!(
+                                        session_id = %request.session_id,
+                                        status = request.runtime_status.coding_session.status.as_str(),
+                                        updated_at_ms = request.runtime_status.updated_at_ms,
+                                        error = %err,
+                                        "Toshinori runtime-status Supabase sync failed"
+                                    );
+                                    coalesce_runtime_status_request(
+                                        &mut pending,
+                                        &last_synced_by_session,
+                                        request,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /// Spawns an async task to process a side-effect.
@@ -204,6 +394,18 @@ impl ToshinoriSink {
     /// blocking the synchronous emit() call. Handles each effect type with
     /// appropriate Supabase operations and logs errors without failing.
     fn handle_effect(&self, effect: SideEffect) {
+        if let SideEffect::RuntimeStatusUpdated {
+            session_id,
+            runtime_status,
+        } = effect
+        {
+            self.enqueue_runtime_status_update(RuntimeStatusSyncRequest {
+                session_id: session_id.as_str().to_string(),
+                runtime_status,
+            });
+            return;
+        }
+
         // Clone Arc references for the spawned task
         let client = self.client.clone();
         let context = self.context.clone();
@@ -360,17 +562,7 @@ impl ToshinoriSink {
                     }
                 }
 
-                SideEffect::RuntimeStatusUpdated {
-                    session_id,
-                    runtime_status,
-                } => {
-                    warn!(
-                        session_id = session_id.as_str(),
-                        status = runtime_status.coding_session.status.as_str(),
-                        "Runtime status sync deferred (handled by dedicated runtime fanout path)"
-                    );
-                    Ok(())
-                }
+                SideEffect::RuntimeStatusUpdated { .. } => Ok(()),
             };
 
             // Log errors but don't fail
@@ -378,6 +570,28 @@ impl ToshinoriSink {
                 error!(?effect, error = %e, "Toshinori: failed to sync side-effect");
             }
         });
+    }
+}
+
+fn coalesce_runtime_status_request(
+    pending: &mut HashMap<String, RuntimeStatusSyncRequest>,
+    last_synced_by_session: &HashMap<String, i64>,
+    request: RuntimeStatusSyncRequest,
+) {
+    let session_id = request.session_id.clone();
+    let incoming_ms = request.runtime_status.updated_at_ms;
+
+    if let Some(last_synced_ms) = last_synced_by_session.get(&session_id) {
+        if incoming_ms < *last_synced_ms {
+            return;
+        }
+    }
+
+    match pending.get(&session_id) {
+        Some(existing) if existing.runtime_status.updated_at_ms > incoming_ms => {}
+        _ => {
+            pending.insert(session_id, request);
+        }
     }
 }
 
@@ -465,6 +679,35 @@ mod tests {
 
     impl MessageSyncer for RecordingMessageSyncer {
         fn enqueue(&self, request: MessageSyncRequest) {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            self.requests.lock().unwrap().push(request);
+        }
+    }
+
+    struct RecordingRuntimeStatusSyncer {
+        requests: std::sync::Mutex<Vec<RuntimeStatusSyncRequest>>,
+        call_count: AtomicUsize,
+    }
+
+    impl RecordingRuntimeStatusSyncer {
+        fn new() -> Self {
+            Self {
+                requests: std::sync::Mutex::new(Vec::new()),
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+
+        fn requests(&self) -> Vec<RuntimeStatusSyncRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    impl RuntimeStatusSyncer for RecordingRuntimeStatusSyncer {
+        fn enqueue(&self, request: RuntimeStatusSyncRequest) {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             self.requests.lock().unwrap().push(request);
         }
@@ -603,6 +846,26 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn runtime_status_syncer_set_and_clear() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+
+        let syncer = Arc::new(RecordingRuntimeStatusSyncer::new());
+        sink.set_realtime_runtime_status_syncer(syncer).await;
+
+        {
+            let guard = sink.realtime_runtime_status_syncer.read().await;
+            assert!(guard.is_some());
+        }
+
+        sink.clear_realtime_runtime_status_syncer().await;
+        {
+            let guard = sink.realtime_runtime_status_syncer.read().await;
+            assert!(guard.is_none());
+        }
+    }
+
     // =========================================================================
     // Message dispatch to syncers
     // =========================================================================
@@ -714,6 +977,97 @@ mod tests {
 
         // Syncer should NOT have been called because context is missing
         assert_eq!(syncer.count(), 0);
+    }
+
+    // =========================================================================
+    // Runtime status fanout and coalescing
+    // =========================================================================
+
+    fn runtime_envelope(
+        session_id: &str,
+        status: CodingSessionStatus,
+        updated_at_ms: i64,
+    ) -> RuntimeStatusEnvelope {
+        RuntimeStatusEnvelope {
+            schema_version: RUNTIME_STATUS_SCHEMA_VERSION,
+            coding_session: CodingSessionRuntimeState {
+                status,
+                error_message: None,
+            },
+            device_id: "device-1".to_string(),
+            session_id: SessionId::from_string(session_id),
+            updated_at_ms,
+        }
+    }
+
+    #[tokio::test]
+    async fn runtime_status_updated_dispatches_to_realtime_syncer() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        let syncer = Arc::new(RecordingRuntimeStatusSyncer::new());
+        sink.set_realtime_runtime_status_syncer(syncer.clone())
+            .await;
+
+        sink.emit(SideEffect::RuntimeStatusUpdated {
+            session_id: SessionId::from_string("sess-1"),
+            runtime_status: runtime_envelope("sess-1", CodingSessionStatus::Running, 1000),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(180)).await;
+
+        assert_eq!(syncer.count(), 1);
+        let requests = syncer.requests();
+        assert_eq!(requests[0].session_id, "sess-1");
+        assert_eq!(
+            requests[0].runtime_status.coding_session.status,
+            CodingSessionStatus::Running
+        );
+    }
+
+    #[tokio::test]
+    async fn runtime_status_worker_coalesces_and_drops_stale_updates() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        sink.set_context(SyncContext {
+            access_token: "token".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+        })
+        .await;
+
+        let syncer = Arc::new(RecordingRuntimeStatusSyncer::new());
+        sink.set_realtime_runtime_status_syncer(syncer.clone())
+            .await;
+
+        sink.emit(SideEffect::RuntimeStatusUpdated {
+            session_id: SessionId::from_string("sess-1"),
+            runtime_status: runtime_envelope("sess-1", CodingSessionStatus::Running, 1_000),
+        });
+        sink.emit(SideEffect::RuntimeStatusUpdated {
+            session_id: SessionId::from_string("sess-1"),
+            runtime_status: runtime_envelope("sess-1", CodingSessionStatus::Waiting, 1_050),
+        });
+        sink.emit(SideEffect::RuntimeStatusUpdated {
+            session_id: SessionId::from_string("sess-1"),
+            runtime_status: runtime_envelope("sess-1", CodingSessionStatus::Idle, 900),
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(220)).await;
+
+        assert_eq!(syncer.count(), 1);
+        let requests = syncer.requests();
+        assert_eq!(
+            requests[0].runtime_status.coding_session.status,
+            CodingSessionStatus::Waiting
+        );
+        assert_eq!(requests[0].runtime_status.updated_at_ms, 1_050);
     }
 
     // =========================================================================
