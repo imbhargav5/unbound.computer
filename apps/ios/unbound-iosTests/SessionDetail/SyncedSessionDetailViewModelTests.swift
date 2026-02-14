@@ -4,6 +4,9 @@ import XCTest
 @testable import unbound_ios
 
 final class SyncedSessionDetailViewModelTests: XCTestCase {
+    private static let retainedServicesLock = NSLock()
+    private static var retainedRemoteCommandServices: [RemoteCommandService] = []
+
     func testLoadMessagesSuccessUpdatesState() async {
         let expectedMessage = Message(
             id: UUID(),
@@ -130,7 +133,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
             )
         )
 
-        for _ in 0..<50 {
+        for _ in 0..<200 {
             let currentCount = await MainActor.run { viewModel.messages.count }
             if currentCount == 2 {
                 break
@@ -189,7 +192,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
         let loader = MockSessionDetailMessageLoader(
             result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
         )
-        let service = makeRemoteCommandService(transport: transport)
+        let service = makeRetainedRemoteCommandService(transport: transport)
         let viewModel = await MainActor.run {
             SyncedSessionDetailViewModel(
                 session: makeSession(deviceId: UUID().uuidString.lowercased()),
@@ -248,7 +251,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
         let loader = MockSessionDetailMessageLoader(
             result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
         )
-        let service = makeRemoteCommandService(transport: transport)
+        let service = makeRetainedRemoteCommandService(transport: transport)
         let viewModel = await MainActor.run {
             SyncedSessionDetailViewModel(
                 session: makeSession(deviceId: UUID().uuidString.lowercased()),
@@ -306,7 +309,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
         let loader = MockSessionDetailMessageLoader(
             result: .success(SessionDetailLoadResult(messages: [], decryptedMessageCount: 0))
         )
-        let service = makeRemoteCommandService(transport: transport)
+        let service = makeRetainedRemoteCommandService(transport: transport)
         let viewModel = await MainActor.run {
             SyncedSessionDetailViewModel(
                 session: makeSession(deviceId: UUID().uuidString.lowercased()),
@@ -361,6 +364,16 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
         )
     }
 
+    private func makeRetainedRemoteCommandService(
+        transport: RemoteCommandTransport
+    ) -> RemoteCommandService {
+        let service = makeRemoteCommandService(transport: transport)
+        Self.retainedServicesLock.lock()
+        Self.retainedRemoteCommandServices.append(service)
+        Self.retainedServicesLock.unlock()
+        return service
+    }
+
     private func fixtureURL() -> URL {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -376,6 +389,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
 
 private final class MockSessionDetailMessageLoader: SessionDetailMessageLoading {
     private let result: Result<SessionDetailLoadResult, Error>
+    private let stateLock = NSLock()
     private(set) var calls = 0
     private(set) var updateCalls = 0
     private var continuation: AsyncThrowingStream<SessionDetailLoadResult, Error>.Continuation?
@@ -386,27 +400,38 @@ private final class MockSessionDetailMessageLoader: SessionDetailMessageLoading 
     }
 
     func loadMessages(sessionId _: UUID) async throws -> SessionDetailLoadResult {
+        stateLock.lock()
         calls += 1
+        stateLock.unlock()
         return try result.get()
     }
 
     func messageUpdates(sessionId _: UUID) -> AsyncThrowingStream<SessionDetailLoadResult, Error> {
+        stateLock.lock()
         updateCalls += 1
+        stateLock.unlock()
         return AsyncThrowingStream { continuation in
+            self.stateLock.lock()
             self.continuation = continuation
-            for update in self.bufferedUpdates {
+            let pendingUpdates = self.bufferedUpdates
+            self.bufferedUpdates.removeAll()
+            self.stateLock.unlock()
+
+            for update in pendingUpdates {
                 continuation.yield(update)
             }
-            self.bufferedUpdates.removeAll()
         }
     }
 
     func emitUpdate(_ update: SessionDetailLoadResult) {
-        if let continuation {
-            continuation.yield(update)
-        } else {
+        stateLock.lock()
+        let currentContinuation = continuation
+        if currentContinuation == nil {
             bufferedUpdates.append(update)
         }
+        stateLock.unlock()
+
+        currentContinuation?.yield(update)
     }
 }
 
