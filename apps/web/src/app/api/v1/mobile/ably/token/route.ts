@@ -54,12 +54,10 @@ export function buildDaemonNagatoCapability(requesterDeviceId: string): Capabili
   };
 }
 
-export function buildDaemonFalcoCapability(requesterDeviceId: string, userId: string): Capability {
+export function buildDaemonFalcoCapability(requesterDeviceId: string): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
-  const normalizedUser = userId.toLowerCase();
   return {
     "session:*:conversation": ["publish"],
-    [`presence:${normalizedUser}`]: ["publish"],
     [`remote:${normalizedRequester}:commands`]: ["publish"],
     [`session:secrets:${normalizedRequester}:*`]: ["publish"],
   };
@@ -68,18 +66,13 @@ export function buildDaemonFalcoCapability(requesterDeviceId: string, userId: st
 export function buildAudienceCapability(
   audience: AblyTokenAudience,
   deviceIds: string[],
-  requesterDeviceId: string,
-  userId: string
+  requesterDeviceId: string
 ): Capability {
-  const normalizedUser = userId.toLowerCase();
   switch (audience) {
     case "mobile":
-      return {
-        ...buildMobileCapability(deviceIds, requesterDeviceId),
-        [`presence:${normalizedUser}`]: ["subscribe"],
-      };
+      return buildMobileCapability(deviceIds, requesterDeviceId);
     case "daemon_falco":
-      return buildDaemonFalcoCapability(requesterDeviceId, normalizedUser);
+      return buildDaemonFalcoCapability(requesterDeviceId);
     case "daemon_nagato":
       return buildDaemonNagatoCapability(requesterDeviceId);
   }
@@ -166,8 +159,7 @@ export async function POST(req: NextRequest) {
     const capability = buildAudienceCapability(
       audience,
       userDevices.map((device) => String(device.id)),
-      requesterDeviceId,
-      user.id
+      requesterDeviceId
     );
 
     const tokenRequestResponse = await fetch(

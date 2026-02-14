@@ -30,7 +30,7 @@ struct DeviceHomeView: View {
 
     private var isSelectedDeviceRemoteAvailable: Bool {
         guard let selectedDevice else { return false }
-        return daemonAvailability(for: selectedDevice) != .offline
+        return presenceService.isDeviceDaemonAvailable(id: selectedDevice.id.uuidString.lowercased())
     }
 
     var body: some View {
@@ -259,14 +259,10 @@ struct DeviceHomeView: View {
         showSessionTypeChooser = true
     }
 
-    private func daemonAvailability(for device: SyncedDevice) -> DeviceDaemonAvailability {
-        presenceService.daemonAvailability(id: device.id.uuidString.lowercased())
-    }
-
     private func createSession(repositoryId: UUID, mode: SessionCreationMode) {
         guard let device = selectedDevice else { return }
         guard !isCreatingSession else { return }
-        guard daemonAvailability(for: device) != .offline else {
+        guard presenceService.isDeviceDaemonAvailable(id: device.id.uuidString.lowercased()) else {
             sessionCreationError = "Selected device daemon is offline. Try again when it comes online."
             return
         }

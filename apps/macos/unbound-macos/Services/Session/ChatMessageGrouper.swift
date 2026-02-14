@@ -25,7 +25,7 @@ struct ChatMessageGrouper {
                 switch content {
                 case .subAgentActivity(var subAgent):
                     if let pending = pendingToolsByParent.removeValue(forKey: subAgent.parentToolUseId) {
-                        subAgent.tools = mergeTools(existing: subAgent.tools, incoming: pending)
+                        subAgent.tools.append(contentsOf: pending)
                     }
                     newContent.append(.subAgentActivity(subAgent))
                     anchorByParent[subAgent.parentToolUseId] = Anchor(
@@ -39,8 +39,7 @@ struct ChatMessageGrouper {
                         if let anchor = anchorByParent[parentId] {
                             append(toolUse: toolUse, to: anchor, in: &result)
                         } else {
-                            let existingPending = pendingToolsByParent[parentId, default: []]
-                            pendingToolsByParent[parentId] = mergeTools(existing: existingPending, incoming: [toolUse])
+                            pendingToolsByParent[parentId, default: []].append(toolUse)
                         }
                         continue
                     }
@@ -77,41 +76,10 @@ struct ChatMessageGrouper {
         var message = messages[anchor.messageIndex]
         guard message.content.indices.contains(anchor.contentIndex) else { return }
         if case .subAgentActivity(var subAgent) = message.content[anchor.contentIndex] {
-            subAgent.tools = mergeTools(existing: subAgent.tools, incoming: [toolUse])
+            subAgent.tools.append(toolUse)
             message.content[anchor.contentIndex] = .subAgentActivity(subAgent)
             messages[anchor.messageIndex] = message
         }
-    }
-
-    private static func mergeTools(existing: [ToolUse], incoming: [ToolUse]) -> [ToolUse] {
-        guard !incoming.isEmpty else { return existing }
-
-        var merged = existing
-        var indexByKey: [String: Int] = [:]
-
-        for (index, tool) in existing.enumerated() {
-            indexByKey[toolDedupKey(for: tool)] = index
-        }
-
-        for tool in incoming {
-            let key = toolDedupKey(for: tool)
-            if let existingIndex = indexByKey[key] {
-                merged[existingIndex] = tool
-            } else {
-                indexByKey[key] = merged.count
-                merged.append(tool)
-            }
-        }
-
-        return merged
-    }
-
-    private static func toolDedupKey(for tool: ToolUse) -> String {
-        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
-            return "id:\(toolUseId)"
-        }
-
-        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.input ?? "")"
     }
 
     private struct Anchor {

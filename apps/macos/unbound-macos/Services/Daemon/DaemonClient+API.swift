@@ -80,12 +80,6 @@ extension DaemonClient {
     func logout() async throws {
         _ = try await call(method: .authLogout)
     }
-
-    /// Get billing usage status from daemon cache.
-    func getBillingUsageStatus() async throws -> DaemonBillingUsageStatusResponse {
-        let response = try await call(method: .billingUsageStatus)
-        return try response.resultAs(DaemonBillingUsageStatusResponse.self)
-    }
 }
 
 private struct DaemonSocialLoginStart: Codable {

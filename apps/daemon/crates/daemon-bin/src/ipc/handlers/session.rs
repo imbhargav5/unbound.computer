@@ -1,21 +1,19 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
-use crate::utils::repository_config::{
-    default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
-};
+use crate::utils::repository_config::{load_repository_config, SetupHookStageConfig};
 use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
 use piccolo::{create_worktree_with_options, remove_worktree};
 use std::path::Path;
 use std::process::Stdio;
-use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
 
 const MAX_HOOK_STDERR_CHARS: usize = 1200;
+const DEFAULT_WORKTREE_ROOT_DIR: &str = ".unbound/worktrees";
 
 #[derive(Debug, Clone)]
 pub struct SessionCreateCoreError {
@@ -45,8 +43,8 @@ impl SessionCreateCoreError {
         }
     }
 
-    pub fn into_response_parts(self) -> (String, String, Option<serde_json::Value>) {
-        (self.code, self.message, self.data)
+    pub fn into_pair(self) -> (String, String) {
+        (self.code, self.message)
     }
 }
 
@@ -73,42 +71,16 @@ fn normalize_optional_string(value: Option<&str>) -> Option<String> {
 }
 
 fn is_legacy_worktree_root(root_dir: &str) -> bool {
-    let trimmed = root_dir.trim();
+    let trimmed = root_dir.trim().trim_end_matches('/');
     if trimmed.is_empty() {
         return false;
     }
 
     Path::new(trimmed)
-        .components()
-        .any(|component| component.as_os_str().to_string_lossy() == ".unbound-worktrees")
-}
-
-fn validate_worktree_name(name: &str) -> Result<(), String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err("worktree_name must not be empty or whitespace".to_string());
-    }
-    if trimmed != name {
-        return Err("worktree_name must not have leading or trailing whitespace".to_string());
-    }
-    if trimmed.contains('/') || trimmed.contains('\\') {
-        return Err("worktree_name must not contain path separators".to_string());
-    }
-    if trimmed == "." {
-        return Err("worktree_name must not be '.'".to_string());
-    }
-    if trimmed.contains("..") {
-        return Err("worktree_name must not contain '..'".to_string());
-    }
-    if !trimmed
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
-    {
-        return Err(
-            "worktree_name may only contain ASCII letters, numbers, '.', '_', and '-'".to_string(),
-        );
-    }
-    Ok(())
+        .file_name()
+        .and_then(|v| v.to_str())
+        .map(|v| v == ".unbound-worktrees")
+        .unwrap_or(trimmed == ".unbound-worktrees")
 }
 
 fn resolve_worktree_branch(params: &serde_json::Value) -> Option<String> {
@@ -161,43 +133,7 @@ async fn run_setup_hook(
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
-    #[cfg(unix)]
-    {
-        // Put the hook in its own process group so timeout cleanup can terminate
-        // both the shell and any spawned children.
-        unsafe {
-            process.pre_exec(|| {
-                if libc::setpgid(0, 0) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                Ok(())
-            });
-        }
-    }
-
-    let mut child = process.spawn().map_err(|e| {
-        SessionCreateCoreError::with_data(
-            "setup_hook_failed",
-            format!(
-                "setup hook failed at stage {}: failed to execute command: {}",
-                stage.as_str(),
-                e
-            ),
-            serde_json::json!({
-                "stage": stage.as_str(),
-            }),
-        )
-    })?;
-
-    let stderr_handle = child.stderr.take().map(|mut stderr| {
-        tokio::spawn(async move {
-            let mut buf = Vec::new();
-            let _ = stderr.read_to_end(&mut buf).await;
-            buf
-        })
-    });
-
-    let output = match timeout(timeout_duration, child.wait()).await {
+    let output = match timeout(timeout_duration, process.output()).await {
         Ok(result) => result.map_err(|e| {
             SessionCreateCoreError::with_data(
                 "setup_hook_failed",
@@ -212,51 +148,6 @@ async fn run_setup_hook(
             )
         })?,
         Err(_) => {
-            let mut cleanup_error: Option<String> = None;
-
-            #[cfg(unix)]
-            {
-                if let Some(raw_pid) = child.id() {
-                    let rc = unsafe { libc::kill(-(raw_pid as i32), libc::SIGKILL) };
-                    if rc == -1 {
-                        let err = std::io::Error::last_os_error();
-                        // Ignore "no such process" because the child may have exited
-                        // naturally between timeout and kill.
-                        if err.raw_os_error() != Some(libc::ESRCH) {
-                            cleanup_error =
-                                Some(format!("failed to kill hook process group: {}", err));
-                        }
-                    }
-                }
-            }
-
-            #[cfg(not(unix))]
-            {
-                if let Err(e) = child.kill().await {
-                    cleanup_error = Some(format!("failed to kill hook process: {}", e));
-                }
-            }
-
-            if let Err(e) = child.wait().await {
-                let msg = format!("failed to reap timed out hook process: {}", e);
-                cleanup_error = match cleanup_error {
-                    Some(existing) => Some(format!("{existing}; {msg}")),
-                    None => Some(msg),
-                };
-            }
-
-            if let Some(handle) = stderr_handle {
-                let _ = handle.await;
-            }
-
-            let mut data = serde_json::json!({
-                "stage": stage.as_str(),
-                "timeout_seconds": timeout_seconds,
-            });
-            if let Some(cleanup_error) = cleanup_error {
-                data["cleanup_error"] = serde_json::json!(cleanup_error);
-            }
-
             return Err(SessionCreateCoreError::with_data(
                 "setup_hook_failed",
                 format!(
@@ -264,27 +155,22 @@ async fn run_setup_hook(
                     stage.as_str(),
                     timeout_seconds
                 ),
-                data,
+                serde_json::json!({
+                    "stage": stage.as_str(),
+                    "timeout_seconds": timeout_seconds,
+                }),
             ));
         }
     };
 
-    let stderr = if let Some(handle) = stderr_handle {
-        match handle.await {
-            Ok(stderr_bytes) => String::from_utf8_lossy(&stderr_bytes).to_string(),
-            Err(_) => String::new(),
-        }
-    } else {
-        String::new()
-    };
-
-    if output.success() {
+    if output.status.success() {
         return Ok(());
     }
 
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let stderr_trimmed = stderr.trim();
     let stderr_summary = truncate_for_error(stderr_trimmed, MAX_HOOK_STDERR_CHARS);
-    let exit_code = output.code();
+    let exit_code = output.status.code();
     let mut message = format!(
         "setup hook failed at stage {} with exit code {:?}",
         stage.as_str(),
@@ -409,14 +295,9 @@ pub async fn create_session_core(
             "repository_id is required",
         ));
     };
-    if let Some(name) = worktree_name.as_deref() {
-        validate_worktree_name(name)
-            .map_err(|msg| SessionCreateCoreError::new("invalid_params", msg))?;
-    }
 
     let session_id = SessionId::new();
     let session_secret = SecretsManager::generate_session_secret();
-    let mut worktree_cleanup_context: Option<(String, String)> = None;
 
     let worktree_path = if is_worktree {
         let repo_id = RepositoryId::from_string(&repository_id);
@@ -437,14 +318,12 @@ pub async fn create_session_core(
         };
 
         let repo_path = Path::new(&repo.path);
-        let default_worktree_root_dir = default_worktree_root_dir_for_repo(repo.id.as_str());
-        let repo_config =
-            load_repository_config(repo_path, &default_worktree_root_dir).map_err(|e| {
-                SessionCreateCoreError::new(
-                    "internal_error",
-                    format!("Failed to load repository config: {}", e),
-                )
-            })?;
+        let repo_config = load_repository_config(repo_path).map_err(|e| {
+            SessionCreateCoreError::new(
+                "internal_error",
+                format!("Failed to load repository config: {}", e),
+            )
+        })?;
 
         let effective_base_branch = resolve_base_branch(
             requested_base_branch,
@@ -453,7 +332,7 @@ pub async fn create_session_core(
         );
         let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
         let root_dir = if repo_config.worktree.root_dir.trim().is_empty() {
-            default_worktree_root_dir.clone()
+            DEFAULT_WORKTREE_ROOT_DIR.to_string()
         } else {
             repo_config.worktree.root_dir.clone()
         };
@@ -461,10 +340,10 @@ pub async fn create_session_core(
         if is_legacy_worktree_root(&root_dir) {
             return Err(SessionCreateCoreError::with_data(
                 "legacy_worktree_unsupported",
-                "legacy worktree root '.unbound-worktrees' is not supported; use '~/.unbound/<repo_id>/worktrees'",
+                "legacy worktree root '.unbound-worktrees' is not supported; use '.unbound/worktrees'",
                 serde_json::json!({
                     "configured_root_dir": root_dir,
-                    "supported_root_dir": default_worktree_root_dir,
+                    "supported_root_dir": DEFAULT_WORKTREE_ROOT_DIR,
                 }),
             ));
         }
@@ -516,7 +395,6 @@ pub async fn create_session_core(
             return Err(hook_error);
         }
 
-        worktree_cleanup_context = Some((repo.path.clone(), created_worktree_path.clone()));
         Some(created_worktree_path)
     } else {
         None
@@ -534,25 +412,6 @@ pub async fn create_session_core(
     let created_session = match state.armin.create_session_with_metadata(new_session) {
         Ok(s) => s,
         Err(e) => {
-            if let Some((repo_path, created_worktree_path)) = worktree_cleanup_context.take() {
-                if let Err(cleanup_error) =
-                    remove_worktree(Path::new(&repo_path), Path::new(&created_worktree_path))
-                {
-                    let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
-                    return Err(SessionCreateCoreError::with_data(
-                        "internal_error",
-                        format!(
-                            "Failed to create session: {}; cleanup failed: {}",
-                            e, cleanup_error
-                        ),
-                        serde_json::json!({
-                            "cleanup_error": cleanup_summary,
-                            "worktree_path": created_worktree_path,
-                        }),
-                    ));
-                }
-            }
-
             return Err(SessionCreateCoreError::new(
                 "internal_error",
                 format!("Failed to create session: {}", e),
@@ -809,20 +668,9 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn has_zsh() -> bool {
         Path::new("/bin/zsh").exists()
-    }
-
-    fn unique_temp_path(prefix: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()))
     }
 
     #[test]
@@ -874,56 +722,8 @@ mod tests {
     fn legacy_worktree_root_detection() {
         assert!(is_legacy_worktree_root(".unbound-worktrees"));
         assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees"));
-        assert!(is_legacy_worktree_root(
-            "/tmp/repo/.unbound-worktrees/nested"
-        ));
-        assert!(is_legacy_worktree_root(
-            "/tmp/repo/custom/.unbound-worktrees/root"
-        ));
         assert!(!is_legacy_worktree_root(".unbound/worktrees"));
         assert!(!is_legacy_worktree_root("custom/worktrees"));
-        assert!(!is_legacy_worktree_root("/tmp/repo/.unbound-worktrees-v2"));
-    }
-
-    #[test]
-    fn validate_worktree_name_accepts_safe_values() {
-        let valid = [
-            "session-1",
-            "unbound_123",
-            "release.2026.02",
-            "abcDEF-123_.name",
-        ];
-        for name in valid {
-            assert!(
-                validate_worktree_name(name).is_ok(),
-                "expected valid worktree name: {}",
-                name
-            );
-        }
-    }
-
-    #[test]
-    fn validate_worktree_name_rejects_unsafe_values() {
-        let invalid = [
-            "",
-            "   ",
-            " session",
-            "session ",
-            "foo/bar",
-            "foo\\bar",
-            ".",
-            "..",
-            "a..b",
-            "semi;colon",
-            "emoji-\u{1F680}",
-        ];
-        for name in invalid {
-            assert!(
-                validate_worktree_name(name).is_err(),
-                "expected invalid worktree name: {:?}",
-                name
-            );
-        }
     }
 
     #[tokio::test]
@@ -971,39 +771,5 @@ mod tests {
         let data = err.data.expect("expected structured hook timeout data");
         assert_eq!(data["stage"], "post_create");
         assert_eq!(data["timeout_seconds"], 1);
-    }
-
-    #[tokio::test]
-    async fn run_setup_hook_timeout_kills_background_children() {
-        if !has_zsh() {
-            return;
-        }
-
-        let marker_file = unique_temp_path("hook-leak-check");
-        let marker_path = marker_file
-            .to_string_lossy()
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"");
-
-        let hook = SetupHookStageConfig {
-            command: Some(format!(
-                "nohup /bin/zsh -lc 'sleep 2; echo leaked > \"{}\"' >/dev/null 2>&1 & sleep 30",
-                marker_path
-            )),
-            timeout_seconds: 1,
-        };
-
-        let cwd = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let err = run_setup_hook(HookStage::PreCreate, &hook, cwd)
-            .await
-            .expect_err("hook should timeout");
-
-        assert_eq!(err.code, "setup_hook_failed");
-        tokio::time::sleep(Duration::from_secs(3)).await;
-        assert!(
-            !marker_file.exists(),
-            "timed-out hook leaked child process that wrote marker file"
-        );
-        let _ = fs::remove_file(marker_file);
     }
 }

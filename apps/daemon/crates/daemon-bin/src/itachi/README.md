@@ -78,11 +78,10 @@ Remote responses are emitted as `remote.command.response.v1` with:
 - `status="error"`
 - `error_code` (machine-readable code)
 - `error_message` (human-readable detail)
-- `error_data` (optional structured details from daemon handlers)
 
 Notable `session.create.v1` failures:
 
-- `setup_hook_failed`: hook command failed/timed out; stage (`pre_create` / `post_create`) and optional `stderr` / `cleanup_error` are included in `error_data` when available.
+- `setup_hook_failed`: hook command failed/timed out; stage (`pre_create` / `post_create`) is included in `error_message`.
 - `legacy_worktree_unsupported`: legacy `.unbound-worktrees` usage is rejected.
 
 ## Effect System

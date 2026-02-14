@@ -11,12 +11,7 @@ struct ToolUseView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let toolUse: ToolUse
-    @State private var isExpanded: Bool
-
-    init(toolUse: ToolUse, initiallyExpanded: Bool = false) {
-        self.toolUse = toolUse
-        _isExpanded = State(initialValue: initiallyExpanded)
-    }
+    @State private var isExpanded = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -148,7 +143,7 @@ struct ToolUseView: View {
             input: "src/main.swift",
             output: "File contents here...",
             status: .completed
-        ), initiallyExpanded: true)
+        ))
 
         ToolUseView(toolUse: ToolUse(
             toolUseId: "test-2",
@@ -164,7 +159,7 @@ struct ToolUseView: View {
             input: "swift build",
             output: "Error: Missing dependency",
             status: .failed
-        ), initiallyExpanded: true)
+        ))
     }
     .frame(width: 500)
     .padding()

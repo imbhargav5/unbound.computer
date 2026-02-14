@@ -100,15 +100,6 @@ impl Paths {
         self.base_dir.join(ABLY_AUTH_SOCKET_NAME)
     }
 
-    /// Get all managed sidecar socket paths in a stable cleanup order.
-    pub fn sidecar_socket_files(&self) -> [PathBuf; 3] {
-        [
-            self.nagato_socket_file(),
-            self.falco_socket_file(),
-            self.ably_socket_file(),
-        ]
-    }
-
     /// Get the logs directory (~/.unbound/logs).
     pub fn logs_dir(&self) -> PathBuf {
         self.base_dir.join("logs")
@@ -153,14 +144,6 @@ mod tests {
         assert_eq!(paths.nagato_socket_file(), base.join("nagato.sock"));
         assert_eq!(paths.ably_socket_file(), base.join("ably.sock"));
         assert_eq!(paths.ably_auth_socket_file(), base.join("ably-auth.sock"));
-        assert_eq!(
-            paths.sidecar_socket_files(),
-            [
-                base.join("nagato.sock"),
-                base.join("falco.sock"),
-                base.join("ably.sock")
-            ]
-        );
         assert_eq!(paths.logs_dir(), base.join("logs"));
         assert_eq!(paths.daemon_log_file(), base.join("logs/daemon.log"));
     }

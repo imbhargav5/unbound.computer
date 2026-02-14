@@ -152,7 +152,6 @@ struct RemoteCommandResponse: Codable {
     let result: AnyCodableValue?
     let errorCode: String?
     let errorMessage: String?
-    let errorData: AnyCodableValue?
     let createdAtMs: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -163,30 +162,7 @@ struct RemoteCommandResponse: Codable {
         case result
         case errorCode = "error_code"
         case errorMessage = "error_message"
-        case errorData = "error_data"
         case createdAtMs = "created_at_ms"
-    }
-
-    init(
-        schemaVersion: Int,
-        requestId: String,
-        type: String,
-        status: String,
-        result: AnyCodableValue?,
-        errorCode: String?,
-        errorMessage: String?,
-        errorData: AnyCodableValue? = nil,
-        createdAtMs: Int64
-    ) {
-        self.schemaVersion = schemaVersion
-        self.requestId = requestId
-        self.type = type
-        self.status = status
-        self.result = result
-        self.errorCode = errorCode
-        self.errorMessage = errorMessage
-        self.errorData = errorData
-        self.createdAtMs = createdAtMs
     }
 
     var isOk: Bool { status == "ok" }
