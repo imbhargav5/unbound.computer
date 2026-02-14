@@ -1,67 +1,118 @@
 export const navigation = [
   {
-    title: "Introduction",
+    title: "Overview",
+    links: [{ title: "Overview", href: "/docs/overview" }],
+  },
+  {
+    title: "About",
+    links: [{ title: "About", href: "/docs/about" }],
+  },
+  {
+    title: "Internals",
+    links: [{ title: "Internals", href: "/docs/internals" }],
+  },
+  {
+    title: "Internals: Apps",
     links: [
-      { title: "The Importance of Documentation", href: "/docs" },
-      { title: "Installation", href: "/docs/installation" },
-      { title: "Setup Guide", href: "/docs/setup" },
-      { title: "Getting Started", href: "/docs/getting-started" },
-      { title: "Frequently Asked Questions", href: "/docs/faq" },
+      { title: "Web App", href: "/docs/internals/apps/web" },
+      { title: "macOS App", href: "/docs/internals/apps/macos" },
+      { title: "iOS App", href: "/docs/internals/apps/ios" },
+      { title: "Database", href: "/docs/internals/apps/database" },
     ],
   },
   {
-    title: "Javascript Concepts",
+    title: "Internals: Daemon",
     links: [
-      { title: "Variables", href: "/docs/concepts/variables" },
-      { title: "Arrays", href: "/docs/concepts/arrays" },
-      { title: "Functions", href: "/docs/concepts/functions" },
-      { title: "Object Oriented Programming", href: "/docs/concepts/oop" },
-      { title: "Async/Await", href: "/docs/concepts/async-await" },
+      { title: "Daemon Bin", href: "/docs/internals/daemon/daemon-bin" },
+      { title: "Itachi", href: "/docs/internals/daemon/itachi" },
+      {
+        title: "Daemon Config And Utils",
+        href: "/docs/internals/daemon/daemon-config-and-utils",
+      },
+      { title: "Daemon IPC", href: "/docs/internals/daemon/daemon-ipc" },
+      { title: "Daemon Auth", href: "/docs/internals/daemon/daemon-auth" },
+      {
+        title: "Daemon Database",
+        href: "/docs/internals/daemon/daemon-database",
+      },
+      { title: "Daemon Storage", href: "/docs/internals/daemon/daemon-storage" },
+      { title: "Armin", href: "/docs/internals/daemon/armin" },
+      { title: "Deku", href: "/docs/internals/daemon/deku" },
+      { title: "Piccolo", href: "/docs/internals/daemon/piccolo" },
+      { title: "Bakugou", href: "/docs/internals/daemon/bakugou" },
+      { title: "Levi", href: "/docs/internals/daemon/levi" },
+      { title: "Toshinori", href: "/docs/internals/daemon/toshinori" },
+      { title: "Yamcha", href: "/docs/internals/daemon/yamcha" },
+      { title: "Yagami", href: "/docs/internals/daemon/yagami" },
+      { title: "Ymir", href: "/docs/internals/daemon/ymir" },
+      { title: "Gyomei", href: "/docs/internals/daemon/gyomei" },
+      {
+        title: "Rengoku Sessions",
+        href: "/docs/internals/daemon/rengoku-sessions",
+      },
+      {
+        title: "Eren Machines",
+        href: "/docs/internals/daemon/eren-machines",
+      },
+      {
+        title: "Sakura Working Dir Resolution",
+        href: "/docs/internals/daemon/sakura-working-dir-resolution",
+      },
+      {
+        title: "One For All Protocol",
+        href: "/docs/internals/daemon/one-for-all-protocol",
+      },
+      {
+        title: "Sasuke Crypto",
+        href: "/docs/internals/daemon/sasuke-crypto",
+      },
+      {
+        title: "Historia Lifecycle",
+        href: "/docs/internals/daemon/historia-lifecycle",
+      },
+      { title: "Tien", href: "/docs/internals/daemon/tien" },
     ],
   },
   {
-    title: "Advanced Concepts",
+    title: "Internals: Packages",
     links: [
-      { title: "Data Structures", href: "/docs/advanced/data-structures" },
-      { title: "Algorithms", href: "/docs/advanced/algorithms" },
-      { title: "Design Patterns", href: "/docs/advanced/design-patterns" },
-      { title: "Testing", href: "/docs/advanced/testing" },
+      { title: "Agent Runtime", href: "/docs/internals/packages/agent-runtime" },
+      { title: "Protocol", href: "/docs/internals/packages/protocol" },
+      { title: "Session", href: "/docs/internals/packages/session" },
+      { title: "Web Session", href: "/docs/internals/packages/web-session" },
+      { title: "Redis", href: "/docs/internals/packages/redis" },
+      { title: "Crypto", href: "/docs/internals/packages/crypto" },
+      { title: "Daemon Ably", href: "/docs/internals/packages/daemon-ably" },
+      {
+        title: "Daemon Ably Client",
+        href: "/docs/internals/packages/daemon-ably-client",
+      },
+      { title: "Daemon Falco", href: "/docs/internals/packages/daemon-falco" },
+      { title: "Daemon Nagato", href: "/docs/internals/packages/daemon-nagato" },
+      {
+        title: "Transport Reliability",
+        href: "/docs/internals/packages/transport-reliability",
+      },
+      {
+        title: "Observability",
+        href: "/docs/internals/packages/observability",
+      },
+      { title: "Git Worktree", href: "/docs/internals/packages/git-worktree" },
+      {
+        title: "Typescript Config",
+        href: "/docs/internals/packages/typescript-config",
+      },
     ],
   },
   {
-    title: "Frameworks",
+    title: "Internals: Web",
     links: [
-      { title: "React.js", href: "/docs/frameworks/react" },
-      { title: "Vue.js", href: "/docs/frameworks/vue" },
-      { title: "Angular", href: "/docs/frameworks/angular" },
-      { title: "Svelte", href: "/docs/frameworks/svelte" },
-    ],
-  },
-  {
-    title: "Backend Development",
-    links: [
-      { title: "Node.js", href: "/docs/backend/node" },
-      { title: "Express.js", href: "/docs/backend/express" },
-      { title: "Django", href: "/docs/backend/django" },
-      { title: "Ruby on Rails", href: "/docs/backend/rails" },
-    ],
-  },
-  {
-    title: "Databases",
-    links: [
-      { title: "SQL", href: "/docs/databases/sql" },
-      { title: "MongoDB", href: "/docs/databases/mongodb" },
-      { title: "PostgreSQL", href: "/docs/databases/postgresql" },
-      { title: "Redis", href: "/docs/databases/redis" },
-    ],
-  },
-  {
-    title: "Conclusion",
-    links: [
-      { title: "Final Thoughts", href: "/docs/final-thoughts" },
-      { title: "Further Reading", href: "/docs/further-reading" },
-      { title: "About Us", href: "/docs/about" },
-      { title: "Contact Us", href: "/docs/contact" },
+      {
+        title: "Request Memoization",
+        href: "/docs/internals/web/request-memoization",
+      },
+      { title: "RSC Data", href: "/docs/internals/web/rsc-data" },
+      { title: "Navigation Fns", href: "/docs/internals/web/navigation-fns" },
     ],
   },
 ];
