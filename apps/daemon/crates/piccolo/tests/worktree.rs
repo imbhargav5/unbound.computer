@@ -203,7 +203,7 @@ fn create_worktree_non_repo_returns_error() {
 fn create_worktree_invalid_name_returns_error() {
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-invalid-name");
-    let invalid = ["", "   ", "foo/bar", "foo\\bar", "..", "a..b"];
+    let invalid = ["", "   ", "foo/bar", "foo\\bar", ".", "..", "a..b"];
 
     for name in invalid {
         let result = create_worktree(&repo_path, &repo_id, name, None);

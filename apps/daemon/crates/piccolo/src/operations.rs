@@ -968,6 +968,9 @@ fn validate_worktree_name(worktree_name: &str) -> Result<(), String> {
     if trimmed.contains('/') || trimmed.contains('\\') {
         return Err("Invalid worktree name: path separators are not allowed".to_string());
     }
+    if trimmed == "." {
+        return Err("Invalid worktree name: '.' is not allowed".to_string());
+    }
     if trimmed.contains("..") {
         return Err("Invalid worktree name: '..' is not allowed".to_string());
     }
@@ -1292,6 +1295,7 @@ mod tests {
             "session ",
             "foo/bar",
             "foo\\bar",
+            ".",
             "..",
             "a..b",
             "semi;colon",
