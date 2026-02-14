@@ -405,53 +405,90 @@ pub struct SessionUpdate {
 // Session state types
 // ============================================================================
 
-/// Agent status for a session.
+/// Canonical schema version for runtime status envelopes.
+pub const RUNTIME_STATUS_SCHEMA_VERSION: i64 = 1;
+
+/// Coding session status for runtime sync.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum AgentStatus {
+#[serde(rename_all = "kebab-case")]
+pub enum CodingSessionStatus {
+    Running,
     #[default]
     Idle,
-    Running,
     Waiting,
+    NotAvailable,
     Error,
 }
 
-impl AgentStatus {
-    /// Converts the agent status to its string representation.
+impl CodingSessionStatus {
+    /// Converts the coding session status to its string representation.
     ///
     /// Returns a static string slice matching the database/API representation
     /// of each status variant (lowercase).
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Idle => "idle",
             Self::Running => "running",
+            Self::Idle => "idle",
             Self::Waiting => "waiting",
+            Self::NotAvailable => "not-available",
             Self::Error => "error",
         }
     }
 
-    /// Parses a string into an AgentStatus variant.
+    /// Parses a string into a CodingSessionStatus variant.
     ///
-    /// Performs case-insensitive matching. Returns `Idle` as the default
+    /// Performs case-insensitive matching. Returns `NotAvailable` as a fallback
     /// for any unrecognized string values (fail-safe behavior).
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "running" => Self::Running,
+            "idle" => Self::Idle,
             "waiting" => Self::Waiting,
+            "not-available" => Self::NotAvailable,
+            "not_available" => Self::NotAvailable,
             "error" => Self::Error,
-            _ => Self::Idle,
+            _ => Self::NotAvailable,
         }
     }
 }
 
-/// Runtime state for a session.
+/// Backward-compatible alias while call-sites migrate to CodingSessionStatus.
+pub type AgentStatus = CodingSessionStatus;
+
+/// Nested runtime section stored inside the envelope.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CodingSessionRuntimeState {
+    pub status: CodingSessionStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+}
+
+/// Canonical runtime status envelope shared across transport/storage layers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeStatusEnvelope {
+    pub schema_version: i64,
+    pub coding_session: CodingSessionRuntimeState,
+    pub device_id: String,
+    pub session_id: SessionId,
+    pub updated_at_ms: i64,
+}
+
+/// Runtime state row for a session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionState {
     pub session_id: SessionId,
-    pub agent_status: AgentStatus,
-    pub queued_commands: Option<String>,
-    pub diff_summary: Option<String>,
+    pub runtime_status: RuntimeStatusEnvelope,
     pub updated_at: DateTime<Utc>,
+}
+
+impl SessionState {
+    pub fn coding_session_status(&self) -> CodingSessionStatus {
+        self.runtime_status.coding_session.status
+    }
+
+    pub fn error_message(&self) -> Option<&str> {
+        self.runtime_status.coding_session.error_message.as_deref()
+    }
 }
 
 // ============================================================================

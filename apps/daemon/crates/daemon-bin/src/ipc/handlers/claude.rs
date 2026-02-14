@@ -242,7 +242,7 @@ async fn register_claude_status(server: &IpcServer, state: DaemonState) {
                     .get_session_state(&armin_session_id)
                     .ok()
                     .flatten()
-                    .map(|s| s.agent_status.as_str().to_string())
+                    .map(|s| s.runtime_status.coding_session.status.as_str().to_string())
                     .unwrap_or_else(|| "idle".to_string());
 
                 Response::success(
