@@ -1,3 +1,46 @@
 ---
 title: "About"
+description: "Unbound pairs a background Rust daemon with native client applications to provide AI-assisted coding sessions."
 ---
+
+## What is Unbound?
+
+Unbound is a development tool that pairs a background Rust daemon with native client applications to provide AI-assisted coding sessions. The daemon manages Claude CLI processes, tracks sessions in a local SQLite database, handles authentication, and orchestrates git operations -- all through a Unix socket IPC interface that any client can connect to.
+
+The system follows a local-first architecture: all session data lives in SQLite on your machine, and the daemon operates fully offline. When signed in, sessions optionally sync to Supabase with end-to-end encryption (X25519 + ChaCha20-Poly1305), enabling cross-device access through the web app.
+
+Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar through `daemon-ably`), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar (also through `daemon-ably`), which forwards them to the daemon for processing.
+
+## Tech Stack
+
+**Daemon (Rust)**
+- Tokio async runtime
+- SQLite via rusqlite (WAL mode, async executor)
+- libgit2 via git2 crate
+- ChaCha20-Poly1305 + X25519 encryption
+- Unix domain sockets via interprocess
+- clap for CLI, tracing for logging
+- PostHog + Sentry sinks via shared observability crate
+
+**Daemon Sidecars (Go)**
+- Ably SDK for real-time pub/sub (via `daemon-ably`)
+- Binary frame protocol over Unix domain sockets
+- Stateless, crash-safe design
+
+**macOS App (Swift)**
+- SwiftUI with MVVM architecture
+- Unix socket IPC to daemon
+- swift-log for structured logging
+- Keychain integration for secure storage
+
+**Web App (TypeScript)**
+- Next.js (App Router)
+- Supabase client for auth and data
+- Sentry for error tracking
+- Biome for linting/formatting
+
+**Infrastructure**
+- Supabase (Postgres, Auth, Realtime)
+- Ably (real-time message delivery, remote command routing)
+- pnpm workspaces + Turborepo
+- AGPL-3.0 license
