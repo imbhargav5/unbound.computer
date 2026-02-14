@@ -517,7 +517,16 @@ private final class MockGenericRemoteCommandTransport: RemoteCommandTransport {
             throw responseError
         }
 
-        let type = publishedEnvelopes.last?.type ?? "mock.v1"
+        // sendCommand starts response wait before publish; wait briefly for matching envelope.
+        var type = "mock.v1"
+        for _ in 0..<100 {
+            if let envelope = publishedEnvelopes.last(where: { $0.requestId == requestId }) {
+                type = envelope.type
+                break
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+
         if let err = errorByType[type] {
             return RemoteCommandResponse(
                 schemaVersion: 1,

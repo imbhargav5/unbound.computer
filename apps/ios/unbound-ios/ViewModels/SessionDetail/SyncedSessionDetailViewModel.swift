@@ -62,7 +62,6 @@ final class SyncedSessionDetailViewModel {
 
     var canRunPRActions: Bool {
         session.deviceId != nil
-            && codingSessionStatus != .notAvailable
             && !isSending
             && !isStopping
             && !isCreatingPullRequest

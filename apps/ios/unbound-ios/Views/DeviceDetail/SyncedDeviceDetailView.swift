@@ -128,7 +128,7 @@ struct SyncedDeviceDetailView: View {
             if let cli = device.capabilities?.cli {
                 capabilityRow(title: "Claude", tool: cli.claude)
                 if let models = cli.claude?.models, !models.isEmpty {
-                    Text("Models: \(models.joined(separator: \", \"))")
+                    Text("Models: \(models.joined(separator: ", "))")
                         .font(Typography.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(2)
