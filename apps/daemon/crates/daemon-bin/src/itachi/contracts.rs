@@ -69,13 +69,7 @@ impl RemoteCommandResponse {
         error_code: impl Into<String>,
         error_message: impl Into<String>,
     ) -> Self {
-        Self::error_with_data(
-            request_id,
-            command_type,
-            error_code,
-            error_message,
-            None,
-        )
+        Self::error_with_data(request_id, command_type, error_code, error_message, None)
     }
 
     pub fn error_with_data(

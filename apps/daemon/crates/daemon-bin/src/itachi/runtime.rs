@@ -278,11 +278,7 @@ fn schedule_quota_refresh(state: DaemonState, reason: &'static str) {
     });
 }
 
-fn schedule_usage_event_and_refresh(
-    state: DaemonState,
-    request_id: String,
-    command_type: String,
-) {
+fn schedule_usage_event_and_refresh(state: DaemonState, request_id: String, command_type: String) {
     tokio::spawn(async move {
         if let Err(err) = emit_usage_event(&state, &request_id).await {
             warn!(
@@ -374,7 +370,9 @@ fn begin_cache_refresh(state: &DaemonState) -> bool {
     true
 }
 
-async fn fetch_usage_status_snapshot(state: &DaemonState) -> Result<Option<BillingQuotaSnapshot>, String> {
+async fn fetch_usage_status_snapshot(
+    state: &DaemonState,
+) -> Result<Option<BillingQuotaSnapshot>, String> {
     let sync_context = match state.auth_runtime.current_sync_context() {
         Ok(Some(sync_context)) => sync_context,
         Ok(None) => return Ok(None),
@@ -446,7 +444,10 @@ async fn emit_usage_event(state: &DaemonState, request_id: &str) -> Result<(), S
         .await
         .map_err(|err| format!("failed to obtain valid access token: {err}"))?;
 
-    let endpoint = format!("{}/api/v1/mobile/billing/usage-events", resolve_web_app_url());
+    let endpoint = format!(
+        "{}/api/v1/mobile/billing/usage-events",
+        resolve_web_app_url()
+    );
     let response = reqwest::Client::new()
         .post(endpoint)
         .bearer_auth(access_token)
@@ -905,8 +906,8 @@ fn parse_publish_ack(data: &[u8]) -> Result<PublishAckFrame, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_remote_command_type, idempotency_key, parse_publish_ack, should_enforce_over_quota,
-        RemoteCommandType, FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
+        classify_remote_command_type, idempotency_key, parse_publish_ack,
+        should_enforce_over_quota, RemoteCommandType, FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
     };
     use crate::app::BillingQuotaSnapshot;
     use crate::itachi::contracts::UmSecretRequestCommand;
@@ -1016,7 +1017,10 @@ mod tests {
             updated_at: "2026-02-13T00:00:00Z".to_string(),
             fetched_at_ms: 1_000,
         };
-        assert!(!should_enforce_over_quota(Some(&snapshot), 1_000 + (5 * 60 * 1000) + 1));
+        assert!(!should_enforce_over_quota(
+            Some(&snapshot),
+            1_000 + (5 * 60 * 1000) + 1
+        ));
     }
 
     #[test]

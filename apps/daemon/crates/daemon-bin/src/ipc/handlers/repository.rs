@@ -199,19 +199,20 @@ async fn register_repository_get_settings(server: &IpcServer, state: DaemonState
                     }
                 };
 
-                let default_worktree_root_dir = default_worktree_root_dir_for_repo(repo.id.as_str());
+                let default_worktree_root_dir =
+                    default_worktree_root_dir_for_repo(repo.id.as_str());
                 let repo_config =
                     match load_repository_config(Path::new(&repo.path), &default_worktree_root_dir)
                     {
-                    Ok(config) => config,
-                    Err(e) => {
-                        return Response::error(
-                            &req.id,
-                            error_codes::INTERNAL_ERROR,
-                            &format!("Failed to load repository config: {}", e),
-                        );
-                    }
-                };
+                        Ok(config) => config,
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to load repository config: {}", e),
+                            );
+                        }
+                    };
 
                 Response::success(
                     &req.id,

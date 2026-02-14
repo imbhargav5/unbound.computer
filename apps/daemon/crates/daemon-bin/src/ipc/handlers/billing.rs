@@ -27,16 +27,17 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
                     return Response::success(&req.id, unavailable_payload());
                 };
 
-                if snapshot.user_id != sync_context.user_id || snapshot.device_id != sync_context.device_id {
+                if snapshot.user_id != sync_context.user_id
+                    || snapshot.device_id != sync_context.device_id
+                {
                     return Response::success(&req.id, unavailable_payload());
                 }
 
                 let now_ms = chrono::Utc::now().timestamp_millis();
                 let stale = now_ms - snapshot.fetched_at_ms > BILLING_CACHE_STALE_AFTER_MS;
-                let fetched_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(
-                    snapshot.fetched_at_ms,
-                )
-                .map(|dt| dt.to_rfc3339());
+                let fetched_at =
+                    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(snapshot.fetched_at_ms)
+                        .map(|dt| dt.to_rfc3339());
 
                 Response::success(
                     &req.id,
