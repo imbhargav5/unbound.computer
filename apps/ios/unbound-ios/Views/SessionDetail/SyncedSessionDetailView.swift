@@ -110,6 +110,7 @@ struct SyncedSessionDetailView: View {
         ChatInputView(text: $viewModel.inputText) {
             Task { await viewModel.sendMessage() }
         }
+        .disabled(!viewModel.canSendMessage)
     }
 
     private var contentView: some View {
@@ -162,6 +163,19 @@ struct SyncedSessionDetailView: View {
 
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+            HStack(spacing: AppTheme.spacingXS) {
+                Image(systemName: runtimeStatusIconName)
+                    .font(.caption)
+
+                Text("Runtime: \(viewModel.codingSessionStatus.displayName)")
+                    .font(.caption.monospaced())
+            }
+            .foregroundStyle(runtimeStatusColor)
+            .padding(.horizontal, AppTheme.spacingS)
+            .padding(.vertical, 6)
+            .background(runtimeStatusColor.opacity(0.14))
+            .clipShape(Capsule())
+
             Text("Session ID")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
@@ -183,6 +197,12 @@ struct SyncedSessionDetailView: View {
                         .foregroundStyle(AppTheme.accent)
                 }
             }
+
+            if let runtimeError = viewModel.codingSessionErrorMessage {
+                Label(runtimeError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.spacingM)
@@ -193,6 +213,36 @@ struct SyncedSessionDetailView: View {
                 .stroke(AppTheme.cardBorder, lineWidth: 1)
         )
         .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private var runtimeStatusColor: Color {
+        switch viewModel.codingSessionStatus {
+        case .running:
+            return .green
+        case .idle:
+            return AppTheme.textSecondary
+        case .waiting:
+            return .orange
+        case .notAvailable:
+            return AppTheme.textSecondary
+        case .error:
+            return .red
+        }
+    }
+
+    private var runtimeStatusIconName: String {
+        switch viewModel.codingSessionStatus {
+        case .running:
+            return "play.circle.fill"
+        case .idle:
+            return "pause.circle.fill"
+        case .waiting:
+            return "hourglass.circle.fill"
+        case .notAvailable:
+            return "slash.circle.fill"
+        case .error:
+            return "xmark.octagon.fill"
+        }
     }
 
     private var pullRequestPanel: some View {

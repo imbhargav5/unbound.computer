@@ -81,6 +81,15 @@ enum Config {
         "session:\(sessionId.uuidString.lowercased()):conversation"
     }
 
+    // MARK: - Ably Runtime Status (LiveObjects)
+
+    static let runtimeStatusObjectKey = "coding_session_status"
+
+    /// Returns the Ably channel name for a session's runtime-status object updates.
+    static func runtimeStatusChannel(sessionId: UUID) -> String {
+        "session:\(sessionId.uuidString.lowercased()):status"
+    }
+
     /// Force recreation of local SQLite database on app launch (debug only).
     /// Set `RECREATE_LOCAL_DB_ON_LAUNCH=1` in scheme environment variables.
     static var recreateLocalDatabaseOnLaunch: Bool {

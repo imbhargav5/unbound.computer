@@ -16,6 +16,7 @@ private let sessionDetailLogger = Logger(label: "app.ui.session-detail")
 final class SyncedSessionDetailViewModel {
     private let session: SyncedSession
     private let messageService: SessionDetailMessageLoading
+    private let runtimeStatusService: SessionDetailRuntimeStatusStreaming
     private let remoteCommandService: RemoteCommandService
 
     private(set) var messages: [Message] = []
@@ -35,29 +36,48 @@ final class SyncedSessionDetailViewModel {
     private(set) var isLoadingPullRequests = false
     private(set) var isCreatingPullRequest = false
     private(set) var isMergingPullRequest = false
+    private(set) var runtimeStatus: SessionDetailRuntimeStatusEnvelope?
 
     private var hasLoaded = false
     private var realtimeUpdatesTask: Task<Void, Never>?
+    private var runtimeStatusUpdatesTask: Task<Void, Never>?
+
+    var codingSessionStatus: SessionDetailRuntimeStatus {
+        runtimeStatus?.codingSession.status ?? .notAvailable
+    }
+
+    var codingSessionErrorMessage: String? {
+        runtimeStatus?.normalizedErrorMessage
+    }
 
     var canSendMessage: Bool {
-        session.deviceId != nil && !isSending && !isStopping
+        session.deviceId != nil && codingSessionStatus != .notAvailable && !isSending && !isStopping
     }
 
     var canStopClaude: Bool {
-        session.deviceId != nil && !isStopping
+        session.deviceId != nil
+            && (codingSessionStatus == .running || codingSessionStatus == .waiting)
+            && !isStopping
     }
 
     var canRunPRActions: Bool {
-        session.deviceId != nil && !isSending && !isStopping && !isCreatingPullRequest && !isMergingPullRequest
+        session.deviceId != nil
+            && codingSessionStatus != .notAvailable
+            && !isSending
+            && !isStopping
+            && !isCreatingPullRequest
+            && !isMergingPullRequest
     }
 
     init(
         session: SyncedSession,
         messageService: SessionDetailMessageLoading? = nil,
+        runtimeStatusService: SessionDetailRuntimeStatusStreaming? = nil,
         remoteCommandService: RemoteCommandService? = nil
     ) {
         self.session = session
         self.messageService = messageService ?? SessionDetailMessageService()
+        self.runtimeStatusService = runtimeStatusService ?? AblyRuntimeStatusService()
         self.remoteCommandService = remoteCommandService ?? .shared
     }
 
@@ -65,6 +85,7 @@ final class SyncedSessionDetailViewModel {
         await loadMessages()
         await refreshPullRequests()
         startRealtimeUpdates()
+        startRuntimeStatusUpdates()
     }
 
     func loadMessages(force: Bool = false) async {
@@ -259,6 +280,8 @@ final class SyncedSessionDetailViewModel {
     func stopRealtimeUpdates() {
         realtimeUpdatesTask?.cancel()
         realtimeUpdatesTask = nil
+        runtimeStatusUpdatesTask?.cancel()
+        runtimeStatusUpdatesTask = nil
     }
 
     private func startRealtimeUpdates() {
@@ -287,6 +310,38 @@ final class SyncedSessionDetailViewModel {
             }
 
             self.realtimeUpdatesTask = nil
+        }
+    }
+
+    private func startRuntimeStatusUpdates() {
+        guard runtimeStatusUpdatesTask == nil else {
+            return
+        }
+
+        runtimeStatusUpdatesTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                for try await envelope in self.runtimeStatusService.subscribe(sessionId: self.session.id) {
+                    guard envelope.normalizedSessionId == self.session.id.uuidString.lowercased() else {
+                        continue
+                    }
+
+                    if let current = self.runtimeStatus, envelope.updatedAtMs < current.updatedAtMs {
+                        continue
+                    }
+
+                    self.runtimeStatus = envelope
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                sessionDetailLogger.error(
+                    "Realtime runtime-status stream failed for session \(self.session.id): \(error.localizedDescription)"
+                )
+            }
+
+            self.runtimeStatusUpdatesTask = nil
         }
     }
 }
