@@ -10,6 +10,21 @@ This crate configures structured JSON logging and ensures every service emits co
 - One config entrypoint for all services.
 - Dev mode writes to a shared JSONL file for multi-process streaming.
 
+## Remote Export
+
+The dev subscriber can optionally fan out logs to remote sinks:
+
+- **PostHog** (events for dashboards)
+- **Sentry** (error and warning envelopes)
+
+Remote export is configured through `LogConfig` and gated by the runtime
+`ObservabilityMode` policy.
+
+## Export Policy Modes
+
+- `DevVerbose` - includes payloads after basic secret redaction.
+- `ProdMetadataOnly` - exports metadata only (no raw payloads).
+
 ## Dev Mode Output
 
 By default logs are written to:
@@ -40,13 +55,18 @@ observability::init_with_config(observability::LogConfig {
     service_name: "daemon".into(),
     default_level: "debug".into(),
     also_stderr: true,
+    mode: observability::ObservabilityMode::DevVerbose,
     ..Default::default()
 });
 ```
 
 ## Key Types
 
-- `LogConfig` - service name, default log level, optional log path
+- `LogConfig` - service name, level, mode, sinks, sampling
+- `ObservabilityMode` - runtime export policy
+- `PosthogConfig` - PostHog API key + batching settings
+- `SentryConfig` - Sentry DSN
+- `SamplingConfig` - per-level sampling rates
 - `init` - zero-config setup
 - `init_with_config` - fully configurable setup
 

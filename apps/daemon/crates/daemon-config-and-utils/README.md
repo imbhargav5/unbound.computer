@@ -14,6 +14,7 @@ Provides foundational components that other crates depend on, avoiding circular 
 - **Conversation crypto**: shared ChaCha20-Poly1305 helpers for message payloads
 - **Hybrid crypto**: X25519 + ChaCha20-Poly1305 encryption
 - **Git operations**: Status, diff, log, branch management
+- **Observability**: runtime log policy + PostHog/Sentry configuration
 
 ## Conversation Crypto Utility
 
@@ -40,3 +41,16 @@ Contract:
 - `socket_file()` -> `~/.unbound/daemon.sock`
 - `falco_socket_file()` -> `~/.unbound/falco.sock`
 - `nagato_socket_file()` -> `~/.unbound/nagato.sock`
+
+## Observability Configuration
+
+Environment-driven config used by the daemon and other Rust services:
+
+- `UNBOUND_OBS_MODE`: `dev` or `prod` (affects remote export payloads)
+- `UNBOUND_POSTHOG_API_KEY`: enable PostHog export
+- `UNBOUND_POSTHOG_HOST`: override PostHog ingest host
+- `UNBOUND_SENTRY_DSN`: enable Sentry export
+- `UNBOUND_OBS_DEBUG_SAMPLE_RATE`: debug/trace sampling rate
+- `UNBOUND_OBS_INFO_SAMPLE_RATE`: info sampling rate
+- `UNBOUND_OBS_WARN_SAMPLE_RATE`: warn sampling rate
+- `UNBOUND_OBS_ERROR_SAMPLE_RATE`: error sampling rate
