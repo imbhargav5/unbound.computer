@@ -147,9 +147,14 @@ assert_eq!(
 ```
 
 Available side-effects:
+- `RepositoryCreated { repository_id }`
+- `RepositoryDeleted { repository_id }`
 - `SessionCreated { session_id }`
-- `MessageAppended { session_id, message_id, sequence_number, content }`
 - `SessionClosed { session_id }`
+- `SessionDeleted { session_id }`
+- `SessionUpdated { session_id }`
+- `MessageAppended { session_id, message_id, sequence_number, content }`
+- `RuntimeStatusUpdated { session_id, runtime_status }`
 
 ## What Armin Deliberately Does NOT Do
 

@@ -60,14 +60,15 @@ On `start`, the daemon boots services in dependency order:
 6. **Database** - Async SQLite executor
 7. **SecretsManager** - Platform keychain access
 8. **SupabaseClient** - REST API client
-9. **Levi** - Supabase message sync worker (cold path)
-10. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists)
-11. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
-12. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
-13. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
-14. **Gyomei** - Rope-backed file I/O with cache
-15. **Handler registration** - Wire IPC methods to handlers
-16. **Listen** - Accept client connections
+9. **Auth validation + capabilities refresh** - Verify session and sync device capabilities
+10. **Levi** - Supabase message sync worker (cold path)
+11. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists)
+12. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
+13. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
+14. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
+15. **Gyomei** - Rope-backed file I/O with cache
+16. **Handler registration** - Wire IPC methods to handlers
+17. **Listen** - Accept client connections
 
 The daemon starts the Ably token broker (`~/.unbound/ably-auth.sock`) and mints audience-scoped tokens.
 `daemon-ably` receives those broker credentials and exposes one local socket at `~/.unbound/ably.sock`.
@@ -108,8 +109,9 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | gyomei, yagami |
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
-| Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, ... | piccolo |
+| Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | piccolo |
 | GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | bakugou |
+| System | `system.check_dependencies`, `system.refresh_capabilities` | tien, ymir |
 | Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
 
 ## Side-Effect Bridge
@@ -126,6 +128,10 @@ Armin commit
 
 `MessageAppended` is fanned out to both cold and hot paths. Hot path uses channel
 `session:{session_id}:conversation` with event `conversation.message.v1`.
+
+`RuntimeStatusUpdated` is fanned out to Supabase `runtime_status` updates and
+an Ably LiveObjects object-set on channel `session:{session_id}:status` with
+object key `coding_session_status`.
 
 ## Crate Structure
 
@@ -186,7 +192,7 @@ daemon-bin/
 
 | Field | Value |
 |-------|-------|
-| Channel | `session:presence:{user_id}:conversation` |
+| Channel | `presence:{user_id}` |
 | Event | `daemon.presence.v1` |
 | Producer | `daemon-ably` |
 | Status values | `online`, `offline` |

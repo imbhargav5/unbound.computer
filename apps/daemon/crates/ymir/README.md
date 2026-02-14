@@ -12,3 +12,4 @@ Handles OAuth login flow, token refresh, and session state. Integrates with Supa
 - **Token refresh**: Automatic background token renewal
 - **FSM-based state**: Explicit auth state machine (logged out → authenticating → authenticated)
 - **Supabase client**: Device and session secret API calls
+- **Device capabilities sync**: Refreshes Tien capability payloads in Supabase
