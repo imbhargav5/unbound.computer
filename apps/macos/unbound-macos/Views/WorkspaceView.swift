@@ -205,6 +205,19 @@ struct WorkspaceView: View {
                 }
             }
         )
+        .background(
+            KeyboardShortcutSequenceHandler(
+                firstKey: "k",
+                firstModifiers: .command,
+                secondKey: "z",
+                secondModifiers: [],
+                timeout: 1.2
+            ) {
+                withAnimation(.easeOut(duration: Duration.fast)) {
+                    appState.localSettings.setZenModeEnabled(!appState.localSettings.isZenModeEnabled)
+                }
+            }
+        )
         .task {
             await autoSelectFirstSessionIfNeeded()
         }
@@ -350,6 +363,93 @@ struct KeyboardShortcutHandler: NSViewRepresentable {
                         self.action?()
                         return nil // Consume the event
                     }
+                    return event
+                }
+            }
+        }
+
+        override func removeFromSuperview() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+            monitor = nil
+            super.removeFromSuperview()
+        }
+    }
+}
+
+struct KeyboardShortcutSequenceHandler: NSViewRepresentable {
+    let firstKey: String
+    let firstModifiers: NSEvent.ModifierFlags
+    let secondKey: String
+    let secondModifiers: NSEvent.ModifierFlags
+    let timeout: TimeInterval
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = SequenceKeyCaptureView()
+        view.firstKey = firstKey
+        view.firstModifiers = firstModifiers
+        view.secondKey = secondKey
+        view.secondModifiers = secondModifiers
+        view.timeout = timeout
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? SequenceKeyCaptureView {
+            view.action = action
+            view.timeout = timeout
+        }
+    }
+
+    class SequenceKeyCaptureView: NSView {
+        var firstKey: String = ""
+        var firstModifiers: NSEvent.ModifierFlags = []
+        var secondKey: String = ""
+        var secondModifiers: NSEvent.ModifierFlags = []
+        var timeout: TimeInterval = 1.2
+        var action: (() -> Void)?
+
+        private var monitor: Any?
+        private var awaitingSecondKey: Bool = false
+        private var awaitingUntil: Date?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+
+            if window != nil && monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self else { return event }
+
+                    let eventModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+                    let requiredFirstModifiers = self.firstModifiers.intersection([.command, .shift, .option, .control])
+                    let requiredSecondModifiers = self.secondModifiers.intersection([.command, .shift, .option, .control])
+
+                    if event.charactersIgnoringModifiers?.lowercased() == self.firstKey.lowercased(),
+                       eventModifiers == requiredFirstModifiers
+                    {
+                        self.awaitingSecondKey = true
+                        self.awaitingUntil = Date().addingTimeInterval(self.timeout)
+                        return nil // Consume the event
+                    }
+
+                    if awaitingSecondKey {
+                        let isWithinTimeout = awaitingUntil.map { Date() <= $0 } ?? false
+                        if isWithinTimeout,
+                           event.charactersIgnoringModifiers?.lowercased() == self.secondKey.lowercased(),
+                           eventModifiers == requiredSecondModifiers
+                        {
+                            awaitingSecondKey = false
+                            awaitingUntil = nil
+                            action?()
+                            return nil // Consume the event
+                        }
+                        awaitingSecondKey = false
+                        awaitingUntil = nil
+                    }
+
                     return event
                 }
             }

@@ -176,6 +176,10 @@ struct KeyboardShortcutsDialog: View {
                     title: "Open Command Menu",
                     shortcut: "⌘K"
                 )
+                KeyboardShortcutRow(
+                    title: "Toggle Zen Mode",
+                    shortcut: "⌘K Z"
+                )
             }
             .padding(Spacing.lg)
         }
