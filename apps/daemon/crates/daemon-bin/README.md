@@ -64,9 +64,10 @@ On `start`, the daemon boots services in dependency order:
 10. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists)
 11. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
 12. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
-13. **Gyomei** - Rope-backed file I/O with cache
-14. **Handler registration** - Wire IPC methods to handlers
-15. **Listen** - Accept client connections
+13. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
+14. **Gyomei** - Rope-backed file I/O with cache
+15. **Handler registration** - Wire IPC methods to handlers
+16. **Listen** - Accept client connections
 
 The daemon starts the Ably token broker (`~/.unbound/ably-auth.sock`) and mints audience-scoped tokens.
 `daemon-ably` receives those broker credentials and exposes one local socket at `~/.unbound/ably.sock`.

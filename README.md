@@ -114,6 +114,8 @@ The daemon communicates with Go sidecar processes over Unix domain sockets using
 
 Both sidecars are stateless and crash-safe -- the daemon tracks unacknowledged effects for resend on restart, and Ably handles redelivery for unprocessed commands.
 
+The daemon also captures sidecar stdout/stderr streams and forwards them through the observability pipeline for unified log search.
+
 ## Tech Stack
 
 **Daemon (Rust)**
@@ -123,6 +125,7 @@ Both sidecars are stateless and crash-safe -- the daemon tracks unacknowledged e
 - ChaCha20-Poly1305 + X25519 encryption
 - Unix domain sockets via interprocess
 - clap for CLI, tracing for logging
+- PostHog + Sentry sinks via shared observability crate
 
 **Daemon Sidecars (Go)**
 - Ably SDK for real-time pub/sub (via `daemon-ably`)
