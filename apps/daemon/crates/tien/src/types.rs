@@ -25,6 +25,38 @@ pub struct DependencyCheckResult {
     pub gh: DependencyInfo,
 }
 
+/// Canonical capabilities payload for syncing to Supabase.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Capabilities {
+    pub cli: CliCapabilities,
+    pub metadata: CapabilitiesMetadata,
+}
+
+/// CLI tool capabilities.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliCapabilities {
+    pub claude: ToolCapabilities,
+    pub gh: ToolCapabilities,
+    pub codex: ToolCapabilities,
+    pub ollama: ToolCapabilities,
+}
+
+/// Capability details for a single tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCapabilities {
+    pub installed: bool,
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<String>>,
+}
+
+/// Metadata describing the capabilities payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapabilitiesMetadata {
+    pub schema_version: u32,
+    pub collected_at: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
