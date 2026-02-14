@@ -22,6 +22,7 @@ struct SyncedDevice: Identifiable, Hashable {
     let isActive: Bool
     let lastSeenAt: Date?
     let createdAt: Date
+    let capabilities: DeviceCapabilities?
 
     /// Device online status based on last_seen_at timestamp
     var status: DeviceStatus {
@@ -82,6 +83,49 @@ struct SyncedDevice: Identifiable, Hashable {
 
         var displayName: String {
             rawValue.capitalized
+        }
+    }
+
+    var capabilitiesSummary: String? {
+        guard let cli = capabilities?.cli else { return nil }
+
+        let items: [String] = [
+            cli.claude.map { "Claude \($0.installed ? "on" : "off")" } ?? "Claude unknown",
+            cli.gh.map { "GH \($0.installed ? "on" : "off")" } ?? "GH unknown",
+            cli.codex.map { "Codex \($0.installed ? "on" : "off")" } ?? "Codex unknown",
+            cli.ollama.map { "Ollama \($0.installed ? "on" : "off")" } ?? "Ollama unknown",
+        ]
+
+        return items.joined(separator: " · ")
+    }
+}
+
+// MARK: - Device Capabilities
+
+struct DeviceCapabilities: Codable, Hashable {
+    let cli: CliCapabilities?
+    let metadata: CapabilitiesMetadata?
+
+    struct CliCapabilities: Codable, Hashable {
+        let claude: ToolCapabilities?
+        let gh: ToolCapabilities?
+        let codex: ToolCapabilities?
+        let ollama: ToolCapabilities?
+    }
+
+    struct ToolCapabilities: Codable, Hashable {
+        let installed: Bool
+        let path: String?
+        let models: [String]?
+    }
+
+    struct CapabilitiesMetadata: Codable, Hashable {
+        let schemaVersion: Int?
+        let collectedAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case schemaVersion = "schema_version"
+            case collectedAt = "collected_at"
         }
     }
 }

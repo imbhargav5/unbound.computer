@@ -139,6 +139,7 @@ struct SupabaseDevice: Codable {
     let deviceType: String
     let publicKey: String?
     let isTrusted: Bool
+    let capabilities: DeviceCapabilities?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -147,5 +148,36 @@ struct SupabaseDevice: Codable {
         case deviceType = "device_type"
         case publicKey = "public_key"
         case isTrusted = "is_trusted"
+        case capabilities
+    }
+}
+
+// MARK: - Device Capabilities
+
+struct DeviceCapabilities: Codable {
+    let cli: CliCapabilities?
+    let metadata: CapabilitiesMetadata?
+
+    struct CliCapabilities: Codable {
+        let claude: ToolCapabilities?
+        let gh: ToolCapabilities?
+        let codex: ToolCapabilities?
+        let ollama: ToolCapabilities?
+    }
+
+    struct ToolCapabilities: Codable {
+        let installed: Bool
+        let path: String?
+        let models: [String]?
+    }
+
+    struct CapabilitiesMetadata: Codable {
+        let schemaVersion: Int?
+        let collectedAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case schemaVersion = "schema_version"
+            case collectedAt = "collected_at"
+        }
     }
 }
