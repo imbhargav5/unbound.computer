@@ -69,6 +69,7 @@ Falco publishes these side-effects to Ably:
 | `SessionUpdated` | Session metadata changed |
 | `MessageAppended` | A message was added to a session |
 | `AgentStatusChanged` | Agent status changed (idle/running/waiting/error) |
+| `RuntimeStatusUpdated` | Runtime status envelope updated |
 | `OutboxEventsSent` | Outbox events were sent |
 | `OutboxEventsAcked` | Outbox events were acknowledged |
 
@@ -79,6 +80,7 @@ Falco accepts a standard side-effect payload and supports three optional overrid
 - `channel`: publish to a channel different from Falco's default `device-events:{device_id}`
 - `event`: publish with a custom event name instead of `type`
 - `payload`: publish this raw JSON body instead of the full side-effect envelope
+- `object_key`: when set, publishes an Ably LiveObjects object-set instead of an event
 
 This is used by Toshinori's Ably hot path for conversation messages. Example envelope sent to Falco:
 
@@ -97,6 +99,25 @@ This is used by Toshinori's Ably hot path for conversation messages. Example env
     "encryption_alg": "chacha20poly1305",
     "content_encrypted": "...base64...",
     "content_nonce": "...base64..."
+  }
+}
+```
+
+## LiveObjects Object-Set Payloads
+
+Runtime status updates are published as LiveObjects object-set operations. Example envelope:
+
+```json
+{
+  "type": "runtime_status_updated",
+  "channel": "session:session-123:status",
+  "object_key": "coding_session_status",
+  "payload": {
+    "schema_version": 1,
+    "coding_session": { "status": "running", "error_message": null },
+    "device_id": "device-abc",
+    "session_id": "session-123",
+    "updated_at_ms": 1739030400000
   }
 }
 ```

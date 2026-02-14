@@ -30,6 +30,7 @@ Toshinori is the daemon-side **fanout sink** for Armin side-effects:
 - **Fire-and-forget**: sync failures are logged and retried by workers
 - **Single encryption utility**: conversation payload encryption uses shared helpers from `daemon-config-and-utils`
 - **Context-aware**: sync workers run only when auth context is present
+- **Coalesced runtime status**: frequent status updates are merged and de-duped
 
 ## Message Sync Paths
 
@@ -39,6 +40,13 @@ Toshinori is the daemon-side **fanout sink** for Armin side-effects:
 | Hot | `AblyRealtimeSyncer` | Ably `session:{session_id}:conversation` | Fast realtime delivery |
 
 The two paths are independent: hot-path publish does not change Supabase cold-sync logic.
+
+## Runtime Status Sync Paths
+
+| Path | Worker | Target | Purpose |
+|------|--------|--------|---------|
+| Cold | `ToshinoriClient` | Supabase `agent_coding_sessions.runtime_status` | Durable runtime status mirror |
+| Hot | `AblyRuntimeStatusSyncer` | Ably LiveObjects (`session:{session_id}:status`) | Realtime status object updates |
 
 ## Usage
 
@@ -78,6 +86,7 @@ sink.clear_context().await;
 | `SessionUpdated` | Upsert `agent_coding_sessions` (needs metadata) | No-op |
 | `MessageAppended` | Enqueue Levi sync | Enqueue Ably realtime sync |
 | `AgentStatusChanged` | Skipped | No-op |
+| `RuntimeStatusUpdated` | Update `runtime_status` JSON | Enqueue LiveObjects object-set |
 
 ## Ably Conversation Message Contract
 
@@ -102,6 +111,27 @@ For each `MessageAppended`, the realtime worker publishes:
 ```
 
 `content_encrypted` and `content_nonce` are produced from the shared conversation crypto utility.
+
+## Ably Runtime Status Contract
+
+Runtime status updates are published via Falco object-set operations:
+
+- channel: `session:{session_id}:status`
+- object key: `coding_session_status`
+- payload: `RuntimeStatusEnvelope`
+
+```json
+{
+  "schema_version": 1,
+  "coding_session": {
+    "status": "running",
+    "error_message": null
+  },
+  "device_id": "device-abc",
+  "session_id": "session-123",
+  "updated_at_ms": 1739030400000
+}
+```
 
 ## Error Handling
 
