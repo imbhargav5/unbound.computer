@@ -5,10 +5,11 @@
 
 use crate::DatabaseResult;
 use rusqlite::Connection;
+use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 10;
+pub const CURRENT_VERSION: i32 = 11;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -65,6 +66,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 10 {
         migrate_v10_supabase_sync_state(conn)?;
+    }
+    if current_version < 11 {
+        migrate_v11_session_state_runtime_envelope(conn)?;
     }
 
     info!("Migrations complete");
@@ -497,6 +501,137 @@ fn migrate_v10_supabase_sync_state(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+/// V11: Move session state to a grouped runtime envelope JSON blob.
+fn migrate_v11_session_state_runtime_envelope(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v11: session_state_runtime_envelope");
+
+    let mut stmt = conn.prepare("PRAGMA table_info(agent_coding_session_state)")?;
+    let columns: HashSet<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .collect();
+
+    let has_state_json = columns.contains("state_json");
+    let has_updated_at_ms = columns.contains("updated_at_ms");
+    let has_agent_status = columns.contains("agent_status");
+
+    // Already in target format.
+    if has_state_json && has_updated_at_ms && !has_agent_status {
+        record_migration(conn, 11, "session_state_runtime_envelope")?;
+        return Ok(());
+    }
+
+    conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS agent_coding_session_state_new;
+
+        CREATE TABLE agent_coding_session_state_new (
+            session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            state_json TEXT NOT NULL,
+            updated_at_ms INTEGER NOT NULL,
+            CHECK (json_valid(state_json)),
+            CHECK (json_extract(state_json, '$.schema_version') = 1),
+            CHECK (json_type(state_json, '$.coding_session') = 'object'),
+            CHECK (json_extract(state_json, '$.coding_session.status') IN ('running', 'idle', 'waiting', 'not-available', 'error')),
+            CHECK (json_type(state_json, '$.device_id') = 'text'),
+            CHECK (json_type(state_json, '$.session_id') = 'text'),
+            CHECK (json_extract(state_json, '$.session_id') = session_id),
+            CHECK (json_type(state_json, '$.updated_at_ms') IN ('integer', 'real')),
+            CHECK (CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER) = updated_at_ms),
+            CHECK (
+                json_type(state_json, '$.coding_session.error_message') IS NULL
+                OR json_type(state_json, '$.coding_session.error_message') = 'text'
+            )
+        );
+        ",
+    )?;
+
+    if columns.contains("session_id") {
+        if has_agent_status {
+            conn.execute_batch(
+                "
+                INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                SELECT
+                    session_id,
+                    json_object(
+                        'schema_version', 1,
+                        'coding_session', json_object(
+                            'status',
+                            CASE lower(COALESCE(agent_status, 'idle'))
+                                WHEN 'running' THEN 'running'
+                                WHEN 'waiting' THEN 'waiting'
+                                WHEN 'error' THEN 'error'
+                                WHEN 'not-available' THEN 'not-available'
+                                ELSE 'idle'
+                            END
+                        ),
+                        'device_id', '00000000-0000-0000-0000-000000000000',
+                        'session_id', session_id,
+                        'updated_at_ms',
+                        COALESCE(
+                            CAST(strftime('%s', updated_at) AS INTEGER) * 1000,
+                            CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                        )
+                    ),
+                    COALESCE(
+                        CAST(strftime('%s', updated_at) AS INTEGER) * 1000,
+                        CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                    )
+                FROM agent_coding_session_state;
+                ",
+            )?;
+        } else if has_state_json {
+            conn.execute_batch(
+                "
+                INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                SELECT
+                    session_id,
+                    json_object(
+                        'schema_version', 1,
+                        'coding_session', json_object(
+                            'status',
+                            CASE lower(COALESCE(json_extract(state_json, '$.coding_session.status'), 'idle'))
+                                WHEN 'running' THEN 'running'
+                                WHEN 'waiting' THEN 'waiting'
+                                WHEN 'error' THEN 'error'
+                                WHEN 'not-available' THEN 'not-available'
+                                ELSE 'idle'
+                            END
+                        ),
+                        'device_id',
+                        COALESCE(
+                            NULLIF(json_extract(state_json, '$.device_id'), ''),
+                            '00000000-0000-0000-0000-000000000000'
+                        ),
+                        'session_id', session_id,
+                        'updated_at_ms',
+                        COALESCE(
+                            CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER),
+                            CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                        )
+                    ),
+                    COALESCE(
+                        CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER),
+                        CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                    )
+                FROM agent_coding_session_state;
+                ",
+            )?;
+        }
+    }
+
+    conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS agent_coding_session_state;
+        ALTER TABLE agent_coding_session_state_new RENAME TO agent_coding_session_state;
+        ",
+    )?;
+
+    record_migration(conn, 11, "session_state_runtime_envelope")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,7 +673,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 10);
+        assert_eq!(version, 11);
     }
 
     #[test]
@@ -577,5 +712,26 @@ mod tests {
             !columns.contains(&"debugging_decrypted_payload".to_string()),
             "debugging_decrypted_payload should not exist"
         );
+    }
+
+    #[test]
+    fn test_session_state_table_runtime_envelope_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(agent_coding_session_state)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(columns.contains(&"state_json".to_string()));
+        assert!(columns.contains(&"updated_at_ms".to_string()));
+        assert!(!columns.contains(&"agent_status".to_string()));
+        assert!(!columns.contains(&"queued_commands".to_string()));
+        assert!(!columns.contains(&"diff_summary".to_string()));
+        assert!(!columns.contains(&"updated_at".to_string()));
     }
 }
