@@ -182,6 +182,12 @@ struct RightSidebarPanel: View {
                 IconButton(systemName: "arrow.triangle.2.circlepath", action: {
                     Task { await gitViewModel.refreshAll() }
                 })
+
+                IconButton(systemName: "sidebar.right", action: {
+                    withAnimation(.easeOut(duration: Duration.fast)) {
+                        appState.localSettings.rightSidebarVisible = false
+                    }
+                })
             }
         }
         .padding(.horizontal, Spacing.lg)

@@ -15,6 +15,7 @@ struct SidebarHeader: View {
     let title: String
     var onOpenKeyboardShortcuts: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onToggleSidebar: (() -> Void)?
 
     @State private var showMenu = false
 
@@ -41,6 +42,10 @@ struct SidebarHeader: View {
             }
 
             Spacer()
+
+            if let onToggleSidebar {
+                IconButton(systemName: "sidebar.left", action: onToggleSidebar)
+            }
 
             if onOpenKeyboardShortcuts != nil || onOpenSettings != nil {
                 Button {

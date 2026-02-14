@@ -116,7 +116,12 @@ struct WorkspacesSidebar: View {
                 onOpenKeyboardShortcuts: {
                     showKeyboardShortcuts = true
                 },
-                onOpenSettings: onOpenSettings
+                onOpenSettings: onOpenSettings,
+                onToggleSidebar: {
+                    withAnimation(.easeOut(duration: Duration.fast)) {
+                        appState.localSettings.leftSidebarVisible = false
+                    }
+                }
             )
 
             ShadcnDivider()
