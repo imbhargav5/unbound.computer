@@ -984,6 +984,7 @@ export type Database = {
           apns_environment: string | null
           apns_token: string | null
           apns_token_updated_at: string | null
+          capabilities: Json | null
           created_at: string
           device_role: Database["public"]["Enums"]["device_role"]
           device_type: Database["public"]["Enums"]["device_type"]
@@ -1005,6 +1006,7 @@ export type Database = {
           apns_environment?: string | null
           apns_token?: string | null
           apns_token_updated_at?: string | null
+          capabilities?: Json | null
           created_at?: string
           device_role?: Database["public"]["Enums"]["device_role"]
           device_type: Database["public"]["Enums"]["device_type"]
@@ -1026,6 +1028,7 @@ export type Database = {
           apns_environment?: string | null
           apns_token?: string | null
           apns_token_updated_at?: string | null
+          capabilities?: Json | null
           created_at?: string
           device_role?: Database["public"]["Enums"]["device_role"]
           device_type?: Database["public"]["Enums"]["device_type"]
