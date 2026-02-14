@@ -7,6 +7,7 @@ use crate::app::sidecar_logs::{
     attach_sidecar_log_streams, reap_sidecar_log_tasks, replace_sidecar_log_tasks,
 };
 use crate::app::DaemonState;
+use armin::{CodingSessionStatus, SessionId, SessionWriter};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,9 +41,43 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
 
 /// Clear sync contexts after logout.
 pub async fn clear_login_side_effects(state: &DaemonState) {
+    mark_active_sessions_not_available(state);
     state.toshinori.clear_context().await;
     state.message_sync.clear_context().await;
     stop_managed_sidecars(state, true).await;
+}
+
+fn mark_active_sessions_not_available(state: &DaemonState) {
+    let device_id = {
+        let guard = state.device_id.lock().unwrap();
+        guard.clone()
+    };
+
+    let Some(device_id) = device_id else {
+        warn!("Skipping runtime status transition to not-available on logout: device_id missing");
+        return;
+    };
+
+    let active_sessions: Vec<String> = {
+        let guard = state.claude_processes.lock().unwrap();
+        guard.keys().cloned().collect()
+    };
+
+    for session_id in active_sessions {
+        let armin_session_id = SessionId::from_string(session_id);
+        if let Err(err) = state.armin.update_runtime_status(
+            &armin_session_id,
+            &device_id,
+            CodingSessionStatus::NotAvailable,
+            None,
+        ) {
+            warn!(
+                session_id = armin_session_id.as_str(),
+                error = %err,
+                "Failed to mark session as not-available during logout"
+            );
+        }
+    }
 }
 
 /// Reconcile managed sidecars with the current auth session.
