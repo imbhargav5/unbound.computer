@@ -43,6 +43,8 @@ pub struct RemoteCommandResponse {
     pub error_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_data: Option<serde_json::Value>,
     pub created_at_ms: i64,
 }
 
@@ -56,6 +58,7 @@ impl RemoteCommandResponse {
             result: Some(result),
             error_code: None,
             error_message: None,
+            error_data: None,
             created_at_ms: chrono::Utc::now().timestamp_millis(),
         }
     }
@@ -66,6 +69,22 @@ impl RemoteCommandResponse {
         error_code: impl Into<String>,
         error_message: impl Into<String>,
     ) -> Self {
+        Self::error_with_data(
+            request_id,
+            command_type,
+            error_code,
+            error_message,
+            None,
+        )
+    }
+
+    pub fn error_with_data(
+        request_id: String,
+        command_type: String,
+        error_code: impl Into<String>,
+        error_message: impl Into<String>,
+        error_data: Option<serde_json::Value>,
+    ) -> Self {
         Self {
             schema_version: 1,
             request_id,
@@ -74,6 +93,7 @@ impl RemoteCommandResponse {
             result: None,
             error_code: Some(error_code.into()),
             error_message: Some(error_message.into()),
+            error_data,
             created_at_ms: chrono::Utc::now().timestamp_millis(),
         }
     }
@@ -299,6 +319,7 @@ mod tests {
         assert_eq!(resp.result, Some(json!({"id": "session-abc"})));
         assert!(resp.error_code.is_none());
         assert!(resp.error_message.is_none());
+        assert!(resp.error_data.is_none());
     }
 
     #[test]
@@ -316,6 +337,7 @@ mod tests {
             resp.error_message,
             Some("session_id is required".to_string())
         );
+        assert!(resp.error_data.is_none());
         assert!(resp.result.is_none());
     }
 
@@ -330,7 +352,26 @@ mod tests {
         let value = serde_json::to_value(&resp).unwrap();
         assert!(value.get("error_code").is_none());
         assert!(value.get("error_message").is_none());
+        assert!(value.get("error_data").is_none());
         assert!(value.get("result").is_some());
+    }
+
+    #[test]
+    fn remote_command_response_error_with_data_includes_payload() {
+        let resp = RemoteCommandResponse::error_with_data(
+            "req-5".to_string(),
+            "session.create.v1".to_string(),
+            "setup_hook_failed",
+            "setup hook failed",
+            Some(json!({
+                "stage": "post_create",
+                "stderr": "command failed"
+            })),
+        );
+
+        let value = serde_json::to_value(&resp).unwrap();
+        assert_eq!(value["error_data"]["stage"], "post_create");
+        assert_eq!(value["error_data"]["stderr"], "command failed");
     }
 
     #[test]

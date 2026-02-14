@@ -36,6 +36,7 @@ const FALCO_PUBLISH_ACK_HEADER_SIZE: usize = 24;
 
 const FALCO_RETRY_ATTEMPTS: usize = 3;
 const FALCO_BACKOFF_BASE_MS: u64 = 200;
+type RemoteCommandDispatchError = (String, String, Option<serde_json::Value>);
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -246,11 +247,12 @@ async fn execute_remote_command(state: DaemonState, envelope: RemoteCommandEnvel
             envelope.command_type.clone(),
             value,
         ),
-        Err((error_code, error_message)) => RemoteCommandResponse::error(
+        Err((error_code, error_message, error_data)) => RemoteCommandResponse::error_with_data(
             envelope.request_id.clone(),
             envelope.command_type.clone(),
             error_code,
             error_message,
+            error_data,
         ),
     };
 
@@ -481,51 +483,56 @@ fn resolve_web_app_url() -> String {
 }
 
 /// Dispatch a remote command to the appropriate handler function.
-/// Returns Ok(result_json) or Err((error_code, error_message)).
+/// Returns Ok(result_json) or Err((error_code, error_message, error_data)).
 async fn dispatch_command(
     state: &DaemonState,
     envelope: &RemoteCommandEnvelope,
-) -> Result<serde_json::Value, (String, String)> {
+) -> Result<serde_json::Value, RemoteCommandDispatchError> {
     match classify_remote_command_type(&envelope.command_type) {
         Some(RemoteCommandType::SessionCreateV1) => {
             crate::ipc::handlers::session::create_session_core(state, &envelope.params)
                 .await
-                .map_err(|err| err.into_pair())
+                .map_err(|err| err.into_response_parts())
         }
         Some(RemoteCommandType::ClaudeSendV1) => {
-            crate::ipc::handlers::claude::claude_send_core(state, &envelope.params).await
+            crate::ipc::handlers::claude::claude_send_core(state, &envelope.params)
+                .await
+                .map_err(|(code, message)| (code, message, None))
         }
         Some(RemoteCommandType::ClaudeStopV1) => {
-            crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params).await
+            crate::ipc::handlers::claude::claude_stop_core(state, &envelope.params)
+                .await
+                .map_err(|(code, message)| (code, message, None))
         }
         Some(RemoteCommandType::GhPrCreateV1) => {
             crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrViewV1) => {
             crate::ipc::handlers::gh::gh_pr_view_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrListV1) => {
             crate::ipc::handlers::gh::gh_pr_list_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrChecksV1) => {
             crate::ipc::handlers::gh::gh_pr_checks_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         Some(RemoteCommandType::GhPrMergeV1) => {
             crate::ipc::handlers::gh::gh_pr_merge_core(state, &envelope.params)
                 .await
-                .map_err(|err| (err.code, err.message))
+                .map_err(|err| (err.code, err.message, None))
         }
         None => Err((
             "unsupported_command_type".to_string(),
             format!("command type {} is not supported", envelope.command_type),
+            None,
         )),
     }
 }
