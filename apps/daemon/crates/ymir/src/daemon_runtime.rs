@@ -10,8 +10,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tracing::{info, warn};
 use tien::collect_capabilities;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const DEFAULT_WEB_APP_URL: &str = "https://unbound.computer";

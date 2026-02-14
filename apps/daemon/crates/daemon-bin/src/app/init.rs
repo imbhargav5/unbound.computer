@@ -138,7 +138,10 @@ pub async fn run_daemon(
         Ok(true) => {
             info!("Existing session validated successfully");
             if let Err(error) = auth_runtime.refresh_device_capabilities().await {
-                warn!("Failed to refresh device capabilities on startup: {}", error);
+                warn!(
+                    "Failed to refresh device capabilities on startup: {}",
+                    error
+                );
             }
         }
         Ok(false) => info!("No existing session to validate"),

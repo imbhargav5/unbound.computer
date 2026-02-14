@@ -24,9 +24,7 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
                     Ok(result) => {
                         Response::success(&req.id, serde_json::to_value(&result).unwrap())
                     }
-                    Err(e) => {
-                        Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string())
-                    }
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
                 }
             }
         })
