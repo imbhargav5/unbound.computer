@@ -1,3 +1,126 @@
 ---
 title: "Sakura Working Dir Resolution"
 ---
+
+# Sakura Working Dir Resolution
+
+**Session-to-working-directory resolution for the Unbound daemon.** A single place to resolve the effective working directory for a session, eliminating the duplicated `session.worktree_path || repo.path` pattern across IPC handlers.
+
+## The Problem
+
+Multiple handlers need to determine where a session's files live:
+
+```
+// This pattern was duplicated in git, claude, terminal, and file handlers:
+let dir = if let Some(wt) = session.worktree_path {
+    wt
+} else {
+    repo.path
+};
+```
+
+Sakura centralizes this into one function.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           Daemon                                 │
+│                                                                  │
+│  Git Handler ────┐                                               │
+│  Claude Handler ─┼──► resolve_working_dir(reader, session_id)   │
+│  Terminal Handler┤              │                                │
+│  File Handler ───┘              ▼                                │
+│                         ┌───────────────┐                        │
+│                         │ Session       │                        │
+│                         │  worktree_path│──► Some(path) ──► use │
+│                         │  repo_id ─────│──► Repository.path     │
+│                         └───────────────┘                        │
+│                                 │                                │
+│                                 ▼                                │
+│                         ResolvedWorkspace {                      │
+│                           working_dir,                           │
+│                           session,                               │
+│                           repository,                            │
+│                           is_worktree,                           │
+│                         }                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Usage
+
+### Resolve Working Directory for a Session
+
+```rust
+use sakura_working_dir_resolution::resolve_working_dir;
+
+let resolved = resolve_working_dir(&armin, &session_id)?;
+
+println!("Working dir: {}", resolved.working_dir);
+println!("Is worktree: {}", resolved.is_worktree);
+println!("Repo: {}", resolved.repository.path);
+
+// Use the working dir for operations
+piccolo::get_status(Path::new(&resolved.working_dir))?;
+```
+
+### Convenience: From String ID
+
+```rust
+use sakura_working_dir_resolution::resolve_working_dir_from_str;
+
+let resolved = resolve_working_dir_from_str(&armin, "session-uuid-string")?;
+```
+
+### Repository Path Only
+
+For handlers that just need the repo path (not session-aware):
+
+```rust
+use sakura_working_dir_resolution::resolve_repository_path;
+
+let repo_path = resolve_repository_path(&armin, "repo-uuid-string")?;
+```
+
+## Return Type
+
+```rust
+pub struct ResolvedWorkspace {
+    pub working_dir: String,      // Effective path (worktree or repo)
+    pub session: Session,         // Full session object
+    pub repository: Repository,   // Full repository object
+    pub is_worktree: bool,        // True if working_dir is a worktree
+}
+```
+
+Returns the full session and repository objects alongside the resolved path, giving handlers complete context without additional queries.
+
+## Resolution Priority
+
+1. If the session has a `worktree_path` -> use it (`is_worktree = true`)
+2. Otherwise -> use `repository.path` (`is_worktree = false`)
+
+## Error Types
+
+```rust
+pub enum ResolveError {
+    SessionNotFound(String),     // Session ID doesn't exist
+    RepositoryNotFound(String),  // Session's repository doesn't exist
+    Armin(ArminError),           // Storage layer error
+}
+```
+
+## Design Principles
+
+- **Single responsibility**: One function, one job - resolve the working directory
+- **Full context**: Returns session + repository + path, not just the path string
+- **Generic reader**: Accepts `impl SessionReader` for easy testing with mocks
+- **Zero I/O**: Pure lookup against Armin's in-memory state
+
+## Testing
+
+```bash
+cargo test -p sakura-working-dir-resolution
+```
+
+Tests cover regular sessions, worktree sessions, missing sessions, missing repositories, multi-session repos, and error message formatting.

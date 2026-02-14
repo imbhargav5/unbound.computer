@@ -1,3 +1,39 @@
 ---
 title: "Yagami"
 ---
+
+# Yagami
+
+Yagami is a small, safety-focused directory listing helper used by the Unbound daemon.
+It enumerates repository files for UI trees while preventing path traversal and skipping
+heavy or hidden directories by default.
+
+## What it does
+- Lists entries under a root directory + relative path.
+- Enforces that the target path stays داخل the root (no `..` traversal or absolute paths).
+- Skips hidden files and common heavy directories unless configured otherwise.
+- Returns lightweight metadata: name, relative path, is_dir, has_children.
+- Sorts entries with directories first, then case-insensitive name order.
+
+## What it does not do
+- Read file contents.
+- Interpret file types beyond basic filesystem metadata.
+
+## Usage
+```rust
+use std::path::Path;
+use yagami::{list_dir, ListOptions};
+
+let root = Path::new("/path/to/repo");
+let entries = list_dir(root, "src", ListOptions::default())?;
+for entry in entries {
+    println!("{} (dir: {})", entry.path, entry.is_dir);
+}
+```
+
+## Default skips
+Yagami skips hidden files (names starting with `.`) and the following directories by default:
+`node_modules`, `.git`, `.unbound-worktrees`, `dist`, `build`, `.next`, `target`,
+`DerivedData`, `Pods`, `vendor`.
+
+You can override this behavior by supplying your own `ListOptions`.
