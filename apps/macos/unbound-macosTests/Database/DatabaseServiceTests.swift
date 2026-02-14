@@ -2,50 +2,70 @@
 //  DatabaseServiceTests.swift
 //  unbound-macosTests
 //
-//  Unit tests for DatabaseService and database operations.
+//  Regression tests for daemon-backed repository/session data conversion.
 //
 
 import XCTest
 @testable import unbound_macos
 
 final class DatabaseServiceTests: XCTestCase {
+    func testDaemonRepositoryConvertsToRepository() {
+        let daemonRepository = DaemonRepository(
+            id: UUID().uuidString.lowercased(),
+            name: "unbound.computer",
+            path: "/tmp/unbound.computer",
+            isGitRepository: true,
+            sessionsPath: "/tmp/unbound-sessions",
+            defaultBranch: "main",
+            defaultRemote: "origin",
+            lastAccessedAt: "2026-02-14T10:30:15.123Z"
+        )
 
-    var databaseService: DatabaseService!
-
-    override func setUpWithError() throws {
-        // Use the shared instance - in real tests you'd use a test database
-        databaseService = DatabaseService.shared
+        let repository = daemonRepository.toRepository()
+        XCTAssertNotNil(repository)
+        XCTAssertEqual(repository?.name, "unbound.computer")
+        XCTAssertEqual(repository?.path, "/tmp/unbound.computer")
+        XCTAssertEqual(repository?.sessionsPath, "/tmp/unbound-sessions")
+        XCTAssertEqual(repository?.defaultBranch, "main")
+        XCTAssertEqual(repository?.defaultRemote, "origin")
+        XCTAssertEqual(repository?.isGitRepository, true)
     }
 
-    override func tearDownWithError() throws {
-        databaseService = nil
+    func testDaemonRepositoryInvalidUUIDReturnsNil() {
+        let daemonRepository = DaemonRepository(
+            id: "not-a-uuid",
+            name: "invalid",
+            path: "/tmp/invalid",
+            isGitRepository: true,
+            sessionsPath: nil,
+            defaultBranch: nil,
+            defaultRemote: nil,
+            lastAccessedAt: "2026-02-14T10:30:15.123Z"
+        )
+
+        XCTAssertNil(daemonRepository.toRepository())
     }
 
-    // MARK: - Initialization Tests
+    func testDaemonSessionConvertsToSession() {
+        let repositoryID = UUID()
+        let daemonSession = DaemonSession(
+            id: UUID().uuidString.lowercased(),
+            repositoryId: repositoryID.uuidString.lowercased(),
+            title: "Fix integration",
+            claudeSessionId: "claude-session-1",
+            status: "active",
+            isWorktree: true,
+            worktreePath: "/tmp/worktree",
+            createdAt: "2026-02-14T10:00:00.000Z",
+            lastAccessedAt: "2026-02-14T10:30:00.000Z"
+        )
 
-    func testDatabaseInitialization() throws {
-        // Database should already be initialized by AppInitializer
-        XCTAssertTrue(databaseService.isInitialized, "Database should be initialized")
-        XCTAssertTrue(databaseService.databaseFileExists, "Database file should exist")
-    }
-
-    func testDatabasePathIsCorrect() {
-        let path = databaseService.databasePath
-        XCTAssertTrue(path.contains("com.unbound.macos"), "Database path should contain bundle ID")
-        XCTAssertTrue(path.hasSuffix("unbound.sqlite"), "Database file should be named unbound.sqlite")
-    }
-
-    func testUploadsDirectoryExists() {
-        let uploadsDir = databaseService.uploadsDirectory
-        XCTAssertTrue(FileManager.default.fileExists(atPath: uploadsDir.path), "Uploads directory should exist")
-
-        // Check subdirectories
-        let imagesDir = uploadsDir.appendingPathComponent("images")
-        let textDir = uploadsDir.appendingPathComponent("text")
-        let otherDir = uploadsDir.appendingPathComponent("other")
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: imagesDir.path), "Images subdirectory should exist")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: textDir.path), "Text subdirectory should exist")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: otherDir.path), "Other subdirectory should exist")
+        let session = daemonSession.toSession()
+        XCTAssertNotNil(session)
+        XCTAssertEqual(session?.repositoryId, repositoryID)
+        XCTAssertEqual(session?.title, "Fix integration")
+        XCTAssertEqual(session?.status, .active)
+        XCTAssertEqual(session?.isWorktree, true)
+        XCTAssertEqual(session?.worktreePath, "/tmp/worktree")
     }
 }

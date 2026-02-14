@@ -2,122 +2,81 @@
 //  SessionRepositoryTests.swift
 //  unbound-macosTests
 //
-//  Unit tests for SessionRepository database operations.
+//  Session model behavior tests for daemon-backed persistence.
 //
 
+import Foundation
 import XCTest
 @testable import unbound_macos
 
 final class SessionRepositoryTests: XCTestCase {
-
-    var sessionRepo: SessionRepository!
-
-    override func setUpWithError() throws {
-        sessionRepo = DatabaseService.shared.sessions
+    func testSessionDisplayTitleFallsBackWhenEmpty() {
+        let session = Session(
+            repositoryId: UUID(),
+            title: ""
+        )
+        XCTAssertEqual(session.displayTitle, "New conversation")
     }
 
-    override func tearDownWithError() throws {
-        sessionRepo = nil
+    func testSessionWorkingDirectoryReturnsWorktreePath() {
+        let session = Session(
+            repositoryId: UUID(),
+            isWorktree: true,
+            worktreePath: "/tmp/my-worktree"
+        )
+        XCTAssertEqual(session.workingDirectory, "/tmp/my-worktree")
     }
 
-    // MARK: - CRUD Tests
-
-    func testInsertAndFetchSession() async throws {
-        let testSession = Session(
-            id: UUID(),
-            name: "test-session-\(UUID().uuidString.prefix(8))",
-            repositoryId: nil,
-            worktreePath: "/tmp/worktree",
-            createdAt: Date(),
-            lastAccessed: Date(),
-            status: .active
+    func testSessionWorktreeExistsTracksDirectoryLifecycle() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("worktree-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
         )
 
-        // Insert
-        try await sessionRepo.insert(testSession)
+        let session = Session(
+            repositoryId: UUID(),
+            isWorktree: true,
+            worktreePath: tempDirectory.path
+        )
+        XCTAssertTrue(session.worktreeExists)
 
-        // Fetch
-        let fetched = try await sessionRepo.fetch(id: testSession.id)
-        XCTAssertNotNil(fetched, "Session should be fetchable after insert")
-        XCTAssertEqual(fetched?.name, testSession.name, "Session name should match")
-        XCTAssertEqual(fetched?.status, .active, "Session status should be active")
-
-        // Cleanup
-        try await sessionRepo.delete(id: testSession.id)
+        try FileManager.default.removeItem(at: tempDirectory)
+        XCTAssertFalse(session.worktreeExists)
     }
 
-    func testFetchActiveSessions() async throws {
-        let activeSession = Session(
-            name: "active-session-\(UUID().uuidString.prefix(8))",
-            status: .active
+    func testDaemonSessionInvalidIdsReturnNil() {
+        let daemonSession = DaemonSession(
+            id: "bad-session-id",
+            repositoryId: "bad-repo-id",
+            title: "Broken",
+            claudeSessionId: nil,
+            status: "active",
+            isWorktree: false,
+            worktreePath: nil,
+            createdAt: "2026-02-14T10:00:00.000Z",
+            lastAccessedAt: "2026-02-14T10:00:00.000Z"
         )
-        let archivedSession = Session(
-            name: "archived-session-\(UUID().uuidString.prefix(8))",
-            status: .archived
-        )
 
-        try await sessionRepo.insert(activeSession)
-        try await sessionRepo.insert(archivedSession)
-
-        let activeSessions = try await sessionRepo.fetchActive()
-
-        XCTAssertTrue(activeSessions.contains { $0.id == activeSession.id }, "Active session should be in active list")
-        XCTAssertFalse(activeSessions.contains { $0.id == archivedSession.id }, "Archived session should not be in active list")
-
-        // Cleanup
-        try await sessionRepo.delete(id: activeSession.id)
-        try await sessionRepo.delete(id: archivedSession.id)
+        XCTAssertNil(daemonSession.toSession())
     }
 
-    func testUpdateSessionStatus() async throws {
-        let testSession = Session(
-            name: "status-test-\(UUID().uuidString.prefix(8))",
-            status: .active
+    func testDaemonSessionUnknownStatusFallsBackToActive() {
+        let repositoryID = UUID().uuidString.lowercased()
+        let daemonSession = DaemonSession(
+            id: UUID().uuidString.lowercased(),
+            repositoryId: repositoryID,
+            title: "Unknown status",
+            claudeSessionId: nil,
+            status: "not-real-status",
+            isWorktree: nil,
+            worktreePath: nil,
+            createdAt: "2026-02-14T10:00:00.000Z",
+            lastAccessedAt: "2026-02-14T10:00:00.000Z"
         )
 
-        try await sessionRepo.insert(testSession)
-
-        // Update status to archived
-        try await sessionRepo.updateStatus(id: testSession.id, status: .archived)
-
-        let fetched = try await sessionRepo.fetch(id: testSession.id)
-        XCTAssertEqual(fetched?.status, .archived, "Session status should be archived")
-
-        // Cleanup
-        try await sessionRepo.delete(id: testSession.id)
-    }
-
-    func testArchiveSession() async throws {
-        let testSession = Session(
-            name: "archive-test-\(UUID().uuidString.prefix(8))",
-            status: .active
-        )
-
-        try await sessionRepo.insert(testSession)
-
-        // Archive
-        try await sessionRepo.archive(id: testSession.id)
-
-        let fetched = try await sessionRepo.fetch(id: testSession.id)
-        XCTAssertEqual(fetched?.status, .archived, "Session should be archived")
-
-        // Cleanup
-        try await sessionRepo.delete(id: testSession.id)
-    }
-
-    func testCountSessions() async throws {
-        let initialCount = try await sessionRepo.count()
-
-        let testSession = Session(
-            name: "count-test-\(UUID().uuidString.prefix(8))",
-            status: .active
-        )
-        try await sessionRepo.insert(testSession)
-
-        let afterInsertCount = try await sessionRepo.count()
-        XCTAssertEqual(afterInsertCount, initialCount + 1, "Count should increase by 1")
-
-        // Cleanup
-        try await sessionRepo.delete(id: testSession.id)
+        XCTAssertEqual(daemonSession.toSession()?.status, .active)
+        XCTAssertEqual(daemonSession.toSession()?.isWorktree, false)
     }
 }
