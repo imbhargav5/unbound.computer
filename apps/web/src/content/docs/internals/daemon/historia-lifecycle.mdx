@@ -1,3 +1,131 @@
 ---
 title: "Historia Lifecycle"
 ---
+
+# Historia Lifecycle
+
+**Daemon lifecycle management (startup, shutdown, singleton, PID) for the Unbound daemon.** Historia ensures only one daemon runs at a time, tracks the process ID, and cleans up stale resources.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Daemon Startup                              │
+│                                                                  │
+│  check_singleton(socket_path)                                    │
+│       │                                                          │
+│       ├── Available ──────────────► proceed with boot            │
+│       ├── StaleSocketCleaned ────► proceed (cleaned up orphan)   │
+│       └── AlreadyRunning ────────► exit with error               │
+│                                                                  │
+│  write_pid_file(pid_path) ──► daemon.pid                        │
+│                                                                  │
+│  ... daemon runs ...                                             │
+│                                                                  │
+│  cleanup_pid_file(pid_path)                                      │
+│  cleanup_socket_file(socket_path)                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Singleton Enforcement
+
+The daemon must be a singleton - only one instance per machine. Historia checks this by probing the Unix socket:
+
+```rust
+use historia_lifecycle::{check_singleton, SingletonCheck};
+use std::path::Path;
+
+match check_singleton(Path::new("/tmp/daemon.sock")) {
+    SingletonCheck::Available => {
+        // No daemon running, safe to start
+    }
+    SingletonCheck::StaleSocketCleaned => {
+        // Found orphaned socket file, cleaned it up
+        // Safe to start
+    }
+    SingletonCheck::AlreadyRunning => {
+        // Another daemon is actively listening
+        // Do not start
+    }
+}
+```
+
+The check is **synchronous** (no tokio required) so it can run before the async runtime starts.
+
+**How it works**: Attempts a `UnixStream::connect()` to the socket. If the connection succeeds, a daemon is listening. If it fails but the file exists, the socket is stale (e.g., previous crash) and gets cleaned up.
+
+## PID File Management
+
+```rust
+use historia_lifecycle::{write_pid_file, read_pid_file, cleanup_pid_file};
+
+// Write current process PID
+let pid = write_pid_file(Path::new("/tmp/daemon.pid"))?;
+
+// Read PID from file (returns None if missing)
+if let Some(pid) = read_pid_file(Path::new("/tmp/daemon.pid"))? {
+    println!("Daemon PID: {}", pid);
+}
+
+// Clean up (idempotent, no error if missing)
+cleanup_pid_file(Path::new("/tmp/daemon.pid"))?;
+```
+
+## DaemonInfo
+
+High-level wrapper that combines singleton checking, PID tracking, and cleanup:
+
+```rust
+use historia_lifecycle::DaemonInfo;
+
+let mut info = DaemonInfo::new(
+    "/tmp/daemon.sock".into(),
+    "/tmp/daemon.pid".into(),
+);
+
+// Load PID from disk
+info.load_pid()?;
+
+// Check if daemon is running
+let check = info.is_running();
+
+// Clean up all files
+info.cleanup()?;
+```
+
+## Utility Functions
+
+| Function | Description |
+|----------|-------------|
+| `check_singleton(socket_path)` | Probe socket to detect running daemon |
+| `write_pid_file(pid_path)` | Write current PID to file |
+| `read_pid_file(pid_path)` | Read PID from file (returns `Option<u32>`) |
+| `cleanup_pid_file(pid_path)` | Remove PID file (idempotent) |
+| `cleanup_socket_file(socket_path)` | Remove socket file (idempotent) |
+| `ensure_dir(path)` | Create directory and all parents |
+
+## Error Types
+
+```rust
+pub enum LifecycleError {
+    AlreadyRunning,      // Daemon is already listening
+    Io(io::Error),       // File system error
+    StaleSocketCleaned,  // Orphaned socket was removed
+    PidFile(String),     // Invalid PID file content
+}
+```
+
+## Design Principles
+
+- **Synchronous**: No async runtime required - runs before tokio boots
+- **Idempotent cleanup**: Safe to call cleanup multiple times or on missing files
+- **Socket-based detection**: More reliable than lock files - detects actual liveness
+- **Stale socket recovery**: Automatically cleans up after crashes
+
+## Testing
+
+```bash
+cargo test -p historia-lifecycle
+```
+
+58 tests covering singleton detection, PID file round-trips, stale socket cleanup, directory creation, and error formatting.
