@@ -94,6 +94,9 @@ fn validate_worktree_name(name: &str) -> Result<(), String> {
     if trimmed.contains('/') || trimmed.contains('\\') {
         return Err("worktree_name must not contain path separators".to_string());
     }
+    if trimmed == "." {
+        return Err("worktree_name must not be '.'".to_string());
+    }
     if trimmed.contains("..") {
         return Err("worktree_name must not contain '..'".to_string());
     }
@@ -102,8 +105,7 @@ fn validate_worktree_name(name: &str) -> Result<(), String> {
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
     {
         return Err(
-            "worktree_name may only contain ASCII letters, numbers, '.', '_', and '-'"
-                .to_string(),
+            "worktree_name may only contain ASCII letters, numbers, '.', '_', and '-'".to_string(),
         );
     }
     Ok(())
@@ -436,12 +438,13 @@ pub async fn create_session_core(
 
         let repo_path = Path::new(&repo.path);
         let default_worktree_root_dir = default_worktree_root_dir_for_repo(repo.id.as_str());
-        let repo_config = load_repository_config(repo_path, &default_worktree_root_dir).map_err(|e| {
-            SessionCreateCoreError::new(
-                "internal_error",
-                format!("Failed to load repository config: {}", e),
-            )
-        })?;
+        let repo_config =
+            load_repository_config(repo_path, &default_worktree_root_dir).map_err(|e| {
+                SessionCreateCoreError::new(
+                    "internal_error",
+                    format!("Failed to load repository config: {}", e),
+                )
+            })?;
 
         let effective_base_branch = resolve_base_branch(
             requested_base_branch,
@@ -871,8 +874,12 @@ mod tests {
     fn legacy_worktree_root_detection() {
         assert!(is_legacy_worktree_root(".unbound-worktrees"));
         assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees"));
-        assert!(is_legacy_worktree_root("/tmp/repo/.unbound-worktrees/nested"));
-        assert!(is_legacy_worktree_root("/tmp/repo/custom/.unbound-worktrees/root"));
+        assert!(is_legacy_worktree_root(
+            "/tmp/repo/.unbound-worktrees/nested"
+        ));
+        assert!(is_legacy_worktree_root(
+            "/tmp/repo/custom/.unbound-worktrees/root"
+        ));
         assert!(!is_legacy_worktree_root(".unbound/worktrees"));
         assert!(!is_legacy_worktree_root("custom/worktrees"));
         assert!(!is_legacy_worktree_root("/tmp/repo/.unbound-worktrees-v2"));
@@ -904,6 +911,7 @@ mod tests {
             "session ",
             "foo/bar",
             "foo\\bar",
+            ".",
             "..",
             "a..b",
             "semi;colon",
