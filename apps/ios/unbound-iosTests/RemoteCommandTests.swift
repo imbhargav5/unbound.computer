@@ -142,6 +142,29 @@ final class RemoteCommandResponseTests: XCTestCase {
         XCTAssertNil(response.result)
     }
 
+    func testResponseDecodesOptionalErrorData() throws {
+        let json = """
+        {
+            "schema_version": 1,
+            "request_id": "req-err-data",
+            "type": "session.create.v1",
+            "status": "error",
+            "error_code": "setup_hook_failed",
+            "error_message": "setup hook failed",
+            "error_data": {
+                "stage": "post_create",
+                "stderr": "command failed"
+            },
+            "created_at_ms": 1700000000000
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RemoteCommandResponse.self, from: json)
+        XCTAssertEqual(response.errorCode, "setup_hook_failed")
+        XCTAssertEqual(response.errorData?["stage"], .string("post_create"))
+        XCTAssertEqual(response.errorData?["stderr"], .string("command failed"))
+    }
+
     func testResponseWithNullableFieldsOmitted() throws {
         let json = """
         {
@@ -373,6 +396,56 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
         XCTAssertEqual(params?["is_worktree"], .bool(true))
         XCTAssertEqual(params?["base_branch"], .string("main"))
     }
+
+    func testCreateSessionErrorIncludesStructuredErrorData() async {
+        let transport = ErrorResponseRemoteTransport(
+            response: RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: "req-error",
+                type: "session.create.v1",
+                status: "error",
+                result: nil,
+                errorCode: "setup_hook_failed",
+                errorMessage: "setup hook failed",
+                errorData: [
+                    "stage": .string("pre_create"),
+                    "stderr": .string("hook failed")
+                ],
+                createdAtMs: 1
+            )
+        )
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        do {
+            _ = try await service.createSession(
+                targetDeviceId: "22222222-2222-2222-2222-222222222222",
+                repositoryId: "33333333-3333-3333-3333-333333333333",
+                isWorktree: true
+            )
+            XCTFail("Expected commandFailed error")
+        } catch let error as RemoteCommandError {
+            switch error {
+            case .commandFailed(let errorCode, let errorMessage, let errorData):
+                XCTAssertEqual(errorCode, "setup_hook_failed")
+                XCTAssertEqual(errorMessage, "setup hook failed")
+                XCTAssertEqual(errorData?["stage"], .string("pre_create"))
+                XCTAssertEqual(errorData?["stderr"], .string("hook failed"))
+            default:
+                XCTFail("Unexpected RemoteCommandError: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
 }
 
 private final class NoopRemoteTransport: RemoteCommandTransport {
@@ -524,5 +597,76 @@ private final class CapturingRemoteTransport: RemoteCommandTransport {
             errorMessage: nil,
             createdAtMs: 1
         )
+    }
+}
+
+private final class ErrorResponseRemoteTransport: RemoteCommandTransport {
+    private let response: RemoteCommandResponse
+
+    init(response: RemoteCommandResponse) {
+        self.response = response
+    }
+
+    func publishRemoteCommand(
+        channel _: String,
+        payload _: UMSecretRequestCommandPayload
+    ) async throws {}
+
+    func waitForAck(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandAckEnvelope {
+        let decision = RemoteCommandDecisionResult(
+            schemaVersion: 1,
+            requestId: requestId,
+            sessionId: nil,
+            status: "accepted",
+            reasonCode: nil,
+            message: "accepted"
+        )
+        let encoded = try JSONEncoder().encode(decision).base64EncodedString()
+        return RemoteCommandAckEnvelope(
+            schemaVersion: 1,
+            commandId: "noop",
+            status: "accepted",
+            createdAtMs: 1,
+            resultB64: encoded
+        )
+    }
+
+    func waitForSessionSecretResponse(
+        channel _: String,
+        requestId _: String,
+        sessionId _: String,
+        timeout _: TimeInterval
+    ) async throws -> SessionSecretResponseEnvelope {
+        SessionSecretResponseEnvelope(
+            schemaVersion: 1,
+            requestId: "noop",
+            sessionId: "noop",
+            senderDeviceId: "noop",
+            receiverDeviceId: "noop",
+            status: "error",
+            errorCode: nil,
+            ciphertextB64: nil,
+            encapsulationPubkeyB64: nil,
+            nonceB64: nil,
+            algorithm: "noop",
+            createdAtMs: 1
+        )
+    }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope _: RemoteCommandEnvelope
+    ) async throws {}
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId _: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        response
     }
 }

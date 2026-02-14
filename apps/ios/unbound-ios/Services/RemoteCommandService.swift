@@ -17,7 +17,11 @@ enum RemoteCommandError: Error, LocalizedError {
     case targetUnavailable(String)
     case sessionNotFound(String)
     case commandRejected(reasonCode: String?, message: String)
-    case commandFailed(errorCode: String?, errorMessage: String?)
+    case commandFailed(
+        errorCode: String?,
+        errorMessage: String?,
+        errorData: [String: AnyCodableValue]?
+    )
     case timeout
     case transport(Error)
 
@@ -36,15 +40,36 @@ enum RemoteCommandError: Error, LocalizedError {
                 return "Command rejected (\(reasonCode)): \(message)"
             }
             return "Command rejected: \(message)"
-        case .commandFailed(let errorCode, let errorMessage):
+        case .commandFailed(let errorCode, let errorMessage, let errorData):
             let code = errorCode ?? "unknown"
             let msg = errorMessage ?? "unknown error"
+            if let details = Self.formatErrorDetails(errorData), !details.isEmpty {
+                return "Command failed (\(code)): \(msg) [\(details)]"
+            }
             return "Command failed (\(code)): \(msg)"
         case .timeout:
             return "Timed out waiting for command response"
         case .transport(let error):
             return "Transport error: \(error.localizedDescription)"
         }
+    }
+
+    private static func formatErrorDetails(_ errorData: [String: AnyCodableValue]?) -> String? {
+        guard let errorData else {
+            return nil
+        }
+
+        var parts: [String] = []
+        if let stage = errorData["stage"]?.stringValue, !stage.isEmpty {
+            parts.append("stage=\(stage)")
+        }
+        if let stderr = errorData["stderr"]?.stringValue, !stderr.isEmpty {
+            parts.append("stderr=\(stderr)")
+        }
+        if let cleanupError = errorData["cleanup_error"]?.stringValue, !cleanupError.isEmpty {
+            parts.append("cleanup_error=\(cleanupError)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 }
 
@@ -188,7 +213,11 @@ final class RemoteCommandService {
         )
 
         guard let result = response.result?.objectValue else {
-            throw RemoteCommandError.commandFailed(errorCode: "invalid_result", errorMessage: "Missing result in response")
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing result in response",
+                errorData: nil
+            )
         }
 
         return CreateSessionResult(
@@ -288,7 +317,8 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing create PR result fields"
+                errorMessage: "Missing create PR result fields",
+                errorData: nil
             )
         }
 
@@ -320,7 +350,8 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing pull request detail"
+                errorMessage: "Missing pull request detail",
+                errorData: nil
             )
         }
 
@@ -356,7 +387,8 @@ final class RemoteCommandService {
         guard let result = response.result?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing list PRs result"
+                errorMessage: "Missing list PRs result",
+                errorData: nil
             )
         }
 
@@ -392,7 +424,8 @@ final class RemoteCommandService {
         guard let result = response.result?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing PR checks result"
+                errorMessage: "Missing PR checks result",
+                errorData: nil
             )
         }
 
@@ -453,7 +486,8 @@ final class RemoteCommandService {
               let pullRequestPayload = result["pull_request"]?.objectValue else {
             throw RemoteCommandError.commandFailed(
                 errorCode: "invalid_result",
-                errorMessage: "Missing merge PR result"
+                errorMessage: "Missing merge PR result",
+                errorData: nil
             )
         }
 
@@ -541,7 +575,8 @@ final class RemoteCommandService {
         guard response.isOk else {
             throw RemoteCommandError.commandFailed(
                 errorCode: response.errorCode,
-                errorMessage: response.errorMessage
+                errorMessage: response.errorMessage,
+                errorData: response.errorData
             )
         }
 

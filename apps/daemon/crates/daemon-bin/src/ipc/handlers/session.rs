@@ -45,8 +45,8 @@ impl SessionCreateCoreError {
         }
     }
 
-    pub fn into_pair(self) -> (String, String) {
-        (self.code, self.message)
+    pub fn into_response_parts(self) -> (String, String, Option<serde_json::Value>) {
+        (self.code, self.message, self.data)
     }
 }
 
