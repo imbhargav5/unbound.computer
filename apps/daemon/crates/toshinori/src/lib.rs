@@ -21,7 +21,9 @@ mod client;
 mod error;
 mod sink;
 
-pub use ably_sync::{AblyArminAccess, AblyArminHandle, AblyRealtimeSyncer, AblySyncConfig};
+pub use ably_sync::{
+    AblyArminAccess, AblyArminHandle, AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig,
+};
 pub use client::{MessageUpsert, SupabaseClient};
 pub use error::{ToshinoriError, ToshinoriResult};
 pub use sink::{

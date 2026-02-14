@@ -19,6 +19,14 @@ type publishRequestFrame struct {
 	Event     string `json:"event"`
 }
 
+type objectSetRequestFrame struct {
+	Op        string `json:"op"`
+	RequestID string `json:"request_id"`
+	Channel   string `json:"channel"`
+	Key       string `json:"key"`
+	ValueB64  string `json:"value_b64"`
+}
+
 type subscribeRequestFrame struct {
 	Op             string `json:"op"`
 	RequestID      string `json:"request_id"`
@@ -79,6 +87,64 @@ func TestPublishRequestResponseCorrelation(t *testing.T) {
 	}
 	if time.Since(started) < 50*time.Millisecond {
 		t.Fatalf("publish returned before matching ack was received")
+	}
+
+	<-done
+}
+
+func TestObjectSetRequestResponseCorrelation(t *testing.T) {
+	serverConns := make(chan net.Conn, 1)
+	client, err := newWithDial("test-socket", func(context.Context) (net.Conn, error) {
+		clientConn, serverConn := net.Pipe()
+		serverConns <- serverConn
+		return clientConn, nil
+	})
+	if err != nil {
+		t.Fatalf("newWithDial: %v", err)
+	}
+	defer client.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn := <-serverConns
+		defer conn.Close()
+
+		scanner := bufio.NewScanner(conn)
+		if !scanner.Scan() {
+			return
+		}
+		var request objectSetRequestFrame
+		_ = json.Unmarshal(scanner.Bytes(), &request)
+
+		if request.Op != opObjectSetRequest {
+			t.Errorf("expected op %q, got %q", opObjectSetRequest, request.Op)
+		}
+		if request.Key != "coding_session_status" {
+			t.Errorf("expected object key coding_session_status, got %q", request.Key)
+		}
+
+		_ = writeJSONLine(conn, map[string]any{
+			"op":         opPublishAck,
+			"request_id": request.RequestID,
+			"ok":         true,
+		})
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	if err := client.ObjectSet(
+		ctx,
+		"session:test:status",
+		"coding_session_status",
+		[]byte(`{"status":"running"}`),
+		time.Second,
+	); err != nil {
+		t.Fatalf("object set: %v", err)
 	}
 
 	<-done

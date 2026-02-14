@@ -103,17 +103,57 @@ func TestPublishFailsAfterRetryExhaustion(t *testing.T) {
 	}
 }
 
+func TestPublishObjectSetUsesObjectSetPath(t *testing.T) {
+	mock := &mockIPCClient{}
+	pub := newWithClient(mock, Options{
+		ChannelName:    "default:channel",
+		PublishTimeout: time.Second,
+		Logger:         zap.NewNop(),
+	})
+
+	if err := pub.PublishObjectSet(
+		context.Background(),
+		"session:abc:status",
+		"coding_session_status",
+		[]byte(`{"status":"running"}`),
+	); err != nil {
+		t.Fatalf("object set failed: %v", err)
+	}
+
+	if len(mock.objectSets) != 1 {
+		t.Fatalf("expected 1 object set call, got %d", len(mock.objectSets))
+	}
+	call := mock.objectSets[0]
+	if call.channel != "session:abc:status" {
+		t.Fatalf("unexpected channel: %s", call.channel)
+	}
+	if call.key != "coding_session_status" {
+		t.Fatalf("unexpected key: %s", call.key)
+	}
+	if string(call.value) != `{"status":"running"}` {
+		t.Fatalf("unexpected value: %s", string(call.value))
+	}
+}
+
 type publishCall struct {
 	channel string
 	event   string
 	payload []byte
 }
 
+type objectSetCall struct {
+	channel string
+	key     string
+	value   []byte
+}
+
 type mockIPCClient struct {
-	publishes    []publishCall
-	publishErrors []error
-	connectErr   error
-	closed       bool
+	publishes       []publishCall
+	objectSets      []objectSetCall
+	publishErrors   []error
+	objectSetErrors []error
+	connectErr      error
+	closed          bool
 }
 
 func (m *mockIPCClient) Connect(context.Context) error {
@@ -139,6 +179,29 @@ func (m *mockIPCClient) Publish(
 	err := m.publishErrors[0]
 	if len(m.publishErrors) > 1 {
 		m.publishErrors = m.publishErrors[1:]
+	}
+	return err
+}
+
+func (m *mockIPCClient) ObjectSet(
+	_ context.Context,
+	channel string,
+	key string,
+	value []byte,
+	_ time.Duration,
+) error {
+	m.objectSets = append(m.objectSets, objectSetCall{
+		channel: channel,
+		key:     key,
+		value:   append([]byte(nil), value...),
+	})
+
+	if len(m.objectSetErrors) == 0 {
+		return nil
+	}
+	err := m.objectSetErrors[0]
+	if len(m.objectSetErrors) > 1 {
+		m.objectSetErrors = m.objectSetErrors[1:]
 	}
 	return err
 }

@@ -50,6 +50,7 @@ type Publisher struct {
 type ipcClient interface {
 	Connect(context.Context) error
 	Publish(context.Context, string, string, []byte, time.Duration) error
+	ObjectSet(context.Context, string, string, []byte, time.Duration) error
 	Close() error
 	IsConnected() bool
 }
@@ -185,6 +186,29 @@ func (p *Publisher) PublishJSONToChannel(
 	return p.publishToChannel(ctx, channelName, eventName, jsonPayload)
 }
 
+// PublishObjectSet applies an object-set operation on a specific channel.
+func (p *Publisher) PublishObjectSet(
+	ctx context.Context,
+	channelName string,
+	objectKey string,
+	objectValue []byte,
+) error {
+	if channelName == "" {
+		return ErrInvalidChannel
+	}
+	if objectKey == "" {
+		return errors.New("object key is required")
+	}
+
+	p.logger.Debug("publishing object set",
+		zap.String("channel", channelName),
+		zap.String("object_key", objectKey),
+		zap.Int("value_len", len(objectValue)),
+	)
+
+	return p.objectSet(ctx, channelName, objectKey, objectValue)
+}
+
 func (p *Publisher) publishToChannel(
 	ctx context.Context,
 	channelName string,
@@ -244,6 +268,75 @@ func (p *Publisher) publishToChannel(
 	p.logger.Error("publish failed after retries",
 		zap.String("channel", channelName),
 		zap.String("event", eventName),
+		zap.Int("max_retries", MaxRetries),
+		zap.Error(lastErr),
+	)
+
+	if lastErr != nil {
+		return fmt.Errorf("%w: %v", ErrPublishFailed, lastErr)
+	}
+	return ErrPublishFailed
+}
+
+func (p *Publisher) objectSet(
+	ctx context.Context,
+	channelName string,
+	objectKey string,
+	objectValue []byte,
+) error {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return ErrClosed
+	}
+	publishTimeout := p.publishTimeout
+	p.mu.Unlock()
+
+	var lastErr error
+	for attempt := 1; attempt <= MaxRetries; attempt++ {
+		pubCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+		err := p.client.ObjectSet(pubCtx, channelName, objectKey, objectValue, publishTimeout)
+		cancel()
+
+		if err == nil {
+			p.logger.Debug("object set successful",
+				zap.String("channel", channelName),
+				zap.String("object_key", objectKey),
+				zap.Int("attempt", attempt),
+			)
+			return nil
+		}
+
+		if errors.Is(err, ablyclient.ErrClosed) {
+			return ErrClosed
+		}
+		if errors.Is(err, ablyclient.ErrNotConnected) {
+			lastErr = ErrNotConnected
+		} else {
+			lastErr = err
+		}
+
+		p.logger.Warn("object set attempt failed",
+			zap.String("channel", channelName),
+			zap.String("object_key", objectKey),
+			zap.Int("attempt", attempt),
+			zap.Error(err),
+		)
+
+		if attempt < MaxRetries {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-p.closedCh:
+				return ErrClosed
+			case <-time.After(RetryDelay):
+			}
+		}
+	}
+
+	p.logger.Error("object set failed after retries",
+		zap.String("channel", channelName),
+		zap.String("object_key", objectKey),
 		zap.Int("max_retries", MaxRetries),
 		zap.Error(lastErr),
 	)

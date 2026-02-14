@@ -19,6 +19,7 @@ type fakeServerManager struct {
 
 	publishCalls    []publishCall
 	publishAckCalls []publishCall
+	objectSetCalls  []objectSetCall
 
 	subscriptions map[string]func(*InboundMessage)
 }
@@ -27,6 +28,12 @@ type publishCall struct {
 	channel string
 	event   string
 	payload []byte
+}
+
+type objectSetCall struct {
+	channel string
+	key     string
+	value   []byte
 }
 
 func newFakeServerManager() *fakeServerManager {
@@ -65,6 +72,23 @@ func (f *fakeServerManager) PublishAck(
 		channel: channel,
 		event:   event,
 		payload: append([]byte(nil), payload...),
+	})
+	return nil
+}
+
+func (f *fakeServerManager) ObjectSet(
+	_ context.Context,
+	channel string,
+	key string,
+	value []byte,
+	_ time.Duration,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.objectSetCalls = append(f.objectSetCalls, objectSetCall{
+		channel: channel,
+		key:     key,
+		value:   append([]byte(nil), value...),
 	})
 	return nil
 }
@@ -237,6 +261,36 @@ func TestServerPublishAckUsesNagatoClientPath(t *testing.T) {
 	defer manager.mu.Unlock()
 	if len(manager.publishAckCalls) != 1 {
 		t.Fatalf("expected one publish.ack call, got %d", len(manager.publishAckCalls))
+	}
+}
+
+func TestServerObjectSetUsesObjectSetPath(t *testing.T) {
+	manager := newFakeServerManager()
+	server := NewServer("/tmp/unused.sock", 2*1024*1024, manager, zap.NewNop())
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go server.handleConnection(ctx, serverConn)
+
+	value := base64.StdEncoding.EncodeToString([]byte(`{"status":"running"}`))
+	_, _ = clientConn.Write([]byte(`{"op":"object.set.v1","request_id":"req-object","channel":"session:abc:status","key":"coding_session_status","value_b64":"` + value + `"}` + "\n"))
+
+	var ack publishAck
+	readJSONLine(t, clientConn, &ack)
+	if !ack.OK {
+		t.Fatalf("expected object.set ack OK, got error %q", ack.Error)
+	}
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if len(manager.objectSetCalls) != 1 {
+		t.Fatalf("expected one object.set call, got %d", len(manager.objectSetCalls))
+	}
+	if manager.objectSetCalls[0].key != "coding_session_status" {
+		t.Fatalf("unexpected object key: %q", manager.objectSetCalls[0].key)
 	}
 }
 

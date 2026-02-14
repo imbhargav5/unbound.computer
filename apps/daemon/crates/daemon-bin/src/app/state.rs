@@ -17,7 +17,7 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
-use toshinori::{AblyRealtimeSyncer, ToshinoriSink};
+use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, ToshinoriSink};
 use ymir::{DaemonAuthRuntime, SupabaseClient};
 
 /// Cached billing usage-status snapshot for relaxed local quota enforcement.
@@ -83,6 +83,9 @@ pub struct DaemonState {
     /// Optional Ably hot-path worker for conversation message publish.
     /// Stored behind an async lock so it can be installed lazily after login.
     pub realtime_message_sync: Arc<RwLock<Option<Arc<AblyRealtimeSyncer>>>>,
+    /// Optional Ably hot-path worker for runtime status object-set publish.
+    /// Stored behind an async lock so it can be installed lazily after login.
+    pub realtime_runtime_status_sync: Arc<RwLock<Option<Arc<AblyRuntimeStatusSyncer>>>>,
     /// Optional Falco child process managed by this daemon instance.
     pub falco_process: Arc<Mutex<Option<Child>>>,
     /// Optional Nagato child process managed by this daemon instance.

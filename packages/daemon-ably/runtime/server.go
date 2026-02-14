@@ -21,6 +21,7 @@ import (
 const (
 	opPublishRequest    = "publish.v1"
 	opPublishAckRequest = "publish.ack.v1"
+	opObjectSetRequest  = "object.set.v1"
 	opPublishAck        = "publish.ack.v1"
 	opSubscribeRequest  = "subscribe.v1"
 	opSubscribeAck      = "subscribe.ack.v1"
@@ -44,6 +45,15 @@ type publishRequest struct {
 	Event      string `json:"event"`
 	PayloadB64 string `json:"payload_b64"`
 	TimeoutMS  int64  `json:"timeout_ms,omitempty"`
+}
+
+type objectSetRequest struct {
+	Op        string `json:"op"`
+	RequestID string `json:"request_id"`
+	Channel   string `json:"channel"`
+	Key       string `json:"key"`
+	ValueB64  string `json:"value_b64"`
+	TimeoutMS int64  `json:"timeout_ms,omitempty"`
 }
 
 type publishAck struct {
@@ -77,6 +87,7 @@ type messageEnvelope struct {
 type serverManager interface {
 	Publish(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error
 	PublishAck(ctx context.Context, channel string, event string, payload []byte, timeout time.Duration) error
+	ObjectSet(ctx context.Context, channel string, key string, value []byte, timeout time.Duration) error
 	Subscribe(
 		ctx context.Context,
 		subscriptionID string,
@@ -263,6 +274,12 @@ func (s *Server) processLine(state *serverConn, line []byte) error {
 			return fmt.Errorf("invalid publish ack request: %w", err)
 		}
 		return s.handlePublishRequest(state, request, true)
+	case opObjectSetRequest:
+		var request objectSetRequest
+		if err := json.Unmarshal(line, &request); err != nil {
+			return fmt.Errorf("invalid object set request: %w", err)
+		}
+		return s.handleObjectSetRequest(state, request)
 	case opSubscribeRequest:
 		var request subscribeRequest
 		if err := json.Unmarshal(line, &request); err != nil {
@@ -320,6 +337,54 @@ func (s *Server) handlePublishRequest(state *serverConn, request publishRequest,
 		err = s.manager.Publish(ctx, request.Channel, request.Event, payload, timeout)
 	}
 	if err != nil {
+		ack.OK = false
+		ack.Error = err.Error()
+	}
+
+	return state.writeJSON(ack)
+}
+
+func (s *Server) handleObjectSetRequest(state *serverConn, request objectSetRequest) error {
+	ack := publishAck{
+		Op: opPublishAck,
+		requestAck: requestAck{
+			RequestID: request.RequestID,
+			OK:        true,
+		},
+	}
+
+	if request.RequestID == "" {
+		ack.OK = false
+		ack.Error = "request_id is required"
+		return state.writeJSON(ack)
+	}
+	if request.Channel == "" {
+		ack.OK = false
+		ack.Error = "channel is required"
+		return state.writeJSON(ack)
+	}
+	if request.Key == "" {
+		ack.OK = false
+		ack.Error = "key is required"
+		return state.writeJSON(ack)
+	}
+
+	value, err := base64.StdEncoding.DecodeString(request.ValueB64)
+	if err != nil {
+		ack.OK = false
+		ack.Error = "value_b64 must be valid base64"
+		return state.writeJSON(ack)
+	}
+
+	timeout := time.Duration(request.TimeoutMS) * time.Millisecond
+	ctx := context.Background()
+	if request.TimeoutMS > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		ctx = timeoutCtx
+	}
+
+	if err := s.manager.ObjectSet(ctx, request.Channel, request.Key, value, timeout); err != nil {
 		ack.OK = false
 		ack.Error = err.Error()
 	}

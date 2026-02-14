@@ -190,6 +190,49 @@ func (s *Server) processFrame(ctx context.Context, conn net.Conn, data []byte) {
 		return
 	}
 
+	// Object-set transport path for LiveObjects updates.
+	if effect.ObjectKey != "" {
+		if effect.Channel == "" {
+			err := errors.New("missing channel for object-set side-effect")
+			s.logger.Error("failed to publish object-set side-effect",
+				zap.String("effect_id", frame.EffectID.String()),
+				zap.Error(err),
+			)
+			s.sendAck(conn, frame.EffectID, protocol.Failed, err.Error())
+			return
+		}
+		if len(effect.Payload) == 0 {
+			err := errors.New("missing payload for object-set side-effect")
+			s.logger.Error("failed to publish object-set side-effect",
+				zap.String("effect_id", frame.EffectID.String()),
+				zap.Error(err),
+			)
+			s.sendAck(conn, frame.EffectID, protocol.Failed, err.Error())
+			return
+		}
+
+		err = s.publisher.PublishObjectSet(ctx, effect.Channel, effect.ObjectKey, effect.Payload)
+		if err != nil {
+			s.logger.Error("failed to publish object-set side-effect",
+				zap.String("effect_id", frame.EffectID.String()),
+				zap.String("channel", effect.Channel),
+				zap.String("object_key", effect.ObjectKey),
+				zap.Error(err),
+			)
+			s.sendAck(conn, frame.EffectID, protocol.Failed, err.Error())
+			return
+		}
+
+		s.logger.Info("published object-set side-effect",
+			zap.String("effect_id", frame.EffectID.String()),
+			zap.String("channel", effect.Channel),
+			zap.String("object_key", effect.ObjectKey),
+			zap.String("session_id", effect.SessionID),
+		)
+		s.sendAck(conn, frame.EffectID, protocol.Success, "")
+		return
+	}
+
 	eventName := string(effect.Type)
 	if effect.Event != "" {
 		eventName = effect.Event

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -53,6 +54,7 @@ type Manager struct {
 	logger *zap.Logger
 
 	falcoClient  *ably.Realtime
+	falcoREST    *ably.REST
 	nagatoClient *ably.Realtime
 	server       *Server
 
@@ -71,6 +73,7 @@ type Manager struct {
 		timeout time.Duration,
 	) error
 	attachSubscriptionOverride func(ctx context.Context, sub *subscription) error
+	objectSetOverride          func(ctx context.Context, channel string, key string, value []byte, timeout time.Duration) error
 }
 
 func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
@@ -80,6 +83,11 @@ func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
 
 	falcoClient, err := newRealtimeClient(cfg, audienceFalco, cfg.BrokerFalcoToken, logger.Named("ably-falco"))
 	if err != nil {
+		return nil, err
+	}
+	falcoREST, err := newRESTClient(cfg, audienceFalco, cfg.BrokerFalcoToken, logger.Named("ably-falco-rest"))
+	if err != nil {
+		falcoClient.Close()
 		return nil, err
 	}
 
@@ -93,6 +101,7 @@ func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
 		cfg:           cfg,
 		logger:        logger,
 		falcoClient:   falcoClient,
+		falcoREST:     falcoREST,
 		nagatoClient:  nagatoClient,
 		subs:          make(map[string]*subscription),
 		heartbeatDone: make(chan struct{}),
@@ -205,6 +214,73 @@ func (m *Manager) PublishAck(ctx context.Context, channel string, event string, 
 		return m.publishWithClientOverride(ctx, m.nagatoClient, channel, event, payload, timeout)
 	}
 	return m.publishWithClient(ctx, m.nagatoClient, channel, event, payload, timeout)
+}
+
+func (m *Manager) ObjectSet(
+	ctx context.Context,
+	channel string,
+	key string,
+	value []byte,
+	timeout time.Duration,
+) error {
+	if m.objectSetOverride != nil {
+		return m.objectSetOverride(ctx, channel, key, value, timeout)
+	}
+	if channel == "" {
+		return fmt.Errorf("channel is required")
+	}
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+	if timeout <= 0 {
+		timeout = m.cfg.PublishTimeout
+	}
+
+	var decodedValue any
+	if len(value) == 0 {
+		decodedValue = nil
+	} else if err := json.Unmarshal(value, &decodedValue); err != nil {
+		return fmt.Errorf("object value must be valid JSON: %w", err)
+	}
+
+	reqCtx := ctx
+	if reqCtx == nil {
+		reqCtx = context.Background()
+	}
+	if _, ok := reqCtx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(reqCtx, timeout)
+		defer cancel()
+	}
+
+	path := fmt.Sprintf("/channels/%s/object", url.PathEscape(channel))
+	body := map[string]any{
+		"name":  key,
+		"op":    "set",
+		"value": decodedValue,
+	}
+
+	response, err := m.falcoREST.Request(
+		"POST",
+		path,
+		ably.RequestWithBody(body),
+	).Pages(reqCtx)
+	if err != nil {
+		return fmt.Errorf("object set request failed: %w", err)
+	}
+	if !response.Success() {
+		message := response.ErrorMessage()
+		if message == "" {
+			message = "object set request failed"
+		}
+		return fmt.Errorf(
+			"object set request failed: status=%d code=%d message=%s",
+			response.StatusCode(),
+			response.ErrorCode(),
+			message,
+		)
+	}
+	return nil
 }
 
 func (m *Manager) Subscribe(
@@ -491,6 +567,25 @@ func newRealtimeClient(
 			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, cfg.DeviceID, audience)
 		}),
 		ably.WithAutoConnect(false),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func newRESTClient(
+	cfg *ablyconfig.Config,
+	audience string,
+	brokerToken string,
+	logger *zap.Logger,
+) (*ably.REST, error) {
+	client, err := ably.NewREST(
+		ably.WithClientID(cfg.DeviceID),
+		ably.WithAuthCallback(func(ctx context.Context, _ ably.TokenParams) (ably.Tokener, error) {
+			logger.Debug("requesting token from local broker", zap.String("audience", audience))
+			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, cfg.DeviceID, audience)
+		}),
 	)
 	if err != nil {
 		return nil, err

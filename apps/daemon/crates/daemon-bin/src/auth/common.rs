@@ -11,7 +11,7 @@ use armin::{CodingSessionStatus, SessionId, SessionWriter};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use toshinori::{AblyRealtimeSyncer, AblySyncConfig, SyncContext};
+use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use tracing::{info, warn};
 use ymir::AuthLoginResult;
 
@@ -35,6 +35,10 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
     state.message_sync.set_context(sync_context.clone()).await;
     let realtime_syncer = { state.realtime_message_sync.read().await.clone() };
     if let Some(syncer) = realtime_syncer {
+        syncer.set_context(sync_context.clone()).await;
+    }
+    let runtime_status_syncer = { state.realtime_runtime_status_sync.read().await.clone() };
+    if let Some(syncer) = runtime_status_syncer {
         syncer.set_context(sync_context).await;
     }
 }
@@ -44,6 +48,12 @@ pub async fn clear_login_side_effects(state: &DaemonState) {
     mark_active_sessions_not_available(state);
     state.toshinori.clear_context().await;
     state.message_sync.clear_context().await;
+    if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
+        syncer.clear_context().await;
+    }
+    if let Some(syncer) = state.realtime_runtime_status_sync.read().await.clone() {
+        syncer.clear_context().await;
+    }
     stop_managed_sidecars(state, true).await;
 }
 
@@ -85,10 +95,34 @@ fn mark_active_sessions_not_available(state: &DaemonState) {
 /// Returns `true` when sidecars are healthy or intentionally stopped due to no auth context.
 pub async fn reconcile_sidecars_with_auth(state: &DaemonState) -> bool {
     match state.auth_runtime.current_sync_context() {
-        Ok(Some(sync)) => ensure_sidecars_for_session(state, &sync.user_id, &sync.device_id).await,
+        Ok(Some(sync)) => {
+            let ready = ensure_sidecars_for_session(state, &sync.user_id, &sync.device_id).await;
+            if ready {
+                let sync_context = SyncContext {
+                    access_token: sync.access_token,
+                    user_id: sync.user_id,
+                    device_id: sync.device_id,
+                };
+                state.toshinori.set_context(sync_context.clone()).await;
+                state.message_sync.set_context(sync_context.clone()).await;
+                if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
+                    syncer.set_context(sync_context.clone()).await;
+                }
+                if let Some(syncer) = state.realtime_runtime_status_sync.read().await.clone() {
+                    syncer.set_context(sync_context.clone()).await;
+                }
+            }
+            ready
+        }
         Ok(None) => {
             state.toshinori.clear_context().await;
             state.message_sync.clear_context().await;
+            if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
+                syncer.clear_context().await;
+            }
+            if let Some(syncer) = state.realtime_runtime_status_sync.read().await.clone() {
+                syncer.clear_context().await;
+            }
             stop_managed_sidecars(state, false).await;
             true
         }
@@ -235,27 +269,54 @@ async fn ensure_realtime_sync_started_locked(state: &DaemonState, device_id: &st
         }
     }
 
-    let syncer = Arc::new(AblyRealtimeSyncer::new(
+    let message_syncer = Arc::new(AblyRealtimeSyncer::new(
         AblySyncConfig::default(),
         state.armin.clone(),
         state.db_encryption_key.clone(),
-        falco_socket_path,
+        falco_socket_path.clone(),
     ));
+    let runtime_status_syncer = Arc::new(AblyRuntimeStatusSyncer::new(falco_socket_path));
 
-    let mut guard = state.realtime_message_sync.write().await;
-    if guard.is_some() {
+    let install_message_syncer = {
+        let mut guard = state.realtime_message_sync.write().await;
+        if guard.is_none() {
+            *guard = Some(message_syncer.clone());
+            true
+        } else {
+            false
+        }
+    };
+
+    let install_runtime_status_syncer = {
+        let mut guard = state.realtime_runtime_status_sync.write().await;
+        if guard.is_none() {
+            *guard = Some(runtime_status_syncer.clone());
+            true
+        } else {
+            false
+        }
+    };
+
+    if !install_message_syncer && !install_runtime_status_syncer {
         return true;
     }
-    *guard = Some(syncer.clone());
-    drop(guard);
 
     // Install into Toshinori and then start worker.
-    state
-        .toshinori
-        .set_realtime_message_syncer(syncer.clone())
-        .await;
-    syncer.start();
-    info!("Initialized Ably hot-path message sync worker");
+    if install_message_syncer {
+        state
+            .toshinori
+            .set_realtime_message_syncer(message_syncer.clone())
+            .await;
+        message_syncer.start();
+    }
+    if install_runtime_status_syncer {
+        state
+            .toshinori
+            .set_realtime_runtime_status_syncer(runtime_status_syncer.clone())
+            .await;
+        runtime_status_syncer.start();
+    }
+    info!("Initialized Ably hot-path sync workers");
     true
 }
 
@@ -449,14 +510,23 @@ async fn stop_managed_sidecars(state: &DaemonState, clear_broker_cache: bool) {
 }
 
 async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: bool) {
-    let realtime_syncer = {
+    let realtime_message_syncer = {
         let mut guard = state.realtime_message_sync.write().await;
         guard.take()
     };
-    if let Some(syncer) = realtime_syncer {
+    if let Some(syncer) = realtime_message_syncer {
         syncer.clear_context().await;
     }
     state.toshinori.clear_realtime_message_syncer().await;
+
+    let realtime_runtime_status_syncer = {
+        let mut guard = state.realtime_runtime_status_sync.write().await;
+        guard.take()
+    };
+    if let Some(syncer) = realtime_runtime_status_syncer {
+        syncer.clear_context().await;
+    }
+    state.toshinori.clear_realtime_runtime_status_syncer().await;
 
     if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
         terminate_child(&mut child, "nagato");

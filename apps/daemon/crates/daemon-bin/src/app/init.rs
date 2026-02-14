@@ -27,7 +27,9 @@ use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use toshinori::{AblyRealtimeSyncer, AblySyncConfig, SyncContext, ToshinoriSink};
+use toshinori::{
+    AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext, ToshinoriSink,
+};
 use tracing::{debug, info, warn};
 use ymir::{DaemonAuthRuntime, SessionManager, SupabaseClient};
 
@@ -306,6 +308,7 @@ pub async fn run_daemon(
     }
 
     let mut initial_falco_process: Option<Child> = None;
+    let mut initial_realtime_runtime_status_sync: Option<Arc<AblyRuntimeStatusSyncer>> = None;
     let initial_realtime_message_sync = if has_startup_auth_context && daemon_ably_ready {
         let falco_socket_path = paths.falco_socket_file();
 
@@ -348,11 +351,22 @@ pub async fn run_daemon(
                                     AblySyncConfig::default(),
                                     armin_handle,
                                     db_encryption_key_arc.clone(),
-                                    falco_socket_path,
+                                    falco_socket_path.clone(),
                                 ));
+                                let runtime_status_syncer =
+                                    Arc::new(AblyRuntimeStatusSyncer::new(falco_socket_path));
                                 toshinori.set_realtime_message_syncer(syncer.clone()).await;
+                                toshinori
+                                    .set_realtime_runtime_status_syncer(
+                                        runtime_status_syncer.clone(),
+                                    )
+                                    .await;
                                 syncer.start();
-                                info!("Initialized Ably hot-path message sync worker");
+                                runtime_status_syncer.start();
+                                initial_realtime_runtime_status_sync = Some(runtime_status_syncer);
+                                info!(
+                                    "Initialized Ably hot-path sync workers (conversation + runtime status)"
+                                );
                                 Some(syncer)
                             }
                             Err(err) => {
@@ -404,6 +418,9 @@ pub async fn run_daemon(
         if let Some(syncer) = &initial_realtime_message_sync {
             syncer.set_context(sync_context.clone()).await;
         }
+        if let Some(syncer) = &initial_realtime_runtime_status_sync {
+            syncer.set_context(sync_context.clone()).await;
+        }
         info!("Initialized Supabase sync contexts from persisted auth session");
     }
 
@@ -430,6 +447,9 @@ pub async fn run_daemon(
         toshinori,
         message_sync,
         realtime_message_sync: Arc::new(tokio::sync::RwLock::new(initial_realtime_message_sync)),
+        realtime_runtime_status_sync: Arc::new(tokio::sync::RwLock::new(
+            initial_realtime_runtime_status_sync,
+        )),
         falco_process: Arc::new(Mutex::new(initial_falco_process)),
         nagato_process: Arc::new(Mutex::new(None)),
         daemon_ably_process: Arc::new(Mutex::new(initial_daemon_ably_process)),

@@ -21,7 +21,8 @@ const (
 	MessageAppended Type = "message_appended"
 
 	// Session state side-effects
-	AgentStatusChanged Type = "agent_status_changed"
+	AgentStatusChanged   Type = "agent_status_changed"
+	RuntimeStatusUpdated Type = "runtime_status_updated"
 
 	// Outbox side-effects
 	OutboxEventsSent  Type = "outbox_events_sent"
@@ -41,6 +42,9 @@ type SideEffect struct {
 
 	// Payload is the optional data body to publish instead of the full envelope.
 	Payload json.RawMessage `json:"payload,omitempty"`
+
+	// ObjectSet fields
+	ObjectKey string `json:"object_key,omitempty"`
 
 	// Repository fields
 	RepositoryID string `json:"repository_id,omitempty"`

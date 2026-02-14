@@ -19,6 +19,7 @@ import (
 const (
 	opPublishRequest    = "publish.v1"
 	opPublishAckRequest = "publish.ack.v1"
+	opObjectSetRequest  = "object.set.v1"
 	opPublishAck        = "publish.ack.v1"
 	opSubscribe         = "subscribe.v1"
 	opSubscribeAck      = "subscribe.ack.v1"
@@ -66,6 +67,15 @@ type publishRequest struct {
 	Event      string `json:"event"`
 	PayloadB64 string `json:"payload_b64"`
 	TimeoutMS  int64  `json:"timeout_ms,omitempty"`
+}
+
+type objectSetRequest struct {
+	Op        string `json:"op"`
+	RequestID string `json:"request_id"`
+	Channel   string `json:"channel"`
+	Key       string `json:"key"`
+	ValueB64  string `json:"value_b64"`
+	TimeoutMS int64  `json:"timeout_ms,omitempty"`
 }
 
 type publishAck struct {
@@ -203,6 +213,67 @@ func (c *Client) PublishAck(
 	timeout time.Duration,
 ) error {
 	return c.publish(ctx, opPublishAckRequest, channel, event, payload, timeout)
+}
+
+// ObjectSet sends an object.set.v1 request and waits for a publish.ack.v1.
+func (c *Client) ObjectSet(
+	ctx context.Context,
+	channel string,
+	key string,
+	value []byte,
+	timeout time.Duration,
+) error {
+	if channel == "" {
+		return fmt.Errorf("channel is required")
+	}
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+
+	if timeout <= 0 {
+		timeout = defaultAckTimeout
+	}
+
+	if err := c.ensureConnected(ctx); err != nil {
+		return err
+	}
+
+	requestID := uuid.NewString()
+	ack, err := c.sendAndAwaitAck(ctx, objectSetRequest{
+		Op:        opObjectSetRequest,
+		RequestID: requestID,
+		Channel:   channel,
+		Key:       key,
+		ValueB64:  base64.StdEncoding.EncodeToString(value),
+		TimeoutMS: timeout.Milliseconds(),
+	}, requestID)
+	if err != nil {
+		if errors.Is(err, ErrNotConnected) {
+			if reconnectErr := c.ensureConnected(ctx); reconnectErr == nil {
+				retryRequestID := uuid.NewString()
+				ack, err = c.sendAndAwaitAck(ctx, objectSetRequest{
+					Op:        opObjectSetRequest,
+					RequestID: retryRequestID,
+					Channel:   channel,
+					Key:       key,
+					ValueB64:  base64.StdEncoding.EncodeToString(value),
+					TimeoutMS: timeout.Milliseconds(),
+				}, retryRequestID)
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	if !ack.OK {
+		if ack.Error == "" {
+			return fmt.Errorf("object set rejected")
+		}
+		return fmt.Errorf("object set rejected: %s", ack.Error)
+	}
+
+	return nil
 }
 
 func (c *Client) publish(

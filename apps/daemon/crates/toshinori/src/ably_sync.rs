@@ -19,7 +19,9 @@ use tokio::time::{interval, Duration};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::sink::{MessageSyncRequest, MessageSyncer, SyncContext};
+use crate::sink::{
+    MessageSyncRequest, MessageSyncer, RuntimeStatusSyncRequest, RuntimeStatusSyncer, SyncContext,
+};
 
 /// Falco frame type for side-effect publish requests.
 const FALCO_TYPE_SIDE_EFFECT: u8 = 0x03;
@@ -39,8 +41,12 @@ const FALCO_PUBLISH_ACK_HEADER_SIZE: usize = 24;
 const CONVERSATION_EVENT_NAME: &str = "conversation.message.v1";
 /// Envelope type value used for Falco compatibility logs/routing.
 const MESSAGE_APPENDED_TYPE: &str = "message_appended";
+/// Envelope type for runtime status updates.
+const RUNTIME_STATUS_UPDATED_TYPE: &str = "runtime_status_updated";
 /// Symmetric content encryption algorithm identifier.
 const CONVERSATION_ENCRYPTION_ALG: &str = "chacha20poly1305";
+/// LiveObjects key for coding session status state.
+const CODING_SESSION_STATUS_OBJECT_KEY: &str = "coding_session_status";
 /// Default queue capacity for enqueue notifications.
 const DEFAULT_QUEUE_CAPACITY: usize = 1024;
 
@@ -201,12 +207,94 @@ impl MessageSyncer for AblyRealtimeSyncer {
     }
 }
 
+/// Ably realtime runtime-status sync worker using Falco object-set transport.
+pub struct AblyRuntimeStatusSyncer {
+    context: Arc<RwLock<Option<SyncContext>>>,
+    sender: mpsc::Sender<RuntimeStatusSyncRequest>,
+    receiver: Mutex<Option<mpsc::Receiver<RuntimeStatusSyncRequest>>>,
+    falco_socket_path: PathBuf,
+}
+
+impl AblyRuntimeStatusSyncer {
+    /// Create a new runtime-status syncer.
+    pub fn new(falco_socket_path: impl Into<PathBuf>) -> Self {
+        let (sender, receiver) = mpsc::channel(DEFAULT_QUEUE_CAPACITY);
+        Self {
+            context: Arc::new(RwLock::new(None)),
+            sender,
+            receiver: Mutex::new(Some(receiver)),
+            falco_socket_path: falco_socket_path.into(),
+        }
+    }
+
+    /// Starts the background publish loop.
+    ///
+    /// Panics if called more than once.
+    pub fn start(&self) {
+        let mut receiver = self
+            .receiver
+            .lock()
+            .expect("lock poisoned")
+            .take()
+            .expect("AblyRuntimeStatusSyncer already started");
+
+        let context = self.context.clone();
+        let falco_socket_path = self.falco_socket_path.clone();
+
+        tokio::spawn(async move {
+            let mut falco_stream: Option<UnixStream> = None;
+
+            while let Some(request) = receiver.recv().await {
+                if let Err(err) = send_runtime_status_update(
+                    &context,
+                    &falco_socket_path,
+                    &mut falco_stream,
+                    request,
+                )
+                .await
+                {
+                    warn!(error = %err, "Ably runtime-status publish failed");
+                }
+            }
+        });
+    }
+
+    /// Sets the auth/device context used to gate status publishes.
+    pub async fn set_context(&self, context: SyncContext) {
+        let mut guard = self.context.write().await;
+        *guard = Some(context);
+    }
+
+    /// Clears auth/device context; worker skips publishes while cleared.
+    pub async fn clear_context(&self) {
+        let mut guard = self.context.write().await;
+        *guard = None;
+    }
+}
+
+impl RuntimeStatusSyncer for AblyRuntimeStatusSyncer {
+    fn enqueue(&self, request: RuntimeStatusSyncRequest) {
+        if let Err(err) = self.sender.try_send(request) {
+            debug!(error = %err, "AblyRuntimeStatusSyncer enqueue failed");
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct FalcoPublishEnvelope<'a, T> {
     #[serde(rename = "type")]
     effect_type: &'a str,
     channel: String,
     event: &'a str,
+    payload: T,
+}
+
+#[derive(Debug, Serialize)]
+struct FalcoObjectSetEnvelope<'a, T> {
+    #[serde(rename = "type")]
+    effect_type: &'a str,
+    channel: String,
+    object_key: &'a str,
     payload: T,
 }
 
@@ -307,6 +395,44 @@ async fn send_enqueued_message(
         "Ably hot-sync message size"
     );
 
+    Ok(())
+}
+
+async fn send_runtime_status_update(
+    context: &Arc<RwLock<Option<SyncContext>>>,
+    falco_socket_path: &Path,
+    falco_stream: &mut Option<UnixStream>,
+    request: RuntimeStatusSyncRequest,
+) -> Result<(), String> {
+    let ctx = {
+        let guard = context.read().await;
+        guard.clone()
+    };
+    let Some(_ctx) = ctx else {
+        debug!(
+            session_id = %request.session_id,
+            "Ably runtime-status hot-sync skipping update (no context)"
+        );
+        return Ok(());
+    };
+
+    let envelope = FalcoObjectSetEnvelope {
+        effect_type: RUNTIME_STATUS_UPDATED_TYPE,
+        channel: session_status_channel(&request.session_id),
+        object_key: CODING_SESSION_STATUS_OBJECT_KEY,
+        payload: request.runtime_status,
+    };
+
+    let bytes =
+        serde_json::to_vec(&envelope).map_err(|err| format!("serialize payload: {}", err))?;
+    publish_via_falco(falco_stream, falco_socket_path, &bytes).await?;
+
+    info!(
+        session_id = %request.session_id,
+        channel = %session_status_channel(&request.session_id),
+        object_key = CODING_SESSION_STATUS_OBJECT_KEY,
+        "Ably runtime-status object set published"
+    );
     Ok(())
 }
 
@@ -603,6 +729,10 @@ fn session_conversation_channel(session_id: &str) -> String {
     format!("session:{session_id}:conversation")
 }
 
+fn session_status_channel(session_id: &str) -> String {
+    format!("session:{session_id}:status")
+}
+
 fn encrypt_message(
     armin: &AblyArminHandle,
     secret_cache: &Arc<Mutex<HashMap<String, Vec<u8>>>>,
@@ -721,6 +851,30 @@ mod tests {
             session_conversation_channel(id),
             format!("session:{}:conversation", id)
         );
+    }
+
+    #[test]
+    fn status_channel_format() {
+        assert_eq!(session_status_channel("abc-123"), "session:abc-123:status");
+    }
+
+    #[test]
+    fn object_set_envelope_serialization() {
+        let envelope = FalcoObjectSetEnvelope {
+            effect_type: RUNTIME_STATUS_UPDATED_TYPE,
+            channel: session_status_channel("sess-1"),
+            object_key: CODING_SESSION_STATUS_OBJECT_KEY,
+            payload: serde_json::json!({
+                "schema_version": 1,
+                "coding_session": { "status": "running" }
+            }),
+        };
+
+        let value = serde_json::to_value(&envelope).expect("serialize envelope");
+        assert_eq!(value["type"], RUNTIME_STATUS_UPDATED_TYPE);
+        assert_eq!(value["channel"], "session:sess-1:status");
+        assert_eq!(value["object_key"], CODING_SESSION_STATUS_OBJECT_KEY);
+        assert_eq!(value["payload"]["coding_session"]["status"], "running");
     }
 
     // =========================================================================
