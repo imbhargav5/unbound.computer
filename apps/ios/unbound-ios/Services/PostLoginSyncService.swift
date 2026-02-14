@@ -88,6 +88,7 @@ private struct SupabaseDeviceResponse: Codable {
     let lastSeenAt: String?
     let createdAt: String
     let updatedAt: String
+    let capabilities: DeviceCapabilities?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -99,6 +100,7 @@ private struct SupabaseDeviceResponse: Codable {
         case lastSeenAt = "last_seen_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case capabilities
     }
 }
 
@@ -220,7 +222,8 @@ final class PostLoginSyncService {
                     hostname: device.hostname,
                     isActive: device.isActive,
                     lastSeenAt: device.lastSeenAt.flatMap { parseDate($0) },
-                    createdAt: parseDate(device.createdAt) ?? Date()
+                    createdAt: parseDate(device.createdAt) ?? Date(),
+                    capabilities: device.capabilities
                 )
             }
 

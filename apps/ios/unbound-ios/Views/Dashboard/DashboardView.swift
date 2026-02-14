@@ -226,6 +226,13 @@ struct SyncedDeviceRowView: View {
                         .font(Typography.caption)
                         .foregroundStyle(AppTheme.textTertiary)
                 }
+
+                if let summary = device.capabilitiesSummary {
+                    Text(summary)
+                        .font(Typography.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()

@@ -25,6 +25,7 @@ struct SyncedDeviceDetailView: View {
             VStack(alignment: .leading, spacing: AppTheme.spacingL) {
                 // Compact device header
                 deviceHeader
+                capabilitiesSection
 
                 // Repository groups with sessions
                 if deviceRepositories.isEmpty {
@@ -116,6 +117,53 @@ struct SyncedDeviceDetailView: View {
         .padding(AppTheme.spacingM)
         .thinBorderCard()
         .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private var capabilitiesSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingS) {
+            Text("Capabilities")
+                .font(Typography.subheadline)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            if let cli = device.capabilities?.cli {
+                capabilityRow(title: "Claude", tool: cli.claude)
+                if let models = cli.claude?.models, !models.isEmpty {
+                    Text("Models: \(models.joined(separator: \", \"))")
+                        .font(Typography.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
+                }
+                capabilityRow(title: "GitHub CLI", tool: cli.gh)
+                capabilityRow(title: "Codex", tool: cli.codex)
+                capabilityRow(title: "Ollama", tool: cli.ollama)
+            } else {
+                Text("Not reported yet")
+                    .font(Typography.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(AppTheme.spacingM)
+        .thinBorderCard()
+        .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private func capabilityRow(
+        title: String,
+        tool: DeviceCapabilities.ToolCapabilities?
+    ) -> some View {
+        let statusText = tool.map { $0.installed ? "Installed" : "Not installed" } ?? "Unknown"
+
+        return HStack {
+            Text(title)
+                .font(Typography.caption)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Spacer()
+
+            Text(statusText)
+                .font(Typography.caption)
+                .foregroundStyle(AppTheme.textTertiary)
+        }
     }
 
     // MARK: - Helpers
