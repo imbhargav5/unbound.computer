@@ -152,7 +152,8 @@ struct WorkspaceView: View {
                                 )
                             }
 
-                            if !appState.localSettings.leftSidebarVisible {
+                            if !appState.localSettings.leftSidebarVisible,
+                               !appState.localSettings.isZenModeEnabled {
                                 VStack {
                                     HStack {
                                         IconButton(systemName: "sidebar.left", action: {
@@ -168,7 +169,8 @@ struct WorkspaceView: View {
                                 .padding(.top, Spacing.md)
                             }
 
-                            if !appState.localSettings.rightSidebarVisible {
+                            if !appState.localSettings.rightSidebarVisible,
+                               !appState.localSettings.isZenModeEnabled {
                                 VStack {
                                     HStack {
                                         Spacer()
@@ -205,6 +207,14 @@ struct WorkspaceView: View {
                 WindowToolbar(content: {
                     Color.clear
                 }, height: titlebarHeight)
+            }
+
+            if appState.localSettings.isZenModeEnabled {
+                Badge("Zen Mode", variant: .outline)
+                    .help("Zen Mode — ⌘K Z")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(.top, titlebarHeight + Spacing.sm)
+                    .padding(.trailing, Spacing.lg)
             }
 
             if appState.showCommandPalette {
