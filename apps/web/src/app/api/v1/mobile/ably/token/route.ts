@@ -43,6 +43,7 @@ export function buildMobileCapability(deviceIds: string[], requesterDeviceId: st
     capability[`session:secrets:${deviceId}:${requesterDeviceId.toLowerCase()}`] = ["subscribe"];
   }
   capability["session:*:conversation"] = ["subscribe"];
+  capability["session:*:status"] = ["object-subscribe"];
 
   return capability;
 }
@@ -59,6 +60,7 @@ export function buildDaemonFalcoCapability(requesterDeviceId: string, userId: st
   const normalizedUser = userId.toLowerCase();
   return {
     "session:*:conversation": ["publish"],
+    "session:*:status": ["object-publish"],
     [`presence:${normalizedUser}`]: ["publish"],
     [`remote:${normalizedRequester}:commands`]: ["publish"],
     [`session:secrets:${normalizedRequester}:*`]: ["publish"],
