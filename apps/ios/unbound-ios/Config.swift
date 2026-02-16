@@ -60,6 +60,19 @@ enum Config {
         apiURL.appendingPathComponent("api/v1/mobile/ably/token")
     }
 
+    /// Mobile token-auth endpoint used by DO presence stream.
+    static var presenceTokenAuthURL: URL {
+        apiURL.appendingPathComponent("api/v1/mobile/presence/token")
+    }
+
+    static func presenceStreamURL(userId: String) -> URL {
+        var components = URLComponents(url: apiURL.appendingPathComponent("api/v1/mobile/presence/stream"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "user_id", value: userId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()),
+        ]
+        return components?.url ?? apiURL.appendingPathComponent("api/v1/mobile/presence/stream")
+    }
+
     static let remoteCommandEventName = "remote.command.v1"
     static let remoteCommandAckEventName = "remote.command.ack.v1"
     static let sessionSecretResponseEventName = "session.secret.response.v1"

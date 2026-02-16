@@ -13,16 +13,34 @@ import Network
 import Supabase
 import Realtime
 
-#if canImport(Ably)
-import Ably
-#endif
-
 private let logger = Logger(label: "app.device")
 
 enum DeviceDaemonAvailability: Equatable {
     case online
     case offline
     case unknown
+}
+
+struct DaemonPresencePayload: Decodable {
+    let schemaVersion: Int
+    let userID: String
+    let deviceID: String
+    let status: String
+    let source: String?
+    let sentAtMS: Int64
+    let seq: Int?
+    let ttlMS: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case userID = "user_id"
+        case deviceID = "device_id"
+        case status
+        case source
+        case sentAtMS = "sent_at_ms"
+        case seq
+        case ttlMS = "ttl_ms"
+    }
 }
 
 /// Represents a monitored device with its online status
@@ -71,12 +89,7 @@ final class DevicePresenceService {
     private var daemonLastHeartbeatAt: [String: Date] = [:]
     private var daemonExplicitOfflineAt: [String: Date] = [:]
     private let daemonHeartbeatTTL: TimeInterval = 12.0
-
-    #if canImport(Ably)
-    private var daemonPresenceRealtime: ARTRealtime?
-    private var daemonPresenceChannel: ARTRealtimeChannel?
-    private var daemonPresenceListener: ARTEventListener?
-    #endif
+    private var presenceStreamClient: DOPresenceStreamClient?
 
     // MARK: - Initialization
 
@@ -409,121 +422,65 @@ final class DevicePresenceService {
         statusCheckTimer = nil
     }
 
-    // MARK: - Daemon Presence via Ably (legacy)
-
-    private struct DaemonPresencePayload: Decodable {
-        let schemaVersion: Int
-        let userID: String
-        let deviceID: String
-        let status: String
-        let source: String?
-        let sentAtMS: Int64
-        let seq: Int?
-        let ttlMS: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case schemaVersion = "schema_version"
-            case userID = "user_id"
-            case deviceID = "device_id"
-            case status
-            case source
-            case sentAtMS = "sent_at_ms"
-            case seq
-            case ttlMS = "ttl_ms"
-        }
-    }
+    // MARK: - Daemon Presence via DO stream
 
     private func startDaemonPresenceSubscription() async {
-        #if canImport(Ably)
         guard let normalizedUserID = normalizedDaemonPresenceUserID else { return }
+        guard let deviceId else { return }
 
         stopDaemonPresenceSubscription()
 
-        let tokenAuthURL = Config.ablyTokenAuthURL
-        let options = ARTClientOptions()
-        options.autoConnect = true
-        options.authCallback = { _, callback in
-            Task {
-                do {
-                    let details = try await AblyRemoteCommandTransport.fetchRealtimeTokenDetails(
-                        tokenAuthURL: tokenAuthURL,
-                        authService: .shared,
-                        keychainService: .shared
-                    )
-                    callback(details, nil)
-                } catch {
-                    let nsError = await MainActor.run {
-                        AblyRemoteCommandTransport.tokenAuthNSError(error)
-                    }
-                    callback(nil, nsError)
-                }
-            }
-        }
-
-        let realtime = ARTRealtime(options: options)
-        let channelName = Config.daemonPresenceChannel(userId: normalizedUserID)
+        let streamURL = Config.presenceStreamURL(userId: normalizedUserID)
         logger.info(
-            "Starting daemon presence subscription",
+            "Starting DO presence stream subscription",
             metadata: daemonPresenceLogMetadata(
-                eventCode: "ios.presence.daemon.subscribe_start",
-                channel: channelName,
-                status: "subscribe_start"
+                eventCode: "ios.presence.do.connect_start",
+                channel: streamURL.absoluteString,
+                status: "connect_start",
+                eventName: "presence.do.stream"
             )
         )
 
-        let channel = realtime.channels.get(channelName)
-        let listener = channel.subscribe(Config.daemonPresenceEventName) { [weak self] message in
-            guard let self else { return }
-            guard let payload = Self.decodeDaemonPresencePayload(message.data) else {
+        let client = DOPresenceStreamClient()
+        presenceStreamClient = client
+        client.start(
+            userId: normalizedUserID,
+            deviceId: deviceId,
+            streamURL: streamURL,
+            onPayload: { [weak self] payload in
+                Task { @MainActor [weak self] in
+                    self?.consumeDaemonPresencePayload(
+                        payload,
+                        channelName: streamURL.absoluteString,
+                        eventName: "presence.do.stream"
+                    )
+                }
+            },
+            onError: { [weak self] error in
+                guard let self else { return }
                 logger.warning(
-                    "Failed to decode daemon presence payload",
-                    metadata: self.daemonPresenceLogMetadata(
-                        eventCode: "ios.presence.daemon.decode_failed",
-                        channel: channelName,
-                        status: "decode_failed"
+                    "Presence DO stream error: \(error.localizedDescription)",
+                    metadata: daemonPresenceLogMetadata(
+                        eventCode: "ios.presence.do.connect_failed",
+                        channel: streamURL.absoluteString,
+                        status: "connect_failed",
+                        eventName: "presence.do.stream"
                     )
                 )
-                return
             }
-            Task { @MainActor [weak self] in
-                self?.consumeDaemonPresencePayload(payload, channelName: channelName)
-            }
-        }
-
-        channel.attach { [weak self] error in
-            guard let self, let error else { return }
-            logger.warning(
-                "Failed to attach daemon presence channel: \(error.localizedDescription)",
-                metadata: self.daemonPresenceLogMetadata(
-                    eventCode: "ios.presence.daemon.attach_failed",
-                    channel: channelName,
-                    status: "attach_failed"
-                )
-            )
-        }
-
-        daemonPresenceRealtime = realtime
-        daemonPresenceChannel = channel
-        daemonPresenceListener = listener
-
-        logger.info("Subscribed to daemon presence heartbeat stream on channel: \(channelName)")
-        #endif
+        )
     }
 
     private func stopDaemonPresenceSubscription() {
-        #if canImport(Ably)
-        if let channel = daemonPresenceChannel, let listener = daemonPresenceListener {
-            channel.unsubscribe(listener)
-        }
-        daemonPresenceListener = nil
-        daemonPresenceChannel = nil
-
-        daemonPresenceRealtime?.close()
-        daemonPresenceRealtime = nil
-        #endif
+        presenceStreamClient?.stop()
+        presenceStreamClient = nil
     }
 
-    private func consumeDaemonPresencePayload(_ payload: DaemonPresencePayload, channelName: String) {
+    private func consumeDaemonPresencePayload(
+        _ payload: DaemonPresencePayload,
+        channelName: String,
+        eventName: String
+    ) {
         guard let normalizedExpectedUserID = normalizedDaemonPresenceUserID else { return }
         if !Self.daemonPresenceUserIDsMatch(
             expected: normalizedExpectedUserID,
@@ -535,6 +492,7 @@ final class DevicePresenceService {
                     eventCode: "ios.presence.daemon.payload_user_mismatch",
                     channel: channelName,
                     status: payload.status,
+                    eventName: eventName,
                     payloadUserID: payload.userID,
                     payloadDeviceID: payload.deviceID
                 )
@@ -550,6 +508,7 @@ final class DevicePresenceService {
                     eventCode: "ios.presence.daemon.payload_device_empty",
                     channel: channelName,
                     status: payload.status,
+                    eventName: eventName,
                     payloadUserID: payload.userID,
                     payloadDeviceID: payload.deviceID
                 )
@@ -576,6 +535,7 @@ final class DevicePresenceService {
                     eventCode: "ios.presence.daemon.payload_applied",
                     channel: channelName,
                     status: payload.status,
+                    eventName: eventName,
                     payloadUserID: payload.userID,
                     payloadDeviceID: normalizedDeviceID,
                     payloadAgeSeconds: payloadAgeSeconds,
@@ -592,6 +552,7 @@ final class DevicePresenceService {
                     eventCode: "ios.presence.daemon.payload_applied",
                     channel: channelName,
                     status: payload.status,
+                    eventName: eventName,
                     payloadUserID: payload.userID,
                     payloadDeviceID: normalizedDeviceID,
                     payloadAgeSeconds: payloadAgeSeconds,
@@ -606,6 +567,7 @@ final class DevicePresenceService {
                     eventCode: "ios.presence.daemon.payload_ignored",
                     channel: channelName,
                     status: payload.status,
+                    eventName: eventName,
                     payloadUserID: payload.userID,
                     payloadDeviceID: normalizedDeviceID,
                     payloadAgeSeconds: payloadAgeSeconds,
@@ -616,24 +578,6 @@ final class DevicePresenceService {
         }
     }
 
-    private static func decodeDaemonPresencePayload(_ data: Any?) -> DaemonPresencePayload? {
-        guard let data else { return nil }
-
-        let decodedData: Data?
-        if let typed = data as? Data {
-            decodedData = typed
-        } else if let typed = data as? String {
-            decodedData = typed.data(using: .utf8)
-        } else if JSONSerialization.isValidJSONObject(data) {
-            decodedData = try? JSONSerialization.data(withJSONObject: data)
-        } else {
-            decodedData = nil
-        }
-
-        guard let decodedData else { return nil }
-        return try? JSONDecoder().decode(DaemonPresencePayload.self, from: decodedData)
-    }
-
     static func daemonPresenceUserIDsMatch(expected: String, payload: String) -> Bool {
         normalizeDaemonPresenceIdentifier(expected) == normalizeDaemonPresenceIdentifier(payload)
     }
@@ -642,6 +586,7 @@ final class DevicePresenceService {
         eventCode: String,
         channel: String,
         status: String,
+        eventName: String = Config.daemonPresenceEventName,
         payloadUserID: String? = nil,
         payloadDeviceID: String? = nil,
         payloadAgeSeconds: TimeInterval? = nil,
@@ -651,7 +596,7 @@ final class DevicePresenceService {
             "event_code": .string(eventCode),
             "component": .string("presence.daemon"),
             "channel": .string(channel),
-            "event": .string(Config.daemonPresenceEventName),
+            "event": .string(eventName),
             "expected_user_id_hash": .string(Self.observabilityHash(normalizedDaemonPresenceUserID)),
             "payload_user_id_hash": .string(Self.observabilityHash(payloadUserID)),
             "payload_device_id_hash": .string(Self.observabilityHash(payloadDeviceID)),
