@@ -21,9 +21,12 @@ jobs:
   rust:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/daemon
+    strategy:
+      matrix:
+        workspace:
+          - apps/daemon
+          - apps/cli-new
+          - packages/observability
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -31,10 +34,10 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/daemon -> target
+          workspaces: ${{ matrix.workspace }} -> target
       - name: fmt
-        run: cargo fmt --check
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" fmt
       - name: clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" clippy
       - name: test
-        run: cargo test --workspace
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" test

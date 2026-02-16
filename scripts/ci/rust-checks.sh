@@ -7,20 +7,31 @@ WORKSPACES=(
   "packages/observability"
 )
 
+workspace_filter=""
+if [[ ${1:-} == "--workspace" ]]; then
+  workspace_filter=${2:-}
+  shift 2
+fi
+
+selected_workspaces=("${WORKSPACES[@]}")
+if [[ -n "${workspace_filter}" ]]; then
+  selected_workspaces=("${workspace_filter}")
+fi
+
 print_workspaces() {
-  for workspace in "${WORKSPACES[@]}"; do
+  for workspace in "${selected_workspaces[@]}"; do
     echo "${workspace}"
   done
 }
 
 print_cache_targets() {
-  for workspace in "${WORKSPACES[@]}"; do
+  for workspace in "${selected_workspaces[@]}"; do
     echo "${workspace} -> target"
   done
 }
 
 run_fmt() {
-  for workspace in "${WORKSPACES[@]}"; do
+  for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
       cargo fmt --check
@@ -29,7 +40,7 @@ run_fmt() {
 }
 
 run_clippy() {
-  for workspace in "${WORKSPACES[@]}"; do
+  for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
       if [[ "${workspace}" == "apps/daemon" ]]; then
@@ -42,7 +53,7 @@ run_clippy() {
 }
 
 run_test() {
-  for workspace in "${WORKSPACES[@]}"; do
+  for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
       if [[ "${workspace}" == "apps/daemon" ]]; then
@@ -83,7 +94,7 @@ case "${command}" in
     ;;
   *)
     echo "Unknown command: ${command}" >&2
-    echo "Usage: $0 {list|cache-targets|fmt|clippy|test|all}" >&2
+    echo "Usage: $0 [--workspace <path>] {list|cache-targets|fmt|clippy|test|all}" >&2
     exit 1
     ;;
  esac
