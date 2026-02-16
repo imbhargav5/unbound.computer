@@ -136,8 +136,8 @@ enum LayoutMetrics {
     static let toolbarHeight: CGFloat = 40
     /// Compact toolbar height for dense headers
     static let compactToolbarHeight: CGFloat = 36
-    /// Session row height in sidebar timeline
-    static let sidebarRowHeight: CGFloat = 30
+    /// Session row height in sidebar
+    static let sidebarRowHeight: CGFloat = 28
 }
 
 // MARK: - Elevation (Shadow/Depth)

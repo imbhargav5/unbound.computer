@@ -9,7 +9,7 @@ use crate::itachi::errors::ResponseErrorCode;
 use crate::itachi::handler::handle_remote_command;
 use crate::itachi::idempotency::BeginResult;
 use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
-use armin::SessionReader;
+use armin::{SessionReader, SessionWriter};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use daemon_config_and_utils::{compile_time_web_app_url, encrypt_for_device};
@@ -695,27 +695,127 @@ async fn build_response_payload(
 }
 
 fn load_session_secret_plaintext(state: &DaemonState, session_id: &str) -> Result<String, String> {
-    let db_key = state
-        .db_encryption_key
-        .lock()
-        .unwrap()
-        .to_owned()
-        .ok_or_else(|| "missing database encryption key".to_string())?;
+    let db_key = state.db_encryption_key.lock().unwrap().to_owned();
 
-    let session_secret = state
+    let armin_result = state
         .armin
         .get_session_secret(&armin::SessionId::from_string(session_id))
-        .map_err(|err| format!("failed to get session secret: {err}"))?
-        .ok_or_else(|| "session secret not found".to_string())?;
+        .map_err(|err| format!("failed to get session secret: {err}"));
 
-    let plaintext = daemon_database::decrypt_content(
-        &db_key,
-        &session_secret.nonce,
-        &session_secret.encrypted_secret,
-    )
-    .map_err(|err| format!("failed to decrypt session secret: {err}"))?;
+    let mut terminal_error = "session secret not found".to_string();
+    let mut should_repair_armin = false;
 
-    String::from_utf8(plaintext).map_err(|err| format!("session secret is not UTF-8: {err}"))
+    if let Ok(Some(session_secret)) = &armin_result {
+        if let Some(db_key) = db_key {
+            match daemon_database::decrypt_content(
+                &db_key,
+                &session_secret.nonce,
+                &session_secret.encrypted_secret,
+            ) {
+                Ok(plaintext) => {
+                    return String::from_utf8(plaintext)
+                        .map_err(|err| format!("session secret is not UTF-8: {err}"));
+                }
+                Err(err) => {
+                    terminal_error = format!("failed to decrypt session secret: {err}");
+                    should_repair_armin = true;
+                }
+            }
+        } else {
+            terminal_error = "missing database encryption key".to_string();
+            should_repair_armin = true;
+        }
+    } else if matches!(armin_result, Ok(None)) {
+        should_repair_armin = true;
+    } else if let Err(err) = &armin_result {
+        terminal_error = err.clone();
+    }
+
+    // Fallback 1: in-memory session secret cache loaded from Supabase/keychain.
+    let cached_key = {
+        let cache = state.session_secret_cache.inner();
+        let key = cache.lock().unwrap().get(session_id).cloned();
+        key
+    };
+    if let Some(key) = cached_key {
+        let secret = format_session_secret_from_key_bytes(&key);
+        if should_repair_armin {
+            match repair_armin_session_secret_from_plaintext(state, session_id, &secret, db_key) {
+                Ok(()) => info!(
+                    session_id = %session_id,
+                    "Recovered session secret via cache and repaired Armin record"
+                ),
+                Err(err) => warn!(
+                    session_id = %session_id,
+                    error = %err,
+                    "Recovered session secret via cache but failed to repair Armin record"
+                ),
+            }
+        }
+        return Ok(secret);
+    }
+
+    // Fallback 2: keychain (legacy path).
+    if let Some(secret) = state
+        .secrets
+        .lock()
+        .unwrap()
+        .get_session_secret(session_id)
+        .map_err(|err| format!("failed to read session secret from keychain: {err}"))?
+    {
+        daemon_storage::SecretsManager::parse_session_secret(&secret)
+            .map_err(|err| format!("invalid keychain session secret format: {err}"))?;
+        if should_repair_armin {
+            match repair_armin_session_secret_from_plaintext(state, session_id, &secret, db_key) {
+                Ok(()) => info!(
+                    session_id = %session_id,
+                    "Recovered session secret via keychain and repaired Armin record"
+                ),
+                Err(err) => warn!(
+                    session_id = %session_id,
+                    error = %err,
+                    "Recovered session secret via keychain but failed to repair Armin record"
+                ),
+            }
+        }
+        return Ok(secret);
+    }
+
+    Err(terminal_error)
+}
+
+fn repair_armin_session_secret_from_plaintext(
+    state: &DaemonState,
+    session_id: &str,
+    plaintext_secret: &str,
+    db_key: Option<[u8; 32]>,
+) -> Result<(), String> {
+    let db_key = db_key.ok_or_else(|| "missing database encryption key".to_string())?;
+    let nonce = daemon_database::generate_nonce();
+    let encrypted_secret =
+        daemon_database::encrypt_content(&db_key, &nonce, plaintext_secret.as_bytes())
+            .map_err(|err| format!("failed to encrypt recovered session secret: {err}"))?;
+
+    let secret = armin::NewSessionSecret {
+        session_id: armin::SessionId::from_string(session_id),
+        encrypted_secret,
+        nonce: nonce.to_vec(),
+    };
+
+    state
+        .armin
+        .set_session_secret(secret)
+        .map_err(|err| format!("failed to persist recovered session secret to Armin: {err}"))
+}
+
+fn format_session_secret_from_key_bytes(key: &[u8]) -> String {
+    let base64url = BASE64
+        .encode(key)
+        .replace('+', "-")
+        .replace('/', "_")
+        .trim_end_matches('=')
+        .to_string();
+    format!("sess_{base64url}")
 }
 
 fn decode_key_32(value_b64: &str) -> Result<[u8; 32], String> {
@@ -901,8 +1001,9 @@ fn parse_publish_ack(data: &[u8]) -> Result<PublishAckFrame, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_remote_command_type, idempotency_key, parse_publish_ack,
-        should_enforce_over_quota, RemoteCommandType, FALCO_STATUS_SUCCESS, FALCO_TYPE_PUBLISH_ACK,
+        classify_remote_command_type, format_session_secret_from_key_bytes, idempotency_key,
+        parse_publish_ack, should_enforce_over_quota, RemoteCommandType, FALCO_STATUS_SUCCESS,
+        FALCO_TYPE_PUBLISH_ACK,
     };
     use crate::app::BillingQuotaSnapshot;
     use crate::itachi::contracts::UmSecretRequestCommand;
@@ -1035,5 +1136,14 @@ mod tests {
             fetched_at_ms: 1_000,
         };
         assert!(!should_enforce_over_quota(Some(&snapshot), 2_000));
+    }
+
+    #[test]
+    fn session_secret_format_round_trips_from_key_bytes() {
+        let key = vec![0xAB; 32];
+        let secret = format_session_secret_from_key_bytes(&key);
+        let decoded = daemon_storage::SecretsManager::parse_session_secret(&secret)
+            .expect("formatted secret should parse");
+        assert_eq!(decoded, key);
     }
 }

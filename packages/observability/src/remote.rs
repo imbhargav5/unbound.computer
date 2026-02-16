@@ -737,12 +737,18 @@ mod tests {
             "traceId".to_string(),
             Value::String("trace_alias".to_string()),
         );
-        entry.fields.insert("spanId".to_string(), Value::String("span_alias".to_string()));
+        entry.fields.insert(
+            "spanId".to_string(),
+            Value::String("span_alias".to_string()),
+        );
         entry.fields.insert(
             "deviceId".to_string(),
             Value::String("device_alias".to_string()),
         );
-        entry.fields.insert("userId".to_string(), Value::String("user_alias".to_string()));
+        entry.fields.insert(
+            "userId".to_string(),
+            Value::String("user_alias".to_string()),
+        );
 
         let props =
             build_posthog_properties(&entry, ObservabilityMode::ProdMetadataOnly, "production");
@@ -786,10 +792,7 @@ mod tests {
         let envelope = build_export_envelope(&entry, ObservabilityMode::ProdMetadataOnly, "prod");
         let sentry = envelope.sentry.expect("expected sentry envelope for ERROR");
 
-        assert_eq!(
-            sentry.tags.get("trace_id"),
-            Some(&"trace-1".to_string())
-        );
+        assert_eq!(sentry.tags.get("trace_id"), Some(&"trace-1".to_string()));
         assert_eq!(sentry.tags.get("span_id"), Some(&"span-1".to_string()));
     }
 }

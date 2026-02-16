@@ -217,7 +217,16 @@ final class SyncedDataService {
 
     /// Get online devices
     var onlineDevices: [SyncedDevice] {
-        devices.filter { $0.status == .online }
+        devices.filter { mergedStatus(for: $0) == .online }
+    }
+
+    /// Resolve the current device status by combining Supabase `last_seen_at`
+    /// with daemon presence heartbeat signals and preferring the most recent.
+    func mergedStatus(for device: SyncedDevice) -> SyncedDevice.DeviceStatus {
+        DevicePresenceService.shared.mergedDeviceStatus(
+            id: device.id.uuidString.lowercased(),
+            supabaseLastSeenAt: device.lastSeenAt
+        )
     }
 
     /// Check daemon heartbeat-based remote availability for a given device.

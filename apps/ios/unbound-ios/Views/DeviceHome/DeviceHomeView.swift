@@ -13,7 +13,7 @@ struct DeviceHomeView: View {
 
     private let syncedDataService = SyncedDataService.shared
     private let remoteCommandService = RemoteCommandService.shared
-    private let presenceService = DevicePresenceService.shared
+    @State private var presenceService = DevicePresenceService.shared
 
     @State private var selectedDevice: SyncedDevice?
     @State private var expandedRepoIds: Set<UUID> = []
@@ -34,10 +34,12 @@ struct DeviceHomeView: View {
     }
 
     var body: some View {
+        let _ = presenceService.daemonStatusVersion
         VStack(spacing: 0) {
             // Device picker header
             DevicePickerHeader(
                 device: selectedDevice,
+                status: selectedDevice.map { syncedDataService.mergedStatus(for: $0) },
                 showDevicePicker: $showDevicePicker
             )
 
@@ -141,12 +143,14 @@ struct DeviceHomeView: View {
             }
         }
         .onChange(of: executorDevices) { _, newDevices in
-            // Auto-select first online executor device if current selection goes away
+            // Auto-select first daemon-available executor; fallback to status-based picks.
             if selectedDevice == nil || !newDevices.contains(where: { $0.id == selectedDevice?.id }) {
-                selectedDevice = newDevices.first(where: {
-                    $0.status == .online &&
-                    presenceService.isDeviceDaemonAvailable(id: $0.id.uuidString.lowercased())
-                }) ?? newDevices.first(where: { $0.status == .online }) ?? newDevices.first
+                selectedDevice = newDevices.first(where: { device in
+                    syncedDataService.mergedStatus(for: device) == .online &&
+                        isDeviceDaemonAvailableForSelection(device)
+                })
+                    ?? newDevices.first(where: { syncedDataService.mergedStatus(for: $0) == .online })
+                    ?? newDevices.first
             }
         }
     }
@@ -192,10 +196,11 @@ struct DeviceHomeView: View {
                                 .foregroundStyle(AppTheme.textPrimary)
 
                             HStack(spacing: 4) {
+                                let status = syncedDataService.mergedStatus(for: device)
                                 Circle()
-                                    .fill(device.status == .online ? Color.green : Color.gray)
+                                    .fill(status == .online ? Color.green : Color.gray)
                                     .frame(width: 8, height: 8)
-                                Text(device.status.displayName)
+                                Text(status.displayName)
                                     .font(Typography.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
@@ -231,11 +236,13 @@ struct DeviceHomeView: View {
     // MARK: - Helpers
 
     private func initializeState() {
-        // Default select first online executor device
-        selectedDevice = executorDevices.first(where: {
-            $0.status == .online &&
-            presenceService.isDeviceDaemonAvailable(id: $0.id.uuidString.lowercased())
-        }) ?? executorDevices.first(where: { $0.status == .online }) ?? executorDevices.first
+        // Default select first daemon-available executor; fallback to status-based picks.
+        selectedDevice = executorDevices.first(where: { device in
+            syncedDataService.mergedStatus(for: device) == .online &&
+                isDeviceDaemonAvailableForSelection(device)
+        })
+            ?? executorDevices.first(where: { syncedDataService.mergedStatus(for: $0) == .online })
+            ?? executorDevices.first
 
         // Expand all repos by default
         expandedRepoIds = Set(syncedDataService.repositories.map(\.id))
@@ -261,6 +268,10 @@ struct DeviceHomeView: View {
 
     private func daemonAvailability(for device: SyncedDevice) -> DeviceDaemonAvailability {
         presenceService.daemonAvailability(id: device.id.uuidString.lowercased())
+    }
+
+    private func isDeviceDaemonAvailableForSelection(_ device: SyncedDevice) -> Bool {
+        presenceService.isDeviceDaemonAvailable(id: device.id.uuidString.lowercased())
     }
 
     private func createSession(repositoryId: UUID, mode: SessionCreationMode) {

@@ -11,68 +11,6 @@ import SwiftUI
 
 private let logger = Logger(label: "app.ui.sidebar")
 
-// MARK: - Git Toolbar Action
-
-private enum GitToolbarAction: Hashable {
-    case commit
-    case push
-
-    var title: String {
-        switch self {
-        case .commit:
-            return "Commit"
-        case .push:
-            return "Push"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .commit:
-            return "checkmark.circle.fill"
-        case .push:
-            return "arrow.up.circle.fill"
-        }
-    }
-}
-
-private struct GitToolbarActionButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let action: GitToolbarAction
-    let onTap: () -> Void
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    private var buttonBackground: Color {
-        switch action {
-        case .commit:
-            return colors.success
-        case .push:
-            return colors.primaryAction
-        }
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: action.systemImage)
-                    .font(.system(size: IconSize.xs))
-                Text(action.title)
-                    .font(Typography.toolbar)
-            }
-            .foregroundStyle(colors.primaryActionForeground)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(buttonBackground)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 struct RightSidebarPanel: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppState.self) private var appState
@@ -97,28 +35,7 @@ struct RightSidebarPanel: View {
     }
 
     private var bottomTabs: [RightSidebarTab] {
-        [.changes, .files, .commits, .pullRequests]
-    }
-
-    private var currentLocalBranch: GitBranch? {
-        if let currentName = gitViewModel.currentBranch,
-           let branch = gitViewModel.localBranches.first(where: { $0.name == currentName }) {
-            return branch
-        }
-        return gitViewModel.localBranches.first(where: { $0.isCurrent })
-    }
-
-    private var gitToolbarActions: [GitToolbarAction] {
-        var actions: [GitToolbarAction] = []
-        if !gitViewModel.stagedFiles.isEmpty {
-            actions.append(.commit)
-        }
-        if let branch = currentLocalBranch,
-           branch.upstream != nil,
-           branch.ahead > 0 {
-            actions.append(.push)
-        }
-        return actions
+        [.changes, .files, .commits]
     }
 
     var body: some View {
@@ -126,7 +43,6 @@ struct RightSidebarPanel: View {
             sidebarHeader
             ShadcnDivider()
             errorBanner
-            commitMessageInput
             bottomTabHeader
             ShadcnDivider()
             bottomTabContent
@@ -156,67 +72,112 @@ struct RightSidebarPanel: View {
         }
     }
 
-    // MARK: - Sidebar Header (branch left, git actions right)
+    // MARK: - Sidebar Header (layout toggle + branch left, commit right)
 
     private var sidebarHeader: some View {
         HStack(spacing: Spacing.sm) {
-            branchSelector
+            HStack(spacing: Spacing.sm) {
+                layoutTogglePill
+                branchPill
+            }
 
             Spacer()
 
-            HStack(spacing: Spacing.xs) {
-                ForEach(gitToolbarActions, id: \.self) { action in
-                    GitToolbarActionButton(action: action, onTap: {
-                        Task {
-                            switch action {
-                            case .commit:
-                                await gitViewModel.commit()
-                            case .push:
-                                await gitViewModel.push()
-                            }
-                        }
-                    })
-                    .disabled(gitViewModel.isPerformingAction)
-                }
-
-                IconButton(systemName: "arrow.triangle.2.circlepath", action: {
-                    Task { await gitViewModel.refreshAll() }
-                })
-
-                IconButton(systemName: "sidebar.right", action: {
-                    withAnimation(.easeOut(duration: Duration.fast)) {
-                        appState.localSettings.rightSidebarVisible = false
-                    }
-                })
+            if !gitViewModel.stagedFiles.isEmpty {
+                commitSplitButton
             }
         }
         .padding(.horizontal, Spacing.lg)
-        .frame(height: LayoutMetrics.toolbarHeight)
+        .frame(height: 48)
         .background(colors.toolbarBackground)
     }
 
-    // MARK: - Branch Selector
+    // MARK: - Layout Toggle Pill
 
-    private var branchSelector: some View {
+    private var layoutTogglePill: some View {
+        Button {
+            withAnimation(.easeOut(duration: Duration.fast)) {
+                appState.localSettings.rightSidebarVisible = false
+            }
+        } label: {
+            Image(systemName: "rectangle.split.2x1")
+                .font(.system(size: IconSize.md))
+                .foregroundStyle(colors.mutedForeground)
+                .padding(6)
+                .background(colors.secondary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .strokeBorder(colors.borderInput, lineWidth: BorderWidth.default)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Branch Pill
+
+    private var branchPill: some View {
         Button(action: {
             // Branch selection placeholder
         }) {
             HStack(spacing: Spacing.xs) {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: IconSize.xs))
+                    .font(.system(size: IconSize.md))
+                    .foregroundStyle(colors.mutedForeground)
                 Text(gitViewModel.currentBranch ?? "main")
+                    .font(GeistFont.sans(size: FontSize.smMd, weight: .medium))
+                    .foregroundStyle(colors.foreground)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8))
+                    .font(.system(size: IconSize.sm))
+                    .foregroundStyle(Color(hex: "777777"))
             }
-            .font(Typography.toolbar)
-            .foregroundStyle(colors.mutedForeground)
-            .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
-            .background(colors.muted)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .padding(.horizontal, Spacing.sm)
+            .background(colors.secondary)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.xl)
+                    .strokeBorder(colors.borderInput, lineWidth: BorderWidth.default)
+            )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Commit Split Button
+
+    private var commitSplitButton: some View {
+        HStack(spacing: 0) {
+            Button {
+                Task { await gitViewModel.commit() }
+            } label: {
+                Text("Commit")
+                    .font(GeistFont.sans(size: FontSize.sm, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, Spacing.md)
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .frame(height: 20)
+                .background(Color(hex: "2ECC71"))
+
+            Button {
+                // Commit dropdown options placeholder
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: IconSize.sm))
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, Spacing.sm)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: 32)
+        .background(colors.success)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+        .disabled(gitViewModel.isPerformingAction)
     }
 
     // MARK: - Error Banner
@@ -248,46 +209,45 @@ struct RightSidebarPanel: View {
         }
     }
 
-    // MARK: - Commit Message Input
-
-    @ViewBuilder
-    private var commitMessageInput: some View {
-        if !gitViewModel.stagedFiles.isEmpty {
-            VStack(spacing: 0) {
-                TextField("Commit message", text: Bindable(gitViewModel).commitMessage, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: FontSize.sm, design: .monospaced))
-                    .lineLimit(1...4)
-                    .padding(Spacing.sm)
-                    .background(colors.editorBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .stroke(colors.border, lineWidth: BorderWidth.hairline)
-                    )
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.xs)
-                ShadcnDivider()
-            }
-        }
-    }
-
     // MARK: - Bottom Tab Header
 
     private var bottomTabHeader: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: Spacing.lg) {
             ForEach(bottomTabs) { tab in
+                let isActive = effectiveTab == tab
                 Button {
                     selectedTab = tab
                 } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: tab.iconName)
-                            .font(.system(size: IconSize.xs))
+                    VStack(spacing: 0) {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: tab.iconName)
+                                .font(.system(size: IconSize.sm))
+                                .foregroundStyle(isActive ? colors.primary : colors.inactive)
 
-                        Text(tab.rawValue)
-                            .font(Typography.toolbarMuted)
-                            .fontWeight(effectiveTab == tab ? .semibold : .regular)
+                            Text(tab.rawValue)
+                                .font(isActive ? Typography.captionMedium : Typography.caption)
+                                .foregroundStyle(isActive ? colors.foreground : colors.sidebarMeta)
+
+                            if isActive, tab == .changes, gitViewModel.changesCount > 0 {
+                                Text("\(gitViewModel.changesCount)")
+                                    .font(GeistFont.sans(size: 9, weight: .medium))
+                                    .foregroundStyle(colors.primary)
+                                    .padding(.vertical, 1)
+                                    .padding(.horizontal, 5)
+                                    .background(colors.accentAmberSubtle)
+                                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: Radius.lg)
+                                            .strokeBorder(colors.accentAmberBorder, lineWidth: BorderWidth.default)
+                                    )
+                            }
+                        }
+                        .frame(height: 34)
+
+                        Rectangle()
+                            .fill(isActive ? colors.primary : Color.clear)
+                            .frame(height: BorderWidth.thick)
                     }
-                    .foregroundStyle(effectiveTab == tab ? colors.foreground : colors.mutedForeground)
                 }
                 .buttonStyle(.plain)
             }
@@ -295,7 +255,7 @@ struct RightSidebarPanel: View {
             Spacer()
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.xs)
+        .frame(height: 36)
         .background(colors.background)
     }
 
@@ -320,9 +280,7 @@ struct RightSidebarPanel: View {
             )
         case .commits:
             CommitsTabView(gitViewModel: gitViewModel)
-        case .pullRequests:
-            PullRequestsTabView(gitViewModel: gitViewModel)
-        case .spec:
+        case .pullRequests, .spec:
             ChangesTabView(
                 gitViewModel: gitViewModel,
                 onFileSelected: { file in

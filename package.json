@@ -18,7 +18,7 @@
     "release:patch": "tsx scripts/release/add-release.ts patch",
     "release:minor": "tsx scripts/release/add-release.ts minor",
     "release:major": "tsx scripts/release/add-release.ts major",
-    "daemon:build": "cd apps/daemon && cargo build --release",
+    "daemon:build": "cd apps/daemon && cargo build --workspace --release",
     "daemon:start": "./apps/daemon/target/release/unbound-daemon start &",
     "daemon:foreground": "RUST_LOG=debug ./apps/daemon/target/release/unbound-daemon start --foreground",
     "daemon:foreground:trace": "RUST_LOG=trace ./apps/daemon/target/release/unbound-daemon start --foreground",

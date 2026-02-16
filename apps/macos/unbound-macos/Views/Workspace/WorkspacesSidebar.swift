@@ -182,23 +182,6 @@ struct WorkspacesSidebar: View {
     }
 }
 
-// MARK: - Timeline Constants
-
-private enum TimelineMetrics {
-    /// Width of the timeline spine area (left gutter)
-    static let spineAreaWidth: CGFloat = 16
-    /// Horizontal offset of the spine line from left edge
-    static let spineOffset: CGFloat = 6
-    /// Width of the spine line
-    static let spineWidth: CGFloat = 1
-    /// Length of horizontal connector lines
-    static let connectorLength: CGFloat = 8
-    /// Vertical padding for connectors at group level
-    static let groupConnectorY: CGFloat = 10
-    /// Content left padding after spine area
-    static let contentPadding: CGFloat = 4
-}
-
 // MARK: - Repository Group
 
 struct RepositoryGroup: View {
@@ -221,11 +204,6 @@ struct RepositoryGroup: View {
         ThemeColors(colorScheme)
     }
 
-    /// Spine color - visible but not dominant
-    private var spineColor: Color {
-        colors.panelDivider
-    }
-
     /// All sessions flat for counting
     private var allSessions: [Session] {
         locations.mainDirectorySessions + locations.worktreeSessions.flatMap { $0.sessions }
@@ -246,6 +224,10 @@ struct RepositoryGroup: View {
                             .foregroundStyle(colors.mutedForeground)
                             .frame(width: 10)
 
+                        Image(systemName: "terminal")
+                            .font(.system(size: 14))
+                            .foregroundStyle(colors.primary)
+
                         Text(repository.name)
                             .font(Typography.sidebarProject)
                             .foregroundStyle(colors.foreground.opacity(0.9))
@@ -256,18 +238,18 @@ struct RepositoryGroup: View {
 
                 Spacer()
 
-                // Session count badge
+                // Session count badge - amber styling
                 if !allSessions.isEmpty {
                     Text("\(allSessions.count)")
                         .font(Typography.sidebarMeta)
-                        .foregroundStyle(colors.sidebarMeta)
+                        .foregroundStyle(colors.primary)
                         .padding(.horizontal, Spacing.xs)
                         .padding(.vertical, 2)
-                        .background(colors.surface2)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                        .background(colors.accentAmberSubtle)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
                         .overlay(
-                            RoundedRectangle(cornerRadius: Radius.sm)
-                                .stroke(colors.border, lineWidth: BorderWidth.hairline)
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .stroke(colors.accentAmberBorder, lineWidth: BorderWidth.default)
                         )
                 }
 
@@ -295,8 +277,8 @@ struct RepositoryGroup: View {
                     )
                 }
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.md)
+            .frame(height: 36)
             .contentShape(Rectangle())
             .contextMenu {
                 Button {
@@ -306,7 +288,7 @@ struct RepositoryGroup: View {
                 }
             }
 
-            // Expanded content - directories with their own spines
+            // Expanded content - directory sections
             if isExpanded {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     // Main Directory section
@@ -317,8 +299,7 @@ struct RepositoryGroup: View {
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .mainDirectory) },
                             onArchiveSession: onArchiveSession,
-                            onDeleteSession: onDeleteSession,
-                            spineColor: spineColor
+                            onDeleteSession: onDeleteSession
                         )
                     }
 
@@ -331,8 +312,7 @@ struct RepositoryGroup: View {
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .worktree) },
                             onArchiveSession: onArchiveSession,
-                            onDeleteSession: onDeleteSession,
-                            spineColor: spineColor
+                            onDeleteSession: onDeleteSession
                         )
                     }
                 }
@@ -348,7 +328,7 @@ struct RepositoryGroup: View {
 
 // MARK: - Main Directory Section
 
-/// Shows the "Main Directory" label and its sessions with timeline styling
+/// Shows the "main" label and its sessions with flat list styling
 struct MainDirectorySection: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -358,9 +338,7 @@ struct MainDirectorySection: View {
     var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
-    let spineColor: Color
 
-    @State private var isExpanded: Bool = true
     @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
@@ -370,26 +348,14 @@ struct MainDirectorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Section header row
-            HStack(spacing: Spacing.xs) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: 10)
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "folder")
+                    .font(.system(size: 12))
+                    .foregroundStyle(colors.gray525)
 
-                        Text("MAIN DIRECTORY")
-                            .font(Typography.sidebarSection)
-                            .foregroundStyle(colors.sidebarMeta)
-                            .tracking(0.6)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                Text("main")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.sidebarMeta)
 
                 Spacer()
 
@@ -397,8 +363,8 @@ struct MainDirectorySection: View {
                 if let onCreateSession = onCreateSession {
                     Button(action: onCreateSession) {
                         Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.gray404)
                             .frame(width: IconSize.xs, height: IconSize.xs)
                             .contentShape(Rectangle())
                     }
@@ -408,31 +374,32 @@ struct MainDirectorySection: View {
                     }
                 }
             }
-            .padding(.trailing, Spacing.sm)
-            .padding(.vertical, Spacing.xxs)
+            .padding(.leading, 28)
+            .padding(.trailing, Spacing.md)
+            .frame(height: LayoutMetrics.sidebarRowHeight)
 
-            // Sessions with spine (only when expanded)
-            if isExpanded {
-                ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
-                    let isLast = index == sessions.count - 1
-                    TimelineSessionRow(
+            // Sessions always visible
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                ForEach(sessions) { session in
+                    SessionRow(
                         session: session,
                         isSelected: selectedSessionId == session.id,
-                        isLast: isLast,
                         onSelect: { onSelectSession(session) },
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
-                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
-                        spineColor: spineColor
+                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil
                     )
                 }
             }
+            .padding(.top, Spacing.xxs)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.bottom, Spacing.xs + Spacing.xxs)
         }
     }
 }
 
 // MARK: - Worktree Section
 
-/// Shows a worktree name label and its sessions with timeline styling
+/// Shows a worktree name label and its sessions with flat list styling
 struct WorktreeSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -443,9 +410,7 @@ struct WorktreeSection: View {
     var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
-    let spineColor: Color
 
-    @State private var isExpanded: Bool = true
     @State private var isHoveringAdd: Bool = false
 
     private var colors: ThemeColors {
@@ -455,31 +420,15 @@ struct WorktreeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Section header row
-            HStack(spacing: Spacing.xs) {
-                Button {
-                    withAnimation(.easeInOut(duration: Duration.fast)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: 10)
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 12))
+                    .foregroundStyle(colors.gray525)
 
-                        Image(systemName: "folder")
-                            .font(.system(size: 9))
-                            .foregroundStyle(colors.sidebarMeta)
-
-                        Text(name.uppercased())
-                            .font(Typography.sidebarSection)
-                            .foregroundStyle(colors.sidebarMeta)
-                            .tracking(0.6)
-                            .lineLimit(1)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                Text(name.lowercased())
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.sidebarMeta)
+                    .lineLimit(1)
 
                 Spacer()
 
@@ -487,8 +436,8 @@ struct WorktreeSection: View {
                 if let onCreateSession = onCreateSession {
                     Button(action: onCreateSession) {
                         Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.gray404)
                             .frame(width: IconSize.xs, height: IconSize.xs)
                             .contentShape(Rectangle())
                     }
@@ -498,44 +447,41 @@ struct WorktreeSection: View {
                     }
                 }
             }
-            .padding(.trailing, Spacing.sm)
-            .padding(.vertical, Spacing.xxs)
+            .padding(.leading, 28)
+            .padding(.trailing, Spacing.md)
+            .frame(height: LayoutMetrics.sidebarRowHeight)
 
-            // Sessions with spine (only when expanded)
-            if isExpanded {
-                ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
-                    let isLast = index == sessions.count - 1
-                    TimelineSessionRow(
+            // Sessions always visible
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                ForEach(sessions) { session in
+                    SessionRow(
                         session: session,
                         isSelected: selectedSessionId == session.id,
-                        isLast: isLast,
                         onSelect: { onSelectSession(session) },
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
-                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil,
-                        spineColor: spineColor
+                        onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil
                     )
                 }
             }
+            .padding(.top, Spacing.xxs)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.bottom, Spacing.xs + Spacing.xxs)
         }
     }
 }
 
-// MARK: - Timeline Session Row
+// MARK: - Session Row
 
-/// A session row with timeline spine and horizontal connector
-struct TimelineSessionRow: View {
+/// A session row with icon and flat list styling
+struct SessionRow: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(AppState.self) private var appState
 
     let session: Session
     let isSelected: Bool
-    let isLast: Bool
     var onSelect: () -> Void
     var onArchive: (() -> Void)?
     var onDelete: (() -> Void)?
-    let spineColor: Color
 
-    @State private var gitStatus: DaemonGitStatus?
     @State private var isHovered = false
     @State private var showArchiveConfirmation = false
     @State private var showDeleteConfirmation = false
@@ -544,79 +490,36 @@ struct TimelineSessionRow: View {
         ThemeColors(colorScheme)
     }
 
-    /// Row height for calculating spine
-    private let rowHeight: CGFloat = LayoutMetrics.sidebarRowHeight
-
-    /// Get the working path for this session (worktree path or repo path)
-    private var workingPath: String? {
-        if session.isWorktree, let worktreePath = session.worktreePath {
-            return worktreePath
-        }
-        return appState.repositories.first(where: { $0.id == session.repositoryId })?.path
-    }
-
     var body: some View {
         Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 0) {
-                // Spine area with vertical line and horizontal connector
-                ZStack(alignment: .topLeading) {
-                    // Vertical spine - extends from top, full height or half for last item
-                    VStack(spacing: 0) {
-                        Rectangle()
-                            .fill(spineColor)
-                            .frame(width: TimelineMetrics.spineWidth)
-                            .frame(height: isLast ? rowHeight / 2 : nil)
-                            .frame(maxHeight: isLast ? nil : .infinity)
-                    }
-                    .padding(.leading, TimelineMetrics.spineOffset)
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(isSelected ? colors.primary : colors.gray525)
 
-                    // Horizontal connector at vertical center of row
-                    Rectangle()
-                        .fill(spineColor)
-                        .frame(width: TimelineMetrics.connectorLength, height: TimelineMetrics.spineWidth)
-                        .padding(.leading, TimelineMetrics.spineOffset)
-                        .padding(.top, rowHeight / 2)
-                }
-                .frame(width: TimelineMetrics.spineAreaWidth)
+                Text(session.displayTitle)
+                    .font(Typography.caption)
+                    .foregroundStyle(isSelected ? colors.sidebarText : colors.sidebarMeta)
+                    .lineLimit(1)
 
-                // Session content
-                HStack(spacing: Spacing.xs) {
-                    // Session title
-                    Text(session.displayTitle)
-                        .font(Typography.sidebarItem)
-                        .foregroundStyle(isSelected ? colors.foreground : colors.sidebarText)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    // Status indicator
-                    if let status = gitStatus {
-                        Circle()
-                            .fill(status.isClean ? colors.success : colors.warning)
-                            .frame(width: 6, height: 6)
-                    }
-                }
-                .padding(.leading, TimelineMetrics.contentPadding)
-                .padding(.trailing, Spacing.sm)
-                .frame(height: rowHeight)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.sm)
-                        .fill(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.sm)
-                        .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
-                )
+                Spacer()
             }
-            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, 24)
+            .padding(.trailing, Spacing.sm)
+            .frame(height: LayoutMetrics.sidebarRowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(isSelected ? colors.hoverBackground : (isHovered ? colors.hoverBackground : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-        }
-        .task {
-            await loadGitStatus()
         }
         .contextMenu {
             Button {
@@ -658,21 +561,7 @@ struct TimelineSessionRow: View {
             Text("This action cannot be undone. All messages in this session will be permanently deleted.")
         }
     }
-
-    private func loadGitStatus() async {
-        guard let path = workingPath else { return }
-
-        do {
-            gitStatus = try await appState.daemonClient.getGitStatus(path: path)
-        } catch {
-            gitStatus = nil
-        }
-    }
 }
-
-// MARK: - Removed Components
-// MainDirectorySection, WorktreeSection, SessionRowInGroup, SessionRow
-// These are replaced by the timeline components above
 
 #Preview("With Repos & Sessions") {
     WorkspacesSidebar(

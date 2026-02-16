@@ -55,6 +55,7 @@ final class DevicePresenceService {
     private(set) var isNetworkAvailable: Bool = false
     private(set) var isHeartbeatRunning: Bool = false
     private(set) var monitoredDevices: [MonitoredDevice] = []
+    private(set) var daemonStatusVersion: Int = 0
 
     // MARK: - Private Properties
 
@@ -68,7 +69,7 @@ final class DevicePresenceService {
     private var networkMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.unbound.presence.network")
     private var daemonLastHeartbeatAt: [String: Date] = [:]
-    private var daemonExplicitOfflineDevices: Set<String> = []
+    private var daemonExplicitOfflineAt: [String: Date] = [:]
     private let daemonHeartbeatTTL: TimeInterval = 12.0
 
     #if canImport(Ably)
@@ -89,10 +90,28 @@ final class DevicePresenceService {
     ///   - deviceId: This device's ID
     ///   - userId: The current user's ID
     func start(supabase: SupabaseClient, deviceId: String, userId: String) {
+        let normalizedDeviceId = deviceId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedUserId = userId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedCurrentDeviceId = self.deviceId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedCurrentUserId = self.userId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Avoid tearing down/recreating subscriptions when auth/session callbacks
+        // call start repeatedly for the same device/user.
+        if normalizedCurrentDeviceId == normalizedDeviceId,
+           normalizedCurrentUserId == normalizedUserId,
+           heartbeatTask != nil {
+            logger.debug("DevicePresenceService start ignored (already running)")
+            return
+        }
+
+        if self.deviceId != nil || self.userId != nil || self.supabase != nil {
+            stop()
+        }
+
         self.supabase = supabase
-        self.deviceId = deviceId
-        self.userId = userId
-        normalizedDaemonPresenceUserID = Self.normalizeDaemonPresenceIdentifier(userId)
+        self.deviceId = normalizedDeviceId
+        self.userId = normalizedUserId
+        normalizedDaemonPresenceUserID = normalizedUserId
 
         startNetworkMonitoring()
         startHeartbeat()
@@ -105,7 +124,7 @@ final class DevicePresenceService {
             await startDaemonPresenceSubscription()
         }
 
-        logger.info("DevicePresenceService started for device: \(deviceId)")
+        logger.info("DevicePresenceService started for device: \(normalizedDeviceId)")
     }
 
     /// Stop the presence service
@@ -122,7 +141,8 @@ final class DevicePresenceService {
         normalizedDaemonPresenceUserID = nil
         monitoredDevices = []
         daemonLastHeartbeatAt = [:]
-        daemonExplicitOfflineDevices = []
+        daemonExplicitOfflineAt = [:]
+        daemonStatusVersion = 0
 
         logger.info("DevicePresenceService stopped")
     }
@@ -143,6 +163,14 @@ final class DevicePresenceService {
         return device.isOnline
     }
 
+    /// Returns true when the presence service is already active for the given device/user pair.
+    func isRunning(deviceId: String, userId: String) -> Bool {
+        guard heartbeatTask != nil else { return false }
+        let normalizedDeviceId = deviceId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedUserId = userId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return self.deviceId == normalizedDeviceId && self.userId == normalizedUserId
+    }
+
     /// Check if a device daemon is available for remote commands.
     /// Availability allows `unknown` bootstrap state and only blocks explicit/derived offline.
     func isDeviceDaemonAvailable(id: String) -> Bool {
@@ -151,17 +179,46 @@ final class DevicePresenceService {
 
     /// Resolve daemon availability state from heartbeat stream.
     func daemonAvailability(id: String) -> DeviceDaemonAvailability {
-        let normalizedID = id.lowercased()
+        let normalizedID = Self.normalizeDaemonPresenceIdentifier(id)
         if let lastHeartbeat = daemonLastHeartbeatAt[normalizedID] {
             if Date().timeIntervalSince(lastHeartbeat) <= daemonHeartbeatTTL {
                 return .online
             }
             return .offline
         }
-        if daemonExplicitOfflineDevices.contains(normalizedID) {
+        if daemonExplicitOfflineAt[normalizedID] != nil {
             return .offline
         }
         return .unknown
+    }
+
+    /// Resolve the most recent status signal between Supabase `last_seen_at` and daemon presence events.
+    /// This is intended for UI display to avoid stale offline indicators when one signal lags behind.
+    func mergedDeviceStatus(id: String, supabaseLastSeenAt: Date?, supabaseThreshold: TimeInterval = 15.0) -> SyncedDevice.DeviceStatus {
+        let normalizedID = Self.normalizeDaemonPresenceIdentifier(id)
+        let freshnessThreshold = max(supabaseThreshold, daemonHeartbeatTTL)
+
+        var signals: [(status: SyncedDevice.DeviceStatus, timestamp: Date)] = []
+        if let supabaseLastSeenAt {
+            signals.append((status: .online, timestamp: supabaseLastSeenAt))
+        }
+        if let daemonOnlineAt = daemonLastHeartbeatAt[normalizedID] {
+            signals.append((status: .online, timestamp: daemonOnlineAt))
+        }
+        if let daemonOfflineAt = daemonExplicitOfflineAt[normalizedID] {
+            signals.append((status: .offline, timestamp: daemonOfflineAt))
+        }
+
+        guard let latestSignal = signals.max(by: { $0.timestamp < $1.timestamp }) else {
+            return .offline
+        }
+
+        switch latestSignal.status {
+        case .online:
+            return Date().timeIntervalSince(latestSignal.timestamp) <= freshnessThreshold ? .online : .offline
+        case .offline, .busy:
+            return .offline
+        }
     }
 
     // MARK: - Heartbeat
@@ -469,29 +526,88 @@ final class DevicePresenceService {
             payload: payload.userID
         ) {
             logger.warning(
-                "Ignoring daemon presence payload for unexpected user",
+                "Ignoring daemon presence payload for unexpected user payload_user_id=\(payload.userID) payload_device_id=\(payload.deviceID)",
                 metadata: daemonPresenceLogMetadata(
                     eventCode: "ios.presence.daemon.payload_user_mismatch",
                     channel: channelName,
                     status: payload.status,
-                    payloadUserID: payload.userID
+                    payloadUserID: payload.userID,
+                    payloadDeviceID: payload.deviceID
                 )
             )
             return
         }
 
-        let normalizedDeviceID = payload.deviceID.lowercased()
-        let heartbeatDate = Date(timeIntervalSince1970: TimeInterval(payload.sentAtMS) / 1000)
+        let normalizedDeviceID = Self.normalizeDaemonPresenceIdentifier(payload.deviceID)
+        guard !normalizedDeviceID.isEmpty else {
+            logger.warning(
+                "Ignoring daemon presence payload with empty device id payload_user_id=\(payload.userID)",
+                metadata: daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.payload_device_empty",
+                    channel: channelName,
+                    status: payload.status,
+                    payloadUserID: payload.userID,
+                    payloadDeviceID: payload.deviceID
+                )
+            )
+            return
+        }
+
+        let receivedAt = Date()
+        let payloadSentAt = Date(timeIntervalSince1970: TimeInterval(payload.sentAtMS) / 1000)
+        let payloadAgeSeconds = receivedAt.timeIntervalSince(payloadSentAt)
+        let knownSyncedDevice = SyncedDataService.shared.devices.contains {
+            $0.id.uuidString.lowercased() == normalizedDeviceID
+        }
 
         switch payload.status {
         case "online":
-            daemonLastHeartbeatAt[normalizedDeviceID] = heartbeatDate
-            daemonExplicitOfflineDevices.remove(normalizedDeviceID)
+            // Use local receipt time for liveness checks so clock skew does not mark online daemons as offline.
+            daemonLastHeartbeatAt[normalizedDeviceID] = receivedAt
+            daemonExplicitOfflineAt.removeValue(forKey: normalizedDeviceID)
+            daemonStatusVersion &+= 1
+            logger.debug(
+                "Applied daemon presence heartbeat status=\(payload.status) device_id=\(normalizedDeviceID) known_device=\(knownSyncedDevice) payload_age_s=\(String(format: "%.3f", payloadAgeSeconds))",
+                metadata: daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.payload_applied",
+                    channel: channelName,
+                    status: payload.status,
+                    payloadUserID: payload.userID,
+                    payloadDeviceID: normalizedDeviceID,
+                    payloadAgeSeconds: payloadAgeSeconds,
+                    matchedSyncedDevice: knownSyncedDevice
+                )
+            )
         case "offline":
             daemonLastHeartbeatAt.removeValue(forKey: normalizedDeviceID)
-            daemonExplicitOfflineDevices.insert(normalizedDeviceID)
+            daemonExplicitOfflineAt[normalizedDeviceID] = receivedAt
+            daemonStatusVersion &+= 1
+            logger.debug(
+                "Applied daemon presence heartbeat status=\(payload.status) device_id=\(normalizedDeviceID) known_device=\(knownSyncedDevice) payload_age_s=\(String(format: "%.3f", payloadAgeSeconds))",
+                metadata: daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.payload_applied",
+                    channel: channelName,
+                    status: payload.status,
+                    payloadUserID: payload.userID,
+                    payloadDeviceID: normalizedDeviceID,
+                    payloadAgeSeconds: payloadAgeSeconds,
+                    matchedSyncedDevice: knownSyncedDevice
+                )
+            )
         default:
             // Ignore unknown statuses to preserve forward compatibility.
+            logger.debug(
+                "Ignored daemon presence heartbeat with unknown status=\(payload.status) device_id=\(normalizedDeviceID) known_device=\(knownSyncedDevice) payload_age_s=\(String(format: "%.3f", payloadAgeSeconds))",
+                metadata: daemonPresenceLogMetadata(
+                    eventCode: "ios.presence.daemon.payload_ignored",
+                    channel: channelName,
+                    status: payload.status,
+                    payloadUserID: payload.userID,
+                    payloadDeviceID: normalizedDeviceID,
+                    payloadAgeSeconds: payloadAgeSeconds,
+                    matchedSyncedDevice: knownSyncedDevice
+                )
+            )
             break
         }
     }
@@ -522,18 +638,32 @@ final class DevicePresenceService {
         eventCode: String,
         channel: String,
         status: String,
-        payloadUserID: String? = nil
+        payloadUserID: String? = nil,
+        payloadDeviceID: String? = nil,
+        payloadAgeSeconds: TimeInterval? = nil,
+        matchedSyncedDevice: Bool? = nil
     ) -> Logger.Metadata {
-        [
+        var metadata: Logger.Metadata = [
             "event_code": .string(eventCode),
             "component": .string("presence.daemon"),
             "channel": .string(channel),
             "event": .string(Config.daemonPresenceEventName),
             "expected_user_id_hash": .string(Self.observabilityHash(normalizedDaemonPresenceUserID)),
             "payload_user_id_hash": .string(Self.observabilityHash(payloadUserID)),
+            "payload_device_id_hash": .string(Self.observabilityHash(payloadDeviceID)),
             "device_id_hash": .string(Self.observabilityHash(deviceId)),
             "status": .string(status),
         ]
+
+        if let payloadAgeSeconds {
+            metadata["payload_age_seconds"] = .string(String(format: "%.3f", payloadAgeSeconds))
+        }
+
+        if let matchedSyncedDevice {
+            metadata["payload_device_known"] = .string(matchedSyncedDevice ? "true" : "false")
+        }
+
+        return metadata
     }
 
     private static func normalizeDaemonPresenceIdentifier(_ value: String) -> String {
@@ -599,3 +729,31 @@ private struct DeviceRecord: Decodable {
         case lastSeenAt = "last_seen_at"
     }
 }
+
+#if DEBUG
+extension DevicePresenceService {
+    func _testResetDaemonPresenceState() {
+        daemonLastHeartbeatAt = [:]
+        daemonExplicitOfflineAt = [:]
+        daemonStatusVersion = 0
+    }
+
+    func _testApplyDaemonPresence(deviceID: String, status: String, at timestamp: Date) {
+        let normalizedDeviceID = Self.normalizeDaemonPresenceIdentifier(deviceID)
+        guard !normalizedDeviceID.isEmpty else { return }
+
+        switch status {
+        case "online":
+            daemonLastHeartbeatAt[normalizedDeviceID] = timestamp
+            daemonExplicitOfflineAt.removeValue(forKey: normalizedDeviceID)
+            daemonStatusVersion &+= 1
+        case "offline":
+            daemonLastHeartbeatAt.removeValue(forKey: normalizedDeviceID)
+            daemonExplicitOfflineAt[normalizedDeviceID] = timestamp
+            daemonStatusVersion &+= 1
+        default:
+            break
+        }
+    }
+}
+#endif

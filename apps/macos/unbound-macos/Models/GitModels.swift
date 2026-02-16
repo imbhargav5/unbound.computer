@@ -543,7 +543,7 @@ enum RightSidebarTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .spec: return "doc.text"
-        case .changes: return "plus.forwardslash.minus"
+        case .changes: return "arrow.triangle.branch"
         case .files: return "folder"
         case .commits: return "clock.arrow.circlepath"
         case .pullRequests: return "arrow.triangle.pull"

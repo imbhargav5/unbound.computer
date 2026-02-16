@@ -9,6 +9,7 @@ struct SyncedDeviceDetailView: View {
     @Environment(\.navigationManager) private var navigationManager
 
     private let syncedDataService = SyncedDataService.shared
+    @State private var presenceService = DevicePresenceService.shared
 
     @State private var expandedRepoIds: Set<UUID> = []
     @State private var hasInitialized = false
@@ -21,6 +22,7 @@ struct SyncedDeviceDetailView: View {
     }
 
     var body: some View {
+        let _ = presenceService.daemonStatusVersion
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacingL) {
                 // Compact device header
@@ -97,9 +99,9 @@ struct SyncedDeviceDetailView: View {
                 HStack(spacing: AppTheme.spacingS) {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(device.status == .online ? Color.green : Color.gray)
+                            .fill(syncedDataService.mergedStatus(for: device) == .online ? Color.green : Color.gray)
                             .frame(width: 8, height: 8)
-                        Text(device.status.displayName)
+                        Text(syncedDataService.mergedStatus(for: device).displayName)
                             .font(Typography.caption)
                             .foregroundStyle(AppTheme.textTertiary)
                     }

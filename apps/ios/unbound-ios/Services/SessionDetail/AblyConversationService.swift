@@ -146,6 +146,15 @@ final class AblyConversationService: SessionDetailConversationStreaming {
     private struct ErrorPayload: Decodable {
         let error: String?
         let details: String?
+        let statusCode: Int?
+        let statusText: String?
+
+        enum CodingKeys: String, CodingKey {
+            case error
+            case details
+            case statusCode
+            case statusText
+        }
     }
 
     private static func fetchTokenDetails(
@@ -241,11 +250,26 @@ final class AblyConversationService: SessionDetailConversationStreaming {
 
     private static func decodeServerErrorMessage(from data: Data) -> String {
         if let payload = try? JSONDecoder().decode(ErrorPayload.self, from: data) {
-            if let error = payload.error, !error.isEmpty {
-                return error
+            var parts: [String] = []
+            if let error = payload.error?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !error.isEmpty {
+                parts.append(error)
             }
-            if let details = payload.details, !details.isEmpty {
-                return details
+            if let statusCode = payload.statusCode {
+                if let statusText = payload.statusText?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !statusText.isEmpty {
+                    parts.append("status=\(statusCode) \(statusText)")
+                } else {
+                    parts.append("status=\(statusCode)")
+                }
+            }
+            if let details = payload.details?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !details.isEmpty,
+               details != payload.error {
+                parts.append("details=\(details)")
+            }
+            if !parts.isEmpty {
+                return parts.joined(separator: " | ")
             }
         }
 

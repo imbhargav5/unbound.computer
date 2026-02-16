@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DevicePickerHeader: View {
     let device: SyncedDevice?
+    let status: SyncedDevice.DeviceStatus?
     @Binding var showDevicePicker: Bool
 
     var body: some View {
@@ -40,8 +41,8 @@ struct DevicePickerHeader: View {
     }
 
     private var statusColor: Color {
-        guard let device else { return .gray }
-        switch device.status {
+        guard device != nil else { return .gray }
+        switch status ?? .offline {
         case .online: return .green
         case .offline: return .gray
         case .busy: return .orange

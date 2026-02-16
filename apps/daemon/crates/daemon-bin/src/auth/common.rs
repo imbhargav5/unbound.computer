@@ -13,7 +13,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use ymir::AuthLoginResult;
 
 const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
@@ -471,6 +471,8 @@ async fn ensure_daemon_ably_started_locked(
     }
 
     if should_start {
+        state.ably_broker_cache.clear().await;
+        debug!("Cleared Ably broker token cache before daemon-ably restart");
         info!(
             runtime = "sidecar",
             component = "sidecar.daemon-ably",

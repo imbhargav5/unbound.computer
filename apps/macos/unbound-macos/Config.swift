@@ -17,19 +17,17 @@ enum ObservabilityMode {
 }
 
 enum Config {
+    private static let defaultLocalAPIURL = URL(string: "http://localhost:3000")!
+
     // MARK: - API
 
     /// The main API URL
     static var apiURL: URL {
-        #if DEBUG
         if let envURL = ProcessInfo.processInfo.environment["API_URL"],
            let url = URL(string: envURL) {
             return url
         }
-        return URL(string: "http://localhost:3000")!
-        #else
-        return URL(string: "https://unbound.computer")!
-        #endif
+        return defaultLocalAPIURL
     }
 
     // MARK: - Supabase

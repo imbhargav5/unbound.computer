@@ -151,9 +151,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := m.publishPresence(ctx, statusOnline); err != nil {
-		m.logger.Warn("failed to publish initial online heartbeat", zap.Error(err))
-	}
+	_ = m.publishPresence(ctx, statusOnline)
 
 	go m.heartbeatLoop()
 	return nil
@@ -496,9 +494,7 @@ func (m *Manager) heartbeatLoop() {
 		select {
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), m.cfg.PublishTimeout)
-			if err := m.publishPresence(ctx, statusOnline); err != nil {
-				m.logger.Warn("failed publishing periodic heartbeat", zap.Error(err))
-			}
+			_ = m.publishPresence(ctx, statusOnline)
 			cancel()
 		default:
 			time.Sleep(100 * time.Millisecond)
@@ -507,10 +503,12 @@ func (m *Manager) heartbeatLoop() {
 }
 
 func (m *Manager) publishPresence(ctx context.Context, status string) error {
+	normalizedUserID := strings.ToLower(strings.TrimSpace(m.cfg.UserID))
+	normalizedDeviceID := strings.ToLower(strings.TrimSpace(m.cfg.DeviceID))
 	payload := PresencePayload{
 		SchemaVersion: 1,
-		UserID:        strings.ToLower(strings.TrimSpace(m.cfg.UserID)),
-		DeviceID:      m.cfg.DeviceID,
+		UserID:        normalizedUserID,
+		DeviceID:      normalizedDeviceID,
 		Status:        status,
 		Source:        m.cfg.PresenceSource,
 		SentAtMS:      time.Now().UnixMilli(),
@@ -519,7 +517,27 @@ func (m *Manager) publishPresence(ctx context.Context, status string) error {
 	if err != nil {
 		return err
 	}
-	return m.Publish(ctx, m.cfg.PresenceChannel, m.cfg.PresenceEvent, encoded, m.cfg.PublishTimeout)
+	if err := m.Publish(ctx, m.cfg.PresenceChannel, m.cfg.PresenceEvent, encoded, m.cfg.PublishTimeout); err != nil {
+		m.logger.Warn(
+			"daemon presence publish failed",
+			zap.String("status", status),
+			zap.String("device_id", normalizedDeviceID),
+			zap.String("channel", m.cfg.PresenceChannel),
+			zap.String("event", m.cfg.PresenceEvent),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	m.logger.Info(
+		"daemon presence published",
+		zap.String("status", status),
+		zap.String("device_id", normalizedDeviceID),
+		zap.String("channel", m.cfg.PresenceChannel),
+		zap.String("event", m.cfg.PresenceEvent),
+		zap.Int64("sent_at_ms", payload.SentAtMS),
+	)
+	return nil
 }
 
 func connectRealtime(ctx context.Context, client *ably.Realtime, logger *zap.Logger) error {
@@ -561,11 +579,13 @@ func newRealtimeClient(
 	brokerToken string,
 	logger *zap.Logger,
 ) (*ably.Realtime, error) {
+	clientID := strings.ToLower(strings.TrimSpace(cfg.UserID))
+	normalizedDeviceID := strings.ToLower(strings.TrimSpace(cfg.DeviceID))
 	client, err := ably.NewRealtime(
-		ably.WithClientID(cfg.DeviceID),
+		ably.WithClientID(clientID),
 		ably.WithAuthCallback(func(ctx context.Context, _ ably.TokenParams) (ably.Tokener, error) {
 			logger.Debug("requesting token from local broker", zap.String("audience", audience))
-			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, cfg.DeviceID, audience)
+			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, normalizedDeviceID, audience)
 		}),
 		ably.WithAutoConnect(false),
 	)
@@ -581,11 +601,13 @@ func newRESTClient(
 	brokerToken string,
 	logger *zap.Logger,
 ) (*ably.REST, error) {
+	clientID := strings.ToLower(strings.TrimSpace(cfg.UserID))
+	normalizedDeviceID := strings.ToLower(strings.TrimSpace(cfg.DeviceID))
 	client, err := ably.NewREST(
-		ably.WithClientID(cfg.DeviceID),
+		ably.WithClientID(clientID),
 		ably.WithAuthCallback(func(ctx context.Context, _ ably.TokenParams) (ably.Tokener, error) {
 			logger.Debug("requesting token from local broker", zap.String("audience", audience))
-			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, cfg.DeviceID, audience)
+			return requestBrokerToken(ctx, cfg.BrokerSocketPath, brokerToken, normalizedDeviceID, audience)
 		}),
 	)
 	if err != nil {

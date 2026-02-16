@@ -18,7 +18,15 @@ const corsHeaders = {
 };
 
 const ABLY_TOKEN_TTL_MS = 60 * 60 * 1000;
-const ABLY_TOKEN_ENDPOINT = "https://main.realtime.ably.net";
+const DEFAULT_ABLY_REST_ENDPOINT = "https://rest.ably.io";
+
+function resolveAblyRestEndpoint(): string {
+  const configured = process.env.ABLY_REST_ENDPOINT?.trim();
+  if (!configured) {
+    return DEFAULT_ABLY_REST_ENDPOINT;
+  }
+  return configured.replace(/\/+$/, "");
+}
 
 export type Capability = Record<string, string[]>;
 
@@ -36,17 +44,41 @@ function parseAblyApiKey(rawApiKey: string): { keyName: string; keySecret: strin
 
 export function buildAblyTokenRequestBody(
   keyName: string,
-  requesterDeviceId: string,
+  requesterUserId: string,
   capability: Capability
 ) {
   return {
     keyName,
-    clientId: requesterDeviceId,
+    clientId: requesterUserId.toLowerCase(),
     ttl: ABLY_TOKEN_TTL_MS,
     capability: JSON.stringify(capability),
     timestamp: Date.now(),
     nonce: randomBytes(16).toString("hex"),
   };
+}
+
+function buildAblyTokenRequestURL(keyName: string): string {
+  return `${resolveAblyRestEndpoint()}/keys/${encodeURIComponent(keyName)}/requestToken`;
+}
+
+function parseAblyErrorBody(rawBody: string): string {
+  if (!rawBody) {
+    return "No response body";
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody) as { error?: { message?: string }; message?: string };
+    if (parsed.error?.message) {
+      return parsed.error.message;
+    }
+    if (parsed.message) {
+      return parsed.message;
+    }
+  } catch {
+    // Fallback to raw text when the body is not JSON.
+  }
+
+  return rawBody;
 }
 
 export function buildMobileCapability(deviceIds: string[], requesterDeviceId: string): Capability {
@@ -188,28 +220,26 @@ export async function POST(req: NextRequest) {
       user.id
     );
 
-    const tokenRequestResponse = await fetch(
-      `${ABLY_TOKEN_ENDPOINT}/keys/${encodeURIComponent(parsedApiKey.keyName)}/requestToken`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${Buffer.from(
-            `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`
-          ).toString("base64")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(
-          buildAblyTokenRequestBody(parsedApiKey.keyName, requesterDeviceId, capability)
-        ),
-      }
-    );
+    const tokenRequestResponse = await fetch(buildAblyTokenRequestURL(parsedApiKey.keyName), {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(
+          `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`
+        ).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        buildAblyTokenRequestBody(parsedApiKey.keyName, user.id, capability)
+      ),
+    });
 
     if (!tokenRequestResponse.ok) {
-      const errorBody = await tokenRequestResponse.text();
+      const errorBody = parseAblyErrorBody(await tokenRequestResponse.text());
       return NextResponse.json(
         {
           error: "Failed to request Ably token",
           statusCode: tokenRequestResponse.status,
+          statusText: tokenRequestResponse.statusText,
           details: errorBody,
         },
         { status: 502, headers: corsHeaders }

@@ -560,57 +560,65 @@ pub async fn create_session_core(
         }
     };
 
+    // Source of truth: persist the session secret to Armin/SQLite.
+    let db_key = match *state.db_encryption_key.lock().unwrap() {
+        Some(db_key) => db_key,
+        None => {
+            return Err(rollback_session_creation_after_secret_failure(
+                state,
+                &created_session.id,
+                &mut worktree_cleanup_context,
+                "Database encryption key is unavailable; cannot persist session secret".to_string(),
+            ));
+        }
+    };
+
+    let nonce = daemon_database::generate_nonce();
+    let encrypted_secret =
+        match daemon_database::encrypt_content(&db_key, &nonce, session_secret.as_bytes()) {
+            Ok(encrypted_secret) => encrypted_secret,
+            Err(err) => {
+                return Err(rollback_session_creation_after_secret_failure(
+                    state,
+                    &created_session.id,
+                    &mut worktree_cleanup_context,
+                    format!("Failed to encrypt session secret: {}", err),
+                ));
+            }
+        };
+
+    debug!(
+        session_id = %created_session.id.as_str(),
+        nonce_len = nonce.len(),
+        encrypted_len = encrypted_secret.len(),
+        plaintext_len = session_secret.len(),
+        "Encrypted session secret, storing via Armin"
+    );
+
+    let new_secret = armin::NewSessionSecret {
+        session_id: created_session.id.clone(),
+        encrypted_secret,
+        nonce: nonce.to_vec(),
+    };
+    if let Err(err) = state.armin.set_session_secret(new_secret) {
+        return Err(rollback_session_creation_after_secret_failure(
+            state,
+            &created_session.id,
+            &mut worktree_cleanup_context,
+            format!("Failed to store session secret: {}", err),
+        ));
+    }
+
+    debug!(
+        session_id = %created_session.id.as_str(),
+        "Stored session secret via Armin"
+    );
+
     if let Ok(key) = SecretsManager::parse_session_secret(&session_secret) {
         state
             .session_secret_cache
             .insert(created_session.id.as_str(), key);
     }
-
-    // Store session secret via Armin and sync to Supabase
-    let sqlite_future = {
-        let state = state.clone();
-        let session_id = created_session.id.clone();
-        let session_secret = session_secret.clone();
-        async move {
-            if let Some(db_key) = *state.db_encryption_key.lock().unwrap() {
-                let nonce = daemon_database::generate_nonce();
-                match daemon_database::encrypt_content(&db_key, &nonce, session_secret.as_bytes()) {
-                    Ok(encrypted) => {
-                        debug!(
-                            session_id = %session_id.as_str(),
-                            nonce_len = nonce.len(),
-                            encrypted_len = encrypted.len(),
-                            plaintext_len = session_secret.len(),
-                            "Encrypted session secret, storing via Armin"
-                        );
-                        let secret = armin::NewSessionSecret {
-                            session_id: session_id.clone(),
-                            encrypted_secret: encrypted,
-                            nonce: nonce.to_vec(),
-                        };
-                        if let Err(e) = state.armin.set_session_secret(secret) {
-                            warn!(
-                                session_id = %session_id.as_str(),
-                                "Failed to store session secret: {}",
-                                e
-                            );
-                        }
-                        debug!(
-                            session_id = %session_id.as_str(),
-                            "Stored session secret via Armin"
-                        );
-                    }
-                    Err(e) => {
-                        warn!(
-                            session_id = %session_id.as_str(),
-                            "Failed to encrypt session secret: {}",
-                            e
-                        );
-                    }
-                }
-            }
-        }
-    };
 
     let supabase_future = {
         let session_sync = state.session_sync.clone();
@@ -631,7 +639,7 @@ pub async fn create_session_core(
         }
     };
 
-    tokio::join!(sqlite_future, supabase_future);
+    supabase_future.await;
 
     let session_data = serde_json::json!({
         "id": created_session.id.as_str(),
@@ -645,6 +653,41 @@ pub async fn create_session_core(
     });
 
     Ok(session_data)
+}
+
+fn rollback_session_creation_after_secret_failure(
+    state: &DaemonState,
+    session_id: &SessionId,
+    worktree_cleanup_context: &mut Option<(String, String)>,
+    reason: String,
+) -> SessionCreateCoreError {
+    state.session_secret_cache.remove(session_id.as_str());
+
+    if let Err(delete_err) = state.armin.delete_session(session_id) {
+        warn!(
+            session_id = %session_id.as_str(),
+            error = %delete_err,
+            "Failed to rollback session after secret persistence failure"
+        );
+    }
+
+    if let Some((repo_path, created_worktree_path)) = worktree_cleanup_context.take() {
+        if let Err(cleanup_error) =
+            remove_worktree(Path::new(&repo_path), Path::new(&created_worktree_path))
+        {
+            let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
+            return SessionCreateCoreError::with_data(
+                "internal_error",
+                format!("{reason}; cleanup failed: {cleanup_error}"),
+                serde_json::json!({
+                    "cleanup_error": cleanup_summary,
+                    "worktree_path": created_worktree_path,
+                }),
+            );
+        }
+    }
+
+    SessionCreateCoreError::new("internal_error", reason)
 }
 
 async fn register_session_create(server: &IpcServer, state: DaemonState) {

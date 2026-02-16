@@ -204,8 +204,12 @@ struct RecentSessionCard: View {
 
 struct SyncedDeviceRowView: View {
     let device: SyncedDevice
+    private let syncedDataService = SyncedDataService.shared
+    @State private var presenceService = DevicePresenceService.shared
 
     var body: some View {
+        let _ = presenceService.daemonStatusVersion
+        let status = syncedDataService.mergedStatus(for: device)
         HStack(spacing: AppTheme.spacingM) {
             Image(systemName: device.deviceType.iconName)
                 .font(.system(size: 18, weight: .medium))
@@ -220,9 +224,9 @@ struct SyncedDeviceRowView: View {
 
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(device.status == .online ? Color.green : Color.gray)
+                        .fill(status == .online ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
-                    Text(device.status.displayName)
+                    Text(status.displayName)
                         .font(Typography.caption)
                         .foregroundStyle(AppTheme.textTertiary)
                 }

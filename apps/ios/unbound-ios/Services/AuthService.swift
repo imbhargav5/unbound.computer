@@ -99,6 +99,7 @@ final class AuthService {
     private let keychainService: KeychainService
     private let deviceTrustService: DeviceTrustService
     private var authStateTask: Task<Void, Never>?
+    private var isRegisteringDevice = false
 
     /// Access to Supabase client for other services
     var supabaseClient: SupabaseClient {
@@ -387,7 +388,15 @@ final class AuthService {
     // MARK: - Device Registration
 
     /// Register this device in Supabase after authentication
+    @MainActor
     func registerDevice() async {
+        if isRegisteringDevice {
+            logger.debug("Skipping duplicate device registration request while another one is in progress")
+            return
+        }
+        isRegisteringDevice = true
+        defer { isRegisteringDevice = false }
+
         // Set the current user on the device trust service
         guard let userId = currentUserId else {
             logger.warning("Cannot register device: no current user")
@@ -411,6 +420,11 @@ final class AuthService {
             logger.warning("Cannot register device: missing deviceId")
             return
         }
+        let normalizedDeviceId = deviceId.uuidString.lowercased()
+        if DevicePresenceService.shared.isRunning(deviceId: normalizedDeviceId, userId: userId) {
+            logger.debug("Skipping duplicate device registration for \(normalizedDeviceId)")
+            return
+        }
 
         // Determine device type based on idiom
         let deviceType: String
@@ -432,7 +446,7 @@ final class AuthService {
         }
 
         let device = DeviceRegistration(
-            id: deviceId.uuidString,
+            id: normalizedDeviceId,
             userId: userId,
             name: deviceTrustService.deviceName,
             deviceType: deviceType,
@@ -455,7 +469,7 @@ final class AuthService {
             // Start presence service with Realtime subscription
             DevicePresenceService.shared.start(
                 supabase: supabaseClient,
-                deviceId: deviceId.uuidString,
+                deviceId: normalizedDeviceId,
                 userId: userId
             )
         } catch {

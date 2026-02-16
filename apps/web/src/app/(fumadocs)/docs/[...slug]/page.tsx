@@ -13,11 +13,11 @@ import { getMDXComponents } from "@/mdx-components";
 export default async function Page({
   params,
 }: {
-  params: Promise<{ lang: string; slug?: string[] }>;
+  params: Promise<{ slug?: string[] }>;
 }) {
   "use cache";
-  const { slug, lang } = await params;
-  const page = source.getPage(slug, lang);
+  const { slug } = await params;
+  const page = source.getPage(slug);
   if (!page) notFound();
 
   const MDX = page.data.body;
@@ -45,10 +45,10 @@ export function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ lang: string; slug?: string[] }>;
+  params: Promise<{ slug?: string[] }>;
 }): Promise<Metadata> {
-  const { slug, lang } = await params;
-  const page = source.getPage(slug, lang);
+  const { slug } = await params;
+  const page = source.getPage(slug);
   if (!page) notFound();
 
   return {

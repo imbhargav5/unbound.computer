@@ -56,6 +56,7 @@ struct BrokerTokenResponse {
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 struct CacheKey {
     audience: BrokerAudience,
+    user_id: String,
     device_id: String,
 }
 
@@ -231,6 +232,7 @@ impl BrokerState {
             .current_sync_context()
             .map_err(|err| format!("failed reading auth sync context: {}", err))?
             .ok_or_else(|| "not authenticated".to_string())?;
+        let expected_client_id = normalize_user_id(&sync_context.user_id);
 
         if sync_context.device_id.to_lowercase() != normalized_device_id {
             return Err("device_id does not match authenticated daemon device".to_string());
@@ -238,16 +240,34 @@ impl BrokerState {
 
         let cache_key = CacheKey {
             audience: request.audience,
+            user_id: expected_client_id.clone(),
             device_id: normalized_device_id.clone(),
         };
 
         if let Some(cached) = self.get_cached_token(&cache_key).await {
-            return Ok(cached);
+            if token_client_id_matches(&cached, &expected_client_id) {
+                return Ok(cached);
+            }
+            warn!(
+                audience = request.audience.as_str(),
+                expected_client_id = %expected_client_id,
+                actual_client_id = %extract_token_client_id(&cached).unwrap_or("<missing>"),
+                "Discarding cached Ably token due to clientId mismatch"
+            );
+            let mut guard = self.cache.write().await;
+            guard.remove(&cache_key);
         }
 
         let fresh = self
             .request_fresh_token(request.audience, &normalized_device_id)
             .await?;
+        if !token_client_id_matches(&fresh, &expected_client_id) {
+            return Err(format!(
+                "Ably token API returned mismatched clientId (expected {}, got {})",
+                expected_client_id,
+                extract_token_client_id(&fresh).unwrap_or("<missing>")
+            ));
+        }
         self.store_cached_token(cache_key, fresh.clone()).await;
         Ok(fresh)
     }
@@ -418,6 +438,24 @@ fn normalize_device_id(raw_device_id: &str) -> Result<String, String> {
         .map_err(|_| "device_id must be a valid UUID".to_string())
 }
 
+fn normalize_user_id(raw_user_id: &str) -> String {
+    raw_user_id.trim().to_ascii_lowercase()
+}
+
+fn extract_token_client_id(token_details: &Value) -> Option<&str> {
+    token_details
+        .get("clientId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn token_client_id_matches(token_details: &Value, expected_client_id: &str) -> bool {
+    extract_token_client_id(token_details)
+        .map(normalize_user_id)
+        .is_some_and(|actual| actual == expected_client_id)
+}
+
 fn is_cache_valid(expires_ms: Option<i64>, now_ms: i64) -> bool {
     match expires_ms {
         Some(expires_ms) => now_ms + CACHE_REFRESH_MARGIN_MS < expires_ms,
@@ -427,7 +465,8 @@ fn is_cache_valid(expires_ms: Option<i64>, now_ms: i64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_cache_valid, normalize_device_id};
+    use super::{is_cache_valid, normalize_device_id, normalize_user_id, token_client_id_matches};
+    use serde_json::json;
 
     #[test]
     fn normalize_device_id_lowercases_uuid() {
@@ -446,5 +485,25 @@ mod tests {
         assert!(is_cache_valid(Some(1_000_000), 800_000));
         assert!(!is_cache_valid(Some(910_000), 800_000));
         assert!(!is_cache_valid(None, 800_000));
+    }
+
+    #[test]
+    fn normalize_user_id_trims_and_lowercases() {
+        assert_eq!(
+            normalize_user_id(" 6F5DB7F9-C6EF-4D60-88F8-39F62F272F07 "),
+            "6f5db7f9-c6ef-4d60-88f8-39f62f272f07"
+        );
+    }
+
+    #[test]
+    fn token_client_id_matches_checks_normalized_value() {
+        let expected = "6f5db7f9-c6ef-4d60-88f8-39f62f272f07";
+        let matching = json!({ "clientId": "6F5DB7F9-C6EF-4D60-88F8-39F62F272F07" });
+        let mismatched = json!({ "clientId": "11111111-1111-1111-1111-111111111111" });
+        let missing = json!({});
+
+        assert!(token_client_id_matches(&matching, expected));
+        assert!(!token_client_id_matches(&mismatched, expected));
+        assert!(!token_client_id_matches(&missing, expected));
     }
 }

@@ -1083,18 +1083,11 @@ struct FileEditorView: View {
                 ProgressView("Loading file...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = documentState.errorMessage, documentState.content.isEmpty {
-                VStack(spacing: Spacing.sm) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 24))
-                        .foregroundStyle(colors.destructive)
-                    Text("Failed to load file")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.foreground)
-                    Text(error)
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ErrorStateView(
+                    icon: "doc.text",
+                    title: "Failed to load file",
+                    message: error
+                )
             } else {
                 VStack(spacing: 0) {
                     if let readOnlyReason = documentState.readOnlyReason {
@@ -1179,32 +1172,29 @@ struct DiffEditorView: View {
                     ProgressView("Loading diff...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = state.errorMessage {
-                    VStack(spacing: Spacing.sm) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 24))
-                            .foregroundStyle(colors.destructive)
-                        Text("Failed to load diff")
-                            .font(Typography.body)
-                            .foregroundStyle(colors.foreground)
-                        Text(error)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.mutedForeground)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ErrorStateView(
+                        icon: "arrow.left.arrow.right",
+                        title: "Failed to load diff",
+                        message: error
+                    )
                 } else if let diff = state.diff {
                     DiffViewer(diff: diff)
                         .padding(Spacing.md)
                 } else {
-                    Text("No diff available for \(path)")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ErrorStateView(
+                        icon: "doc.text.magnifyingglass",
+                        title: "No diff available",
+                        message: "There are no changes to display for \(path)",
+                        iconColor: colors.mutedForeground
+                    )
                 }
             } else {
-                Text("No diff loaded for \(path)")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ErrorStateView(
+                    icon: "doc.text.magnifyingglass",
+                    title: "No diff loaded",
+                    message: "Diff has not been loaded for \(path)",
+                    iconColor: colors.mutedForeground
+                )
             }
         }
         .background(colors.editorBackground)

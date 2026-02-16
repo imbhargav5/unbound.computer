@@ -106,12 +106,6 @@ struct unbound_iosApp: App {
             await authService.loadSession()
             authService.startListening()
 
-            // Step 3: If authenticated, register device (includes device identity initialization)
-            if authService.authState.isAuthenticated {
-                initState = .loading(message: "Registering device...", progress: 0.8)
-                await authService.registerDevice()
-            }
-
             initState = .ready
         } catch {
             initState = .failed(error)

@@ -18,6 +18,15 @@ private class CommandReturnNSTextView: NSTextView {
     var onCommandReturn: (() -> Void)?
     var onShiftTab: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
+    var pendingFocus: Bool = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window, pendingFocus {
+            window.makeFirstResponder(self)
+            pendingFocus = false
+        }
+    }
 
     override func becomeFirstResponder() -> Bool {
         let didBecome = super.becomeFirstResponder()
@@ -116,6 +125,9 @@ struct CommandReturnTextEditor: NSViewRepresentable {
             } else if !isFocused && window.firstResponder === textView {
                 window.makeFirstResponder(nil)
             }
+            textView.pendingFocus = false
+        } else if isFocused {
+            textView.pendingFocus = true
         }
 
         textView.textColor = NSColor(hex: colorScheme == .dark ? "E5E5E5" : "0D0D0D")
@@ -160,10 +172,41 @@ struct ChatInputField: View {
         ThemeColors(colorScheme)
     }
 
+    private var isCompact: Bool {
+        !isFocused && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var sendButton: some View {
+        Group {
+            if isStreaming {
+                Button(action: { onCancel?() }) {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(colors.primaryForeground)
+                        .frame(width: 32, height: 32)
+                        .background(colors.destructive)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: onSend) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(colors.primaryForeground)
+                        .frame(width: 32, height: 32)
+                        .background(colors.primary)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Plan mode indicator
-            if isPlanMode {
+        VStack(spacing: isCompact ? 0 : Spacing.md) {
+            // Plan mode indicator (expanded + plan mode only)
+            if isPlanMode && !isCompact {
                 HStack(spacing: Spacing.sm) {
                     Image(systemName: "map")
                         .font(.system(size: IconSize.sm))
@@ -176,70 +219,76 @@ struct ChatInputField: View {
                     Spacer()
                 }
                 .foregroundStyle(colors.info)
-                .padding(.horizontal, Spacing.md)
-                .padding(.top, Spacing.sm)
-                .padding(.bottom, Spacing.xs)
             }
 
-            // Text input area
-            CommandReturnTextEditor(
-                text: $text,
-                isFocused: $isFocused,
-                colorScheme: colorScheme,
-                onCommandReturn: {
-                    if !isStreaming && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        onSend()
+            // Text editor (expanded only)
+            if !isCompact {
+                CommandReturnTextEditor(
+                    text: $text,
+                    isFocused: $isFocused,
+                    colorScheme: colorScheme,
+                    onCommandReturn: {
+                        if !isStreaming && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            onSend()
+                        }
+                    },
+                    onShiftTab: {
+                        isPlanMode.toggle()
                     }
-                },
-                onShiftTab: {
-                    isPlanMode.toggle()
-                }
-            )
-                .font(Typography.body)
-                .frame(minHeight: 60, maxHeight: 120)
-                .padding(.horizontal, Spacing.md)
-                .padding(.top, isPlanMode ? Spacing.xs : Spacing.md)
+                )
+                .frame(minHeight: 40, maxHeight: 120)
+            }
 
-            // Bottom toolbar
+            // Footer row
             HStack {
-                // Left group: Model and think mode selector
-                HStack(spacing: Spacing.sm) {
-                    ModelSelector(selectedModel: $selectedModel, selectedThinkMode: $selectedThinkMode)
+                if isCompact {
+                    Text("What do you want to build?")
+                        .font(Typography.body)
+                        .foregroundStyle(Color(hex: "525252"))
+                } else {
+                    HStack(spacing: Spacing.sm) {
+                        ModelSelector(selectedModel: $selectedModel, selectedThinkMode: $selectedThinkMode)
+                    }
+                    .fixedSize()
                 }
-                .fixedSize()
 
                 Spacer()
 
-                // Right group: Send/Stop button
-                HStack(spacing: Spacing.sm) {
-                    if isStreaming {
-                        Button(action: { onCancel?() }) {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.system(size: IconSize.xxl))
-                                .foregroundStyle(colors.destructive)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Button(action: onSend) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: IconSize.xxl))
-                                .foregroundStyle(text.isEmpty ? colors.mutedForeground : colors.primary)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(text.isEmpty)
+                if !isCompact {
+                    HStack(spacing: Spacing.md) {
+                        Image(systemName: "paperclip")
+                            .font(.system(size: 18))
+                            .foregroundStyle(colors.gray8A8)
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 18))
+                            .foregroundStyle(colors.gray8A8)
                     }
                 }
-                .fixedSize()
+
+                sendButton
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.bottom, Spacing.md)
         }
-        .background(isPlanMode ? colors.info.opacity(0.08) : colors.input)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .padding(Spacing.lg)
+        .background(isPlanMode && !isCompact ? colors.info.opacity(0.08) : colors.input)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(isPlanMode ? colors.info : (isFocused ? colors.ring : colors.borderInput), lineWidth: isPlanMode ? BorderWidth.thick : BorderWidth.default)
+            RoundedRectangle(cornerRadius: Radius.xxl)
+                .stroke(
+                    isCompact ? colors.borderInput :
+                        (isPlanMode ? colors.info : (isFocused ? colors.ring : colors.borderInput)),
+                    lineWidth: isPlanMode && !isCompact ? BorderWidth.thick : BorderWidth.default
+                )
         )
+        .overlay {
+            if isCompact {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isFocused = true
+                    }
+            }
+        }
+        .animation(.snappy(duration: 0.3), value: isCompact)
         .animation(.easeInOut(duration: Duration.fast), value: isFocused)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
         .onAppear {
@@ -561,12 +610,13 @@ struct ChatMessageView: View {
                     FileChangeSummaryView(fileChanges: fileChanges)
                 }
             }
-            .padding(isUser ? Spacing.md : 0)
+            .padding(.vertical, isUser ? 10 : 0)
+            .padding(.horizontal, isUser ? Spacing.lg : 0)
             .background(
                 Group {
                     if isUser {
-                        RoundedRectangle(cornerRadius: Radius.lg)
-                            .fill(colors.muted)
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(hex: "2A2A2A"))
                     }
                 }
             )
@@ -587,7 +637,8 @@ struct ChatMessageView: View {
             }
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
+        .padding(.top, isUser ? Spacing.lg : Spacing.sm)
+        .padding(.bottom, Spacing.sm)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: Duration.fast)) {
                 isHovered = hovering
@@ -819,47 +870,15 @@ struct NoWorkspaceSelectedView: View {
 // MARK: - Workspace Path Not Found View
 
 struct WorkspacePathNotFoundView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let path: String
 
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(colors.destructive)
-
-            VStack(spacing: Spacing.sm) {
-                Text("Workspace not found")
-                    .font(Typography.h4)
-                    .foregroundStyle(colors.foreground)
-
-                Text("The workspace directory no longer exists:")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .multilineTextAlignment(.center)
-
-                Text(path)
-                    .font(Typography.code)
-                    .foregroundStyle(colors.mutedForeground)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.xs)
-                    .background(colors.muted)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-
-                Text("The folder may have been moved or deleted. Please check the path or remove this repository.")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, Spacing.sm)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(Spacing.xl)
+        ErrorStateView(
+            icon: "folder.badge.questionmark",
+            title: "Workspace not found",
+            message: "The workspace directory no longer exists. The folder may have been moved or deleted.",
+            detail: path
+        )
     }
 }
 

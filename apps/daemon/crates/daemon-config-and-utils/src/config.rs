@@ -20,7 +20,7 @@ pub const DEFAULT_SUPABASE_PUBLISHABLE_KEY: &str = match option_env!("SUPABASE_P
 /// Default web app URL (can be overridden at compile time via UNBOUND_WEB_APP_URL env var).
 pub const DEFAULT_WEB_APP_URL: &str = match option_env!("UNBOUND_WEB_APP_URL") {
     Some(url) => url,
-    None => "https://unbound.computer",
+    None => "http://localhost:3000",
 };
 
 /// Default log level.
@@ -77,7 +77,7 @@ fn default_supabase_publishable_key() -> String {
 pub fn compile_time_web_app_url() -> String {
     let normalized = DEFAULT_WEB_APP_URL.trim().trim_end_matches('/');
     if normalized.is_empty() {
-        "https://unbound.computer".to_string()
+        "http://localhost:3000".to_string()
     } else {
         normalized.to_string()
     }

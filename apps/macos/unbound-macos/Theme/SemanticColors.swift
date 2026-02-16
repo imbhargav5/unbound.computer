@@ -188,7 +188,9 @@ struct ShadcnColors {
 
         // MARK: - Extended Gray Palette
         static let gray333 = Color(hex: "E5E5E5")
+        static let gray404 = Color(hex: "404040")
         static let gray4A4 = Color(hex: "4A4A4A")
+        static let gray525 = Color(hex: "525252")
         static let gray666 = Color(hex: "666666")
         static let gray7A7 = Color(hex: "7A7A7A")
         static let gray8A8 = Color(hex: "8A8A8A")
@@ -409,8 +411,16 @@ struct ThemeColors {
         colorScheme == .dark ? ShadcnColors.Dark.gray333 : ShadcnColors.Light.gray333
     }
 
+    var gray404: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray404 : ShadcnColors.Light.gray404
+    }
+
     var gray4A4: Color {
         colorScheme == .dark ? ShadcnColors.Dark.gray4A4 : ShadcnColors.Light.gray4A4
+    }
+
+    var gray525: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.gray525 : ShadcnColors.Light.gray525
     }
 
     var gray666: Color {

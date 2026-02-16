@@ -44,12 +44,12 @@ describe("Ably token capability builders", () => {
     );
     const body = buildAblyTokenRequestBody(
       "app.key",
-      "22222222-2222-2222-2222-222222222222",
+      "USER-ID",
       capability
     );
 
     expect(body.keyName).toBe("app.key");
-    expect(body.clientId).toBe("22222222-2222-2222-2222-222222222222");
+    expect(body.clientId).toBe("user-id");
     expect(typeof body.timestamp).toBe("number");
     expect(Number.isFinite(body.timestamp)).toBe(true);
     expect(typeof body.nonce).toBe("string");

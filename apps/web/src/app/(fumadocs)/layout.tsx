@@ -11,7 +11,7 @@ export default async function Layout({
 }) {
   return (
     <RootProvider>
-      <DocsLayout tree={source.pageTree.en} {...baseOptions()}>
+      <DocsLayout tree={source.pageTree} {...baseOptions()}>
         {children}
       </DocsLayout>
     </RootProvider>

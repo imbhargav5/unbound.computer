@@ -45,7 +45,6 @@ pub fn falco_binary_candidates() -> Vec<PathBuf> {
                     candidates.push(contents_dir.join("Resources").join("falco"));
                 }
             }
-
         }
     }
 

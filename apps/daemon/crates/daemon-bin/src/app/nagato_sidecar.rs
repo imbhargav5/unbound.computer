@@ -207,7 +207,6 @@ fn build_nagato_binary_candidates(
                     candidates.push(contents_dir.join("Resources").join("nagato"));
                 }
             }
-
         }
     }
 
