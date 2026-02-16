@@ -16,5 +16,5 @@
     "incremental": true,
     "strictNullChecks": true
   },
-  "exclude": [".nextbase-references/**/*"]
+  "exclude": [".outbound-references/**/*"]
 }

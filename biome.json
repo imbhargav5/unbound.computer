@@ -2,7 +2,7 @@
   "extends": ["ultracite/core", "ultracite/react", "ultracite/next"],
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["!!.nextbase-references"]
+    "includes": ["!!.outbound-references"]
   },
   "overrides": [
     {
