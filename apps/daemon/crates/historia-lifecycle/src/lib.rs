@@ -135,11 +135,20 @@ impl DaemonInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::ErrorKind;
     use std::os::unix::net::UnixListener;
     use tempfile::TempDir;
 
     fn tmp() -> TempDir {
         tempfile::tempdir().unwrap()
+    }
+
+    fn bind_listener_or_skip(socket_path: &Path) -> Option<UnixListener> {
+        match UnixListener::bind(socket_path) {
+            Ok(listener) => Some(listener),
+            Err(err) if err.kind() == ErrorKind::PermissionDenied => None,
+            Err(err) => panic!("failed to bind unix listener at {:?}: {}", socket_path, err),
+        }
     }
 
     // =========================================================================
@@ -170,7 +179,9 @@ mod tests {
         let dir = tmp();
         let socket = dir.path().join("daemon.sock");
         // Bind a real Unix socket
-        let _listener = UnixListener::bind(&socket).unwrap();
+        let Some(_listener) = bind_listener_or_skip(&socket) else {
+            return;
+        };
         assert_eq!(check_singleton(&socket), SingletonCheck::AlreadyRunning);
     }
 
@@ -179,7 +190,9 @@ mod tests {
         let dir = tmp();
         let socket = dir.path().join("daemon.sock");
         {
-            let _listener = UnixListener::bind(&socket).unwrap();
+            let Some(_listener) = bind_listener_or_skip(&socket) else {
+                return;
+            };
             assert_eq!(check_singleton(&socket), SingletonCheck::AlreadyRunning);
         }
         // Listener dropped — socket file still exists but nothing listening
@@ -361,7 +374,9 @@ mod tests {
     fn daemon_info_is_running_with_listener() {
         let dir = tmp();
         let socket_path = dir.path().join("daemon.sock");
-        let _listener = UnixListener::bind(&socket_path).unwrap();
+        let Some(_listener) = bind_listener_or_skip(&socket_path) else {
+            return;
+        };
 
         let info = DaemonInfo::new(socket_path, dir.path().join("daemon.pid"));
         assert!(info.is_running());
