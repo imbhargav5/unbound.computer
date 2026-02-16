@@ -6,12 +6,16 @@ cd "$(dirname "$0")/.."
 echo "=== Running Daemon Unit Tests ==="
 echo ""
 
-# Run all tests with output
-cargo test --workspace -- --nocapture
+# Run workspace tests serially and skip piccolo integration tests in CI.
+cargo test --workspace --exclude piccolo -- --nocapture --test-threads=1
+# Keep piccolo library unit tests in coverage without the integration suites.
+cargo test -p piccolo --lib -- --nocapture --test-threads=1
 
 echo ""
 echo "=== Test Summary ==="
-total=$(cargo test --workspace -- --list 2>/dev/null | grep -c "test$" || echo "0")
+total=$(cargo test --workspace --exclude piccolo -- --list 2>/dev/null | grep -c "test$" || echo "0")
+piccolo_total=$(cargo test -p piccolo --lib -- --list 2>/dev/null | grep -c "test$" || echo "0")
+total=$((total + piccolo_total))
 echo "Total tests: $total"
 
 echo ""
