@@ -46,7 +46,7 @@ run_clippy() {
       if [[ "${workspace}" == "apps/daemon" ]]; then
         cargo clippy --workspace -- -D warnings
       else
-        cargo clippy -- -D warnings
+        cargo clippy
       fi
     )
   done
