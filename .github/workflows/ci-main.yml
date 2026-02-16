@@ -1,0 +1,37 @@
+name: CI Main
+concurrency:
+  group: main-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  rust:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: rust cache targets
+        id: rust-cache
+        run: |
+          echo "workspaces<<EOF" >> "$GITHUB_OUTPUT"
+          ./scripts/ci/rust-checks.sh cache-targets >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.rust-cache.outputs.workspaces }}
+      - name: fmt
+        run: ./scripts/ci/rust-checks.sh fmt
+      - name: clippy
+        run: ./scripts/ci/rust-checks.sh clippy
+      - name: test
+        run: ./scripts/ci/rust-checks.sh test

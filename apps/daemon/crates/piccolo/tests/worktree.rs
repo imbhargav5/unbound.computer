@@ -2,7 +2,9 @@ mod common;
 
 use piccolo::{create_worktree, create_worktree_with_options, get_branches, remove_worktree};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tempfile::TempDir;
 
 struct RepoIdCleanup {
     repo_root: PathBuf,
@@ -11,6 +13,41 @@ struct RepoIdCleanup {
 impl Drop for RepoIdCleanup {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.repo_root);
+    }
+}
+
+fn home_env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct HomeOverride {
+    _lock: std::sync::MutexGuard<'static, ()>,
+    old_home: Option<String>,
+    _temp_home: TempDir,
+}
+
+impl Drop for HomeOverride {
+    fn drop(&mut self) {
+        if let Some(old_home) = &self.old_home {
+            std::env::set_var("HOME", old_home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+}
+
+fn with_temp_home() -> HomeOverride {
+    let lock = home_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let temp_home = tempfile::tempdir().expect("create temp HOME");
+    let old_home = std::env::var("HOME").ok();
+    std::env::set_var("HOME", temp_home.path());
+    HomeOverride {
+        _lock: lock,
+        old_home,
+        _temp_home: temp_home,
     }
 }
 
@@ -37,19 +74,30 @@ fn default_worktrees_dir(repo_id: &str) -> PathBuf {
 
 #[test]
 fn create_worktree_default_branch_name() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-default-branch");
 
     let wt_path =
         create_worktree(&repo_path, &repo_id, "session-1", None).expect("create_worktree failed");
-    let expected_dir = default_worktrees_dir(&repo_id).join("session-1");
+    let expected_root = default_worktrees_dir(&repo_id);
+    let expected_dir = expected_root.join("session-1");
+    let wt_path_canon = Path::new(&wt_path)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(&wt_path));
+    let expected_root_canon = expected_root
+        .canonicalize()
+        .unwrap_or_else(|_| expected_root.clone());
+    let expected_dir_canon = expected_dir
+        .canonicalize()
+        .unwrap_or_else(|_| expected_dir.clone());
 
     assert!(
-        Path::new(&wt_path).starts_with(default_worktrees_dir(&repo_id)),
+        wt_path_canon.starts_with(&expected_root_canon),
         "worktree path should be under ~/.unbound/<repo_id>/worktrees, got: {}",
         wt_path
     );
-    assert_eq!(Path::new(&wt_path), expected_dir.as_path());
+    assert_eq!(wt_path_canon, expected_dir_canon);
     assert!(
         Path::new(&wt_path).exists(),
         "worktree directory should exist"
@@ -63,6 +111,7 @@ fn create_worktree_default_branch_name() {
 
 #[test]
 fn create_worktree_custom_branch_name() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-custom-branch");
 
@@ -81,6 +130,7 @@ fn create_worktree_custom_branch_name() {
 
 #[test]
 fn create_worktree_with_options_custom_root_dir() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
 
     let wt_path = create_worktree_with_options(
@@ -102,6 +152,7 @@ fn create_worktree_with_options_custom_root_dir() {
 
 #[test]
 fn create_worktree_with_options_uses_base_branch_reference() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
 
     let base_commit_id = {
@@ -141,6 +192,7 @@ fn create_worktree_with_options_uses_base_branch_reference() {
 
 #[test]
 fn create_worktree_reuses_existing_branch() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-reuse-branch");
 
@@ -161,6 +213,7 @@ fn create_worktree_reuses_existing_branch() {
 
 #[test]
 fn duplicate_worktree_name_returns_error() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-duplicate");
 
@@ -177,6 +230,7 @@ fn duplicate_worktree_name_returns_error() {
 
 #[test]
 fn worktree_is_valid_git_repo() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-valid-repo");
 
@@ -189,6 +243,7 @@ fn worktree_is_valid_git_repo() {
 
 #[test]
 fn create_worktree_non_repo_returns_error() {
+    let _home = with_temp_home();
     let result = create_worktree(
         Path::new("/nonexistent/path"),
         "repo-nonexistent",
@@ -201,6 +256,7 @@ fn create_worktree_non_repo_returns_error() {
 
 #[test]
 fn create_worktree_invalid_name_returns_error() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-invalid-name");
     let invalid = ["", "   ", "foo/bar", "foo\\bar", ".", "..", "a..b"];
@@ -221,6 +277,7 @@ fn create_worktree_invalid_name_returns_error() {
 
 #[test]
 fn unbound_worktrees_dir_created_automatically() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-auto-dir");
 
@@ -244,6 +301,7 @@ fn unbound_worktrees_dir_created_automatically() {
 
 #[test]
 fn remove_existing_worktree() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-remove-existing");
 
@@ -259,6 +317,7 @@ fn remove_existing_worktree() {
 
 #[test]
 fn remove_worktree_cleans_empty_parent() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-remove-parent");
 
@@ -277,6 +336,7 @@ fn remove_worktree_cleans_empty_parent() {
 
 #[test]
 fn remove_nonexistent_worktree_succeeds() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-remove-nonexistent");
 
@@ -289,6 +349,7 @@ fn remove_nonexistent_worktree_succeeds() {
 
 #[test]
 fn remove_worktree_invalid_path_returns_error() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
 
     // Path with no file_name component
@@ -299,6 +360,7 @@ fn remove_worktree_invalid_path_returns_error() {
 
 #[test]
 fn remove_worktree_non_repo_returns_error() {
+    let _home = with_temp_home();
     let result = remove_worktree(
         Path::new("/nonexistent/path"),
         Path::new("/Users/nonexistent/.unbound/repo-123/worktrees/test"),
@@ -309,6 +371,7 @@ fn remove_worktree_non_repo_returns_error() {
 
 #[test]
 fn worktree_visible_in_branches_after_creation() {
+    let _home = with_temp_home();
     let (_dir, repo_path) = common::init_test_repo();
     let (repo_id, _cleanup) = test_repo_id("wt-branch-visible");
 

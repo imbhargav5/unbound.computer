@@ -202,7 +202,11 @@ fn build_all_message_lines<'a>(app: &App, inner_width: usize, theme: &'a Theme) 
 }
 
 /// Render a single message to lines.
-fn render_single_message<'a>(msg: &crate::tui::app::ChatMessage, inner_width: usize, theme: &'a Theme) -> Vec<Line<'a>> {
+fn render_single_message<'a>(
+    msg: &crate::tui::app::ChatMessage,
+    inner_width: usize,
+    theme: &'a Theme,
+) -> Vec<Line<'a>> {
     let mut lines = Vec::new();
 
     match msg.role {
@@ -240,7 +244,8 @@ fn render_single_message<'a>(msg: &crate::tui::app::ChatMessage, inner_width: us
 
             let prefix_len = prefix.len();
             let first_line_width = inner_width.saturating_sub(prefix_len);
-            let wrapped_lines = wrap_message_text(&msg.content, first_line_width, inner_width, prefix_len);
+            let wrapped_lines =
+                wrap_message_text(&msg.content, first_line_width, inner_width, prefix_len);
 
             for (line_idx, line_text) in wrapped_lines.iter().enumerate() {
                 let line = if line_idx == 0 {
@@ -263,11 +268,15 @@ fn render_single_message<'a>(msg: &crate::tui::app::ChatMessage, inner_width: us
 }
 
 /// Build a line for a single tool with input preview.
-fn build_tool_line<'a>(tool: &crate::tui::app::ActiveTool, theme: &'a Theme, indent: usize) -> Line<'a> {
+fn build_tool_line<'a>(
+    tool: &crate::tui::app::ActiveTool,
+    theme: &'a Theme,
+    indent: usize,
+) -> Line<'a> {
     let (icon, icon_color) = match tool.status {
-        ToolStatus::Running => ("\u{25B6}", theme.spinner),  // ▶
+        ToolStatus::Running => ("\u{25B6}", theme.spinner), // ▶
         ToolStatus::Completed => ("\u{2713}", theme.success), // ✓
-        ToolStatus::Failed => ("\u{2717}", theme.error),      // ✗
+        ToolStatus::Failed => ("\u{2717}", theme.error),    // ✗
     };
 
     let indent_str = " ".repeat(indent);
@@ -293,13 +302,16 @@ fn build_tool_line<'a>(tool: &crate::tui::app::ActiveTool, theme: &'a Theme, ind
 }
 
 /// Build lines for a sub-agent with child tools.
-fn build_sub_agent_lines<'a>(sub_agent: &crate::tui::app::ActiveSubAgent, theme: &'a Theme) -> Vec<Line<'a>> {
+fn build_sub_agent_lines<'a>(
+    sub_agent: &crate::tui::app::ActiveSubAgent,
+    theme: &'a Theme,
+) -> Vec<Line<'a>> {
     let mut lines = Vec::new();
 
     let (icon, icon_color) = match sub_agent.status {
-        ToolStatus::Running => ("\u{25C6}", theme.spinner),  // ◆
+        ToolStatus::Running => ("\u{25C6}", theme.spinner), // ◆
         ToolStatus::Completed => ("\u{25C7}", theme.success), // ◇
-        ToolStatus::Failed => ("\u{25C7}", theme.error),      // ◇
+        ToolStatus::Failed => ("\u{25C7}", theme.error),    // ◇
     };
 
     let description = sub_agent.description.as_deref().unwrap_or("");
@@ -313,12 +325,16 @@ fn build_sub_agent_lines<'a>(sub_agent: &crate::tui::app::ActiveSubAgent, theme:
         Span::styled(format!("{} ", icon), Style::default().fg(icon_color)),
         Span::styled(
             sub_agent.subagent_type.clone(),
-            Style::default().fg(theme.assistant_message).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.assistant_message)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(": ".to_string(), Style::default().fg(theme.text_muted)),
         Span::styled(
             description_preview,
-            Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(theme.text_muted)
+                .add_modifier(Modifier::ITALIC),
         ),
     ]));
 
@@ -330,11 +346,19 @@ fn build_sub_agent_lines<'a>(sub_agent: &crate::tui::app::ActiveSubAgent, theme:
 }
 
 /// Build lines for a pending prompt.
-fn build_prompt_lines<'a>(prompt: &crate::tui::app::PendingPrompt, theme: &'a Theme) -> Vec<Line<'a>> {
+fn build_prompt_lines<'a>(
+    prompt: &crate::tui::app::PendingPrompt,
+    theme: &'a Theme,
+) -> Vec<Line<'a>> {
     let mut lines = Vec::new();
 
     lines.push(Line::from(vec![
-        Span::styled("? ".to_string(), Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "? ".to_string(),
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             prompt.question.clone(),
             Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
@@ -345,34 +369,44 @@ fn build_prompt_lines<'a>(prompt: &crate::tui::app::PendingPrompt, theme: &'a Th
         let is_selected = idx == prompt.selected_option;
         let prefix = if is_selected { "\u{203A} " } else { "  " }; // ›
         let style = if is_selected {
-            Style::default().fg(theme.success).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text)
         };
 
         let mut spans = vec![
             Span::styled(prefix.to_string(), style),
-            Span::styled(format!("{}. ", idx + 1), Style::default().fg(theme.text_muted)),
+            Span::styled(
+                format!("{}. ", idx + 1),
+                Style::default().fg(theme.text_muted),
+            ),
             Span::styled(option.label.clone(), style),
         ];
 
         if let Some(ref desc) = option.description {
-            spans.push(Span::styled(" - ".to_string(), Style::default().fg(theme.text_muted)));
+            spans.push(Span::styled(
+                " - ".to_string(),
+                Style::default().fg(theme.text_muted),
+            ));
             spans.push(Span::styled(
                 desc.clone(),
-                Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+                Style::default()
+                    .fg(theme.text_muted)
+                    .add_modifier(Modifier::ITALIC),
             ));
         }
 
         lines.push(Line::from(spans));
     }
 
-    lines.push(Line::from(vec![
-        Span::styled(
-            "  [\u{2191}/\u{2193} or 1-9 to select, Enter to confirm]".to_string(),
-            Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
-        ),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "  [\u{2191}/\u{2193} or 1-9 to select, Enter to confirm]".to_string(),
+        Style::default()
+            .fg(theme.text_muted)
+            .add_modifier(Modifier::ITALIC),
+    )]));
 
     lines
 }
@@ -443,15 +477,13 @@ fn render_input(frame: &mut Frame, app: &App, area: Rect, is_active: bool, theme
         InputMode::Normal => " Input ",
     };
 
-    let input = Paragraph::new(input_text)
-        .style(input_style)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color))
-                .title(title)
-                .style(Style::default().bg(theme.bg_panel)),
-        );
+    let input = Paragraph::new(input_text).style(input_style).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color))
+            .title(title)
+            .style(Style::default().bg(theme.bg_panel)),
+    );
 
     frame.render_widget(input, area);
 
@@ -482,7 +514,9 @@ fn render_themed_markdown<'a>(text: &str, inner_width: usize, theme: &'a Theme) 
                     };
                     lines.push(Line::from(vec![Span::styled(
                         format!("  {}", display_line),
-                        Style::default().fg(theme.accent).add_modifier(Modifier::DIM),
+                        Style::default()
+                            .fg(theme.accent)
+                            .add_modifier(Modifier::DIM),
                     )]));
                 }
                 code_block_lines.clear();
@@ -509,7 +543,10 @@ fn render_themed_markdown<'a>(text: &str, inner_width: usize, theme: &'a Theme) 
             // Wrap headers if too long
             let wrapped = wrap(header_text, inner_width);
             for wrapped_line in wrapped {
-                lines.push(Line::from(vec![Span::styled(wrapped_line.to_string(), style)]));
+                lines.push(Line::from(vec![Span::styled(
+                    wrapped_line.to_string(),
+                    style,
+                )]));
             }
             continue;
         }
@@ -551,7 +588,10 @@ fn render_themed_markdown<'a>(text: &str, inner_width: usize, theme: &'a Theme) 
                 let content_spans = parse_inline_markdown(&wrapped_line, theme);
                 let mut spans = vec![Span::raw(indent_str.clone())];
                 if idx == 0 {
-                    spans.push(Span::styled(num_prefix.to_string(), Style::default().fg(theme.text_muted)));
+                    spans.push(Span::styled(
+                        num_prefix.to_string(),
+                        Style::default().fg(theme.text_muted),
+                    ));
                 } else {
                     spans.push(Span::raw(" ".repeat(prefix_len))); // continuation indent
                 }
@@ -584,7 +624,9 @@ fn render_themed_markdown<'a>(text: &str, inner_width: usize, theme: &'a Theme) 
             };
             lines.push(Line::from(vec![Span::styled(
                 format!("  {}", display_line),
-                Style::default().fg(theme.accent).add_modifier(Modifier::DIM),
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::DIM),
             )]));
         }
     }
@@ -632,8 +674,12 @@ fn parse_inline_markdown<'a>(text: &str, theme: &'a Theme) -> Vec<Span<'a>> {
     let text_style = Style::default().fg(theme.text);
     let code_style = Style::default().fg(theme.accent);
     let bold_style = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
-    let italic_style = Style::default().fg(theme.text).add_modifier(Modifier::ITALIC);
-    let link_style = Style::default().fg(theme.info).add_modifier(Modifier::UNDERLINED);
+    let italic_style = Style::default()
+        .fg(theme.text)
+        .add_modifier(Modifier::ITALIC);
+    let link_style = Style::default()
+        .fg(theme.info)
+        .add_modifier(Modifier::UNDERLINED);
 
     while let Some(ch) = chars.next() {
         match ch {
@@ -706,7 +752,7 @@ fn parse_inline_markdown<'a>(text: &str, theme: &'a Theme) -> Vec<Span<'a>> {
                 }
                 if found_close && chars.peek() == Some(&'(') {
                     chars.next(); // consume (
-                    // Skip the URL
+                                  // Skip the URL
                     while let Some(&next) = chars.peek() {
                         if next == ')' {
                             chars.next();
@@ -736,4 +782,3 @@ fn parse_inline_markdown<'a>(text: &str, theme: &'a Theme) -> Vec<Span<'a>> {
 
     spans
 }
-

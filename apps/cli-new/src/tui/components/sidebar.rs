@@ -70,8 +70,8 @@ fn build_sidebar_items(app: &App, max_width: usize, theme: &Theme) -> Vec<ListIt
         if is_expanded {
             if let Some(sessions) = app.sessions.get(&repo.id) {
                 for (session_idx, session) in sessions.iter().enumerate() {
-                    let is_session_selected =
-                        repo_idx == app.selected_repo_idx && app.selected_session_idx == session_idx + 1;
+                    let is_session_selected = repo_idx == app.selected_repo_idx
+                        && app.selected_session_idx == session_idx + 1;
 
                     let title = truncate_str(&session.title, max_width.saturating_sub(6));
 

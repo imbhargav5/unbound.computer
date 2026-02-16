@@ -95,13 +95,13 @@ impl Theme {
             bg_user_message: Color::Rgb(0x1A, 0x24, 0x35), // dark blue-gray for user messages
 
             // Borders
-            border: Color::Rgb(0x4E, 0x57, 0x6A),        // black-70
+            border: Color::Rgb(0x4E, 0x57, 0x6A), // black-70
             border_active: Color::Rgb(0xEE, 0xD2, 0x63), // yellow-80 (brand)
 
             // Text - from white palette
-            text: Color::Rgb(0xFF, 0xFF, 0xFF),           // white-100
+            text: Color::Rgb(0xFF, 0xFF, 0xFF), // white-100
             text_secondary: Color::Rgb(0xE0, 0xE4, 0xEB), // white-80
-            text_muted: Color::Rgb(0xBF, 0xC6, 0xD4),     // white-60
+            text_muted: Color::Rgb(0xBF, 0xC6, 0xD4), // white-60
 
             // Accent (brand yellow)
             accent: Color::Rgb(0xEE, 0xD2, 0x63), // yellow-80
@@ -113,9 +113,9 @@ impl Theme {
             info: Color::Rgb(0x8E, 0xB2, 0xEB),    // blue
 
             // Message colors
-            user_message: Color::Rgb(0x8E, 0xB2, 0xEB),   // blue
+            user_message: Color::Rgb(0x8E, 0xB2, 0xEB), // blue
             assistant_message: Color::Rgb(0x8E, 0xEF, 0xE8), // green-100
-            system_message: Color::Rgb(0xEE, 0xD2, 0x63),  // yellow-80
+            system_message: Color::Rgb(0xEE, 0xD2, 0x63), // yellow-80
 
             // Spinner
             spinner: Color::Rgb(0xDC, 0xB6, 0xF7), // purple-100

@@ -14,27 +14,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
       - uses: ./.github/actions/ci-setup
       - name: test
-        run: pnpm run test
+        run: pnpm --filter @unbound/web test
 
   rust:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/daemon
+    strategy:
+      matrix:
+        workspace:
+          - apps/daemon
+          - apps/cli-new
+          - packages/observability
     steps:
       - uses: actions/checkout@v4
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/daemon -> target
+          workspaces: ${{ matrix.workspace }} -> target
       - name: fmt
-        run: cargo fmt --check
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" fmt
       - name: clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" clippy
       - name: test
-        run: cargo test --workspace
+        run: ./scripts/ci/rust-checks.sh --workspace "${{ matrix.workspace }}" test

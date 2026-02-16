@@ -15,10 +15,51 @@ permissions:
   contents: write
 
 jobs:
+  rust-checks:
+    name: Rust Checks
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: rust cache targets
+        id: rust-cache
+        run: |
+          echo "workspaces<<EOF" >> "$GITHUB_OUTPUT"
+          ./scripts/ci/rust-checks.sh cache-targets >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.rust-cache.outputs.workspaces }}
+
+      - name: fmt
+        run: ./scripts/ci/rust-checks.sh fmt
+
+      - name: clippy
+        run: ./scripts/ci/rust-checks.sh clippy
+
+      - name: test
+        run: ./scripts/ci/rust-checks.sh test
+
   publish:
     name: Publish Release
     # Only run if PR was merged and it's a release branch
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    needs: rust-checks
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}

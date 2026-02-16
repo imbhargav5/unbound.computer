@@ -59,18 +59,13 @@ mod remote;
 use std::path::PathBuf;
 
 /// Runtime export policy mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObservabilityMode {
     /// Development mode: include verbose payloads after basic secret redaction.
+    #[default]
     DevVerbose,
     /// Production mode: export metadata only (no raw payloads).
     ProdMetadataOnly,
-}
-
-impl Default for ObservabilityMode {
-    fn default() -> Self {
-        Self::DevVerbose
-    }
 }
 
 /// PostHog sink configuration.
@@ -211,7 +206,6 @@ pub fn init_with_config(config: LogConfig) {
     #[cfg(feature = "dev")]
     {
         dev::init_dev_subscriber(&config);
-        return;
     }
 
     #[cfg(not(feature = "dev"))]

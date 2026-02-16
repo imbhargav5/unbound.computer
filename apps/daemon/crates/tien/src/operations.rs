@@ -9,6 +9,7 @@ use crate::types::{
     ToolCapabilities,
 };
 use chrono::{SecondsFormat, Utc};
+use std::path::Path;
 use tracing::debug;
 
 /// Check whether a single dependency is installed.
@@ -18,7 +19,7 @@ use tracing::debug;
 pub async fn check_dependency(name: &str) -> Result<DependencyInfo, TienError> {
     debug!("Checking dependency: {}", name);
 
-    let output = tokio::process::Command::new("/bin/zsh")
+    let output = tokio::process::Command::new(login_shell())
         .args(["-l", "-c", &format!("which {}", name)])
         .output()
         .await?;
@@ -188,10 +189,28 @@ async fn try_claude_models_text() -> Option<Vec<String>> {
 }
 
 async fn run_login_shell(command: &str) -> Result<std::process::Output, TienError> {
-    Ok(tokio::process::Command::new("/bin/zsh")
+    Ok(tokio::process::Command::new(login_shell())
         .args(["-l", "-c", command])
         .output()
         .await?)
+}
+
+fn login_shell() -> &'static str {
+    if let Ok(shell) = std::env::var("SHELL") {
+        if shell == "/bin/zsh" {
+            return "/bin/zsh";
+        }
+        if shell == "/bin/bash" {
+            return "/bin/bash";
+        }
+    }
+    if Path::new("/bin/zsh").exists() {
+        "/bin/zsh"
+    } else if Path::new("/bin/bash").exists() {
+        "/bin/bash"
+    } else {
+        "/bin/sh"
+    }
 }
 
 fn normalize_models(models: Vec<String>) -> Option<Vec<String>> {
@@ -215,10 +234,9 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn check_dependency_finds_zsh() {
-        // zsh should always be available on macOS
-        let result = check_dependency("zsh").await.expect("check should succeed");
-        assert_eq!(result.name, "zsh");
+    async fn check_dependency_finds_common_shell() {
+        let result = check_dependency("sh").await.expect("check should succeed");
+        assert_eq!(result.name, "sh");
         assert!(result.installed);
         assert!(result.path.is_some());
     }

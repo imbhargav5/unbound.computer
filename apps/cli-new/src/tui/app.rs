@@ -289,10 +289,7 @@ fn compute_session_preview(
     // 1. Check for active sub-agent
     if let Some(ref agent) = active_sub_agent {
         if agent.status == ToolStatus::Running {
-            let desc = agent
-                .description
-                .as_deref()
-                .unwrap_or(&agent.subagent_type);
+            let desc = agent.description.as_deref().unwrap_or(&agent.subagent_type);
             return Some(format_message_preview(
                 &format!("[{}] {}", agent.subagent_type, desc),
                 max_len,
@@ -902,7 +899,6 @@ impl App {
             .get(session_id)
             .and_then(|s| s.last_message_preview.clone())
     }
-
 }
 
 impl FileStatus {

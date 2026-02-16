@@ -65,11 +65,17 @@ fn full_staging_cycle() {
 #[test]
 fn worktree_lifecycle() {
     let (_dir, repo_path) = common::init_test_repo();
+    let worktree_root = tempfile::tempdir().expect("create temp worktree root");
 
     // 1. Create worktree
-    let wt_path_str =
-        piccolo::create_worktree(&repo_path, "repo-lifecycle-test", "lifecycle-test", None)
-            .expect("create_worktree failed");
+    let wt_path_str = piccolo::create_worktree_with_options(
+        &repo_path,
+        "lifecycle-test",
+        worktree_root.path(),
+        None,
+        None,
+    )
+    .expect("create_worktree failed");
     let wt_path = Path::new(&wt_path_str);
     assert!(wt_path.exists());
 
