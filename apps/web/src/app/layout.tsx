@@ -6,8 +6,8 @@ import { AffonsoWrapper } from "./affonso-wrapper";
 import { AppProviders } from "./app-providers";
 
 export const generateMetadata = async () => ({
-  title: "Nextbase Ultimate",
-  description: "Nextbase Ultimate",
+  title: "Outbound",
+  description: "Outbound",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://outbound.new"
   ),

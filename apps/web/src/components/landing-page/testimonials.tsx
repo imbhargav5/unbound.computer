@@ -12,7 +12,7 @@ export default function Testimonials() {
     <section className="bg-muted/40 px-6 py-24">
       <div className="mx-auto max-w-6xl space-y-8">
         <TitleBlock
-          subtitle="Hear what our satisfied customers have to say about Nextbase"
+          subtitle="Hear what our satisfied customers have to say about Outbound"
           title="Don't  take our word for it"
         />
         <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden pt-10">
