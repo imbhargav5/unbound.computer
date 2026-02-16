@@ -64,8 +64,7 @@ pub async fn git_commit_core(
 
     if stage_all {
         let all_paths = ["."];
-        stage_files(std::path::Path::new(&repo_path), &all_paths)
-            .map_err(map_piccolo_error)?;
+        stage_files(std::path::Path::new(&repo_path), &all_paths).map_err(map_piccolo_error)?;
     }
 
     let result = commit(
@@ -516,7 +515,8 @@ fn resolve_git_repo_path(
                 message: "repository_id must not be empty".to_string(),
             });
         }
-        return resolve_repository_path(&*state.armin, repository_id).map_err(map_resolve_error_core);
+        return resolve_repository_path(&*state.armin, repository_id)
+            .map_err(map_resolve_error_core);
     }
 
     if let Some(path) = params.get("path").and_then(|v| v.as_str()) {
