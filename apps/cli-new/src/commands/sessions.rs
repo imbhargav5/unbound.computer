@@ -18,7 +18,9 @@ pub async fn sessions_list(repository: Option<&str>, format: &OutputFormat) -> R
     };
 
     let response = if let Some(params) = params {
-        client.call_method_with_params(Method::SessionList, params).await?
+        client
+            .call_method_with_params(Method::SessionList, params)
+            .await?
     } else {
         client.call_method(Method::SessionList).await?
     };
@@ -32,13 +34,23 @@ pub async fn sessions_list(repository: Option<&str>, format: &OutputFormat) -> R
                     if sessions.is_empty() {
                         println!("No sessions found");
                     } else {
-                        println!("{:<36} {:<30} {:<10} {}", "ID", "Title", "Status", "Last Accessed");
+                        println!(
+                            "{:<36} {:<30} {:<10} {}",
+                            "ID", "Title", "Status", "Last Accessed"
+                        );
                         println!("{}", "-".repeat(100));
                         for session in sessions {
                             let id = session.get("id").and_then(|v| v.as_str()).unwrap_or("-");
-                            let title = session.get("title").and_then(|v| v.as_str()).unwrap_or("-");
-                            let status = session.get("status").and_then(|v| v.as_str()).unwrap_or("-");
-                            let accessed = session.get("last_accessed_at").and_then(|v| v.as_str()).unwrap_or("-");
+                            let title =
+                                session.get("title").and_then(|v| v.as_str()).unwrap_or("-");
+                            let status = session
+                                .get("status")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("-");
+                            let accessed = session
+                                .get("last_accessed_at")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("-");
                             println!("{:<36} {:<30} {:<10} {}", id, title, status, accessed);
                         }
                     }
@@ -62,7 +74,9 @@ pub async fn sessions_show(id: &str, format: &OutputFormat) -> Result<()> {
     let client = require_daemon().await?;
 
     let params = serde_json::json!({ "id": id });
-    let response = client.call_method_with_params(Method::SessionGet, params).await?;
+    let response = client
+        .call_method_with_params(Method::SessionGet, params)
+        .await?;
 
     if let Some(result) = &response.result {
         match format {
@@ -70,12 +84,42 @@ pub async fn sessions_show(id: &str, format: &OutputFormat) -> Result<()> {
                 if let Some(session) = result.get("session") {
                     println!("Session Details");
                     println!("{}", "-".repeat(50));
-                    output::print_row("ID", session.get("id").and_then(|v| v.as_str()).unwrap_or("-"));
-                    output::print_row("Title", session.get("title").and_then(|v| v.as_str()).unwrap_or("-"));
-                    output::print_row("Repository", session.get("repository_id").and_then(|v| v.as_str()).unwrap_or("-"));
-                    output::print_row("Status", session.get("status").and_then(|v| v.as_str()).unwrap_or("-"));
-                    output::print_row("Created", session.get("created_at").and_then(|v| v.as_str()).unwrap_or("-"));
-                    output::print_row("Accessed", session.get("last_accessed_at").and_then(|v| v.as_str()).unwrap_or("-"));
+                    output::print_row(
+                        "ID",
+                        session.get("id").and_then(|v| v.as_str()).unwrap_or("-"),
+                    );
+                    output::print_row(
+                        "Title",
+                        session.get("title").and_then(|v| v.as_str()).unwrap_or("-"),
+                    );
+                    output::print_row(
+                        "Repository",
+                        session
+                            .get("repository_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-"),
+                    );
+                    output::print_row(
+                        "Status",
+                        session
+                            .get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-"),
+                    );
+                    output::print_row(
+                        "Created",
+                        session
+                            .get("created_at")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-"),
+                    );
+                    output::print_row(
+                        "Accessed",
+                        session
+                            .get("last_accessed_at")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-"),
+                    );
                 } else {
                     println!("Session not found");
                 }
@@ -104,7 +148,9 @@ pub async fn sessions_create(
         "title": title.unwrap_or("New session"),
     });
 
-    let response = client.call_method_with_params(Method::SessionCreate, params).await?;
+    let response = client
+        .call_method_with_params(Method::SessionCreate, params)
+        .await?;
 
     if let Some(result) = &response.result {
         match format {
@@ -131,7 +177,9 @@ pub async fn sessions_delete(id: &str, format: &OutputFormat) -> Result<()> {
     let client = require_daemon().await?;
 
     let params = serde_json::json!({ "id": id });
-    let response = client.call_method_with_params(Method::SessionDelete, params).await?;
+    let response = client
+        .call_method_with_params(Method::SessionDelete, params)
+        .await?;
 
     if response.is_success() {
         output::print_success(&format!("Session {} deleted", id), format);
@@ -147,7 +195,9 @@ pub async fn sessions_messages(id: &str, format: &OutputFormat) -> Result<()> {
     let client = require_daemon().await?;
 
     let params = serde_json::json!({ "session_id": id });
-    let response = client.call_method_with_params(Method::MessageList, params).await?;
+    let response = client
+        .call_method_with_params(Method::MessageList, params)
+        .await?;
 
     if let Some(result) = &response.result {
         let messages = result.get("messages").and_then(|v| v.as_array());
@@ -161,12 +211,22 @@ pub async fn sessions_messages(id: &str, format: &OutputFormat) -> Result<()> {
                         println!("Messages for session {}:", id);
                         println!("{}", "-".repeat(80));
                         for msg in messages {
-                            let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let role = msg
+                                .get("role")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
                             let content = msg.get("content").and_then(|v| v.as_str());
-                            let seq = msg.get("sequence_number").and_then(|v| v.as_i64()).unwrap_or(0);
+                            let seq = msg
+                                .get("sequence_number")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or(0);
 
-                            println!("[{}] {} (seq: {})", role.to_uppercase(),
-                                content.unwrap_or("[encrypted/no key]"), seq);
+                            println!(
+                                "[{}] {} (seq: {})",
+                                role.to_uppercase(),
+                                content.unwrap_or("[encrypted/no key]"),
+                                seq
+                            );
                         }
                     }
                 } else {

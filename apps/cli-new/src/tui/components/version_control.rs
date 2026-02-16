@@ -47,7 +47,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 /// Render the tab bar.
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect, is_active: bool, theme: &Theme) {
     // Include branch name in the tab bar if available
-    let branch_info = app.git_branch.as_ref().map(|b| format!(" ({})", b)).unwrap_or_default();
+    let branch_info = app
+        .git_branch
+        .as_ref()
+        .map(|b| format!(" ({})", b))
+        .unwrap_or_default();
     let titles = vec![format!("Changes{}", branch_info), "All Files".to_string()];
     let selected = match app.vc_tab {
         VcTab::Changes => 0,
@@ -143,7 +147,10 @@ fn render_file_list(frame: &mut Frame, app: &App, area: Rect, is_active: bool, t
 fn render_diff_viewer(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let title = if let Some(file) = app.files.get(app.selected_file_idx) {
         if app.diff_additions > 0 || app.diff_deletions > 0 {
-            format!("Diff: {} (+{} -{}) ", file.path, app.diff_additions, app.diff_deletions)
+            format!(
+                "Diff: {} (+{} -{}) ",
+                file.path, app.diff_additions, app.diff_deletions
+            )
         } else {
             format!("Diff: {}", file.path)
         }
@@ -165,11 +172,19 @@ fn render_diff_viewer(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 } else if line.starts_with('-') && !line.starts_with("---") {
                     (Style::default().fg(theme.error), line)
                 } else if line.starts_with("@@") {
-                    (Style::default().fg(theme.info).add_modifier(Modifier::BOLD), line)
+                    (
+                        Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                        line,
+                    )
                 } else if line.starts_with("diff ") || line.starts_with("index ") {
                     (Style::default().fg(theme.text_muted), line)
                 } else if line.starts_with("---") || line.starts_with("+++") {
-                    (Style::default().fg(theme.text_secondary).add_modifier(Modifier::BOLD), line)
+                    (
+                        Style::default()
+                            .fg(theme.text_secondary)
+                            .add_modifier(Modifier::BOLD),
+                        line,
+                    )
                 } else {
                     (Style::default().fg(theme.text), line)
                 };

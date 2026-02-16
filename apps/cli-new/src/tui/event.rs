@@ -212,7 +212,9 @@ async fn handle_prompt_mode(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Enter => {
             // Submit selection
             let selected_idx = prompt.selected_option;
-            let selected_label = prompt.options.get(selected_idx)
+            let selected_label = prompt
+                .options
+                .get(selected_idx)
                 .map(|o| o.label.clone())
                 .unwrap_or_default();
             let _tool_use_id = prompt.tool_use_id.clone();
@@ -368,7 +370,9 @@ async fn handle_down(app: &mut App) {
             app.chat_auto_scroll = false; // User took control
         }
         Panel::VersionControl => {
-            if app.vc_focus == VcFocus::FileList && app.selected_file_idx < app.files.len().saturating_sub(1) {
+            if app.vc_focus == VcFocus::FileList
+                && app.selected_file_idx < app.files.len().saturating_sub(1)
+            {
                 app.selected_file_idx += 1;
                 // Fetch diff for newly selected file
                 if let Err(e) = app.fetch_selected_file_diff().await {
@@ -441,7 +445,10 @@ async fn handle_enter(app: &mut App) {
                         Ok(()) => {
                             // Start streaming subscription for this session
                             if let Err(e) = app.start_subscription().await {
-                                app.set_status_message(format!("Failed to connect to session stream: {}", e));
+                                app.set_status_message(format!(
+                                    "Failed to connect to session stream: {}",
+                                    e
+                                ));
                             } else {
                                 app.set_status_message("Session loaded".to_string());
                             }

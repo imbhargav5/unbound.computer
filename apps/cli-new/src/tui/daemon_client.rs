@@ -263,17 +263,19 @@ impl App {
                             match ClaudeCodeMessage::from_json(content) {
                                 Ok(parsed) => Some((parsed, None)),
                                 Err(_) => Some((
-                                    ClaudeCodeMessage::Result(super::claude_events::ResultMessage {
-                                        subtype: None,
-                                        is_error: None,
-                                        result: None,
-                                        duration_ms: None,
-                                        duration_api_ms: None,
-                                        num_turns: None,
-                                        session_id: None,
-                                        cost_usd: None,
-                                        usage: None,
-                                    }),
+                                    ClaudeCodeMessage::Result(
+                                        super::claude_events::ResultMessage {
+                                            subtype: None,
+                                            is_error: None,
+                                            result: None,
+                                            duration_ms: None,
+                                            duration_api_ms: None,
+                                            num_turns: None,
+                                            session_id: None,
+                                            cost_usd: None,
+                                            usage: None,
+                                        },
+                                    ),
                                     Some(content.to_string()),
                                 )),
                             }
@@ -772,14 +774,20 @@ async fn fetch_sessions(client: &IpcClient, repository_id: &str) -> Result<Vec<S
 }
 
 /// Fetch git status from the daemon.
-async fn fetch_git_status(client: &IpcClient, repository_id: &str) -> Result<(Vec<FileEntry>, Option<String>)> {
+async fn fetch_git_status(
+    client: &IpcClient,
+    repository_id: &str,
+) -> Result<(Vec<FileEntry>, Option<String>)> {
     let params = serde_json::json!({ "repository_id": repository_id });
     let response = client
         .call_method_with_params(Method::GitStatus, params)
         .await?;
 
     if let Some(result) = &response.result {
-        let branch = result.get("branch").and_then(|v| v.as_str()).map(String::from);
+        let branch = result
+            .get("branch")
+            .and_then(|v| v.as_str())
+            .map(String::from);
 
         let files = result
             .get("files")
@@ -788,7 +796,10 @@ async fn fetch_git_status(client: &IpcClient, repository_id: &str) -> Result<(Ve
                 arr.iter()
                     .filter_map(|f| {
                         let path = f.get("path").and_then(|v| v.as_str())?;
-                        let status_str = f.get("status").and_then(|v| v.as_str()).unwrap_or("unchanged");
+                        let status_str = f
+                            .get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unchanged");
                         let staged = f.get("staged").and_then(|v| v.as_bool()).unwrap_or(false);
 
                         let status = match status_str {
@@ -818,7 +829,11 @@ async fn fetch_git_status(client: &IpcClient, repository_id: &str) -> Result<(Ve
 }
 
 /// Fetch diff for a specific file from the daemon.
-async fn fetch_file_diff(client: &IpcClient, repository_id: &str, file_path: &str) -> Result<(String, u32, u32)> {
+async fn fetch_file_diff(
+    client: &IpcClient,
+    repository_id: &str,
+    file_path: &str,
+) -> Result<(String, u32, u32)> {
     let params = serde_json::json!({
         "repository_id": repository_id,
         "file_path": file_path,
@@ -829,12 +844,21 @@ async fn fetch_file_diff(client: &IpcClient, repository_id: &str, file_path: &st
         .await?;
 
     if let Some(result) = &response.result {
-        let diff = result.get("diff").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let additions = result.get("additions").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-        let deletions = result.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let diff = result
+            .get("diff")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let additions = result
+            .get("additions")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+        let deletions = result
+            .get("deletions")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
         Ok((diff, additions, deletions))
     } else {
         Ok((String::new(), 0, 0))
     }
 }
-

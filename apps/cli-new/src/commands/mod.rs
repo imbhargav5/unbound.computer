@@ -6,9 +6,11 @@ mod repos;
 mod sessions;
 
 pub use auth::{login, logout, status};
-pub use daemon::{daemon_start, daemon_stop, daemon_status, daemon_logs};
-pub use repos::{repos_list, repos_add, repos_remove};
-pub use sessions::{sessions_list, sessions_show, sessions_create, sessions_delete, sessions_messages};
+pub use daemon::{daemon_logs, daemon_start, daemon_status, daemon_stop};
+pub use repos::{repos_add, repos_list, repos_remove};
+pub use sessions::{
+    sessions_create, sessions_delete, sessions_list, sessions_messages, sessions_show,
+};
 
 use anyhow::Result;
 use daemon_config_and_utils::Paths;

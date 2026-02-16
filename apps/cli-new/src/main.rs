@@ -142,8 +142,9 @@ async fn ensure_authenticated() -> anyhow::Result<()> {
     use std::io::{self, Write};
 
     // Check if daemon is running - never auto-start, daemon is a singleton
-    let client = commands::get_daemon_client().await
-        .map_err(|_| anyhow::anyhow!("Daemon is not running. Start it separately with 'unbound daemon start'"))?;
+    let client = commands::get_daemon_client().await.map_err(|_| {
+        anyhow::anyhow!("Daemon is not running. Start it separately with 'unbound daemon start'")
+    })?;
 
     // Check auth status
     let response = client.call_method(daemon_ipc::Method::AuthStatus).await?;
@@ -365,9 +366,7 @@ async fn main() {
                 SessionCommands::Create { repository, title } => {
                     commands::sessions_create(&repository, title.as_deref(), &cli.format).await
                 }
-                SessionCommands::Delete { id } => {
-                    commands::sessions_delete(&id, &cli.format).await
-                }
+                SessionCommands::Delete { id } => commands::sessions_delete(&id, &cli.format).await,
                 SessionCommands::Messages { id } => {
                     commands::sessions_messages(&id, &cli.format).await
                 }

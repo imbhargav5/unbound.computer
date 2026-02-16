@@ -147,11 +147,24 @@ pub struct StreamEventMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
-    ContentBlockDelta { delta: ContentDelta, index: Option<u32> },
-    ContentBlockStart { index: u32, content_block: Option<ContentBlock> },
-    ContentBlockStop { index: u32 },
-    MessageStart { message: Option<serde_json::Value> },
-    MessageDelta { delta: Option<serde_json::Value>, usage: Option<Usage> },
+    ContentBlockDelta {
+        delta: ContentDelta,
+        index: Option<u32>,
+    },
+    ContentBlockStart {
+        index: u32,
+        content_block: Option<ContentBlock>,
+    },
+    ContentBlockStop {
+        index: u32,
+    },
+    MessageStart {
+        message: Option<serde_json::Value>,
+    },
+    MessageDelta {
+        delta: Option<serde_json::Value>,
+        usage: Option<Usage>,
+    },
     MessageStop,
     #[serde(other)]
     Unknown,
@@ -161,8 +174,12 @@ pub enum StreamEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentDelta {
-    TextDelta { text: String },
-    InputJsonDelta { partial_json: String },
+    TextDelta {
+        text: String,
+    },
+    InputJsonDelta {
+        partial_json: String,
+    },
     #[serde(other)]
     Unknown,
 }
@@ -213,7 +230,10 @@ impl AssistantMessage {
 
     /// Check if this message contains any tool use.
     pub fn has_tool_use(&self) -> bool {
-        self.message.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)))
+        self.message
+            .content
+            .iter()
+            .any(|b| matches!(b, ContentBlock::ToolUse(_)))
     }
 }
 
@@ -295,22 +315,34 @@ impl ToolUseBlock {
     /// Get a preview string for the tool input.
     pub fn input_preview(&self) -> Option<String> {
         match self.name.as_str() {
-            "Read" | "Write" => self.input.get("file_path")
+            "Read" | "Write" => self
+                .input
+                .get("file_path")
                 .and_then(|v| v.as_str())
                 .map(|s| truncate_path(s, 40)),
-            "Bash" => self.input.get("command")
+            "Bash" => self
+                .input
+                .get("command")
                 .and_then(|v| v.as_str())
                 .map(|s| truncate_str(s, 50)),
-            "Glob" | "Grep" => self.input.get("pattern")
+            "Glob" | "Grep" => self
+                .input
+                .get("pattern")
                 .and_then(|v| v.as_str())
                 .map(String::from),
-            "Edit" => self.input.get("file_path")
+            "Edit" => self
+                .input
+                .get("file_path")
                 .and_then(|v| v.as_str())
                 .map(|s| truncate_path(s, 40)),
-            "Task" => self.input.get("description")
+            "Task" => self
+                .input
+                .get("description")
                 .and_then(|v| v.as_str())
                 .map(|s| truncate_str(s, 40)),
-            "WebFetch" | "WebSearch" => self.input.get("url")
+            "WebFetch" | "WebSearch" => self
+                .input
+                .get("url")
                 .or_else(|| self.input.get("query"))
                 .and_then(|v| v.as_str())
                 .map(|s| truncate_str(s, 40)),
@@ -353,7 +385,8 @@ mod tests {
 
     #[test]
     fn test_parse_system_message() {
-        let json = r#"{"type":"system","subtype":"init","session_id":"abc123","model":"claude-3-opus"}"#;
+        let json =
+            r#"{"type":"system","subtype":"init","session_id":"abc123","model":"claude-3-opus"}"#;
         let msg = ClaudeCodeMessage::from_json(json).unwrap();
         match msg {
             ClaudeCodeMessage::System(s) => {
@@ -402,7 +435,8 @@ mod tests {
 
     #[test]
     fn test_parse_assistant_message_with_text() {
-        let json = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
+        let json =
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
         let msg = ClaudeCodeMessage::from_json(json).unwrap();
         match msg {
             ClaudeCodeMessage::Assistant(a) => {
@@ -497,18 +531,16 @@ mod tests {
         let json = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"},"index":0}}"#;
         let msg = ClaudeCodeMessage::from_json(json).unwrap();
         match msg {
-            ClaudeCodeMessage::StreamEvent(s) => {
-                match s.event {
-                    StreamEvent::ContentBlockDelta { delta, index } => {
-                        assert_eq!(index, Some(0));
-                        match delta {
-                            ContentDelta::TextDelta { text } => assert_eq!(text, "Hello"),
-                            _ => panic!("Expected TextDelta"),
-                        }
+            ClaudeCodeMessage::StreamEvent(s) => match s.event {
+                StreamEvent::ContentBlockDelta { delta, index } => {
+                    assert_eq!(index, Some(0));
+                    match delta {
+                        ContentDelta::TextDelta { text } => assert_eq!(text, "Hello"),
+                        _ => panic!("Expected TextDelta"),
                     }
-                    _ => panic!("Expected ContentBlockDelta"),
                 }
-            }
+                _ => panic!("Expected ContentBlockDelta"),
+            },
             _ => panic!("Expected StreamEvent message"),
         }
     }

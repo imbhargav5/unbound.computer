@@ -22,7 +22,11 @@ pub async fn login(format: &OutputFormat) -> Result<()> {
     let response = client.call_method(Method::AuthStatus).await?;
 
     if let Some(result) = &response.result {
-        if result.get("logged_in").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if result
+            .get("logged_in")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             let email = result
                 .get("email")
                 .and_then(|v| v.as_str())
@@ -60,7 +64,10 @@ pub async fn login(format: &OutputFormat) -> Result<()> {
         "password": password,
     });
 
-    match client.call_method_with_params(Method::AuthLogin, params).await {
+    match client
+        .call_method_with_params(Method::AuthLogin, params)
+        .await
+    {
         Ok(response) => {
             if response.is_success() {
                 if let Some(result) = &response.result {
@@ -120,14 +127,23 @@ pub async fn status(format: &OutputFormat) -> Result<()> {
     let response = client.call_method(Method::AuthStatus).await?;
 
     if let Some(result) = &response.result {
-        let logged_in = result.get("logged_in").and_then(|v| v.as_bool()).unwrap_or(false);
+        let logged_in = result
+            .get("logged_in")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         match format {
             OutputFormat::Text => {
                 println!("Daemon:   running");
                 if logged_in {
-                    let user_id = result.get("user_id").and_then(|v| v.as_str()).unwrap_or("unknown");
-                    let expires_at = result.get("expires_at").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let user_id = result
+                        .get("user_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    let expires_at = result
+                        .get("expires_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
                     println!("Auth:     logged in");
                     println!("User ID:  {}", user_id);
                     println!("Expires:  {}", expires_at);

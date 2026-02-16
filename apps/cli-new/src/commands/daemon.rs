@@ -23,17 +23,14 @@ pub async fn daemon_start(foreground: bool) -> Result<()> {
 
     if foreground {
         // Run in foreground (blocking)
-        let status = Command::new(&daemon_bin)
-            .arg("--foreground")
-            .status()?;
+        let status = Command::new(&daemon_bin).arg("--foreground").status()?;
 
         if !status.success() {
             anyhow::bail!("Daemon exited with status: {:?}", status.code());
         }
     } else {
         // Run in background
-        let child = Command::new(&daemon_bin)
-            .spawn()?;
+        let child = Command::new(&daemon_bin).spawn()?;
 
         println!("Daemon started (PID: {})", child.id());
 
@@ -102,8 +99,14 @@ pub async fn daemon_status(format: &OutputFormat) -> Result<()> {
     let response = client.call_method(Method::Health).await?;
 
     if let Some(result) = &response.result {
-        let version = result.get("version").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let status = result.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let version = result
+            .get("version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let status = result
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
         let pid = std::fs::read_to_string(&pid_path).ok();
 
         match format {

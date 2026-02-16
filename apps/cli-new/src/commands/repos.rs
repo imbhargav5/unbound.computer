@@ -68,7 +68,9 @@ pub async fn repos_add(path: &str, format: &OutputFormat) -> Result<()> {
         "is_git_repository": is_git,
     });
 
-    let response = client.call_method_with_params(Method::RepositoryAdd, params).await?;
+    let response = client
+        .call_method_with_params(Method::RepositoryAdd, params)
+        .await?;
 
     if let Some(result) = &response.result {
         match format {
@@ -95,7 +97,9 @@ pub async fn repos_remove(id: &str, format: &OutputFormat) -> Result<()> {
     let client = require_daemon().await?;
 
     let params = serde_json::json!({ "id": id });
-    let response = client.call_method_with_params(Method::RepositoryRemove, params).await?;
+    let response = client
+        .call_method_with_params(Method::RepositoryRemove, params)
+        .await?;
 
     if response.is_success() {
         output::print_success(&format!("Repository {} removed", id), format);
