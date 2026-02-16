@@ -18,6 +18,7 @@ final class SyncedSessionDetailViewModel {
     private let messageService: SessionDetailMessageLoading
     private let runtimeStatusService: SessionDetailRuntimeStatusStreaming
     private let remoteCommandService: RemoteCommandService
+    private let presenceService: DevicePresenceService
 
     private(set) var messages: [Message] = []
     private(set) var isLoading = false
@@ -50,18 +51,30 @@ final class SyncedSessionDetailViewModel {
         runtimeStatus?.normalizedErrorMessage
     }
 
+    var daemonAvailability: DeviceDaemonAvailability {
+        guard let deviceId = session.deviceId else {
+            return .unknown
+        }
+        return presenceService.daemonAvailability(id: deviceId.uuidString.lowercased())
+    }
+
     var canSendMessage: Bool {
-        session.deviceId != nil && codingSessionStatus != .notAvailable && !isSending && !isStopping
+        session.deviceId != nil
+            && daemonAvailability != .offline
+            && !isSending
+            && !isStopping
     }
 
     var canStopClaude: Bool {
         session.deviceId != nil
+            && daemonAvailability != .offline
             && (codingSessionStatus == .running || codingSessionStatus == .waiting)
             && !isStopping
     }
 
     var canRunPRActions: Bool {
         session.deviceId != nil
+            && daemonAvailability != .offline
             && !isSending
             && !isStopping
             && !isCreatingPullRequest
@@ -72,12 +85,14 @@ final class SyncedSessionDetailViewModel {
         session: SyncedSession,
         messageService: SessionDetailMessageLoading? = nil,
         runtimeStatusService: SessionDetailRuntimeStatusStreaming? = nil,
-        remoteCommandService: RemoteCommandService? = nil
+        remoteCommandService: RemoteCommandService? = nil,
+        presenceService: DevicePresenceService? = nil
     ) {
         self.session = session
         self.messageService = messageService ?? SessionDetailMessageService()
         self.runtimeStatusService = runtimeStatusService ?? AblyRuntimeStatusService()
         self.remoteCommandService = remoteCommandService ?? .shared
+        self.presenceService = presenceService ?? .shared
     }
 
     func start() async {
