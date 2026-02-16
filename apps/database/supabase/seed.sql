@@ -275,7 +275,7 @@ INSERT INTO "public"."marketing_changelog" (
                     {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "PATCH /api/v2/settings - Update user settings"}]}]}
                 ]},
                 {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Documentation"}]},
-                {"type": "paragraph", "content": [{"type": "text", "text": "Full API documentation is available at docs.nextbase.dev/api. We have also added interactive examples using Swagger UI."}]}
+                {"type": "paragraph", "content": [{"type": "text", "text": "Full API documentation is available at docs.outbound.new/api. We have also added interactive examples using Swagger UI."}]}
             ]
         }'::jsonb,
         'https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=1200',
@@ -377,7 +377,7 @@ INSERT INTO "auth"."users" (
         '00000000-0000-0000-0000-000000000000',
         '00000000-0000-0000-0000-000000000001',
         'authenticated', 'authenticated',
-        'testadmin@usenextbase.com',
+        'testadmin@outbound.new',
         '$2a$10$F/GG/iuE6hgeaosm8U599O5I2ykYU6llUnhGdNGPkxC3LDxxXXBOK',
         '2024-01-01 00:00:00+00', NULL, '', NULL, '', NULL, '', '', NULL,
         '2024-11-01 09:00:00+00',
