@@ -64,7 +64,7 @@ pub async fn git_commit_core(
 
     if stage_all {
         let all_paths = ["."];
-        stage_files(std::path::Path::new(&repo_path), &all_paths).map_err(map_piccolo_error)?;
+        stage_files(std::path::Path::new(&repo_path), &all_paths).map_err(map_stage_error)?;
     }
 
     let result = commit(
@@ -505,7 +505,7 @@ fn resolve_git_repo_path(
         }
         return resolve_working_dir_from_str(&*state.armin, session_id)
             .map(|resolved| resolved.working_dir)
-            .map_err(map_resolve_error);
+            .map_err(map_resolve_error_core);
     }
 
     if let Some(repository_id) = params.get("repository_id").and_then(|v| v.as_str()) {
@@ -561,6 +561,13 @@ fn map_piccolo_error(err: PiccoloError) -> GitCoreError {
     }
 }
 
+fn map_stage_error(err: String) -> GitCoreError {
+    GitCoreError {
+        code: "command_failed".to_string(),
+        message: err,
+    }
+}
+
 fn git_core_error_response(id: &str, err: GitCoreError) -> Response {
     let code = match err.code.as_str() {
         "invalid_params" => error_codes::INVALID_PARAMS,
@@ -572,8 +579,8 @@ fn git_core_error_response(id: &str, err: GitCoreError) -> Response {
         id,
         code,
         &err.message,
-        Some(serde_json::json!({
+        serde_json::json!({
             "error_code": err.code,
-        })),
+        }),
     )
 }
