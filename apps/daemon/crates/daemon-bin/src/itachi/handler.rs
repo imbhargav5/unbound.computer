@@ -10,6 +10,8 @@ const SUPPORTED_COMMAND_TYPES: &[&str] = &[
     "session.create.v1",
     "claude.send.v1",
     "claude.stop.v1",
+    "git.commit.v1",
+    "git.push.v1",
     "gh.pr.create.v1",
     "gh.pr.view.v1",
     "gh.pr.list.v1",
