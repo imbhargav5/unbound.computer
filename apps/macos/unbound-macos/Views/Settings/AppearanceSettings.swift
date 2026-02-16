@@ -73,12 +73,20 @@ struct ThemeCard: View {
     let isSelected: Bool
     var onSelect: () -> Void
 
+    private var isAvailable: Bool {
+        mode == .dark
+    }
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     var body: some View {
-        Button(action: onSelect) {
+        Button(action: {
+            if isAvailable {
+                onSelect()
+            }
+        }) {
             VStack(spacing: Spacing.sm) {
                 // Preview
                 ThemePreview(mode: mode)
@@ -88,6 +96,7 @@ struct ThemeCard: View {
                         RoundedRectangle(cornerRadius: Radius.md)
                             .stroke(isSelected ? colors.primary : colors.border, lineWidth: isSelected ? BorderWidth.thick : BorderWidth.default)
                     )
+                    .opacity(isAvailable ? 1 : 0.5)
 
                 // Label
                 HStack(spacing: Spacing.xs) {
@@ -98,9 +107,14 @@ struct ThemeCard: View {
                         .font(Typography.caption)
                 }
                 .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
+                .opacity(isAvailable ? 1 : 0.5)
 
-                // Selection indicator
-                if isSelected {
+                // Coming soon / Selection indicator
+                if !isAvailable {
+                    Text("Coming soon")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                } else if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: IconSize.md))
                         .foregroundStyle(colors.primary)
@@ -117,6 +131,7 @@ struct ThemeCard: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(!isAvailable)
     }
 }
 

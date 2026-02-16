@@ -26,6 +26,10 @@ struct RightSidebarPanel: View {
     // Working directory
     let workingDirectory: String?
 
+    // Commit dropdown
+    @State private var isCommitDropdownOpen = false
+    @State private var hoveredDropdownItem: String?
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -83,9 +87,7 @@ struct RightSidebarPanel: View {
 
             Spacer()
 
-            if !gitViewModel.stagedFiles.isEmpty {
-                commitSplitButton
-            }
+            commitSplitButton
         }
         .padding(.horizontal, Spacing.lg)
         .frame(height: 48)
@@ -146,38 +148,150 @@ struct RightSidebarPanel: View {
 
     // MARK: - Commit Split Button
 
+    private var isCommitDisabled: Bool {
+        gitViewModel.stagedFiles.isEmpty || gitViewModel.isPerformingAction
+    }
+
+    private var isGHAuthenticated: Bool {
+        guard let auth = gitViewModel.ghAuthStatus else { return false }
+        return auth.authenticatedHostCount > 0
+    }
+
     private var commitSplitButton: some View {
-        HStack(spacing: 0) {
+        let enabledBg = Color(hex: "22C55E")
+        let disabledBg = Color(hex: "1F3D2A")
+
+        return HStack(spacing: 0) {
+            // Left: Commit button
             Button {
                 Task { await gitViewModel.commit() }
             } label: {
                 Text("Commit")
-                    .font(GeistFont.sans(size: FontSize.sm, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(GeistFont.sans(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(isCommitDisabled ? 0.5 : 1))
                     .padding(.vertical, 6)
-                    .padding(.horizontal, Spacing.md)
+                    .padding(.horizontal, 12)
             }
             .buttonStyle(.plain)
+            .disabled(isCommitDisabled)
 
-            Divider()
-                .frame(height: 20)
-                .background(Color(hex: "2ECC71"))
+            // Divider between buttons
+            Rectangle()
+                .fill(Color(hex: "2ECC71"))
+                .frame(width: 1)
+                .padding(.vertical, 6)
+                .opacity(isCommitDisabled ? 0.5 : 1)
 
+            // Right: Chevron dropdown trigger
             Button {
-                // Commit dropdown options placeholder
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isCommitDropdownOpen.toggle()
+                }
             } label: {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: IconSize.sm))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(isCommitDisabled ? 0.5 : 1))
+                    .rotationEffect(.degrees(isCommitDropdownOpen ? 180 : 0))
                     .padding(.vertical, 6)
-                    .padding(.horizontal, Spacing.sm)
+                    .padding(.horizontal, 8)
             }
             .buttonStyle(.plain)
+            .disabled(isCommitDisabled)
+            .popover(isPresented: $isCommitDropdownOpen, arrowEdge: .bottom) {
+                commitDropdownMenu
+            }
         }
         .frame(height: 32)
-        .background(colors.success)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-        .disabled(gitViewModel.isPerformingAction)
+        .background(isCommitDisabled ? disabledBg.opacity(0.6) : enabledBg)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 6,
+                bottomLeadingRadius: 6,
+                bottomTrailingRadius: 6,
+                topTrailingRadius: 6
+            )
+        )
+    }
+
+    private var commitDropdownMenu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            commitDropdownItem(
+                icon: "arrow.up",
+                label: "Commit + Push",
+                id: "push",
+                disabled: false
+            ) {
+                isCommitDropdownOpen = false
+                Task { await gitViewModel.commitAndPush() }
+            }
+
+            commitDropdownItem(
+                icon: "arrow.triangle.2.circlepath",
+                label: "Commit + Sync",
+                id: "sync",
+                disabled: false
+            ) {
+                isCommitDropdownOpen = false
+                Task { await gitViewModel.commitAndPush() }
+            }
+
+            commitDropdownItem(
+                icon: "arrow.triangle.pull",
+                label: "Commit + Pull Request",
+                id: "pr",
+                disabled: !isGHAuthenticated
+            ) {
+                isCommitDropdownOpen = false
+                Task {
+                    await gitViewModel.commitAndPush()
+                    guard gitViewModel.lastError == nil else { return }
+                    selectedTab = .pullRequests
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(width: 200)
+        .background(Color(hex: "1A1A1A"))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color(hex: "2A2A2A"), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 12, y: 4)
+    }
+
+    private func commitDropdownItem(
+        icon: String,
+        label: String,
+        id: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color(hex: "A3A3A3").opacity(disabled ? 0.4 : 1))
+                    .frame(width: 14, height: 14)
+                Text(label)
+                    .font(GeistFont.sans(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: "E5E5E5").opacity(disabled ? 0.4 : 1))
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                hoveredDropdownItem == id && !disabled
+                    ? Color(hex: "2A2A2A")
+                    : Color.clear
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { isHovered in
+            hoveredDropdownItem = isHovered ? id : nil
+        }
     }
 
     // MARK: - Error Banner

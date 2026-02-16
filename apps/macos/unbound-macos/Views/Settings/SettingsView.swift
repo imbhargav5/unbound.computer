@@ -60,7 +60,7 @@ struct SettingsView: View {
         case .notifications:
             PlaceholderSettings(section: .notifications)
         case .privacy:
-            PlaceholderSettings(section: .privacy)
+            PrivacySettings()
         }
     }
 }
