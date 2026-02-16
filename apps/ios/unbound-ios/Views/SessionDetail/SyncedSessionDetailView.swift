@@ -9,6 +9,12 @@ struct SyncedSessionDetailView: View {
     @State private var hasAppliedInitialBottomScroll = false
     @State private var showCreatePRComposer = false
     @State private var deleteBranchOnMerge = false
+    @State private var showCommitComposer = false
+    @State private var showPushComposer = false
+    @State private var commitMessage = ""
+    @State private var commitStageAll = true
+    @State private var pushRemote = ""
+    @State private var pushBranch = ""
     @State private var presenceService = DevicePresenceService.shared
 
     private let syncedDataService = SyncedDataService.shared
@@ -74,10 +80,26 @@ struct SyncedSessionDetailView: View {
                     }
 
                     if session.deviceId != nil {
-                        Button {
-                            showCreatePRComposer.toggle()
+                        Menu {
+                            Button {
+                                showCreatePRComposer = true
+                            } label: {
+                                Label("Create PR", systemImage: "arrow.triangle.pull")
+                            }
+
+                            Button {
+                                showCommitComposer = true
+                            } label: {
+                                Label("Commit", systemImage: "checkmark.circle")
+                            }
+
+                            Button {
+                                showPushComposer = true
+                            } label: {
+                                Label("Push", systemImage: "arrow.up.circle")
+                            }
                         } label: {
-                            Image(systemName: "arrow.triangle.pull")
+                            Image(systemName: "ellipsis.circle")
                         }
                         .disabled(!viewModel.canRunPRActions)
                     }
@@ -102,6 +124,86 @@ struct SyncedSessionDetailView: View {
         } message: {
             if let error = viewModel.commandError {
                 Text(error)
+            }
+        }
+        .alert("Command Complete", isPresented: Binding(
+            get: { viewModel.commandNotice != nil },
+            set: { if !$0 { viewModel.dismissNotice() } }
+        )) {
+            Button("OK") { viewModel.dismissNotice() }
+        } message: {
+            if let notice = viewModel.commandNotice {
+                Text(notice)
+            }
+        }
+        .sheet(isPresented: $showCommitComposer) {
+            NavigationStack {
+                Form {
+                    Section("Commit Message") {
+                        TextField("Message", text: $commitMessage, axis: .vertical)
+                            .lineLimit(2, reservesSpace: true)
+                    }
+                    Section {
+                        Toggle("Stage all changes", isOn: $commitStageAll)
+                    }
+                }
+                .navigationTitle("Commit Changes")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showCommitComposer = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Commit") {
+                            let message = commitMessage
+                            showCommitComposer = false
+                            commitMessage = ""
+                            Task {
+                                await viewModel.commitChanges(
+                                    message: message,
+                                    stageAll: commitStageAll
+                                )
+                            }
+                        }
+                        .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showPushComposer) {
+            NavigationStack {
+                Form {
+                    Section("Remote") {
+                        TextField("origin", text: $pushRemote)
+                    }
+                    Section("Branch") {
+                        TextField("main", text: $pushBranch)
+                    }
+                }
+                .navigationTitle("Push Changes")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showPushComposer = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Push") {
+                            let remote = pushRemote.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let branch = pushBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+                            showPushComposer = false
+                            pushRemote = ""
+                            pushBranch = ""
+                            Task {
+                                await viewModel.pushChanges(
+                                    remote: remote.isEmpty ? nil : remote,
+                                    branch: branch.isEmpty ? nil : branch
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         .task {
