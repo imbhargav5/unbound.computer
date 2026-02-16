@@ -107,10 +107,44 @@ struct SyncedSessionDetailView: View {
     }
 
     private var sessionInputBar: some View {
-        ChatInputView(text: $viewModel.inputText) {
-            Task { await viewModel.sendMessage() }
+        VStack(spacing: AppTheme.spacingXS) {
+            if viewModel.isDaemonOffline {
+                offlineBanner
+            }
+
+            ChatInputView(text: $viewModel.inputText, placeholder: viewModel.inputPlaceholder) {
+                Task { await viewModel.sendMessage() }
+            }
+            .disabled(!viewModel.canSendMessage)
         }
-        .disabled(!viewModel.canSendMessage)
+    }
+
+    private var offlineBanner: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingS) {
+            Image(systemName: "bolt.slash.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Daemon offline")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("Remote commands are unavailable. Wait for the device to reconnect.")
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, AppTheme.spacingM)
+        .padding(.vertical, AppTheme.spacingS)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium)
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, AppTheme.spacingM)
     }
 
     private var contentView: some View {
