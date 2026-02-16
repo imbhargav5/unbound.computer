@@ -182,6 +182,18 @@ struct MergePRResult {
     let pullRequest: RemotePullRequest
 }
 
+struct GitCommitResult {
+    let oid: String
+    let shortOid: String
+    let summary: String
+}
+
+struct GitPushResult {
+    let remote: String
+    let branch: String
+    let success: Bool
+}
+
 final class RemoteCommandService {
     static let shared = RemoteCommandService()
 
@@ -530,6 +542,86 @@ final class RemoteCommandService {
             mergeMethod: result["merge_method"]?.stringValue ?? mergeMethod,
             deletedBranch: result["deleted_branch"]?.boolValue ?? deleteBranch,
             pullRequest: parsePullRequest(from: pullRequestPayload)
+        )
+    }
+
+    func commitChanges(
+        targetDeviceId: String,
+        sessionId: String,
+        message: String,
+        authorName: String? = nil,
+        authorEmail: String? = nil,
+        stageAll: Bool = false
+    ) async throws -> GitCommitResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+            "message": .string(message),
+        ]
+        if let authorName, !authorName.isEmpty {
+            params["author_name"] = .string(authorName)
+        }
+        if let authorEmail, !authorEmail.isEmpty {
+            params["author_email"] = .string(authorEmail)
+        }
+        if stageAll {
+            params["stage_all"] = .bool(true)
+        }
+
+        let response = try await sendCommand(
+            type: "git.commit.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing git commit result",
+                errorData: nil
+            )
+        }
+
+        return GitCommitResult(
+            oid: result["oid"]?.stringValue ?? "",
+            shortOid: result["short_oid"]?.stringValue ?? "",
+            summary: result["summary"]?.stringValue ?? ""
+        )
+    }
+
+    func pushChanges(
+        targetDeviceId: String,
+        sessionId: String,
+        remote: String? = nil,
+        branch: String? = nil
+    ) async throws -> GitPushResult {
+        var params: [String: AnyCodableValue] = [
+            "session_id": .string(sessionId),
+        ]
+        if let remote, !remote.isEmpty {
+            params["remote"] = .string(remote)
+        }
+        if let branch, !branch.isEmpty {
+            params["branch"] = .string(branch)
+        }
+
+        let response = try await sendCommand(
+            type: "git.push.v1",
+            targetDeviceId: targetDeviceId,
+            params: params
+        )
+
+        guard let result = response.result?.objectValue else {
+            throw RemoteCommandError.commandFailed(
+                errorCode: "invalid_result",
+                errorMessage: "Missing git push result",
+                errorData: nil
+            )
+        }
+
+        return GitPushResult(
+            remote: result["remote"]?.stringValue ?? "",
+            branch: result["branch"]?.stringValue ?? "",
+            success: result["success"]?.boolValue ?? false
         )
     }
 

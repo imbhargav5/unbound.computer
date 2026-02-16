@@ -727,6 +727,150 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
     }
 }
 
+final class RemoteCommandGitPayloadTests: XCTestCase {
+    func testCommitChangesSendsPayloadAndParsesResult() async throws {
+        let transport = CapturingResponseRemoteTransport(
+            response: RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: "req-commit",
+                type: "git.commit.v1",
+                status: "ok",
+                result: .object([
+                    "oid": .string("abc123"),
+                    "short_oid": .string("abc123"),
+                    "summary": .string("Commit summary"),
+                ]),
+                errorCode: nil,
+                errorMessage: nil,
+                createdAtMs: 1
+            )
+        )
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        let result = try await service.commitChanges(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            sessionId: "session-1",
+            message: "Commit summary",
+            authorName: "Test",
+            authorEmail: "test@example.com",
+            stageAll: true
+        )
+
+        XCTAssertEqual(result.oid, "abc123")
+        XCTAssertEqual(result.shortOid, "abc123")
+        XCTAssertEqual(result.summary, "Commit summary")
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["session_id"], .string("session-1"))
+        XCTAssertEqual(params?["message"], .string("Commit summary"))
+        XCTAssertEqual(params?["author_name"], .string("Test"))
+        XCTAssertEqual(params?["author_email"], .string("test@example.com"))
+        XCTAssertEqual(params?["stage_all"], .bool(true))
+    }
+
+    func testCommitChangesErrorMapsToCommandFailed() async {
+        let transport = ErrorResponseRemoteTransport(
+            response: RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: "req-error",
+                type: "git.commit.v1",
+                status: "error",
+                result: nil,
+                errorCode: "command_failed",
+                errorMessage: "commit failed",
+                errorData: .object([
+                    "stderr": .string("nothing to commit"),
+                ]),
+                createdAtMs: 1
+            )
+        )
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        do {
+            _ = try await service.commitChanges(
+                targetDeviceId: "22222222-2222-2222-2222-222222222222",
+                sessionId: "session-1",
+                message: "Commit summary"
+            )
+            XCTFail("Expected commandFailed error")
+        } catch let error as RemoteCommandError {
+            switch error {
+            case .commandFailed(let errorCode, let errorMessage, let errorData):
+                XCTAssertEqual(errorCode, "command_failed")
+                XCTAssertEqual(errorMessage, "commit failed")
+                XCTAssertEqual(errorData?.objectValue?["stderr"], .string("nothing to commit"))
+            default:
+                XCTFail("Unexpected error: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testPushChangesSendsPayloadAndParsesResult() async throws {
+        let transport = CapturingResponseRemoteTransport(
+            response: RemoteCommandResponse(
+                schemaVersion: 1,
+                requestId: "req-push",
+                type: "git.push.v1",
+                status: "ok",
+                result: .object([
+                    "remote": .string("origin"),
+                    "branch": .string("main"),
+                    "success": .bool(true),
+                ]),
+                errorCode: nil,
+                errorMessage: nil,
+                createdAtMs: 1
+            )
+        )
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        let result = try await service.pushChanges(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            sessionId: "session-1",
+            remote: "origin",
+            branch: "main"
+        )
+
+        XCTAssertEqual(result.remote, "origin")
+        XCTAssertEqual(result.branch, "main")
+        XCTAssertTrue(result.success)
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["session_id"], .string("session-1"))
+        XCTAssertEqual(params?["remote"], .string("origin"))
+        XCTAssertEqual(params?["branch"], .string("main"))
+    }
+}
+
 private final class NoopRemoteTransport: RemoteCommandTransport {
     func publishRemoteCommand(
         channel _: String,
@@ -947,5 +1091,89 @@ private final class ErrorResponseRemoteTransport: RemoteCommandTransport {
         timeout _: TimeInterval
     ) async throws -> RemoteCommandResponse {
         response
+    }
+}
+
+private final class CapturingResponseRemoteTransport: RemoteCommandTransport {
+    var publishedEnvelopes: [RemoteCommandEnvelope] = []
+    private let response: RemoteCommandResponse
+
+    init(response: RemoteCommandResponse) {
+        self.response = response
+    }
+
+    func publishRemoteCommand(
+        channel _: String,
+        payload _: UMSecretRequestCommandPayload
+    ) async throws {}
+
+    func waitForAck(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandAckEnvelope {
+        let decision = RemoteCommandDecisionResult(
+            schemaVersion: 1,
+            requestId: requestId,
+            sessionId: nil,
+            status: "accepted",
+            reasonCode: nil,
+            message: "accepted"
+        )
+        let encoded = try JSONEncoder().encode(decision).base64EncodedString()
+        return RemoteCommandAckEnvelope(
+            schemaVersion: 1,
+            commandId: "noop",
+            status: "accepted",
+            createdAtMs: 1,
+            resultB64: encoded
+        )
+    }
+
+    func waitForSessionSecretResponse(
+        channel _: String,
+        requestId _: String,
+        sessionId _: String,
+        timeout _: TimeInterval
+    ) async throws -> SessionSecretResponseEnvelope {
+        SessionSecretResponseEnvelope(
+            schemaVersion: 1,
+            requestId: "noop",
+            sessionId: "noop",
+            senderDeviceId: "noop",
+            receiverDeviceId: "noop",
+            status: "error",
+            errorCode: nil,
+            ciphertextB64: nil,
+            encapsulationPubkeyB64: nil,
+            nonceB64: nil,
+            algorithm: "noop",
+            createdAtMs: 1
+        )
+    }
+
+    func publishGenericCommand(
+        channel _: String,
+        envelope: RemoteCommandEnvelope
+    ) async throws {
+        publishedEnvelopes.append(envelope)
+    }
+
+    func waitForCommandResponse(
+        channel _: String,
+        requestId: String,
+        timeout _: TimeInterval
+    ) async throws -> RemoteCommandResponse {
+        RemoteCommandResponse(
+            schemaVersion: response.schemaVersion,
+            requestId: requestId,
+            type: response.type,
+            status: response.status,
+            result: response.result,
+            errorCode: response.errorCode,
+            errorMessage: response.errorMessage,
+            errorData: response.errorData,
+            createdAtMs: response.createdAtMs
+        )
     }
 }
