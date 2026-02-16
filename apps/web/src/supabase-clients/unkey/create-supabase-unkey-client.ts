@@ -17,7 +17,7 @@ function createJWT(userId: string) {
     exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiry
     role: "authenticated",
     aud: "authenticated",
-    iss: "https://outbound.new",
+    iss: "https://unbound.computer",
     iat: Math.floor(Date.now() / 1000) - 60,
   };
 

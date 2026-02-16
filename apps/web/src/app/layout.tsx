@@ -6,10 +6,10 @@ import { AffonsoWrapper } from "./affonso-wrapper";
 import { AppProviders } from "./app-providers";
 
 export const generateMetadata = async () => ({
-  title: "Outbound",
-  description: "Outbound",
+  title: "Unbound",
+  description: "Unbound",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://outbound.new"
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://unbound.computer"
   ),
 });
 

@@ -31,7 +31,7 @@ INSERT INTO "public"."marketing_author_profiles" (
         'a1111111-1111-1111-1111-111111111111',
         'john-smith',
         'John Smith',
-        'Senior Technical Writer at Outbound. Passionate about making complex topics accessible to developers of all skill levels. 10+ years of experience in developer documentation and tutorials.',
+        'Senior Technical Writer at Unbound. Passionate about making complex topics accessible to developers of all skill levels. 10+ years of experience in developer documentation and tutorials.',
         'https://api.dicebear.com/7.x/avataaars/svg?seed=john',
         'https://johnsmith.dev',
         'johnsmith_dev',
@@ -42,7 +42,7 @@ INSERT INTO "public"."marketing_author_profiles" (
         'a2222222-2222-2222-2222-222222222222',
         'sarah-johnson',
         'Sarah Johnson',
-        'Product Lead at Outbound. Building tools that developers love. Previously at Vercel and Stripe. I write about product development, SaaS growth, and team leadership.',
+        'Product Lead at Unbound. Building tools that developers love. Previously at Vercel and Stripe. I write about product development, SaaS growth, and team leadership.',
         'https://api.dicebear.com/7.x/avataaars/svg?seed=sarah',
         'https://sarahjohnson.io',
         'sarahj_product',
@@ -53,7 +53,7 @@ INSERT INTO "public"."marketing_author_profiles" (
         'a3333333-3333-3333-3333-333333333333',
         'mike-chen',
         'Mike Chen',
-        'Developer Advocate at Outbound. Full-stack developer turned educator. I create tutorials, speak at conferences, and help developers build amazing products with modern tools.',
+        'Developer Advocate at Unbound. Full-stack developer turned educator. I create tutorials, speak at conferences, and help developers build amazing products with modern tools.',
         'https://api.dicebear.com/7.x/avataaars/svg?seed=mike',
         'https://mikechen.dev',
         'mikechen_dev',
@@ -73,11 +73,11 @@ INSERT INTO "public"."marketing_tags" (
     "id", "slug", "name", "description"
 ) VALUES
     ('b1111111-1111-1111-1111-111111111111', 'tutorials', 'Tutorials', 'Step-by-step guides and how-to articles for developers'),
-    ('b2222222-2222-2222-2222-222222222222', 'product-updates', 'Product Updates', 'Latest features, improvements, and changes to Outbound'),
+    ('b2222222-2222-2222-2222-222222222222', 'product-updates', 'Product Updates', 'Latest features, improvements, and changes to Unbound'),
     ('b3333333-3333-3333-3333-333333333333', 'engineering', 'Engineering', 'Deep dives into technical architecture and implementation details'),
-    ('b4444444-4444-4444-4444-444444444444', 'announcements', 'Announcements', 'Important news and announcements from the Outbound team'),
-    ('b5555555-5555-5555-5555-555555555555', 'tips-tricks', 'Tips & Tricks', 'Quick tips and productivity hacks for Outbound users'),
-    ('b6666666-6666-6666-6666-666666666666', 'case-studies', 'Case Studies', 'Real-world examples of successful Outbound implementations')
+    ('b4444444-4444-4444-4444-444444444444', 'announcements', 'Announcements', 'Important news and announcements from the Unbound team'),
+    ('b5555555-5555-5555-5555-555555555555', 'tips-tricks', 'Tips & Tricks', 'Quick tips and productivity hacks for Unbound users'),
+    ('b6666666-6666-6666-6666-666666666666', 'case-studies', 'Case Studies', 'Real-world examples of successful Unbound implementations')
 ON CONFLICT (slug) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description;
@@ -92,15 +92,15 @@ INSERT INTO "public"."marketing_blog_posts" (
 ) VALUES
     (
         'c1111111-1111-1111-1111-111111111111',
-        'getting-started-with-outbound',
-        'Getting Started with Outbound: A Complete Guide',
-        'Learn how to set up your Outbound project from scratch and deploy your first SaaS application in under 30 minutes.',
-        E'# Getting Started with Outbound\n\nWelcome to Outbound! This comprehensive guide will walk you through setting up your first project.\n\n## Prerequisites\n\nBefore you begin, make sure you have:\n- Node.js 18+ installed\n- A Supabase account\n- Basic knowledge of React and TypeScript\n\n## Step 1: Clone the Repository\n\nStart by cloning the Outbound template:\n\n```bash\ngit clone https://github.com/outbound/starter\ncd starter\n```\n\n## Step 2: Install Dependencies\n\n```bash\npnpm install\n```\n\n## Step 3: Configure Environment\n\nCopy the example environment file and fill in your Supabase credentials:\n\n```bash\ncp .env.example .env.local\n```\n\n## Step 4: Start Development\n\n```bash\npnpm dev\n```\n\nYour application is now running at `http://localhost:3000`!\n\n## Next Steps\n\n- Configure authentication providers\n- Set up your database schema\n- Customize the UI to match your brand\n\nHappy building!',
-        '{"type": "doc", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Getting Started with Outbound"}]}, {"type": "paragraph", "content": [{"type": "text", "text": "Welcome to Outbound! This comprehensive guide will walk you through setting up your first project."}]}]}',
+        'getting-started-with-unbound',
+        'Getting Started with Unbound: A Complete Guide',
+        'Learn how to set up your Unbound project from scratch and deploy your first SaaS application in under 30 minutes.',
+        E'# Getting Started with Unbound\n\nWelcome to Unbound! This comprehensive guide will walk you through setting up your first project.\n\n## Prerequisites\n\nBefore you begin, make sure you have:\n- Node.js 18+ installed\n- A Supabase account\n- Basic knowledge of React and TypeScript\n\n## Step 1: Clone the Repository\n\nStart by cloning the Unbound template:\n\n```bash\ngit clone https://github.com/unbound/starter\ncd starter\n```\n\n## Step 2: Install Dependencies\n\n```bash\npnpm install\n```\n\n## Step 3: Configure Environment\n\nCopy the example environment file and fill in your Supabase credentials:\n\n```bash\ncp .env.example .env.local\n```\n\n## Step 4: Start Development\n\n```bash\npnpm dev\n```\n\nYour application is now running at `http://localhost:3000`!\n\n## Next Steps\n\n- Configure authentication providers\n- Set up your database schema\n- Customize the UI to match your brand\n\nHappy building!',
+        '{"type": "doc", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Getting Started with Unbound"}]}, {"type": "paragraph", "content": [{"type": "text", "text": "Welcome to Unbound! This comprehensive guide will walk you through setting up your first project."}]}]}',
         'published',
         'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200',
         true,
-        '{"title": "Getting Started with Outbound - Complete Setup Guide", "description": "Learn how to set up Outbound and deploy your first SaaS application in under 30 minutes.", "keywords": ["outbound", "tutorial", "saas", "setup"]}'::jsonb
+        '{"title": "Getting Started with Unbound - Complete Setup Guide", "description": "Learn how to set up Unbound and deploy your first SaaS application in under 30 minutes.", "keywords": ["unbound", "tutorial", "saas", "setup"]}'::jsonb
     ),
     (
         'c2222222-2222-2222-2222-222222222222',
@@ -112,31 +112,31 @@ INSERT INTO "public"."marketing_blog_posts" (
         'published',
         'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200',
         false,
-        '{"title": "SaaS Development Best Practices - Outbound Guide", "description": "Learn the proven patterns successful SaaS companies use to build scalable applications.", "keywords": ["saas", "best practices", "development", "scalability"]}'::jsonb
+        '{"title": "SaaS Development Best Practices - Unbound Guide", "description": "Learn the proven patterns successful SaaS companies use to build scalable applications.", "keywords": ["saas", "best practices", "development", "scalability"]}'::jsonb
     ),
     (
         'c3333333-3333-3333-3333-333333333333',
         'introducing-new-dashboard',
         'Introducing Our Redesigned Dashboard Experience',
-        'We have completely rebuilt the Outbound dashboard with a focus on speed, clarity, and developer experience.',
+        'We have completely rebuilt the Unbound dashboard with a focus on speed, clarity, and developer experience.',
         E'# Introducing Our Redesigned Dashboard\n\nWe are excited to announce the launch of our completely redesigned dashboard!\n\n## What is New\n\n### Faster Performance\n\nThe new dashboard loads 3x faster thanks to:\n- Server-side rendering with Next.js App Router\n- Optimized database queries\n- Smart caching strategies\n\n### Improved Navigation\n\nFinding what you need is now easier than ever:\n- Collapsible sidebar with quick actions\n- Command palette (Cmd+K) for power users\n- Breadcrumb navigation throughout\n\n### Dark Mode\n\nFinally! Native dark mode support that:\n- Follows your system preference\n- Can be manually toggled\n- Persists across sessions\n\n### Better Analytics\n\nNew analytics widgets show:\n- User growth over time\n- Revenue metrics\n- Feature usage statistics\n\n## Migration Guide\n\nExisting users will be automatically migrated. No action required!\n\n## Feedback\n\nWe would love to hear your thoughts. Use the feedback button in the dashboard to share your experience.',
         '{"type": "doc", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Introducing Our Redesigned Dashboard"}]}]}',
         'published',
         'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200',
         false,
-        '{"title": "New Outbound Dashboard - Faster, Cleaner, Better", "description": "Discover the completely redesigned Outbound dashboard with improved performance and UX.", "keywords": ["dashboard", "product update", "outbound", "ui"]}'::jsonb
+        '{"title": "New Unbound Dashboard - Faster, Cleaner, Better", "description": "Discover the completely redesigned Unbound dashboard with improved performance and UX.", "keywords": ["dashboard", "product update", "unbound", "ui"]}'::jsonb
     ),
     (
         'c4444444-4444-4444-4444-444444444444',
         'upcoming-features-roadmap-2024',
-        'Outbound Roadmap: Upcoming Features in 2024',
-        'A sneak peek at the exciting features we are building for Outbound in 2024, including AI integrations and team collaboration tools.',
-        E'# Outbound Roadmap 2024\n\nHere is a preview of what we are working on for the coming year.\n\n## Q1: AI Integrations\n\n- **AI Chat Assistant**: Built-in AI helper for your users\n- **Smart Search**: AI-powered search across your content\n- **Auto-generated Documentation**: Let AI write your docs\n\n## Q2: Team Collaboration\n\n- **Real-time Editing**: Collaborative document editing\n- **Team Projects**: Shared spaces for team collaboration\n- **Activity Feeds**: See what your team is working on\n\n## Q3: Enterprise Features\n\n- **SSO Support**: SAML and OIDC authentication\n- **Audit Logs**: Complete activity tracking\n- **Custom Domains**: White-label your application\n\n## Q4: Developer Experience\n\n- **CLI Tools**: Manage your project from the terminal\n- **VS Code Extension**: Integrated development experience\n- **API Explorer**: Interactive API documentation\n\n## How to Participate\n\nJoin our beta program to get early access to these features!\n\n*Note: This roadmap is subject to change based on user feedback and priorities.*',
-        '{"type": "doc", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Outbound Roadmap 2024"}]}]}',
+        'Unbound Roadmap: Upcoming Features in 2024',
+        'A sneak peek at the exciting features we are building for Unbound in 2024, including AI integrations and team collaboration tools.',
+        E'# Unbound Roadmap 2024\n\nHere is a preview of what we are working on for the coming year.\n\n## Q1: AI Integrations\n\n- **AI Chat Assistant**: Built-in AI helper for your users\n- **Smart Search**: AI-powered search across your content\n- **Auto-generated Documentation**: Let AI write your docs\n\n## Q2: Team Collaboration\n\n- **Real-time Editing**: Collaborative document editing\n- **Team Projects**: Shared spaces for team collaboration\n- **Activity Feeds**: See what your team is working on\n\n## Q3: Enterprise Features\n\n- **SSO Support**: SAML and OIDC authentication\n- **Audit Logs**: Complete activity tracking\n- **Custom Domains**: White-label your application\n\n## Q4: Developer Experience\n\n- **CLI Tools**: Manage your project from the terminal\n- **VS Code Extension**: Integrated development experience\n- **API Explorer**: Interactive API documentation\n\n## How to Participate\n\nJoin our beta program to get early access to these features!\n\n*Note: This roadmap is subject to change based on user feedback and priorities.*',
+        '{"type": "doc", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Unbound Roadmap 2024"}]}]}',
         'draft',
         'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=1200',
         false,
-        '{"title": "Outbound 2024 Roadmap - Upcoming Features", "description": "Preview the exciting features coming to Outbound in 2024.", "keywords": ["roadmap", "features", "2024", "outbound"]}'::jsonb
+        '{"title": "Unbound 2024 Roadmap - Upcoming Features", "description": "Preview the exciting features coming to Unbound in 2024.", "keywords": ["roadmap", "features", "2024", "unbound"]}'::jsonb
     )
 ON CONFLICT (slug) DO UPDATE SET
     title = EXCLUDED.title,
@@ -151,8 +151,8 @@ ON CONFLICT (slug) DO UPDATE SET
 INSERT INTO "public"."marketing_blog_post_tags_relationship" ("blog_post_id", "tag_id")
 SELECT bp.id, t.id
 FROM (VALUES
-    ('getting-started-with-outbound', 'tutorials'),
-    ('getting-started-with-outbound', 'announcements'),
+    ('getting-started-with-unbound', 'tutorials'),
+    ('getting-started-with-unbound', 'announcements'),
     ('best-practices-saas-development', 'engineering'),
     ('best-practices-saas-development', 'tips-tricks'),
     ('introducing-new-dashboard', 'product-updates'),
@@ -171,10 +171,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO "public"."marketing_blog_author_posts" ("author_id", "post_id")
 SELECT a.id, bp.id
 FROM (VALUES
-    ('john-smith', 'getting-started-with-outbound'),
+    ('john-smith', 'getting-started-with-unbound'),
     ('sarah-johnson', 'best-practices-saas-development'),
     ('sarah-johnson', 'introducing-new-dashboard'),
-    ('mike-chen', 'getting-started-with-outbound'),
+    ('mike-chen', 'getting-started-with-unbound'),
     ('sarah-johnson', 'upcoming-features-roadmap-2024')
 ) AS rel(author_slug, post_slug)
 JOIN marketing_author_profiles a ON a.slug = rel.author_slug
@@ -190,12 +190,12 @@ INSERT INTO "public"."marketing_changelog" (
 ) VALUES
     (
         'c5555555-5555-5555-5555-555555555555',
-        'Outbound v2.0 - Major Platform Release',
+        'Unbound v2.0 - Major Platform Release',
         '{
             "type": "doc",
             "content": [
-                {"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Outbound v2.0 - Major Platform Release"}]},
-                {"type": "paragraph", "content": [{"type": "text", "text": "We are thrilled to announce the release of Outbound v2.0, our biggest update yet! This release brings a completely redesigned architecture, improved performance, and many new features."}]},
+                {"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Unbound v2.0 - Major Platform Release"}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "We are thrilled to announce the release of Unbound v2.0, our biggest update yet! This release brings a completely redesigned architecture, improved performance, and many new features."}]},
                 {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "New Features"}]},
                 {"type": "bulletList", "content": [
                     {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Completely redesigned dashboard with improved UX"}]}]},
@@ -219,7 +219,7 @@ INSERT INTO "public"."marketing_changelog" (
             "type": "doc",
             "content": [
                 {"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Introducing Dark Mode"}]},
-                {"type": "paragraph", "content": [{"type": "text", "text": "By popular demand, we have added native dark mode support to Outbound! Your eyes will thank you during those late-night coding sessions."}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "By popular demand, we have added native dark mode support to Unbound! Your eyes will thank you during those late-night coding sessions."}]},
                 {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Features"}]},
                 {"type": "bulletList", "content": [
                     {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Automatic detection based on system preferences"}]}]},
@@ -242,7 +242,7 @@ INSERT INTO "public"."marketing_changelog" (
             "type": "doc",
             "content": [
                 {"type": "heading", "attrs": {"level": 1}, "content": [{"type": "text", "text": "Performance Improvements"}]},
-                {"type": "paragraph", "content": [{"type": "text", "text": "We have been working hard on optimizing Outbound performance. This update brings significant improvements across the board."}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "We have been working hard on optimizing Unbound performance. This update brings significant improvements across the board."}]},
                 {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "What Changed"}]},
                 {"type": "bulletList", "content": [
                     {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Dashboard loads 3x faster with optimized queries"}]}]},
@@ -275,7 +275,7 @@ INSERT INTO "public"."marketing_changelog" (
                     {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "PATCH /api/v2/settings - Update user settings"}]}]}
                 ]},
                 {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Documentation"}]},
-                {"type": "paragraph", "content": [{"type": "text", "text": "Full API documentation is available at docs.outbound.new/api. We have also added interactive examples using Swagger UI."}]}
+                {"type": "paragraph", "content": [{"type": "text", "text": "Full API documentation is available at docs.unbound.computer/api. We have also added interactive examples using Swagger UI."}]}
             ]
         }'::jsonb,
         'https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=1200',
@@ -377,7 +377,7 @@ INSERT INTO "auth"."users" (
         '00000000-0000-0000-0000-000000000000',
         '00000000-0000-0000-0000-000000000001',
         'authenticated', 'authenticated',
-        'testadmin@outbound.new',
+        'testadmin@unbound.computer',
         '$2a$10$F/GG/iuE6hgeaosm8U599O5I2ykYU6llUnhGdNGPkxC3LDxxXXBOK',
         '2024-01-01 00:00:00+00', NULL, '', NULL, '', NULL, '', '', NULL,
         '2024-11-01 09:00:00+00',
@@ -477,7 +477,7 @@ INSERT INTO "public"."marketing_feedback_boards" (
         'd3333333-3333-3333-3333-333333333333',
         'general-feedback',
         'General Feedback',
-        'Share your thoughts, suggestions, or any feedback about your experience with Outbound.',
+        'Share your thoughts, suggestions, or any feedback about your experience with Unbound.',
         true,
         '00000000-0000-0000-0000-000000000001',
         'green',
@@ -487,7 +487,7 @@ INSERT INTO "public"."marketing_feedback_boards" (
         'd4444444-4444-4444-4444-444444444444',
         'ideas-suggestions',
         'Ideas & Suggestions',
-        'A space for creative ideas and suggestions that could make Outbound even better.',
+        'A space for creative ideas and suggestions that could make Unbound even better.',
         true,
         '00000000-0000-0000-0000-000000000001',
         'purple',
@@ -588,7 +588,7 @@ FROM (VALUES
     (
         'e8888888-8888-8888-8888-888888888888',
         'Community showcase page',
-        'Would be awesome to have a showcase page featuring projects built with Outbound. This would:\n\n- Inspire new users\n- Provide real-world examples\n- Build community engagement',
+        'Would be awesome to have a showcase page featuring projects built with Unbound. This would:\n\n- Inspire new users\n- Provide real-world examples\n- Build community engagement',
         'bbbbbbbb-2222-2222-2222-222222222222',
         'ideas-suggestions',
         'feature_request', 'planned', 'medium',

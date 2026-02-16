@@ -1,5 +1,5 @@
 /* TipTap Styles */
-.outbound-editor .tiptap {
+.unbound-editor .tiptap {
   @apply min-h-96 bg-background border rounded-md p-4;
 }
 

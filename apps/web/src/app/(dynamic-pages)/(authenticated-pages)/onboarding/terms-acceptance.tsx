@@ -11,7 +11,7 @@ export function TermsAcceptance() {
     <div className="space-y-6">
       <div>
         <h2 className="mb-2 font-semibold text-2xl text-foreground">
-          Welcome to Outbound
+          Welcome to Unbound
         </h2>
         <p className="text-muted-foreground">
           Please review our terms of service before proceeding

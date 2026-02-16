@@ -2,7 +2,7 @@
 
 export const baseOptions = () => ({
   nav: {
-    title: "Outbound docs",
+    title: "Unbound docs",
     url: "/docs",
   },
 });
