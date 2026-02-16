@@ -57,7 +57,7 @@ run_test() {
     (
       cd "${workspace}"
       if [[ "${workspace}" == "apps/daemon" ]]; then
-        cargo test --workspace
+        cargo test --workspace -- --test-threads=1
       else
         cargo test
       fi
