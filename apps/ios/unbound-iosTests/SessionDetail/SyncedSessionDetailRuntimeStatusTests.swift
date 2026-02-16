@@ -8,8 +8,18 @@ final class SyncedSessionDetailRuntimeStatusTests: XCTestCase {
         let loader = StaticSessionDetailMessageLoader()
         let runtimeStatusService = MockRuntimeStatusService()
         let remoteCommandService = makeRemoteCommandService()
-        let session = makeSession(deviceId: UUID().uuidString.lowercased())
+        let deviceId = UUID().uuidString.lowercased()
+        let session = makeSession(deviceId: deviceId)
         let sessionId = await MainActor.run { session.id.uuidString.lowercased() }
+
+        await MainActor.run {
+            DevicePresenceService.shared._testResetDaemonPresenceState()
+            DevicePresenceService.shared._testApplyDaemonPresence(
+                deviceID: deviceId,
+                status: "offline",
+                at: Date()
+            )
+        }
 
         let viewModel = await MainActor.run {
             SyncedSessionDetailViewModel(
@@ -27,6 +37,16 @@ final class SyncedSessionDetailRuntimeStatusTests: XCTestCase {
             XCTAssertFalse(viewModel.canSendMessage)
             XCTAssertFalse(viewModel.canStopClaude)
             XCTAssertNil(viewModel.codingSessionErrorMessage)
+        }
+
+        await MainActor.run {
+            DevicePresenceService.shared._testApplyDaemonPresence(
+                deviceID: deviceId,
+                status: "online",
+                at: Date()
+            )
+            XCTAssertTrue(viewModel.canSendMessage)
+            XCTAssertFalse(viewModel.canStopClaude)
         }
 
         runtimeStatusService.emit(
@@ -74,6 +94,16 @@ final class SyncedSessionDetailRuntimeStatusTests: XCTestCase {
             XCTAssertFalse(viewModel.canStopClaude)
         }
 
+        await MainActor.run {
+            DevicePresenceService.shared._testApplyDaemonPresence(
+                deviceID: deviceId,
+                status: "offline",
+                at: Date()
+            )
+            XCTAssertFalse(viewModel.canSendMessage)
+            XCTAssertFalse(viewModel.canStopClaude)
+        }
+
         // Stale update should be ignored due updated_at_ms ordering.
         runtimeStatusService.emit(
             envelope(
@@ -90,6 +120,7 @@ final class SyncedSessionDetailRuntimeStatusTests: XCTestCase {
 
         await MainActor.run {
             viewModel.stopRealtimeUpdates()
+            DevicePresenceService.shared._testResetDaemonPresenceState()
         }
     }
 
