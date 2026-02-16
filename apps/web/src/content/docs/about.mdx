@@ -9,7 +9,7 @@ Unbound is a development tool that pairs a background Rust daemon with native cl
 
 The system follows a local-first architecture: all session data lives in SQLite on your machine, and the daemon operates fully offline. When signed in, sessions optionally sync to Supabase with end-to-end encryption (X25519 + ChaCha20-Poly1305), enabling cross-device access through the web app.
 
-Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar through `daemon-ably`), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar (also through `daemon-ably`), which forwards them to the daemon for processing.
+Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar through `daemon-ably`), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Presence/availability heartbeats are published to a **Cloudflare Durable Object** stream for command gating. Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar (also through `daemon-ably`), which forwards them to the daemon for processing.
 
 ## Tech Stack
 
@@ -42,5 +42,6 @@ Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path
 **Infrastructure**
 - Supabase (Postgres, Auth, Realtime)
 - Ably (real-time message delivery, remote command routing)
+- Cloudflare Durable Objects (presence/availability stream)
 - pnpm workspaces + Turborepo
 - AGPL-3.0 license

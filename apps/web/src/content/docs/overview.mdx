@@ -27,6 +27,8 @@ CLI (Rust/ratatui) ───┘                              |
                           │                                     │
                         Falco (Go)                              │
                   Publishes state changes to Ably               │
+                                                              Presence DO
+                                                        (availability stream)
 ```
 
 Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages Claude CLI processes, persists all session data to SQLite, and syncs encrypted messages through two paths:
@@ -34,3 +36,4 @@ Clients connect to the daemon over a Unix domain socket using an NDJSON-based pr
 - **Hot path (Ably via Falco):** Every message is published to Ably in real-time for instant cross-device delivery. Falco is a Go sidecar that receives side-effects from the daemon over a Unix socket and publishes them to Ably channels.
 - **Cold path (Supabase via Levi):** Messages are batched, encrypted, and upserted to Supabase for durable storage and offline sync. Levi is a Rust worker with cursor-based sync, batching (50 messages / 500ms), and exponential backoff retries.
 - **Inbound commands (Ably via Nagato):** Remote commands (e.g., starting a session from the web) arrive on Ably, are consumed by the Nagato Go sidecar, and forwarded to the daemon over a Unix socket.
+- **Presence stream (Cloudflare DO):** Daemon availability heartbeats are published to a Durable Object stream and consumed by clients for remote-command gating.

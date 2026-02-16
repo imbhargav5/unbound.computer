@@ -27,7 +27,13 @@ final class DOPresenceStreamClient {
                 attempt += 1
                 do {
                     presenceStreamLogger.info("presence.do.connect_start")
-                    let token = try await PresenceTokenService.fetchToken()
+                    let token: PresenceTokenResponse
+                    do {
+                        token = try await PresenceTokenService.fetchToken()
+                    } catch {
+                        presenceStreamLogger.warning("presence.do.auth_failed: \(error.localizedDescription)")
+                        throw error
+                    }
 
                     var request = URLRequest(url: streamURL)
                     request.httpMethod = "GET"
@@ -72,6 +78,7 @@ final class DOPresenceStreamClient {
                             continue
                         }
 
+                        presenceStreamLogger.debug("presence.do.payload_applied")
                         onPayload(payload)
                     }
                 } catch {
