@@ -3,10 +3,15 @@ import SwiftUI
 struct SyncedSessionDetailView: View {
     let session: SyncedSession
 
+    @Environment(\.navigationManager) private var navigationManager
+
     @State private var viewModel: SyncedSessionDetailViewModel
     @State private var hasAppliedInitialBottomScroll = false
     @State private var showCreatePRComposer = false
     @State private var deleteBranchOnMerge = false
+    @State private var presenceService = DevicePresenceService.shared
+
+    private let syncedDataService = SyncedDataService.shared
 
     init(
         session: SyncedSession,
@@ -33,6 +38,7 @@ struct SyncedSessionDetailView: View {
     }
 
     var body: some View {
+        let _ = presenceService.daemonStatusVersion
         VStack(spacing: 0) {
             Group {
                 if viewModel.isLoading && viewModel.messages.isEmpty {
@@ -152,6 +158,11 @@ struct SyncedSessionDetailView: View {
             ScrollView {
                 VStack(spacing: AppTheme.spacingM) {
                     headerCard
+                    if let device = syncedDataService.device(for: session) {
+                        sessionDeviceCard(device)
+                    } else if session.deviceId != nil {
+                        devicePlaceholderCard
+                    }
                     if session.deviceId != nil {
                         pullRequestPanel
                     }
@@ -246,6 +257,84 @@ struct SyncedSessionDetailView: View {
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium)
                 .stroke(AppTheme.cardBorder, lineWidth: 1)
         )
+        .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private func sessionDeviceCard(_ device: SyncedDevice) -> some View {
+        let status = syncedDataService.mergedStatus(for: device)
+        return Button {
+            navigationManager.navigateToSyncedDevice(device)
+        } label: {
+            HStack(spacing: AppTheme.spacingM) {
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.amberAccent.opacity(0.15))
+                        .frame(width: 36, height: 36)
+
+                    Image(systemName: device.deviceType.iconName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(AppTheme.amberAccent)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(device.hostname ?? device.name)
+                        .font(Typography.subheadline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(status == .online ? Color.green : Color.gray)
+                            .frame(width: 8, height: 8)
+                        Text(status.displayName)
+                            .font(Typography.caption)
+                            .foregroundStyle(AppTheme.textTertiary)
+
+                        if let lastSeen = device.lastSeenAt {
+                            Text("· \(lastSeen.formatted(.relative(presentation: .named)))")
+                                .font(Typography.caption)
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                    }
+
+                    Text(device.capabilitiesSummary ?? "Capabilities not reported yet")
+                        .font(Typography.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .padding(AppTheme.spacingM)
+        }
+        .buttonStyle(.plain)
+        .thinBorderCard()
+        .padding(.horizontal, AppTheme.spacingM)
+    }
+
+    private var devicePlaceholderCard: some View {
+        HStack(spacing: AppTheme.spacingS) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(AppTheme.textTertiary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Device details unavailable")
+                    .font(Typography.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Text("Waiting for synced device data.")
+                    .font(Typography.caption2)
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+
+            Spacer()
+        }
+        .padding(AppTheme.spacingM)
+        .thinBorderCard()
         .padding(.horizontal, AppTheme.spacingM)
     }
 
