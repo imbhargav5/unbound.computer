@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ably/ably-go/ably"
@@ -48,6 +49,8 @@ type PresencePayload struct {
 	Status        string `json:"status"`
 	Source        string `json:"source"`
 	SentAtMS      int64  `json:"sent_at_ms"`
+	Seq           uint64 `json:"seq"`
+	TTLMS         int64  `json:"ttl_ms"`
 }
 
 type Manager struct {
@@ -63,6 +66,7 @@ type Manager struct {
 	subs          map[string]*subscription
 	closed        bool
 	heartbeatDone chan struct{}
+	presenceSeq   uint64
 
 	// Test hooks.
 	publishWithClientOverride func(
@@ -73,8 +77,11 @@ type Manager struct {
 		payload []byte,
 		timeout time.Duration,
 	) error
+	publishPresenceOverride    func(ctx context.Context, payload PresencePayload) error
 	attachSubscriptionOverride func(ctx context.Context, sub *subscription) error
 	objectSetOverride          func(ctx context.Context, channel string, key string, value []byte, timeout time.Duration) error
+
+	presenceClient *PresenceDOClient
 }
 
 func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
@@ -106,6 +113,14 @@ func NewManager(cfg *ablyconfig.Config, logger *zap.Logger) (*Manager, error) {
 		nagatoClient:  nagatoClient,
 		subs:          make(map[string]*subscription),
 		heartbeatDone: make(chan struct{}),
+	}
+	if cfg.PresenceDOHeartbeatURL != "" {
+		manager.presenceClient = NewPresenceDOClient(
+			cfg.PresenceDOHeartbeatURL,
+			cfg.PresenceDOAuthToken,
+			cfg.PublishTimeout,
+			logger.Named("presence-do"),
+		)
 	}
 	manager.server = NewServer(cfg.SocketPath, cfg.MaxFrameBytes, manager, logger.Named("ipc"))
 
@@ -505,6 +520,7 @@ func (m *Manager) heartbeatLoop() {
 func (m *Manager) publishPresence(ctx context.Context, status string) error {
 	normalizedUserID := strings.ToLower(strings.TrimSpace(m.cfg.UserID))
 	normalizedDeviceID := strings.ToLower(strings.TrimSpace(m.cfg.DeviceID))
+	seq := atomic.AddUint64(&m.presenceSeq, 1)
 	payload := PresencePayload{
 		SchemaVersion: 1,
 		UserID:        normalizedUserID,
@@ -512,18 +528,42 @@ func (m *Manager) publishPresence(ctx context.Context, status string) error {
 		Status:        status,
 		Source:        m.cfg.PresenceSource,
 		SentAtMS:      time.Now().UnixMilli(),
+		Seq:           seq,
+		TTLMS:         m.cfg.PresenceDOTTLMS,
 	}
-	encoded, err := json.Marshal(payload)
+	publish := func() error {
+		if m.publishPresenceOverride != nil {
+			return m.publishPresenceOverride(ctx, payload)
+		}
+		if m.presenceClient == nil {
+			return fmt.Errorf("presence DO client is not configured")
+		}
+		return m.presenceClient.Publish(ctx, payload)
+	}
+
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		err = publish()
+		if err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			break
+		}
+		backoff := time.Duration(attempt*50) * time.Millisecond
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			break
+		case <-timer.C:
+		}
+	}
 	if err != nil {
-		return err
-	}
-	if err := m.Publish(ctx, m.cfg.PresenceChannel, m.cfg.PresenceEvent, encoded, m.cfg.PublishTimeout); err != nil {
 		m.logger.Warn(
 			"daemon presence publish failed",
 			zap.String("status", status),
 			zap.String("device_id", normalizedDeviceID),
-			zap.String("channel", m.cfg.PresenceChannel),
-			zap.String("event", m.cfg.PresenceEvent),
 			zap.Error(err),
 		)
 		return err
@@ -533,9 +573,8 @@ func (m *Manager) publishPresence(ctx context.Context, status string) error {
 		"daemon presence published",
 		zap.String("status", status),
 		zap.String("device_id", normalizedDeviceID),
-		zap.String("channel", m.cfg.PresenceChannel),
-		zap.String("event", m.cfg.PresenceEvent),
 		zap.Int64("sent_at_ms", payload.SentAtMS),
+		zap.Uint64("seq", payload.Seq),
 	)
 	return nil
 }

@@ -205,6 +205,9 @@ Inbound push frame:
 | `DAEMON_ABLY_HEARTBEAT_INTERVAL` | `5` | Heartbeat interval in seconds |
 | `DAEMON_ABLY_PUBLISH_TIMEOUT` | `5` | Publish/subscribe timeout in seconds |
 | `DAEMON_ABLY_SHUTDOWN_TIMEOUT` | `2` | Graceful shutdown timeout in seconds |
+| `UNBOUND_PRESENCE_DO_HEARTBEAT_URL` | (required) | DO presence heartbeat ingest endpoint |
+| `UNBOUND_PRESENCE_DO_TOKEN` | (optional) | Bearer token for DO heartbeat ingest |
+| `UNBOUND_PRESENCE_DO_TTL_MS` | `12000` | TTL used by DO payloads for offline gating |
 | `UNBOUND_BASE_DIR` | `$HOME/.unbound` | Base dir for default socket path resolution |
 
 CLI flags:

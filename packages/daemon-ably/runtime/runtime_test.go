@@ -2,14 +2,12 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/ably/ably-go/ably"
 	"go.uber.org/zap"
 
 	ablyconfig "github.com/unbound-computer/daemon-ably/config"
@@ -68,28 +66,9 @@ func TestHeartbeatLifecyclePublishesOnlineAndOfflinePresence(t *testing.T) {
 		mu       sync.Mutex
 		payloads []PresencePayload
 	)
-	manager.publishWithClientOverride = func(
-		_ context.Context,
-		_ *ably.Realtime,
-		channel string,
-		event string,
-		payload []byte,
-		_ time.Duration,
-	) error {
-		if channel != cfg.PresenceChannel {
-			t.Fatalf("unexpected presence channel: %q", channel)
-		}
-		if event != cfg.PresenceEvent {
-			t.Fatalf("unexpected presence event: %q", event)
-		}
-
-		var decoded PresencePayload
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			t.Fatalf("decode presence payload: %v", err)
-		}
-
+	manager.publishPresenceOverride = func(_ context.Context, payload PresencePayload) error {
 		mu.Lock()
-		payloads = append(payloads, decoded)
+		payloads = append(payloads, payload)
 		mu.Unlock()
 		return nil
 	}
@@ -134,6 +113,9 @@ func TestHeartbeatLifecyclePublishesOnlineAndOfflinePresence(t *testing.T) {
 		if payload.Source != cfg.PresenceSource {
 			t.Fatalf("unexpected source: %q", payload.Source)
 		}
+		if payload.TTLMS != cfg.PresenceDOTTLMS {
+			t.Fatalf("unexpected ttl: %d", payload.TTLMS)
+		}
 	}
 	if !hasOnline {
 		t.Fatalf("expected at least one online heartbeat payload")
@@ -149,7 +131,8 @@ func testConfig() *ablyconfig.Config {
 		UserID:            "USER-1",
 		PresenceChannel:   "presence:user-1",
 		PresenceEvent:     "daemon.presence.v1",
-		PresenceSource:    "daemon-ably",
+		PresenceSource:    "daemon-do",
+		PresenceDOTTLMS:   12000,
 		HeartbeatInterval: 50 * time.Millisecond,
 		PublishTimeout:    50 * time.Millisecond,
 		ShutdownTimeout:   50 * time.Millisecond,
@@ -164,15 +147,9 @@ func TestPublishPresenceNormalizesUserID(t *testing.T) {
 	}
 
 	var decoded PresencePayload
-	manager.publishWithClientOverride = func(
-		_ context.Context,
-		_ *ably.Realtime,
-		_ string,
-		_ string,
-		payload []byte,
-		_ time.Duration,
-	) error {
-		return json.Unmarshal(payload, &decoded)
+	manager.publishPresenceOverride = func(_ context.Context, payload PresencePayload) error {
+		decoded = payload
+		return nil
 	}
 
 	if err := manager.publishPresence(context.Background(), statusOnline); err != nil {
