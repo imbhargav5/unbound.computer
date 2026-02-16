@@ -100,7 +100,7 @@ function Notification({
 
     // Then handle specific notification actions
     if (notificationPayload.type === "welcome") {
-      toast("Welcome to Nextbase");
+      toast("Welcome to Outbound");
     }
     // Add more notification type handlers here as needed
   }, [

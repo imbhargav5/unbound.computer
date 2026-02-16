@@ -18,7 +18,7 @@ export function RedirectingPleaseWaitCard({
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
           <span className="font-bold text-primary-foreground text-sm">N</span>
         </div>
-        <span className="font-semibold text-foreground text-lg">Nextbase</span>
+        <span className="font-semibold text-foreground text-lg">Outbound</span>
       </Link>
 
       {/* Loading Icon */}

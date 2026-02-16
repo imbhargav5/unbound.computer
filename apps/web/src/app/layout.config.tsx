@@ -2,7 +2,7 @@
 
 export const baseOptions = () => ({
   nav: {
-    title: "Nextbase Ultimate docs",
+    title: "Outbound docs",
     url: "/docs",
   },
 });
