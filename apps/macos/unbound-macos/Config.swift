@@ -18,27 +18,34 @@ enum ObservabilityMode {
 
 enum Config {
     private static let defaultLocalAPIURL = URL(string: "http://localhost:3000")!
+    private static let defaultProdAPIURL = URL(string: "https://unbound.computer")!
 
     // MARK: - API
 
     /// The main API URL
     static var apiURL: URL {
-        if let envURL = ProcessInfo.processInfo.environment["API_URL"],
-           let url = URL(string: envURL) {
+        if let raw = readOptionalConfigValue(env: "API_URL", plist: "API_URL"),
+           let url = URL(string: raw)
+        {
             return url
         }
+        #if DEBUG
         return defaultLocalAPIURL
+        #else
+        return defaultProdAPIURL
+        #endif
     }
 
     // MARK: - Supabase
 
     /// Supabase project URL
     static var supabaseURL: URL {
-        #if DEBUG
-        if let envURL = ProcessInfo.processInfo.environment["SUPABASE_URL"],
-           let url = URL(string: envURL) {
+        if let raw = readOptionalConfigValue(env: "SUPABASE_URL", plist: "SUPABASE_URL"),
+           let url = URL(string: raw)
+        {
             return url
         }
+        #if DEBUG
         // Local Supabase
         return URL(string: "http://127.0.0.1:54321")!
         #else
@@ -49,15 +56,18 @@ enum Config {
 
     /// Supabase publishable key
     static var supabasePublishableKey: String {
-        #if DEBUG
-        if let key = ProcessInfo.processInfo.environment["SUPABASE_PUBLISHABLE_KEY"] {
+        if let key = readOptionalConfigValue(
+            env: "SUPABASE_PUBLISHABLE_KEY",
+            plist: "SUPABASE_PUBLISHABLE_KEY"
+        ) {
             return key
         }
+        #if DEBUG
         // Local Supabase default publishable key
         return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
         #else
         // Production key - should be set properly
-        return ProcessInfo.processInfo.environment["SUPABASE_PUBLISHABLE_KEY"] ?? ""
+        return ""
         #endif
     }
 
