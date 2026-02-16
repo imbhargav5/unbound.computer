@@ -57,8 +57,8 @@ run_test() {
     (
       cd "${workspace}"
       if [[ "${workspace}" == "apps/daemon" ]]; then
-        cargo test --workspace --exclude piccolo -- --test-threads=1
-        cargo test -p piccolo --lib -- --test-threads=1
+        cargo test --workspace --exclude piccolo -j 1 -- --test-threads=1
+        cargo test -p piccolo --lib -j 1 -- --test-threads=1
       else
         cargo test
       fi

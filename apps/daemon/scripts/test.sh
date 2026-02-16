@@ -7,9 +7,10 @@ echo "=== Running Daemon Unit Tests ==="
 echo ""
 
 # Run workspace tests serially and skip piccolo integration tests in CI.
-cargo test --workspace --exclude piccolo -- --nocapture --test-threads=1
+# `-j 1` avoids cross-crate fixture/socket contention on Linux CI.
+cargo test --workspace --exclude piccolo -j 1 -- --nocapture --test-threads=1
 # Keep piccolo library unit tests in coverage without the integration suites.
-cargo test -p piccolo --lib -- --nocapture --test-threads=1
+cargo test -p piccolo --lib -j 1 -- --nocapture --test-threads=1
 
 echo ""
 echo "=== Test Summary ==="
