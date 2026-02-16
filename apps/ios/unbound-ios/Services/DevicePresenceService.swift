@@ -409,7 +409,7 @@ final class DevicePresenceService {
         statusCheckTimer = nil
     }
 
-    // MARK: - Daemon Presence via Ably
+    // MARK: - Daemon Presence via Ably (legacy)
 
     private struct DaemonPresencePayload: Decodable {
         let schemaVersion: Int
@@ -418,6 +418,8 @@ final class DevicePresenceService {
         let status: String
         let source: String?
         let sentAtMS: Int64
+        let seq: Int?
+        let ttlMS: Int?
 
         enum CodingKeys: String, CodingKey {
             case schemaVersion = "schema_version"
@@ -426,6 +428,8 @@ final class DevicePresenceService {
             case status
             case source
             case sentAtMS = "sent_at_ms"
+            case seq
+            case ttlMS = "ttl_ms"
         }
     }
 
