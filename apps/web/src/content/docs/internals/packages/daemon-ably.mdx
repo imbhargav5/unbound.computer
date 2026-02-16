@@ -11,7 +11,7 @@ It centralizes:
 - Ably connectivity and reconnect behavior
 - audience-scoped broker token usage (`daemon_falco`, `daemon_nagato`)
 - local IPC transport for sidecars on `~/.unbound/ably.sock`
-- message-based daemon heartbeat stream for iOS availability gating
+- message delivery for Falco/Nagato (presence heartbeats now use a DO stream)
 
 ## Core Purpose
 
@@ -34,7 +34,7 @@ Falco and Nagato no longer create their own Ably SDK clients. They use `daemon-a
 ┌──────────────────────────────────────────────────────────────────────┐
 │                           daemon-ably                                │
 │                                                                      │
-│  Falco client (publish/heartbeat)         Nagato client (subscribe/ack) │
+│  Falco client (publish)                  Nagato client (subscribe/ack) │
 │  audience: daemon_falco                   audience: daemon_nagato    │
 │                                                                      │
 │  IPC ops: publish.v1, publish.ack.v1, subscribe.v1, message.v1      │
@@ -48,7 +48,7 @@ Falco and Nagato no longer create their own Ably SDK clients. They use `daemon-a
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-## Heartbeat Contract
+## Heartbeat Contract (Legacy Ably)
 
 `daemon-ably` publishes daemon availability as a message stream (not native Ably Presence API).
 
@@ -70,6 +70,24 @@ Payload schema:
   "status": "online",
   "source": "daemon-ably",
   "sent_at_ms": 1739030400000
+}
+```
+
+## Durable Object Presence Contract (Target)
+
+Presence heartbeats are migrating to a Cloudflare Durable Object stream that preserves
+the same online/offline semantics used by iOS gating.
+
+```json
+{
+  "schema_version": 1,
+  "user_id": "user-uuid-lowercase",
+  "device_id": "device-uuid-lowercase",
+  "status": "online|offline",
+  "source": "daemon-do",
+  "sent_at_ms": 1739030400000,
+  "seq": 42,
+  "ttl_ms": 12000
 }
 ```
 
@@ -146,6 +164,9 @@ Inbound push frame:
 | `DAEMON_ABLY_HEARTBEAT_INTERVAL` | `5` | Heartbeat interval in seconds |
 | `DAEMON_ABLY_PUBLISH_TIMEOUT` | `5` | Publish/subscribe timeout in seconds |
 | `DAEMON_ABLY_SHUTDOWN_TIMEOUT` | `2` | Graceful shutdown timeout in seconds |
+| `UNBOUND_PRESENCE_DO_HEARTBEAT_URL` | (required) | DO presence heartbeat ingest endpoint |
+| `UNBOUND_PRESENCE_DO_TOKEN` | (optional) | Bearer token for DO heartbeat ingest |
+| `UNBOUND_PRESENCE_DO_TTL_MS` | `12000` | TTL used by DO payloads for offline gating |
 | `UNBOUND_BASE_DIR` | `$HOME/.unbound` | Base dir for default socket path resolution |
 
 CLI flags:
