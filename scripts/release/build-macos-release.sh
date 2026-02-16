@@ -6,6 +6,7 @@ PROJECT_DIR="$ROOT_DIR/apps/macos"
 PROJECT_FILE="$PROJECT_DIR/unbound-macos.xcodeproj"
 SCHEME="unbound-macos"
 DIST_DIR="$ROOT_DIR/dist/macos"
+RELEASE_XCCONFIG="${RELEASE_XCCONFIG:-$PROJECT_DIR/Config/Release.xcconfig}"
 
 MACOS_RELEASE_VERSION="${MACOS_RELEASE_VERSION:-}"
 MACOS_BUILD_NUMBER="${MACOS_BUILD_NUMBER:-${CURRENT_PROJECT_VERSION:-}}"
@@ -41,6 +42,11 @@ mkdir -p "$DIST_DIR"
 
 EXPORT_OPTIONS_PLIST="$(mktemp -t unbound-macos-export-options.XXXXXX.plist)"
 trap 'rm -f "$EXPORT_OPTIONS_PLIST"' EXIT
+
+XCCONFIG_ARGS=()
+if [[ -f "$RELEASE_XCCONFIG" ]]; then
+  XCCONFIG_ARGS=(-xcconfig "$RELEASE_XCCONFIG")
+fi
 
 if [[ "$ALLOW_UNSIGNED" == "1" ]]; then
   cat > "$EXPORT_OPTIONS_PLIST" <<'PLIST'
@@ -86,10 +92,13 @@ build_and_export() {
     -configuration Release \
     -destination "generic/platform=macOS" \
     -archivePath "$archive_path" \
+    "${XCCONFIG_ARGS[@]}" \
     ARCHS="$arch" \
     ONLY_ACTIVE_ARCH=NO \
     MARKETING_VERSION="$MACOS_RELEASE_VERSION" \
     CURRENT_PROJECT_VERSION="$MACOS_BUILD_NUMBER" \
+    RELEASE_VERSION="$MACOS_RELEASE_VERSION" \
+    RELEASE_BUILD_NUMBER="$MACOS_BUILD_NUMBER" \
     ${MACOS_TEAM_ID:+DEVELOPMENT_TEAM="$MACOS_TEAM_ID"} \
     ${MACOS_SIGNING_IDENTITY:+CODE_SIGN_IDENTITY="$MACOS_SIGNING_IDENTITY"} \
     ${MACOS_SIGNING_IDENTITY:+CODE_SIGN_STYLE="$MACOS_CODE_SIGN_STYLE"} \
