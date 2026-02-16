@@ -192,7 +192,7 @@ daemon-bin/
 
 | Field | Value |
 |-------|-------|
-| Channel | `presence:{user_id}` |
+| Channel | `presence:{user_id}` (normalized to lowercase) |
 | Event | `daemon.presence.v1` |
 | Producer | `daemon-ably` |
 | Status values | `online`, `offline` |
@@ -211,6 +211,9 @@ Payload schema:
   "sent_at_ms": 1739030400000
 }
 ```
+
+`user_id` is normalized by trimming whitespace and lowercasing before being used
+for the channel name and payload.
 
 ## Regression Matrix
 

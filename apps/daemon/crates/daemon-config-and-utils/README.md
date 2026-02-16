@@ -9,6 +9,7 @@ Provides foundational components that other crates depend on, avoiding circular 
 ## Key Features
 
 - **Configuration**: App config and relay settings
+- **Web app URL**: compile-time override for daemon web calls (`UNBOUND_WEB_APP_URL`)
 - **Paths**: XDG-compliant directory management
 - **Logging**: Unified tracing/logging setup
 - **Conversation crypto**: shared ChaCha20-Poly1305 helpers for message payloads
@@ -54,3 +55,9 @@ Environment-driven config used by the daemon and other Rust services:
 - `UNBOUND_OBS_INFO_SAMPLE_RATE`: info sampling rate
 - `UNBOUND_OBS_WARN_SAMPLE_RATE`: warn sampling rate
 - `UNBOUND_OBS_ERROR_SAMPLE_RATE`: error sampling rate
+
+## Web App URL Configuration
+
+The daemon reads the web app base URL at build time via `UNBOUND_WEB_APP_URL`.
+`compile_time_web_app_url()` trims whitespace, removes trailing slashes, and falls
+back to `https://unbound.computer` if the configured value is empty.
