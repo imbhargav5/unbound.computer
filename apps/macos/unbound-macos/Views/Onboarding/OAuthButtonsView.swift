@@ -102,7 +102,7 @@ struct OAuthButtonsView: View {
         case .google:
             // Google "G" approximation
             Text("G")
-                .font(.system(size: IconSize.lg, weight: .bold, design: .rounded))
+                .font(GeistFont.sans(size: IconSize.lg, weight: .bold))
         }
     }
 

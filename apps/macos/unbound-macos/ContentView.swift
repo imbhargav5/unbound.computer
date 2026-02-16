@@ -95,12 +95,11 @@ struct AuthRestoringView: View {
 
             VStack(spacing: Spacing.sm) {
                 Text("Restoring Session")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
                 Text("Validating saved credentials...")
-                    .font(.body)
+                    .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
             }
         }
@@ -125,12 +124,11 @@ struct DaemonConnectingView: View {
 
             VStack(spacing: Spacing.sm) {
                 Text("Connecting to Unbound")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
                 Text("Starting daemon service...")
-                    .font(.body)
+                    .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
             }
         }
@@ -158,12 +156,11 @@ struct DaemonErrorView: View {
 
             VStack(spacing: Spacing.sm) {
                 Text("Daemon Not Running")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
                 Text(reason)
-                    .font(.body)
+                    .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
@@ -181,7 +178,7 @@ struct DaemonErrorView: View {
                 .buttonStyle(.borderedProminent)
 
                 Text("Make sure the Unbound daemon is installed.")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundColor(colors.mutedForeground)
             }
         }

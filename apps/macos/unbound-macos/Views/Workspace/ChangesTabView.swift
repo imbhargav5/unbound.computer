@@ -86,13 +86,13 @@ struct VSCodeChangeRow: View {
             HStack(spacing: Spacing.sm) {
                 // Status indicator letter (M, A, D, U)
                 Text(file.status.indicator)
-                    .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
+                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
                     .foregroundStyle(statusColor)
                     .frame(width: IconSize.sm)
 
                 // File path (truncated from left if needed)
                 Text(file.path)
-                    .font(.system(size: FontSize.sm, design: .monospaced))
+                    .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
                     .foregroundStyle(colors.foreground)
                     .lineLimit(1)
                     .truncationMode(.head)
@@ -122,12 +122,12 @@ struct VSCodeChangeRow: View {
         HStack(spacing: Spacing.xs) {
             if let additions = file.additions, additions > 0 {
                 Text("+\(additions)")
-                    .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
+                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
                     .foregroundStyle(colors.diffAddition)
             }
             if let deletions = file.deletions, deletions > 0 {
                 Text("-\(deletions)")
-                    .font(.system(size: FontSize.xs, weight: .medium, design: .monospaced))
+                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
                     .foregroundStyle(colors.diffDeletion)
             }
         }

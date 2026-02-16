@@ -52,12 +52,11 @@ struct DependencyCheckView: View {
 
             VStack(spacing: Spacing.sm) {
                 Text("Checking System Requirements")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
                 Text("Verifying required tools are installed...")
-                    .font(.body)
+                    .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
             }
         }
@@ -73,12 +72,11 @@ struct DependencyCheckView: View {
 
             VStack(spacing: Spacing.sm) {
                 Text("Claude Code Required")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
                 Text("Unbound requires the Claude Code CLI to function.\nPlease install it and try again.")
-                    .font(.body)
+                    .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 420)
@@ -87,11 +85,11 @@ struct DependencyCheckView: View {
             // Install instructions
             VStack(spacing: Spacing.sm) {
                 Text("Install via npm:")
-                    .font(.subheadline)
+                    .font(Typography.bodySmall)
                     .foregroundColor(colors.mutedForeground)
 
                 Text("npm install -g @anthropic-ai/claude-code")
-                    .font(.system(.body, design: .monospaced))
+                    .font(Typography.code)
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, Spacing.sm)
                     .background(colors.muted.opacity(0.5))
@@ -115,7 +113,7 @@ struct DependencyCheckView: View {
                 .buttonStyle(.borderedProminent)
 
                 Link("Claude Code Documentation", destination: URL(string: "https://docs.anthropic.com/en/docs/claude-code")!)
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundColor(colors.primary)
             }
         }
@@ -140,13 +138,13 @@ struct GhMissingBanner: View {
                     .foregroundColor(.blue)
 
                 Text("GitHub CLI (gh) is not installed. Some features may be limited.")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundColor(colors.foreground)
 
                 Spacer()
 
                 Link("Install", destination: URL(string: "https://cli.github.com")!)
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundColor(colors.primary)
 
                 Button {

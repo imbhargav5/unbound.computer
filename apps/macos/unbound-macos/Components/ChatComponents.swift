@@ -77,7 +77,8 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.allowsUndo = true
-        textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        FontRegistration.registerFonts()
+        textView.font = NSFont(name: "Geist-Regular", size: 14) ?? NSFont.systemFont(ofSize: 14)
         textView.textColor = NSColor(hex: colorScheme == .dark ? "E5E5E5" : "0D0D0D")
         textView.backgroundColor = .clear
         textView.drawsBackground = false
@@ -351,7 +352,7 @@ struct ModelSelector: View {
                                 VStack(alignment: .leading) {
                                     Text(mode.name)
                                     Text(mode.description)
-                                        .font(.caption)
+                                        .font(Typography.caption)
                                         .foregroundStyle(colors.mutedForeground)
                                 }
                             } icon: {

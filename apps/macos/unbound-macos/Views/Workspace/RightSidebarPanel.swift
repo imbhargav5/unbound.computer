@@ -449,7 +449,7 @@ private struct PullRequestsTabView: View {
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             HStack(spacing: Spacing.xs) {
                                 Text("#\(pullRequest.number)")
-                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .font(GeistFont.mono(size: FontSize.xs, weight: .regular))
                                     .foregroundStyle(colors.mutedForeground)
                                 Text(pullRequest.title)
                                     .font(Typography.bodySmall)
@@ -457,13 +457,13 @@ private struct PullRequestsTabView: View {
                                     .lineLimit(1)
                                 Spacer()
                                 Text(pullRequest.state)
-                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .font(GeistFont.mono(size: FontSize.xs, weight: .regular))
                                     .foregroundStyle(colors.mutedForeground)
                             }
 
                             if let mergeState = pullRequest.mergeStateStatus {
                                 Text("merge: \(mergeState)")
-                                    .font(.system(size: FontSize.xs, design: .monospaced))
+                                    .font(GeistFont.mono(size: FontSize.xs, weight: .regular))
                                     .foregroundStyle(colors.mutedForeground)
                             }
                         }
@@ -535,7 +535,7 @@ private struct PullRequestsTabView: View {
 
             if let checks = gitViewModel.selectedPullRequestChecks {
                 Text("checks: \(checks.summary.passing) pass, \(checks.summary.failing) fail, \(checks.summary.pending) pending")
-                    .font(.system(size: FontSize.xs, design: .monospaced))
+                    .font(GeistFont.mono(size: FontSize.xs, weight: .regular))
                     .foregroundStyle(colors.mutedForeground)
                     .lineLimit(1)
             }

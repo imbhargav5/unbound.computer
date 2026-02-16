@@ -28,7 +28,7 @@ struct DaemonConnectionBanner: View {
 
             // Status message
             Text(statusMessage)
-                .font(.system(size: 13, weight: .medium))
+                .font(GeistFont.sans(size: 13, weight: .medium))
 
             Spacer()
 
@@ -52,7 +52,7 @@ struct DaemonConnectionBanner: View {
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         Text(isRetrying ? "Connecting..." : "Retry")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(GeistFont.sans(size: 12, weight: .semibold))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)

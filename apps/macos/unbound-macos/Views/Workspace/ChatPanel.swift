@@ -1121,7 +1121,7 @@ struct FileEditorView: View {
                     }
 
                     TextEditor(text: contentBinding)
-                        .font(.system(size: FontSize.sm, design: .monospaced))
+                        .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
                         .scrollContentBackground(.hidden)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.sm)

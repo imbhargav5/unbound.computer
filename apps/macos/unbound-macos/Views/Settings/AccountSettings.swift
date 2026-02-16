@@ -84,7 +84,7 @@ struct AccountSettings: View {
                     .frame(width: 64, height: 64)
                     .overlay(
                         Text(avatarInitial)
-                            .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                            .font(GeistFont.mono(size: 24, weight: .semibold))
                             .foregroundStyle(colors.primaryForeground)
                     )
 
