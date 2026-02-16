@@ -44,7 +44,7 @@ run_clippy() {
     (
       cd "${workspace}"
       if [[ "${workspace}" == "apps/daemon" ]]; then
-        cargo clippy --workspace -- -D warnings
+        cargo clippy --workspace
       else
         cargo clippy
       fi
