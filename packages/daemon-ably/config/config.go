@@ -17,7 +17,8 @@ const (
 	DefaultPublishTimeout    = 5 * time.Second
 	DefaultShutdownTimeout   = 2 * time.Second
 	DefaultPresenceEventName = "daemon.presence.v1"
-	DefaultPresenceSource    = "daemon-ably"
+	DefaultPresenceSource    = "daemon-do"
+	DefaultPresenceTTLMS     = 12000
 	EnvUnboundBaseDir        = "UNBOUND_BASE_DIR"
 	EnvAblySocket            = "UNBOUND_ABLY_SOCKET"
 	EnvAblyBrokerSocket      = "UNBOUND_ABLY_BROKER_SOCKET"
@@ -27,6 +28,9 @@ const (
 	EnvHeartbeatIntervalSec  = "DAEMON_ABLY_HEARTBEAT_INTERVAL"
 	EnvPublishTimeoutSec     = "DAEMON_ABLY_PUBLISH_TIMEOUT"
 	EnvShutdownTimeoutSec    = "DAEMON_ABLY_SHUTDOWN_TIMEOUT"
+	EnvPresenceDOHeartbeat   = "UNBOUND_PRESENCE_DO_HEARTBEAT_URL"
+	EnvPresenceDOAuthToken   = "UNBOUND_PRESENCE_DO_TOKEN"
+	EnvPresenceDOTTLMS       = "UNBOUND_PRESENCE_DO_TTL_MS"
 )
 
 type Config struct {
@@ -46,6 +50,10 @@ type Config struct {
 	PresenceChannel string
 	PresenceEvent   string
 	PresenceSource  string
+
+	PresenceDOHeartbeatURL string
+	PresenceDOAuthToken    string
+	PresenceDOTTLMS        int64
 }
 
 func New(deviceID string, userID string) (*Config, error) {
@@ -58,6 +66,7 @@ func New(deviceID string, userID string) (*Config, error) {
 		ShutdownTimeout:   DefaultShutdownTimeout,
 		PresenceEvent:     DefaultPresenceEventName,
 		PresenceSource:    DefaultPresenceSource,
+		PresenceDOTTLMS:   DefaultPresenceTTLMS,
 	}
 
 	if socketPath := os.Getenv(EnvAblySocket); socketPath != "" {
@@ -78,6 +87,8 @@ func New(deviceID string, userID string) (*Config, error) {
 	cfg.BrokerFalcoToken = os.Getenv(EnvAblyBrokerTokenFalco)
 	cfg.BrokerNagatoToken = os.Getenv(EnvAblyBrokerTokenNagato)
 	cfg.PresenceChannel = fmt.Sprintf("presence:%s", strings.ToLower(strings.TrimSpace(userID)))
+	cfg.PresenceDOHeartbeatURL = strings.TrimSpace(os.Getenv(EnvPresenceDOHeartbeat))
+	cfg.PresenceDOAuthToken = strings.TrimSpace(os.Getenv(EnvPresenceDOAuthToken))
 
 	if heartbeatSeconds := os.Getenv(EnvHeartbeatIntervalSec); heartbeatSeconds != "" {
 		seconds, err := strconv.Atoi(heartbeatSeconds)
@@ -101,6 +112,17 @@ func New(deviceID string, userID string) (*Config, error) {
 			return nil, fmt.Errorf("invalid %s: %w", EnvShutdownTimeoutSec, err)
 		}
 		cfg.ShutdownTimeout = time.Duration(seconds) * time.Second
+	}
+
+	if ttlMSRaw := os.Getenv(EnvPresenceDOTTLMS); ttlMSRaw != "" {
+		ttlMS, err := strconv.ParseInt(ttlMSRaw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %w", EnvPresenceDOTTLMS, err)
+		}
+		if ttlMS <= 0 {
+			return nil, fmt.Errorf("%s must be positive", EnvPresenceDOTTLMS)
+		}
+		cfg.PresenceDOTTLMS = ttlMS
 	}
 
 	if maxFrameBytes := os.Getenv(EnvMaxFrameBytes); maxFrameBytes != "" {
@@ -138,6 +160,9 @@ func (c *Config) Validate() error {
 	}
 	if c.PresenceEvent == "" {
 		return fmt.Errorf("presence event is required")
+	}
+	if c.PresenceDOHeartbeatURL == "" {
+		return fmt.Errorf("%s environment variable is required", EnvPresenceDOHeartbeat)
 	}
 	if c.HeartbeatInterval <= 0 {
 		return fmt.Errorf("heartbeat interval must be positive")
