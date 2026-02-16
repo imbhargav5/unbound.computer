@@ -103,13 +103,11 @@ export function buildDaemonNagatoCapability(requesterDeviceId: string): Capabili
   };
 }
 
-export function buildDaemonFalcoCapability(requesterDeviceId: string, userId: string): Capability {
+export function buildDaemonFalcoCapability(requesterDeviceId: string): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
-  const normalizedUser = userId.toLowerCase();
   return {
     "session:*:conversation": ["publish"],
     "session:*:status": ["object-publish"],
-    [`presence:${normalizedUser}`]: ["publish"],
     [`remote:${normalizedRequester}:commands`]: ["publish"],
     [`session:secrets:${normalizedRequester}:*`]: ["publish"],
   };
@@ -121,15 +119,11 @@ export function buildAudienceCapability(
   requesterDeviceId: string,
   userId: string
 ): Capability {
-  const normalizedUser = userId.toLowerCase();
   switch (audience) {
     case "mobile":
-      return {
-        ...buildMobileCapability(deviceIds, requesterDeviceId),
-        [`presence:${normalizedUser}`]: ["subscribe"],
-      };
+      return buildMobileCapability(deviceIds, requesterDeviceId);
     case "daemon_falco":
-      return buildDaemonFalcoCapability(requesterDeviceId, normalizedUser);
+      return buildDaemonFalcoCapability(requesterDeviceId);
     case "daemon_nagato":
       return buildDaemonNagatoCapability(requesterDeviceId);
   }
