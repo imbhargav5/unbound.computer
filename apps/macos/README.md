@@ -203,3 +203,48 @@ For release builds, you must configure:
 1. Valid Supabase production URL
 2. Supabase anonymous key (via environment or build settings)
 3. Valid Apple Developer signing certificate
+
+## Release Builds (Local)
+
+Use the release packaging script to generate signed macOS artifacts:
+
+```bash
+# from repo root
+cp apps/macos/Config/Release.xcconfig.template apps/macos/Config/Release.xcconfig
+open apps/macos/Config/Release.xcconfig
+
+# required signing inputs
+export MACOS_TEAM_ID="LLC6TV7P6M"
+export MACOS_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+
+# optional overrides
+export MACOS_RELEASE_VERSION="0.0.17"   # defaults to package.json via get-current-version.ts
+export MACOS_BUILD_NUMBER="1700000000"  # defaults to timestamp
+
+./scripts/release/build-macos-release.sh
+```
+
+Expected outputs:
+
+- `dist/macos/unbound-macos-v{VERSION}-arm64.zip`
+- `dist/macos/unbound-macos-v{VERSION}-x86_64.zip`
+- `dist/macos/SHA256SUMS`
+
+## Release CI Secrets (GitHub)
+
+For CI signing + notarization, configure these repository secrets:
+
+- `MACOS_CERT_BASE64` (Developer ID Application certificate, base64-encoded `.p12`)
+- `MACOS_CERT_PASSWORD` (password for the `.p12`)
+- `MACOS_TEAM_ID`
+- `MACOS_SIGNING_IDENTITY` (e.g. `Developer ID Application: ...`)
+- `APPLE_ID` (Apple developer account email)
+- `APPLE_ID_PASSWORD` (app-specific password) **or** App Store Connect API keys (`APPLE_NOTARYTOOL_KEY_ID`, `APPLE_NOTARYTOOL_ISSUER_ID`, `APPLE_NOTARYTOOL_PRIVATE_KEY`)
+
+## Release Checklist
+
+- Update `Release.xcconfig` with production API/Supabase values
+- Ensure certs and notarization secrets are current
+- Run release packaging script and verify zips in `dist/macos/`
+- Validate signatures with `codesign --verify --deep --strict` and `spctl -a -vv`
+- Notarize and staple for public releases
