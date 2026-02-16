@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
       - uses: ./.github/actions/ci-setup
       - name: test
         run: pnpm run test
@@ -29,6 +33,10 @@ jobs:
           - packages/observability
     steps:
       - uses: actions/checkout@v4
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
