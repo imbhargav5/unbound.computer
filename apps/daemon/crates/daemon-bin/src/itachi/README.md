@@ -47,6 +47,8 @@ This separation makes the validation and routing logic fully unit-testable witho
 | `session.create.v1` | Generic | Create a session remotely |
 | `claude.send.v1` | Generic | Send a Claude message remotely |
 | `claude.stop.v1` | Generic | Stop a Claude process remotely |
+| `git.commit.v1` | Generic | Commit staged changes remotely |
+| `git.push.v1` | Generic | Push commits to a remote repo |
 | `gh.pr.create.v1` | Generic | Create a GitHub PR remotely |
 | `gh.pr.view.v1` | Generic | View a GitHub PR remotely |
 | `gh.pr.list.v1` | Generic | List GitHub PRs remotely |

@@ -18,6 +18,7 @@ final class SyncedSessionDetailViewModel {
     private let messageService: SessionDetailMessageLoading
     private let runtimeStatusService: SessionDetailRuntimeStatusStreaming
     private let remoteCommandService: RemoteCommandService
+    private let presenceService: DevicePresenceService
 
     private(set) var messages: [Message] = []
     private(set) var isLoading = false
@@ -26,7 +27,10 @@ final class SyncedSessionDetailViewModel {
     var inputText = ""
     private(set) var isSending = false
     private(set) var isStopping = false
+    private(set) var isCommitting = false
+    private(set) var isPushing = false
     private(set) var commandError: String?
+    private(set) var commandNotice: String?
     private(set) var pullRequests: [RemotePullRequest] = []
     private(set) var selectedPullRequest: RemotePullRequest?
     private(set) var selectedPullRequestChecks: PRChecksResult?
@@ -50,34 +54,58 @@ final class SyncedSessionDetailViewModel {
         runtimeStatus?.normalizedErrorMessage
     }
 
+    var daemonAvailability: DeviceDaemonAvailability {
+        guard let deviceId = session.deviceId else {
+            return .unknown
+        }
+        return presenceService.daemonAvailability(id: deviceId.uuidString.lowercased())
+    }
+
+    var isDaemonOffline: Bool {
+        daemonAvailability == .offline
+    }
+
+    var inputPlaceholder: String {
+        isDaemonOffline ? "Daemon offline" : "Message Claude..."
+    }
+
     var canSendMessage: Bool {
-        session.deviceId != nil && codingSessionStatus != .notAvailable && !isSending && !isStopping
+        session.deviceId != nil
+            && daemonAvailability != .offline
+            && !isSending
+            && !isStopping
     }
 
     var canStopClaude: Bool {
         session.deviceId != nil
+            && daemonAvailability != .offline
             && (codingSessionStatus == .running || codingSessionStatus == .waiting)
             && !isStopping
     }
 
     var canRunPRActions: Bool {
         session.deviceId != nil
+            && daemonAvailability != .offline
             && !isSending
             && !isStopping
             && !isCreatingPullRequest
             && !isMergingPullRequest
+            && !isCommitting
+            && !isPushing
     }
 
     init(
         session: SyncedSession,
         messageService: SessionDetailMessageLoading? = nil,
         runtimeStatusService: SessionDetailRuntimeStatusStreaming? = nil,
-        remoteCommandService: RemoteCommandService? = nil
+        remoteCommandService: RemoteCommandService? = nil,
+        presenceService: DevicePresenceService? = nil
     ) {
         self.session = session
         self.messageService = messageService ?? SessionDetailMessageService()
         self.runtimeStatusService = runtimeStatusService ?? AblyRuntimeStatusService()
         self.remoteCommandService = remoteCommandService ?? .shared
+        self.presenceService = presenceService ?? .shared
     }
 
     func start() async {
@@ -161,6 +189,57 @@ final class SyncedSessionDetailViewModel {
             sessionDetailLogger.info("Claude stopped for session, stopped=\(result.stopped)")
         } catch {
             sessionDetailLogger.error("Failed to stop Claude: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func commitChanges(message: String, stageAll: Bool) async {
+        guard let deviceId = session.deviceId else { return }
+        guard canRunPRActions else { return }
+        let commitMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !commitMessage.isEmpty else { return }
+
+        isCommitting = true
+        commandError = nil
+        commandNotice = nil
+
+        defer { isCommitting = false }
+
+        do {
+            let result = try await remoteCommandService.commitChanges(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                message: commitMessage,
+                stageAll: stageAll
+            )
+            commandNotice = "Committed \(result.shortOid)"
+        } catch {
+            sessionDetailLogger.error("Failed to commit changes: \(error.localizedDescription)")
+            commandError = error.localizedDescription
+        }
+    }
+
+    func pushChanges(remote: String?, branch: String?) async {
+        guard let deviceId = session.deviceId else { return }
+        guard canRunPRActions else { return }
+
+        isPushing = true
+        commandError = nil
+        commandNotice = nil
+
+        defer { isPushing = false }
+
+        do {
+            let result = try await remoteCommandService.pushChanges(
+                targetDeviceId: deviceId.uuidString.lowercased(),
+                sessionId: session.id.uuidString.lowercased(),
+                remote: remote?.trimmingCharacters(in: .whitespacesAndNewlines),
+                branch: branch?.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            let target = "\(result.remote)/\(result.branch)"
+            commandNotice = result.success ? "Pushed \(target)" : "Push failed for \(target)"
+        } catch {
+            sessionDetailLogger.error("Failed to push changes: \(error.localizedDescription)")
             commandError = error.localizedDescription
         }
     }
@@ -274,6 +353,10 @@ final class SyncedSessionDetailViewModel {
 
     func dismissError() {
         commandError = nil
+    }
+
+    func dismissNotice() {
+        commandNotice = nil
     }
 
     func stopRealtimeUpdates() {

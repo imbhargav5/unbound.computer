@@ -310,6 +310,13 @@ class GitViewModel {
         }
     }
 
+    /// Commit staged changes then push to remote
+    func commitAndPush() async {
+        await commit()
+        guard lastError == nil else { return }
+        await push()
+    }
+
     // MARK: - Commits Operations
 
     /// Refresh commit history

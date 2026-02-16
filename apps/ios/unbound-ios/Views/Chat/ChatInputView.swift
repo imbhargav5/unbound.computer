@@ -6,11 +6,18 @@ private let logger = Logger(label: "app.ui.chat")
 struct ChatInputView: View {
     @Binding var text: String
     let onSend: () -> Void
+    let placeholder: String
 
     @FocusState private var isFocused: Bool
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    init(text: Binding<String>, placeholder: String = "Message Claude...", onSend: @escaping () -> Void) {
+        self._text = text
+        self.placeholder = placeholder
+        self.onSend = onSend
     }
 
     var body: some View {
@@ -19,7 +26,7 @@ struct ChatInputView: View {
 
             HStack(alignment: .bottom, spacing: AppTheme.spacingS) {
                 // Text field
-                TextField("Message Claude...", text: $text, axis: .vertical)
+                TextField(placeholder, text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.body)
                     .padding(.horizontal, AppTheme.spacingM)

@@ -1,0 +1,36 @@
+// Release.xcconfig.template
+// Production configuration for macOS release builds.
+//
+// Copy this file to Release.xcconfig and customize as needed.
+// Release.xcconfig is gitignored and will not be committed.
+//
+// Usage:
+//   1. Copy: cp Release.xcconfig.template Release.xcconfig
+//   2. Edit Release.xcconfig with your production values
+//   3. Use the release build script (scripts/release/build-macos-release.sh)
+//      or point Xcode Release configuration to Release.xcconfig
+
+// ================================
+// Production URLs
+// ================================
+
+API_URL = https://unbound.computer
+RELAY_URL = wss://unbound-computer.fly.dev
+SUPABASE_URL = https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY = your-production-publishable-key
+
+// ================================
+// Embed values into the generated Info.plist
+// ================================
+
+INFOPLIST_KEY_API_URL = $(API_URL)
+INFOPLIST_KEY_RELAY_URL = $(RELAY_URL)
+INFOPLIST_KEY_SUPABASE_URL = $(SUPABASE_URL)
+INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = $(SUPABASE_PUBLISHABLE_KEY)
+
+// ================================
+// Versioning (injected by release pipeline)
+// ================================
+
+MARKETING_VERSION = $(RELEASE_VERSION)
+CURRENT_PROJECT_VERSION = $(RELEASE_BUILD_NUMBER)

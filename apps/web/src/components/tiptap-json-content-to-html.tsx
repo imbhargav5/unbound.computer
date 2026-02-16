@@ -3,8 +3,6 @@ import { ListItem } from "@tiptap/extension-list-item";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { generateHTML } from "@tiptap/html";
 import { StarterKit } from "@tiptap/starter-kit";
-import type { DBTable } from "@/types";
-
 const extensions = [
   Color.configure({ types: [TextStyle.name, ListItem.name] }),
   TextStyle.configure(),
@@ -23,14 +21,21 @@ const extensions = [
 export function TiptapJSONContentToHTML({
   jsonContent,
 }: {
-  jsonContent: DBTable<"marketing_blog_posts">["json_content"];
+  jsonContent: unknown;
 }) {
-  const validContent =
-    typeof jsonContent === "string"
-      ? JSON.parse(jsonContent)
-      : typeof jsonContent === "object" && jsonContent !== null
-        ? jsonContent
-        : {};
+  let validContent: Record<string, unknown> = {};
+  if (typeof jsonContent === "string") {
+    try {
+      const parsed = JSON.parse(jsonContent);
+      if (parsed && typeof parsed === "object") {
+        validContent = parsed as Record<string, unknown>;
+      }
+    } catch {
+      validContent = {};
+    }
+  } else if (jsonContent && typeof jsonContent === "object") {
+    validContent = jsonContent as Record<string, unknown>;
+  }
   if (Object.keys(validContent).length === 0) {
     return <div />;
   }

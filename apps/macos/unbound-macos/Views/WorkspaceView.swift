@@ -72,7 +72,7 @@ struct WorkspaceView: View {
     /// Space needed for traffic lights (close, minimize, zoom)
     private let trafficLightWidth: CGFloat = 78
 
-    /// Titlebar height (standard macOS titlebar)
+    /// Titlebar height (matches macOS traffic light area)
     private let titlebarHeight: CGFloat = 28
 
     /// Commands available in the command palette
@@ -203,10 +203,12 @@ struct WorkspaceView: View {
                 }
                 .padding(.top, titlebarHeight)
 
-                // Custom titlebar row (transparent, just for traffic lights spacing)
-                WindowToolbar(content: {
-                    Color.clear
-                }, height: titlebarHeight)
+                // Top navbar or transparent titlebar (zen mode)
+                if appState.localSettings.isZenModeEnabled {
+                    WindowToolbar(content: { Color.clear }, height: 28)
+                } else {
+                    TopNavbar(onOpenSettings: { appState.showSettings = true })
+                }
             }
 
             if appState.localSettings.isZenModeEnabled {

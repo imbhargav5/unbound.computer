@@ -500,6 +500,16 @@ async fn dispatch_command(
                 .await
                 .map_err(|(code, message)| (code, message, None))
         }
+        Some(RemoteCommandType::GitCommitV1) => {
+            crate::ipc::handlers::git::git_commit_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message, None))
+        }
+        Some(RemoteCommandType::GitPushV1) => {
+            crate::ipc::handlers::git::git_push_core(state, &envelope.params)
+                .await
+                .map_err(|err| (err.code, err.message, None))
+        }
         Some(RemoteCommandType::GhPrCreateV1) => {
             crate::ipc::handlers::gh::gh_pr_create_core(state, &envelope.params)
                 .await
@@ -538,6 +548,8 @@ enum RemoteCommandType {
     SessionCreateV1,
     ClaudeSendV1,
     ClaudeStopV1,
+    GitCommitV1,
+    GitPushV1,
     GhPrCreateV1,
     GhPrViewV1,
     GhPrListV1,
@@ -550,6 +562,8 @@ fn classify_remote_command_type(command_type: &str) -> Option<RemoteCommandType>
         "session.create.v1" => Some(RemoteCommandType::SessionCreateV1),
         "claude.send.v1" => Some(RemoteCommandType::ClaudeSendV1),
         "claude.stop.v1" => Some(RemoteCommandType::ClaudeStopV1),
+        "git.commit.v1" => Some(RemoteCommandType::GitCommitV1),
+        "git.push.v1" => Some(RemoteCommandType::GitPushV1),
         "gh.pr.create.v1" => Some(RemoteCommandType::GhPrCreateV1),
         "gh.pr.view.v1" => Some(RemoteCommandType::GhPrViewV1),
         "gh.pr.list.v1" => Some(RemoteCommandType::GhPrListV1),
@@ -1054,6 +1068,14 @@ mod tests {
         assert_eq!(
             classify_remote_command_type("claude.stop.v1"),
             Some(RemoteCommandType::ClaudeStopV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("git.commit.v1"),
+            Some(RemoteCommandType::GitCommitV1)
+        );
+        assert_eq!(
+            classify_remote_command_type("git.push.v1"),
+            Some(RemoteCommandType::GitPushV1)
         );
         assert_eq!(
             classify_remote_command_type("gh.pr.create.v1"),
