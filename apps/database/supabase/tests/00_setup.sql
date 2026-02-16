@@ -17,7 +17,7 @@ SELECT plan(1);
 -- TEST USER UUIDs (from seed.sql)
 -- =============================================================================
 -- These constants reference users created by the seed data:
---   Admin:  00000000-0000-0000-0000-000000000001 (testadmin@outbound.new)
+--   Admin:  00000000-0000-0000-0000-000000000001 (testadmin@unbound.computer)
 --   Alice:  aaaaaaaa-1111-1111-1111-111111111111 (alice@example.com)
 --   Bob:    bbbbbbbb-2222-2222-2222-222222222222 (bob@example.com)
 --   Carol:  cccccccc-3333-3333-3333-333333333333 (carol@example.com)

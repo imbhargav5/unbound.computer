@@ -79,7 +79,7 @@ export function DocsMobileNavigation() {
                 className="hidden h-10 w-10 dark:block"
                 src={darkLogo}
               />
-              <span className="hidden font-bold sm:inline-block">Outbound</span>
+              <span className="hidden font-bold sm:inline-block">Unbound</span>
             </div>
           </Link>
         </div>

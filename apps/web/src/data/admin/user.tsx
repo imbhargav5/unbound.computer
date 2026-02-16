@@ -231,11 +231,11 @@ export const sendLoginLinkAction = adminActionClient
         // send email
         const signInEmailHTML = await renderAsync(
           <SignInEmail
-            companyName="Outbound"
+            companyName="Unbound"
             logoUrl={urlJoin(
               process.env.NEXT_PUBLIC_SUPABASE_URL,
               "/storage/v1/object/public/marketing-assets",
-              "outbound-logo.png"
+              "unbound-logo.png"
             )}
             signInUrl={url.toString()}
             userName={userName ?? "User"}
