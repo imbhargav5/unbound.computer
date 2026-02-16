@@ -44,7 +44,7 @@ Falco and Nagato no longer create their own Ably SDK clients. They use `daemon-a
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-## Heartbeat Contract
+## Heartbeat Contract (Legacy Ably)
 
 `daemon-ably` publishes daemon availability as a message stream (not native Ably Presence API).
 
@@ -71,6 +71,66 @@ Payload schema:
 
 `user_id` is normalized by trimming whitespace and lowercasing before being used
 in the channel name and payload, so consumers should treat it as lowercase.
+
+## Durable Object Presence Contract (Target)
+
+Presence heartbeats are migrating to a Cloudflare Durable Object (DO) stream that
+preserves the same online/offline semantics used by iOS gating.
+
+### Storage record (per device)
+
+```json
+{
+  "schema_version": 1,
+  "user_id": "user-uuid-lowercase",
+  "device_id": "device-uuid-lowercase",
+  "status": "online|offline",
+  "source": "daemon-do",
+  "last_heartbeat_ms": 1739030400000,
+  "last_offline_ms": null,
+  "updated_at_ms": 1739030400000,
+  "seq": 42,
+  "ttl_ms": 12000
+}
+```
+
+### Stream event envelope (DO -> clients)
+
+```json
+{
+  "schema_version": 1,
+  "user_id": "user-uuid-lowercase",
+  "device_id": "device-uuid-lowercase",
+  "status": "online|offline",
+  "source": "daemon-do",
+  "sent_at_ms": 1739030400000,
+  "seq": 42,
+  "ttl_ms": 12000
+}
+```
+
+### State constraints
+
+- `user_id` / `device_id` are trimmed + lowercased.
+- Allowed status values: `online`, `offline`.
+- `ttl_ms` is set to 12000ms to preserve current iOS offline gating behavior.
+
+### Migration map (Ably -> DO)
+
+| Legacy Ably | DO replacement |
+| --- | --- |
+| `presence:{user_id}` channel | DO stream for `user_id` |
+| `daemon.presence.v1` event | DO stream event envelope |
+| Ably token `presence:*` | Presence DO token scope (`presence:read`, `presence:write`) |
+
+### API surface (web)
+
+- `POST /api/v1/mobile/presence/token` issues DO presence auth for mobile clients.
+- `GET /api/v1/mobile/presence/stream?user_id=...` streams DO presence updates.
+- `POST /api/v1/daemon/presence/heartbeat` (or signed DO ingress) writes daemon heartbeats.
+
+Error model uses machine-readable codes: `unauthorized`, `forbidden`, `rate_limited`,
+`unavailable`, `invalid_payload`.
 
 ## Local IPC Protocol (NDJSON)
 
