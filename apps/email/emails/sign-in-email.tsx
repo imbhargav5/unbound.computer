@@ -130,7 +130,7 @@ const footerStyle: React.CSSProperties = {
 // @ts-expect-error
 SignInEmail.PreviewProps = {
   signInUrl: "https://example.com/signin",
-  companyName: "Nextbase",
+  companyName: "Outbound",
   userName: "John Doe",
   logoUrl: "https://placehold.it/160x50",
 };
