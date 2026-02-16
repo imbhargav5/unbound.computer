@@ -4,9 +4,17 @@ use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use piccolo::{
     commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
-    unstage_files,
+    unstage_files, PiccoloError,
 };
-use sakura_working_dir_resolution::{resolve_repository_path, ResolveError};
+use sakura_working_dir_resolution::{
+    resolve_repository_path, resolve_working_dir_from_str, ResolveError,
+};
+
+#[derive(Debug, Clone)]
+pub struct GitCoreError {
+    pub code: String,
+    pub message: String,
+}
 
 /// Register git handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -19,6 +27,87 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_git_discard(server, state.clone()).await;
     register_git_commit(server, state.clone()).await;
     register_git_push(server, state).await;
+}
+
+pub async fn git_commit_core(
+    state: &DaemonState,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, GitCoreError> {
+    let repo_path = resolve_git_repo_path(state, params)?;
+
+    let message = params
+        .get("message")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| GitCoreError {
+            code: "invalid_params".to_string(),
+            message: "message is required".to_string(),
+        })?;
+
+    let author_name = params
+        .get("author_name")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+
+    let author_email = params
+        .get("author_email")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+
+    let stage_all = params
+        .get("stage_all")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if stage_all {
+        let all_paths = ["."];
+        stage_files(std::path::Path::new(&repo_path), &all_paths).map_err(map_piccolo_error)?;
+    }
+
+    let result = commit(
+        std::path::Path::new(&repo_path),
+        message,
+        author_name,
+        author_email,
+    )
+    .map_err(map_piccolo_error)?;
+
+    Ok(serde_json::json!({
+        "oid": result.oid,
+        "short_oid": result.short_oid,
+        "summary": result.summary,
+    }))
+}
+
+pub async fn git_push_core(
+    state: &DaemonState,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, GitCoreError> {
+    let repo_path = resolve_git_repo_path(state, params)?;
+
+    let remote = params
+        .get("remote")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+
+    let branch = params
+        .get("branch")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+
+    let result =
+        push(std::path::Path::new(&repo_path), remote, branch).map_err(map_piccolo_error)?;
+
+    Ok(serde_json::json!({
+        "remote": result.remote,
+        "branch": result.branch,
+        "success": result.success,
+    }))
 }
 
 async fn register_git_status(server: &IpcServer, state: DaemonState) {
@@ -106,25 +195,55 @@ async fn extract_repo_path(
     state: &DaemonState,
     params: &Option<serde_json::Value>,
 ) -> Result<String, (i32, String)> {
+    if let Some(session_id) = params
+        .as_ref()
+        .and_then(|p| p.get("session_id"))
+        .and_then(|v| v.as_str())
+    {
+        if session_id.trim().is_empty() {
+            return Err((
+                error_codes::INVALID_PARAMS,
+                "session_id must not be empty".to_string(),
+            ));
+        }
+        return resolve_working_dir_from_str(&*state.armin, session_id)
+            .map(|resolved| resolved.working_dir)
+            .map_err(map_resolve_error);
+    }
+
     if let Some(repo_id) = params
         .as_ref()
         .and_then(|p| p.get("repository_id"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase())
     {
-        resolve_repository_path(&*state.armin, &repo_id).map_err(map_resolve_error)
-    } else if let Some(path) = params
+        if repo_id.trim().is_empty() {
+            return Err((
+                error_codes::INVALID_PARAMS,
+                "repository_id must not be empty".to_string(),
+            ));
+        }
+        return resolve_repository_path(&*state.armin, &repo_id).map_err(map_resolve_error);
+    }
+
+    if let Some(path) = params
         .as_ref()
         .and_then(|p| p.get("path"))
         .and_then(|v| v.as_str())
     {
-        Ok(path.to_string())
-    } else {
-        Err((
-            error_codes::INVALID_PARAMS,
-            "repository_id or path is required".to_string(),
-        ))
+        if path.trim().is_empty() {
+            return Err((
+                error_codes::INVALID_PARAMS,
+                "path must not be empty".to_string(),
+            ));
+        }
+        return Ok(path.to_string());
     }
+
+    Err((
+        error_codes::INVALID_PARAMS,
+        "one of session_id, repository_id, or path is required".to_string(),
+    ))
 }
 
 fn map_resolve_error(err: ResolveError) -> (i32, String) {
@@ -340,52 +459,14 @@ async fn register_git_commit(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitCommitChanges, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params).await {
-                    Ok(p) => p,
-                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
-                };
-
-                let message = req
+                let params = req
                     .params
                     .as_ref()
-                    .and_then(|p| p.get("message"))
-                    .and_then(|v| v.as_str());
-
-                let Some(message) = message else {
-                    return Response::error(
-                        &req.id,
-                        error_codes::INVALID_PARAMS,
-                        "message is required",
-                    );
-                };
-
-                let author_name = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("author_name"))
-                    .and_then(|v| v.as_str());
-
-                let author_email = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("author_email"))
-                    .and_then(|v| v.as_str());
-
-                match commit(
-                    std::path::Path::new(&repo_path),
-                    message,
-                    author_name,
-                    author_email,
-                ) {
-                    Ok(result) => Response::success(
-                        &req.id,
-                        serde_json::json!({
-                            "oid": result.oid,
-                            "short_oid": result.short_oid,
-                            "summary": result.summary,
-                        }),
-                    ),
-                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+                match git_commit_core(&state, &params).await {
+                    Ok(result) => Response::success(&req.id, result),
+                    Err(err) => git_core_error_response(&req.id, err),
                 }
             }
         })
@@ -397,35 +478,102 @@ async fn register_git_push(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GitPush, move |req| {
             let state = state.clone();
             async move {
-                let repo_path = match extract_repo_path(&state, &req.params).await {
-                    Ok(p) => p,
-                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
-                };
-
-                let remote = req
+                let params = req
                     .params
                     .as_ref()
-                    .and_then(|p| p.get("remote"))
-                    .and_then(|v| v.as_str());
-
-                let branch = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("branch"))
-                    .and_then(|v| v.as_str());
-
-                match push(std::path::Path::new(&repo_path), remote, branch) {
-                    Ok(result) => Response::success(
-                        &req.id,
-                        serde_json::json!({
-                            "remote": result.remote,
-                            "branch": result.branch,
-                            "success": result.success,
-                        }),
-                    ),
-                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e.to_string()),
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+                match git_push_core(&state, &params).await {
+                    Ok(result) => Response::success(&req.id, result),
+                    Err(err) => git_core_error_response(&req.id, err),
                 }
             }
         })
         .await;
+}
+
+fn resolve_git_repo_path(
+    state: &DaemonState,
+    params: &serde_json::Value,
+) -> Result<String, GitCoreError> {
+    if let Some(session_id) = params.get("session_id").and_then(|v| v.as_str()) {
+        if session_id.trim().is_empty() {
+            return Err(GitCoreError {
+                code: "invalid_params".to_string(),
+                message: "session_id must not be empty".to_string(),
+            });
+        }
+        return resolve_working_dir_from_str(&*state.armin, session_id)
+            .map(|resolved| resolved.working_dir)
+            .map_err(map_resolve_error);
+    }
+
+    if let Some(repository_id) = params.get("repository_id").and_then(|v| v.as_str()) {
+        if repository_id.trim().is_empty() {
+            return Err(GitCoreError {
+                code: "invalid_params".to_string(),
+                message: "repository_id must not be empty".to_string(),
+            });
+        }
+        return resolve_repository_path(&*state.armin, repository_id)
+            .map_err(map_resolve_error_core);
+    }
+
+    if let Some(path) = params.get("path").and_then(|v| v.as_str()) {
+        if path.trim().is_empty() {
+            return Err(GitCoreError {
+                code: "invalid_params".to_string(),
+                message: "path must not be empty".to_string(),
+            });
+        }
+        return Ok(path.to_string());
+    }
+
+    Err(GitCoreError {
+        code: "invalid_params".to_string(),
+        message: "one of session_id, repository_id, or path is required".to_string(),
+    })
+}
+
+fn map_resolve_error_core(err: ResolveError) -> GitCoreError {
+    match err {
+        ResolveError::SessionNotFound(message) | ResolveError::RepositoryNotFound(message) => {
+            GitCoreError {
+                code: "not_found".to_string(),
+                message,
+            }
+        }
+        ResolveError::LegacyWorktreeUnsupported(message) => GitCoreError {
+            code: "legacy_worktree_unsupported".to_string(),
+            message,
+        },
+        ResolveError::Armin(err) => GitCoreError {
+            code: "command_failed".to_string(),
+            message: format!("failed to resolve repository path: {err}"),
+        },
+    }
+}
+
+fn map_piccolo_error(err: PiccoloError) -> GitCoreError {
+    GitCoreError {
+        code: "command_failed".to_string(),
+        message: err.to_string(),
+    }
+}
+
+fn git_core_error_response(id: &str, err: GitCoreError) -> Response {
+    let code = match err.code.as_str() {
+        "invalid_params" => error_codes::INVALID_PARAMS,
+        "not_found" => error_codes::NOT_FOUND,
+        "legacy_worktree_unsupported" => error_codes::INVALID_PARAMS,
+        _ => error_codes::INTERNAL_ERROR,
+    };
+    Response::error_with_data(
+        id,
+        code,
+        &err.message,
+        Some(serde_json::json!({
+            "error_code": err.code,
+        })),
+    )
 }
