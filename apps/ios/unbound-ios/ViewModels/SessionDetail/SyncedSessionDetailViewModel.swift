@@ -58,6 +58,14 @@ final class SyncedSessionDetailViewModel {
         return presenceService.daemonAvailability(id: deviceId.uuidString.lowercased())
     }
 
+    var isDaemonOffline: Bool {
+        daemonAvailability == .offline
+    }
+
+    var inputPlaceholder: String {
+        isDaemonOffline ? "Daemon offline" : "Message Claude..."
+    }
+
     var canSendMessage: Bool {
         session.deviceId != nil
             && daemonAvailability != .offline
