@@ -636,7 +636,6 @@ struct ChatPanel: View {
             .gesture(resizeGesture(availableHeight: availableHeight))
     }
 
-    @ViewBuilder
     private var footerContent: some View {
         terminalFooterContent
     }
@@ -653,14 +652,6 @@ struct ChatPanel: View {
                     .padding(Spacing.md)
             }
         }
-    }
-
-    private func footerPlaceholder(_ text: String) -> some View {
-        Text(text)
-            .font(Typography.bodySmall)
-            .foregroundStyle(colors.mutedForeground)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(Spacing.md)
     }
 
     private func toggleFooterExpansion(availableHeight: CGFloat) {
