@@ -12,6 +12,7 @@ import SwiftUI
 
 enum FontSizePreset: String, CaseIterable, Identifiable {
     case small = "Small"
+    case medium = "Medium"
     case large = "Large"
 
     var id: String { rawValue }
@@ -20,20 +21,23 @@ enum FontSizePreset: String, CaseIterable, Identifiable {
     var scaleFactor: CGFloat {
         switch self {
         case .small: return 0.9
-        case .large: return 1.0
+        case .medium: return 1.0
+        case .large: return 1.2
         }
     }
 
     var description: String {
         switch self {
         case .small: return "Compact interface"
-        case .large: return "Default size"
+        case .medium: return "Default size"
+        case .large: return "Larger text and UI"
         }
     }
 
     var iconName: String {
         switch self {
         case .small: return "textformat.size.smaller"
+        case .medium: return "textformat.size"
         case .large: return "textformat.size.larger"
         }
     }
@@ -105,8 +109,8 @@ class LocalSettings {
            let preset = FontSizePreset(rawValue: savedPreset) {
             self.fontSizePreset = preset
         } else {
-            // Default to small (compact) preset
-            self.fontSizePreset = .small
+            // Default to medium preset
+            self.fontSizePreset = .medium
         }
 
         let storedLeftSidebarVisible = UserDefaults.standard.object(forKey: Keys.leftSidebarVisible) as? Bool ?? true
