@@ -1,3 +1,4 @@
+import ClaudeConversationTimeline
 import SwiftUI
 
 struct SyncedSessionDetailView: View {
@@ -5,7 +6,7 @@ struct SyncedSessionDetailView: View {
 
     @Environment(\.navigationManager) private var navigationManager
 
-    @State private var viewModel: SyncedSessionDetailViewModel
+    @State private var viewModel: ClaudeSyncedSessionDetailViewModel
     @State private var hasAppliedInitialBottomScroll = false
     @State private var showCreatePRComposer = false
     @State private var deleteBranchOnMerge = false
@@ -21,13 +22,13 @@ struct SyncedSessionDetailView: View {
 
     init(
         session: SyncedSession,
-        messageService: SessionDetailMessageLoading = SessionDetailMessageService()
+        claudeMessageSource: ClaudeSessionMessageSource = ClaudeRemoteSessionMessageSource()
     ) {
         self.session = session
         _viewModel = State(
-            initialValue: SyncedSessionDetailViewModel(
+            initialValue: ClaudeSyncedSessionDetailViewModel(
                 session: session,
-                messageService: messageService
+                claudeMessageSource: claudeMessageSource
             )
         )
     }
@@ -271,7 +272,7 @@ struct SyncedSessionDetailView: View {
 
                     LazyVStack(spacing: AppTheme.spacingS) {
                         ForEach(visibleMessages) { message in
-                            MessageBubbleView(message: message, showRoleIcon: false)
+                            ClaudeMessageBubbleView(message: message, showRoleIcon: false)
                         }
                     }
 
@@ -706,7 +707,7 @@ private struct SyncedSessionDetailPreviewFixture {
             NavigationStack {
                 SyncedSessionDetailView(
                     session: fixture.session,
-                    messageService: fixture.loader
+                    claudeMessageSource: ClaudeFixtureSessionMessageSource(loader: fixture.loader)
                 )
             }
         } else {
