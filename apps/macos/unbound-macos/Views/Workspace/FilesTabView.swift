@@ -149,11 +149,11 @@ struct FilesTreeRow: View {
                 .padding(.leading, CGFloat(level) * Spacing.lg + Spacing.md)
                 .padding(.trailing, Spacing.md)
                 .padding(.vertical, Spacing.xs)
+                .fullRowHitTarget()
                 .background(
                     RoundedRectangle(cornerRadius: Radius.sm)
                         .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
                 )
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .onHover { hovering in
