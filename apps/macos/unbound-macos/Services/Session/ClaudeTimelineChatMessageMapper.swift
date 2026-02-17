@@ -1,0 +1,116 @@
+import ClaudeConversationTimeline
+import CryptoKit
+import Foundation
+
+enum ClaudeTimelineChatMessageMapper {
+    static func mapEntries(_ entries: [ClaudeConversationTimelineEntry]) -> [ChatMessage] {
+        entries.compactMap { entry in
+            let content = mapBlocks(entry.blocks)
+            guard !content.isEmpty else { return nil }
+
+            let role: MessageRole
+            switch entry.role {
+            case .user:
+                role = .user
+            case .assistant:
+                role = .assistant
+            case .system, .result, .unknown:
+                role = .system
+            }
+
+            return ChatMessage(
+                id: stableUUID(for: entry.id),
+                role: role,
+                content: content,
+                timestamp: entry.createdAt ?? Date(),
+                isStreaming: false,
+                sequenceNumber: entry.sequence ?? 0
+            )
+        }
+    }
+
+    private static func mapBlocks(_ blocks: [ClaudeConversationBlock]) -> [MessageContent] {
+        var mapped: [MessageContent] = []
+
+        for block in blocks {
+            switch block {
+            case .text(let text):
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    mapped.append(.text(TextContent(text: trimmed)))
+                }
+
+            case .toolCall(let tool):
+                mapped.append(.toolUse(makeToolUse(from: tool)))
+
+            case .subAgent(let subAgent):
+                mapped.append(.subAgentActivity(makeSubAgent(from: subAgent)))
+
+            case .result(let result):
+                if result.isError, let message = result.text {
+                    mapped.append(.error(ErrorContent(message: message)))
+                }
+
+            case .error(let message):
+                mapped.append(.error(ErrorContent(message: message)))
+
+            case .compactBoundary:
+                mapped.append(.text(TextContent(text: "Compact boundary")))
+
+            case .unknown:
+                continue
+            }
+        }
+
+        return mapped
+    }
+
+    private static func makeToolUse(from tool: ClaudeToolCallBlock) -> ToolUse {
+        ToolUse(
+            toolUseId: tool.toolUseId,
+            parentToolUseId: tool.parentToolUseId,
+            toolName: tool.name,
+            input: tool.input,
+            output: tool.resultText,
+            status: mapStatus(tool.status)
+        )
+    }
+
+    private static func makeSubAgent(from subAgent: ClaudeSubAgentBlock) -> SubAgentActivity {
+        let tools = subAgent.tools.map { makeToolUse(from: $0) }
+        return SubAgentActivity(
+            parentToolUseId: subAgent.parentToolUseId,
+            subagentType: subAgent.subagentType,
+            description: subAgent.description,
+            tools: tools,
+            status: mapStatus(subAgent.status),
+            result: subAgent.result
+        )
+    }
+
+    private static func mapStatus(_ status: ClaudeToolCallStatus) -> ToolStatus {
+        switch status {
+        case .running:
+            return .running
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
+    }
+
+    private static func stableUUID(for value: String) -> UUID {
+        if let uuid = UUID(uuidString: value) {
+            return uuid
+        }
+
+        let digest = SHA256.hash(data: Data(value.utf8))
+        let bytes = Array(digest.prefix(16))
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+}

@@ -98,6 +98,14 @@ public final class ClaudeCodingSessionState {
         isLoading = false
     }
 
+    public func ingest(rows: [RawSessionRow]) {
+        apply(rows: rows)
+    }
+
+    public func replace(rows: [RawSessionRow]) {
+        apply(rows: rows, replaceExisting: true)
+    }
+
     private func apply(rows: [RawSessionRow], replaceExisting: Bool = false) {
         var didChange = false
 
