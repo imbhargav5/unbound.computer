@@ -115,6 +115,11 @@ function parseBearerToken(header: string | null) {
   return value ?? "";
 }
 
+function logEvent(event: string, data?: Record<string, unknown>) {
+  const payload = data ? { event, ...data } : { event };
+  console.log(JSON.stringify(payload));
+}
+
 function validatePresencePayload(input: unknown) {
   if (!input || typeof input !== "object") {
     return { ok: false, error: "invalid_payload" as const, details: "Invalid JSON payload" };
@@ -258,6 +263,7 @@ export class PresenceDurableObject {
   private async handleHeartbeat(request: Request) {
     const ingestToken = this.env.PRESENCE_DO_INGEST_TOKEN?.trim();
     if (!ingestToken) {
+      logEvent("presence.do.heartbeat.unavailable");
       return jsonResponse(
         buildPresenceError(
           "unavailable",
@@ -269,6 +275,7 @@ export class PresenceDurableObject {
 
     const authHeader = parseBearerToken(request.headers.get("Authorization"));
     if (!authHeader || authHeader !== ingestToken) {
+      logEvent("presence.do.heartbeat.unauthorized");
       return jsonResponse(buildPresenceError("unauthorized", "Unauthorized"), 401);
     }
 
@@ -281,6 +288,9 @@ export class PresenceDurableObject {
 
     const validation = validatePresencePayload(body);
     if (!validation.ok) {
+      logEvent("presence.do.heartbeat.invalid_payload", {
+        reason: validation.details,
+      });
       return jsonResponse(buildPresenceError(validation.error, validation.details), 400);
     }
 
@@ -288,6 +298,9 @@ export class PresenceDurableObject {
     const recordKey = this.deviceKey(payload.device_id);
     const existing = await this.state.storage.get<PresenceStorageRecord>(recordKey);
     if (existing && payload.seq <= existing.seq) {
+      logEvent("presence.do.heartbeat.non_monotonic", {
+        device_id: payload.device_id,
+      });
       return jsonResponse(
         buildPresenceError("invalid_payload", "Non-monotonic seq"),
         409
@@ -311,12 +324,18 @@ export class PresenceDurableObject {
     this.broadcast(this.toStreamPayload(record, payload.sent_at_ms));
     await this.scheduleNextAlarm();
 
+    logEvent("presence.do.heartbeat.accepted", {
+      user_id: payload.user_id,
+      device_id: payload.device_id,
+      status: payload.status,
+    });
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   private async handleStream(request: Request, url: URL) {
     const signingKey = this.env.PRESENCE_DO_TOKEN_SIGNING_KEY?.trim();
     if (!signingKey) {
+      logEvent("presence.do.stream.unavailable");
       return jsonResponse(
         buildPresenceError(
           "unavailable",
@@ -328,25 +347,33 @@ export class PresenceDurableObject {
 
     const token = parseBearerToken(request.headers.get("Authorization"));
     if (!token) {
+      logEvent("presence.do.stream.unauthorized");
       return jsonResponse(buildPresenceError("unauthorized", "Unauthorized"), 401);
     }
 
     const payload = await verifyPresenceToken(token, signingKey);
     if (!payload) {
+      logEvent("presence.do.stream.invalid_token");
       return jsonResponse(buildPresenceError("forbidden", "Invalid token"), 403);
     }
 
     const now = Date.now();
     if (payload.exp_ms <= now) {
+      logEvent("presence.do.stream.token_expired", { user_id: payload.user_id });
       return jsonResponse(buildPresenceError("forbidden", "Token expired"), 403);
     }
 
     if (!payload.scope?.includes("presence:read")) {
+      logEvent("presence.do.stream.forbidden_scope", { user_id: payload.user_id });
       return jsonResponse(buildPresenceError("forbidden", "Insufficient scope"), 403);
     }
 
     const userId = normalizeIdentifier(url.searchParams.get("user_id"));
     if (!userId || payload.user_id !== userId) {
+      logEvent("presence.do.stream.user_mismatch", {
+        token_user_id: payload.user_id,
+        requested_user_id: userId,
+      });
       return jsonResponse(buildPresenceError("forbidden", "Token user mismatch"), 403);
     }
 
@@ -356,15 +383,22 @@ export class PresenceDurableObject {
         this.streams.set(streamId, controller);
         request.signal.addEventListener("abort", () => {
           this.streams.delete(streamId);
+          logEvent("presence.do.stream.disconnect", { user_id: payload.user_id });
         });
 
         const records = await this.listDeviceRecords();
         for (const record of records.values()) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(this.toStreamPayload(record, record.updated_at_ms))}\n\n`));
         }
+
+        logEvent("presence.do.stream.connect", {
+          user_id: payload.user_id,
+          device_id: payload.device_id,
+        });
       },
       cancel: () => {
         this.streams.delete(streamId);
+        logEvent("presence.do.stream.disconnect", { user_id: payload.user_id });
       },
     });
 
