@@ -22,6 +22,14 @@ Produce a deterministic, UI-ready timeline from encrypted session payloads with 
   - `StandaloneToolCallsView`
   - `ToolCallView`
 
+## Shared Claude Fixtures
+
+Shared Claude parser fixtures live at:
+
+`apps/shared/ClaudeConversationTimeline/Fixtures/claude-parser-contract-fixtures.json`
+
+iOS and macOS tests load this file to keep timeline parsing consistent across platforms.
+
 ## Out of Scope
 
 - Daemon protocol/schema changes.
