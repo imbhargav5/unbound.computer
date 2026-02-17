@@ -1,0 +1,514 @@
+import Foundation
+
+public final class ClaudeConversationTimelineParser {
+    private let maxRawJSONDepth = 4
+    private var timeline: [ClaudeConversationTimelineEntry] = []
+
+    public init() {}
+
+    @discardableResult
+    public func ingest(rawJSON: String) -> [ClaudeConversationTimelineEntry] {
+        guard let data = rawJSON.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return timeline
+        }
+
+        ingest(payload: json)
+        return timeline
+    }
+
+    @discardableResult
+    public func ingest(payload: [String: Any]) -> [ClaudeConversationTimelineEntry] {
+        let resolved = resolvedPayload(from: payload)
+        guard let type = messageType(from: resolved) else { return timeline }
+
+        switch type {
+        case "assistant":
+            if let entry = parseAssistant(payload: resolved) {
+                upsert(entry: entry)
+            }
+
+        case "user":
+            if let entry = parseUser(payload: resolved) {
+                upsert(entry: entry)
+            }
+            applyToolResultUpdates(from: resolved)
+
+        case "system":
+            if let entry = parseSystem(payload: resolved) {
+                upsert(entry: entry)
+            }
+
+        case "result":
+            if let entry = parseResult(payload: resolved) {
+                upsert(entry: entry)
+            }
+
+        case "stream_event":
+            handleStreamEvent(payload: resolved)
+
+        default:
+            break
+        }
+
+        return timeline
+    }
+
+    public func currentTimeline() -> [ClaudeConversationTimelineEntry] {
+        timeline
+    }
+
+    private func parseAssistant(payload: [String: Any]) -> ClaudeConversationTimelineEntry? {
+        guard let message = payload["message"] as? [String: Any] else { return nil }
+        let contentBlocks = (message["content"] as? [[String: Any]]) ?? []
+
+        var blocks: [ClaudeConversationBlock] = []
+        var subAgentIndexById: [String: Int] = [:]
+        var pendingToolsByParent: [String: [ClaudeToolCallBlock]] = [:]
+        var pendingParentOrder: [String] = []
+        let messageParent = payload["parent_tool_use_id"] as? String
+
+        for block in contentBlocks {
+            guard let blockType = (block["type"] as? String)?.lowercased() else { continue }
+
+            switch blockType {
+            case "text":
+                if let text = sanitizedText(block["text"] as? String) {
+                    blocks.append(.text(text))
+                }
+
+            case "tool_use":
+                guard let toolId = block["id"] as? String,
+                      let name = block["name"] as? String else {
+                    continue
+                }
+
+                let inputDict = block["input"] as? [String: Any]
+                let inputJson = inputDict.flatMap { dict in
+                    try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys])
+                }.flatMap { String(data: $0, encoding: .utf8) }
+
+                let parentToolUseId = (block["parent_tool_use_id"] as? String) ?? messageParent
+                let toolUse = ClaudeToolCallBlock(
+                    toolUseId: toolId,
+                    parentToolUseId: parentToolUseId,
+                    name: name,
+                    input: inputJson,
+                    status: .running,
+                    resultText: nil
+                )
+
+                if name == "Task" {
+                    let subagentType = (inputDict?["subagent_type"] as? String) ?? "unknown"
+                    let description = (inputDict?["description"] as? String) ?? ""
+                    var subAgent = ClaudeSubAgentBlock(
+                        parentToolUseId: toolId,
+                        subagentType: subagentType,
+                        description: description,
+                        tools: [],
+                        status: .running,
+                        result: nil
+                    )
+
+                    if let pendingTools = pendingToolsByParent.removeValue(forKey: toolId) {
+                        subAgent = subAgent.with(tools: mergeTools(existing: subAgent.tools, incoming: pendingTools),
+                                                 status: subAgent.status,
+                                                 result: subAgent.result)
+                    }
+
+                    if let existingIndex = subAgentIndexById[toolId],
+                       case .subAgent(let existingSubAgent) = blocks[existingIndex] {
+                        blocks[existingIndex] = .subAgent(mergeSubAgent(existing: existingSubAgent, incoming: subAgent))
+                    } else {
+                        blocks.append(.subAgent(subAgent))
+                        subAgentIndexById[toolId] = blocks.count - 1
+                    }
+                    continue
+                }
+
+                if let parentId = parentToolUseId {
+                    if let index = subAgentIndexById[parentId],
+                       case .subAgent(let subAgent) = blocks[index] {
+                        let mergedTools = mergeTools(existing: subAgent.tools, incoming: [toolUse])
+                        blocks[index] = .subAgent(subAgent.with(tools: mergedTools, status: subAgent.status, result: subAgent.result))
+                    } else {
+                        let existingPending = pendingToolsByParent[parentId, default: []]
+                        pendingToolsByParent[parentId] = mergeTools(existing: existingPending, incoming: [toolUse])
+                        if !pendingParentOrder.contains(parentId) {
+                            pendingParentOrder.append(parentId)
+                        }
+                    }
+                } else {
+                    appendOrUpdateStandaloneTool(toolUse, to: &blocks)
+                }
+
+            default:
+                break
+            }
+        }
+
+        for parentId in pendingParentOrder {
+            guard let pendingTools = pendingToolsByParent[parentId] else { continue }
+            for tool in pendingTools {
+                appendOrUpdateStandaloneTool(tool, to: &blocks)
+            }
+        }
+
+        guard !blocks.isEmpty else { return nil }
+
+        return ClaudeConversationTimelineEntry(
+            id: canonicalId(from: payload, fallbackPrefix: "assistant"),
+            role: .assistant,
+            blocks: blocks,
+            createdAt: parseDate(payload["created_at"]),
+            sequence: parseSequence(payload),
+            sourceType: "assistant"
+        )
+    }
+
+    private func parseUser(payload: [String: Any]) -> ClaudeConversationTimelineEntry? {
+        var blocks: [ClaudeConversationBlock] = []
+
+        if let text = sanitizedText(payload["message"] as? String) {
+            blocks.append(.text(text))
+        } else if let message = payload["message"] as? [String: Any],
+                  let contentBlocks = message["content"] as? [[String: Any]] {
+            for block in contentBlocks {
+                guard let blockType = (block["type"] as? String)?.lowercased() else { continue }
+                switch blockType {
+                case "text":
+                    if let text = sanitizedText(block["text"] as? String) {
+                        blocks.append(.text(text))
+                    }
+                case "tool_result":
+                    if let content = sanitizedText(block["content"] as? String),
+                       !looksLikeProtocolArtifact(content) {
+                        blocks.append(.text(content))
+                    } else if let contentArray = block["content"] as? [[String: Any]] {
+                        for item in contentArray {
+                            if let text = sanitizedText(item["text"] as? String),
+                               !looksLikeProtocolArtifact(text) {
+                                blocks.append(.text(text))
+                            }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        guard !blocks.isEmpty else { return nil }
+
+        return ClaudeConversationTimelineEntry(
+            id: canonicalId(from: payload, fallbackPrefix: "user"),
+            role: .user,
+            blocks: blocks,
+            createdAt: parseDate(payload["created_at"]),
+            sequence: parseSequence(payload),
+            sourceType: "user"
+        )
+    }
+
+    private func parseSystem(payload: [String: Any]) -> ClaudeConversationTimelineEntry? {
+        let subtype = (payload["subtype"] as? String)?.lowercased()
+        guard subtype == "compact_boundary" else { return nil }
+
+        return ClaudeConversationTimelineEntry(
+            id: canonicalId(from: payload, fallbackPrefix: "system"),
+            role: .system,
+            blocks: [.compactBoundary],
+            createdAt: parseDate(payload["created_at"]),
+            sequence: parseSequence(payload),
+            sourceType: "system"
+        )
+    }
+
+    private func parseResult(payload: [String: Any]) -> ClaudeConversationTimelineEntry? {
+        let isError = payload["is_error"] as? Bool ?? false
+        let text = sanitizedText(payload["result"] as? String)
+        let permissionDenials = (payload["permission_denials"] as? [String]) ?? []
+
+        let block = ClaudeResultBlock(isError: isError, text: text, permissionDenials: permissionDenials)
+        return ClaudeConversationTimelineEntry(
+            id: canonicalId(from: payload, fallbackPrefix: "result"),
+            role: .result,
+            blocks: [.result(block)],
+            createdAt: parseDate(payload["created_at"]),
+            sequence: parseSequence(payload),
+            sourceType: "result"
+        )
+    }
+
+    private func handleStreamEvent(payload: [String: Any]) {
+        guard let messageId = (payload["message_id"] as? String) ?? (payload["id"] as? String) else {
+            return
+        }
+
+        let deltaText = ((payload["delta"] as? [String: Any])?["text"] as? String)
+            ?? (payload["text"] as? String)
+        guard let update = sanitizedText(deltaText) else { return }
+
+        let entryId = "stream-\(messageId)"
+        var blocks: [ClaudeConversationBlock] = []
+
+        if let existingIndex = timeline.firstIndex(where: { $0.id == entryId }) {
+            let existing = timeline[existingIndex]
+            let existingText = existing.blocks.compactMap { block -> String? in
+                if case .text(let text) = block { return text }
+                return nil
+            }.joined()
+            let mergedText = existingText + update
+            blocks = [.text(mergedText)]
+            let updated = ClaudeConversationTimelineEntry(
+                id: entryId,
+                role: .assistant,
+                blocks: blocks,
+                createdAt: existing.createdAt,
+                sequence: existing.sequence,
+                sourceType: "stream_event"
+            )
+            timeline[existingIndex] = updated
+        } else {
+            blocks = [.text(update)]
+            let entry = ClaudeConversationTimelineEntry(
+                id: entryId,
+                role: .assistant,
+                blocks: blocks,
+                createdAt: parseDate(payload["created_at"]),
+                sequence: parseSequence(payload),
+                sourceType: "stream_event"
+            )
+            upsert(entry: entry)
+        }
+    }
+
+    private func applyToolResultUpdates(from payload: [String: Any]) {
+        guard let message = payload["message"] as? [String: Any],
+              let contentBlocks = message["content"] as? [[String: Any]] else {
+            return
+        }
+
+        for block in contentBlocks {
+            guard let blockType = (block["type"] as? String)?.lowercased(),
+                  blockType == "tool_result",
+                  let toolUseId = block["tool_use_id"] as? String else {
+                continue
+            }
+
+            let isError = block["is_error"] as? Bool ?? false
+            let status: ClaudeToolCallStatus = isError ? .failed : .completed
+            let resultText = sanitizedText(block["content"] as? String)
+
+            updateTool(withId: toolUseId, status: status, resultText: resultText)
+        }
+    }
+
+    private func updateTool(withId toolUseId: String, status: ClaudeToolCallStatus, resultText: String?) {
+        for (entryIndex, entry) in timeline.enumerated() {
+            var updatedBlocks = entry.blocks
+            var changed = false
+
+            for (blockIndex, block) in entry.blocks.enumerated() {
+                switch block {
+                case .toolCall(let tool) where tool.toolUseId == toolUseId:
+                    updatedBlocks[blockIndex] = .toolCall(tool.with(status: status, resultText: resultText))
+                    changed = true
+                case .subAgent(let subAgent):
+                    let updatedTools = subAgent.tools.map { tool in
+                        guard tool.toolUseId == toolUseId else { return tool }
+                        return tool.with(status: status, resultText: resultText)
+                    }
+                    if updatedTools != subAgent.tools {
+                        updatedBlocks[blockIndex] = .subAgent(subAgent.with(tools: updatedTools, status: subAgent.status, result: subAgent.result))
+                        changed = true
+                    }
+                default:
+                    break
+                }
+            }
+
+            if changed {
+                let updatedEntry = ClaudeConversationTimelineEntry(
+                    id: entry.id,
+                    role: entry.role,
+                    blocks: updatedBlocks,
+                    createdAt: entry.createdAt,
+                    sequence: entry.sequence,
+                    sourceType: entry.sourceType
+                )
+                timeline[entryIndex] = updatedEntry
+            }
+        }
+    }
+
+    private func upsert(entry: ClaudeConversationTimelineEntry) {
+        if let index = timeline.firstIndex(where: { $0.id == entry.id }) {
+            timeline[index] = entry
+        } else {
+            timeline.append(entry)
+        }
+
+        timeline.sort(by: entrySort(lhs:rhs:))
+    }
+
+    private func entrySort(lhs: ClaudeConversationTimelineEntry, rhs: ClaudeConversationTimelineEntry) -> Bool {
+        if let lhsSeq = lhs.sequence, let rhsSeq = rhs.sequence, lhsSeq != rhsSeq {
+            return lhsSeq < rhsSeq
+        }
+        if let lhsDate = lhs.createdAt, let rhsDate = rhs.createdAt, lhsDate != rhsDate {
+            return lhsDate < rhsDate
+        }
+        return lhs.id < rhs.id
+    }
+
+    private func resolvedPayload(from payload: [String: Any]) -> [String: Any] {
+        var current = payload
+        var depth = 0
+
+        while depth < maxRawJSONDepth,
+              let wrappedRawJSON = current["raw_json"] as? String,
+              let wrappedData = wrappedRawJSON.data(using: .utf8),
+              let wrappedPayload = try? JSONSerialization.jsonObject(with: wrappedData) as? [String: Any] {
+            current = wrappedPayload
+            depth += 1
+        }
+
+        return current
+    }
+
+    private func messageType(from payload: [String: Any]) -> String? {
+        guard let type = payload["type"] as? String else { return nil }
+        return type.lowercased()
+    }
+
+    private func canonicalId(from payload: [String: Any], fallbackPrefix: String) -> String {
+        if let message = payload["message"] as? [String: Any],
+           let messageId = message["id"] as? String {
+            return messageId
+        }
+        if let id = payload["id"] as? String {
+            return id
+        }
+        if let eventId = payload["event_id"] as? String {
+            return eventId
+        }
+        return "\(fallbackPrefix)-\(UUID().uuidString)"
+    }
+
+    private func parseSequence(_ payload: [String: Any]) -> Int? {
+        if let sequence = payload["sequence_number"] as? Int { return sequence }
+        if let sequence = payload["sequence"] as? Int { return sequence }
+        return nil
+    }
+
+    private func parseDate(_ value: Any?) -> Date? {
+        if let date = value as? Date { return date }
+        if let timestamp = value as? TimeInterval {
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        if let dateString = value as? String {
+            let formatter = ISO8601DateFormatter()
+            if let parsed = formatter.date(from: dateString) {
+                return parsed
+            }
+        }
+        return nil
+    }
+
+    private func sanitizedText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func looksLikeProtocolArtifact(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else {
+            return false
+        }
+
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = (json["type"] as? String)?.lowercased() else {
+            return false
+        }
+
+        let protocolTypes: Set<String> = ["user", "assistant", "system", "result", "tool_result"]
+        return protocolTypes.contains(type)
+    }
+
+    private func appendOrUpdateStandaloneTool(_ toolUse: ClaudeToolCallBlock, to blocks: inout [ClaudeConversationBlock]) {
+        let key = toolDedupKey(for: toolUse)
+        if let index = blocks.firstIndex(where: { block in
+            guard case .toolCall(let existing) = block else { return false }
+            return toolDedupKey(for: existing) == key
+        }) {
+            blocks[index] = .toolCall(toolUse)
+        } else {
+            blocks.append(.toolCall(toolUse))
+        }
+    }
+
+    private func mergeSubAgent(existing: ClaudeSubAgentBlock, incoming: ClaudeSubAgentBlock) -> ClaudeSubAgentBlock {
+        let mergedTools = mergeTools(existing: existing.tools, incoming: incoming.tools)
+        let mergedType = mergedSubagentType(existing: existing.subagentType, incoming: incoming.subagentType)
+        let mergedDescription = mergedDescription(existing: existing.description, incoming: incoming.description)
+        return ClaudeSubAgentBlock(
+            parentToolUseId: existing.parentToolUseId,
+            subagentType: mergedType,
+            description: mergedDescription,
+            tools: mergedTools,
+            status: incoming.status,
+            result: incoming.result ?? existing.result
+        )
+    }
+
+    private func mergedDescription(existing: String, incoming: String) -> String {
+        let trimmedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedIncoming.isEmpty ? existing : incoming
+    }
+
+    private func mergedSubagentType(existing: String, incoming: String) -> String {
+        if isPlaceholderSubagentType(existing), !isPlaceholderSubagentType(incoming) {
+            return incoming
+        }
+        return existing
+    }
+
+    private func isPlaceholderSubagentType(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
+            || normalized == "general purpose" || normalized == "general"
+    }
+
+    private func mergeTools(existing: [ClaudeToolCallBlock], incoming: [ClaudeToolCallBlock]) -> [ClaudeToolCallBlock] {
+        guard !incoming.isEmpty else { return existing }
+
+        var merged = existing
+        var indexByKey: [String: Int] = [:]
+
+        for (index, tool) in existing.enumerated() {
+            indexByKey[toolDedupKey(for: tool)] = index
+        }
+
+        for tool in incoming {
+            let key = toolDedupKey(for: tool)
+            if let existingIndex = indexByKey[key] {
+                merged[existingIndex] = tool
+            } else {
+                indexByKey[key] = merged.count
+                merged.append(tool)
+            }
+        }
+
+        return merged
+    }
+
+    private func toolDedupKey(for tool: ClaudeToolCallBlock) -> String {
+        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
+            return "id:\(toolUseId)"
+        }
+        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.name)|\(tool.input ?? "")"
+    }
+}
