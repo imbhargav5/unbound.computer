@@ -27,7 +27,6 @@ struct ChatPanel: View {
     @Bindable var editorState: EditorState
 
     // Footer panel state
-    @State private var selectedTerminalTab: TerminalTab = .terminal
     @State private var isFooterExpanded: Bool = false
     @State private var footerHeight: CGFloat = 0
     @State private var footerDragStartHeight: CGFloat = 0
@@ -610,18 +609,16 @@ struct ChatPanel: View {
 
     private func footerTabBar(availableHeight: CGFloat) -> some View {
         HStack(spacing: 0) {
-            ForEach(TerminalTab.allCases) { tab in
-                Button {
-                    handleFooterTabTap(tab, availableHeight: availableHeight)
-                } label: {
-                    Text(tab.rawValue)
-                        .font(Typography.caption)
-                        .foregroundStyle(selectedTerminalTab == tab ? colors.foreground : colors.mutedForeground)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                }
-                .buttonStyle(.plain)
+            Button {
+                toggleFooterExpansion(availableHeight: availableHeight)
+            } label: {
+                Text("Terminal")
+                    .font(Typography.caption)
+                    .foregroundStyle(isFooterExpanded ? colors.foreground : colors.mutedForeground)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
             }
+            .buttonStyle(.plain)
 
             Spacer()
         }
@@ -641,10 +638,7 @@ struct ChatPanel: View {
 
     @ViewBuilder
     private var footerContent: some View {
-        switch selectedTerminalTab {
-        case .terminal:
-            terminalFooterContent
-        }
+        terminalFooterContent
     }
 
     private var terminalFooterContent: some View {
@@ -669,19 +663,10 @@ struct ChatPanel: View {
             .padding(Spacing.md)
     }
 
-    private func handleFooterTabTap(_ tab: TerminalTab, availableHeight: CGFloat) {
-        if tab == selectedTerminalTab {
-            if isFooterExpanded {
-                collapseFooter()
-            } else {
-                expandFooter(availableHeight: availableHeight)
-            }
-            return
-        }
-
-        selectedTerminalTab = tab
-
-        if !isFooterExpanded {
+    private func toggleFooterExpansion(availableHeight: CGFloat) {
+        if isFooterExpanded {
+            collapseFooter()
+        } else {
             expandFooter(availableHeight: availableHeight)
         }
     }
