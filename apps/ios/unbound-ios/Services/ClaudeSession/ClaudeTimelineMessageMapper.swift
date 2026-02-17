@@ -1,4 +1,4 @@
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import CryptoKit
 import Foundation
 

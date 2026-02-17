@@ -406,7 +406,6 @@ struct ChatMessageView: View {
     var shouldAnimate: Bool = false
     var onRowAppear: (() -> Void)?
 
-    @State private var isHovered = false
     @State private var hasAppeared = false
 
     private var colors: ThemeColors {
@@ -504,79 +503,6 @@ struct ChatMessageView: View {
         return blocks
     }
 
-    /// Get all copyable text from the message
-    private var copyableText: String {
-        displayContent.compactMap { content in
-            switch content {
-            case .text(let textContent):
-                return textContent.text
-            case .codeBlock(let codeBlock):
-                return "```\(codeBlock.language)\n\(codeBlock.code)\n```"
-            case .error(let error):
-                return "Error: \(error.message)\(error.details.map { "\n\($0)" } ?? "")"
-            case .todoList(let todoList):
-                return todoList.items.map { "- [\($0.status == .completed ? "x" : " ")] \($0.content)" }.joined(separator: "\n")
-            case .fileChange(let fileChange):
-                return "\(fileChange.changeType.rawValue): \(fileChange.filePath)"
-            case .toolUse(let toolUse):
-                // Only include bash commands as they're useful to copy
-                if toolUse.toolName == "Bash", let input = toolUse.input {
-                    if let data = input.data(using: .utf8),
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let command = json["command"] as? String {
-                        return command
-                    }
-                }
-                return nil
-            case .subAgentActivity:
-                // Sub-agent activities don't have useful copyable content
-                return nil
-            case .askUserQuestion(let question):
-                return question.question
-            case .eventPayload:
-                return nil
-            }
-        }.joined(separator: "\n\n")
-    }
-
-    /// Whether this message has meaningful content worth copying
-    private var hasCopyableContent: Bool {
-        // User messages are always copyable
-        if isUser { return true }
-
-        // Check if there's actual text content, code blocks, or useful tool output
-        for content in displayContent {
-            switch content {
-            case .text(let textContent):
-                if !textContent.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    return true
-                }
-            case .codeBlock:
-                return true
-            case .error:
-                return true
-            case .todoList:
-                return true
-            case .toolUse(let toolUse):
-                // Only Bash commands are worth copying
-                if toolUse.toolName == "Bash" && toolUse.input != nil {
-                    return true
-                }
-            case .askUserQuestion:
-                return true
-            case .fileChange, .subAgentActivity, .eventPayload:
-                continue
-            }
-        }
-        return false
-    }
-
-    private func copyToClipboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(copyableText, forType: .string)
-    }
-
     private var isUser: Bool {
         message.role == .user
     }
@@ -622,17 +548,6 @@ struct ChatMessageView: View {
                 }
             )
 
-            // Copy button on the right (only show when hovered and has copyable content)
-            if isHovered && !message.isStreaming && hasCopyableContent {
-                Button(action: copyToClipboard) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                }
-                .buttonStyle(.plain)
-                .help("Copy message")
-            }
-
             if !isUser {
                 Spacer(minLength: 60)
             }
@@ -640,16 +555,6 @@ struct ChatMessageView: View {
         .padding(.horizontal, Spacing.lg)
         .padding(.top, isUser ? Spacing.lg : Spacing.sm)
         .padding(.bottom, Spacing.sm)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHovered = hovering
-            }
-        }
-        .contextMenu {
-            Button("Copy") {
-                copyToClipboard()
-            }
-        }
     }
 
     var body: some View {

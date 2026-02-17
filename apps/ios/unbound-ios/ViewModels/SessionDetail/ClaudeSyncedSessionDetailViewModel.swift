@@ -5,7 +5,7 @@
 //  View model for synced session detail rendering.
 //
 
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import Foundation
 import Logging
 import Observation
@@ -184,10 +184,6 @@ final class ClaudeSyncedSessionDetailViewModel {
             sessionDetailLogger.error("Failed to stop Claude: \(error.localizedDescription)")
             commandError = error.localizedDescription
         }
-    }
-
-    func stopRealtimeUpdates() {
-        claudeState.stop()
     }
 
     func commitChanges(message: String, stageAll: Bool) async {

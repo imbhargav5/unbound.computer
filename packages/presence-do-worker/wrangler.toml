@@ -4,8 +4,9 @@ compatibility_date = "2025-02-01"
 workers_dev = true
 
 [vars]
-PRESENCE_DO_TOKEN_SIGNING_KEY = ""
-PRESENCE_DO_INGEST_TOKEN = ""
+ENVIRONMENT = "development"
+
+
 
 [[durable_objects.bindings]]
 name = "PRESENCE_DO"
@@ -13,4 +14,4 @@ class_name = "PresenceDurableObject"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PresenceDurableObject"]
+new_sqlite_classes = ["PresenceDurableObject"]

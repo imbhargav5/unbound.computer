@@ -10,6 +10,7 @@
 		CD922D9F2F0E3919002CF21F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD922D9E2F0E3919002CF21F /* GRDB */; };
 		CD922DA32F0E3BB4002CF21F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD922DA22F0E3BB4002CF21F /* GRDB */; };
 		CD922DA62F0E3919002CF21F /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD922DA52F0E3919002CF21F /* Logging */; };
+		CE20B0012F40000100300001 /* MobileClaudeCodeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CE20B0022F40000100300001 /* MobileClaudeCodeConversationTimeline */; };
 		CDD0B4AA2F07B688002D09F7 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1612EFFB80000000002 /* Auth */; };
 		CDD0B4AB2F07B688002D09F7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1622EFFB80000000003 /* Supabase */; };
 		CDD3C1582EFFB73700CDEC43 /* UnboundWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -96,6 +97,7 @@
 				CDD0B4AB2F07B688002D09F7 /* Supabase in Frameworks */,
 				CDD0B4AA2F07B688002D09F7 /* Auth in Frameworks */,
 				CD922DA62F0E3919002CF21F /* Logging in Frameworks */,
+				CE20B0012F40000100300001 /* MobileClaudeCodeConversationTimeline in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -174,6 +176,7 @@
 				CDD3C1622EFFB80000000003 /* Supabase */,
 				CD922D9E2F0E3919002CF21F /* GRDB */,
 				CD922DA52F0E3919002CF21F /* Logging */,
+				CE20B0022F40000100300001 /* MobileClaudeCodeConversationTimeline */,
 			);
 			productName = "unbound-ios";
 			productReference = CDD3C13D2EFFB73600CDEC43 /* unbound-ios.app */;
@@ -259,6 +262,7 @@
 				CDD3C1602EFFB80000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CD922D9D2F0E3919002CF21F /* XCRemoteSwiftPackageReference "GRDB" */,
 				CD922DA42F0E3919002CF21F /* XCRemoteSwiftPackageReference "swift-log" */,
+				CE20B0032F40000100300001 /* XCLocalSwiftPackageReference "MobileClaudeCodeConversationTimeline" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CDD3C13E2EFFB73600CDEC43 /* Products */;
@@ -659,6 +663,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CE20B0032F40000100300001 /* XCLocalSwiftPackageReference "MobileClaudeCodeConversationTimeline" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MobileClaudeCodeConversationTimeline;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD922D9D2F0E3919002CF21F /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -724,6 +735,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CE10A0022F30000100200001 /* XCRemoteSwiftPackageReference "ably-cocoa" */;
 			productName = Ably;
+		};
+		CE20B0022F40000100300001 /* MobileClaudeCodeConversationTimeline */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MobileClaudeCodeConversationTimeline;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

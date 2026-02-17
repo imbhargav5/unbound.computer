@@ -23,6 +23,15 @@ pub const DEFAULT_WEB_APP_URL: &str = match option_env!("UNBOUND_WEB_APP_URL") {
     None => "http://localhost:3000",
 };
 
+/// Presence DO heartbeat URL (compile-time via UNBOUND_PRESENCE_DO_HEARTBEAT_URL env var).
+pub const PRESENCE_DO_HEARTBEAT_URL: Option<&str> = option_env!("UNBOUND_PRESENCE_DO_HEARTBEAT_URL");
+
+/// Presence DO bearer token (compile-time via UNBOUND_PRESENCE_DO_TOKEN env var).
+pub const PRESENCE_DO_TOKEN: Option<&str> = option_env!("UNBOUND_PRESENCE_DO_TOKEN");
+
+/// Presence DO TTL in milliseconds (compile-time via UNBOUND_PRESENCE_DO_TTL_MS env var).
+pub const PRESENCE_DO_TTL_MS: Option<&str> = option_env!("UNBOUND_PRESENCE_DO_TTL_MS");
+
 /// Default log level.
 pub const DEFAULT_LOG_LEVEL: &str = "info";
 /// Default observability mode (`dev` or `prod`).

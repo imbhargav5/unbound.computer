@@ -1,6 +1,6 @@
+import { createHmac } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHmac } from "node:crypto";
 import { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -89,7 +89,7 @@ describe("presence DO worker", () => {
       source: "daemon-do",
       sent_at_ms: now,
       seq: 1,
-      ttl_ms: 10000,
+      ttl_ms: 10_000,
     };
 
     const heartbeatResponse = await mf.dispatchFetch(
@@ -110,7 +110,7 @@ describe("presence DO worker", () => {
       user_id: userId,
       device_id: deviceId,
       scope: ["presence:read"],
-      exp_ms: now + 10000,
+      exp_ms: now + 10_000,
       issued_at_ms: now,
     });
 
@@ -146,7 +146,7 @@ describe("presence DO worker", () => {
       user_id: userId,
       device_id: deviceId,
       scope: ["presence:read"],
-      exp_ms: now + 10000,
+      exp_ms: now + 10_000,
       issued_at_ms: now,
     });
 

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const ingestToken = process.env.PRESENCE_DO_INGEST_TOKEN?.trim();
     const daemonToken = process.env.PRESENCE_DO_DAEMON_TOKEN?.trim();
 
-    if (!presenceBaseUrl || !ingestToken || !daemonToken) {
+    if (!(presenceBaseUrl && ingestToken && daemonToken)) {
       return NextResponse.json(
         buildPresenceError(
           "unavailable",
@@ -39,10 +39,13 @@ export async function POST(req: NextRequest) {
 
     const authHeader = parseBearerToken(req.headers.get("Authorization"));
     if (!authHeader || authHeader !== daemonToken) {
-      return NextResponse.json(buildPresenceError("unauthorized", "Unauthorized"), {
-        status: 401,
-        headers: corsHeaders,
-      });
+      return NextResponse.json(
+        buildPresenceError("unauthorized", "Unauthorized"),
+        {
+          status: 401,
+          headers: corsHeaders,
+        }
+      );
     }
 
     const payload = await req.text();

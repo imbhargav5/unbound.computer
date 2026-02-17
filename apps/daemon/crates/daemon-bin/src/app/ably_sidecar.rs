@@ -1,7 +1,7 @@
 //! daemon-ably sidecar process management utilities.
 
 use crate::app::falco_sidecar::terminate_child;
-use daemon_config_and_utils::Paths;
+use daemon_config_and_utils::{Paths, PRESENCE_DO_HEARTBEAT_URL, PRESENCE_DO_TOKEN, PRESENCE_DO_TTL_MS};
 use std::io::ErrorKind;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -71,8 +71,19 @@ pub fn spawn_daemon_ably_process(
             .env(ENV_ABLY_BROKER_SOCKET, &broker_socket_path)
             .env(ENV_ABLY_BROKER_TOKEN_FALCO, falco_broker_token)
             .env(ENV_ABLY_BROKER_TOKEN_NAGATO, nagato_broker_token)
-            .env(ENV_ABLY_SOCKET, &socket_path)
-            .stdin(Stdio::null())
+            .env(ENV_ABLY_SOCKET, &socket_path);
+
+        if let Some(url) = PRESENCE_DO_HEARTBEAT_URL {
+            command.env("UNBOUND_PRESENCE_DO_HEARTBEAT_URL", url);
+        }
+        if let Some(token) = PRESENCE_DO_TOKEN {
+            command.env("UNBOUND_PRESENCE_DO_TOKEN", token);
+        }
+        if let Some(ttl) = PRESENCE_DO_TTL_MS {
+            command.env("UNBOUND_PRESENCE_DO_TTL_MS", ttl);
+        }
+
+        command.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

@@ -1,4 +1,4 @@
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import XCTest
 
 final class ClaudeTimelineFixtureContractTests: XCTestCase {

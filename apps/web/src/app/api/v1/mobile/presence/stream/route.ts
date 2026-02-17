@@ -1,6 +1,10 @@
+import { createHmac, randomBytes } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  normalizePresenceIdentifier,
+  presenceScopeDefault,
+} from "@/lib/presence/schema";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
-import { normalizePresenceIdentifier } from "@/lib/presence/schema";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +12,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+const TOKEN_TTL_MS = 15 * 60 * 1000;
+
 function buildPresenceError(error: string, details: string) {
   return { error, details };
+}
+
+function base64UrlEncode(input: string | Buffer): string {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=+$/, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function createPresenceToken(
+  payload: Record<string, unknown>,
+  signingKey: string
+): string {
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = base64UrlEncode(
+    createHmac("sha256", signingKey).update(encodedPayload).digest()
+  );
+  return `${encodedPayload}.${signature}`;
 }
 
 export async function OPTIONS() {
@@ -36,7 +61,21 @@ export async function GET(req: NextRequest) {
     const presenceBaseUrl = process.env.PRESENCE_DO_BASE_URL?.trim();
     if (!presenceBaseUrl) {
       return NextResponse.json(
-        buildPresenceError("unavailable", "Presence DO base URL is not configured"),
+        buildPresenceError(
+          "unavailable",
+          "Presence DO base URL is not configured"
+        ),
+        { status: 503, headers: corsHeaders }
+      );
+    }
+
+    const signingKey = process.env.PRESENCE_DO_TOKEN_SIGNING_KEY?.trim();
+    if (!signingKey) {
+      return NextResponse.json(
+        buildPresenceError(
+          "unavailable",
+          "Presence DO token signing key is not configured"
+        ),
         { status: 503, headers: corsHeaders }
       );
     }
@@ -61,13 +100,29 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const upstreamUrl = new URL("/api/v1/mobile/presence/stream", presenceBaseUrl);
+    const issuedAtMs = Date.now();
+    const presenceToken = createPresenceToken(
+      {
+        token_id: randomBytes(16).toString("hex"),
+        user_id: normalizedUserId,
+        device_id: normalizedUserId,
+        scope: Array.from(presenceScopeDefault),
+        exp_ms: issuedAtMs + TOKEN_TTL_MS,
+        issued_at_ms: issuedAtMs,
+      },
+      signingKey
+    );
+
+    const upstreamUrl = new URL(
+      "/api/v1/mobile/presence/stream",
+      presenceBaseUrl
+    );
     upstreamUrl.searchParams.set("user_id", userId);
 
     const upstreamResponse = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
-        Authorization: req.headers.get("Authorization") ?? "",
+        Authorization: `Bearer ${presenceToken}`,
       },
     });
 
@@ -83,7 +138,8 @@ export async function GET(req: NextRequest) {
           headers: {
             ...corsHeaders,
             "Content-Type":
-              upstreamResponse.headers.get("Content-Type") ?? "application/json",
+              upstreamResponse.headers.get("Content-Type") ??
+              "application/json",
           },
         }
       );

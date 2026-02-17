@@ -1,4 +1,4 @@
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import Foundation
 import Logging
 

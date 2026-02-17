@@ -39,9 +39,14 @@ interface Env {
   PRESENCE_DO: DurableObjectNamespace;
   PRESENCE_DO_TOKEN_SIGNING_KEY: string;
   PRESENCE_DO_INGEST_TOKEN: string;
+  ENVIRONMENT: string;
 }
 
-function jsonResponse(body: unknown, status: number, extraHeaders?: HeadersInit) {
+function jsonResponse(
+  body: unknown,
+  status: number,
+  extraHeaders?: HeadersInit
+) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -77,7 +82,7 @@ async function verifyPresenceToken(
   signingKey: string
 ): Promise<PresenceTokenPayload | null> {
   const [payloadPart, signaturePart] = token.split(".");
-  if (!payloadPart || !signaturePart) return null;
+  if (!(payloadPart && signaturePart)) return null;
   if (!signingKey) return null;
 
   const key = await crypto.subtle.importKey(
@@ -122,34 +127,73 @@ function logEvent(event: string, data?: Record<string, unknown>) {
 
 function validatePresencePayload(input: unknown) {
   if (!input || typeof input !== "object") {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid JSON payload" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid JSON payload",
+    };
   }
   const payload = input as Partial<PresencePayload>;
   if (payload.schema_version !== 1) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid schema_version" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid schema_version",
+    };
   }
   const userId = normalizeIdentifier(payload.user_id ?? "");
   const deviceId = normalizeIdentifier(payload.device_id ?? "");
-  if (!userId || !deviceId || !isUuid(userId) || !isUuid(deviceId)) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid user_id or device_id" };
+  if (!(userId && deviceId && isUuid(userId) && isUuid(deviceId))) {
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid user_id or device_id",
+    };
   }
   if (payload.user_id !== userId || payload.device_id !== deviceId) {
-    return { ok: false, error: "invalid_payload" as const, details: "Identifiers must be lowercase" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Identifiers must be lowercase",
+    };
   }
   if (payload.status !== "online" && payload.status !== "offline") {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid status" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid status",
+    };
   }
-  if (typeof payload.source !== "string" || payload.source.trim().length === 0) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid source" };
+  if (
+    typeof payload.source !== "string" ||
+    payload.source.trim().length === 0
+  ) {
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid source",
+    };
   }
   if (!Number.isFinite(payload.sent_at_ms) || (payload.sent_at_ms ?? 0) < 0) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid sent_at_ms" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid sent_at_ms",
+    };
   }
   if (!Number.isFinite(payload.seq) || (payload.seq ?? -1) < 0) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid seq" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid seq",
+    };
   }
   if (!Number.isFinite(payload.ttl_ms) || (payload.ttl_ms ?? 0) <= 0) {
-    return { ok: false, error: "invalid_payload" as const, details: "Invalid ttl_ms" };
+    return {
+      ok: false,
+      error: "invalid_payload" as const,
+      details: "Invalid ttl_ms",
+    };
   }
 
   return {
@@ -175,6 +219,28 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
+    if (url.pathname === "/debug/presence" && request.method === "GET") {
+      if (env.ENVIRONMENT === "production") {
+        return jsonResponse(
+          buildPresenceError(
+            "unavailable",
+            "Debug endpoint disabled in production"
+          ),
+          403
+        );
+      }
+      const userId = normalizeIdentifier(url.searchParams.get("user_id"));
+      if (!userId) {
+        return jsonResponse(
+          buildPresenceError("invalid_payload", "Missing user_id query param"),
+          400
+        );
+      }
+      const id = env.PRESENCE_DO.idFromName(userId);
+      const stub = env.PRESENCE_DO.get(id);
+      return stub.fetch(request);
+    }
+
     if (
       url.pathname === "/api/v1/daemon/presence/heartbeat" ||
       url.pathname === "/api/v1/mobile/presence/stream"
@@ -184,21 +250,32 @@ export default {
       if (url.pathname === "/api/v1/mobile/presence/stream") {
         userId = normalizeIdentifier(url.searchParams.get("user_id"));
         if (!userId) {
-          return jsonResponse(buildPresenceError("invalid_payload", "Missing user_id"), 400);
+          return jsonResponse(
+            buildPresenceError("invalid_payload", "Missing user_id"),
+            400
+          );
         }
       } else {
         try {
           const body = await request.clone().json();
           if (body && typeof body === "object" && "user_id" in body) {
-            userId = normalizeIdentifier((body as { user_id?: string }).user_id);
+            userId = normalizeIdentifier(
+              (body as { user_id?: string }).user_id
+            );
           }
         } catch {
-          return jsonResponse(buildPresenceError("invalid_payload", "Invalid JSON payload"), 400);
+          return jsonResponse(
+            buildPresenceError("invalid_payload", "Invalid JSON payload"),
+            400
+          );
         }
       }
 
       if (!userId) {
-        return jsonResponse(buildPresenceError("invalid_payload", "Missing user_id"), 400);
+        return jsonResponse(
+          buildPresenceError("invalid_payload", "Missing user_id"),
+          400
+        );
       }
 
       const id = env.PRESENCE_DO.idFromName(userId);
@@ -206,14 +283,20 @@ export default {
       return stub.fetch(request);
     }
 
-    return jsonResponse(buildPresenceError("unavailable", "Route not found"), 404);
+    return jsonResponse(
+      buildPresenceError("unavailable", "Route not found"),
+      404
+    );
   },
 } satisfies ExportedHandler<Env>;
 
 export class PresenceDurableObject {
   private state: DurableObjectState;
   private env: Env;
-  private streams = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+  private streams = new Map<
+    string,
+    ReadableStreamDefaultController<Uint8Array>
+  >();
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -227,6 +310,10 @@ export class PresenceDurableObject {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
+    if (url.pathname === "/debug/presence") {
+      return this.handleDebug();
+    }
+
     if (url.pathname === "/api/v1/daemon/presence/heartbeat") {
       return this.handleHeartbeat(request);
     }
@@ -235,7 +322,10 @@ export class PresenceDurableObject {
       return this.handleStream(request, url);
     }
 
-    return jsonResponse(buildPresenceError("unavailable", "Route not found"), 404);
+    return jsonResponse(
+      buildPresenceError("unavailable", "Route not found"),
+      404
+    );
   }
 
   async alarm() {
@@ -276,14 +366,20 @@ export class PresenceDurableObject {
     const authHeader = parseBearerToken(request.headers.get("Authorization"));
     if (!authHeader || authHeader !== ingestToken) {
       logEvent("presence.do.heartbeat.unauthorized");
-      return jsonResponse(buildPresenceError("unauthorized", "Unauthorized"), 401);
+      return jsonResponse(
+        buildPresenceError("unauthorized", "Unauthorized"),
+        401
+      );
     }
 
     let body: unknown;
     try {
       body = await request.json();
     } catch {
-      return jsonResponse(buildPresenceError("invalid_payload", "Invalid JSON payload"), 400);
+      return jsonResponse(
+        buildPresenceError("invalid_payload", "Invalid JSON payload"),
+        400
+      );
     }
 
     const validation = validatePresencePayload(body);
@@ -291,13 +387,21 @@ export class PresenceDurableObject {
       logEvent("presence.do.heartbeat.invalid_payload", {
         reason: validation.details,
       });
-      return jsonResponse(buildPresenceError(validation.error, validation.details), 400);
+      return jsonResponse(
+        buildPresenceError(validation.error, validation.details),
+        400
+      );
     }
 
     const payload = validation.payload;
     const recordKey = this.deviceKey(payload.device_id);
-    const existing = await this.state.storage.get<PresenceStorageRecord>(recordKey);
-    if (existing && payload.seq <= existing.seq) {
+    const existing =
+      await this.state.storage.get<PresenceStorageRecord>(recordKey);
+    if (
+      existing &&
+      payload.seq <= existing.seq &&
+      payload.sent_at_ms <= existing.sent_at_ms
+    ) {
       logEvent("presence.do.heartbeat.non_monotonic", {
         device_id: payload.device_id,
       });
@@ -311,7 +415,7 @@ export class PresenceDurableObject {
     const lastHeartbeat =
       payload.status === "online"
         ? payload.sent_at_ms
-        : existing?.last_heartbeat_ms ?? payload.sent_at_ms;
+        : (existing?.last_heartbeat_ms ?? payload.sent_at_ms);
 
     const record: PresenceStorageRecord = {
       ...payload,
@@ -348,24 +452,40 @@ export class PresenceDurableObject {
     const token = parseBearerToken(request.headers.get("Authorization"));
     if (!token) {
       logEvent("presence.do.stream.unauthorized");
-      return jsonResponse(buildPresenceError("unauthorized", "Unauthorized"), 401);
+      return jsonResponse(
+        buildPresenceError("unauthorized", "Unauthorized"),
+        401
+      );
     }
 
     const payload = await verifyPresenceToken(token, signingKey);
     if (!payload) {
       logEvent("presence.do.stream.invalid_token");
-      return jsonResponse(buildPresenceError("forbidden", "Invalid token"), 403);
+      return jsonResponse(
+        buildPresenceError("forbidden", "Invalid token"),
+        403
+      );
     }
 
     const now = Date.now();
     if (payload.exp_ms <= now) {
-      logEvent("presence.do.stream.token_expired", { user_id: payload.user_id });
-      return jsonResponse(buildPresenceError("forbidden", "Token expired"), 403);
+      logEvent("presence.do.stream.token_expired", {
+        user_id: payload.user_id,
+      });
+      return jsonResponse(
+        buildPresenceError("forbidden", "Token expired"),
+        403
+      );
     }
 
     if (!payload.scope?.includes("presence:read")) {
-      logEvent("presence.do.stream.forbidden_scope", { user_id: payload.user_id });
-      return jsonResponse(buildPresenceError("forbidden", "Insufficient scope"), 403);
+      logEvent("presence.do.stream.forbidden_scope", {
+        user_id: payload.user_id,
+      });
+      return jsonResponse(
+        buildPresenceError("forbidden", "Insufficient scope"),
+        403
+      );
     }
 
     const userId = normalizeIdentifier(url.searchParams.get("user_id"));
@@ -374,7 +494,10 @@ export class PresenceDurableObject {
         token_user_id: payload.user_id,
         requested_user_id: userId,
       });
-      return jsonResponse(buildPresenceError("forbidden", "Token user mismatch"), 403);
+      return jsonResponse(
+        buildPresenceError("forbidden", "Token user mismatch"),
+        403
+      );
     }
 
     const streamId = crypto.randomUUID();
@@ -383,12 +506,18 @@ export class PresenceDurableObject {
         this.streams.set(streamId, controller);
         request.signal.addEventListener("abort", () => {
           this.streams.delete(streamId);
-          logEvent("presence.do.stream.disconnect", { user_id: payload.user_id });
+          logEvent("presence.do.stream.disconnect", {
+            user_id: payload.user_id,
+          });
         });
 
         const records = await this.listDeviceRecords();
         for (const record of records.values()) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(this.toStreamPayload(record, record.updated_at_ms))}\n\n`));
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify(this.toStreamPayload(record, record.updated_at_ms))}\n\n`
+            )
+          );
         }
 
         logEvent("presence.do.stream.connect", {
@@ -413,6 +542,23 @@ export class PresenceDurableObject {
     });
   }
 
+  private async handleDebug() {
+    const records = await this.listDeviceRecords();
+    const entries: Record<string, PresenceStorageRecord> = {};
+    for (const [key, value] of records.entries()) {
+      entries[key] = value;
+    }
+    const alarm = await this.state.storage.getAlarm();
+    return jsonResponse(
+      {
+        active_streams: this.streams.size,
+        alarm: alarm ? new Date(alarm).toISOString() : null,
+        records: entries,
+      },
+      200
+    );
+  }
+
   private deviceKey(deviceId: string) {
     return `device:${deviceId}`;
   }
@@ -424,7 +570,10 @@ export class PresenceDurableObject {
     return records;
   }
 
-  private toStreamPayload(record: PresenceStorageRecord, sentAtMs: number): PresencePayload {
+  private toStreamPayload(
+    record: PresenceStorageRecord,
+    sentAtMs: number
+  ): PresencePayload {
     return {
       schema_version: record.schema_version,
       user_id: record.user_id,

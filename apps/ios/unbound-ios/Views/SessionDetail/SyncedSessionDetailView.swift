@@ -1,4 +1,4 @@
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import SwiftUI
 
 struct SyncedSessionDetailView: View {

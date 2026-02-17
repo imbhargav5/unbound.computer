@@ -1,4 +1,4 @@
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import Foundation
 
 final class ClaudeFixtureSessionMessageSource: ClaudeSessionMessageSource {

@@ -10,6 +10,7 @@ final class DOPresenceStreamClient {
         userId: String,
         deviceId: String,
         streamURL: URL,
+        authService: AuthService = .shared,
         onPayload: @escaping (DaemonPresencePayload) -> Void,
         onError: @escaping (Error) -> Void
     ) {
@@ -27,9 +28,9 @@ final class DOPresenceStreamClient {
                 attempt += 1
                 do {
                     presenceStreamLogger.info("presence.do.connect_start")
-                    let token: PresenceTokenResponse
+                    let accessToken: String
                     do {
-                        token = try await PresenceTokenService.fetchToken()
+                        accessToken = try await authService.getAccessToken()
                     } catch {
                         presenceStreamLogger.warning("presence.do.auth_failed: \(error.localizedDescription)")
                         throw error
@@ -37,7 +38,7 @@ final class DOPresenceStreamClient {
 
                     var request = URLRequest(url: streamURL)
                     request.httpMethod = "GET"
-                    request.setValue("Bearer \(token.token)", forHTTPHeaderField: "Authorization")
+                    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                     request.setValue("application/json", forHTTPHeaderField: "Accept")
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)

@@ -1,88 +1,134 @@
 # presence-do-worker
 
-Cloudflare Worker that fronts the presence Durable Object, validating ingress tokens for heartbeats and issuing SSE streams for mobile clients.
+Cloudflare Worker + Durable Object that manages per-user device presence state. Receives heartbeats from the daemon (via the web app proxy) and streams presence updates to mobile clients via SSE.
 
-This worker is the HTTP entrypoint for presence updates. It routes requests to the per-user Durable Object instance and handles auth, payload validation, CORS, and stream fanout.
+## Setup
 
-## Responsibilities
+```bash
+npm install
+npx wrangler login
+```
 
-- **Heartbeat ingestion**: validate daemon heartbeat payloads + ingest token before writing to Durable Object storage.
-- **Presence stream**: authenticate HMAC-signed tokens and stream SSE updates for all devices under a user.
-- **TTL enforcement**: schedule alarms to mark stale devices offline when heartbeat TTLs expire.
+### Secrets
 
-## Routes
+Generate and set the required secrets:
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/v1/daemon/presence/heartbeat` | Ingests daemon heartbeats and updates device presence records. |
-| `GET` | `/api/v1/mobile/presence/stream?user_id=...` | Streams presence events as SSE for a user. |
-| `OPTIONS` | `*` | CORS preflight. |
+```bash
+openssl rand -base64 32  # PRESENCE_DO_TOKEN_SIGNING_KEY
+openssl rand -hex 32     # PRESENCE_DO_INGEST_TOKEN
 
-Both routes are routed to the per-user Durable Object instance using `PRESENCE_DO.idFromName(user_id)`.
+npx wrangler secret put PRESENCE_DO_TOKEN_SIGNING_KEY
+npx wrangler secret put PRESENCE_DO_INGEST_TOKEN
+```
 
-## Auth + Validation
+### Deploy
 
-- **Heartbeat** requests require `Authorization: Bearer $PRESENCE_DO_INGEST_TOKEN`.
-- **Stream** requests require `Authorization: Bearer <presence-token>` where the token is an HMAC-SHA256 signed payload.
-- Tokens must include `presence:read` in `scope` and match the `user_id` query param.
-- Device + user IDs must be lowercase UUIDs. Non-monotonic `seq` values are rejected with `409`.
+```bash
+npm run deploy
+```
 
-## Event Flow
+The worker deploys to `https://unbound-presence-do.<subdomain>.workers.dev`.
 
-1. Daemon posts heartbeat payloads to `/api/v1/daemon/presence/heartbeat`.
-2. Worker validates, persists the record, and broadcasts an SSE event.
-3. Streams emit the latest known state for all devices on connect.
-4. Alarms flip devices to `offline` after TTL expiry and broadcast the update.
+## Environment Variables
 
-## Payloads
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `PRESENCE_DO_TOKEN_SIGNING_KEY` | Secret | HMAC-SHA256 key for signing/verifying presence stream tokens |
+| `PRESENCE_DO_INGEST_TOKEN` | Secret | Bearer token for authenticating daemon heartbeat ingestion |
+| `ENVIRONMENT` | `wrangler.toml` | Set to `"production"` to disable debug endpoint |
 
-Heartbeat payload:
+## Endpoints
+
+### POST `/api/v1/daemon/presence/heartbeat`
+
+Ingests a heartbeat from the daemon. Authenticated via `Authorization: Bearer <PRESENCE_DO_INGEST_TOKEN>`.
+
+**Request body:**
 
 ```json
 {
   "schema_version": 1,
-  "user_id": "user-uuid-lowercase",
-  "device_id": "device-uuid-lowercase",
-  "status": "online",
+  "user_id": "uuid",
+  "device_id": "uuid",
+  "status": "online" | "offline",
   "source": "daemon-do",
   "sent_at_ms": 1739030400000,
-  "seq": 42,
+  "seq": 1,
   "ttl_ms": 12000
 }
 ```
 
-Stream event payload:
+**Responses:**
+- `204` — Heartbeat accepted
+- `400` — Invalid payload (see `details` field)
+- `401` — Invalid or missing bearer token
+- `409` — Non-monotonic sequence number
+
+### GET `/api/v1/mobile/presence/stream`
+
+SSE stream of presence updates for a user. Authenticated via a signed presence token.
+
+**Query params:** `?user_id=<uuid>`
+
+**Headers:** `Authorization: Bearer <signed-presence-token>`
+
+**Response:** `text/event-stream` with `data: <PresencePayload>` events.
+
+### GET `/debug/presence`
+
+Returns the full contents of a user's Durable Object storage. Disabled when `ENVIRONMENT=production`.
+
+**Query params:** `?user_id=<uuid>`
+
+**Example:**
+
+```bash
+curl -s "https://unbound-presence-do.<subdomain>.workers.dev/debug/presence?user_id=<uuid>" | jq
+```
+
+**Response:**
 
 ```json
 {
-  "schema_version": 1,
-  "user_id": "user-uuid-lowercase",
-  "device_id": "device-uuid-lowercase",
-  "status": "online",
-  "source": "daemon-do",
-  "sent_at_ms": 1739030400000,
-  "seq": 42,
-  "ttl_ms": 12000
+  "active_streams": 0,
+  "alarm": "2026-02-18T00:00:12.000Z",
+  "records": {
+    "device:<device-uuid>": {
+      "schema_version": 1,
+      "user_id": "<uuid>",
+      "device_id": "<device-uuid>",
+      "status": "online",
+      "source": "daemon-do",
+      "sent_at_ms": 1739030400000,
+      "seq": 5,
+      "ttl_ms": 12000,
+      "last_heartbeat_ms": 1739030400000,
+      "last_offline_ms": null,
+      "updated_at_ms": 1739030400123
+    }
+  }
 }
 ```
 
-## Environment
+## Architecture
 
-| Variable | Purpose |
-| --- | --- |
-| `PRESENCE_DO_TOKEN_SIGNING_KEY` | HMAC signing key for presence stream tokens. |
-| `PRESENCE_DO_INGEST_TOKEN` | Bearer token required for daemon heartbeat ingestion. |
+Each user gets their own Durable Object instance (keyed by `user_id`). The DO:
 
-## Local Development
+1. Stores per-device presence records in KV storage
+2. Broadcasts updates to connected SSE streams
+3. Sets alarms to auto-mark devices as `"offline"` when heartbeats stop (after `ttl_ms`)
 
-```sh
-cd packages/presence-do-worker
-pnpm dev
+### Request flow
+
+```
+daemon-ably -> web app proxy -> worker -> Durable Object
+                                              |
+mobile client <--- SSE stream ----------------+
 ```
 
-## Tests
+## Development
 
-```sh
-cd packages/presence-do-worker
-pnpm test
+```bash
+npx wrangler dev    # Run locally
+npx wrangler tail   # Stream live logs from deployed worker
 ```
