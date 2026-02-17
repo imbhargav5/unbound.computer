@@ -182,11 +182,11 @@ struct ArchivedSessionRow: View {
         .padding(.leading, Spacing.xl)
         .padding(.trailing, Spacing.md)
         .padding(.vertical, Spacing.sm)
+        .fullRowHitTarget()
         .background(
             RoundedRectangle(cornerRadius: Radius.md)
                 .fill(isHovered ? colors.muted.opacity(0.5) : Color.clear)
         )
-        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(.easeInOut(duration: Duration.fast)) {
                 isHovered = hovering
