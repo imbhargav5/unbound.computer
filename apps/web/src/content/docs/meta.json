@@ -1,8 +1,4 @@
 {
   "title": "Documentation",
-  "pages": [
-    "overview",
-    "about",
-    "internals"
-  ]
+  "pages": ["overview", "about", "internals"]
 }

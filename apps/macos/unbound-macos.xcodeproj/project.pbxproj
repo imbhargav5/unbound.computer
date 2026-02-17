@@ -10,6 +10,7 @@
 		5A9648B9B2E168F13ADB91B4 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BEC16D518A64A1A32B1C155 /* XCTest.framework */; };
 		CD79B3BB2F03F0FA00B37FB3 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */; };
 		CD79B3BC2F03F0FA00B37FB4 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BD2F03F0FA00B37FB5 /* Logging */; };
+		CD79B3C22F03F10A00B37FB3 /* ClaudeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */; };
 		CDD0B5252F07B6A8002D09F7 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5242F07B6A8002D09F7 /* Auth */; };
 		CDD0B5272F07B6A8002D09F7 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5262F07B6A8002D09F7 /* Functions */; };
 		CDD0B5292F07B6A8002D09F7 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5282F07B6A8002D09F7 /* PostgREST */; };
@@ -62,6 +63,7 @@
 				CDD0B52F2F07B6A8002D09F7 /* Supabase in Frameworks */,
 				CD79B3BB2F03F0FA00B37FB3 /* SwiftTerm in Frameworks */,
 				CD79B3BC2F03F0FA00B37FB4 /* Logging in Frameworks */,
+				CD79B3C22F03F10A00B37FB3 /* ClaudeConversationTimeline in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,6 +134,7 @@
 				CDD0B52E2F07B6A8002D09F7 /* Supabase */,
 				CDD0BA542F097D07002D09F7 /* GRDB */,
 				CD79B3BD2F03F0FA00B37FB5 /* Logging */,
+				CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */,
 			);
 			productName = "unbound-macos";
 			productReference = CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */;
@@ -191,6 +194,7 @@
 				CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */,
 				CD79B3BE2F03F0FA00B37FB6 /* XCRemoteSwiftPackageReference "swift-log" */,
+				CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "ClaudeConversationTimeline" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CDD3C1552EFFB85C00CDEC43 /* Products */;
@@ -505,6 +509,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "ClaudeConversationTimeline" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../shared/ClaudeConversationTimeline;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD79B3B92F03F0FA00B37FB3 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -585,6 +596,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
+		};
+		CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClaudeConversationTimeline;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildAudienceCapability,
   buildAblyTokenRequestBody,
+  buildAudienceCapability,
   buildDaemonFalcoCapability,
   buildMobileCapability,
 } from "./route";
@@ -17,7 +17,9 @@ describe("Ably token capability builders", () => {
   });
 
   it("adds session status object-publish capability for daemon_falco", () => {
-    const capability = buildDaemonFalcoCapability("22222222-2222-2222-2222-222222222222");
+    const capability = buildDaemonFalcoCapability(
+      "22222222-2222-2222-2222-222222222222"
+    );
 
     expect(capability["session:*:status"]).toEqual(["object-publish"]);
   });
@@ -38,11 +40,7 @@ describe("Ably token capability builders", () => {
       ["11111111-1111-1111-1111-111111111111"],
       "22222222-2222-2222-2222-222222222222"
     );
-    const body = buildAblyTokenRequestBody(
-      "app.key",
-      "USER-ID",
-      capability
-    );
+    const body = buildAblyTokenRequestBody("app.key", "USER-ID", capability);
 
     expect(body.keyName).toBe("app.key");
     expect(body.clientId).toBe("user-id");

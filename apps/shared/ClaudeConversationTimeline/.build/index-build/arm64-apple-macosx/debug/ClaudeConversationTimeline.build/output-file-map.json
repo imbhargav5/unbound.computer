@@ -1,0 +1,26 @@
+{
+  "": {
+    "swift-dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/master.swiftdeps"
+  },
+  "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift": {
+    "dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.d",
+    "object": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.swift.o",
+    "swiftmodule": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState~partial.swiftmodule",
+    "swift-dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.swiftdeps",
+    "diagnostics": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.dia"
+  },
+  "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift": {
+    "dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.d",
+    "object": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.swift.o",
+    "swiftmodule": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels~partial.swiftmodule",
+    "swift-dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.swiftdeps",
+    "diagnostics": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.dia"
+  },
+  "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift": {
+    "dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.d",
+    "object": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.swift.o",
+    "swiftmodule": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser~partial.swiftmodule",
+    "swift-dependencies": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.swiftdeps",
+    "diagnostics": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/index-build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.dia"
+  }
+}

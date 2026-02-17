@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Link } from "@/components/intl-link";
 import { ChangelogList } from "@/components/changelog/changelog-list";
+import { Link } from "@/components/intl-link";
 import { cachedGetAllChangelogItems } from "@/data/anon/marketing-changelog";
 
 export const metadata: Metadata = {

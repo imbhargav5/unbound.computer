@@ -1,11 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server";
 import { createHmac, randomBytes } from "node:crypto";
+import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 import {
   normalizePresenceIdentifier,
   presenceScopeDefault,
 } from "@/lib/presence/schema";
+import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 
 const requestSchema = z.object({
   deviceId: z.string().uuid(),
@@ -32,9 +32,14 @@ function base64UrlEncode(input: string | Buffer): string {
     .replace(/\//g, "_");
 }
 
-function createPresenceToken(payload: Record<string, unknown>, signingKey: string): string {
+function createPresenceToken(
+  payload: Record<string, unknown>,
+  signingKey: string
+): string {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signature = base64UrlEncode(createHmac("sha256", signingKey).update(encodedPayload).digest());
+  const signature = base64UrlEncode(
+    createHmac("sha256", signingKey).update(encodedPayload).digest()
+  );
   return `${encodedPayload}.${signature}`;
 }
 
@@ -47,7 +52,10 @@ export async function POST(req: NextRequest) {
     const signingKey = process.env.PRESENCE_DO_TOKEN_SIGNING_KEY?.trim();
     if (!signingKey) {
       return NextResponse.json(
-        buildPresenceError("unavailable", "Presence DO token signing key is not configured"),
+        buildPresenceError(
+          "unavailable",
+          "Presence DO token signing key is not configured"
+        ),
         { status: 503, headers: corsHeaders }
       );
     }
@@ -58,10 +66,13 @@ export async function POST(req: NextRequest) {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(buildPresenceError("unauthorized", "Unauthorized"), {
-        status: 401,
-        headers: corsHeaders,
-      });
+      return NextResponse.json(
+        buildPresenceError("unauthorized", "Unauthorized"),
+        {
+          status: 401,
+          headers: corsHeaders,
+        }
+      );
     }
 
     const body = await req.json();
@@ -73,19 +84,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const requesterDeviceId = normalizePresenceIdentifier(parseResult.data.deviceId);
+    const requesterDeviceId = normalizePresenceIdentifier(
+      parseResult.data.deviceId
+    );
 
-    const { data: requesterDevice, error: requesterDeviceError } = await supabaseClient
-      .from("devices")
-      .select("id, user_id")
-      .eq("id", requesterDeviceId)
-      .single();
+    const { data: requesterDevice, error: requesterDeviceError } =
+      await supabaseClient
+        .from("devices")
+        .select("id, user_id")
+        .eq("id", requesterDeviceId)
+        .single();
 
     if (requesterDeviceError || !requesterDevice) {
-      return NextResponse.json(buildPresenceError("invalid_payload", "Device not found"), {
-        status: 404,
-        headers: corsHeaders,
-      });
+      return NextResponse.json(
+        buildPresenceError("invalid_payload", "Device not found"),
+        {
+          status: 404,
+          headers: corsHeaders,
+        }
+      );
     }
 
     if (requesterDevice.user_id !== user.id) {

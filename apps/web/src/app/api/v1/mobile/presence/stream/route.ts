@@ -23,14 +23,20 @@ export async function GET(req: NextRequest) {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(buildPresenceError("unauthorized", "Unauthorized"), {
-        status: 401,
-        headers: corsHeaders,
-      });
+      return NextResponse.json(
+        buildPresenceError("unauthorized", "Unauthorized"),
+        {
+          status: 401,
+          headers: corsHeaders,
+        }
+      );
     }
 
     return NextResponse.json(
-      buildPresenceError("unavailable", "Presence stream is not configured yet"),
+      buildPresenceError(
+        "unavailable",
+        "Presence stream is not configured yet"
+      ),
       { status: 503, headers: corsHeaders }
     );
   } catch (error) {

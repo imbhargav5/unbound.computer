@@ -1,6 +1,11 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldAlert,
+} from "lucide-react";
 import { useAction } from "next-cool-action/hooks";
 import { useMemo, useRef } from "react";
 import { toast } from "sonner";
@@ -82,7 +87,9 @@ export function BillingUsagePanel({
           window.location.href = data.url;
           return;
         }
-        toast.error("Checkout session URL not found.", { id: toastRef.current });
+        toast.error("Checkout session URL not found.", {
+          id: toastRef.current,
+        });
         toastRef.current = undefined;
       },
       onError: ({ error }) => {
@@ -110,7 +117,8 @@ export function BillingUsagePanel({
   const EnforcementIcon = enforcement?.icon ?? AlertCircle;
 
   const checkoutLabel =
-    usageStatus?.plan === "free" || usageStatus?.enforcementState === "over_quota"
+    usageStatus?.plan === "free" ||
+    usageStatus?.enforcementState === "over_quota"
       ? "Upgrade Plan"
       : "Change Plan";
 
@@ -121,7 +129,8 @@ export function BillingUsagePanel({
           Billing Snapshot
           {usageStatus ? (
             <Badge variant="secondary">
-              {usageStatus.plan.toUpperCase()} • {usageStatus.gateway.toUpperCase()}
+              {usageStatus.plan.toUpperCase()} •{" "}
+              {usageStatus.gateway.toUpperCase()}
             </Badge>
           ) : null}
         </CardTitle>

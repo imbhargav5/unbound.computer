@@ -1,6 +1,6 @@
-import type { Database } from "database/types";
-import { createRedisClient, xread } from "@unbound/redis";
 import { createClient } from "@supabase/supabase-js";
+import { createRedisClient, xread } from "@unbound/redis";
+import type { Database } from "database/types";
 
 /**
  * Environment configuration for the worker

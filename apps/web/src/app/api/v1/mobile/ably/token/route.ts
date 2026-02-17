@@ -1,9 +1,13 @@
-import { type NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
+import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
 
-export const audienceSchema = z.enum(["mobile", "daemon_falco", "daemon_nagato"]);
+export const audienceSchema = z.enum([
+  "mobile",
+  "daemon_falco",
+  "daemon_nagato",
+]);
 export type AblyTokenAudience = z.infer<typeof audienceSchema>;
 
 export const requestSchema = z.object({
@@ -30,7 +34,9 @@ function resolveAblyRestEndpoint(): string {
 
 export type Capability = Record<string, string[]>;
 
-function parseAblyApiKey(rawApiKey: string): { keyName: string; keySecret: string } | null {
+function parseAblyApiKey(
+  rawApiKey: string
+): { keyName: string; keySecret: string } | null {
   const separatorIndex = rawApiKey.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex >= rawApiKey.length - 1) {
     return null;
@@ -67,7 +73,10 @@ function parseAblyErrorBody(rawBody: string): string {
   }
 
   try {
-    const parsed = JSON.parse(rawBody) as { error?: { message?: string }; message?: string };
+    const parsed = JSON.parse(rawBody) as {
+      error?: { message?: string };
+      message?: string;
+    };
     if (parsed.error?.message) {
       return parsed.error.message;
     }
@@ -81,14 +90,21 @@ function parseAblyErrorBody(rawBody: string): string {
   return rawBody;
 }
 
-export function buildMobileCapability(deviceIds: string[], requesterDeviceId: string): Capability {
-  const normalizedIds = new Set(deviceIds.map((deviceId) => deviceId.toLowerCase()));
+export function buildMobileCapability(
+  deviceIds: string[],
+  requesterDeviceId: string
+): Capability {
+  const normalizedIds = new Set(
+    deviceIds.map((deviceId) => deviceId.toLowerCase())
+  );
   normalizedIds.add(requesterDeviceId.toLowerCase());
 
   const capability: Capability = {};
   for (const deviceId of normalizedIds) {
     capability[`remote:${deviceId}:commands`] = ["publish", "subscribe"];
-    capability[`session:secrets:${deviceId}:${requesterDeviceId.toLowerCase()}`] = ["subscribe"];
+    capability[
+      `session:secrets:${deviceId}:${requesterDeviceId.toLowerCase()}`
+    ] = ["subscribe"];
   }
   capability["session:*:conversation"] = ["subscribe"];
   capability["session:*:status"] = ["object-subscribe"];
@@ -96,14 +112,18 @@ export function buildMobileCapability(deviceIds: string[], requesterDeviceId: st
   return capability;
 }
 
-export function buildDaemonNagatoCapability(requesterDeviceId: string): Capability {
+export function buildDaemonNagatoCapability(
+  requesterDeviceId: string
+): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
   return {
     [`remote:${normalizedRequester}:commands`]: ["subscribe", "publish"],
   };
 }
 
-export function buildDaemonFalcoCapability(requesterDeviceId: string): Capability {
+export function buildDaemonFalcoCapability(
+  requesterDeviceId: string
+): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
   return {
     "session:*:conversation": ["publish"],
@@ -175,11 +195,12 @@ export async function POST(req: NextRequest) {
     const requesterDeviceId = parseResult.data.deviceId.toLowerCase();
     const { audience } = parseResult.data;
 
-    const { data: requesterDevice, error: requesterDeviceError } = await supabaseClient
-      .from("devices")
-      .select("id, user_id")
-      .eq("id", requesterDeviceId)
-      .single();
+    const { data: requesterDevice, error: requesterDeviceError } =
+      await supabaseClient
+        .from("devices")
+        .select("id, user_id")
+        .eq("id", requesterDeviceId)
+        .single();
 
     if (requesterDeviceError || !requesterDevice) {
       return NextResponse.json(
@@ -214,18 +235,21 @@ export async function POST(req: NextRequest) {
       user.id
     );
 
-    const tokenRequestResponse = await fetch(buildAblyTokenRequestURL(parsedApiKey.keyName), {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(
-          `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`
-        ).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        buildAblyTokenRequestBody(parsedApiKey.keyName, user.id, capability)
-      ),
-    });
+    const tokenRequestResponse = await fetch(
+      buildAblyTokenRequestURL(parsedApiKey.keyName),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${Buffer.from(
+            `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`
+          ).toString("base64")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          buildAblyTokenRequestBody(parsedApiKey.keyName, user.id, capability)
+        ),
+      }
+    );
 
     if (!tokenRequestResponse.ok) {
       const errorBody = parseAblyErrorBody(await tokenRequestResponse.text());
@@ -241,7 +265,13 @@ export async function POST(req: NextRequest) {
     }
 
     const tokenDetails = await tokenRequestResponse.json();
-    if (!(tokenDetails && typeof tokenDetails.token === "string" && tokenDetails.token.length > 0)) {
+    if (
+      !(
+        tokenDetails &&
+        typeof tokenDetails.token === "string" &&
+        tokenDetails.token.length > 0
+      )
+    ) {
       return NextResponse.json(
         { error: "Ably token response is invalid" },
         { status: 502, headers: corsHeaders }

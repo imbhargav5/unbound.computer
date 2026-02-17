@@ -535,7 +535,11 @@ export class StripePaymentGateway implements PaymentGateway {
 
       let event: Stripe.Event;
       try {
-        event = this.stripe.webhooks.constructEvent(body, signature, webhookSecret);
+        event = this.stripe.webhooks.constructEvent(
+          body,
+          signature,
+          webhookSecret
+        );
       } catch (error) {
         throw new StripeWebhookProcessingError(
           "Invalid Stripe webhook signature or payload",
@@ -683,7 +687,8 @@ export class StripePaymentGateway implements PaymentGateway {
       : null;
     const linkedUserId =
       metadataUserId ?? fallbackUserId ?? existingCustomer?.user_id ?? null;
-    const billingEmail = stripeCustomer.email ?? existingCustomer?.billing_email;
+    const billingEmail =
+      stripeCustomer.email ?? existingCustomer?.billing_email;
 
     if (!billingEmail) {
       throw new Error("Stripe customer email not found");
@@ -749,8 +754,7 @@ export class StripePaymentGateway implements PaymentGateway {
     const paidDate = invoice.status_transitions.paid_at;
     const firstLine = invoice.lines.data[0];
     const priceId = firstLine?.pricing?.price_details?.price ?? null;
-    const productId =
-      firstLine?.pricing?.price_details?.product ?? null;
+    const productId = firstLine?.pricing?.price_details?.product ?? null;
 
     const invoiceId = invoice.id;
     if (!invoiceId) {
@@ -1290,7 +1294,9 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const { error: priceUpsertError } = await supabaseAdminClient
         .from("billing_prices")
-        .upsert(pricesToUpsert, { onConflict: "gateway_name,gateway_price_id" });
+        .upsert(pricesToUpsert, {
+          onConflict: "gateway_name,gateway_price_id",
+        });
       if (priceUpsertError) {
         console.log("priceUpsertError", priceUpsertError);
         throw priceUpsertError;

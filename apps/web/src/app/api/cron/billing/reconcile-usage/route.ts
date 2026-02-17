@@ -66,7 +66,10 @@ async function handleReconcileRequest(request: NextRequest) {
       over_quota_transitions: 0,
     });
 
-    console.error("[Billing Usage Reconcile Cron] Reconciliation failed", error);
+    console.error(
+      "[Billing Usage Reconcile Cron] Reconciliation failed",
+      error
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

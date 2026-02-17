@@ -11,7 +11,7 @@ export function ChangelogList({ items }: ChangelogListProps) {
   return (
     <div className="flex flex-col gap-6">
       {items.map((item) => (
-        <ChangelogCard key={item.id} item={item} />
+        <ChangelogCard item={item} key={item.id} />
       ))}
     </div>
   );

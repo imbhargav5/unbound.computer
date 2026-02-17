@@ -9,13 +9,13 @@
  *   0.0.2
  */
 
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 function main() {
-  const packageJsonPath = join(process.cwd(), "package.json")
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"))
-  console.log(packageJson.version)
+  const packageJsonPath = join(process.cwd(), "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+  console.log(packageJson.version);
 }
 
-main()
+main();

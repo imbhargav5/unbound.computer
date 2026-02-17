@@ -6,37 +6,37 @@
  *   tsx cleanup-releases.ts
  */
 
-import { readdirSync, unlinkSync } from "node:fs"
-import { join } from "node:path"
+import { readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 
 function main() {
-  const releasesDir = join(process.cwd(), ".releases")
+  const releasesDir = join(process.cwd(), ".releases");
 
-  let files: string[]
+  let files: string[];
   try {
-    files = readdirSync(releasesDir)
+    files = readdirSync(releasesDir);
   } catch {
-    console.log("No .releases directory found")
-    return
+    console.log("No .releases directory found");
+    return;
   }
 
   const filesToDelete = files.filter(
     (f) => f.endsWith(".md") && f !== "README.md"
-  )
+  );
 
   if (filesToDelete.length === 0) {
-    console.log("No release files to clean up")
-    return
+    console.log("No release files to clean up");
+    return;
   }
 
-  console.log("Cleaning up release files:")
+  console.log("Cleaning up release files:");
   for (const file of filesToDelete) {
-    const filepath = join(releasesDir, file)
-    unlinkSync(filepath)
-    console.log(`  Deleted: ${file}`)
+    const filepath = join(releasesDir, file);
+    unlinkSync(filepath);
+    console.log(`  Deleted: ${file}`);
   }
 
-  console.log(`Done! Removed ${filesToDelete.length} release file(s)`)
+  console.log(`Done! Removed ${filesToDelete.length} release file(s)`);
 }
 
-main()
+main();

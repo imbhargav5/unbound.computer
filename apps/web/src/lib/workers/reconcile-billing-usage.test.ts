@@ -10,7 +10,9 @@ beforeAll(async () => {
   worker = await import("./reconcile-billing-usage");
 });
 
-function buildCounterIdentity(overrides?: Partial<UsageCounterUpsertRow>): UsageCounterUpsertRow {
+function buildCounterIdentity(
+  overrides?: Partial<UsageCounterUpsertRow>
+): UsageCounterUpsertRow {
   return {
     gateway_name: "stripe",
     gateway_customer_id: "cus_123",
@@ -109,7 +111,7 @@ describe("computeOverQuotaTransitions", () => {
     const rowsToUpsert = [freePlanRow, paidPlanRow];
     const existingUsageByKey = new Map<string, number>([
       [worker.getCounterKey(freePlanRow), 49],
-      [worker.getCounterKey(paidPlanRow), 9_999],
+      [worker.getCounterKey(paidPlanRow), 9999],
     ]);
 
     const commandLimitsByKey = worker.buildCommandLimitsByKey({

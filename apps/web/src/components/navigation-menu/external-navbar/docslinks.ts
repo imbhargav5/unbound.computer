@@ -35,7 +35,10 @@ export const navigation = [
         title: "Daemon Database",
         href: "/docs/internals/daemon/daemon-database",
       },
-      { title: "Daemon Storage", href: "/docs/internals/daemon/daemon-storage" },
+      {
+        title: "Daemon Storage",
+        href: "/docs/internals/daemon/daemon-storage",
+      },
       { title: "Armin", href: "/docs/internals/daemon/armin" },
       { title: "Deku", href: "/docs/internals/daemon/deku" },
       { title: "Piccolo", href: "/docs/internals/daemon/piccolo" },
@@ -76,7 +79,10 @@ export const navigation = [
   {
     title: "Internals: Packages",
     links: [
-      { title: "Agent Runtime", href: "/docs/internals/packages/agent-runtime" },
+      {
+        title: "Agent Runtime",
+        href: "/docs/internals/packages/agent-runtime",
+      },
       { title: "Protocol", href: "/docs/internals/packages/protocol" },
       { title: "Session", href: "/docs/internals/packages/session" },
       { title: "Web Session", href: "/docs/internals/packages/web-session" },
@@ -88,7 +94,10 @@ export const navigation = [
         href: "/docs/internals/packages/daemon-ably-client",
       },
       { title: "Daemon Falco", href: "/docs/internals/packages/daemon-falco" },
-      { title: "Daemon Nagato", href: "/docs/internals/packages/daemon-nagato" },
+      {
+        title: "Daemon Nagato",
+        href: "/docs/internals/packages/daemon-nagato",
+      },
       {
         title: "Transport Reliability",
         href: "/docs/internals/packages/transport-reliability",

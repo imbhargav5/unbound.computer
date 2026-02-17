@@ -1,8 +1,4 @@
 {
   "title": "Web",
-  "pages": [
-    "request-memoization",
-    "rsc-data",
-    "navigation-fns"
-  ]
+  "pages": ["request-memoization", "rsc-data", "navigation-fns"]
 }

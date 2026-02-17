@@ -3,8 +3,8 @@ import { baseOptions } from "@/app/layout.config";
 import { source } from "../source";
 import "@/styles/docs-layout-styles.css";
 import { RootProvider } from "fumadocs-ui/provider/next";
-import { ExternalNavigation } from "@/components/navigation-menu/external-navbar/external-navigation";
 import { Footer } from "@/components/landing-page/footer";
+import { ExternalNavigation } from "@/components/navigation-menu/external-navbar/external-navigation";
 
 export default async function Layout({
   children,

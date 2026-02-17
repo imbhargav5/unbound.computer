@@ -218,7 +218,9 @@ export const sendLoginLinkAction = adminActionClient
         }
 
         // user_application_settings is a 1:1 relation but types as array due to Supabase typing
-        const userSettings = Array.isArray(userProfile.user_application_settings)
+        const userSettings = Array.isArray(
+          userProfile.user_application_settings
+        )
           ? userProfile.user_application_settings[0]
           : userProfile.user_application_settings;
         const userEmail = userSettings?.email_readonly;

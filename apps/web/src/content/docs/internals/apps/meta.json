@@ -1,9 +1,4 @@
 {
   "title": "Apps",
-  "pages": [
-    "web",
-    "macos",
-    "ios",
-    "database"
-  ]
+  "pages": ["web", "macos", "ios", "database"]
 }
