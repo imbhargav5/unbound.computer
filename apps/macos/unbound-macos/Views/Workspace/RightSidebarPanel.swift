@@ -326,7 +326,7 @@ struct RightSidebarPanel: View {
     // MARK: - Bottom Tab Header
 
     private var bottomTabHeader: some View {
-        HStack(spacing: Spacing.lg) {
+        HStack(spacing: 0) {
             ForEach(bottomTabs) { tab in
                 let isActive = effectiveTab == tab
                 Button {
@@ -362,11 +362,10 @@ struct RightSidebarPanel: View {
                             .fill(isActive ? colors.primary : Color.clear)
                             .frame(height: BorderWidth.thick)
                     }
+                    .fullRowHitTarget(alignment: .center)
                 }
                 .buttonStyle(.plain)
             }
-
-            Spacer()
         }
         .padding(.horizontal, Spacing.lg)
         .frame(height: 36)
