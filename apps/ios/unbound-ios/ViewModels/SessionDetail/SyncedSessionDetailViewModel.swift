@@ -1,11 +1,10 @@
 //
-//  ClaudeSyncedSessionDetailViewModel.swift
+//  SyncedSessionDetailViewModel.swift
 //  unbound-ios
 //
 //  View model for synced session detail rendering.
 //
 
-import ClaudeConversationTimeline
 import Foundation
 import Logging
 import Observation
@@ -14,28 +13,17 @@ private let sessionDetailLogger = Logger(label: "app.ui.session-detail")
 
 @MainActor
 @Observable
-final class ClaudeSyncedSessionDetailViewModel {
+final class SyncedSessionDetailViewModel {
     private let session: SyncedSession
-    private let claudeState: ClaudeCodingSessionState
+    private let messageService: SessionDetailMessageLoading
     private let runtimeStatusService: SessionDetailRuntimeStatusStreaming
     private let remoteCommandService: RemoteCommandService
     private let presenceService: DevicePresenceService
 
-    var messages: [Message] {
-        ClaudeTimelineMessageMapper.mapEntries(claudeState.timeline)
-    }
-
-    var isLoading: Bool {
-        claudeState.isLoading
-    }
-
-    var errorMessage: String? {
-        claudeState.errorMessage
-    }
-
-    var decryptedMessageCount: Int {
-        claudeState.decryptedMessageCount
-    }
+    private(set) var messages: [Message] = []
+    private(set) var isLoading = false
+    private(set) var errorMessage: String?
+    private(set) var decryptedMessageCount = 0
     var inputText = ""
     private(set) var isSending = false
     private(set) var isStopping = false
@@ -55,6 +43,7 @@ final class ClaudeSyncedSessionDetailViewModel {
     private(set) var runtimeStatus: SessionDetailRuntimeStatusEnvelope?
 
     private var hasLoaded = false
+    private var realtimeUpdatesTask: Task<Void, Never>?
     private var runtimeStatusUpdatesTask: Task<Void, Never>?
 
     var codingSessionStatus: SessionDetailRuntimeStatus {
@@ -107,14 +96,13 @@ final class ClaudeSyncedSessionDetailViewModel {
 
     init(
         session: SyncedSession,
-        claudeMessageSource: ClaudeSessionMessageSource? = nil,
+        messageService: SessionDetailMessageLoading? = nil,
         runtimeStatusService: SessionDetailRuntimeStatusStreaming? = nil,
         remoteCommandService: RemoteCommandService? = nil,
         presenceService: DevicePresenceService? = nil
     ) {
         self.session = session
-        let source = claudeMessageSource ?? ClaudeRemoteSessionMessageSource()
-        self.claudeState = ClaudeCodingSessionState(source: source)
+        self.messageService = messageService ?? SessionDetailMessageService()
         self.runtimeStatusService = runtimeStatusService ?? AblyRuntimeStatusService()
         self.remoteCommandService = remoteCommandService ?? .shared
         self.presenceService = presenceService ?? .shared
@@ -123,21 +111,40 @@ final class ClaudeSyncedSessionDetailViewModel {
     func start() async {
         await loadMessages()
         await refreshPullRequests()
+        startRealtimeUpdates()
         startRuntimeStatusUpdates()
     }
 
     func loadMessages(force: Bool = false) async {
+        if isLoading {
+            return
+        }
         if hasLoaded && !force {
             return
         }
 
-        if force {
-            await claudeState.reload()
-            return
+        isLoading = true
+        errorMessage = nil
+        defer {
+            isLoading = false
+            hasLoaded = true
         }
 
-        await claudeState.start(sessionId: session.id)
-        hasLoaded = true
+        do {
+            let result = try await messageService.loadMessages(sessionId: session.id)
+            messages = result.messages
+            decryptedMessageCount = result.decryptedMessageCount
+        } catch let error as SessionDetailMessageError {
+            sessionDetailLogger.error(
+                "Failed to load/decrypt session \(self.session.id): \(error.localizedDescription)"
+            )
+            errorMessage = error.localizedDescription
+        } catch {
+            sessionDetailLogger.error(
+                "Failed to load/decrypt session \(self.session.id): \(error.localizedDescription)"
+            )
+            errorMessage = error.localizedDescription
+        }
     }
 
     func sendMessage() async {
@@ -184,10 +191,6 @@ final class ClaudeSyncedSessionDetailViewModel {
             sessionDetailLogger.error("Failed to stop Claude: \(error.localizedDescription)")
             commandError = error.localizedDescription
         }
-    }
-
-    func stopRealtimeUpdates() {
-        claudeState.stop()
     }
 
     func commitChanges(message: String, stageAll: Bool) async {
@@ -357,9 +360,39 @@ final class ClaudeSyncedSessionDetailViewModel {
     }
 
     func stopRealtimeUpdates() {
-        claudeState.stop()
+        realtimeUpdatesTask?.cancel()
+        realtimeUpdatesTask = nil
         runtimeStatusUpdatesTask?.cancel()
         runtimeStatusUpdatesTask = nil
+    }
+
+    private func startRealtimeUpdates() {
+        guard realtimeUpdatesTask == nil else {
+            return
+        }
+
+        realtimeUpdatesTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                for try await result in self.messageService.messageUpdates(sessionId: self.session.id) {
+                    self.messages = result.messages
+                    self.decryptedMessageCount = result.decryptedMessageCount
+                    self.errorMessage = nil
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                sessionDetailLogger.error(
+                    "Realtime session detail stream failed for session \(self.session.id): \(error.localizedDescription)"
+                )
+                if self.messages.isEmpty {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+
+            self.realtimeUpdatesTask = nil
+        }
     }
 
     private func startRuntimeStatusUpdates() {

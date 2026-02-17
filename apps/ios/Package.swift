@@ -14,15 +14,13 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.5.0"),
-        .package(path: "../shared/ClaudeConversationTimeline")
+        .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.5.0")
     ],
     targets: [
         .target(
             name: "SessionsApp",
             dependencies: [
-                .product(name: "Supabase", package: "supabase-swift"),
-                .product(name: "ClaudeConversationTimeline", package: "ClaudeConversationTimeline")
+                .product(name: "Supabase", package: "supabase-swift")
             ],
             path: "Sources"
         )

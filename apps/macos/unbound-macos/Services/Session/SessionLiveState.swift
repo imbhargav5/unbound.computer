@@ -10,7 +10,6 @@
 //  events over the Unix socket connection.
 //
 
-import ClaudeConversationTimeline
 import Foundation
 import Logging
 
@@ -76,7 +75,6 @@ class SessionLiveState {
     // MARK: - Dependencies
 
     private let daemonClient: DaemonClient
-    private let claudeState: ClaudeCodingSessionState
 
     // MARK: - Subscription State
 
@@ -136,7 +134,6 @@ class SessionLiveState {
     init(sessionId: UUID, daemonClient: DaemonClient = .shared) {
         self.sessionId = sessionId
         self.daemonClient = daemonClient
-        self.claudeState = ClaudeCodingSessionState(source: ClaudeEmptySessionMessageSource())
     }
 
     deinit {
@@ -256,26 +253,21 @@ class SessionLiveState {
             let fetchDuration = CFAbsoluteTimeGetCurrent() - fetchStart
             logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
 
+            // Parse messages on background thread to avoid blocking UI
             let parseSignpost = ChatPerformanceSignposts.beginInterval(
                 "chat.loadMessages.parse",
                 "incoming=\(daemonMessages.count)"
             )
             let parseStart = CFAbsoluteTimeGetCurrent()
-            let rows = daemonMessages.compactMap { message -> RawSessionRow? in
-                guard let content = message.content else { return nil }
-                return RawSessionRow(
-                    id: message.id,
-                    sequenceNumber: message.sequenceNumber,
-                    createdAt: message.date,
-                    updatedAt: nil,
-                    payload: content
-                )
-            }
-            claudeState.replace(rows: rows)
-            refreshMessagesFromClaudeState()
+            let parsedMessages = await Task.detached(priority: .userInitiated) {
+                let parsed = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+                return ChatMessageGrouper.groupSubAgentTools(messages: parsed)
+            }.value
             let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
-            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(messages.count) parsed messages")
-            ChatPerformanceSignposts.endInterval(parseSignpost, "parsed=\(messages.count)")
+            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(parsedMessages.count) parsed messages")
+            ChatPerformanceSignposts.endInterval(parseSignpost, "parsed=\(parsedMessages.count)")
+
+            messages = parsedMessages
         } catch {
             logger.error("Failed to load messages: \(error)")
             messages = []
@@ -295,6 +287,10 @@ class SessionLiveState {
         let messageText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !messageText.isEmpty else { return }
 
+        // Add user message to local UI immediately
+        let userMessage = ChatMessage(role: .user, text: messageText)
+        messages.append(userMessage)
+
         // Mark Claude as running (status updates come via subscription events)
         claudeRunning = true
 
@@ -313,9 +309,15 @@ class SessionLiveState {
         } catch {
             logger.error("Failed to send message: \(error)")
             claudeRunning = false
-            showErrorAlert = true
-            errorAlertTitle = "Failed to send message"
-            errorAlertMessage = error.localizedDescription
+
+            let errorMessage = ChatMessage(
+                role: .assistant,
+                content: [.error(ErrorContent(
+                    message: "Failed to send message",
+                    details: error.localizedDescription
+                ))]
+            )
+            messages.append(errorMessage)
         }
     }
 
@@ -427,19 +429,13 @@ class SessionLiveState {
             let daemonMessages = try await daemonClient.listMessages(
                 sessionId: sessionId.uuidString.lowercased()
             )
-            let rows = daemonMessages.compactMap { message -> RawSessionRow? in
-                guard let content = message.content else { return nil }
-                return RawSessionRow(
-                    id: message.id,
-                    sequenceNumber: message.sequenceNumber,
-                    createdAt: message.date,
-                    updatedAt: nil,
-                    payload: content
-                )
-            }
-            claudeState.replace(rows: rows)
-            refreshMessagesFromClaudeState()
-            ChatPerformanceSignposts.endInterval(fetchSignpost, "parsed=\(messages.count)")
+            // Parse messages on background thread to avoid blocking UI
+            let parsedMessages = await Task.detached(priority: .userInitiated) {
+                let parsed = daemonMessages.compactMap { ClaudeMessageParser.parseMessage($0) }
+                return ChatMessageGrouper.groupSubAgentTools(messages: parsed)
+            }.value
+            messages = parsedMessages
+            ChatPerformanceSignposts.endInterval(fetchSignpost, "parsed=\(parsedMessages.count)")
         } catch {
             logger.error("Failed to fetch messages: \(error)")
             ChatPerformanceSignposts.endInterval(fetchSignpost, "error")
@@ -464,7 +460,7 @@ class SessionLiveState {
         case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
             // Claude events contain raw JSON that needs to be parsed
             if let raw = event.rawClaudeEvent {
-                handleClaudeEvent(raw, sequence: event.sequence)
+                handleClaudeEvent(raw)
             } else {
                 // For new event types, the data IS the parsed JSON already
                 // Convert AnyCodableValue map to plain values for serialization
@@ -482,7 +478,7 @@ class SessionLiveState {
                 do {
                     let jsonData = try JSONSerialization.data(withJSONObject: plainData)
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        handleClaudeEvent(jsonString, sequence: event.sequence)
+                        handleClaudeEvent(jsonString)
                     }
                 } catch {
                     logger.warning("Failed to serialize claude event data for session \(sessionId): \(error.localizedDescription)")
@@ -542,22 +538,11 @@ class SessionLiveState {
         }
     }
 
-    private func handleClaudeEvent(_ json: String, sequence: Int64?) {
+    private func handleClaudeEvent(_ json: String) {
         guard let data = json.data(using: .utf8) else {
             logger.warning("Failed to convert claude event to data for session \(sessionId)")
             return
         }
-
-        let rowId = sequence.map { "event-\($0)" } ?? UUID().uuidString
-        let row = RawSessionRow(
-            id: rowId,
-            sequenceNumber: sequence.map { Int($0) },
-            createdAt: nil,
-            updatedAt: nil,
-            payload: json
-        )
-        claudeState.ingest(rows: [row])
-        refreshMessagesFromClaudeState()
 
         let parsed: [String: Any]
         do {
@@ -575,8 +560,8 @@ class SessionLiveState {
             return
         }
 
-        let resolvedPayload = resolvedPayload(from: parsed)
-        guard let type = messageType(from: resolvedPayload) else {
+        let resolvedPayload = ClaudeMessageParser.resolvedPayload(from: parsed)
+        guard let type = ClaudeMessageParser.messageType(from: resolvedPayload) else {
             logger.warning(
                 "Claude event missing 'type' field for session \(sessionId), payload_summary=\(redactedPayloadSummary(json))"
             )
@@ -602,7 +587,7 @@ class SessionLiveState {
 #if DEBUG
     /// Testing hook: ingest a raw Claude JSON event string and update tool state.
     func ingestClaudeEventForTests(_ json: String) {
-        handleClaudeEvent(json, sequence: nil)
+        handleClaudeEvent(json)
     }
 
     /// Testing hook: inject a daemon event directly.
@@ -771,55 +756,8 @@ class SessionLiveState {
         return "chars=\(payload.count),digest=\(digest)"
     }
 
-    private func resolvedPayload(from payload: [String: Any]) -> [String: Any] {
-        var current = payload
-        var depth = 0
-
-        while depth < 4,
-              let wrappedRawJSON = current["raw_json"] as? String,
-              let wrappedData = wrappedRawJSON.data(using: .utf8),
-              let wrappedPayload = try? JSONSerialization.jsonObject(with: wrappedData) as? [String: Any] {
-            current = wrappedPayload
-            depth += 1
-        }
-
-        return current
-    }
-
-    private func messageType(from payload: [String: Any]) -> String? {
-        guard let type = payload["type"] as? String else { return nil }
-        return type.lowercased()
-    }
-
-    private func toolResultUpdates(fromUserPayload payload: [String: Any]) -> [(toolUseId: String, status: ToolStatus)] {
-        guard let message = payload["message"] as? [String: Any],
-              let contentBlocks = message["content"] as? [[String: Any]] else {
-            return []
-        }
-
-        var updates: [(toolUseId: String, status: ToolStatus)] = []
-        updates.reserveCapacity(contentBlocks.count)
-
-        for block in contentBlocks {
-            guard let blockType = block["type"] as? String,
-                  blockType == "tool_result",
-                  let toolUseId = block["tool_use_id"] as? String else {
-                continue
-            }
-
-            let isError = block["is_error"] as? Bool ?? false
-            updates.append((toolUseId: toolUseId, status: isError ? .failed : .completed))
-        }
-
-        return updates
-    }
-
-    private func refreshMessagesFromClaudeState() {
-        messages = ClaudeTimelineChatMessageMapper.mapEntries(claudeState.timeline)
-    }
-
     private func handleUserEvent(_ json: [String: Any]) {
-        for update in toolResultUpdates(fromUserPayload: json) {
+        for update in ClaudeMessageParser.toolResultUpdates(fromUserPayload: json) {
             logger.debug("Tool result for \(update.toolUseId): \(update.status)")
             updateToolStatus(toolUseId: update.toolUseId, status: update.status)
         }
@@ -949,20 +887,6 @@ class SessionLiveState {
         guard !incomingTools.isEmpty else { return }
         for tool in incomingTools {
             upsert(tool, in: &tools)
-        }
-    }
-
-    private struct ClaudeEmptySessionMessageSource: ClaudeSessionMessageSource {
-        var isDeviceSource: Bool { true }
-
-        func loadInitial(sessionId _: UUID) async throws -> [RawSessionRow] {
-            []
-        }
-
-        func stream(sessionId _: UUID) -> AsyncThrowingStream<RawSessionRow, Error> {
-            AsyncThrowingStream { continuation in
-                continuation.finish()
-            }
         }
     }
 
