@@ -212,7 +212,7 @@ struct RepositoryGroup: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Repository header row
-            HStack(spacing: Spacing.xs) {
+            ZStack(alignment: .trailing) {
                 Button {
                     withAnimation(.easeInOut(duration: Duration.fast)) {
                         isExpanded.toggle()
@@ -231,27 +231,28 @@ struct RepositoryGroup: View {
                         Text(repository.name)
                             .font(Typography.sidebarProject)
                             .foregroundStyle(colors.foreground.opacity(0.9))
+
+                        Spacer()
+
+                        // Session count badge - amber styling
+                        if !allSessions.isEmpty {
+                            Text("\(allSessions.count)")
+                                .font(Typography.sidebarMeta)
+                                .foregroundStyle(colors.primary)
+                                .padding(.horizontal, Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(colors.accentAmberSubtle)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Radius.lg)
+                                        .stroke(colors.accentAmberBorder, lineWidth: BorderWidth.default)
+                                )
+                        }
                     }
-                    .contentShape(Rectangle())
+                    .padding(.trailing, Spacing.xs + IconSize.sm)
                 }
                 .buttonStyle(.plain)
-
-                Spacer()
-
-                // Session count badge - amber styling
-                if !allSessions.isEmpty {
-                    Text("\(allSessions.count)")
-                        .font(Typography.sidebarMeta)
-                        .foregroundStyle(colors.primary)
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, 2)
-                        .background(colors.accentAmberSubtle)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Radius.lg)
-                                .stroke(colors.accentAmberBorder, lineWidth: BorderWidth.default)
-                        )
-                }
+                .fullRowHitTarget()
 
                 // New session button
                 Button {
@@ -264,6 +265,7 @@ struct RepositoryGroup: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .padding(.trailing, Spacing.xs)
                 .onHover { hovering in
                     isHoveringAdd = hovering
                 }
@@ -279,7 +281,6 @@ struct RepositoryGroup: View {
             }
             .padding(.horizontal, Spacing.md)
             .frame(height: 36)
-            .contentShape(Rectangle())
             .contextMenu {
                 Button {
                     onRequestRemoveRepository?(repository)
@@ -507,6 +508,7 @@ struct SessionRow: View {
             .padding(.leading, 24)
             .padding(.trailing, Spacing.sm)
             .frame(height: LayoutMetrics.sidebarRowHeight)
+            .fullRowHitTarget()
             .background(
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .fill(isSelected ? colors.hoverBackground : (isHovered ? colors.hoverBackground : Color.clear))
@@ -515,7 +517,6 @@ struct SessionRow: View {
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
             )
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
