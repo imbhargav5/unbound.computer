@@ -155,9 +155,6 @@ enum VersionControlTab: String, CaseIterable, Identifiable {
 
 enum TerminalTab: String, CaseIterable, Identifiable {
     case terminal = "Terminal"
-    case output = "Output"
-    case problems = "Problems"
-    case scripts = "Scripts"
 
     var id: String { rawValue }
 }

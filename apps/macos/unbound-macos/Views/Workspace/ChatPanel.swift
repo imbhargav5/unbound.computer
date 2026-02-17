@@ -644,12 +644,6 @@ struct ChatPanel: View {
         switch selectedTerminalTab {
         case .terminal:
             terminalFooterContent
-        case .output:
-            footerPlaceholder("No output yet")
-        case .problems:
-            footerPlaceholder("No problems detected")
-        case .scripts:
-            footerPlaceholder("No scripts configured")
         }
     }
 
