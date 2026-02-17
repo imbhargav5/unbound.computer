@@ -8,8 +8,8 @@ import type { Database } from "database/types";
  * SECURITY: Only use in server-side route handlers where admin access is required.
  * Never expose the service role key to the client.
  */
-export const createSupabaseAdminRouteHandlerClient = async () => {
-  return createClient<Database>(
+export const createSupabaseAdminRouteHandlerClient = async () =>
+  createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
@@ -19,4 +19,3 @@ export const createSupabaseAdminRouteHandlerClient = async () => {
       },
     }
   );
-};

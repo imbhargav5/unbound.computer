@@ -1,18 +1,18 @@
 import { Suspense } from "react";
-import { PageHeading } from "@/components/page-heading";
 import {
   buildUsageStatusPayload,
   ensureStripeBillingCustomer,
   getBillingWindow,
   getUsageCount,
 } from "@/app/api/v1/mobile/billing/shared";
+import { PageHeading } from "@/components/page-heading";
 import type { ProductAndPrice } from "@/payments/abstract-payment-gateway";
 import { StripePaymentGateway } from "@/payments/stripe-payment-gateway";
 import { formatGatewayPrice } from "@/utils/format-gateway-price";
 import { serverGetLoggedInUserClaims } from "@/utils/server/server-get-logged-in-user";
 import {
-  BillingUsagePanel,
   type BillingUpgradeOption,
+  BillingUsagePanel,
   type BillingUsageStatusView,
 } from "./billing-usage-panel";
 
@@ -32,7 +32,11 @@ function selectUpgradeOption(
         Boolean(price.recurring_interval) &&
         price.recurring_interval !== "one-time"
     )
-    .sort((a, b) => (a.price.amount ?? Number.MAX_SAFE_INTEGER) - (b.price.amount ?? Number.MAX_SAFE_INTEGER));
+    .sort(
+      (a, b) =>
+        (a.price.amount ?? Number.MAX_SAFE_INTEGER) -
+        (b.price.amount ?? Number.MAX_SAFE_INTEGER)
+    );
 
   const preferred = recurringProducts.find(
     ({ price }) => (price.amount ?? 0) > 0

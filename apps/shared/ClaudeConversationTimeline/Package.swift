@@ -5,7 +5,7 @@ let package = Package(
     name: "ClaudeConversationTimeline",
     platforms: [
         .iOS(.v17),
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .library(

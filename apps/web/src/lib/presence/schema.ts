@@ -49,7 +49,10 @@ export const presenceErrorSchema = z.object({
 });
 export type PresenceError = z.infer<typeof presenceErrorSchema>;
 
-export const presenceScopeDefault = ["presence:read", "presence:write"] as const;
+export const presenceScopeDefault = [
+  "presence:read",
+  "presence:write",
+] as const;
 
 export function normalizePresenceIdentifier(value: string): string {
   return value.trim().toLowerCase();

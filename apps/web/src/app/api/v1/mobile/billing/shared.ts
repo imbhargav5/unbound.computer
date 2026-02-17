@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import { StripePaymentGateway } from "@/payments/stripe-payment-gateway";
 import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import { createSupabaseMobileClient } from "@/supabase-clients/mobile/create-supabase-mobile-client";
-import { StripePaymentGateway } from "@/payments/stripe-payment-gateway";
 
 export const usageTypeSchema = z.enum(["remote_commands"]);
 export type UsageType = z.infer<typeof usageTypeSchema>;
@@ -54,7 +54,9 @@ export function computeEnforcementState(
     return "over_quota";
   }
 
-  if (commandsUsed >= Math.floor(commandsLimit * (1 - NEAR_LIMIT_THRESHOLD_RATIO))) {
+  if (
+    commandsUsed >= Math.floor(commandsLimit * (1 - NEAR_LIMIT_THRESHOLD_RATIO))
+  ) {
     return "near_limit";
   }
 
@@ -90,9 +92,10 @@ export function buildUsageStatusPayload({
   };
 }
 
-export async function requireMobileUser(
-  req: NextRequest
-): Promise<{ userId: string; mobileClient: ReturnType<typeof createSupabaseMobileClient> }> {
+export async function requireMobileUser(req: NextRequest): Promise<{
+  userId: string;
+  mobileClient: ReturnType<typeof createSupabaseMobileClient>;
+}> {
   const mobileClient = createSupabaseMobileClient(req);
   const {
     data: { user },

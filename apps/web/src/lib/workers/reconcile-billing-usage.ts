@@ -1,5 +1,5 @@
-import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 import type { Database } from "database/types";
+import { supabaseAdminClient } from "@/supabase-clients/admin/supabase-admin-client";
 
 const STRIPE_GATEWAY_NAME = "stripe";
 const REMOTE_COMMANDS_USAGE_TYPE = "remote_commands";
@@ -40,7 +40,10 @@ type UsageCounterRow = Pick<
 
 type SubscriptionRow = Pick<
   Database["public"]["Tables"]["billing_subscriptions"]["Row"],
-  "gateway_customer_id" | "status" | "current_period_start" | "current_period_end"
+  | "gateway_customer_id"
+  | "status"
+  | "current_period_start"
+  | "current_period_end"
 >;
 
 export type UsageCounterUpsertRow = Pick<
@@ -138,7 +141,10 @@ export function buildCounterRepairPlan({
   let driftCount = 0;
 
   for (const counter of counters) {
-    existingUsageByKey.set(getCounterKey(counter), Number(counter.usage_count ?? 0));
+    existingUsageByKey.set(
+      getCounterKey(counter),
+      Number(counter.usage_count ?? 0)
+    );
   }
 
   for (const [key, expectedUsage] of usageTotalsByKey.entries()) {
@@ -266,27 +272,31 @@ export function computeOverQuotaTransitions({
 
 export async function reconcileBillingUsageCounters(): Promise<BillingUsageReconciliationResult> {
   const startedAt = Date.now();
-  const [eventsResult, countersResult, subscriptionsResult] = await Promise.all([
-    supabaseAdminClient
-      .from("billing_usage_events")
-      .select(
-        "gateway_name,gateway_customer_id,usage_type,request_id,quantity,period_start,period_end"
-      )
-      .eq("gateway_name", STRIPE_GATEWAY_NAME)
-      .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
-    supabaseAdminClient
-      .from("billing_usage_counters")
-      .select(
-        "gateway_name,gateway_customer_id,usage_type,period_start,period_end,usage_count"
-      )
-      .eq("gateway_name", STRIPE_GATEWAY_NAME)
-      .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
-    supabaseAdminClient
-      .from("billing_subscriptions")
-      .select("gateway_customer_id,status,current_period_start,current_period_end")
-      .eq("gateway_name", STRIPE_GATEWAY_NAME)
-      .in("status", ["active", "trialing"]),
-  ]);
+  const [eventsResult, countersResult, subscriptionsResult] = await Promise.all(
+    [
+      supabaseAdminClient
+        .from("billing_usage_events")
+        .select(
+          "gateway_name,gateway_customer_id,usage_type,request_id,quantity,period_start,period_end"
+        )
+        .eq("gateway_name", STRIPE_GATEWAY_NAME)
+        .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
+      supabaseAdminClient
+        .from("billing_usage_counters")
+        .select(
+          "gateway_name,gateway_customer_id,usage_type,period_start,period_end,usage_count"
+        )
+        .eq("gateway_name", STRIPE_GATEWAY_NAME)
+        .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
+      supabaseAdminClient
+        .from("billing_subscriptions")
+        .select(
+          "gateway_customer_id,status,current_period_start,current_period_end"
+        )
+        .eq("gateway_name", STRIPE_GATEWAY_NAME)
+        .in("status", ["active", "trialing"]),
+    ]
+  );
 
   if (eventsResult.error) {
     throw eventsResult.error;
@@ -303,10 +313,11 @@ export async function reconcileBillingUsageCounters(): Promise<BillingUsageRecon
   const subscriptions: SubscriptionRow[] = subscriptionsResult.data ?? [];
 
   const { usageTotalsByKey, dedupeCount } = rollupUsageEvents(events);
-  const { rowsToUpsert, driftCount, existingUsageByKey } = buildCounterRepairPlan({
-    usageTotalsByKey,
-    counters,
-  });
+  const { rowsToUpsert, driftCount, existingUsageByKey } =
+    buildCounterRepairPlan({
+      usageTotalsByKey,
+      counters,
+    });
 
   const counterKeys = rowsToUpsert.map((row) => getCounterKey(row));
   const commandLimitsByKey = buildCommandLimitsByKey({
@@ -322,7 +333,11 @@ export async function reconcileBillingUsageCounters(): Promise<BillingUsageRecon
 
   if (rowsToUpsert.length > 0) {
     const nowIso = new Date().toISOString();
-    for (let index = 0; index < rowsToUpsert.length; index += UPSERT_BATCH_SIZE) {
+    for (
+      let index = 0;
+      index < rowsToUpsert.length;
+      index += UPSERT_BATCH_SIZE
+    ) {
       const batch = rowsToUpsert.slice(index, index + UPSERT_BATCH_SIZE);
       const { error } = await supabaseAdminClient
         .from("billing_usage_counters")

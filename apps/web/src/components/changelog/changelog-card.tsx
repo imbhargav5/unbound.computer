@@ -1,10 +1,7 @@
 import type { Tables } from "database/types";
 import { TiptapJSONContentToHTML } from "@/components/tiptap-json-content-to-html";
 import { formatChangelogDate } from "@/utils/changelog";
-import {
-  ChangelogMedia,
-  type ChangelogMediaType,
-} from "./changelog-media";
+import { ChangelogMedia, type ChangelogMediaType } from "./changelog-media";
 import { ChangelogTagPill } from "./changelog-tag-pill";
 
 type ChangelogItem = Tables<"marketing_changelog">;
@@ -26,16 +23,16 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
       {mediaSource && mediaType ? (
         <div className="mb-5 overflow-hidden rounded-xl border border-white/10 bg-black/40">
           <ChangelogMedia
-            type={mediaType}
-            src={mediaSource}
             alt={item.media_alt ?? item.title}
-            poster={item.media_poster}
             className="h-auto w-full"
+            poster={item.media_poster}
+            src={mediaSource}
+            type={mediaType}
           />
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+      <div className="flex flex-wrap items-center gap-3 text-white/60 text-xs">
         {item.created_at && <span>{formatChangelogDate(item.created_at)}</span>}
         {item.version && (
           <span className="rounded-full border border-white/10 px-2 py-0.5 text-white/70">
@@ -44,7 +41,7 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
         )}
       </div>
 
-      <h2 className="mt-3 text-xl text-white">{item.title}</h2>
+      <h2 className="mt-3 text-white text-xl">{item.title}</h2>
 
       {item.json_content ? (
         <div className="prose prose-invert mt-4 line-clamp-4 max-w-none text-sm text-white/70">
@@ -53,7 +50,7 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
       ) : null}
 
       {item.technical_details ? (
-        <div className="mt-4 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 px-4 py-3 font-mono text-xs text-white/70">
+        <div className="mt-4 whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 px-4 py-3 font-mono text-white/70 text-xs">
           {item.technical_details}
         </div>
       ) : null}
@@ -102,6 +99,8 @@ function resolveMediaType(
   return inferMediaType(mediaSource, isCoverImage);
 }
 
-function isChangelogMediaType(value: string | null): value is ChangelogMediaType {
+function isChangelogMediaType(
+  value: string | null
+): value is ChangelogMediaType {
   return value === "image" || value === "video" || value === "gif";
 }

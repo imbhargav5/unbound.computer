@@ -1,9 +1,4 @@
 {
   "title": "Internals",
-  "pages": [
-    "apps",
-    "daemon",
-    "packages",
-    "web"
-  ]
+  "pages": ["apps", "daemon", "packages", "web"]
 }

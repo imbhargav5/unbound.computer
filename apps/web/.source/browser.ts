@@ -1,12 +1,172 @@
 // @ts-nocheck
-import { browser } from 'fumadocs-mdx/runtime/browser';
-import type * as Config from '../source.config';
+import { browser } from "fumadocs-mdx/runtime/browser";
+import type * as Config from "../source.config";
 
-const create = browser<typeof Config, import("fumadocs-mdx/runtime/types").InternalTypeConfig & {
-  DocData: {
+const create = browser<
+  typeof Config,
+  import("fumadocs-mdx/runtime/types").InternalTypeConfig & {
+    DocData: {};
   }
-}>();
+>();
 const browserCollections = {
-  docs: create.doc("docs", {"about.mdx": () => import("../src/content/docs/about.mdx?collection=docs"), "overview.mdx": () => import("../src/content/docs/overview.mdx?collection=docs"), "internals/index.mdx": () => import("../src/content/docs/internals/index.mdx?collection=docs"), "internals/apps/database.mdx": () => import("../src/content/docs/internals/apps/database.mdx?collection=docs"), "internals/apps/ios.mdx": () => import("../src/content/docs/internals/apps/ios.mdx?collection=docs"), "internals/apps/macos.mdx": () => import("../src/content/docs/internals/apps/macos.mdx?collection=docs"), "internals/apps/web.mdx": () => import("../src/content/docs/internals/apps/web.mdx?collection=docs"), "internals/daemon/armin.mdx": () => import("../src/content/docs/internals/daemon/armin.mdx?collection=docs"), "internals/daemon/bakugou.mdx": () => import("../src/content/docs/internals/daemon/bakugou.mdx?collection=docs"), "internals/daemon/daemon-auth.mdx": () => import("../src/content/docs/internals/daemon/daemon-auth.mdx?collection=docs"), "internals/daemon/daemon-bin.mdx": () => import("../src/content/docs/internals/daemon/daemon-bin.mdx?collection=docs"), "internals/daemon/daemon-config-and-utils.mdx": () => import("../src/content/docs/internals/daemon/daemon-config-and-utils.mdx?collection=docs"), "internals/daemon/daemon-database.mdx": () => import("../src/content/docs/internals/daemon/daemon-database.mdx?collection=docs"), "internals/daemon/daemon-ipc.mdx": () => import("../src/content/docs/internals/daemon/daemon-ipc.mdx?collection=docs"), "internals/daemon/daemon-storage.mdx": () => import("../src/content/docs/internals/daemon/daemon-storage.mdx?collection=docs"), "internals/daemon/deku.mdx": () => import("../src/content/docs/internals/daemon/deku.mdx?collection=docs"), "internals/daemon/eren-machines.mdx": () => import("../src/content/docs/internals/daemon/eren-machines.mdx?collection=docs"), "internals/daemon/gyomei.mdx": () => import("../src/content/docs/internals/daemon/gyomei.mdx?collection=docs"), "internals/daemon/historia-lifecycle.mdx": () => import("../src/content/docs/internals/daemon/historia-lifecycle.mdx?collection=docs"), "internals/daemon/itachi.mdx": () => import("../src/content/docs/internals/daemon/itachi.mdx?collection=docs"), "internals/daemon/levi.mdx": () => import("../src/content/docs/internals/daemon/levi.mdx?collection=docs"), "internals/daemon/one-for-all-protocol.mdx": () => import("../src/content/docs/internals/daemon/one-for-all-protocol.mdx?collection=docs"), "internals/daemon/piccolo.mdx": () => import("../src/content/docs/internals/daemon/piccolo.mdx?collection=docs"), "internals/daemon/rengoku-sessions.mdx": () => import("../src/content/docs/internals/daemon/rengoku-sessions.mdx?collection=docs"), "internals/daemon/sakura-working-dir-resolution.mdx": () => import("../src/content/docs/internals/daemon/sakura-working-dir-resolution.mdx?collection=docs"), "internals/daemon/sasuke-crypto.mdx": () => import("../src/content/docs/internals/daemon/sasuke-crypto.mdx?collection=docs"), "internals/daemon/tien.mdx": () => import("../src/content/docs/internals/daemon/tien.mdx?collection=docs"), "internals/daemon/toshinori.mdx": () => import("../src/content/docs/internals/daemon/toshinori.mdx?collection=docs"), "internals/daemon/yagami.mdx": () => import("../src/content/docs/internals/daemon/yagami.mdx?collection=docs"), "internals/daemon/yamcha.mdx": () => import("../src/content/docs/internals/daemon/yamcha.mdx?collection=docs"), "internals/daemon/ymir.mdx": () => import("../src/content/docs/internals/daemon/ymir.mdx?collection=docs"), "internals/packages/agent-runtime.mdx": () => import("../src/content/docs/internals/packages/agent-runtime.mdx?collection=docs"), "internals/packages/crypto.mdx": () => import("../src/content/docs/internals/packages/crypto.mdx?collection=docs"), "internals/packages/daemon-ably-client.mdx": () => import("../src/content/docs/internals/packages/daemon-ably-client.mdx?collection=docs"), "internals/packages/daemon-ably.mdx": () => import("../src/content/docs/internals/packages/daemon-ably.mdx?collection=docs"), "internals/packages/daemon-falco.mdx": () => import("../src/content/docs/internals/packages/daemon-falco.mdx?collection=docs"), "internals/packages/daemon-nagato.mdx": () => import("../src/content/docs/internals/packages/daemon-nagato.mdx?collection=docs"), "internals/packages/git-worktree.mdx": () => import("../src/content/docs/internals/packages/git-worktree.mdx?collection=docs"), "internals/packages/observability.mdx": () => import("../src/content/docs/internals/packages/observability.mdx?collection=docs"), "internals/packages/protocol.mdx": () => import("../src/content/docs/internals/packages/protocol.mdx?collection=docs"), "internals/packages/redis.mdx": () => import("../src/content/docs/internals/packages/redis.mdx?collection=docs"), "internals/packages/session.mdx": () => import("../src/content/docs/internals/packages/session.mdx?collection=docs"), "internals/packages/transport-reliability.mdx": () => import("../src/content/docs/internals/packages/transport-reliability.mdx?collection=docs"), "internals/packages/typescript-config.mdx": () => import("../src/content/docs/internals/packages/typescript-config.mdx?collection=docs"), "internals/packages/web-session.mdx": () => import("../src/content/docs/internals/packages/web-session.mdx?collection=docs"), "internals/web/navigation-fns.mdx": () => import("../src/content/docs/internals/web/navigation-fns.mdx?collection=docs"), "internals/web/request-memoization.mdx": () => import("../src/content/docs/internals/web/request-memoization.mdx?collection=docs"), "internals/web/rsc-data.mdx": () => import("../src/content/docs/internals/web/rsc-data.mdx?collection=docs"), }),
+  docs: create.doc("docs", {
+    "about.mdx": () => import("../src/content/docs/about.mdx?collection=docs"),
+    "overview.mdx": () =>
+      import("../src/content/docs/overview.mdx?collection=docs"),
+    "internals/index.mdx": () =>
+      import("../src/content/docs/internals/index.mdx?collection=docs"),
+    "internals/apps/database.mdx": () =>
+      import("../src/content/docs/internals/apps/database.mdx?collection=docs"),
+    "internals/apps/ios.mdx": () =>
+      import("../src/content/docs/internals/apps/ios.mdx?collection=docs"),
+    "internals/apps/macos.mdx": () =>
+      import("../src/content/docs/internals/apps/macos.mdx?collection=docs"),
+    "internals/apps/web.mdx": () =>
+      import("../src/content/docs/internals/apps/web.mdx?collection=docs"),
+    "internals/daemon/armin.mdx": () =>
+      import("../src/content/docs/internals/daemon/armin.mdx?collection=docs"),
+    "internals/daemon/bakugou.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/bakugou.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-auth.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-auth.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-bin.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-bin.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-config-and-utils.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-config-and-utils.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-database.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-database.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-ipc.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-ipc.mdx?collection=docs"
+      ),
+    "internals/daemon/daemon-storage.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/daemon-storage.mdx?collection=docs"
+      ),
+    "internals/daemon/deku.mdx": () =>
+      import("../src/content/docs/internals/daemon/deku.mdx?collection=docs"),
+    "internals/daemon/eren-machines.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/eren-machines.mdx?collection=docs"
+      ),
+    "internals/daemon/gyomei.mdx": () =>
+      import("../src/content/docs/internals/daemon/gyomei.mdx?collection=docs"),
+    "internals/daemon/historia-lifecycle.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/historia-lifecycle.mdx?collection=docs"
+      ),
+    "internals/daemon/itachi.mdx": () =>
+      import("../src/content/docs/internals/daemon/itachi.mdx?collection=docs"),
+    "internals/daemon/levi.mdx": () =>
+      import("../src/content/docs/internals/daemon/levi.mdx?collection=docs"),
+    "internals/daemon/one-for-all-protocol.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/one-for-all-protocol.mdx?collection=docs"
+      ),
+    "internals/daemon/piccolo.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/piccolo.mdx?collection=docs"
+      ),
+    "internals/daemon/rengoku-sessions.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/rengoku-sessions.mdx?collection=docs"
+      ),
+    "internals/daemon/sakura-working-dir-resolution.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/sakura-working-dir-resolution.mdx?collection=docs"
+      ),
+    "internals/daemon/sasuke-crypto.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/sasuke-crypto.mdx?collection=docs"
+      ),
+    "internals/daemon/tien.mdx": () =>
+      import("../src/content/docs/internals/daemon/tien.mdx?collection=docs"),
+    "internals/daemon/toshinori.mdx": () =>
+      import(
+        "../src/content/docs/internals/daemon/toshinori.mdx?collection=docs"
+      ),
+    "internals/daemon/yagami.mdx": () =>
+      import("../src/content/docs/internals/daemon/yagami.mdx?collection=docs"),
+    "internals/daemon/yamcha.mdx": () =>
+      import("../src/content/docs/internals/daemon/yamcha.mdx?collection=docs"),
+    "internals/daemon/ymir.mdx": () =>
+      import("../src/content/docs/internals/daemon/ymir.mdx?collection=docs"),
+    "internals/web/navigation-fns.mdx": () =>
+      import(
+        "../src/content/docs/internals/web/navigation-fns.mdx?collection=docs"
+      ),
+    "internals/web/request-memoization.mdx": () =>
+      import(
+        "../src/content/docs/internals/web/request-memoization.mdx?collection=docs"
+      ),
+    "internals/web/rsc-data.mdx": () =>
+      import("../src/content/docs/internals/web/rsc-data.mdx?collection=docs"),
+    "internals/packages/agent-runtime.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/agent-runtime.mdx?collection=docs"
+      ),
+    "internals/packages/crypto.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/crypto.mdx?collection=docs"
+      ),
+    "internals/packages/daemon-ably-client.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/daemon-ably-client.mdx?collection=docs"
+      ),
+    "internals/packages/daemon-ably.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/daemon-ably.mdx?collection=docs"
+      ),
+    "internals/packages/daemon-falco.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/daemon-falco.mdx?collection=docs"
+      ),
+    "internals/packages/daemon-nagato.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/daemon-nagato.mdx?collection=docs"
+      ),
+    "internals/packages/git-worktree.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/git-worktree.mdx?collection=docs"
+      ),
+    "internals/packages/observability.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/observability.mdx?collection=docs"
+      ),
+    "internals/packages/protocol.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/protocol.mdx?collection=docs"
+      ),
+    "internals/packages/redis.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/redis.mdx?collection=docs"
+      ),
+    "internals/packages/session.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/session.mdx?collection=docs"
+      ),
+    "internals/packages/transport-reliability.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/transport-reliability.mdx?collection=docs"
+      ),
+    "internals/packages/typescript-config.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/typescript-config.mdx?collection=docs"
+      ),
+    "internals/packages/web-session.mdx": () =>
+      import(
+        "../src/content/docs/internals/packages/web-session.mdx?collection=docs"
+      ),
+  }),
 };
 export default browserCollections;

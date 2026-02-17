@@ -8,9 +8,8 @@ import type { Database } from "database/types";
  * Use this client in "use client" components where you need to perform
  * authentication or access public data.
  */
-export const createClient = () => {
-  return createBrowserClient<Database>(
+export const createClient = () =>
+  createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
   );
-};

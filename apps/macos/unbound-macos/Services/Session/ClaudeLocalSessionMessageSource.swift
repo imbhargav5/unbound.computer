@@ -11,7 +11,7 @@ final class ClaudeLocalSessionMessageSource: ClaudeSessionMessageSource {
     var isDeviceSource: Bool { true }
 
     init(
-        daemonClient: DaemonClient = DaemonClient(),
+        daemonClient: DaemonClient = .shared,
         streamingClientFactory: @escaping (String) -> SessionStreamingClient = { SessionStreamingClient(sessionId: $0) }
     ) {
         self.daemonClient = daemonClient

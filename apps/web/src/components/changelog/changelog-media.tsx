@@ -31,10 +31,10 @@ export function ChangelogMedia({
 
   return (
     <img
-      className={className}
-      src={src}
       alt={alt ?? "Changelog media"}
+      className={className}
       loading="lazy"
+      src={src}
     />
   );
 }
