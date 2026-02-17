@@ -1,0 +1,21 @@
+{
+  "name": "@unbound/presence-do-worker",
+  "version": "0.0.17",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "lint": "wrangler lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "@unbound/typescript-config": "workspace:*",
+    "miniflare": "^3.20250214.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.101.0"
+  }
+}

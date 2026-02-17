@@ -109,6 +109,15 @@ enum DaemonLauncher {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["start", "--background"]
+        var environment = ProcessInfo.processInfo.environment
+        if let heartbeatURL = Config.presenceDOHeartbeatURL {
+            environment["UNBOUND_PRESENCE_DO_HEARTBEAT_URL"] = heartbeatURL
+        }
+        if let token = Config.presenceDOToken {
+            environment["UNBOUND_PRESENCE_DO_TOKEN"] = token
+        }
+        environment["UNBOUND_PRESENCE_DO_TTL_MS"] = String(Config.presenceDOTTLMS)
+        process.environment = environment
 
         // Detach from parent
         process.standardOutput = FileHandle.nullDevice

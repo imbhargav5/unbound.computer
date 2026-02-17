@@ -19,6 +19,7 @@ enum ObservabilityMode {
 enum Config {
     private static let defaultLocalAPIURL = URL(string: "http://localhost:3000")!
     private static let defaultProdAPIURL = URL(string: "https://unbound.computer")!
+    private static let defaultPresenceDOTTLMS = 12_000
 
     // MARK: - API
 
@@ -129,6 +130,35 @@ enum Config {
 
     static var sentryDSN: String? {
         readOptionalConfigValue(env: "SENTRY_DSN", plist: "SENTRY_DSN")
+    }
+
+    // MARK: - Presence DO
+
+    static var presenceDOHeartbeatURL: String? {
+        readOptionalConfigValue(
+            env: "UNBOUND_PRESENCE_DO_HEARTBEAT_URL",
+            plist: "UNBOUND_PRESENCE_DO_HEARTBEAT_URL"
+        )
+    }
+
+    static var presenceDOToken: String? {
+        readOptionalConfigValue(
+            env: "UNBOUND_PRESENCE_DO_TOKEN",
+            plist: "UNBOUND_PRESENCE_DO_TOKEN"
+        )
+    }
+
+    static var presenceDOTTLMS: Int {
+        if let raw = readOptionalConfigValue(
+            env: "UNBOUND_PRESENCE_DO_TTL_MS",
+            plist: "UNBOUND_PRESENCE_DO_TTL_MS"
+        ),
+           let value = Int(raw),
+           value > 0
+        {
+            return value
+        }
+        return defaultPresenceDOTTLMS
     }
 
     static var observabilityInfoSampleRate: Double {
