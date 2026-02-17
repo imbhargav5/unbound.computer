@@ -226,6 +226,11 @@ extension View {
         modifier(HoverEffectModifier())
     }
 
+    func fullRowHitTarget(alignment: Alignment = .leading) -> some View {
+        frame(maxWidth: .infinity, alignment: alignment)
+            .contentShape(Rectangle())
+    }
+
     func selectionStyle(isSelected: Bool) -> some View {
         modifier(SelectionModifier(isSelected: isSelected))
     }
