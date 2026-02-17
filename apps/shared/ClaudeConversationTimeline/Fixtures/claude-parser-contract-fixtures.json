@@ -1,0 +1,264 @@
+{
+  "cases": [
+    {
+      "id": "assistant_text",
+      "description": "Basic assistant text message",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_assistant_text",
+            "content": [
+              {"type": "text", "text": "Hello from Claude"}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "assistant_tool_use_multi",
+      "description": "Assistant message with multiple tool_use blocks",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_tool_use_multi",
+            "content": [
+              {"type": "tool_use", "id": "tool_read", "name": "Read", "input": {"file_path": "README.md"}},
+              {"type": "tool_use", "id": "tool_write", "name": "Write", "input": {"file_path": "NOTES.md"}}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["toolCall"]}
+    },
+    {
+      "id": "user_tool_result_multi",
+      "description": "User message with multiple tool_result blocks",
+      "events": [
+        {
+          "type": "user",
+          "message": {
+            "content": [
+              {"type": "tool_result", "tool_use_id": "tool_a", "content": "Result A"},
+              {"type": "tool_result", "tool_use_id": "tool_b", "content": "Result B"}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["user"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "sub_agent_spawn_and_child_tool",
+      "description": "Task/sub-agent spawn and nested activity timeline",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_task_parent",
+            "content": [
+              {"type": "tool_use", "id": "task_1", "name": "Task", "input": {"subagent_type": "Plan", "description": "Plan work"}}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_task_child",
+            "content": [
+              {"type": "tool_use", "id": "tool_child", "name": "Read", "parent_tool_use_id": "task_1", "input": {"file_path": "SessionLiveState.swift"}}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["subAgent"]}
+    },
+    {
+      "id": "parallel_sub_agents",
+      "description": "Interleaved parallel sub-agent messages",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_task_a",
+            "content": [
+              {"type": "tool_use", "id": "task_a", "name": "Task", "input": {"subagent_type": "Explore", "description": "Explore"}},
+              {"type": "tool_use", "id": "task_b", "name": "Task", "input": {"subagent_type": "Plan", "description": "Plan"}}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_task_a_child",
+            "content": [
+              {"type": "tool_use", "id": "task_a_tool", "name": "Read", "parent_tool_use_id": "task_a", "input": {"file_path": "README.md"}}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["subAgent"]}
+    },
+    {
+      "id": "child_before_parent",
+      "description": "Sub-agent message before Task spawn",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_child_first",
+            "content": [
+              {"type": "tool_use", "id": "tool_child_first", "name": "Read", "parent_tool_use_id": "task_late", "input": {"file_path": "README.md"}}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_parent_late",
+            "content": [
+              {"type": "tool_use", "id": "task_late", "name": "Task", "input": {"subagent_type": "General", "description": "Late parent"}}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["subAgent"]}
+    },
+    {
+      "id": "stream_event_delta_and_final",
+      "description": "stream_event token deltas + final assistant replacement",
+      "events": [
+        {"type": "stream_event", "message_id": "msg_stream", "delta": {"text": "Hello"}},
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_stream",
+            "content": [
+              {"type": "text", "text": "Hello world"}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "system_compact_boundary",
+      "description": "system.compact_boundary handling",
+      "events": [
+        {"type": "system", "subtype": "compact_boundary"}
+      ],
+      "expect": {"roles": ["system"], "blockTypes": ["compactBoundary"]}
+    },
+    {
+      "id": "result_success_with_usage",
+      "description": "result terminal success with usage/cost fields",
+      "events": [
+        {
+          "type": "result",
+          "is_error": false,
+          "result": "Completed",
+          "usage": {"input_tokens": 5, "output_tokens": 7}
+        }
+      ],
+      "expect": {"roles": ["result"], "blockTypes": ["result"]}
+    },
+    {
+      "id": "result_error_with_permission_denials",
+      "description": "result terminal error and permission_denials payload",
+      "events": [
+        {
+          "type": "result",
+          "is_error": true,
+          "result": "Permission denied",
+          "permission_denials": ["file_write"]
+        }
+      ],
+      "expect": {"roles": ["result"], "blockTypes": ["result"]}
+    },
+    {
+      "id": "duplicate_replay",
+      "description": "Duplicate rows/events replayed from reconnect",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_dup",
+            "content": [
+              {"type": "text", "text": "First"}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_dup",
+            "content": [
+              {"type": "text", "text": "Second"}
+            ]
+          }
+        }
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "out_of_order_sequence",
+      "description": "Out-of-order timestamps/sequence convergence",
+      "events": [
+        {"type": "assistant", "sequence_number": 2, "created_at": "2026-01-01T00:00:02Z", "message": {"id": "msg_seq_2", "content": [{"type": "text", "text": "Second"}]}},
+        {"type": "assistant", "sequence_number": 1, "created_at": "2026-01-01T00:00:01Z", "message": {"id": "msg_seq_1", "content": [{"type": "text", "text": "First"}]}}
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "missing_optional_fields",
+      "description": "Missing optional fields in payload",
+      "events": [
+        {"type": "assistant", "message": {"id": "msg_missing_optional", "content": [{"type": "text", "text": "Missing optional fields"}]}}
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "unknown_block_type",
+      "description": "Unknown future event/block types fallback behavior",
+      "events": [
+        {"type": "assistant", "message": {"id": "msg_unknown_block", "content": [{"type": "future_block", "text": "ignored"}, {"type": "text", "text": "Known"}]}}
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "malformed_raw_json_wrapper",
+      "description": "Malformed JSON payload isolation",
+      "events": [
+        {"raw_json": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Wrapped\"}]}}"}
+      ],
+      "expect": {"roles": ["assistant"], "blockTypes": ["text"]}
+    },
+    {
+      "id": "result_with_running_tools",
+      "description": "Final result while tool/sub-agent appears still running",
+      "events": [
+        {"type": "assistant", "message": {"id": "msg_tool_running", "content": [{"type": "tool_use", "id": "tool_running", "name": "Read", "input": {"file_path": "README.md"}}]}},
+        {"type": "result", "is_error": false, "result": "Done"}
+      ],
+      "expect": {"roles": ["assistant", "result"], "blockTypes": ["toolCall", "result"]}
+    },
+    {
+      "id": "whitespace_text_suppression",
+      "description": "Empty/whitespace text suppression",
+      "events": [
+        {"type": "assistant", "message": {"id": "msg_whitespace", "content": [{"type": "text", "text": "   "}]}}
+      ],
+      "expect": {"roles": [], "blockTypes": []}
+    },
+    {
+      "id": "large_tool_output",
+      "description": "Very large tool output truncation metadata behavior",
+      "events": [
+        {"type": "assistant", "message": {"id": "msg_large_tool", "content": [{"type": "tool_use", "id": "tool_large", "name": "Bash", "input": {"command": "cat large.log"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "tool_large", "content": "Large output..."}]}}
+      ],
+      "expect": {"roles": ["assistant", "user"], "blockTypes": ["toolCall", "text"]}
+    }
+  ]
+}

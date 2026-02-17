@@ -17,6 +17,14 @@ Out of scope:
 - Transport/auth/session persistence redesign.
 - New chat features unrelated to parser/rendering consistency.
 
+## Shared Claude Fixtures
+
+Shared Claude parser fixtures live at:
+
+`apps/shared/ClaudeConversationTimeline/Fixtures/claude-parser-contract-fixtures.json`
+
+macOS and iOS tests load this file to keep timeline parsing consistent across platforms.
+
 ## Canonical Behavior Matrix
 
 | Input Event | Parser / Live Interpretation | UI Expectation |
