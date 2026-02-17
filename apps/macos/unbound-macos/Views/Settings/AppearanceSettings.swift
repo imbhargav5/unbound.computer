@@ -18,49 +18,31 @@ struct AppearanceSettings: View {
     var body: some View {
         @Bindable var state = appState
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xl) {
-                // Header
-                Text("Appearance")
-                    .font(Typography.h2)
+        SettingsPageContainer(title: "Appearance", subtitle: "Customize how the app looks on your device.") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                Text("Theme")
+                    .font(Typography.h4)
                     .foregroundStyle(colors.foreground)
 
-                Text("Customize how the app looks on your device.")
-                    .font(Typography.bodySmall)
+                Text("Select your preferred color scheme")
+                    .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                ShadcnDivider()
-
-                // Theme selection
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    Text("Theme")
-                        .font(Typography.h4)
-                        .foregroundStyle(colors.foreground)
-
-                    Text("Select your preferred color scheme")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    // Theme cards
-                    HStack(spacing: Spacing.md) {
-                        ForEach(ThemeMode.allCases) { mode in
-                            ThemeCard(
-                                mode: mode,
-                                isSelected: appState.themeMode == mode,
-                                onSelect: {
-                                    withAnimation(.easeInOut(duration: Duration.default)) {
-                                        state.themeMode = mode
-                                    }
+                HStack(spacing: Spacing.md) {
+                    ForEach(ThemeMode.allCases) { mode in
+                        ThemeCard(
+                            mode: mode,
+                            isSelected: appState.themeMode == mode,
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: Duration.default)) {
+                                    state.themeMode = mode
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
             }
-            .padding(Spacing.xl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(colors.background)
     }
 }
 

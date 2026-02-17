@@ -19,49 +19,31 @@ struct GeneralSettings: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xl) {
-                // Header
-                Text("General")
-                    .font(Typography.h2)
+        SettingsPageContainer(title: "General", subtitle: "Configure general app preferences.") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                Text("Text Size")
+                    .font(Typography.h4)
                     .foregroundStyle(colors.foreground)
 
-                Text("Configure general app preferences.")
-                    .font(Typography.bodySmall)
+                Text("Adjust the interface text size")
+                    .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                ShadcnDivider()
-
-                // Text Size section
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    Text("Text Size")
-                        .font(Typography.h4)
-                        .foregroundStyle(colors.foreground)
-
-                    Text("Adjust the interface text size")
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    // Font size cards
-                    HStack(spacing: Spacing.md) {
-                        ForEach(FontSizePreset.allCases) { preset in
-                            FontSizeCard(
-                                preset: preset,
-                                isSelected: localSettings.fontSizePreset == preset,
-                                onSelect: {
-                                    withAnimation(.easeInOut(duration: Duration.default)) {
-                                        localSettings.fontSizePreset = preset
-                                    }
+                HStack(spacing: Spacing.md) {
+                    ForEach(FontSizePreset.allCases) { preset in
+                        FontSizeCard(
+                            preset: preset,
+                            isSelected: localSettings.fontSizePreset == preset,
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: Duration.default)) {
+                                    localSettings.fontSizePreset = preset
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
             }
-            .padding(Spacing.xl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(colors.background)
     }
 }
 

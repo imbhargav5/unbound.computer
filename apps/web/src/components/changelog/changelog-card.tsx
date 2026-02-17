@@ -1,7 +1,10 @@
 import type { Tables } from "database/types";
 import { TiptapJSONContentToHTML } from "@/components/tiptap-json-content-to-html";
 import { formatChangelogDate } from "@/utils/changelog";
-import { ChangelogMedia } from "./changelog-media";
+import {
+  ChangelogMedia,
+  type ChangelogMediaType,
+} from "./changelog-media";
 import { ChangelogTagPill } from "./changelog-tag-pill";
 
 type ChangelogItem = Tables<"marketing_changelog">;
@@ -12,8 +15,11 @@ type ChangelogCardProps = {
 
 export function ChangelogCard({ item }: ChangelogCardProps) {
   const mediaSource = item.media_url ?? item.cover_image ?? null;
-  const mediaType =
-    item.media_type ?? inferMediaType(mediaSource, Boolean(item.cover_image));
+  const mediaType = resolveMediaType(
+    item.media_type,
+    mediaSource,
+    Boolean(item.cover_image)
+  );
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/5 p-6">
@@ -66,7 +72,7 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
 function inferMediaType(
   mediaSource: string | null,
   isCoverImage: boolean
-): "image" | "video" | "gif" | null {
+): ChangelogMediaType | null {
   if (!mediaSource) {
     return null;
   }
@@ -82,4 +88,20 @@ function inferMediaType(
     return "video";
   }
   return isCoverImage ? "image" : "image";
+}
+
+function resolveMediaType(
+  mediaType: string | null,
+  mediaSource: string | null,
+  isCoverImage: boolean
+): ChangelogMediaType | null {
+  if (isChangelogMediaType(mediaType)) {
+    return mediaType;
+  }
+
+  return inferMediaType(mediaSource, isCoverImage);
+}
+
+function isChangelogMediaType(value: string | null): value is ChangelogMediaType {
+  return value === "image" || value === "video" || value === "gif";
 }

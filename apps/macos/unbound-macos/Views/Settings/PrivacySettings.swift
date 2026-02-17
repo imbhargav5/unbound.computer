@@ -16,38 +16,17 @@ struct PrivacySettings: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xxl) {
-                // Header
-                Text("Privacy")
-                    .font(Typography.h2)
-                    .foregroundStyle(colors.foreground)
+        SettingsPageContainer(title: "Privacy", subtitle: "Your data is protected with end-to-end encryption.") {
+            encryptionHeroCard
 
-                Text("Your data is protected with end-to-end encryption.")
-                    .font(Typography.bodySmall)
-                    .foregroundStyle(colors.mutedForeground)
+            ShadcnDivider(.horizontal)
 
-                ShadcnDivider(.horizontal)
+            technicalDetailsSection
 
-                // Hero card
-                encryptionHeroCard
+            ShadcnDivider(.horizontal)
 
-                ShadcnDivider(.horizontal)
-
-                // Technical details
-                technicalDetailsSection
-
-                ShadcnDivider(.horizontal)
-
-                // Open source section
-                openSourceSection
-
-                Spacer()
-            }
-            .padding(Spacing.xl)
+            openSourceSection
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(colors.background)
     }
 
     // MARK: - Hero Card

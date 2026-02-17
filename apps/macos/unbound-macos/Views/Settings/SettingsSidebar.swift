@@ -2,7 +2,7 @@
 //  SettingsSidebar.swift
 //  unbound-macos
 //
-//  Shadcn-styled settings sidebar
+//  Custom settings sidebar with back button and styled nav items
 //
 
 import SwiftUI
@@ -18,71 +18,113 @@ struct SettingsSidebar: View {
     }
 
     var body: some View {
-        List {
-            // Home button to navigate back to dashboard
+        VStack(spacing: 0) {
+            // Traffic light spacer
+            Color.clear
+                .frame(height: 28)
+                .background(WindowDragView())
+
+            // Back button
             Button {
                 appState.showSettings = false
             } label: {
-                Label {
-                    Text("Home")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
-                        .fixedSize(horizontal: true, vertical: false)
-                } icon: {
-                    Image(systemName: "house")
-                        .font(.system(size: IconSize.md))
-                        .foregroundStyle(colors.mutedForeground)
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: IconSize.lg))
+                        .foregroundStyle(colors.primary)
+
+                    Text("Back")
+                        .font(GeistFont.sans(size: FontSize.smMd, weight: .medium))
+                        .foregroundStyle(colors.primary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: LayoutMetrics.toolbarHeight)
+                .padding(.horizontal, Spacing.xl)
             }
             .buttonStyle(.plain)
 
-            // Settings sections
-            ForEach(SettingsSection.allCases) { section in
-                SettingsSidebarRow(
-                    section: section,
-                    isSelected: selectedSection == section
+            // Nav list
+            VStack(spacing: Spacing.xxs) {
+                // Home item
+                SettingsNavItem(
+                    icon: "house",
+                    label: "Home",
+                    isSelected: false,
+                    action: { appState.showSettings = false }
                 )
-                .tag(section)
-                .onTapGesture {
-                    selectedSection = section
+
+                // Section items
+                ForEach(SettingsSection.allCases) { section in
+                    SettingsNavItem(
+                        icon: section.iconName,
+                        label: section.rawValue,
+                        isSelected: selectedSection == section,
+                        action: { selectedSection = section }
+                    )
                 }
             }
+            .padding(Spacing.md)
+
+            Spacer()
         }
-        .listStyle(.sidebar)
-        .navigationTitle("Settings")
-        .background(colors.background)
+        .frame(width: 260)
+        .background(colors.card)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(colors.border)
+                .frame(width: BorderWidth.default)
+        }
     }
 }
 
-// MARK: - Settings Sidebar Row
+// MARK: - Settings Nav Item
 
-struct SettingsSidebarRow: View {
+struct SettingsNavItem: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let section: SettingsSection
+    let icon: String
+    let label: String
     let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     var body: some View {
-        Label {
-            Text(section.rawValue)
-                .font(Typography.bodySmall)
-                .foregroundStyle(colors.foreground)
-                .fixedSize(horizontal: true, vertical: false)
-        } icon: {
-            Image(systemName: section.iconName)
-                .font(.system(size: IconSize.md))
-                .foregroundStyle(isSelected ? colors.primary : colors.mutedForeground)
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundStyle(isSelected ? colors.primary : colors.sidebarMeta)
+
+                Text(label)
+                    .font(GeistFont.sans(size: FontSize.smMd, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? colors.primary : colors.mutedForeground)
+
+                Spacer()
+            }
+            .frame(height: LayoutMetrics.compactToolbarHeight)
+            .padding(.horizontal, Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
+            )
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: Duration.fast)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 
 #Preview {
     SettingsSidebar(selectedSection: .constant(.appearance))
-        .frame(width: 200, height: 400)
+        .frame(width: 260, height: 500)
+        .environment(AppState())
 }

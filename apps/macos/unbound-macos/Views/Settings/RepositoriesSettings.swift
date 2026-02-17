@@ -22,68 +22,48 @@ struct RepositoriesSettings: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.xxl) {
-                    // Header
-                    Text("Repositories")
-                        .font(Typography.h2)
-                        .foregroundStyle(colors.foreground)
-
-                    Text("Manage your registered repositories. Add git repositories to create sessions from them.")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-
-                    ShadcnDivider()
-
-                    // Add repository button
-                    HStack {
-                        Button {
-                            addRepository()
-                        } label: {
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: IconSize.sm))
-                                Text("Add Repository")
-                                    .font(Typography.bodySmall)
-                            }
+            SettingsPageContainer(title: "Repositories", subtitle: "Manage your registered repositories.") {
+                HStack {
+                    Button {
+                        addRepository()
+                    } label: {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "plus")
+                                .font(.system(size: IconSize.sm))
+                            Text("Add Repository")
+                                .font(Typography.bodySmall)
                         }
-                        .buttonPrimary(size: .sm)
-                        .disabled(isAddingRepository)
-
-                        if isAddingRepository {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .padding(.leading, Spacing.sm)
-                        }
-
-                        Spacer()
                     }
+                    .buttonPrimary(size: .sm)
+                    .disabled(isAddingRepository)
 
-                    // Repositories list
-                    VStack(alignment: .leading, spacing: Spacing.md) {
-                        if appState.repositories.isEmpty {
-                            EmptyRepositoriesSettingsView()
-                        } else {
-                            ForEach(appState.repositories) { repository in
-                                RepositoryRow(
-                                    repository: repository,
-                                    onSelect: {
-                                        navigationPath.append(repository)
-                                    },
-                                    onRemove: {
-                                        removeRepository(repository)
-                                    }
-                                )
-                            }
-                        }
+                    if isAddingRepository {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .padding(.leading, Spacing.sm)
                     }
 
                     Spacer()
                 }
-                .padding(Spacing.xxl)
+
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    if appState.repositories.isEmpty {
+                        EmptyRepositoriesSettingsView()
+                    } else {
+                        ForEach(appState.repositories) { repository in
+                            RepositoryRow(
+                                repository: repository,
+                                onSelect: {
+                                    navigationPath.append(repository)
+                                },
+                                onRemove: {
+                                    removeRepository(repository)
+                                }
+                            )
+                        }
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(colors.background)
             .navigationDestination(for: Repository.self) { repository in
                 RepositorySettingsView(repository: repository, navigationPath: $navigationPath)
                     .environment(appState)

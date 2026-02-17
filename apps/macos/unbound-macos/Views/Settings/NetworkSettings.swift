@@ -17,52 +17,30 @@ struct NetworkSettings: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xxl) {
-                // Header
-                Text("Network")
-                    .font(Typography.h2)
-                    .foregroundStyle(colors.foreground)
+        SettingsPageContainer(title: "Network", subtitle: "Network and device pairing features are managed by the Unbound daemon.") {
+            daemonConnectionSection
 
-                Text("Network and device pairing features are managed by the Unbound daemon.")
-                    .font(Typography.body)
+            VStack(spacing: Spacing.lg) {
+                Image(systemName: "network")
+                    .font(.system(size: 48))
                     .foregroundStyle(colors.mutedForeground)
 
-                ShadcnDivider(.horizontal)
+                Text("Daemon Managed")
+                    .font(Typography.h4)
+                    .foregroundStyle(colors.foreground)
 
-                // Daemon connection status
-                daemonConnectionSection
-
-                ShadcnDivider(.horizontal)
-
-                // Placeholder content
-                VStack(spacing: Spacing.lg) {
-                    Image(systemName: "network")
-                        .font(.system(size: 48))
-                        .foregroundStyle(colors.mutedForeground)
-
-                    Text("Daemon Managed")
-                        .font(Typography.h4)
-                        .foregroundStyle(colors.foreground)
-
-                    Text("Device pairing and relay connections are handled by the daemon service.")
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.mutedForeground)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(Spacing.xxl)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .fill(colors.muted.opacity(0.3))
-                )
-
-                Spacer()
+                Text("Device pairing and relay connections are handled by the daemon service.")
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.mutedForeground)
+                    .multilineTextAlignment(.center)
             }
-            .padding(Spacing.xl)
+            .frame(maxWidth: .infinity)
+            .padding(Spacing.xxl)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(colors.muted.opacity(0.3))
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(colors.background)
     }
 
     // MARK: - Daemon Connection Section

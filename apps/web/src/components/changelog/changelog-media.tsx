@@ -1,5 +1,7 @@
+export type ChangelogMediaType = "image" | "video" | "gif";
+
 type ChangelogMediaProps = {
-  type: "image" | "video" | "gif";
+  type: ChangelogMediaType;
   src: string;
   alt?: string | null;
   poster?: string | null;

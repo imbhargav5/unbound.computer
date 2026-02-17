@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  unbound-macos
 //
-//  Shadcn-styled settings view
+//  Settings view with custom sidebar and content area
 //
 
 import SwiftUI
@@ -18,28 +18,11 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            // Sidebar
+        HStack(spacing: 0) {
             SettingsSidebar(selectedSection: $selectedSection)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
-        } detail: {
-            // Content
+
             settingsContent
-                .frame(maxWidth: 600, maxHeight: .infinity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .navigationTitle("Settings")
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    appState.showSettings = false
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: IconSize.sm, weight: .semibold))
-                        .foregroundStyle(colors.mutedForeground)
-                }
-                .buttonGhost(size: .icon)
-            }
         }
         .background(colors.background)
     }
@@ -68,5 +51,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppState())
-        .frame(width: 700, height: 500)
+        .frame(width: 900, height: 600)
 }

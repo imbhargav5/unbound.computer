@@ -159,6 +159,12 @@ enum Typography {
         GeistFont.sans(size: FontSize.xl, weight: .bold)
     }
 
+    /// Bold - Page/settings titles (28pt)
+    @MainActor
+    static var pageTitle: Font {
+        GeistFont.sans(size: 28, weight: .bold)
+    }
+
     /// Medium - Card titles
     @MainActor
     static var h4: Font {

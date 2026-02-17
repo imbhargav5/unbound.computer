@@ -17,28 +17,22 @@ struct PlaceholderSettings: View {
     }
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            // Icon
-            Image(systemName: section.iconName)
-                .font(.system(size: Spacing.xxxxxl))
-                .foregroundStyle(colors.mutedForeground)
+        SettingsPageContainer(title: section.rawValue, subtitle: "This feature is coming soon.") {
+            VStack(spacing: Spacing.lg) {
+                Image(systemName: section.iconName)
+                    .font(.system(size: Spacing.xxxxxl))
+                    .foregroundStyle(colors.mutedForeground)
 
-            // Title
-            Text(section.rawValue)
-                .font(Typography.h2)
-                .foregroundStyle(colors.foreground)
+                Text("Settings for \(section.rawValue.lowercased()) will appear here.")
+                    .font(Typography.body)
+                    .foregroundStyle(colors.mutedForeground)
+                    .multilineTextAlignment(.center)
 
-            // Description
-            Text("Settings for \(section.rawValue.lowercased()) will appear here.")
-                .font(Typography.body)
-                .foregroundStyle(colors.mutedForeground)
-                .multilineTextAlignment(.center)
-
-            // Coming soon badge
-            Badge("Coming Soon", variant: .secondary)
+                Badge("Coming Soon", variant: .secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, Spacing.xxxxl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
     }
 }
 

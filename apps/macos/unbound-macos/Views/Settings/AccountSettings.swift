@@ -29,29 +29,17 @@ struct AccountSettings: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.xxl) {
-                // Header
-                Text("Account")
-                    .font(Typography.h2)
-                    .foregroundStyle(colors.foreground)
+        SettingsPageContainer(title: "Account", subtitle: "Manage your account and billing.") {
+            profileSection
 
-                // Profile section
-                profileSection
+            ShadcnDivider(.horizontal)
 
-                ShadcnDivider(.horizontal)
+            billingSection
 
-                billingSection
+            ShadcnDivider(.horizontal)
 
-                ShadcnDivider(.horizontal)
-
-                // Account actions section
-                actionsSection
-            }
-            .padding(Spacing.xl)
+            actionsSection
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(colors.background)
         .confirmationDialog(
             "Sign Out",
             isPresented: $showSignOutConfirmation,
