@@ -62,6 +62,8 @@ unbound.computer/
 │   ├── session/         # Session management helpers
 │   ├── transport-reliability/  # Reliable message delivery
 │   ├── observability/   # Shared logging (Rust + TS)
+│   ├── presence-do/     # Durable Object presence contract
+│   ├── presence-do-worker/ # Presence DO ingress + SSE worker
 │   ├── agent-runtime/   # Agent execution runtime
 │   ├── git-worktree/    # Git worktree utilities
 │   ├── redis/           # Redis helpers (Upstash + ioredis)
