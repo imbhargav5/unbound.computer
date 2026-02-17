@@ -152,39 +152,6 @@ struct WorkspaceView: View {
                                 )
                             }
 
-                            if !appState.localSettings.leftSidebarVisible,
-                               !appState.localSettings.isZenModeEnabled {
-                                VStack {
-                                    HStack {
-                                        IconButton(systemName: "sidebar.left", action: {
-                                            withAnimation(.easeOut(duration: Duration.fast)) {
-                                                appState.localSettings.leftSidebarVisible = true
-                                            }
-                                        })
-                                        Spacer()
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.leading, Spacing.md)
-                                .padding(.top, Spacing.md)
-                            }
-
-                            if !appState.localSettings.rightSidebarVisible,
-                               !appState.localSettings.isZenModeEnabled {
-                                VStack {
-                                    HStack {
-                                        Spacer()
-                                        IconButton(systemName: "sidebar.right", action: {
-                                            withAnimation(.easeOut(duration: Duration.fast)) {
-                                                appState.localSettings.rightSidebarVisible = true
-                                            }
-                                        })
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.trailing, Spacing.md)
-                                .padding(.top, Spacing.md)
-                            }
                         }
                         .frame(minWidth: 400)
 
