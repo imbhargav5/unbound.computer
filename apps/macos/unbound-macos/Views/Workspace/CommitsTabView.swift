@@ -155,6 +155,7 @@ struct CommitsTabView: View {
                             Spacer()
                         }
                         .padding(.vertical, Spacing.md)
+                        .fullRowHitTarget(alignment: .center)
                         .foregroundStyle(colors.mutedForeground)
                     }
                     .buttonStyle(.plain)
@@ -250,12 +251,12 @@ struct CommitRow: View {
                 }
                 .padding(.vertical, Spacing.sm)
                 .padding(.trailing, Spacing.md)
+                .fullRowHitTarget()
             }
             .background(
                 RoundedRectangle(cornerRadius: Radius.sm)
                     .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
             )
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
