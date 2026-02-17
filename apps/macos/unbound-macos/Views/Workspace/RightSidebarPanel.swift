@@ -76,14 +76,11 @@ struct RightSidebarPanel: View {
         }
     }
 
-    // MARK: - Sidebar Header (layout toggle + branch left, commit right)
+    // MARK: - Sidebar Header (branch left, commit right)
 
     private var sidebarHeader: some View {
         HStack(spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
-                layoutTogglePill
-                branchPill
-            }
+            branchPill
 
             Spacer()
 
@@ -92,28 +89,6 @@ struct RightSidebarPanel: View {
         .padding(.horizontal, Spacing.lg)
         .frame(height: 48)
         .background(colors.toolbarBackground)
-    }
-
-    // MARK: - Layout Toggle Pill
-
-    private var layoutTogglePill: some View {
-        Button {
-            withAnimation(.easeOut(duration: Duration.fast)) {
-                appState.localSettings.rightSidebarVisible = false
-            }
-        } label: {
-            Image(systemName: "rectangle.split.2x1")
-                .font(.system(size: IconSize.md))
-                .foregroundStyle(colors.mutedForeground)
-                .padding(6)
-                .background(colors.secondary)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xl)
-                        .strokeBorder(colors.borderInput, lineWidth: BorderWidth.default)
-                )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Branch Pill
