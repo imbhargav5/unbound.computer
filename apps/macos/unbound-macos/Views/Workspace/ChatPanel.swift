@@ -779,9 +779,7 @@ struct ChatPanel: View {
 
     private func footerTabBar(availableHeight: CGFloat) -> some View {
         HStack(spacing: 0) {
-            Button {
-                toggleFooterExpansion(availableHeight: availableHeight)
-            } label: {
+            if terminalTabs.isEmpty {
                 Text("Terminal")
                     .font(
                         GeistFont.sans(
@@ -790,26 +788,110 @@ struct ChatPanel: View {
                         )
                     )
                     .tracking(TerminalFooterTabTokens.tabLetterSpacing)
-                    .foregroundStyle(isFooterExpanded ? colors.foreground : colors.sidebarMeta)
+                    .foregroundStyle(colors.sidebarMeta)
                     .padding(.horizontal, TerminalFooterTabTokens.tabPaddingX)
                     .frame(height: FooterConstants.barHeight)
-                    .background(isFooterExpanded ? colors.secondary : Color.clear)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: TerminalFooterTabTokens.tabCornerRadius,
-                            style: .continuous
+            } else {
+                ForEach(terminalTabs) { tab in
+                    HStack(spacing: TerminalFooterTabTokens.tabContentSpacing) {
+                        Button {
+                            selectTerminalTab(tab.id)
+                            if !isFooterExpanded {
+                                expandFooter(availableHeight: availableHeight)
+                            }
+                        } label: {
+                            Text(tab.title)
+                                .lineLimit(1)
+                                .font(
+                                    GeistFont.sans(
+                                        size: TerminalFooterTabTokens.tabFontSize,
+                                        weight: TerminalFooterTabTokens.tabFontWeight
+                                    )
+                                )
+                                .tracking(TerminalFooterTabTokens.tabLetterSpacing)
+                                .foregroundStyle(
+                                    activeTerminalTabId == tab.id ? colors.foreground : colors.sidebarMeta
+                                )
+                                .padding(.horizontal, TerminalFooterTabTokens.tabPaddingX)
+                                .frame(height: FooterConstants.barHeight)
+                                .background(activeTerminalTabId == tab.id ? colors.secondary : Color.clear)
+                                .clipShape(
+                                    RoundedRectangle(
+                                        cornerRadius: TerminalFooterTabTokens.tabCornerRadius,
+                                        style: .continuous
+                                    )
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        if terminalTabs.count > 1 {
+                            Button {
+                                closeTerminalTab(tab.id)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: TerminalFooterTabTokens.closeIconSize, weight: .medium))
+                                    .foregroundStyle(colors.sidebarMeta)
+                                    .frame(
+                                        width: TerminalFooterTabTokens.closeButtonSize,
+                                        height: TerminalFooterTabTokens.closeButtonSize
+                                    )
+                                    .background(colors.muted)
+                                    .clipShape(
+                                        RoundedRectangle(
+                                            cornerRadius: TerminalFooterTabTokens.closeButtonCornerRadius,
+                                            style: .continuous
+                                        )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, TerminalFooterTabTokens.controlPaddingX)
+                        }
+                    }
+                    .overlay(alignment: .trailing) {
+                        Rectangle()
+                            .fill(colors.border)
+                            .frame(width: TerminalFooterTabTokens.tabBorderWidth)
+                    }
+                }
+
+                Button {
+                    addTerminalTab()
+                    if !isFooterExpanded {
+                        expandFooter(availableHeight: availableHeight)
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: TerminalFooterTabTokens.addIconSize, weight: .semibold))
+                        .foregroundStyle(colors.sidebarMeta)
+                        .frame(
+                            width: TerminalFooterTabTokens.addButtonSize,
+                            height: TerminalFooterTabTokens.addButtonSize
                         )
-                    )
-            }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .overlay(alignment: .trailing) {
-                Rectangle()
-                    .fill(colors.border)
-                    .frame(width: TerminalFooterTabTokens.tabBorderWidth)
+                        .background(colors.secondary)
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: TerminalFooterTabTokens.closeButtonCornerRadius,
+                                style: .continuous
+                            )
+                        )
+                        .padding(.horizontal, TerminalFooterTabTokens.controlPaddingX)
+                }
+                .buttonStyle(.plain)
             }
 
             Spacer()
+
+            Button {
+                toggleFooterExpansion(availableHeight: availableHeight)
+            } label: {
+                Image(systemName: isFooterExpanded ? "chevron.down" : "chevron.up")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(colors.sidebarMeta)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, TerminalFooterTabTokens.controlPaddingX)
         }
         .padding(.horizontal, TerminalFooterTabTokens.barPaddingX)
         .frame(height: FooterConstants.barHeight)
