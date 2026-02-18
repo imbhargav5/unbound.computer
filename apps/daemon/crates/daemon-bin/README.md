@@ -62,7 +62,7 @@ On `start`, the daemon boots services in dependency order:
 8. **SupabaseClient** - REST API client
 9. **Auth validation + capabilities refresh** - Verify session and sync device capabilities
 10. **Levi** - Supabase message sync worker (cold path)
-11. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists)
+11. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists). Forwards `UNBOUND_PRESENCE_DO_*` envs when configured.
 12. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
 13. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
 14. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
@@ -188,7 +188,8 @@ daemon-bin/
 
 ## Presence Heartbeat Contract
 
-`daemon-ably` emits message-based presence heartbeats for iOS remote-command gating.
+`daemon-ably` emits message-based presence heartbeats for iOS remote-command gating and can also
+forward DO heartbeat config when `UNBOUND_PRESENCE_DO_*` is set (see `daemon-ably` for details).
 
 | Field | Value |
 |-------|-------|
