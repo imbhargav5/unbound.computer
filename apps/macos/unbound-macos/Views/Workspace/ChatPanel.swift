@@ -76,7 +76,7 @@ struct ChatPanel: View {
     }
 
     private enum FooterConstants {
-        static let barHeight: CGFloat = 40  // Match ChatHeader and FileEditorTabBar
+        static let barHeight: CGFloat = TerminalFooterTabTokens.barHeight
         static let handleHeight: CGFloat = 12
         static let minExpandedHeight: CGFloat = 160
         static let defaultExpandedRatio: CGFloat = 0.4
@@ -618,7 +618,7 @@ struct ChatPanel: View {
             footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight,
             availableHeight: availableHeight
         )
-        let panelHeight = isFooterExpanded ? expandedHeight : 40
+        let panelHeight = isFooterExpanded ? expandedHeight : FooterConstants.barHeight
 
         return VStack(spacing: 0) {
             footerTabBar(availableHeight: availableHeight)
@@ -653,18 +653,42 @@ struct ChatPanel: View {
                 toggleFooterExpansion(availableHeight: availableHeight)
             } label: {
                 Text("Terminal")
-                    .font(Typography.caption)
-                    .foregroundStyle(isFooterExpanded ? colors.foreground : colors.mutedForeground)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
+                    .font(
+                        GeistFont.sans(
+                            size: TerminalFooterTabTokens.tabFontSize,
+                            weight: TerminalFooterTabTokens.tabFontWeight
+                        )
+                    )
+                    .tracking(TerminalFooterTabTokens.tabLetterSpacing)
+                    .foregroundStyle(isFooterExpanded ? colors.foreground : colors.sidebarMeta)
+                    .padding(.horizontal, TerminalFooterTabTokens.tabPaddingX)
+                    .frame(height: FooterConstants.barHeight)
+                    .background(isFooterExpanded ? colors.secondary : Color.clear)
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: TerminalFooterTabTokens.tabCornerRadius,
+                            style: .continuous
+                        )
+                    )
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(colors.border)
+                    .frame(width: TerminalFooterTabTokens.tabBorderWidth)
+            }
 
             Spacer()
         }
-        .padding(.horizontal, Spacing.lg)
-        .frame(height: 40)
-        .background(colors.card)
+        .padding(.horizontal, TerminalFooterTabTokens.barPaddingX)
+        .frame(height: FooterConstants.barHeight)
+        .background(colors.muted)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(colors.borderSecondary)
+                .frame(height: BorderWidth.`default`)
+        }
     }
 
     private func footerHandle(availableHeight: CGFloat) -> some View {
