@@ -6,6 +6,7 @@
 //  Adapted from macOS MarkdownTextView using iOS AppTheme tokens.
 //
 
+import ClaudeConversationTimeline
 import SwiftUI
 
 // MARK: - Markdown Block Types
@@ -324,88 +325,23 @@ struct InlineMarkdownText: View {
     private func parse() -> AttributedString {
         var result = AttributedString()
 
-        let patterns: [(pattern: String, transform: (String) -> AttributedString)] = [
-            // Bold + Code: **`text`**
-            (#"\*\*`([^`]+)`\*\*"#, { match in
-                var attr = AttributedString(match)
-                attr.font = Typography.code.weight(.semibold)
-                attr.backgroundColor = AppTheme.backgroundSecondary
-                return attr
-            }),
-            // Code (backticks)
-            (#"`([^`]+)`"#, { match in
-                var attr = AttributedString(match)
+        for span in InlineMarkdownTokenizer.tokenize(text) {
+            var attr = AttributedString(span.text)
+            switch span.style {
+            case .bold:
+                attr.font = baseFont.weight(.semibold)
+            case .italic:
+                attr.font = baseFont.italic()
+            case .code:
                 attr.font = Typography.code
                 attr.backgroundColor = AppTheme.backgroundSecondary
-                return attr
-            }),
-            // Bold (double asterisks)
-            (#"\*\*([^*]+)\*\*"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.weight(.semibold)
-                return attr
-            }),
-            // Bold (double underscores)
-            (#"__([^_]+)__"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.weight(.semibold)
-                return attr
-            }),
-            // Italic (single asterisk)
-            (#"(?<!\*)\*([^*]+)\*(?!\*)"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.italic()
-                return attr
-            }),
-            // Italic (single underscore)
-            (#"(?<!_)_([^_]+)_(?!_)"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.italic()
-                return attr
-            }),
-        ]
-
-        var processedRanges: [(Range<String.Index>, AttributedString)] = []
-
-        for (pattern, transform) in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches {
-                guard let fullRange = Range(match.range, in: text),
-                      let captureRange = Range(match.range(at: 1), in: text) else { continue }
-
-                let capturedText = String(text[captureRange])
-                let formatted = transform(capturedText)
-
-                processedRanges.append((fullRange, formatted))
+            case .boldCode:
+                attr.font = Typography.code.weight(.semibold)
+                attr.backgroundColor = AppTheme.backgroundSecondary
+            case .none:
+                break
             }
-        }
-
-        processedRanges.sort { $0.0.lowerBound < $1.0.lowerBound }
-
-        var filteredRanges: [(Range<String.Index>, AttributedString)] = []
-        var lastEnd: String.Index = text.startIndex
-        for (range, attr) in processedRanges {
-            if range.lowerBound >= lastEnd {
-                filteredRanges.append((range, attr))
-                lastEnd = range.upperBound
-            }
-        }
-
-        var currentIndex = text.startIndex
-        for (range, formatted) in filteredRanges {
-            if currentIndex < range.lowerBound {
-                let plainText = String(text[currentIndex..<range.lowerBound])
-                result.append(AttributedString(plainText))
-            }
-            result.append(formatted)
-            currentIndex = range.upperBound
-        }
-
-        if currentIndex < text.endIndex {
-            let plainText = String(text[currentIndex...])
-            result.append(AttributedString(plainText))
+            result.append(attr)
         }
 
         return result
