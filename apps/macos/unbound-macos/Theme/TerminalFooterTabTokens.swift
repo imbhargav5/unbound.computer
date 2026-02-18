@@ -17,6 +17,11 @@ enum TerminalFooterTabTokens {
     static let tabBorderWidth: CGFloat = BorderWidth.`default`
     static let closeButtonSize: CGFloat = 28
     static let closeButtonCornerRadius: CGFloat = Radius.xl // 6
+    static let closeIconSize: CGFloat = 11
+    static let tabContentSpacing: CGFloat = Spacing.sm // 8
+    static let addButtonSize: CGFloat = 28
+    static let addIconSize: CGFloat = 12
+    static let controlPaddingX: CGFloat = Spacing.sm // 8
 
     // Typography
     static let tabFontSize: CGFloat = FontSize.base // 14
