@@ -36,6 +36,7 @@ struct ChatPanel: View {
     @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
     @State private var terminalTabs: [TerminalTab] = []
     @State private var activeTerminalTabId: UUID?
+    @State private var terminalTabSequence: Int = 0
 
     // Editor tab close/save dialog state
     @State private var pendingCloseTabId: UUID?
@@ -256,6 +257,7 @@ struct ChatPanel: View {
             isAtBottom = true
             terminalTabs.removeAll()
             activeTerminalTabId = nil
+            terminalTabSequence = 0
             ensureTerminalTabState()
         }
         .onChange(of: workspacePath) { _, _ in
@@ -1015,9 +1017,10 @@ struct ChatPanel: View {
     }
 
     private func makeTerminalTab(workingDirectory: String) -> TerminalTab {
-        TerminalTab(
+        terminalTabSequence += 1
+        return TerminalTab(
             id: UUID(),
-            title: "Terminal \(terminalTabs.count + 1)",
+            title: "Terminal \(terminalTabSequence)",
             workingDirectory: workingDirectory
         )
     }
