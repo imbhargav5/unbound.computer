@@ -918,14 +918,20 @@ struct ChatPanel: View {
 
     private var terminalFooterContent: some View {
         Group {
-            if let tab = activeTerminalTab {
-                TerminalContainer(tabId: tab.id, workingDirectory: tab.workingDirectory)
-            } else {
+            if terminalTabs.isEmpty {
                 Text("No workspace selected")
                     .font(Typography.body)
                     .foregroundStyle(colors.mutedForeground)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(Spacing.md)
+            } else {
+                ZStack {
+                    ForEach(terminalTabs) { tab in
+                        TerminalContainer(tabId: tab.id, workingDirectory: tab.workingDirectory)
+                            .opacity(activeTerminalTabId == tab.id ? 1 : 0)
+                            .allowsHitTesting(activeTerminalTabId == tab.id)
+                    }
+                }
             }
         }
     }
