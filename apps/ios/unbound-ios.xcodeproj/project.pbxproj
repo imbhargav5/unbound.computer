@@ -10,11 +10,11 @@
 		CD922D9F2F0E3919002CF21F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD922D9E2F0E3919002CF21F /* GRDB */; };
 		CD922DA32F0E3BB4002CF21F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD922DA22F0E3BB4002CF21F /* GRDB */; };
 		CD922DA62F0E3919002CF21F /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD922DA52F0E3919002CF21F /* Logging */; };
-		CE20B0012F40000100300001 /* MobileClaudeCodeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CE20B0022F40000100300001 /* MobileClaudeCodeConversationTimeline */; };
 		CDD0B4AA2F07B688002D09F7 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1612EFFB80000000002 /* Auth */; };
 		CDD0B4AB2F07B688002D09F7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CDD3C1622EFFB80000000003 /* Supabase */; };
 		CDD3C1582EFFB73700CDEC43 /* UnboundWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CDD3C1502EFFB73700CDEC43 /* UnboundWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CE10A0012F30000100200001 /* Ably in Frameworks */ = {isa = PBXBuildFile; productRef = CE10A0002F30000100200001 /* Ably */; };
+		CE20B0012F40000100300001 /* MobileClaudeCodeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CE20B0022F40000100300001 /* MobileClaudeCodeConversationTimeline */; };
 		D1A1E0032F31000100A10001 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1A1E0022F31000100A10001 /* XCTest.framework */; };
 /* End PBXBuildFile section */
 

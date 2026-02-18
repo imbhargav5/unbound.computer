@@ -194,7 +194,7 @@
 				CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */,
 				CD79B3BE2F03F0FA00B37FB6 /* XCRemoteSwiftPackageReference "swift-log" */,
-				CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "ClaudeConversationTimeline" */,
+				CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "../shared/ClaudeConversationTimeline" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CDD3C1552EFFB85C00CDEC43 /* Products */;
@@ -510,7 +510,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "ClaudeConversationTimeline" */ = {
+		CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "../shared/ClaudeConversationTimeline" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../shared/ClaudeConversationTimeline;
 		};
@@ -562,6 +562,10 @@
 			package = CD79B3BE2F03F0FA00B37FB6 /* XCRemoteSwiftPackageReference "swift-log" */;
 			productName = Logging;
 		};
+		CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClaudeConversationTimeline;
+		};
 		CDD0B5242F07B6A8002D09F7 /* Auth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
@@ -596,10 +600,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
-		};
-		CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ClaudeConversationTimeline;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
