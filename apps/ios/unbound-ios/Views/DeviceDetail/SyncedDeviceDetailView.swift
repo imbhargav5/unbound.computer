@@ -123,9 +123,13 @@ struct SyncedDeviceDetailView: View {
 
     private var capabilitiesSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingS) {
-            Text("Capabilities")
+            Text("Device Settings")
                 .font(Typography.subheadline)
                 .foregroundStyle(AppTheme.textPrimary)
+
+            Text("Capabilities")
+                .font(Typography.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
 
             if let cli = device.capabilities?.cli {
                 capabilityRow(title: "Claude", tool: cli.claude)
@@ -139,7 +143,7 @@ struct SyncedDeviceDetailView: View {
                 capabilityRow(title: "Codex", tool: cli.codex)
                 capabilityRow(title: "Ollama", tool: cli.ollama)
             } else {
-                Text("Not reported yet")
+                Text("Capabilities not reported yet")
                     .font(Typography.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             }
