@@ -18,6 +18,7 @@ private enum MarkdownBlock: Identifiable {
     case codeBlock(language: String?, code: String)
     case horizontalRule
     case blockquote(text: String)
+    case table(MarkdownTable)
 
     var id: String {
         switch self {
@@ -35,6 +36,8 @@ private enum MarkdownBlock: Identifiable {
             return "hr-\(UUID().uuidString)"
         case .blockquote(let text):
             return "bq-\(text.hashValue)"
+        case .table(let table):
+            return "table-\(table.id.uuidString)"
         }
     }
 }
@@ -86,7 +89,9 @@ private enum MarkdownBlockParser {
             }
         }
 
-        for line in lines {
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
             if line.hasPrefix("```") {
                 if inCodeBlock {
                     blocks.append(.codeBlock(
@@ -108,6 +113,7 @@ private enum MarkdownBlockParser {
 
             if inCodeBlock {
                 codeBlockLines.append(line)
+                index += 1
                 continue
             }
 
@@ -116,6 +122,7 @@ private enum MarkdownBlockParser {
             if trimmed.isEmpty {
                 flushParagraph()
                 flushList()
+                index += 1
                 continue
             }
 
@@ -123,6 +130,7 @@ private enum MarkdownBlockParser {
                 flushParagraph()
                 flushList()
                 blocks.append(.heading(level: headingMatch.level, text: headingMatch.text))
+                index += 1
                 continue
             }
 
@@ -130,6 +138,7 @@ private enum MarkdownBlockParser {
                 flushParagraph()
                 flushList()
                 blocks.append(.horizontalRule)
+                index += 1
                 continue
             }
 
@@ -138,6 +147,21 @@ private enum MarkdownBlockParser {
                 flushList()
                 let quoteText = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
                 blocks.append(.blockquote(text: quoteText))
+                index += 1
+                continue
+            }
+
+            if isTableHeaderLine(lines, at: index) {
+                flushParagraph()
+                flushList()
+
+                let (tableLines, rawLines, nextIndex) = collectTableLines(lines, from: index)
+                if let table = MarkdownTableParser.parseTable(tableLines) {
+                    blocks.append(.table(table))
+                } else {
+                    currentParagraph.append(contentsOf: rawLines)
+                }
+                index = nextIndex
                 continue
             }
 
@@ -148,6 +172,7 @@ private enum MarkdownBlockParser {
                     currentListType = .bullet
                 }
                 currentListItems.append(bulletItem)
+                index += 1
                 continue
             }
 
@@ -158,10 +183,12 @@ private enum MarkdownBlockParser {
                     currentListType = .numbered
                 }
                 currentListItems.append(numberedItem)
+                index += 1
                 continue
             }
 
             currentParagraph.append(line)
+            index += 1
         }
 
         if inCodeBlock {
@@ -244,11 +271,41 @@ private enum MarkdownBlockParser {
         let text = String(remaining[textRange]).trimmingCharacters(in: .whitespaces)
         return ListItem(text: text, indent: indent)
     }
+
+    private static func isTableHeaderLine(_ lines: [String], at index: Int) -> Bool {
+        guard index + 1 < lines.count else { return false }
+        let headerLine = lines[index].trimmingCharacters(in: .whitespaces)
+        guard headerLine.contains("|") else { return false }
+        let separatorLine = lines[index + 1].trimmingCharacters(in: .whitespaces)
+        return MarkdownTableParser.isSeparatorRowLine(separatorLine)
+    }
+
+    private static func collectTableLines(
+        _ lines: [String],
+        from startIndex: Int
+    ) -> (tableLines: [String], rawLines: [String], nextIndex: Int) {
+        var tableLines: [String] = []
+        var rawLines: [String] = []
+        var index = startIndex
+
+        while index < lines.count {
+            let rawLine = lines[index]
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || !trimmed.contains("|") {
+                break
+            }
+            tableLines.append(trimmed)
+            rawLines.append(rawLine)
+            index += 1
+        }
+
+        return (tableLines, rawLines, index)
+    }
 }
 
 // MARK: - Inline Markdown Text
 
-private struct InlineMarkdownText: View {
+struct InlineMarkdownText: View {
     let text: String
     let baseFont: Font
 
@@ -450,6 +507,9 @@ struct SessionMarkdownTextView: View {
 
         case .blockquote(let text):
             blockquoteView(text: text)
+
+        case .table(let table):
+            MarkdownTableView(table: table)
         }
     }
 
