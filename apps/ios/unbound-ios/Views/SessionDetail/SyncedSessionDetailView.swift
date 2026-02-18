@@ -400,15 +400,11 @@ struct SyncedSessionDetailView: View {
                         }
                     }
 
-                    Text(device.capabilitiesSummary ?? "Capabilities not reported yet")
-                        .font(Typography.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "gearshape")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(AppTheme.textTertiary)
             }
