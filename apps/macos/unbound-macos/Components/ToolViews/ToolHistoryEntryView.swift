@@ -15,7 +15,7 @@ struct ToolHistoryEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             if let subAgent = entry.subAgent {
-                SubAgentView(activity: subAgent.asHistoricalActivity, initiallyExpanded: false)
+                ParallelAgentsView(activities: [subAgent.asHistoricalActivity], defaultExpanded: false)
             }
 
             if !entry.tools.isEmpty {

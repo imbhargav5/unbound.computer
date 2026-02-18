@@ -277,6 +277,42 @@ enum SessionDetailPreviewScenarioBuilder {
                             result: "Render diagnostics complete"
                         )
                     ),
+                    .subAgentActivity(
+                        SubAgentActivity(
+                            parentToolUseId: "preview_task_2",
+                            subagentType: "Explore",
+                            description: "Count parser fixtures",
+                            tools: [
+                                ToolUse(
+                                    toolUseId: "preview_child_2",
+                                    parentToolUseId: "preview_task_2",
+                                    toolName: "Glob",
+                                    input: "{\"pattern\":\"**/*fixture*.json\"}",
+                                    output: "9 matches",
+                                    status: .completed
+                                ),
+                            ],
+                            status: .completed,
+                            result: "Fixture inventory complete."
+                        )
+                    ),
+                    .subAgentActivity(
+                        SubAgentActivity(
+                            parentToolUseId: "preview_task_3",
+                            subagentType: "Explore",
+                            description: "Locate missing merge tests",
+                            tools: [
+                                ToolUse(
+                                    toolUseId: "preview_child_3",
+                                    parentToolUseId: "preview_task_3",
+                                    toolName: "Read",
+                                    input: "{\"file_path\":\"SessionDetailMessageMapperTests.swift\"}",
+                                    status: .running
+                                ),
+                            ],
+                            status: .running
+                        )
+                    ),
                 ],
                 sequenceNumber: 2
             ),

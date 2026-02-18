@@ -217,6 +217,85 @@ final class SessionMessagePayloadParserTests: XCTestCase {
         XCTAssertEqual(toolBlocks.first?.summary, "Read docs/README.md")
     }
 
+    func testTimelineEntryParsesToolUseStatusInputAndOutput() {
+        let payload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_status_1","name":"Bash","status":"failed","input":{"command":"swift test"},"result":"exit code 1"}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+        XCTAssertNotNil(entry)
+
+        guard let blocks = entry?.blocks,
+              blocks.count == 1,
+              case .toolUse(let tool) = blocks[0] else {
+            XCTFail("Expected one tool_use block")
+            return
+        }
+
+        XCTAssertEqual(tool.toolUseId, "tool_status_1")
+        XCTAssertEqual(tool.status, .failed)
+        XCTAssertEqual(tool.output, "exit code 1")
+        XCTAssertNotNil(tool.input)
+        XCTAssertTrue(tool.input?.contains("\"command\":\"swift test\"") == true)
+    }
+
+    func testTimelineEntryDefaultsToolUseStatusToCompletedWhenMissing() {
+        let payload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_status_2","name":"Read","input":{"file_path":"README.md"}}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+        XCTAssertNotNil(entry)
+
+        guard let blocks = entry?.blocks,
+              blocks.count == 1,
+              case .toolUse(let tool) = blocks[0] else {
+            XCTFail("Expected one tool_use block")
+            return
+        }
+
+        XCTAssertEqual(tool.toolUseId, "tool_status_2")
+        XCTAssertEqual(tool.status, .completed)
+        XCTAssertNil(tool.output)
+        XCTAssertTrue(tool.input?.contains("\"file_path\":\"README.md\"") == true)
+    }
+
+    func testTimelineEntryParsesTaskStatusAndResult() {
+        let payload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_status_1","name":"Task","status":"running","input":{"subagent_type":"Explore","description":"Inspect parser contract"},"result":"Investigating payloads"},{"type":"tool_use","id":"task_status_child_1","name":"Grep","status":"failed","parent_tool_use_id":"task_status_1","input":{"pattern":"raw_json"},"result":"grep failed"}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+        XCTAssertNotNil(entry)
+
+        guard let blocks = entry?.blocks,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one sub-agent activity block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_status_1")
+        XCTAssertEqual(activity.status, .running)
+        XCTAssertEqual(activity.result, "Investigating payloads")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "task_status_child_1")
+        XCTAssertEqual(activity.tools.first?.status, .failed)
+        XCTAssertEqual(activity.tools.first?.output, "grep failed")
+    }
+
+    func testTimelineEntryDefaultsTaskStatusToCompletedWhenMissing() {
+        let payload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_status_2","name":"Task","input":{"subagent_type":"Explore","description":"Inspect parser contract"}}]}}"#
+
+        let entry = SessionMessagePayloadParser.timelineEntry(from: payload)
+        XCTAssertNotNil(entry)
+
+        guard let blocks = entry?.blocks,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one sub-agent activity block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_status_2")
+        XCTAssertEqual(activity.status, .completed)
+        XCTAssertNil(activity.result)
+    }
+
     func testParseContentBlocksHidesSuccessfulResultAndShowsErrorResult() {
         let success = #"{"type":"result","is_error":false,"result":"ok"}"#
         XCTAssertEqual(SessionMessagePayloadParser.parseContentBlocks(from: success).count, 0)

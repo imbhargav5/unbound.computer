@@ -18,7 +18,7 @@ Produce a deterministic, UI-ready timeline from encrypted session payloads with 
 - `SessionContentBlock`-driven rendering contracts in:
   - `MessageBubbleView`
   - `SessionContentBlockView`
-  - `SubAgentView`
+  - `ParallelAgentsView`
   - `StandaloneToolCallsView`
   - `ToolCallView`
 
@@ -43,22 +43,29 @@ iOS and macOS tests load this file to keep timeline parsing consistent across pl
 3. Successful `result` payloads are hidden; error results render as visible error blocks.
 4. Protocol artifact rows (for example tool_result envelopes) do not create visible user chat rows unless real user-authored text is present.
 5. Sub-agent/task grouping converges even when child tools arrive before parent Task messages.
-6. Duplicate tool updates keep latest state for the same tool identity.
-7. Duplicate message IDs keep latest row state (latest-write-wins) for both initial-load and realtime pipelines.
-8. Sequence ties are resolved deterministically with created-at and row-id tie breakers.
+6. Tool and sub-agent statuses are parsed when present; missing status defaults to `.completed`.
+7. Tool input/output details are preserved when present for expandable tool detail rows.
+8. Duplicate tool updates keep latest state for the same tool identity.
+9. Duplicate message IDs keep latest row state (latest-write-wins) for both initial-load and realtime pipelines.
+10. Sequence ties are resolved deterministically with created-at and row-id tie breakers.
+11. Consecutive parsed `.subAgentActivity` blocks are batched into one grouped render block in `MessageBubbleView`.
 
 ## Behavior Matrix
 
 | Scenario | Expected Behavior | Tests |
 | --- | --- | --- |
 | assistant text + tool_use parsing | assistant text is visible; standalone tool blocks render with summaries | `SessionMessagePayloadParserTests.testTimelineEntryParsesAssistantToolUseBlocks` |
+| tool status/input/output parsing | tool status maps to running/completed/failed; input/output are preserved | `SessionMessagePayloadParserTests.testTimelineEntryParsesToolUseStatusInputAndOutput`, `ClaudeTimelineMessageMapperTests.testMapEntriesMapsToolStatusInputAndOutput` |
+| task status/result parsing | Task blocks map to sub-agent status/result and carry child tool status | `SessionMessagePayloadParserTests.testTimelineEntryParsesTaskStatusAndResult`, `ClaudeTimelineMessageMapperTests.testMapEntriesMapsSubAgentStatusResultAndChildToolStatus` |
 | child tool before Task parent | final timeline converges into grouped sub-agent activity | `SessionDetailMessageServiceTests.testMessageUpdatesConvergesWhenChildToolArrivesBeforeParentTask` |
 | duplicate tool update keeps latest state | same tool identity is replaced by latest summary/state | `SessionDetailMessageMapperTests.testMapRowsMergesDuplicateSubAgentActivitiesAndDeduplicatesToolsById`, `SessionDetailMessageServiceTests.testLoadMessagesDeduplicatesChildToolUpdatesByToolUseId` |
+| repeated task updates preserve terminal status | stale running task updates do not regress finished task state | `SessionDetailMessageMapperTests.testMapRowsKeepsStableSubAgentStatusAndResultAcrossRepeatedTaskUpdates` |
 | result success hidden, result error shown | successful results are omitted; error results are visible system errors | `SessionMessagePayloadParserTests.testTimelineEntryHidesSuccessfulResult`, `SessionMessagePayloadParserTests.testTimelineEntryShowsErrorResult` |
 | protocol artifacts hidden, real user text preserved | tool_result-only envelopes hidden; user-authored text remains | `SessionMessagePayloadParserTests.testTimelineEntryHidesUserToolResultEnvelope`, `SessionMessagePayloadParserTests.testTimelineEntryKeepsRealUserTextWhenToolResultContainsProtocolArtifact` |
 | wrapped raw_json success/failure handling | wrapped payloads parse consistently; malformed wrappers fail deterministically | `SessionMessagePayloadParserTests.testTimelineEntryUnwrapsNestedRawJsonAssistantPayload`, `SessionMessagePayloadParserTests.testTimelineEntryHidesInvalidRawJsonWrapperPayload` |
 | malformed/unknown payload deterministic fallback | fallback role/content behavior is stable for unknown/malformed payloads | `SessionMessagePayloadParserTests.testTimelineEntryTreatsPlaintextAsUserMessage`, `SessionMessagePayloadParserTests.testRoleReturnsSystemForUnknownType` |
 | realtime + initial load order/dedupe consistency | equivalent rows converge to equivalent timeline output | `SessionDetailMessageServiceTests.testInitialLoadAndRealtimeConvergeToSameTimelineForEquivalentRows`, `SessionDetailMessageServiceTests.testLoadMessagesDeduplicatesInitialRowsByMessageIdWithLatestWriteWins`, `SessionDetailMessageServiceTests.testMessageUpdatesDeduplicatesRealtimeRowsByMessageID` |
+| message display batching parity | consecutive sub-agent activities render as one grouped block while standalone tools stay grouped separately | `SessionParsedDisplayPlannerTests.testDisplayBlocksGroupsConsecutiveSubAgentActivitiesIntoSingleParallelGroup`, `SessionParsedDisplayPlannerTests.testDisplayBlocksPreservesStandaloneToolGroupingAlongsideParallelSubAgentGrouping` |
 
 ## Fixture Workflow
 
@@ -85,7 +92,8 @@ xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios -destinat
 
 Use these previews for state/design iteration independent of JSON payload shape:
 
-- `SubAgentView.swift` previews: running/completed/error variants, long descriptions, child tool sets.
+- `ParallelAgentsView.swift` previews: collapsed/all-expanded/partial-running grouped states with compact and expanded tool rows.
+- `SubAgentView.swift` previews: fallback wrapper compatibility around grouped parallel rendering.
 - `StandaloneToolCallsView.swift` previews: single/multi tool lists, collapsed/expanded behavior.
 - `ToolCallView.swift` previews: standalone tool card states and long summary handling.
 - `MessageBubbleView.swift` preview `Parsed Tool/SubAgent States`: mixed assistant text/tool/sub-agent/error cases with duplicate updates.

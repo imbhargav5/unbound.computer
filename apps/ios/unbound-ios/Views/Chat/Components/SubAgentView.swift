@@ -11,68 +11,88 @@ struct SubAgentView: View {
     let activity: SessionSubAgentActivity
     var defaultExpanded: Bool = false
     var showToolStatusLabels: Bool = false
-    var statusForTool: (SessionToolUse) -> ToolCallVisualStatus = { _ in .completed }
-
-    @State private var isExpanded: Bool
+    var statusForTool: (SessionToolUse) -> ToolCallVisualStatus = { tool in
+        switch tool.status {
+        case .running:
+            return .running
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
+    }
 
     init(
         activity: SessionSubAgentActivity,
         defaultExpanded: Bool = false,
         showToolStatusLabels: Bool = false,
-        statusForTool: @escaping (SessionToolUse) -> ToolCallVisualStatus = { _ in .completed }
+        statusForTool: @escaping (SessionToolUse) -> ToolCallVisualStatus = { tool in
+            switch tool.status {
+            case .running:
+                return .running
+            case .completed:
+                return .completed
+            case .failed:
+                return .failed
+            }
+        }
     ) {
         self.activity = activity
         self.defaultExpanded = defaultExpanded
         self.showToolStatusLabels = showToolStatusLabels
         self.statusForTool = statusForTool
-        _isExpanded = State(initialValue: defaultExpanded)
     }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                ForEach(activity.tools) { tool in
-                    ToolCallView(
-                        tool: tool,
-                        status: statusForTool(tool),
-                        showStatusLabel: showToolStatusLabels,
-                        maxSummaryLines: 2
-                    )
-                }
-            }
-            .padding(.top, AppTheme.spacingXS)
-        } label: {
-            HStack(spacing: AppTheme.spacingS) {
-                Image(systemName: activity.icon)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(AppTheme.accent)
-                    .frame(width: 20)
+        ParallelAgentsView(
+            activities: [resolvedActivity],
+            defaultRowExpanded: defaultExpanded
+        )
+    }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(activity.displayName)
-                        .font(Typography.footnote.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    if !activity.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(activity.description)
-                            .font(Typography.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: 4)
-
-                Text("\(activity.tools.count)")
-                    .font(Typography.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
+    private var resolvedActivity: SessionSubAgentActivity {
+        let mappedTools = activity.tools.map { tool in
+            SessionToolUse(
+                id: tool.id,
+                toolUseId: tool.toolUseId,
+                parentToolUseId: tool.parentToolUseId,
+                toolName: tool.toolName,
+                summary: tool.summary,
+                status: mapStatus(statusForTool(tool)),
+                input: tool.input,
+                output: tool.output
+            )
         }
-        .tint(AppTheme.textSecondary)
-        .padding(.horizontal, AppTheme.spacingS + 2)
-        .padding(.vertical, AppTheme.spacingXS + 2)
-        .background(AppTheme.backgroundSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
+
+        let resolvedStatus: SessionToolStatus
+        if mappedTools.contains(where: { $0.status == .running }) {
+            resolvedStatus = .running
+        } else if mappedTools.contains(where: { $0.status == .failed }) {
+            resolvedStatus = .failed
+        } else {
+            resolvedStatus = activity.status
+        }
+
+        return SessionSubAgentActivity(
+            id: activity.id,
+            parentToolUseId: activity.parentToolUseId,
+            subagentType: activity.subagentType,
+            description: activity.description,
+            tools: mappedTools,
+            status: resolvedStatus,
+            result: activity.result
+        )
+    }
+
+    private func mapStatus(_ status: ToolCallVisualStatus) -> SessionToolStatus {
+        switch status {
+        case .running:
+            return .running
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
     }
 }
 
@@ -86,21 +106,31 @@ private enum SubAgentPreviewData {
                 toolUseId: "tool-1",
                 parentToolUseId: "task-1",
                 toolName: "Read",
-                summary: "Read SessionMessagePayloadParser.swift"
+                summary: "Read SessionMessagePayloadParser.swift",
+                status: .completed,
+                input: "{\"file_path\":\"SessionMessagePayloadParser.swift\"}",
+                output: "Parser behavior matrix captured."
             ),
             SessionToolUse(
                 toolUseId: "tool-2",
                 parentToolUseId: "task-1",
                 toolName: "Write",
-                summary: "Write parser-behavior-matrix.md"
+                summary: "Write parser-behavior-matrix.md",
+                status: .running,
+                input: "{\"file_path\":\"docs/parser-behavior-matrix.md\"}"
             ),
             SessionToolUse(
                 toolUseId: "tool-3",
                 parentToolUseId: "task-1",
                 toolName: "Bash",
-                summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios"
+                summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios",
+                status: .completed,
+                input: "{\"command\":\"xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios\"}",
+                output: "BUILD SUCCEEDED"
             ),
-        ]
+        ],
+        status: .running,
+        result: "Drafting grouped rendering contract updates."
     )
 
     static let completedActivity = SessionSubAgentActivity(
@@ -112,15 +142,23 @@ private enum SubAgentPreviewData {
                 toolUseId: "tool-6",
                 parentToolUseId: "task-3",
                 toolName: "Read",
-                summary: "Read SessionDetailMessageMapper.swift"
+                summary: "Read SessionDetailMessageMapper.swift",
+                status: .completed,
+                input: "{\"file_path\":\"SessionDetailMessageMapper.swift\"}",
+                output: "Loaded 420 lines."
             ),
             SessionToolUse(
                 toolUseId: "tool-7",
                 parentToolUseId: "task-3",
                 toolName: "Bash",
-                summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios"
+                summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios",
+                status: .completed,
+                input: "{\"command\":\"xcodebuild -project apps/ios/unbound-ios.xcodeproj -scheme unbound-ios\"}",
+                output: "All parser tests passed."
             ),
-        ]
+        ],
+        status: .completed,
+        result: "Parser + mapper parity checks completed."
     )
 
     static let failedActivity = SessionSubAgentActivity(
@@ -132,15 +170,23 @@ private enum SubAgentPreviewData {
                 toolUseId: "tool-4",
                 parentToolUseId: "task-2",
                 toolName: "Grep",
-                summary: "Grep payload wrappers across fixtures"
+                summary: "Grep payload wrappers across fixtures",
+                status: .failed,
+                input: "{\"pattern\":\"raw_json\"}",
+                output: "grep: malformed regex"
             ),
             SessionToolUse(
                 toolUseId: "tool-5",
                 parentToolUseId: "task-2",
                 toolName: "Read",
-                summary: "Read SessionDetailMessageMapper.swift"
+                summary: "Read SessionDetailMessageMapper.swift",
+                status: .completed,
+                input: "{\"file_path\":\"SessionDetailMessageMapper.swift\"}",
+                output: "Merged status rules reviewed."
             ),
-        ]
+        ],
+        status: .failed,
+        result: "Validation failed while matching malformed wrapper edge cases."
     )
 
     static let idleActivity = SessionSubAgentActivity(

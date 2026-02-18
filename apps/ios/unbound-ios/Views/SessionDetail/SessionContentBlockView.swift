@@ -19,7 +19,7 @@ struct SessionContentBlockView: View {
             StandaloneToolCallsView(tools: [tool], showToolStatusLabels: false)
 
         case .subAgentActivity(let activity):
-            SubAgentView(activity: activity)
+            ParallelAgentsView(activities: [activity])
 
         case .error(let message):
             ErrorBannerView(message: message)

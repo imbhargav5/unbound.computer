@@ -156,20 +156,27 @@ enum SessionMessagePayloadParser {
                 let inputDict = block["input"] as? [String: Any]
                 let toolUseId = block["id"] as? String
                 let parentToolUseId = (block["parent_tool_use_id"] as? String) ?? messageParent
+                let toolStatus = parseToolStatus(block["status"])
+                let toolOutput = sanitizedText(block["result"] as? String) ?? sanitizedText(block["output"] as? String)
                 let toolUse = makeSessionToolUse(
                     toolName: name,
                     input: inputDict,
                     toolUseId: toolUseId,
-                    parentToolUseId: parentToolUseId
+                    parentToolUseId: parentToolUseId,
+                    status: toolStatus,
+                    output: toolOutput
                 )
 
                 if name == "Task", let taskId = toolUseId {
                     let subagentType = (inputDict?["subagent_type"] as? String) ?? "general-purpose"
                     let description = (inputDict?["description"] as? String) ?? ""
+                    let taskResult = sanitizedText(block["result"] as? String) ?? sanitizedText(block["output"] as? String)
                     var activity = SessionSubAgentActivity(
                         parentToolUseId: taskId,
                         subagentType: subagentType,
-                        description: description
+                        description: description,
+                        status: toolStatus,
+                        result: taskResult
                     )
 
                     if let pendingTools = pendingToolsByParent.removeValue(forKey: taskId) {
@@ -223,13 +230,18 @@ enum SessionMessagePayloadParser {
         toolName: String,
         input: [String: Any]?,
         toolUseId: String?,
-        parentToolUseId: String?
+        parentToolUseId: String?,
+        status: SessionToolStatus,
+        output: String?
     ) -> SessionToolUse {
         SessionToolUse(
             toolUseId: toolUseId,
             parentToolUseId: parentToolUseId,
             toolName: toolName,
-            summary: toolSummary(name: toolName, input: input)
+            summary: toolSummary(name: toolName, input: input),
+            status: status,
+            input: normalizedInputJSONString(input),
+            output: output
         )
     }
 
@@ -647,7 +659,9 @@ enum SessionMessagePayloadParser {
             parentToolUseId: existing.parentToolUseId,
             subagentType: mergedSubagentType(existing: existing.subagentType, incoming: incoming.subagentType),
             description: mergedDescription(existing: existing.description, incoming: incoming.description),
-            tools: mergeTools(existing: existing.tools, incoming: incoming.tools)
+            tools: mergeTools(existing: existing.tools, incoming: incoming.tools),
+            status: mergedStatus(existing: existing.status, incoming: incoming.status),
+            result: mergedResult(existing: existing.result, incoming: incoming.result)
         )
     }
 
@@ -667,6 +681,21 @@ enum SessionMessagePayloadParser {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
             || normalized == "general purpose" || normalized == "general"
+    }
+
+    private static func mergedStatus(existing: SessionToolStatus, incoming: SessionToolStatus) -> SessionToolStatus {
+        if existing != .running && incoming == .running {
+            return existing
+        }
+        return incoming
+    }
+
+    private static func mergedResult(existing: String?, incoming: String?) -> String? {
+        let trimmedIncoming = incoming?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedIncoming, !trimmedIncoming.isEmpty {
+            return trimmedIncoming
+        }
+        return existing
     }
 
     private static func mergeTools(existing: [SessionToolUse], incoming: [SessionToolUse]) -> [SessionToolUse] {
@@ -698,6 +727,32 @@ enum SessionMessagePayloadParser {
         }
 
         return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
+    }
+
+    private static func parseToolStatus(_ rawValue: Any?) -> SessionToolStatus {
+        guard let rawValue = (rawValue as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+            return .completed
+        }
+
+        switch rawValue {
+        case "running":
+            return .running
+        case "failed", "error":
+            return .failed
+        case "completed", "complete", "done", "success":
+            return .completed
+        default:
+            return .completed
+        }
+    }
+
+    private static func normalizedInputJSONString(_ input: [String: Any]?) -> String? {
+        guard let input, !input.isEmpty else { return nil }
+        guard let data = try? JSONSerialization.data(withJSONObject: input),
+              let json = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return json
     }
 
     private static func jsonPayload(from plaintext: String) -> [String: Any]? {

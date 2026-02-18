@@ -301,49 +301,53 @@ struct RightSidebarPanel: View {
     // MARK: - Bottom Tab Header
 
     private var bottomTabHeader: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 16) {
             ForEach(bottomTabs) { tab in
                 let isActive = effectiveTab == tab
                 Button {
                     selectedTab = tab
                 } label: {
                     VStack(spacing: 0) {
-                        HStack(spacing: Spacing.xs) {
+                        HStack(spacing: 6) {
                             Image(systemName: tab.iconName)
-                                .font(.system(size: IconSize.sm))
-                                .foregroundStyle(isActive ? colors.primary : colors.inactive)
+                                .font(.system(size: 12))
+                                .foregroundStyle(isActive ? .white : Color(hex: "5A5A5A"))
 
                             Text(tab.rawValue)
-                                .font(isActive ? Typography.captionMedium : Typography.caption)
-                                .foregroundStyle(isActive ? colors.foreground : colors.sidebarMeta)
+                                .font(GeistFont.sans(size: 11, weight: isActive ? .medium : .regular))
+                                .foregroundStyle(isActive ? .white : Color(hex: "6B6B6B"))
 
-                            if isActive, tab == .changes, gitViewModel.changesCount > 0 {
+                            if tab == .changes, gitViewModel.changesCount > 0 {
                                 Text("\(gitViewModel.changesCount)")
-                                    .font(GeistFont.sans(size: 9, weight: .medium))
-                                    .foregroundStyle(colors.primary)
+                                    .font(GeistFont.sans(size: 9, weight: .regular))
+                                    .foregroundStyle(.white)
                                     .padding(.vertical, 1)
                                     .padding(.horizontal, 5)
-                                    .background(colors.accentAmberSubtle)
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                                    .background(Color.white.opacity(0.07))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: Radius.lg)
-                                            .strokeBorder(colors.accentAmberBorder, lineWidth: BorderWidth.default)
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
                                     )
                             }
                         }
-                        .frame(height: 34)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .frame(maxHeight: .infinity)
 
                         Rectangle()
-                            .fill(isActive ? colors.primary : Color.clear)
-                            .frame(height: BorderWidth.thick)
+                            .fill(isActive ? .white : Color.clear)
+                            .frame(height: 2)
                     }
-                    .fullRowHitTarget(alignment: .center)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
+            Spacer()
         }
-        .padding(.horizontal, Spacing.lg)
-        .frame(height: 36)
+        .padding(.horizontal, Spacing.sm)
+        .frame(height: 32)
         .background(colors.background)
     }
 

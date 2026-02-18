@@ -2,7 +2,7 @@
 //  CommitsTabView.swift
 //  unbound-macos
 //
-//  Commits tab showing git commit history with graph visualization.
+//  Commits tab showing git commit history.
 //
 
 import SwiftUI
@@ -17,12 +17,9 @@ struct CommitsTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Branch selector
             branchSelector
-
             ShadcnDivider()
 
-            // Commit list
             if gitViewModel.isLoadingCommits && gitViewModel.commits.isEmpty {
                 loadingView
             } else if gitViewModel.commits.isEmpty {
@@ -42,7 +39,6 @@ struct CommitsTabView: View {
                 .foregroundStyle(colors.mutedForeground)
 
             Menu {
-                // Current branch section
                 if let current = gitViewModel.currentBranch {
                     Button {
                         Task { await gitViewModel.selectBranch(nil) }
@@ -59,7 +55,6 @@ struct CommitsTabView: View {
                     Divider()
                 }
 
-                // Local branches
                 if !gitViewModel.localBranches.isEmpty {
                     Section("Local Branches") {
                         ForEach(gitViewModel.localBranches) { branch in
@@ -78,7 +73,6 @@ struct CommitsTabView: View {
                     }
                 }
 
-                // Remote branches
                 if !gitViewModel.remoteBranches.isEmpty {
                     Divider()
                     Section("Remote Branches") {
@@ -113,7 +107,6 @@ struct CommitsTabView: View {
 
             Spacer()
 
-            // Loading indicator for branch switch
             if gitViewModel.isLoadingCommits && !gitViewModel.commits.isEmpty {
                 ProgressView()
                     .scaleEffect(0.6)
@@ -128,7 +121,13 @@ struct CommitsTabView: View {
     private var commitList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(gitViewModel.commitGraph) { node in
+                ForEach(Array(gitViewModel.commitGraph.enumerated()), id: \.element.id) { index, node in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(Color(hex: "1A1A1A"))
+                            .frame(height: 1)
+                    }
+
                     CommitRow(
                         node: node,
                         isSelected: gitViewModel.selectedCommitOid == node.commit.oid,
@@ -138,8 +137,11 @@ struct CommitsTabView: View {
                     )
                 }
 
-                // Load more indicator
                 if gitViewModel.hasMoreCommits {
+                    Rectangle()
+                        .fill(Color(hex: "1A1A1A"))
+                        .frame(height: 1)
+
                     Button {
                         Task { await gitViewModel.loadMoreCommits() }
                     } label: {
@@ -150,17 +152,19 @@ struct CommitsTabView: View {
                                     .scaleEffect(0.7)
                             } else {
                                 Text("Load more commits")
-                                    .font(Typography.bodySmall)
+                                    .font(GeistFont.sans(size: 11, weight: .regular))
+                                    .foregroundStyle(Color(hex: "555555"))
                             }
                             Spacer()
                         }
-                        .padding(.vertical, Spacing.md)
-                        .fullRowHitTarget(alignment: .center)
-                        .foregroundStyle(colors.mutedForeground)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.vertical, 4)
         }
     }
 
@@ -197,139 +201,44 @@ struct CommitsTabView: View {
 // MARK: - Commit Row
 
 struct CommitRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let node: CommitGraphNode
     let isSelected: Bool
     var onSelect: () -> Void
 
-    @State private var isHovered = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    private let graphWidth: CGFloat = 32
-    private let nodeRadius: CGFloat = 4
-    private let lineWidth: CGFloat = 2
-
     var body: some View {
         Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 0) {
-                // Graph visualization
-                graphView
-                    .frame(width: graphWidth)
+            HStack(alignment: .top, spacing: 10) {
+                // Git commit icon
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 6))
+                    .foregroundStyle(Color(hex: "888888"))
+                    .frame(width: 16, height: 16)
 
-                // Commit info
-                VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    // Summary
+                // Body: message + meta
+                VStack(alignment: .leading, spacing: 4) {
                     Text(node.commit.summary)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
-                        .lineLimit(1)
+                        .font(GeistFont.sans(size: 12, weight: .medium))
+                        .foregroundStyle(Color(hex: "CCCCCC"))
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Metadata
-                    HStack(spacing: Spacing.sm) {
-                        // Short OID
+                    HStack(spacing: 8) {
                         Text(node.commit.shortOid)
-                            .font(Typography.mono)
-                            .foregroundStyle(colors.info)
+                            .font(GeistFont.mono(size: 11, weight: .regular))
+                            .foregroundStyle(Color(hex: "888888"))
 
-                        // Author
-                        Text(node.commit.authorName)
-                            .font(Typography.micro)
-                            .foregroundStyle(colors.mutedForeground)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        // Time
                         Text(node.commit.relativeTime)
-                            .font(Typography.micro)
-                            .foregroundStyle(colors.mutedForeground)
+                            .font(GeistFont.sans(size: 11, weight: .regular))
+                            .foregroundStyle(Color(hex: "555555"))
                     }
                 }
-                .padding(.vertical, Spacing.sm)
-                .padding(.trailing, Spacing.md)
-                .fullRowHitTarget()
             }
-            .background(
-                RoundedRectangle(cornerRadius: Radius.sm)
-                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
-            )
+            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: Duration.fast)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    // MARK: - Graph View
-
-    private var graphView: some View {
-        Canvas { context, size in
-            let centerX = size.width / 2 + CGFloat(node.column) * 12
-            let centerY = size.height / 2
-
-            // Draw vertical line continuing from above
-            if !node.startsNewLine {
-                var path = Path()
-                path.move(to: CGPoint(x: centerX, y: 0))
-                path.addLine(to: CGPoint(x: centerX, y: centerY - nodeRadius))
-                context.stroke(path, with: .color(graphLineColor), lineWidth: lineWidth)
-            }
-
-            // Draw lines to parents (below)
-            for connection in node.parentConnections {
-                let fromX = centerX
-                let toX = size.width / 2 + CGFloat(connection.toColumn) * 12
-
-                var path = Path()
-                path.move(to: CGPoint(x: fromX, y: centerY + nodeRadius))
-
-                if fromX != toX {
-                    // Diagonal line for branch/merge
-                    path.addLine(to: CGPoint(x: toX, y: size.height))
-                } else {
-                    // Straight line
-                    path.addLine(to: CGPoint(x: fromX, y: size.height))
-                }
-
-                let lineColor = connection.isMerge ? mergeLineColor : graphLineColor
-                context.stroke(path, with: .color(lineColor), lineWidth: lineWidth)
-            }
-
-            // Draw node circle
-            let nodeRect = CGRect(
-                x: centerX - nodeRadius,
-                y: centerY - nodeRadius,
-                width: nodeRadius * 2,
-                height: nodeRadius * 2
-            )
-
-            let nodeColor = node.commit.isMergeCommit ? mergeNodeColor : primaryNodeColor
-            context.fill(Circle().path(in: nodeRect), with: .color(nodeColor))
-            context.stroke(Circle().path(in: nodeRect), with: .color(colors.background), lineWidth: 1)
-        }
-        .frame(height: 44)
-    }
-
-    private var graphLineColor: Color {
-        colors.mutedForeground.opacity(0.5)
-    }
-
-    private var mergeLineColor: Color {
-        colors.info.opacity(0.5)
-    }
-
-    private var primaryNodeColor: Color {
-        colors.success
-    }
-
-    private var mergeNodeColor: Color {
-        colors.info
     }
 }
 

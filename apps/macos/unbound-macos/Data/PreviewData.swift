@@ -426,6 +426,56 @@ enum PreviewData {
                     status: .completed,
                     result: "Found DaemonError pattern with categorized cases and localizedDescription"
                 )),
+                .subAgentActivity(SubAgentActivity(
+                    parentToolUseId: "task_02",
+                    subagentType: "Explore",
+                    description: "Count existing relay tests",
+                    tools: [
+                        ToolUse(
+                            toolUseId: "sub_tool_03",
+                            parentToolUseId: "task_02",
+                            toolName: "Glob",
+                            input: "{\"pattern\": \"**/*relay*_test.swift\"}",
+                            output: "7 matches",
+                            status: .completed
+                        ),
+                        ToolUse(
+                            toolUseId: "sub_tool_04",
+                            parentToolUseId: "task_02",
+                            toolName: "Grep",
+                            input: "{\"pattern\": \"XCTAssert\", \"path\": \"apps/macos\"}",
+                            output: "31 matches",
+                            status: .completed
+                        ),
+                    ],
+                    status: .completed,
+                    result: "Relay test coverage currently spans transport and reconnect flows."
+                )),
+                .subAgentActivity(SubAgentActivity(
+                    parentToolUseId: "task_03",
+                    subagentType: "Explore",
+                    description: "Identify untested edge cases",
+                    tools: [
+                        ToolUse(
+                            toolUseId: "sub_tool_05",
+                            parentToolUseId: "task_03",
+                            toolName: "Read",
+                            input: "{\"file_path\": \"RelayClient.swift\"}",
+                            output: "Loaded 215 lines",
+                            status: .completed
+                        ),
+                        ToolUse(
+                            toolUseId: "sub_tool_06",
+                            parentToolUseId: "task_03",
+                            toolName: "Grep",
+                            input: "{\"pattern\": \"timeout|backoff|retry\", \"path\": \"apps/macos\"}",
+                            output: "12 matches",
+                            status: .completed
+                        ),
+                    ],
+                    status: .completed,
+                    result: "Found missing coverage for timeout handling and capped backoff."
+                )),
                 .text(TextContent(text: "I've added a `RelayError` enum following the same pattern as `DaemonError`, with specific cases for network failures, authentication issues, and connection limits. The client now catches these and surfaces them via the `@Observable` `lastError` property.")),
             ],
             sequenceNumber: 5

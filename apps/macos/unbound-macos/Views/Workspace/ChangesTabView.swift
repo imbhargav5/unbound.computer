@@ -2,8 +2,8 @@
 //  ChangesTabView.swift
 //  unbound-macos
 //
-//  VS Code-style read-only file changes list.
-//  Dense, monospace, single-line rows with +N/-N indicators.
+//  Compact file changes list matching Pencil design spec.
+//  Filename-first layout with status indicator and diff stats.
 //
 
 import SwiftUI
@@ -24,14 +24,14 @@ struct ChangesTabView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 1) {
                 if gitViewModel.isLoadingStatus {
                     loadingView
                 } else if gitViewModel.isClean {
                     emptyStateView
                 } else {
                     ForEach(allChangedFiles) { file in
-                        VSCodeChangeRow(
+                        ChangeRow(
                             file: file,
                             isSelected: gitViewModel.selectedFilePath == file.path,
                             onSelect: { onFileSelected(file) }
@@ -39,6 +39,7 @@ struct ChangesTabView: View {
                     }
                 }
             }
+            .padding(.vertical, 4)
         }
     }
 
@@ -64,72 +65,37 @@ struct ChangesTabView: View {
     }
 }
 
-// MARK: - VS Code Style Change Row
+// MARK: - Change Row
 
-/// A dense, single-line file change row styled like VS Code's Source Control.
-/// Read-only, no actions - just displays file path and status indicator.
-struct VSCodeChangeRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-
+private struct ChangeRow: View {
     let file: GitStatusFile
     let isSelected: Bool
     var onSelect: () -> Void
 
-    @State private var isHovered = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: Spacing.sm) {
+            HStack(spacing: 8) {
                 // Status indicator letter (M, A, D, U)
                 Text(file.status.indicator)
-                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
+                    .font(GeistFont.sans(size: 9, weight: .semibold))
                     .foregroundStyle(statusColor)
-                    .frame(width: IconSize.sm)
 
-                // File path with dimmed directory, bright filename
-                formattedPath
+                // Filename first, then directory path
+                pathView
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: Spacing.sm)
-
-                // Change stats (+N / -N) - VS Code style
-                changeStats
+                // Diff stats (+N / -N)
+                diffStats
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.sm)
-                    .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
-            )
+            .padding(.horizontal, 16)
+            .frame(height: 24)
+            .background(isSelected ? Color(hex: "F59E0B").opacity(0.06) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 
-    @ViewBuilder
-    private var changeStats: some View {
-        HStack(spacing: Spacing.xs) {
-            if let additions = file.additions, additions > 0 {
-                Text("+\(additions)")
-                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
-                    .foregroundStyle(colors.diffAddition)
-            }
-            if let deletions = file.deletions, deletions > 0 {
-                Text("-\(deletions)")
-                    .font(GeistFont.mono(size: FontSize.xs, weight: .medium))
-                    .foregroundStyle(colors.diffDeletion)
-            }
-        }
-    }
-
-    private var formattedPath: some View {
+    private var pathView: some View {
         let components = file.path.split(separator: "/", omittingEmptySubsequences: true)
         let fileName = String(components.last ?? Substring(file.path))
         let dirPath: String
@@ -138,7 +104,7 @@ struct VSCodeChangeRow: View {
             dirPath = ""
         } else {
             let fullDir = components.dropLast().joined(separator: "/") + "/"
-            if file.path.count > 60, components.count > 2 {
+            if fullDir.count > 30, components.count > 2 {
                 let topFolder = String(components.first!)
                 let parentFolder = String(components[components.count - 2])
                 dirPath = "\(topFolder)/.../\(parentFolder)/"
@@ -147,21 +113,48 @@ struct VSCodeChangeRow: View {
             }
         }
 
-        return HStack(spacing: 0) {
+        return HStack(spacing: 8) {
+            Text(fileName)
+                .font(GeistFont.sans(size: 11, weight: .regular))
+                .foregroundStyle(Color(hex: "B3B3B3"))
             if !dirPath.isEmpty {
                 Text(dirPath)
-                    .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
-                    .foregroundStyle(colors.mutedForeground.opacity(0.4))
+                    .font(GeistFont.sans(size: 11, weight: .regular))
+                    .foregroundStyle(Color(hex: "666666"))
             }
-            Text(fileName)
-                .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
-                .foregroundStyle(colors.secondaryForeground)
         }
         .lineLimit(1)
     }
 
+    @ViewBuilder
+    private var diffStats: some View {
+        HStack(spacing: 6) {
+            if let additions = file.additions {
+                Text("+\(additions)")
+                    .font(GeistFont.sans(size: 10, weight: .regular))
+                    .foregroundStyle(Color(hex: "73C991"))
+            }
+            if let deletions = file.deletions {
+                Text("-\(deletions)")
+                    .font(GeistFont.sans(size: 10, weight: .regular))
+                    .foregroundStyle(Color(hex: "F14C4C"))
+            }
+        }
+    }
+
     private var statusColor: Color {
-        file.status.color(colors)
+        switch file.status {
+        case .modified, .renamed, .copied, .typechange:
+            return Color(hex: "E2C08D")
+        case .added, .untracked:
+            return Color(hex: "73C991")
+        case .deleted:
+            return Color(hex: "F14C4C")
+        case .conflicted, .unreadable:
+            return Color(hex: "F14C4C")
+        case .ignored, .unchanged:
+            return Color(hex: "666666")
+        }
     }
 }
 

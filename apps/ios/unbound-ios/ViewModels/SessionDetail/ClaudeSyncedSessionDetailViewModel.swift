@@ -12,6 +12,59 @@ import Observation
 
 private let sessionDetailLogger = Logger(label: "app.ui.session-detail")
 
+struct SessionCompletionSummary: Equatable {
+    let outcomeLabel: String
+    let summaryText: String?
+    let turns: Int?
+    let totalTokens: Int?
+    let totalCostUSD: Double?
+    let durationMs: Int?
+
+    static func latest(from entries: [ClaudeConversationTimelineEntry]) -> SessionCompletionSummary? {
+        for entry in entries.reversed() where entry.role == .result {
+            guard let resultBlock = entry.blocks.reversed().compactMap({ block -> ClaudeResultBlock? in
+                guard case .result(let result) = block else { return nil }
+                return result
+            }).first else {
+                continue
+            }
+
+            guard !resultBlock.isError else { return nil }
+
+            let summaryText = normalizedText(resultBlock.text)
+            let turns = resultBlock.metrics?.numTurns
+            let totalTokens = resultBlock.metrics?.usage?.totalTokens
+            let totalCostUSD = resultBlock.metrics?.totalCostUSD
+            let durationMs = resultBlock.metrics?.bestDurationMs
+
+            if summaryText == nil,
+               turns == nil,
+               totalTokens == nil,
+               totalCostUSD == nil,
+               durationMs == nil {
+                return nil
+            }
+
+            return SessionCompletionSummary(
+                outcomeLabel: resultBlock.metrics?.stopReason ?? "end_turn",
+                summaryText: summaryText,
+                turns: turns,
+                totalTokens: totalTokens,
+                totalCostUSD: totalCostUSD,
+                durationMs: durationMs
+            )
+        }
+
+        return nil
+    }
+
+    private static func normalizedText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 @MainActor
 @Observable
 final class ClaudeSyncedSessionDetailViewModel {
@@ -23,6 +76,10 @@ final class ClaudeSyncedSessionDetailViewModel {
 
     var messages: [Message] {
         ClaudeTimelineMessageMapper.mapEntries(claudeState.timeline)
+    }
+
+    var latestCompletionSummary: SessionCompletionSummary? {
+        SessionCompletionSummary.latest(from: claudeState.timeline)
     }
 
     var isLoading: Bool {

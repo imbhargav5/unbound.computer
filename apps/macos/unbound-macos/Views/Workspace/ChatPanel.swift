@@ -62,14 +62,6 @@ struct ChatPanel: View {
         return tab
     }
 
-    private var dirtyTabIds: Set<UUID> {
-        Set(
-            editorState.documentsByTabId
-                .filter { $0.value.isDirty }
-                .map(\.key)
-        )
-    }
-
     private var canSaveSelectedFile: Bool {
         guard let selectedFileTab else { return false }
         return editorState.canSave(tabId: selectedFileTab.id)
@@ -188,6 +180,10 @@ struct ChatPanel: View {
             status: liveState.codingSessionStatus,
             errorMessage: liveState.codingSessionErrorMessage
         )
+    }
+
+    private var latestCompletionSummary: SessionCompletionSummary? {
+        liveState?.latestCompletionSummary
     }
 
     /// Check if Claude is currently running (streaming response)
@@ -311,38 +307,41 @@ struct ChatPanel: View {
     private var tabbedHeader: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.xs) {
+                HStack(spacing: 0) {
                     // Session tab (non-closable)
                     CenterPanelTab(
-                        icon: "bubble.left.and.bubble.right",
                         label: session?.displayTitle ?? "New conversation",
                         isSelected: !isEditorTabActive,
                         isClosable: false,
+                        showsTrailingDivider: !editorState.tabs.isEmpty,
                         onSelect: { editorState.selectedTabId = nil },
                         onClose: {}
                     )
 
                     // Editor file/diff tabs (closable)
-                    ForEach(editorState.tabs) { tab in
+                    ForEach(Array(editorState.tabs.enumerated()), id: \.element.id) { index, tab in
                         CenterPanelTab(
-                            icon: fileIcon(for: tab),
                             label: tab.filename,
                             badge: tab.kind == .diff ? "Diff" : nil,
-                            isDirty: dirtyTabIds.contains(tab.id),
                             isSelected: editorState.selectedTabId == tab.id,
                             isClosable: true,
+                            showsTrailingDivider: index < editorState.tabs.count - 1,
                             onSelect: { editorState.selectTab(id: tab.id) },
                             onClose: { requestCloseTab(tab.id) }
                         )
                     }
                 }
-                .padding(.horizontal, Spacing.sm)
             }
 
             Spacer(minLength: 0)
         }
-        .frame(height: LayoutMetrics.compactToolbarHeight)
-        .background(colors.toolbarBackground)
+        .frame(height: ChatHeaderTokens.headerHeight)
+        .background(colors.card)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(colors.border)
+                .frame(height: ChatHeaderTokens.bottomBorderWidth)
+        }
     }
 
     // MARK: - Editor Column
@@ -350,7 +349,6 @@ struct ChatPanel: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             tabbedHeader
-            ShadcnDivider()
             editorContent
         }
         .frame(minWidth: 300)
@@ -387,8 +385,6 @@ struct ChatPanel: View {
         VStack(spacing: 0) {
             // Tabbed header
             tabbedHeader
-
-            ShadcnDivider()
 
             // Chat content
             VStack(spacing: 0) {
@@ -452,13 +448,9 @@ struct ChatPanel: View {
                                         }
                                     }
 
-                                    // Render active sub-agents with new AgentCardView
+                                    // Render active sub-agents in grouped parallel-agents surface
                                     if !activeSubAgents.isEmpty {
-                                        VStack(alignment: .leading, spacing: Spacing.md) {
-                                            ForEach(activeSubAgents) { subAgent in
-                                                SubAgentView(activeSubAgent: subAgent)
-                                            }
-                                        }
+                                        ParallelAgentsView(activeSubAgents: activeSubAgents)
                                         .padding(.horizontal, Spacing.lg)
                                         .padding(.vertical, Spacing.sm)
                                     }
@@ -466,6 +458,12 @@ struct ChatPanel: View {
                                     // Render active standalone tools (if any)
                                     if !activeTools.isEmpty {
                                         StandaloneToolCallsView(activeTools: activeTools)
+                                            .padding(.horizontal, Spacing.lg)
+                                            .padding(.vertical, Spacing.sm)
+                                    }
+
+                                    if let latestCompletionSummary {
+                                        sessionCompletionFooterCard(summary: latestCompletionSummary)
                                             .padding(.horizontal, Spacing.lg)
                                             .padding(.vertical, Spacing.sm)
                                     }
@@ -609,6 +607,116 @@ struct ChatPanel: View {
         )
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
+    }
+
+    private func sessionCompletionFooterCard(summary: SessionCompletionSummary) -> some View {
+        let metrics = sessionCompletionMetrics(for: summary)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(hex: "3FB950"))
+
+                Text("Session Complete")
+                    .font(GeistFont.sans(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(hex: "E5E5E5"))
+
+                Text(summary.outcomeLabel)
+                    .font(GeistFont.mono(size: 10, weight: .medium))
+                    .foregroundStyle(Color(hex: "A3A3A3"))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
+
+            if let summaryText = summary.summaryText {
+                Text(summaryText)
+                    .font(GeistFont.sans(size: 12, weight: .regular))
+                    .foregroundStyle(Color(hex: "A3A3A3"))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+            }
+
+            if !metrics.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+                        Text(metric)
+                            .font(GeistFont.mono(size: 10, weight: .regular))
+                            .foregroundStyle(Color(hex: "525252"))
+
+                        if index < metrics.count - 1 {
+                            Text("|")
+                                .font(GeistFont.mono(size: 10, weight: .regular))
+                                .foregroundStyle(Color(hex: "333333"))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(hex: "1A1A1A"))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(hex: "3FB95040"), lineWidth: 1)
+        )
+    }
+
+    private func sessionCompletionMetrics(for summary: SessionCompletionSummary) -> [String] {
+        var metrics: [String] = []
+
+        if let turns = summary.turns {
+            let suffix = turns == 1 ? "" : "s"
+            metrics.append("\(turns) turn\(suffix)")
+        }
+
+        if let totalTokens = summary.totalTokens {
+            metrics.append("\(compactNumber(totalTokens)) tokens")
+        }
+
+        if let totalCostUSD = summary.totalCostUSD {
+            metrics.append(String(format: "$%.2f", totalCostUSD))
+        }
+
+        if let durationMs = summary.durationMs {
+            metrics.append(formattedDuration(milliseconds: durationMs))
+        }
+
+        return metrics
+    }
+
+    private func compactNumber(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            let formatted = Double(value) / 1_000_000
+            return String(format: "%.1fm", formatted)
+        }
+
+        if value >= 1_000 {
+            let formatted = Double(value) / 1_000
+            return String(format: "%.1fk", formatted)
+        }
+
+        return "\(value)"
+    }
+
+    private func formattedDuration(milliseconds: Int) -> String {
+        if milliseconds < 1000 {
+            return "\(milliseconds)ms"
+        }
+
+        let seconds = Double(milliseconds) / 1000
+        if seconds < 60 {
+            return String(format: "%.1fs", seconds)
+        }
+
+        let minutes = Int(seconds) / 60
+        let remainingSeconds = Int(seconds) % 60
+        return "\(minutes)m \(remainingSeconds)s"
     }
 
     // MARK: - Footer Panel
@@ -845,24 +953,6 @@ struct ChatPanel: View {
         conflictRevision = nil
         showConflictDialog = false
         pendingCloseTabId = nil
-    }
-
-    private func fileIcon(for tab: EditorTab) -> String {
-        if tab.kind == .diff {
-            return "doc.text.magnifyingglass"
-        }
-        switch tab.fileExtension {
-        case "swift": return "swift"
-        case "js", "javascript": return "curlybraces"
-        case "ts", "typescript": return "curlybraces"
-        case "py", "python": return "chevron.left.forwardslash.chevron.right"
-        case "rs", "rust": return "gearshape.2"
-        case "go": return "chevron.left.forwardslash.chevron.right"
-        case "md", "markdown": return "doc.richtext"
-        case "json": return "curlybraces"
-        case "yaml", "yml": return "list.bullet.indent"
-        default: return "doc.text"
-        }
     }
 
     // MARK: - Chat Actions
@@ -1240,16 +1330,14 @@ struct DiffEditorView: View {
 struct CenterPanelTab: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let icon: String
     let label: String
     var badge: String? = nil
-    var isDirty: Bool = false
     let isSelected: Bool
     let isClosable: Bool
+    var showsTrailingDivider: Bool = false
     var onSelect: () -> Void
     var onClose: () -> Void
 
-    @State private var isHovered: Bool = false
     @State private var isCloseHovered: Bool = false
 
     private var colors: ThemeColors {
@@ -1258,40 +1346,32 @@ struct CenterPanelTab: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 10))
-                    .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
-
+            HStack(spacing: ChatHeaderTokens.tabContentSpacing) {
                 Text(label)
-                    .font(Typography.caption)
-                    .foregroundStyle(isSelected ? colors.foreground : colors.mutedForeground)
+                    .font(GeistFont.sans(size: ChatHeaderTokens.tabFontSize, weight: ChatHeaderTokens.tabFontWeight))
+                    .foregroundStyle(isSelected ? colors.sidebarText : colors.sidebarMeta)
                     .lineLimit(1)
-
-                if isDirty {
-                    Circle()
-                        .fill(colors.warning)
-                        .frame(width: 6, height: 6)
-                }
 
                 if let badge {
                     Text(badge)
-                        .font(Typography.micro)
-                        .foregroundStyle(colors.info)
-                        .padding(.horizontal, Spacing.xxs)
-                        .padding(.vertical, 2)
-                        .background(colors.info.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+                        .font(GeistFont.sans(size: ChatHeaderTokens.badgeFontSize, weight: ChatHeaderTokens.badgeFontWeight))
+                        .foregroundStyle(colors.accentAmber)
+                        .padding(.horizontal, ChatHeaderTokens.badgeHorizontalPadding)
+                        .padding(.vertical, ChatHeaderTokens.badgeVerticalPadding)
+                        .background(colors.accentAmberMuted)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ChatHeaderTokens.badgeCornerRadius)
+                                .stroke(colors.accentAmberBorder, lineWidth: BorderWidth.default)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: ChatHeaderTokens.badgeCornerRadius))
                 }
 
                 if isClosable {
                     Button(action: onClose) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(isCloseHovered ? colors.foreground : colors.mutedForeground)
-                            .frame(width: 14, height: 14)
-                            .background(isCloseHovered ? colors.hoverBackground : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
+                            .font(.system(size: ChatHeaderTokens.closeIconSize, weight: .regular))
+                            .foregroundStyle(isCloseHovered ? colors.sidebarText : colors.sidebarMeta)
+                            .frame(width: ChatHeaderTokens.closeIconFrameSize, height: ChatHeaderTokens.closeIconFrameSize)
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
@@ -1299,22 +1379,19 @@ struct CenterPanelTab: View {
                     }
                 }
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.sm)
-                    .fill(isSelected ? colors.selectionBackground : (isHovered ? colors.hoverBackground : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.sm)
-                    .stroke(isSelected ? colors.selectionBorder : Color.clear, lineWidth: BorderWidth.hairline)
-            )
+            .padding(.horizontal, ChatHeaderTokens.tabHorizontalPadding)
+            .frame(height: ChatHeaderTokens.headerHeight)
+            .background(isSelected ? colors.surface1 : colors.card)
+            .overlay(alignment: .trailing) {
+                if showsTrailingDivider {
+                    Rectangle()
+                        .fill(colors.border)
+                        .frame(width: ChatHeaderTokens.tabSeparatorWidth)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 }
 
@@ -1355,6 +1432,44 @@ private struct ChatMessageRow: View, Equatable {
         editorState: EditorState()
     )
     .environment(AppState.preview())
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Header Match - Session Selected (FAEi4)") {
+    let editorState = EditorState.preview()
+    editorState.selectedTabId = nil
+
+    return ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: editorState
+    )
+    .environment(AppState.preview())
+    .preferredColorScheme(.dark)
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Header Match - Diff Selected (d391K)") {
+    let editorState = EditorState.preview()
+    if let diffTab = editorState.tabs.first(where: { $0.kind == .diff }) {
+        editorState.selectedTabId = diffTab.id
+    }
+
+    return ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: editorState
+    )
+    .environment(AppState.preview())
+    .preferredColorScheme(.dark)
     .frame(width: 900, height: 600)
 }
 

@@ -5,6 +5,7 @@ struct SyncedSessionDetailView: View {
     let session: SyncedSession
 
     @Environment(\.navigationManager) private var navigationManager
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var viewModel: ClaudeSyncedSessionDetailViewModel
     @State private var hasAppliedInitialBottomScroll = false
@@ -276,6 +277,11 @@ struct SyncedSessionDetailView: View {
                         }
                     }
 
+                    if let summary = viewModel.latestCompletionSummary {
+                        sessionCompletionFooterCard(summary: summary)
+                            .padding(.horizontal, AppTheme.spacingM)
+                    }
+
                     Color.clear
                         .frame(height: 1)
                         .id("bottom")
@@ -307,6 +313,149 @@ struct SyncedSessionDetailView: View {
             proxy.scrollTo("bottom", anchor: .bottom)
             hasAppliedInitialBottomScroll = true
         }
+    }
+
+    private func sessionCompletionFooterCard(summary: SessionCompletionSummary) -> some View {
+        let metrics = sessionCompletionMetrics(for: summary)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: AppTheme.spacingS) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(red: 63 / 255, green: 185 / 255, blue: 80 / 255))
+
+                Text("Session Complete")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(completionPrimaryTextColor)
+
+                Text(summary.outcomeLabel)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(completionSecondaryTextColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(completionTagBackgroundColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
+
+            if let summaryText = summary.summaryText {
+                Text(summaryText)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(completionSecondaryTextColor)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+            }
+
+            if !metrics.isEmpty {
+                HStack(spacing: AppTheme.spacingS) {
+                    ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+                        Text(metric)
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(completionMutedTextColor)
+
+                        if index < metrics.count - 1 {
+                            Text("|")
+                                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                .foregroundStyle(completionDividerColor)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(completionCardBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .stroke(completionCardBorderColor, lineWidth: 1)
+        )
+    }
+
+    private func sessionCompletionMetrics(for summary: SessionCompletionSummary) -> [String] {
+        var metrics: [String] = []
+
+        if let turns = summary.turns {
+            let suffix = turns == 1 ? "" : "s"
+            metrics.append("\(turns) turn\(suffix)")
+        }
+
+        if let totalTokens = summary.totalTokens {
+            metrics.append("\(compactNumber(totalTokens)) tokens")
+        }
+
+        if let totalCostUSD = summary.totalCostUSD {
+            metrics.append(String(format: "$%.2f", totalCostUSD))
+        }
+
+        if let durationMs = summary.durationMs {
+            metrics.append(formattedDuration(milliseconds: durationMs))
+        }
+
+        return metrics
+    }
+
+    private func compactNumber(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            let formatted = Double(value) / 1_000_000
+            return String(format: "%.1fm", formatted)
+        }
+
+        if value >= 1_000 {
+            let formatted = Double(value) / 1_000
+            return String(format: "%.1fk", formatted)
+        }
+
+        return "\(value)"
+    }
+
+    private func formattedDuration(milliseconds: Int) -> String {
+        if milliseconds < 1000 {
+            return "\(milliseconds)ms"
+        }
+
+        let seconds = Double(milliseconds) / 1000
+        if seconds < 60 {
+            return String(format: "%.1fs", seconds)
+        }
+
+        let minutes = Int(seconds) / 60
+        let remainingSeconds = Int(seconds) % 60
+        return "\(minutes)m \(remainingSeconds)s"
+    }
+
+    private var completionCardBackgroundColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
+        }
+        return Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
+    }
+
+    private var completionCardBorderColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 63 / 255, green: 185 / 255, blue: 80 / 255, opacity: 0.25)
+        }
+        return Color(red: 63 / 255, green: 185 / 255, blue: 80 / 255, opacity: 0.35)
+    }
+
+    private var completionPrimaryTextColor: Color {
+        colorScheme == .dark ? Color(red: 229 / 255, green: 229 / 255, blue: 229 / 255) : AppTheme.textPrimary
+    }
+
+    private var completionSecondaryTextColor: Color {
+        colorScheme == .dark ? Color(red: 163 / 255, green: 163 / 255, blue: 163 / 255) : AppTheme.textSecondary
+    }
+
+    private var completionMutedTextColor: Color {
+        colorScheme == .dark ? Color(red: 82 / 255, green: 82 / 255, blue: 82 / 255) : AppTheme.textTertiary
+    }
+
+    private var completionDividerColor: Color {
+        colorScheme == .dark ? Color(red: 51 / 255, green: 51 / 255, blue: 51 / 255) : AppTheme.textTertiary.opacity(0.8)
+    }
+
+    private var completionTagBackgroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.06)
     }
 
     private var headerCard: some View {

@@ -44,13 +44,15 @@ struct MessageBubbleView: View {
 
     @ViewBuilder
     private func parsedContentView(blocks: [SessionContentBlock]) -> some View {
-        let displayBlocks = groupedParsedBlocks(from: deduplicatedParsedBlocks(from: blocks))
+        let displayBlocks = SessionParsedDisplayPlanner.displayBlocks(from: blocks)
 
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
             ForEach(displayBlocks) { displayBlock in
                 switch displayBlock {
                 case .standaloneToolUseGroup(let tools):
                     StandaloneToolCallsView(tools: tools)
+                case .parallelSubAgentGroup(let activities):
+                    ParallelAgentsView(activities: activities)
 
                 case .block(let block):
                     switch block {
@@ -67,95 +69,6 @@ struct MessageBubbleView: View {
                 }
             }
         }
-    }
-
-    private func groupedParsedBlocks(from blocks: [SessionContentBlock]) -> [ParsedDisplayBlock] {
-        var grouped: [ParsedDisplayBlock] = []
-        var pendingStandaloneTools: [SessionToolUse] = []
-
-        func flushPendingTools() {
-            guard !pendingStandaloneTools.isEmpty else { return }
-            grouped.append(.standaloneToolUseGroup(pendingStandaloneTools))
-            pendingStandaloneTools.removeAll(keepingCapacity: true)
-        }
-
-        for block in blocks {
-            if case .toolUse(let tool) = block {
-                pendingStandaloneTools.append(tool)
-                continue
-            }
-
-            flushPendingTools()
-            grouped.append(.block(block))
-        }
-
-        flushPendingTools()
-        return grouped
-    }
-
-    private func deduplicatedParsedBlocks(from blocks: [SessionContentBlock]) -> [SessionContentBlock] {
-        var seenStandaloneToolKeys: Set<String> = []
-        var seenSubAgentParents: Set<String> = []
-        var deduplicatedReversed: [SessionContentBlock] = []
-        deduplicatedReversed.reserveCapacity(blocks.count)
-
-        for block in blocks.reversed() {
-            switch block {
-            case .toolUse(let tool):
-                let key = standaloneToolKey(for: tool)
-                if seenStandaloneToolKeys.contains(key) {
-                    continue
-                }
-                seenStandaloneToolKeys.insert(key)
-                deduplicatedReversed.append(.toolUse(tool))
-
-            case .subAgentActivity(let activity):
-                if seenSubAgentParents.contains(activity.parentToolUseId) {
-                    continue
-                }
-                seenSubAgentParents.insert(activity.parentToolUseId)
-
-                let deduplicatedTools = deduplicatedToolsForSubAgent(activity.tools)
-                let normalizedActivity = SessionSubAgentActivity(
-                    id: activity.id,
-                    parentToolUseId: activity.parentToolUseId,
-                    subagentType: activity.subagentType,
-                    description: activity.description,
-                    tools: deduplicatedTools
-                )
-                deduplicatedReversed.append(.subAgentActivity(normalizedActivity))
-
-            case .text, .error:
-                deduplicatedReversed.append(block)
-            }
-        }
-
-        return Array(deduplicatedReversed.reversed())
-    }
-
-    private func deduplicatedToolsForSubAgent(_ tools: [SessionToolUse]) -> [SessionToolUse] {
-        var seenKeys: Set<String> = []
-        var deduplicatedReversed: [SessionToolUse] = []
-        deduplicatedReversed.reserveCapacity(tools.count)
-
-        for tool in tools.reversed() {
-            let key = standaloneToolKey(for: tool)
-            if seenKeys.contains(key) {
-                continue
-            }
-            seenKeys.insert(key)
-            deduplicatedReversed.append(tool)
-        }
-
-        return Array(deduplicatedReversed.reversed())
-    }
-
-    private func standaloneToolKey(for tool: SessionToolUse) -> String {
-        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
-            return "id:\(toolUseId)"
-        }
-
-        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
     }
 
     private var assistantTextBubble: some View {
@@ -197,9 +110,10 @@ struct MessageBubbleView: View {
     }
 }
 
-private enum ParsedDisplayBlock: Identifiable {
+enum SessionParsedDisplayBlock: Identifiable, Equatable {
     case block(SessionContentBlock)
     case standaloneToolUseGroup([SessionToolUse])
+    case parallelSubAgentGroup([SessionSubAgentActivity])
 
     var id: String {
         switch self {
@@ -208,7 +122,122 @@ private enum ParsedDisplayBlock: Identifiable {
         case .standaloneToolUseGroup(let tools):
             let ids = tools.map { $0.toolUseId ?? $0.id.uuidString }.joined(separator: ",")
             return "tool-group:\(ids)"
+        case .parallelSubAgentGroup(let activities):
+            return "subagent-group:\(activities.map(\.parentToolUseId).joined(separator: ","))"
         }
+    }
+}
+
+enum SessionParsedDisplayPlanner {
+    static func displayBlocks(from blocks: [SessionContentBlock]) -> [SessionParsedDisplayBlock] {
+        groupedParsedBlocks(from: deduplicatedParsedBlocks(from: blocks))
+    }
+
+    private static func groupedParsedBlocks(from blocks: [SessionContentBlock]) -> [SessionParsedDisplayBlock] {
+        var grouped: [SessionParsedDisplayBlock] = []
+        var pendingStandaloneTools: [SessionToolUse] = []
+        var pendingSubAgents: [SessionSubAgentActivity] = []
+
+        func flushPendingTools() {
+            guard !pendingStandaloneTools.isEmpty else { return }
+            grouped.append(.standaloneToolUseGroup(pendingStandaloneTools))
+            pendingStandaloneTools.removeAll(keepingCapacity: true)
+        }
+
+        func flushPendingSubAgents() {
+            guard !pendingSubAgents.isEmpty else { return }
+            grouped.append(.parallelSubAgentGroup(pendingSubAgents))
+            pendingSubAgents.removeAll(keepingCapacity: true)
+        }
+
+        for block in blocks {
+            if case .toolUse(let tool) = block {
+                flushPendingSubAgents()
+                pendingStandaloneTools.append(tool)
+                continue
+            }
+
+            if case .subAgentActivity(let activity) = block {
+                flushPendingTools()
+                pendingSubAgents.append(activity)
+                continue
+            }
+
+            flushPendingTools()
+            flushPendingSubAgents()
+            grouped.append(.block(block))
+        }
+
+        flushPendingTools()
+        flushPendingSubAgents()
+        return grouped
+    }
+
+    private static func deduplicatedParsedBlocks(from blocks: [SessionContentBlock]) -> [SessionContentBlock] {
+        var seenStandaloneToolKeys: Set<String> = []
+        var seenSubAgentParents: Set<String> = []
+        var deduplicatedReversed: [SessionContentBlock] = []
+        deduplicatedReversed.reserveCapacity(blocks.count)
+
+        for block in blocks.reversed() {
+            switch block {
+            case .toolUse(let tool):
+                let key = standaloneToolKey(for: tool)
+                if seenStandaloneToolKeys.contains(key) {
+                    continue
+                }
+                seenStandaloneToolKeys.insert(key)
+                deduplicatedReversed.append(.toolUse(tool))
+
+            case .subAgentActivity(let activity):
+                if seenSubAgentParents.contains(activity.parentToolUseId) {
+                    continue
+                }
+                seenSubAgentParents.insert(activity.parentToolUseId)
+
+                let deduplicatedTools = deduplicatedToolsForSubAgent(activity.tools)
+                let normalizedActivity = SessionSubAgentActivity(
+                    id: activity.id,
+                    parentToolUseId: activity.parentToolUseId,
+                    subagentType: activity.subagentType,
+                    description: activity.description,
+                    tools: deduplicatedTools,
+                    status: activity.status,
+                    result: activity.result
+                )
+                deduplicatedReversed.append(.subAgentActivity(normalizedActivity))
+
+            case .text, .error:
+                deduplicatedReversed.append(block)
+            }
+        }
+
+        return Array(deduplicatedReversed.reversed())
+    }
+
+    private static func deduplicatedToolsForSubAgent(_ tools: [SessionToolUse]) -> [SessionToolUse] {
+        var seenKeys: Set<String> = []
+        var deduplicatedReversed: [SessionToolUse] = []
+        deduplicatedReversed.reserveCapacity(tools.count)
+
+        for tool in tools.reversed() {
+            let key = standaloneToolKey(for: tool)
+            if seenKeys.contains(key) {
+                continue
+            }
+            seenKeys.insert(key)
+            deduplicatedReversed.append(tool)
+        }
+
+        return Array(deduplicatedReversed.reversed())
+    }
+
+    private static func standaloneToolKey(for tool: SessionToolUse) -> String {
+        if let toolUseId = tool.toolUseId, !toolUseId.isEmpty {
+            return "id:\(toolUseId)"
+        }
+
+        return "fallback:\(tool.parentToolUseId ?? "")|\(tool.toolName)|\(tool.summary)"
     }
 }
 
@@ -350,14 +379,19 @@ struct CodeBlockView: View {
                             SessionToolUse(
                                 toolUseId: "tool-dup",
                                 toolName: "Read",
-                                summary: "Read README.md"
+                                summary: "Read README.md",
+                                status: .running,
+                                input: "{\"file_path\":\"README.md\"}"
                             )
                         ),
                         .toolUse(
                             SessionToolUse(
                                 toolUseId: "tool-dup",
                                 toolName: "Read",
-                                summary: "Read docs/README.md"
+                                summary: "Read docs/README.md",
+                                status: .completed,
+                                input: "{\"file_path\":\"docs/README.md\"}",
+                                output: "Loaded 220 lines"
                             )
                         ),
                         .subAgentActivity(
@@ -370,15 +404,50 @@ struct CodeBlockView: View {
                                         toolUseId: "task-tool-1",
                                         parentToolUseId: "task-1",
                                         toolName: "Grep",
-                                        summary: "Grep raw_json"
+                                        summary: "Grep raw_json",
+                                        status: .completed,
+                                        input: "{\"pattern\":\"raw_json\"}",
+                                        output: "3 matches"
                                     ),
+                                ],
+                                status: .completed,
+                                result: "Mapped raw_json unwrap behavior."
+                            )
+                        ),
+                        .subAgentActivity(
+                            SessionSubAgentActivity(
+                                parentToolUseId: "task-2",
+                                subagentType: "Explore",
+                                description: "Count parser fixtures",
+                                tools: [
                                     SessionToolUse(
-                                        toolUseId: "task-tool-1",
-                                        parentToolUseId: "task-1",
-                                        toolName: "Grep",
-                                        summary: "Grep raw_json"
+                                        toolUseId: "task-tool-2",
+                                        parentToolUseId: "task-2",
+                                        toolName: "Glob",
+                                        summary: "Glob **/*_fixtures.json",
+                                        status: .running,
+                                        input: "{\"pattern\":\"**/*_fixtures.json\"}"
                                     ),
-                                ]
+                                ],
+                                status: .running
+                            )
+                        ),
+                        .subAgentActivity(
+                            SessionSubAgentActivity(
+                                parentToolUseId: "task-3",
+                                subagentType: "Explore",
+                                description: "Identify missing mapper tests",
+                                tools: [
+                                    SessionToolUse(
+                                        toolUseId: "task-tool-3",
+                                        parentToolUseId: "task-3",
+                                        toolName: "Read",
+                                        summary: "Read SessionDetailMessageMapperTests.swift",
+                                        status: .running,
+                                        input: "{\"file_path\":\"SessionDetailMessageMapperTests.swift\"}"
+                                    ),
+                                ],
+                                status: .running
                             )
                         ),
                         .error("Tool execution failed with exit code 1"),

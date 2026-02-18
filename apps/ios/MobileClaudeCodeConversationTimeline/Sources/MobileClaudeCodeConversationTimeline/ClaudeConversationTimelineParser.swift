@@ -296,8 +296,14 @@ public final class ClaudeConversationTimelineParser {
         let isError = payload["is_error"] as? Bool ?? false
         let text = sanitizedText(payload["result"] as? String)
         let permissionDenials = (payload["permission_denials"] as? [String]) ?? []
+        let metrics = parseResultMetrics(from: payload)
 
-        let block = ClaudeResultBlock(isError: isError, text: text, permissionDenials: permissionDenials)
+        let block = ClaudeResultBlock(
+            isError: isError,
+            text: text,
+            permissionDenials: permissionDenials,
+            metrics: metrics
+        )
         return ClaudeConversationTimelineEntry(
             id: canonicalId(from: payload, fallbackPrefix: "result"),
             role: .result,
@@ -512,6 +518,60 @@ public final class ClaudeConversationTimelineParser {
             return Int(stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return nil
+    }
+
+    private func doubleValue(_ value: Any?) -> Double? {
+        if let doubleValue = value as? Double { return doubleValue }
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let stringValue = value as? String {
+            return Double(stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+
+    private func parseResultMetrics(from payload: [String: Any]) -> ClaudeResultMetrics? {
+        let usage = parseResultUsage(from: payload["usage"])
+        let metrics = ClaudeResultMetrics(
+            stopReason: sanitizedText(payload["stop_reason"] as? String),
+            subtype: sanitizedText(payload["subtype"] as? String),
+            numTurns: integerValue(payload["num_turns"]),
+            totalCostUSD: doubleValue(payload["total_cost_usd"]) ?? doubleValue(payload["cost_usd"]),
+            durationMs: integerValue(payload["duration_ms"]),
+            durationApiMs: integerValue(payload["duration_api_ms"]),
+            usage: usage
+        )
+
+        if metrics.stopReason == nil,
+           metrics.subtype == nil,
+           metrics.numTurns == nil,
+           metrics.totalCostUSD == nil,
+           metrics.durationMs == nil,
+           metrics.durationApiMs == nil,
+           metrics.usage == nil {
+            return nil
+        }
+
+        return metrics
+    }
+
+    private func parseResultUsage(from value: Any?) -> ClaudeResultUsage? {
+        guard let usagePayload = value as? [String: Any] else { return nil }
+
+        let usage = ClaudeResultUsage(
+            inputTokens: integerValue(usagePayload["input_tokens"]),
+            outputTokens: integerValue(usagePayload["output_tokens"]),
+            cacheReadInputTokens: integerValue(usagePayload["cache_read_input_tokens"]),
+            cacheCreationInputTokens: integerValue(usagePayload["cache_creation_input_tokens"])
+        )
+
+        if usage.inputTokens == nil,
+           usage.outputTokens == nil,
+           usage.cacheReadInputTokens == nil,
+           usage.cacheCreationInputTokens == nil {
+            return nil
+        }
+
+        return usage
     }
 
     private func sanitizedText(_ text: String?) -> String? {

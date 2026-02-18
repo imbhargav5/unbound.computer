@@ -91,6 +91,8 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
 
         let scrollView = NSScrollView()
         scrollView.documentView = textView
@@ -169,6 +171,7 @@ struct ChatInputField: View {
     var onCancel: (() -> Void)?
 
     @State private var isFocused: Bool = false
+    @State private var isPlanDropdownOpen: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -176,6 +179,13 @@ struct ChatInputField: View {
 
     private var isCompact: Bool {
         !isFocused && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var borderColor: Color {
+        if isCompact {
+            return Color(hex: "2A2A2A")
+        }
+        return isPlanMode ? Color(hex: "3B82F6") : Color(hex: "F59E0B")
     }
 
     private var sendButton: some View {
@@ -194,9 +204,9 @@ struct ChatInputField: View {
                 Button(action: onSend) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(colors.primaryForeground)
+                        .foregroundStyle(Color(hex: "0D0D0D"))
                         .frame(width: 32, height: 32)
-                        .background(colors.primary)
+                        .background(isPlanMode && !isCompact ? Color(hex: "3B82F6") : Color(hex: "F59E0B"))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -205,25 +215,127 @@ struct ChatInputField: View {
         }
     }
 
+    private var planHeader: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "map")
+                .font(.system(size: 14))
+                .foregroundStyle(Color(hex: "3B82F6"))
+            Text("Plan mode — Claude will create a plan before making changes")
+                .font(GeistFont.sans(size: 12, weight: .regular))
+                .foregroundStyle(Color(hex: "7BA4E8"))
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 6)
+        .padding(.trailing, 10)
+        .padding(.bottom, 6)
+        .background(Color(hex: "3B82F6").opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+        .frame(height: 28)
+    }
+
+    private var plusMenuButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: Duration.default)) {
+                isPlanDropdownOpen.toggle()
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color(hex: "8A8A8A"))
+                .frame(width: 24, height: 24)
+                .background(Color(hex: "1A1A1A"))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var planModeDropdown: some View {
+        VStack(spacing: 2) {
+            Button {
+                isPlanDropdownOpen = false
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(hex: "999999"))
+                    Text("Add Attachments")
+                        .font(GeistFont.sans(size: 13, weight: .regular))
+                        .foregroundStyle(Color(hex: "CCCCCC"))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Rectangle()
+                .fill(Color(hex: "2A2A2A"))
+                .frame(height: 1)
+
+            Button {
+                isPlanMode.toggle()
+                isPlanDropdownOpen = false
+            } label: {
+                HStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "map")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color(hex: "3B82F6"))
+                        Text("Plan mode")
+                            .font(GeistFont.sans(size: 13, weight: .regular))
+                            .foregroundStyle(Color(hex: "CCCCCC"))
+                    }
+
+                    Spacer(minLength: 0)
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(isPlanMode ? Color(hex: "3B82F6") : Color(hex: "333333"))
+                            .frame(width: 32, height: 18)
+
+                        HStack(spacing: 0) {
+                            if isPlanMode {
+                                Spacer(minLength: 0)
+                            }
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 14, height: 14)
+                            if !isPlanMode {
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .padding(2)
+                    }
+                    .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(6)
+        .frame(width: 220)
+        .background(Color(hex: "141414"))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
+        )
+        .shadow(color: Color.black.opacity(0.38), radius: 24, y: 8)
+    }
+
     var body: some View {
         VStack(spacing: isCompact ? 0 : Spacing.md) {
-            // Plan mode indicator (expanded + plan mode only)
-            if isPlanMode && !isCompact {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "map")
-                        .font(.system(size: IconSize.sm))
-                    Text("Plan Mode")
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
-                    Text("⇧⇥ to toggle")
-                        .font(Typography.micro)
-                        .foregroundStyle(colors.mutedForeground)
-                    Spacer()
-                }
-                .foregroundStyle(colors.info)
+            if !isCompact && isPlanMode {
+                planHeader
             }
 
-            // Text editor (expanded only)
             if !isCompact {
                 CommandReturnTextEditor(
                     text: $text,
@@ -238,49 +350,53 @@ struct ChatInputField: View {
                         isPlanMode.toggle()
                     }
                 )
-                .frame(minHeight: 40, maxHeight: 120)
+                .frame(height: 18)
             }
 
-            // Footer row
             HStack {
                 if isCompact {
                     Text("What do you want to build?")
-                        .font(Typography.body)
+                        .font(GeistFont.sans(size: 14, weight: .regular))
                         .foregroundStyle(Color(hex: "525252"))
                 } else {
-                    HStack(spacing: Spacing.sm) {
-                        ModelSelector(selectedModel: $selectedModel, selectedThinkMode: $selectedThinkMode)
-                    }
+                    ModelSelector(
+                        selectedModel: $selectedModel,
+                        selectedThinkMode: $selectedThinkMode,
+                        isPlanMode: isPlanMode
+                    )
                     .fixedSize()
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 if !isCompact {
-                    HStack(spacing: Spacing.md) {
-                        Image(systemName: "paperclip")
-                            .font(.system(size: 18))
-                            .foregroundStyle(colors.gray8A8)
+                    HStack(spacing: 12) {
+                        plusMenuButton
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 18))
-                            .foregroundStyle(colors.gray8A8)
+                            .foregroundStyle(Color(hex: "8A8A8A"))
                     }
+                    .padding(.trailing, 12)
                 }
 
                 sendButton
             }
+            .frame(height: 32)
         }
         .padding(Spacing.lg)
-        .background(isPlanMode && !isCompact ? colors.info.opacity(0.08) : colors.input)
+        .background(Color(hex: "111111"))
         .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.xxl)
-                .stroke(
-                    isCompact ? colors.borderInput :
-                        (isPlanMode ? colors.info : (isFocused ? colors.ring : colors.borderInput)),
-                    lineWidth: isPlanMode && !isCompact ? BorderWidth.thick : BorderWidth.default
-                )
+                .stroke(borderColor, lineWidth: BorderWidth.default)
         )
+        .overlay(alignment: .bottomTrailing) {
+            if !isCompact && isPlanDropdownOpen {
+                planModeDropdown
+                    .offset(y: 8)
+                    .zIndex(1)
+            }
+        }
         .overlay {
             if isCompact {
                 Color.clear
@@ -293,6 +409,12 @@ struct ChatInputField: View {
         .animation(.snappy(duration: 0.3), value: isCompact)
         .animation(.easeInOut(duration: Duration.fast), value: isFocused)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
+        .animation(.easeInOut(duration: Duration.fast), value: isPlanDropdownOpen)
+        .onChange(of: isCompact) { _, compact in
+            if compact {
+                isPlanDropdownOpen = false
+            }
+        }
         .onAppear {
             isFocused = true
         }
@@ -302,23 +424,16 @@ struct ChatInputField: View {
 // MARK: - Model Selector
 
 struct ModelSelector: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     @Binding var selectedModel: AIModel
     @Binding var selectedThinkMode: ThinkMode
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
+    let isPlanMode: Bool
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
-            // Model dropdown
+        HStack(spacing: 8) {
             Menu {
                 ForEach(AIModel.allModels) { model in
                     Button {
                         selectedModel = model
-                        // Reset think mode if model doesn't support it
                         if !model.supportsThinking && selectedThinkMode != .none {
                             selectedThinkMode = .none
                         }
@@ -327,22 +442,21 @@ struct ModelSelector: View {
                     }
                 }
             } label: {
-                HStack(spacing: Spacing.sm) {
+                HStack(spacing: 8) {
                     Image(systemName: selectedModel.iconName)
-                        .font(.system(size: IconSize.sm))
+                        .font(.system(size: 14))
                     Text(selectedModel.name)
-                        .font(Typography.bodySmall)
+                        .font(GeistFont.sans(size: 12, weight: .medium))
                 }
-                .foregroundStyle(colors.mutedForeground)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.sm)
-                .background(colors.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                .foregroundStyle(Color(hex: "8A8A8A"))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
 
-            // Think mode dropdown (only show if model supports thinking)
+            Rectangle()
+                .fill(Color(hex: "333333"))
+                .frame(width: 1, height: 16)
+
             if selectedModel.supportsThinking {
                 Menu {
                     ForEach(ThinkMode.allCases) { mode in
@@ -354,7 +468,7 @@ struct ModelSelector: View {
                                     Text(mode.name)
                                     Text(mode.description)
                                         .font(Typography.caption)
-                                        .foregroundStyle(colors.mutedForeground)
+                                        .foregroundStyle(Color(hex: "A3A3A3"))
                                 }
                             } icon: {
                                 Image(systemName: mode.iconName)
@@ -362,20 +476,32 @@ struct ModelSelector: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: Spacing.xs) {
+                    HStack(spacing: 8) {
                         Image(systemName: selectedThinkMode.iconName)
-                            .font(.system(size: IconSize.sm))
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(hex: "F59E0B"))
                         Text(selectedThinkMode.name)
-                            .font(Typography.bodySmall)
+                            .font(GeistFont.sans(size: 12, weight: .medium))
+                            .foregroundStyle(Color(hex: "A3A3A3"))
                     }
-                    .foregroundStyle(selectedThinkMode == .none ? colors.mutedForeground : colors.info)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.sm)
-                    .background(selectedThinkMode == .none ? colors.muted : colors.info.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
+            }
+
+            if isPlanMode {
+                Rectangle()
+                    .fill(Color(hex: "333333"))
+                    .frame(width: 1, height: 16)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "map")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "3B82F6"))
+                    Text("Plan")
+                        .font(GeistFont.sans(size: 12, weight: .medium))
+                        .foregroundStyle(Color(hex: "93B4F6"))
+                }
             }
         }
     }
@@ -383,9 +509,10 @@ struct ModelSelector: View {
 
 // MARK: - Chat Message View
 
-private enum ChatMessageRenderBlock: Identifiable {
+enum ChatMessageRenderBlock: Identifiable {
     case content(MessageContent)
     case standaloneTools([ToolUse])
+    case parallelAgents([SubAgentActivity])
 
     var id: String {
         switch self {
@@ -394,7 +521,56 @@ private enum ChatMessageRenderBlock: Identifiable {
         case .standaloneTools(let tools):
             let identity = tools.map { $0.toolUseId ?? $0.id.uuidString }.joined(separator: "|")
             return "tools:\(identity)"
+        case .parallelAgents(let activities):
+            let identity = activities.map(\.parentToolUseId).joined(separator: "|")
+            return "parallel:\(identity)"
         }
+    }
+}
+
+enum ChatMessageRenderPlanner {
+    static func renderBlocks(from displayContent: [MessageContent], isUser: Bool) -> [ChatMessageRenderBlock] {
+        var blocks: [ChatMessageRenderBlock] = []
+        var pendingStandaloneTools: [ToolUse] = []
+        var pendingSubAgents: [SubAgentActivity] = []
+
+        func flushPendingTools() {
+            guard !pendingStandaloneTools.isEmpty else { return }
+            blocks.append(.standaloneTools(pendingStandaloneTools))
+            pendingStandaloneTools.removeAll(keepingCapacity: true)
+        }
+
+        func flushPendingSubAgents() {
+            guard !pendingSubAgents.isEmpty else { return }
+            blocks.append(.parallelAgents(pendingSubAgents))
+            pendingSubAgents.removeAll(keepingCapacity: true)
+        }
+
+        for content in displayContent {
+            if !isUser, case .fileChange = content {
+                continue
+            }
+
+            if case .toolUse(let toolUse) = content {
+                flushPendingSubAgents()
+                pendingStandaloneTools.append(toolUse)
+                continue
+            }
+
+            if case .subAgentActivity(let activity) = content {
+                flushPendingTools()
+                pendingSubAgents.append(activity)
+                continue
+            }
+
+            flushPendingTools()
+            flushPendingSubAgents()
+            blocks.append(.content(content))
+        }
+
+        flushPendingTools()
+        flushPendingSubAgents()
+        return blocks
     }
 }
 
@@ -477,31 +653,7 @@ struct ChatMessageView: View {
     }
 
     private var renderBlocks: [ChatMessageRenderBlock] {
-        var blocks: [ChatMessageRenderBlock] = []
-        var pendingStandaloneTools: [ToolUse] = []
-
-        func flushPendingTools() {
-            guard !pendingStandaloneTools.isEmpty else { return }
-            blocks.append(.standaloneTools(pendingStandaloneTools))
-            pendingStandaloneTools.removeAll()
-        }
-
-        for content in displayContent {
-            if !isUser, case .fileChange = content {
-                continue
-            }
-
-            if case .toolUse(let toolUse) = content {
-                pendingStandaloneTools.append(toolUse)
-                continue
-            }
-
-            flushPendingTools()
-            blocks.append(.content(content))
-        }
-
-        flushPendingTools()
-        return blocks
+        ChatMessageRenderPlanner.renderBlocks(from: displayContent, isUser: isUser)
     }
 
     private var isUser: Bool {
@@ -531,6 +683,8 @@ struct ChatMessageView: View {
                         )
                     case .standaloneTools(let tools):
                         StandaloneToolCallsView(historyTools: tools)
+                    case .parallelAgents(let activities):
+                        ParallelAgentsView(activities: activities)
                     }
                 }
 
@@ -622,7 +776,7 @@ struct MessageContentView: View {
             ToolViewRouter(toolUse: toolUse)
 
         case .subAgentActivity(let activity):
-            SubAgentView(activity: activity)
+            ParallelAgentsView(activities: [activity])
 
         case .error(let error):
             ErrorContentView(error: error)

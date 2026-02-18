@@ -201,4 +201,48 @@ final class SessionDetailMessageMapperTests: XCTestCase {
         XCTAssertEqual(result.decryptedMessageCount, 3)
         XCTAssertEqual(result.messages.map(\.content), ["first", "second", "third"])
     }
+
+    func testMapRowsKeepsStableSubAgentStatusAndResultAcrossRepeatedTaskUpdates() {
+        let completedTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_status_merge","name":"Task","status":"completed","input":{"subagent_type":"Explore","description":"Investigate parser parity"},"result":"Completed parser parity investigation"}]}}"#
+        let staleRunningTaskPayload = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_status_merge","name":"Task","status":"running","input":{"subagent_type":"Explore","description":"Investigate parser parity"}}]}}"#
+        let childToolPayload = #"{"type":"assistant","parent_tool_use_id":"task_status_merge","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_status_child","name":"Read","status":"completed","input":{"file_path":"MessageBubbleView.swift"},"result":"loaded 410 lines"}]}}"#
+
+        let rows = [
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 1,
+                createdAt: Date(timeIntervalSince1970: 10),
+                content: completedTaskPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 2,
+                createdAt: Date(timeIntervalSince1970: 20),
+                content: staleRunningTaskPayload
+            ),
+            SessionDetailPlaintextMessageRow(
+                id: UUID().uuidString,
+                sequenceNumber: 3,
+                createdAt: Date(timeIntervalSince1970: 30),
+                content: childToolPayload
+            ),
+        ]
+
+        let result = SessionDetailMessageMapper.mapRows(rows, totalMessageCount: rows.count)
+        XCTAssertEqual(result.messages.count, 1)
+
+        guard let blocks = result.messages.first?.parsedContent,
+              blocks.count == 1,
+              case .subAgentActivity(let activity) = blocks[0] else {
+            XCTFail("Expected one merged sub-agent block")
+            return
+        }
+
+        XCTAssertEqual(activity.parentToolUseId, "task_status_merge")
+        XCTAssertEqual(activity.status, .completed, "Completed status should not regress to running")
+        XCTAssertEqual(activity.result, "Completed parser parity investigation")
+        XCTAssertEqual(activity.tools.count, 1)
+        XCTAssertEqual(activity.tools.first?.toolUseId, "task_status_child")
+        XCTAssertEqual(activity.tools.first?.status, .completed)
+    }
 }

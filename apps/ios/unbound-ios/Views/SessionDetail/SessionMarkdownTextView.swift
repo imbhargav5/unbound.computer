@@ -6,7 +6,7 @@
 //  Adapted from macOS MarkdownTextView using iOS AppTheme tokens.
 //
 
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import SwiftUI
 
 // MARK: - Markdown Block Types

@@ -204,6 +204,12 @@ struct RepositoryGroup: View {
         locations.mainDirectorySessions + locations.worktreeSessions.flatMap { $0.sessions }
     }
 
+    /// Highlights only the repository that owns the selected conversation session.
+    private var hasSelectedSession: Bool {
+        guard let selectedSessionId else { return false }
+        return allSessions.contains { $0.id == selectedSessionId }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Repository header row
@@ -221,7 +227,7 @@ struct RepositoryGroup: View {
 
                         Image(systemName: "terminal")
                             .font(.system(size: 14))
-                            .foregroundStyle(colors.primary)
+                            .foregroundStyle(hasSelectedSession ? colors.primary : colors.foreground)
 
                         Text(repository.name)
                             .font(Typography.sidebarProject)
@@ -245,9 +251,10 @@ struct RepositoryGroup: View {
                         }
                     }
                     .padding(.trailing, Spacing.xs + IconSize.sm)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .fullRowHitTarget()
 
                 // New session button
                 Button {

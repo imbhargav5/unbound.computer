@@ -81,7 +81,10 @@ enum ClaudeTimelineMessageMapper {
             toolUseId: tool.toolUseId,
             parentToolUseId: tool.parentToolUseId,
             toolName: tool.name,
-            summary: toolSummary(name: tool.name, input: tool.input)
+            summary: toolSummary(name: tool.name, input: tool.input),
+            status: mapStatus(tool.status),
+            input: tool.input,
+            output: tool.resultText
         )
     }
 
@@ -91,8 +94,21 @@ enum ClaudeTimelineMessageMapper {
             parentToolUseId: subAgent.parentToolUseId,
             subagentType: subAgent.subagentType,
             description: subAgent.description,
-            tools: tools
+            tools: tools,
+            status: mapStatus(subAgent.status),
+            result: subAgent.result
         )
+    }
+
+    private static func mapStatus(_ status: ClaudeToolCallStatus) -> SessionToolStatus {
+        switch status {
+        case .running:
+            return .running
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
     }
 
     private static func toolSummary(name: String, input: String?) -> String {

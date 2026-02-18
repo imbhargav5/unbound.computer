@@ -123,6 +123,36 @@ final class ChatMessageGroupingTests: XCTestCase {
         XCTAssertTrue(subAgent?.tools.first?.input?.contains("ARCHITECTURE.md") == true)
     }
 
+    func testStandaloneToolsRemainStandaloneWhenSubAgentGroupingOccurs() {
+        let taskJson = """
+        {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"task_keep","name":"Task","input":{"subagent_type":"Explore","description":"Search codebase"}}]}}
+        """
+        let childTool = """
+        {"type":"assistant","parent_tool_use_id":"task_keep","message":{"role":"assistant","content":[{"type":"tool_use","id":"child_keep","name":"Read","input":{"file_path":"README.md"}}]}}
+        """
+        let standaloneTool = """
+        {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"standalone_keep","name":"Bash","input":{"command":"swift test"}}]}}
+        """
+
+        let messages = parseMessages([taskJson, childTool, standaloneTool])
+        let grouped = ChatMessageGrouper.groupSubAgentTools(messages: messages)
+
+        XCTAssertEqual(grouped.count, 2, "Task + child should condense, standalone tool message should remain")
+
+        let subAgent = firstSubAgent(in: grouped)
+        XCTAssertNotNil(subAgent)
+        XCTAssertEqual(subAgent?.tools.compactMap(\.toolUseId), ["child_keep"])
+
+        let standaloneToolUses = grouped
+            .flatMap(\.content)
+            .compactMap { content -> ToolUse? in
+                guard case .toolUse(let toolUse) = content else { return nil }
+                return toolUse
+            }
+
+        XCTAssertEqual(standaloneToolUses.compactMap(\.toolUseId), ["standalone_keep"])
+    }
+
     private func parseMessages(_ jsonMessages: [String]) -> [ChatMessage] {
         jsonMessages.enumerated().compactMap { index, json in
             let daemonMessage = DaemonMessage(

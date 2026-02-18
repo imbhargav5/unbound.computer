@@ -11,7 +11,16 @@ struct StandaloneToolCallsView: View {
     let tools: [SessionToolUse]
     var defaultExpanded: Bool = false
     var showToolStatusLabels: Bool = false
-    var statusForTool: (SessionToolUse) -> ToolCallVisualStatus = { _ in .completed }
+    var statusForTool: (SessionToolUse) -> ToolCallVisualStatus = { tool in
+        switch tool.status {
+        case .running:
+            return .running
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
+    }
 
     @State private var isExpanded: Bool
 
@@ -19,7 +28,16 @@ struct StandaloneToolCallsView: View {
         tools: [SessionToolUse],
         defaultExpanded: Bool = false,
         showToolStatusLabels: Bool = false,
-        statusForTool: @escaping (SessionToolUse) -> ToolCallVisualStatus = { _ in .completed }
+        statusForTool: @escaping (SessionToolUse) -> ToolCallVisualStatus = { tool in
+            switch tool.status {
+            case .running:
+                return .running
+            case .completed:
+                return .completed
+            case .failed:
+                return .failed
+            }
+        }
     ) {
         self.tools = tools
         self.defaultExpanded = defaultExpanded
@@ -103,7 +121,9 @@ private enum StandaloneToolCallsPreviewData {
         SessionToolUse(
             toolUseId: "single-1",
             toolName: "Bash",
-            summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj"
+            summary: "xcodebuild -project apps/ios/unbound-ios.xcodeproj",
+            status: .running,
+            input: "{\"command\":\"xcodebuild -project apps/ios/unbound-ios.xcodeproj\"}"
         ),
     ]
 
@@ -111,7 +131,10 @@ private enum StandaloneToolCallsPreviewData {
         SessionToolUse(
             toolUseId: "single-2",
             toolName: "Read",
-            summary: "Read SessionContentBlock.swift"
+            summary: "Read SessionContentBlock.swift",
+            status: .completed,
+            input: "{\"file_path\":\"SessionContentBlock.swift\"}",
+            output: "Loaded 160 lines"
         ),
     ]
 
@@ -119,7 +142,10 @@ private enum StandaloneToolCallsPreviewData {
         SessionToolUse(
             toolUseId: "single-3",
             toolName: "WebFetch",
-            summary: "Fetch parser contract from docs endpoint and normalize wrapped payload content"
+            summary: "Fetch parser contract from docs endpoint and normalize wrapped payload content",
+            status: .failed,
+            input: "{\"url\":\"https://example.com/parser-contract\"}",
+            output: "HTTP 500"
         ),
     ]
 
@@ -127,17 +153,25 @@ private enum StandaloneToolCallsPreviewData {
         SessionToolUse(
             toolUseId: "multi-1",
             toolName: "Read",
-            summary: "Read SessionDetailMessageMapper.swift"
+            summary: "Read SessionDetailMessageMapper.swift",
+            status: .completed,
+            input: "{\"file_path\":\"SessionDetailMessageMapper.swift\"}",
+            output: "Loaded mapper logic"
         ),
         SessionToolUse(
             toolUseId: "multi-2",
             toolName: "Write",
-            summary: "Write SessionDetail behavior documentation"
+            summary: "Write SessionDetail behavior documentation",
+            status: .running,
+            input: "{\"file_path\":\"SessionDetail/PARSER_CONTRACT.md\"}"
         ),
         SessionToolUse(
             toolUseId: "multi-3",
             toolName: "Grep",
-            summary: "Grep tool_result error handling branches"
+            summary: "Grep tool_result error handling branches",
+            status: .failed,
+            input: "{\"pattern\":\"tool_result\"}",
+            output: "No matches in malformed fixture"
         ),
     ]
 
@@ -145,12 +179,18 @@ private enum StandaloneToolCallsPreviewData {
         SessionToolUse(
             toolUseId: "multi-4",
             toolName: "Read",
-            summary: "Read SessionMessagePayloadParser.swift"
+            summary: "Read SessionMessagePayloadParser.swift",
+            status: .completed,
+            input: "{\"file_path\":\"SessionMessagePayloadParser.swift\"}",
+            output: "Loaded parser status helper"
         ),
         SessionToolUse(
             toolUseId: "multi-5",
             toolName: "Write",
-            summary: "Write parser state documentation"
+            summary: "Write parser state documentation",
+            status: .completed,
+            input: "{\"file_path\":\"docs/parser-states.md\"}",
+            output: "Wrote 64 lines"
         ),
     ]
 

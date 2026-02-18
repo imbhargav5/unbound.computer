@@ -8,18 +8,12 @@
 import SwiftUI
 
 struct ToolUseView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let toolUse: ToolUse
     @State private var isExpanded: Bool
 
     init(toolUse: ToolUse, initiallyExpanded: Bool = false) {
         self.toolUse = toolUse
         _isExpanded = State(initialValue: initiallyExpanded)
-    }
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
     }
 
     private var parser: ToolInputParser {
@@ -39,22 +33,70 @@ struct ToolUseView: View {
             ?? parser.url
     }
 
+    private var detailsText: String? {
+        if let output = toolUse.output?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty {
+            return output
+        }
+        if let input = toolUse.input?.trimmingCharacters(in: .whitespacesAndNewlines), !input.isEmpty {
+            return input
+        }
+        return nil
+    }
+
     private var hasDetails: Bool {
-        (toolUse.input?.isEmpty == false) || (toolUse.output?.isEmpty == false)
+        detailsText != nil
     }
 
     private var toolIcon: String {
         ToolIcon.icon(for: toolUse.toolName)
     }
 
-    private var cardBorderColor: Color {
+    private var statusName: String {
         switch toolUse.status {
-        case .running:
-            return Color(hex: "F59E0B30")
-        case .completed:
-            return Color(hex: "2A2A2A")
-        case .failed:
-            return Color(hex: "F8714930")
+        case .running: return "Running"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
+        }
+    }
+
+    private var statusColor: Color {
+        switch toolUse.status {
+        case .running: return Color(hex: "4A4A4A")
+        case .completed: return Color(hex: "4A4A4A")
+        case .failed: return Color(hex: "EF4444")
+        }
+    }
+
+    private var detailLineCount: Int {
+        guard let detailsText else { return 0 }
+        return max(1, detailsText.components(separatedBy: .newlines).count)
+    }
+
+    private var headerIconColor: Color {
+        isExpanded ? Color(hex: "F59E0B") : Color(hex: "6B6B6B")
+    }
+
+    private var headerTitleColor: Color {
+        isExpanded ? Color(hex: "E5E5E5") : Color(hex: "A0A0A0")
+    }
+
+    @ViewBuilder
+    private var leadingChevronWhenExpanded: some View {
+        if hasDetails, isExpanded {
+            Image(systemName: "chevron.down")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(Color(hex: "6B6B6B"))
+                .frame(width: 12, height: 12)
+        }
+    }
+
+    @ViewBuilder
+    private var trailingChevronWhenCollapsed: some View {
+        if hasDetails, !isExpanded {
+            Image(systemName: "chevron.right")
+                .font(.system(size: IconSize.xs))
+                .foregroundStyle(Color(hex: "6B6B6B"))
+                .frame(width: 12, height: 12)
         }
     }
 
@@ -68,21 +110,24 @@ struct ToolUseView: View {
                 }
             } label: {
                 HStack(alignment: .center, spacing: Spacing.sm) {
-                    HStack(spacing: Spacing.sm) {
+                    HStack(alignment: .center, spacing: Spacing.sm) {
+                        leadingChevronWhenExpanded
+
                         Image(systemName: toolIcon)
-                            .font(.system(size: IconSize.sm))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: 16, height: 16)
+                            .font(.system(size: 12))
+                            .foregroundStyle(headerIconColor)
+                            .frame(width: 14, height: 14)
 
                         Text(actionText)
-                            .font(Typography.code)
-                            .foregroundStyle(colors.foreground)
+                            .font(Typography.terminal)
+                            .fontWeight(.medium)
+                            .foregroundStyle(headerTitleColor)
                             .lineLimit(1)
 
                         if let subtitle, !subtitle.isEmpty {
                             Text(subtitle)
-                                .font(Typography.caption)
-                                .foregroundStyle(colors.mutedForeground)
+                                .font(Typography.mono)
+                                .foregroundStyle(Color(hex: "6B6B6B"))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -91,15 +136,10 @@ struct ToolUseView: View {
                     Spacer()
 
                     Text(statusName)
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
+                        .font(Typography.mono)
                         .foregroundStyle(statusColor)
 
-                    if hasDetails {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: IconSize.xs))
-                            .foregroundStyle(colors.mutedForeground)
-                    }
+                    trailingChevronWhenCollapsed
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -108,42 +148,23 @@ struct ToolUseView: View {
             }
             .buttonStyle(.plain)
 
-            if isExpanded && hasDetails {
+            if isExpanded, let detailsText {
                 VStack(alignment: .leading, spacing: Spacing.md) {
-                    if let input = toolUse.input, !input.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Input")
-                                .font(Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(colors.mutedForeground)
-
-                            ScrollView {
-                                Text(input)
-                                    .font(Typography.code)
-                                    .foregroundStyle(colors.textMuted)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .frame(maxHeight: 120)
-                        }
+                    ScrollView {
+                        Text(detailsText)
+                            .font(Typography.mono)
+                            .foregroundStyle(Color(hex: "8A8A8A"))
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxHeight: 180)
 
-                    if let output = toolUse.output, !output.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Output")
-                                .font(Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(colors.mutedForeground)
-
-                            ScrollView {
-                                Text(output)
-                                    .font(Typography.code)
-                                    .foregroundStyle(colors.textMuted)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .frame(maxHeight: 180)
-                        }
+                    HStack {
+                        Spacer()
+                        Text("\(detailLineCount) line\(detailLineCount == 1 ? "" : "s")")
+                            .font(Typography.micro)
+                            .foregroundStyle(Color(hex: "4A4A4A"))
                     }
                 }
                 .padding(.horizontal, 12)
@@ -160,24 +181,8 @@ struct ToolUseView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(cardBorderColor, lineWidth: BorderWidth.default)
+                .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
         )
-    }
-
-    private var statusName: String {
-        switch toolUse.status {
-        case .running: return "Running"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        }
-    }
-
-    private var statusColor: Color {
-        switch toolUse.status {
-        case .running: return colors.info
-        case .completed: return colors.success
-        case .failed: return colors.destructive
-        }
     }
 }
 

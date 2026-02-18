@@ -10,7 +10,7 @@ In scope:
 - `ClaudeMessageParser` behavior for assistant/user/result/system payloads.
 - `SessionLiveState` handling for active tools, sub-agents, tool results, and terminal result transitions.
 - `ChatMessageGrouper` behavior for child-tool attachment and dedupe.
-- Typed UI rendering through `SubAgentView`, `StandaloneToolCallsView`, and tool row components.
+- Typed UI rendering through `ParallelAgentsView`, `StandaloneToolCallsView`, and tool row components.
 
 Out of scope:
 - Daemon protocol/schema changes.
@@ -33,6 +33,7 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 | `assistant` with `tool_use` | Emits `.toolUse` or `.subAgentActivity` (`Task`) | Tool/sub-agent cards render from typed models |
 | child tool before `Task` parent | Queued then attached when parent appears | No orphan child card when parent arrives |
 | duplicate `tool_use_id` update | Latest update wins | No duplicate cards, no stale status |
+| consecutive `subAgentActivity` blocks | Batched into a single parallel group render block | One grouped Parallel Agents card |
 | `user` with `tool_result` success | Matched tool becomes `.completed` | Running indicator clears |
 | `user` with `tool_result` error | Matched tool becomes `.failed` | Failed state shown |
 | `result` success | Hidden as message; running tools finalize to completed in live state | No stale running after turn ends |
@@ -54,11 +55,11 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 
 | Typed state | Rendering entry point |
 | --- | --- |
-| `MessageContent.subAgentActivity` | `SubAgentView(activity:)` |
-| active `ActiveSubAgent` | `SubAgentView(activeSubAgent:)` |
+| `MessageContent.subAgentActivity` | `ParallelAgentsView(activities:)` (grouped render block) |
+| active `ActiveSubAgent` | `ParallelAgentsView(activeSubAgents:)` |
 | grouped standalone `ToolUse` | `StandaloneToolCallsView(historyTools:)` |
 | active standalone `ActiveTool` | `StandaloneToolCallsView(activeTools:)` |
-| tool row details | `ToolUseView` / `ToolViewRouter` |
+| tool row details | `ParallelAgentToolRowView` / `ToolUseView` / `ToolViewRouter` |
 | parser errors | `ErrorContentView` |
 
 ## Fixture Workflow
@@ -77,7 +78,7 @@ Regenerate from local SQLite (run at repo root):
 ## Preview Workflow (Design Iteration)
 
 Primary preview surfaces:
-- `SubAgentView` preview matrix (active/historical, completed/failed, expanded/collapsed)
+- `ParallelAgentsView` preview matrix (completed/running/failed, collapsed/expanded states)
 - `StandaloneToolCallsView` preview matrix (single/multi, running/completed/failed, expanded/collapsed)
 - `ToolUseView` preview matrix (expanded/collapsed, success/failure)
 - `SessionDetailView` scenario previews (fixture + synthetic variants)

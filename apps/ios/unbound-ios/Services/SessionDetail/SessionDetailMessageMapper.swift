@@ -308,7 +308,9 @@ enum SessionDetailMessageMapper {
             parentToolUseId: existing.parentToolUseId,
             subagentType: resolvedSubagentType,
             description: resolvedDescription,
-            tools: mergeTools(existing: existing.tools, incoming: incoming.tools)
+            tools: mergeTools(existing: existing.tools, incoming: incoming.tools),
+            status: mergedStatus(existing: existing.status, incoming: incoming.status),
+            result: mergedResult(existing: existing.result, incoming: incoming.result)
         )
     }
 
@@ -329,6 +331,21 @@ enum SessionDetailMessageMapper {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized.isEmpty || normalized == "unknown" || normalized == "general-purpose"
             || normalized == "general purpose" || normalized == "general"
+    }
+
+    private static func mergedStatus(existing: SessionToolStatus, incoming: SessionToolStatus) -> SessionToolStatus {
+        if existing != .running && incoming == .running {
+            return existing
+        }
+        return incoming
+    }
+
+    private static func mergedResult(existing: String?, incoming: String?) -> String? {
+        let trimmedIncoming = incoming?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedIncoming, !trimmedIncoming.isEmpty {
+            return trimmedIncoming
+        }
+        return existing
     }
 
     private static func mergeTools(existing: [SessionToolUse], incoming: [SessionToolUse]) -> [SessionToolUse] {

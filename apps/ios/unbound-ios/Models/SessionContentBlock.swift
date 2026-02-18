@@ -7,25 +7,40 @@
 
 import Foundation
 
+enum SessionToolStatus: String, Hashable {
+    case running
+    case completed
+    case failed
+}
+
 struct SessionToolUse: Identifiable, Hashable {
     let id: UUID
     let toolUseId: String?
     let parentToolUseId: String?
     let toolName: String
     let summary: String
+    let status: SessionToolStatus
+    let input: String?
+    let output: String?
 
     init(
         id: UUID = UUID(),
         toolUseId: String? = nil,
         parentToolUseId: String? = nil,
         toolName: String,
-        summary: String
+        summary: String,
+        status: SessionToolStatus = .completed,
+        input: String? = nil,
+        output: String? = nil
     ) {
         self.id = id
         self.toolUseId = toolUseId
         self.parentToolUseId = parentToolUseId
         self.toolName = toolName
         self.summary = summary
+        self.status = status
+        self.input = input
+        self.output = output
     }
 
     var icon: String {
@@ -51,19 +66,25 @@ struct SessionSubAgentActivity: Identifiable, Hashable {
     let subagentType: String
     let description: String
     var tools: [SessionToolUse]
+    var status: SessionToolStatus
+    var result: String?
 
     init(
         id: UUID = UUID(),
         parentToolUseId: String,
         subagentType: String,
         description: String,
-        tools: [SessionToolUse] = []
+        tools: [SessionToolUse] = [],
+        status: SessionToolStatus = .completed,
+        result: String? = nil
     ) {
         self.id = id
         self.parentToolUseId = parentToolUseId
         self.subagentType = subagentType
         self.description = description
         self.tools = tools
+        self.status = status
+        self.result = result
     }
 
     var displayName: String {

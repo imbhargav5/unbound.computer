@@ -11,7 +11,7 @@ enum ClaudeTimelineChatMessageMapper {
     private static let toolEnvelopeBlockTypes: Set<String> = ["tool_result", "tool_use"]
 
     static func mapEntries(_ entries: [ClaudeConversationTimelineEntry]) -> [ChatMessage] {
-        entries.compactMap { entry in
+        let mappedMessages: [ChatMessage] = entries.compactMap { entry -> ChatMessage? in
             let content = mapBlocks(entry.blocks)
             guard !content.isEmpty else { return nil }
 
@@ -38,6 +38,10 @@ enum ClaudeTimelineChatMessageMapper {
                 sequenceNumber: entry.sequence ?? 0
             )
         }
+
+        // Re-associate child tool calls with their Task parent across message boundaries.
+        // This keeps the UI reactive when tool events arrive out of order.
+        return ChatMessageGrouper.groupSubAgentTools(messages: mappedMessages)
     }
 
     private static func mapBlocks(_ blocks: [ClaudeConversationBlock]) -> [MessageContent] {

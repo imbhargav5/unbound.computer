@@ -96,15 +96,88 @@ public struct ClaudeSubAgentBlock: Equatable, Sendable {
     }
 }
 
+public struct ClaudeResultUsage: Equatable, Sendable {
+    public let inputTokens: Int?
+    public let outputTokens: Int?
+    public let cacheReadInputTokens: Int?
+    public let cacheCreationInputTokens: Int?
+
+    public init(
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cacheReadInputTokens: Int?,
+        cacheCreationInputTokens: Int?
+    ) {
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cacheReadInputTokens = cacheReadInputTokens
+        self.cacheCreationInputTokens = cacheCreationInputTokens
+    }
+
+    public var totalTokens: Int? {
+        let values = [
+            inputTokens,
+            outputTokens,
+            cacheReadInputTokens,
+            cacheCreationInputTokens,
+        ].compactMap { $0 }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +)
+    }
+}
+
+public struct ClaudeResultMetrics: Equatable, Sendable {
+    public let stopReason: String?
+    public let subtype: String?
+    public let numTurns: Int?
+    public let totalCostUSD: Double?
+    public let durationMs: Int?
+    public let durationApiMs: Int?
+    public let usage: ClaudeResultUsage?
+
+    public init(
+        stopReason: String?,
+        subtype: String?,
+        numTurns: Int?,
+        totalCostUSD: Double?,
+        durationMs: Int?,
+        durationApiMs: Int?,
+        usage: ClaudeResultUsage?
+    ) {
+        self.stopReason = stopReason
+        self.subtype = subtype
+        self.numTurns = numTurns
+        self.totalCostUSD = totalCostUSD
+        self.durationMs = durationMs
+        self.durationApiMs = durationApiMs
+        self.usage = usage
+    }
+
+    public var bestDurationMs: Int? {
+        durationMs ?? durationApiMs
+    }
+
+    public var outcomeLabel: String? {
+        stopReason ?? subtype
+    }
+}
+
 public struct ClaudeResultBlock: Equatable, Sendable {
     public let isError: Bool
     public let text: String?
     public let permissionDenials: [String]
+    public let metrics: ClaudeResultMetrics?
 
-    public init(isError: Bool, text: String?, permissionDenials: [String]) {
+    public init(
+        isError: Bool,
+        text: String?,
+        permissionDenials: [String],
+        metrics: ClaudeResultMetrics? = nil
+    ) {
         self.isError = isError
         self.text = text
         self.permissionDenials = permissionDenials
+        self.metrics = metrics
     }
 }
 

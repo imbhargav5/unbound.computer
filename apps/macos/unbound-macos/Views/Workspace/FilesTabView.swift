@@ -27,7 +27,7 @@ struct FilesTabView: View {
                         emptyStateView
                     } else {
                         ForEach(viewModel.allFilesTree) { item in
-                            FilesTreeRow(
+                            FilesTabRow(
                                 item: item,
                                 level: 0,
                                 viewModel: viewModel,
@@ -39,6 +39,7 @@ struct FilesTabView: View {
                     emptyStateView
                 }
             }
+            .padding(.vertical, 8)
         }
     }
 
@@ -72,28 +73,20 @@ struct FilesTabView: View {
     }
 }
 
-// MARK: - Files Tree Row
+// MARK: - Files Tab Row
 
-struct FilesTreeRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-
+private struct FilesTabRow: View {
     let item: FileItem
     let level: Int
     var viewModel: FileTreeViewModel?
     var onFileSelected: (FileItem) -> Void
 
-    @State private var isHovered: Bool = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    private var isSelected: Bool {
-        viewModel?.selectedFilePath == item.path
-    }
-
     private var isExpanded: Bool {
         viewModel?.isExpanded(item.path) ?? false
+    }
+
+    private var isDimmed: Bool {
+        item.name == "node_modules" || item.name == ".git"
     }
 
     var body: some View {
@@ -101,9 +94,7 @@ struct FilesTreeRow: View {
             Button {
                 if item.hasChildren {
                     let willExpand = !(viewModel?.isExpanded(item.path) ?? false)
-                    withAnimation(.easeInOut(duration: Duration.default)) {
-                        viewModel?.toggleExpanded(item.path)
-                    }
+                    viewModel?.toggleExpanded(item.path)
                     if willExpand && item.isDirectory && !item.childrenLoaded {
                         Task {
                             await viewModel?.loadChildren(for: item.path)
@@ -113,59 +104,42 @@ struct FilesTreeRow: View {
                     onFileSelected(item)
                 }
             } label: {
-                HStack(spacing: Spacing.sm) {
-                    // Chevron for folders
+                HStack(spacing: 6) {
+                    // Chevron (folders) or spacer (files)
                     if item.hasChildren {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: IconSize.xs, weight: .semibold))
-                            .foregroundStyle(colors.mutedForeground)
-                            .frame(width: IconSize.xs)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color(hex: "6B6B6B"))
+                            .frame(width: 12, height: 12)
                     } else {
                         Color.clear
-                            .frame(width: IconSize.xs)
+                            .frame(width: 12, height: 12)
                     }
 
-                    // File/folder icon
-                    Image(systemName: item.type.iconName)
-                        .font(.system(size: IconSize.sm))
-                        .foregroundStyle(item.type.iconColor(colors))
+                    // Folder/file icon
+                    Image(systemName: item.isDirectory ? (isExpanded ? "folder.fill" : "folder") : "doc.text")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isDimmed ? Color(hex: "555555") : Color(hex: "6B6B6B"))
+                        .frame(width: 14, height: 14)
 
                     // Name
                     Text(item.name)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
+                        .font(GeistFont.sans(size: 12, weight: .regular))
+                        .foregroundStyle(isDimmed ? Color(hex: "555555") : Color(hex: "CCCCCC"))
                         .lineLimit(1)
-
-                    Spacer()
-
-                    // Git status indicator
-                    if item.gitStatus != .unchanged {
-                        Text(item.gitStatus.indicator)
-                            .font(Typography.micro)
-                            .foregroundStyle(item.gitStatus.color(colors))
-                            .padding(.trailing, Spacing.xs)
-                    }
                 }
-                .padding(.leading, CGFloat(level) * Spacing.lg + Spacing.md)
-                .padding(.trailing, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .fullRowHitTarget()
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.sm)
-                        .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
-                )
+                .padding(.leading, 16 + CGFloat(level) * 16)
+                .padding(.trailing, 16)
+                .frame(height: 26)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isHovered = hovering
-                }
-            }
 
             // Children
             if isExpanded && item.hasChildren {
                 ForEach(item.children) { child in
-                    FilesTreeRow(
+                    FilesTabRow(
                         item: child,
                         level: level + 1,
                         viewModel: viewModel,

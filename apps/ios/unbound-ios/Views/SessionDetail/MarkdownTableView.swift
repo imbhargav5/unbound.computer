@@ -5,7 +5,7 @@
 //  Markdown table parser and renderer for iOS session chat.
 //
 
-import ClaudeConversationTimeline
+import MobileClaudeCodeConversationTimeline
 import SwiftUI
 
 // MARK: - Table View
