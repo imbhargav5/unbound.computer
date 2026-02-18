@@ -231,17 +231,11 @@ struct SyncedDeviceRowView: View {
                         .foregroundStyle(AppTheme.textTertiary)
                 }
 
-                if let summary = device.capabilitiesSummary {
-                    Text(summary)
-                        .font(Typography.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                }
             }
 
             Spacer()
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "gearshape")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AppTheme.textTertiary)
         }
