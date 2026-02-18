@@ -118,6 +118,8 @@ Both sidecars are stateless and crash-safe -- the daemon tracks unacknowledged e
 
 The daemon also captures sidecar stdout/stderr streams and forwards them through the observability pipeline for unified log search.
 
+When configured, `daemon-ably` also forwards presence heartbeats to the Durable Object ingress (`UNBOUND_PRESENCE_DO_*`) while the legacy Ably heartbeat stream remains available during migration.
+
 ## Tech Stack
 
 **Daemon (Rust)**

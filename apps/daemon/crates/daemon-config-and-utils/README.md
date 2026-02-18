@@ -12,6 +12,7 @@ Provides foundational components that other crates depend on, avoiding circular 
 - **Web app URL**: compile-time override for daemon web calls (`UNBOUND_WEB_APP_URL`)
 - **Paths**: XDG-compliant directory management
 - **Logging**: Unified tracing/logging setup
+- **Presence DO heartbeat**: compile-time envs for presence ingest
 - **Conversation crypto**: shared ChaCha20-Poly1305 helpers for message payloads
 - **Hybrid crypto**: X25519 + ChaCha20-Poly1305 encryption
 - **Git operations**: Status, diff, log, branch management
@@ -55,6 +56,14 @@ Environment-driven config used by the daemon and other Rust services:
 - `UNBOUND_OBS_INFO_SAMPLE_RATE`: info sampling rate
 - `UNBOUND_OBS_WARN_SAMPLE_RATE`: warn sampling rate
 - `UNBOUND_OBS_ERROR_SAMPLE_RATE`: error sampling rate
+
+## Presence DO Configuration
+
+Compile-time configuration for daemon presence heartbeats:
+
+- `UNBOUND_PRESENCE_DO_HEARTBEAT_URL`: heartbeat ingest endpoint
+- `UNBOUND_PRESENCE_DO_TOKEN`: optional bearer token for ingest auth
+- `UNBOUND_PRESENCE_DO_TTL_MS`: TTL used by DO payloads (default 12000ms)
 
 ## Web App URL Configuration
 
