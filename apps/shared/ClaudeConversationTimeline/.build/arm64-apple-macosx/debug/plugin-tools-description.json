@@ -1,57 +1,47 @@
 {
-  "builtTestProducts" : [
-
-  ],
-  "copyCommands" : {
-
+  "builtTestProducts": [],
+  "copyCommands": {},
+  "explicitTargetDependencyImportCheckingMode": {
+    "none": {}
   },
-  "explicitTargetDependencyImportCheckingMode" : {
-    "none" : {
-
-    }
-  },
-  "generatedSourceTargetSet" : [
-
-  ],
-  "pluginDescriptions" : [
-
-  ],
-  "swiftCommands" : {
-    "C.ClaudeConversationTimeline-arm64-apple-macosx15.0-debug.module" : {
-      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
-      "fileList" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources",
-      "importPath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules",
-      "inputs" : [
+  "generatedSourceTargetSet": [],
+  "pluginDescriptions": [],
+  "swiftCommands": {
+    "C.ClaudeConversationTimeline-arm64-apple-macosx15.0-debug.module": {
+      "executable": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources",
+      "importPath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules",
+      "inputs": [
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources"
         }
       ],
-      "isLibrary" : true,
-      "moduleName" : "ClaudeConversationTimeline",
-      "moduleOutputPath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules/ClaudeConversationTimeline.swiftmodule",
-      "objects" : [
+      "isLibrary": true,
+      "moduleName": "ClaudeConversationTimeline",
+      "moduleOutputPath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules/ClaudeConversationTimeline.swiftmodule",
+      "objects": [
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.swift.o",
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.swift.o",
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.swift.o"
       ],
-      "otherArguments" : [
+      "otherArguments": [
         "-target",
         "arm64-apple-macosx14.0",
         "-incremental",
@@ -106,40 +96,38 @@
         "-package-name",
         "claudeconversationtimeline"
       ],
-      "outputFileMapPath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/output-file-map.json",
-      "outputs" : [
+      "outputFileMapPath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/output-file-map.json",
+      "outputs": [
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.swift.o"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeCodingSessionState.swift.o"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.swift.o"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineModels.swift.o"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.swift.o"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/ClaudeConversationTimelineParser.swift.o"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules/ClaudeConversationTimeline.swiftmodule"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/Modules/ClaudeConversationTimeline.swiftmodule"
         }
       ],
-      "prepareForIndexing" : false,
-      "sources" : [
+      "prepareForIndexing": false,
+      "sources": [
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift",
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift",
         "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift"
       ],
-      "tempsPath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build",
-      "wholeModuleOptimization" : false
+      "tempsPath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build",
+      "wholeModuleOptimization": false
     }
   },
-  "swiftFrontendCommands" : {
-
-  },
-  "swiftTargetScanArgs" : {
-    "ClaudeConversationTimeline" : [
+  "swiftFrontendCommands": {},
+  "swiftTargetScanArgs": {
+    "ClaudeConversationTimeline": [
       "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
       "-module-name",
       "ClaudeConversationTimeline",
@@ -208,58 +196,50 @@
       "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
     ]
   },
-  "targetDependencyMap" : {
-    "ClaudeConversationTimeline" : [
-
-    ]
+  "targetDependencyMap": {
+    "ClaudeConversationTimeline": []
   },
-  "testDiscoveryCommands" : {
-
+  "testDiscoveryCommands": {},
+  "testEntryPointCommands": {},
+  "traitConfiguration": {
+    "default": {}
   },
-  "testEntryPointCommands" : {
-
-  },
-  "traitConfiguration" : {
-    "default" : {
-
-    }
-  },
-  "writeCommands" : {
-    "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources" : {
-      "alwaysOutOfDate" : false,
-      "inputs" : [
+  "writeCommands": {
+    "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources": {
+      "alwaysOutOfDate": false,
+      "inputs": [
         {
-          "kind" : "virtual",
-          "name" : "<sources-file-list>"
+          "kind": "virtual",
+          "name": "<sources-file-list>"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeCodingSessionState.swift"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineModels.swift"
         },
         {
-          "kind" : "file",
-          "name" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift"
+          "kind": "file",
+          "name": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/Sources/ClaudeConversationTimeline/ClaudeConversationTimelineParser.swift"
         }
       ],
-      "outputFilePath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources"
+      "outputFilePath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/ClaudeConversationTimeline.build/sources"
     },
-    "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
-      "alwaysOutOfDate" : true,
-      "inputs" : [
+    "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt": {
+      "alwaysOutOfDate": true,
+      "inputs": [
         {
-          "kind" : "virtual",
-          "name" : "<swift-get-version>"
+          "kind": "virtual",
+          "name": "<swift-get-version>"
         },
         {
-          "kind" : "file",
-          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+          "kind": "file",
+          "name": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
         }
       ],
-      "outputFilePath" : "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+      "outputFilePath": "/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/apps/shared/ClaudeConversationTimeline/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
     }
   }
 }

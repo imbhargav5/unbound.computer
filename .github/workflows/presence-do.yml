@@ -1,0 +1,61 @@
+name: Durable Object Tests
+concurrency:
+  group: presence-do-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - main
+
+jobs:
+  durable-object-tests:
+    name: durable-object-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect durable object related changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            durable_object:
+              - "packages/presence-do-worker/**"
+              - "packages/presence-do/**"
+              - "apps/web/src/app/api/v1/daemon/presence/heartbeat/**"
+              - "apps/web/src/app/api/v1/mobile/presence/**"
+              - "apps/web/src/lib/presence/**"
+              - ".github/actions/ci-setup/**"
+              - ".github/workflows/presence-do.yml"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - "package.json"
+              - "turbo.json"
+
+      - name: Install shell dependencies
+        if: steps.changes.outputs.durable_object == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
+      - uses: ./.github/actions/ci-setup
+        if: steps.changes.outputs.durable_object == 'true'
+
+      - name: Typecheck Durable Object worker
+        if: steps.changes.outputs.durable_object == 'true'
+        run: pnpm --filter @unbound/presence-do-worker typecheck
+
+      - name: Test Durable Object worker
+        if: steps.changes.outputs.durable_object == 'true'
+        run: pnpm --filter @unbound/presence-do-worker test
+
+      - name: Skip Durable Object worker checks
+        if: steps.changes.outputs.durable_object != 'true'
+        run: |
+          echo "No Durable Object-related files changed; skipping @unbound/presence-do-worker checks."

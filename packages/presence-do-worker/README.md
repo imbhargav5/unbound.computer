@@ -36,6 +36,7 @@ The worker deploys to `https://unbound-presence-do.<subdomain>.workers.dev`.
 | `PRESENCE_DO_TOKEN_SIGNING_KEY` | Secret | HMAC-SHA256 key for signing/verifying presence stream tokens |
 | `PRESENCE_DO_INGEST_TOKEN` | Secret | Bearer token for authenticating daemon heartbeat ingestion |
 | `ENVIRONMENT` | `wrangler.toml` | Set to `"production"` to disable debug endpoint |
+| `PRESENCE_DO_KEEPALIVE_FLUSH_MS` | Optional env var | Flush interval for batching pure online keep-alive writes (default: `30000`) |
 
 ## Endpoints
 
@@ -92,6 +93,17 @@ curl -s "https://unbound-presence-do.<subdomain>.workers.dev/debug/presence?user
 {
   "active_streams": 0,
   "alarm": "2026-02-18T00:00:12.000Z",
+  "cache_loaded": true,
+  "dirty_devices": ["<device-uuid>"],
+  "next_flush_ms": 1739030430000,
+  "next_expiry_ms": 1739030412000,
+  "next_alarm_ms": 1739030412000,
+  "stats": {
+    "storage_puts_total": 3,
+    "set_alarm_total": 2,
+    "delete_alarm_total": 0,
+    "list_records_total": 4
+  },
   "records": {
     "device:<device-uuid>": {
       "schema_version": 1,
@@ -116,7 +128,8 @@ Each user gets their own Durable Object instance (keyed by `user_id`). The DO:
 
 1. Stores per-device presence records in KV storage
 2. Broadcasts updates to connected SSE streams
-3. Sets alarms to auto-mark devices as `"offline"` when heartbeats stop (after `ttl_ms`)
+3. Batches pure online keep-alive writes in memory and flushes on `PRESENCE_DO_KEEPALIVE_FLUSH_MS`
+4. Sets alarms to auto-mark devices as `"offline"` when heartbeats stop (after `ttl_ms`)
 
 ### Request flow
 

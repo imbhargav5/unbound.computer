@@ -655,9 +655,8 @@ struct ChatPanel: View {
                 Text("Terminal")
                     .font(
                         GeistFont.sans(
-                                size: TerminalFooterTabTokens.tabFontSize,
-                                weight: TerminalFooterTabTokens.tabFontWeight
-                            )
+                            size: TerminalFooterTabTokens.tabFontSize,
+                            weight: TerminalFooterTabTokens.tabFontWeight
                         )
                     )
                     .tracking(TerminalFooterTabTokens.tabLetterSpacing)

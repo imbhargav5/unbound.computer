@@ -84,7 +84,9 @@
           "type": "user",
           "parent_tool_use_id": "tool_parent_1",
           "message": {
-            "content": [{ "type": "text", "text": "Find files related to crypto" }]
+            "content": [
+              { "type": "text", "text": "Find files related to crypto" }
+            ]
           }
         }
       ],

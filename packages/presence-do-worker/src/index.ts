@@ -8,6 +8,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const DEFAULT_KEEPALIVE_FLUSH_MS = 30_000;
 
 interface PresencePayload {
   schema_version: number;
@@ -35,11 +36,19 @@ interface PresenceTokenPayload {
   issued_at_ms: number;
 }
 
+interface PresenceDebugStats {
+  storage_puts_total: number;
+  set_alarm_total: number;
+  delete_alarm_total: number;
+  list_records_total: number;
+}
+
 interface Env {
   PRESENCE_DO: DurableObjectNamespace;
   PRESENCE_DO_TOKEN_SIGNING_KEY: string;
   PRESENCE_DO_INGEST_TOKEN: string;
   ENVIRONMENT: string;
+  PRESENCE_DO_KEEPALIVE_FLUSH_MS?: string;
 }
 
 function jsonResponse(
@@ -63,6 +72,14 @@ function normalizeIdentifier(value: string | undefined | null) {
 
 function isUuid(value: string) {
   return uuidRegex.test(value);
+}
+
+function parseKeepAliveFlushMs(value: string | undefined) {
+  const parsed = Number.parseInt((value ?? "").trim(), 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return DEFAULT_KEEPALIVE_FLUSH_MS;
 }
 
 function base64UrlToBytes(input: string): Uint8Array {
@@ -97,7 +114,7 @@ async function verifyPresenceToken(
   const ok = await crypto.subtle.verify(
     "HMAC",
     key,
-    signatureBytes,
+    signatureBytes as unknown as BufferSource,
     encoder.encode(payloadPart)
   );
   if (!ok) return null;
@@ -125,7 +142,20 @@ function logEvent(event: string, data?: Record<string, unknown>) {
   console.log(JSON.stringify(payload));
 }
 
-function validatePresencePayload(input: unknown) {
+interface PresencePayloadValidationSuccess {
+  ok: true;
+  payload: PresencePayload;
+}
+
+interface PresencePayloadValidationFailure {
+  ok: false;
+  error: "invalid_payload";
+  details: string;
+}
+
+function validatePresencePayload(
+  input: unknown
+): PresencePayloadValidationSuccess | PresencePayloadValidationFailure {
   if (!input || typeof input !== "object") {
     return {
       ok: false,
@@ -293,14 +323,31 @@ export default {
 export class PresenceDurableObject {
   private state: DurableObjectState;
   private env: Env;
+  private keepAliveFlushMs: number;
   private streams = new Map<
     string,
     ReadableStreamDefaultController<Uint8Array>
   >();
 
+  private recordsByDevice = new Map<string, PresenceStorageRecord>();
+  private dirtyKeepAlive = new Set<string>();
+  private flushDeadlineByDevice = new Map<string, number>();
+  private cacheLoaded = false;
+  private currentAlarmMs: number | null = null;
+
+  private stats: PresenceDebugStats = {
+    storage_puts_total: 0,
+    set_alarm_total: 0,
+    delete_alarm_total: 0,
+    list_records_total: 0,
+  };
+
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+    this.keepAliveFlushMs = parseKeepAliveFlushMs(
+      env.PRESENCE_DO_KEEPALIVE_FLUSH_MS
+    );
   }
 
   async fetch(request: Request) {
@@ -329,13 +376,17 @@ export class PresenceDurableObject {
   }
 
   async alarm() {
+    await this.ensureCacheLoaded();
+    // The scheduled alarm has just fired; clear in-memory marker before recalculation.
+    this.currentAlarmMs = null;
     const now = Date.now();
-    const records = await this.listDeviceRecords();
 
-    for (const record of records.values()) {
+    await this.flushDueKeepAlive(now);
+
+    for (const [deviceId, record] of this.recordsByDevice.entries()) {
       if (
         record.status === "online" &&
-        now - record.last_heartbeat_ms > record.ttl_ms
+        now - record.last_heartbeat_ms >= record.ttl_ms
       ) {
         const updated: PresenceStorageRecord = {
           ...record,
@@ -343,11 +394,14 @@ export class PresenceDurableObject {
           last_offline_ms: now,
           updated_at_ms: now,
         };
-        await this.state.storage.put(this.deviceKey(record.device_id), updated);
+        this.recordsByDevice.set(deviceId, updated);
+        this.clearDirty(deviceId);
+        await this.persistRecord(updated);
         this.broadcast(this.toStreamPayload(updated, now));
       }
     }
-    await this.scheduleNextAlarm();
+
+    await this.reconcileAlarm();
   }
 
   private async handleHeartbeat(request: Request) {
@@ -393,10 +447,10 @@ export class PresenceDurableObject {
       );
     }
 
+    await this.ensureCacheLoaded();
+
     const payload = validation.payload;
-    const recordKey = this.deviceKey(payload.device_id);
-    const existing =
-      await this.state.storage.get<PresenceStorageRecord>(recordKey);
+    const existing = this.recordsByDevice.get(payload.device_id);
     if (
       existing &&
       payload.seq <= existing.seq &&
@@ -424,9 +478,17 @@ export class PresenceDurableObject {
       updated_at_ms: now,
     };
 
-    await this.state.storage.put(recordKey, record);
+    this.recordsByDevice.set(payload.device_id, record);
+
+    if (this.isKeepAlive(existing, payload)) {
+      this.markKeepAliveDirty(payload.device_id, now);
+    } else {
+      this.clearDirty(payload.device_id);
+      await this.persistRecord(record);
+    }
+
     this.broadcast(this.toStreamPayload(record, payload.sent_at_ms));
-    await this.scheduleNextAlarm();
+    await this.reconcileAlarm();
 
     logEvent("presence.do.heartbeat.accepted", {
       user_id: payload.user_id,
@@ -511,11 +573,11 @@ export class PresenceDurableObject {
           });
         });
 
-        const records = await this.listDeviceRecords();
-        for (const record of records.values()) {
+        await this.ensureCacheLoaded();
+        for (const record of this.recordsByDevice.values()) {
           controller.enqueue(
             encoder.encode(
-              `data: ${JSON.stringify(this.toStreamPayload(record, record.updated_at_ms))}\n\n`
+              `data: ${JSON.stringify(this.toStreamPayload(record))}\n\n`
             )
           );
         }
@@ -543,36 +605,162 @@ export class PresenceDurableObject {
   }
 
   private async handleDebug() {
-    const records = await this.listDeviceRecords();
+    await this.ensureCacheLoaded();
+
+    const records = await this.listPersistedDeviceRecords();
     const entries: Record<string, PresenceStorageRecord> = {};
     for (const [key, value] of records.entries()) {
       entries[key] = value;
     }
+
     const alarm = await this.state.storage.getAlarm();
+    this.currentAlarmMs = alarm ?? null;
+
     return jsonResponse(
       {
         active_streams: this.streams.size,
         alarm: alarm ? new Date(alarm).toISOString() : null,
         records: entries,
+        cache_loaded: this.cacheLoaded,
+        dirty_devices: [...this.dirtyKeepAlive.values()].sort(),
+        next_flush_ms: this.computeNextFlushMs(),
+        next_expiry_ms: this.computeNextExpiryMs(),
+        next_alarm_ms: this.computeNextAlarmMs(),
+        stats: this.stats,
       },
       200
     );
+  }
+
+  private isKeepAlive(
+    existing: PresenceStorageRecord | undefined,
+    payload: PresencePayload
+  ) {
+    return Boolean(
+      existing &&
+        existing.status === "online" &&
+        payload.status === "online" &&
+        payload.ttl_ms === existing.ttl_ms &&
+        payload.source === existing.source
+    );
+  }
+
+  private markKeepAliveDirty(deviceId: string, now: number) {
+    this.dirtyKeepAlive.add(deviceId);
+    if (!this.flushDeadlineByDevice.has(deviceId)) {
+      this.flushDeadlineByDevice.set(deviceId, now + this.keepAliveFlushMs);
+    }
+  }
+
+  private clearDirty(deviceId: string) {
+    this.dirtyKeepAlive.delete(deviceId);
+    this.flushDeadlineByDevice.delete(deviceId);
   }
 
   private deviceKey(deviceId: string) {
     return `device:${deviceId}`;
   }
 
-  private async listDeviceRecords() {
-    const records = await this.state.storage.list<PresenceStorageRecord>({
+  private async ensureCacheLoaded() {
+    if (this.cacheLoaded) {
+      return;
+    }
+
+    const records = await this.listPersistedDeviceRecords();
+    for (const record of records.values()) {
+      this.recordsByDevice.set(record.device_id, record);
+    }
+
+    this.currentAlarmMs = (await this.state.storage.getAlarm()) ?? null;
+    this.cacheLoaded = true;
+  }
+
+  private async listPersistedDeviceRecords() {
+    this.stats.list_records_total += 1;
+    return this.state.storage.list<PresenceStorageRecord>({
       prefix: "device:",
     });
-    return records;
+  }
+
+  private async persistRecord(record: PresenceStorageRecord) {
+    this.stats.storage_puts_total += 1;
+    await this.state.storage.put(this.deviceKey(record.device_id), record);
+  }
+
+  private async flushDueKeepAlive(now: number) {
+    for (const [deviceId, deadline] of Array.from(
+      this.flushDeadlineByDevice.entries()
+    )) {
+      if (deadline > now) continue;
+
+      const record = this.recordsByDevice.get(deviceId);
+      this.clearDirty(deviceId);
+      if (!record) continue;
+
+      await this.persistRecord(record);
+    }
+  }
+
+  private computeNextExpiryMs() {
+    let nextExpiry: number | null = null;
+
+    for (const record of this.recordsByDevice.values()) {
+      if (record.status !== "online") continue;
+
+      const expiry = record.last_heartbeat_ms + record.ttl_ms;
+      if (nextExpiry === null || expiry < nextExpiry) {
+        nextExpiry = expiry;
+      }
+    }
+
+    return nextExpiry;
+  }
+
+  private computeNextFlushMs() {
+    let nextFlush: number | null = null;
+
+    for (const deadline of this.flushDeadlineByDevice.values()) {
+      if (nextFlush === null || deadline < nextFlush) {
+        nextFlush = deadline;
+      }
+    }
+
+    return nextFlush;
+  }
+
+  private computeNextAlarmMs() {
+    const nextExpiry = this.computeNextExpiryMs();
+    const nextFlush = this.computeNextFlushMs();
+
+    if (nextExpiry === null) return nextFlush;
+    if (nextFlush === null) return nextExpiry;
+    return Math.min(nextExpiry, nextFlush);
+  }
+
+  private async setAlarmIfNeeded(target: number | null) {
+    if (target === null) {
+      if (this.currentAlarmMs !== null) {
+        await this.state.storage.deleteAlarm();
+        this.stats.delete_alarm_total += 1;
+        this.currentAlarmMs = null;
+      }
+      return;
+    }
+
+    if (this.currentAlarmMs === null || target < this.currentAlarmMs) {
+      await this.state.storage.setAlarm(target);
+      this.stats.set_alarm_total += 1;
+      this.currentAlarmMs = target;
+    }
+  }
+
+  private async reconcileAlarm() {
+    await this.setAlarmIfNeeded(this.computeNextAlarmMs());
   }
 
   private toStreamPayload(
     record: PresenceStorageRecord,
-    sentAtMs: number
+    sentAtMs = record.sent_at_ms
   ): PresencePayload {
     return {
       schema_version: record.schema_version,
@@ -594,23 +782,6 @@ export class PresenceDurableObject {
       } catch {
         this.streams.delete(id);
       }
-    }
-  }
-
-  private async scheduleNextAlarm() {
-    const records = await this.listDeviceRecords();
-    let nextAlarm: number | null = null;
-
-    for (const record of records.values()) {
-      if (record.status !== "online") continue;
-      const alarmAt = record.last_heartbeat_ms + record.ttl_ms;
-      if (nextAlarm === null || alarmAt < nextAlarm) {
-        nextAlarm = alarmAt;
-      }
-    }
-
-    if (nextAlarm !== null) {
-      await this.state.storage.setAlarm(nextAlarm);
     }
   }
 }

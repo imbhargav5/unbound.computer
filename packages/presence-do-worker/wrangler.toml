@@ -15,3 +15,10 @@ class_name = "PresenceDurableObject"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["PresenceDurableObject"]
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = false
+invocation_logs = true

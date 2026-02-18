@@ -90,12 +90,8 @@ struct VSCodeChangeRow: View {
                     .foregroundStyle(statusColor)
                     .frame(width: IconSize.sm)
 
-                // File path (truncated from left if needed)
-                Text(file.path)
-                    .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
-                    .foregroundStyle(colors.foreground)
-                    .lineLimit(1)
-                    .truncationMode(.head)
+                // File path with dimmed directory, bright filename
+                formattedPath
 
                 Spacer(minLength: Spacing.sm)
 
@@ -131,6 +127,37 @@ struct VSCodeChangeRow: View {
                     .foregroundStyle(colors.diffDeletion)
             }
         }
+    }
+
+    private var formattedPath: some View {
+        let components = file.path.split(separator: "/", omittingEmptySubsequences: true)
+        let fileName = String(components.last ?? Substring(file.path))
+        let dirPath: String
+
+        if components.count <= 1 {
+            dirPath = ""
+        } else {
+            let fullDir = components.dropLast().joined(separator: "/") + "/"
+            if file.path.count > 60, components.count > 2 {
+                let topFolder = String(components.first!)
+                let parentFolder = String(components[components.count - 2])
+                dirPath = "\(topFolder)/.../\(parentFolder)/"
+            } else {
+                dirPath = fullDir
+            }
+        }
+
+        return HStack(spacing: 0) {
+            if !dirPath.isEmpty {
+                Text(dirPath)
+                    .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
+                    .foregroundStyle(colors.mutedForeground.opacity(0.4))
+            }
+            Text(fileName)
+                .font(GeistFont.mono(size: FontSize.sm, weight: .regular))
+                .foregroundStyle(colors.secondaryForeground)
+        }
+        .lineLimit(1)
     }
 
     private var statusColor: Color {
