@@ -24,7 +24,8 @@ pub const DEFAULT_WEB_APP_URL: &str = match option_env!("UNBOUND_WEB_APP_URL") {
 };
 
 /// Presence DO heartbeat URL (compile-time via UNBOUND_PRESENCE_DO_HEARTBEAT_URL env var).
-pub const PRESENCE_DO_HEARTBEAT_URL: Option<&str> = option_env!("UNBOUND_PRESENCE_DO_HEARTBEAT_URL");
+pub const PRESENCE_DO_HEARTBEAT_URL: Option<&str> =
+    option_env!("UNBOUND_PRESENCE_DO_HEARTBEAT_URL");
 
 /// Presence DO bearer token (compile-time via UNBOUND_PRESENCE_DO_TOKEN env var).
 pub const PRESENCE_DO_TOKEN: Option<&str> = option_env!("UNBOUND_PRESENCE_DO_TOKEN");

@@ -1,7 +1,9 @@
 //! daemon-ably sidecar process management utilities.
 
 use crate::app::falco_sidecar::terminate_child;
-use daemon_config_and_utils::{Paths, PRESENCE_DO_HEARTBEAT_URL, PRESENCE_DO_TOKEN, PRESENCE_DO_TTL_MS};
+use daemon_config_and_utils::{
+    Paths, PRESENCE_DO_HEARTBEAT_URL, PRESENCE_DO_TOKEN, PRESENCE_DO_TTL_MS,
+};
 use std::io::ErrorKind;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -83,7 +85,8 @@ pub fn spawn_daemon_ably_process(
             command.env("UNBOUND_PRESENCE_DO_TTL_MS", ttl);
         }
 
-        command.stdin(Stdio::null())
+        command
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
