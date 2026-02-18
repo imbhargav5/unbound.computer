@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import Logging
+import ClaudeConversationTimeline
 
 private let logger = Logger(label: "app.ui.chat")
 
