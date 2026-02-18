@@ -34,6 +34,8 @@ struct ChatPanel: View {
     @State private var seenMessageIds: Set<UUID> = []
     @State private var animateMessageIds: Set<UUID> = []
     @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
+    @State private var terminalTabs: [TerminalTab] = []
+    @State private var activeTerminalTabId: UUID?
 
     // Editor tab close/save dialog state
     @State private var pendingCloseTabId: UUID?
@@ -44,6 +46,12 @@ struct ChatPanel: View {
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
+    }
+
+    private struct TerminalTab: Identifiable, Equatable {
+        let id: UUID
+        var title: String
+        var workingDirectory: String
     }
 
     /// Whether an editor tab is currently selected (vs. the session/chat tab)
@@ -182,6 +190,11 @@ struct ChatPanel: View {
         )
     }
 
+    private var activeTerminalTab: TerminalTab? {
+        guard let activeTerminalTabId else { return nil }
+        return terminalTabs.first(where: { $0.id == activeTerminalTabId })
+    }
+
     private var latestCompletionSummary: SessionCompletionSummary? {
         liveState?.latestCompletionSummary
     }
@@ -241,6 +254,15 @@ struct ChatPanel: View {
             animateMessageIds.removeAll()
             renderInterval = nil
             isAtBottom = true
+            terminalTabs.removeAll()
+            activeTerminalTabId = nil
+            ensureTerminalTabState()
+        }
+        .onChange(of: workspacePath) { _, _ in
+            ensureTerminalTabState()
+        }
+        .onAppear {
+            ensureTerminalTabState()
         }
         .alert(
             liveState?.errorAlertTitle ?? "Error",
@@ -814,8 +836,8 @@ struct ChatPanel: View {
 
     private var terminalFooterContent: some View {
         Group {
-            if let path = workspacePath {
-                TerminalContainer(workingDirectory: path)
+            if let tab = activeTerminalTab {
+                TerminalContainer(tabId: tab.id, workingDirectory: tab.workingDirectory)
             } else {
                 Text("No workspace selected")
                     .font(Typography.body)
@@ -875,6 +897,75 @@ struct ChatPanel: View {
             .onEnded { _ in
                 footerDragStartHeight = 0
             }
+    }
+
+    private func ensureTerminalTabState() {
+        guard let path = workspacePath else {
+            terminalTabs.removeAll()
+            activeTerminalTabId = nil
+            return
+        }
+
+        if terminalTabs.isEmpty {
+            let initialTab = makeTerminalTab(workingDirectory: path)
+            terminalTabs = [initialTab]
+            activeTerminalTabId = initialTab.id
+            return
+        }
+
+        terminalTabs = terminalTabs.map { tab in
+            var updatedTab = tab
+            if updatedTab.workingDirectory.isEmpty {
+                updatedTab.workingDirectory = path
+            }
+            return updatedTab
+        }
+
+        if activeTerminalTab == nil, let firstTab = terminalTabs.first {
+            activeTerminalTabId = firstTab.id
+        }
+    }
+
+    private func makeTerminalTab(workingDirectory: String) -> TerminalTab {
+        TerminalTab(
+            id: UUID(),
+            title: "Terminal \(terminalTabs.count + 1)",
+            workingDirectory: workingDirectory
+        )
+    }
+
+    private func addTerminalTab() {
+        guard let path = workspacePath else { return }
+        let newTab = makeTerminalTab(workingDirectory: path)
+        terminalTabs.append(newTab)
+        activeTerminalTabId = newTab.id
+    }
+
+    private func selectTerminalTab(_ tabId: UUID) {
+        guard terminalTabs.contains(where: { $0.id == tabId }) else { return }
+        activeTerminalTabId = tabId
+    }
+
+    private func closeTerminalTab(_ tabId: UUID) {
+        guard let closingIndex = terminalTabs.firstIndex(where: { $0.id == tabId }) else { return }
+        let wasActive = activeTerminalTabId == tabId
+
+        terminalTabs.remove(at: closingIndex)
+
+        if terminalTabs.isEmpty {
+            guard let path = workspacePath else {
+                activeTerminalTabId = nil
+                return
+            }
+            let replacementTab = makeTerminalTab(workingDirectory: path)
+            terminalTabs = [replacementTab]
+            activeTerminalTabId = replacementTab.id
+            return
+        }
+
+        guard wasActive else { return }
+        let fallbackIndex = min(closingIndex, terminalTabs.count - 1)
+        activeTerminalTabId = terminalTabs[fallbackIndex].id
     }
 
     // MARK: - Tab Actions

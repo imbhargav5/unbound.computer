@@ -13,14 +13,17 @@ import SwiftTerm
 struct TerminalContainer: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    let tabId: UUID
     let workingDirectory: String
 
     var body: some View {
         let colors = ThemeColors(colorScheme)
         SwiftTerminalWrapper(
+            tabId: tabId,
             workingDirectory: workingDirectory,
             colorScheme: colorScheme
         )
+        .id(tabId)
         .background(colors.chatBackground)
     }
 }
@@ -28,6 +31,7 @@ struct TerminalContainer: View {
 // MARK: - SwiftTerm NSView Wrapper
 
 struct SwiftTerminalWrapper: NSViewRepresentable {
+    let tabId: UUID
     let workingDirectory: String
     let colorScheme: ColorScheme
 
@@ -55,6 +59,11 @@ struct SwiftTerminalWrapper: NSViewRepresentable {
         configureTerminalAppearance(terminal)
     }
 
+    static func dismantleNSView(_ terminal: LocalProcessTerminalView, coordinator: ()) {
+        // Gracefully ask the shell process to exit when a tab view is removed.
+        terminal.send(txt: "exit\n")
+    }
+
     private func configureTerminalAppearance(_ terminal: LocalProcessTerminalView) {
         terminal.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
@@ -76,7 +85,10 @@ struct SwiftTerminalWrapper: NSViewRepresentable {
 }
 
 #Preview {
-    TerminalContainer(workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
+    TerminalContainer(
+        tabId: UUID(),
+        workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path
+    )
         .frame(width: 600, height: 400)
 }
 
