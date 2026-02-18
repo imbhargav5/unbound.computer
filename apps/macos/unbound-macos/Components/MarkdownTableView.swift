@@ -351,16 +351,17 @@ struct MarkdownTableView: View {
                             colors: colors
                         )
                         if index < table.headers.count - 1 {
-                            Divider()
-                                .frame(height: 32)
-                                .background(colors.border)
+                            Rectangle()
+                                .fill(colors.border.opacity(0.7))
+                                .frame(width: BorderWidth.hairline, height: 28)
                         }
                     }
                 }
-                .background(colors.muted)
+                .background(colors.surface1)
 
-                Divider()
-                    .background(colors.border)
+                Rectangle()
+                    .fill(colors.border.opacity(0.7))
+                    .frame(height: BorderWidth.hairline)
 
                 // Data rows
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
@@ -373,24 +374,25 @@ struct MarkdownTableView: View {
                                 colors: colors
                             )
                             if colIndex < row.count - 1 {
-                                Divider()
-                                    .frame(height: 28)
-                                    .background(colors.border)
+                                Rectangle()
+                                    .fill(colors.border.opacity(0.5))
+                                    .frame(width: BorderWidth.hairline, height: 26)
                             }
                         }
                     }
-                    .background(rowIndex % 2 == 1 ? colors.muted.opacity(0.3) : Color.clear)
+                    .background(rowIndex % 2 == 1 ? colors.surface1.opacity(0.35) : Color.clear)
 
                     if rowIndex < table.rows.count - 1 {
-                        Divider()
-                            .background(colors.border.opacity(0.5))
+                        Rectangle()
+                            .fill(colors.border.opacity(0.5))
+                            .frame(height: BorderWidth.hairline)
                     }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(colors.border, lineWidth: BorderWidth.default)
+                    .stroke(colors.border.opacity(0.7), lineWidth: BorderWidth.hairline)
             )
         }
         .padding(.vertical, Spacing.sm)
@@ -406,13 +408,14 @@ private struct TableCell: View {
     let colors: ThemeColors
 
     var body: some View {
-        Text(InlineMarkdownParser.parse(content, baseFont: Typography.bodySmall, colors: colors))
-            .font(isHeader ? Typography.label : Typography.bodySmall)
+        let baseFont = isHeader ? Typography.label : Typography.bodySmall
+        Text(InlineMarkdownParser.parse(content, baseFont: baseFont, colors: colors))
+            .font(baseFont)
             .foregroundStyle(colors.foreground)
             .multilineTextAlignment(alignment.textAlignment)
             .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment.horizontalAlignment, vertical: .center))
             .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
             .textSelection(.enabled)
             .lineSpacing(Spacing.xxs)
     }
