@@ -101,6 +101,8 @@ struct ShadcnColors {
 
         // MARK: - Chat-specific
         static let chatBackground = Color(hex: "0F0F0F")  // Chat panel background
+        static let chatUserBubbleBackground = Color(hex: "2A2A2A")
+        static let chatUserBubbleBorder = Color(hex: "333333")
 
         // MARK: - Border Variants
         static let borderSecondary = Color(hex: "252525") // Terminal border
@@ -202,6 +204,8 @@ struct ShadcnColors {
         static let selectionBorder = Color(hex: "F59E0B40")
         static let hoverBackground = Color(hex: "E5E5E5")
         static let editorBackground = Color(hex: "FFFFFF")
+        static let chatUserBubbleBackground = Color(hex: "F2F2F2")
+        static let chatUserBubbleBorder = Color(hex: "D9D9D9")
     }
 }
 
@@ -389,6 +393,14 @@ struct ThemeColors {
 
     var chatBackground: Color {
         colorScheme == .dark ? ShadcnColors.Dark.chatBackground : ShadcnColors.Light.background
+    }
+
+    var chatUserBubbleBackground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.chatUserBubbleBackground : ShadcnColors.Light.chatUserBubbleBackground
+    }
+
+    var chatUserBubbleBorder: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.chatUserBubbleBorder : ShadcnColors.Light.chatUserBubbleBorder
     }
 
     var borderSecondary: Color {

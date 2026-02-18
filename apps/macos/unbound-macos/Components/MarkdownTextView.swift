@@ -470,7 +470,7 @@ struct MarkdownTextView: View {
 
         case .paragraph(let text):
             InlineMarkdownText(text, colors: colors, baseFont: Typography.body)
-                .foregroundStyle(colors.foreground)
+                .foregroundStyle(colors.textMuted)
 
         case .bulletList(let items):
             bulletListView(items: items)
@@ -517,7 +517,7 @@ struct MarkdownTextView: View {
                         .padding(.leading, CGFloat(item.indent) * Spacing.md)
 
                     InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
-                        .foregroundStyle(colors.foreground)
+                        .foregroundStyle(colors.textMuted)
                 }
             }
         }
@@ -535,7 +535,7 @@ struct MarkdownTextView: View {
                         .padding(.leading, CGFloat(item.indent) * Spacing.md)
 
                     InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
-                        .foregroundStyle(colors.foreground)
+                        .foregroundStyle(colors.textMuted)
                 }
             }
         }

@@ -22,17 +22,44 @@ struct ToolUseView: View {
         ThemeColors(colorScheme)
     }
 
+    private var parser: ToolInputParser {
+        ToolInputParser(toolUse.input)
+    }
+
     private var actionText: String {
-        ToolActivitySummary.actionLine(for: toolUse)?.text ?? toolUse.toolName
+        toolUse.toolName
+    }
+
+    private var subtitle: String? {
+        parser.filePath
+            ?? parser.pattern
+            ?? parser.commandDescription
+            ?? parser.command
+            ?? parser.query
+            ?? parser.url
     }
 
     private var hasDetails: Bool {
         (toolUse.input?.isEmpty == false) || (toolUse.output?.isEmpty == false)
     }
 
+    private var toolIcon: String {
+        ToolIcon.icon(for: toolUse.toolName)
+    }
+
+    private var cardBorderColor: Color {
+        switch toolUse.status {
+        case .running:
+            return Color(hex: "F59E0B30")
+        case .completed:
+            return Color(hex: "2A2A2A")
+        case .failed:
+            return Color(hex: "F8714930")
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             Button {
                 if hasDetails {
                     withAnimation(.easeInOut(duration: Duration.fast)) {
@@ -40,12 +67,26 @@ struct ToolUseView: View {
                     }
                 }
             } label: {
-                HStack(spacing: Spacing.sm) {
-                    Text(actionText)
-                        .font(Typography.caption)
-                        .foregroundStyle(colors.mutedForeground)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                HStack(alignment: .center, spacing: Spacing.sm) {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: toolIcon)
+                            .font(.system(size: IconSize.sm))
+                            .foregroundStyle(colors.mutedForeground)
+                            .frame(width: 16, height: 16)
+
+                        Text(actionText)
+                            .font(Typography.code)
+                            .foregroundStyle(colors.foreground)
+                            .lineLimit(1)
+
+                        if let subtitle, !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(Typography.caption)
+                                .foregroundStyle(colors.mutedForeground)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
 
                     Spacer()
 
@@ -55,23 +96,20 @@ struct ToolUseView: View {
                         .foregroundStyle(statusColor)
 
                     if hasDetails {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: IconSize.xs))
                             .foregroundStyle(colors.mutedForeground)
                     }
                 }
-                .padding(.vertical, Spacing.xs)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
                 .contentShape(Rectangle())
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 
-            // Details (if expanded)
             if isExpanded && hasDetails {
                 VStack(alignment: .leading, spacing: Spacing.md) {
-                    ShadcnDivider()
-
-                    // Input
                     if let input = toolUse.input, !input.isEmpty {
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Input")
@@ -82,19 +120,14 @@ struct ToolUseView: View {
                             ScrollView {
                                 Text(input)
                                     .font(Typography.code)
-                                    .foregroundStyle(colors.foreground)
+                                    .foregroundStyle(colors.textMuted)
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxHeight: 100)
-                            .padding(Spacing.sm)
-                            .background(colors.muted)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                            .frame(maxHeight: 120)
                         }
-                        .padding(.horizontal, Spacing.md)
                     }
 
-                    // Output
                     if let output = toolUse.output, !output.isEmpty {
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Output")
@@ -105,22 +138,30 @@ struct ToolUseView: View {
                             ScrollView {
                                 Text(output)
                                     .font(Typography.code)
-                                    .foregroundStyle(colors.foreground)
+                                    .foregroundStyle(colors.textMuted)
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxHeight: 150)
-                            .padding(Spacing.sm)
-                            .background(colors.muted)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                            .frame(maxHeight: 180)
                         }
-                        .padding(.horizontal, Spacing.md)
                     }
                 }
-                .padding(.bottom, Spacing.md)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color(hex: "0D0D0D"))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color(hex: "2A2A2A"))
+                        .frame(height: 1)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "111111"))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(cardBorderColor, lineWidth: BorderWidth.default)
+        )
     }
 
     private var statusName: String {

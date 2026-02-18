@@ -5,6 +5,7 @@
 //  Unified standalone tool-calls surface for live and historical states.
 //
 
+import Foundation
 import SwiftUI
 
 private enum StandaloneToolCallsPayload {
@@ -14,106 +15,52 @@ private enum StandaloneToolCallsPayload {
 
 struct StandaloneToolCallsView: View {
     private let payload: StandaloneToolCallsPayload
-    private let initiallyExpanded: Bool
 
     init(activeTools: [ActiveTool], initiallyExpanded: Bool = true) {
         self.payload = .active(activeTools)
-        self.initiallyExpanded = initiallyExpanded
+        _ = initiallyExpanded
     }
 
     init(historyTools: [ToolUse], initiallyExpanded: Bool = true) {
         self.payload = .historical(historyTools)
-        self.initiallyExpanded = initiallyExpanded
+        _ = initiallyExpanded
     }
 
-    var body: some View {
+    private var toolUses: [ToolUse] {
         switch payload {
         case .active(let tools):
-            ActiveToolsView(tools: tools, initiallyExpanded: initiallyExpanded)
+            return tools.map { tool in
+                let parserKey: String = switch tool.name {
+                case "Read", "Write", "Edit": "file_path"
+                case "Bash": "command"
+                case "Glob", "Grep": "pattern"
+                case "WebSearch": "query"
+                case "WebFetch": "url"
+                default: "description"
+                }
+                let payload = [parserKey: tool.inputPreview ?? ""]
+                let input = (try? JSONSerialization.data(withJSONObject: payload))
+                    .flatMap { String(data: $0, encoding: .utf8) }
 
+                return ToolUse(
+                    toolUseId: tool.id,
+                    toolName: tool.name,
+                    input: input,
+                    output: tool.output,
+                    status: tool.status
+                )
+            }
         case .historical(let tools):
-            HistoricalStandaloneToolCallsCard(tools: tools, initiallyExpanded: initiallyExpanded)
+            return tools
         }
-    }
-}
-
-private struct HistoricalStandaloneToolCallsCard: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let tools: [ToolUse]
-    @State private var isExpanded: Bool
-
-    init(tools: [ToolUse], initiallyExpanded: Bool = true) {
-        self.tools = tools
-        _isExpanded = State(initialValue: initiallyExpanded)
-    }
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    private var summaryText: String {
-        let actionLines = ToolActivitySummary.actionLines(for: tools)
-        if actionLines.isEmpty {
-            return "Tool activity"
-        }
-        if actionLines.count == 1, let line = actionLines.first {
-            return line.text
-        }
-        return "Ran \(actionLines.count) tool calls"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: Duration.fast)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(width: IconSize.sm, height: IconSize.sm)
-
-                    Text(summaryText)
-                        .font(Typography.bodySmall)
-                        .foregroundStyle(colors.foreground)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: IconSize.xs))
-                        .foregroundStyle(colors.mutedForeground)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
-                        ToolUseView(toolUse: tool)
-                            .padding(.horizontal, Spacing.md)
-
-                        if index < tools.count - 1 {
-                            ShadcnDivider()
-                                .padding(.horizontal, Spacing.md)
-                        }
-                    }
-                }
-                .padding(.bottom, Spacing.sm)
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(toolUses) { tool in
+                ToolViewRouter(toolUse: tool)
             }
         }
-        .background(colors.surface1)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.sm)
-                .stroke(colors.panelDivider, lineWidth: BorderWidth.hairline)
-        )
     }
 }
 

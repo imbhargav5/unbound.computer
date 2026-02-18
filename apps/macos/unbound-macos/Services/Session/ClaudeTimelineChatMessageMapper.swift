@@ -3,6 +3,13 @@ import CryptoKit
 import Foundation
 
 enum ClaudeTimelineChatMessageMapper {
+    private static let protocolTypes: Set<String> = [
+        "assistant", "mcq_response_command", "output_chunk", "result", "stream_event",
+        "streaming_generating", "streaming_thinking", "system", "terminal_output",
+        "tool_result", "user", "user_confirmation_command", "user_prompt_command"
+    ]
+    private static let toolEnvelopeBlockTypes: Set<String> = ["tool_result", "tool_use"]
+
     static func mapEntries(_ entries: [ClaudeConversationTimelineEntry]) -> [ChatMessage] {
         entries.compactMap { entry in
             let content = mapBlocks(entry.blocks)
@@ -16,6 +23,10 @@ enum ClaudeTimelineChatMessageMapper {
                 role = .assistant
             case .system, .result, .unknown:
                 role = .system
+            }
+
+            if role == .user, !hasVisibleUserText(content) {
+                return nil
             }
 
             return ChatMessage(
@@ -112,5 +123,68 @@ enum ClaudeTimelineChatMessageMapper {
             bytes[8], bytes[9], bytes[10], bytes[11],
             bytes[12], bytes[13], bytes[14], bytes[15]
         ))
+    }
+
+    private static func hasVisibleUserText(_ content: [MessageContent]) -> Bool {
+        content.contains { block in
+            guard case .text(let textContent) = block else { return false }
+            let trimmed = textContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return false }
+            return !looksLikeProtocolArtifact(trimmed) && !looksLikeSerializedToolEnvelope(trimmed)
+        }
+    }
+
+    private static func looksLikeProtocolArtifact(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else {
+            return false
+        }
+
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = (json["type"] as? String)?.lowercased() else {
+            return false
+        }
+
+        return protocolTypes.contains(type)
+    }
+
+    private static func looksLikeSerializedToolEnvelope(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else {
+            return false
+        }
+
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let normalized = trimmed.lowercased()
+            let hasTypeMarker = normalized.contains("\"type\"")
+            let hasToolMarkers = normalized.contains("\"tool_use\"")
+                || normalized.contains("\"tool_result\"")
+                || normalized.contains("\"tool_use_id\"")
+                || normalized.contains("\"raw_json\"")
+            return hasTypeMarker && hasToolMarkers
+        }
+
+        if json["raw_json"] as? String != nil {
+            return true
+        }
+
+        if let type = (json["type"] as? String)?.lowercased(),
+           protocolTypes.contains(type) {
+            return true
+        }
+
+        if let message = json["message"] as? [String: Any],
+           let contentBlocks = message["content"] as? [[String: Any]] {
+            return contentBlocks.contains { block in
+                guard let blockType = (block["type"] as? String)?.lowercased() else {
+                    return false
+                }
+                return toolEnvelopeBlockTypes.contains(blockType)
+            }
+        }
+
+        return false
     }
 }

@@ -7,155 +7,114 @@
 
 import SwiftUI
 
-struct SessionDetailView: View {
-    @Environment(\.colorScheme) private var colorScheme
+#if DEBUG
 
+struct SessionDetailView: View {
     let session: Session
     let messages: [ChatMessage]
     let sourceMessageCount: Int
 
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
+    @State private var chatInput = ""
+    @State private var selectedModel: AIModel = .opus
+    @State private var selectedThinkMode: ThinkMode = .none
+    @State private var isPlanMode = false
+
+    private let repository: Repository
+    private let previewAppState: AppState
+    private let previewEditorState: EditorState
+
+    init(session: Session, messages: [ChatMessage], sourceMessageCount: Int) {
+        self.session = session
+        self.messages = messages
+        self.sourceMessageCount = sourceMessageCount
+
+        let context = SessionDetailPreviewContext.make(session: session, messages: messages)
+        self.repository = context.repository
+        self.previewAppState = context.appState
+        self.previewEditorState = context.editorState
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ChatHeader(sessionTitle: session.displayTitle)
-            ShadcnDivider()
-
-            if messages.isEmpty {
-                emptyState
-            } else {
-                contentView
-            }
-        }
-        .background(colors.chatBackground)
-    }
-
-    private var contentView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    headerCard
-
-                    LazyVStack(spacing: 0) {
-                        ForEach(messages) { message in
-                            ChatMessageView(message: message)
-                                .id(message.id)
-                        }
-                    }
-
-                    Color.clear
-                        .frame(height: 1)
-                        .id("bottomAnchor")
-                }
-                .padding(.vertical, Spacing.lg)
-            }
-            .onAppear {
-                if let lastMessage = messages.last {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                }
-            }
-        }
-    }
-
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .center, spacing: Spacing.sm) {
-                Text("Session Detail")
-                    .font(Typography.h4)
-                    .foregroundStyle(colors.foreground)
-
-                Badge(session.status.rawValue.capitalized, variant: statusBadgeVariant)
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Session ID")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-
-                Text(session.id.uuidString.lowercased())
-                    .font(Typography.mono)
-                    .foregroundStyle(colors.foreground)
-                    .textSelection(.enabled)
-            }
-
-            HStack(spacing: Spacing.lg) {
-                statPill(title: "Rendered", value: "\(messages.count)")
-                statPill(title: "Source Rows", value: "\(sourceMessageCount)")
-            }
-
-            HStack(spacing: Spacing.sm) {
-                Text("Created")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                Text(session.createdAt, style: .date)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.foreground)
-
-                Text("•")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-
-                Text("Last Accessed")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground)
-                Text(session.lastAccessed, style: .relative)
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.foreground)
-            }
-        }
-        .padding(Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(colors.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(colors.border, lineWidth: BorderWidth.default)
+        ChatPanel(
+            session: session,
+            repository: repository,
+            chatInput: $chatInput,
+            selectedModel: $selectedModel,
+            selectedThinkMode: $selectedThinkMode,
+            isPlanMode: $isPlanMode,
+            editorState: previewEditorState
         )
-        .padding(.horizontal, Spacing.lg)
-    }
-
-    private func statPill(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xxs) {
-            Text(title)
+        .environment(previewAppState)
+        .overlay(alignment: .topLeading) {
+            Text("Preview: ChatPanel • rendered \(messages.count) / source \(sourceMessageCount)")
                 .font(Typography.micro)
-                .foregroundStyle(colors.mutedForeground)
-
-            Text(value)
-                .font(Typography.label)
-                .foregroundStyle(colors.foreground)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Radius.sm))
+                .padding(Spacing.sm)
         }
-        .padding(.horizontal, Spacing.sm)
-        .padding(.vertical, Spacing.xs)
-        .background(colors.muted)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-    }
-
-    private var statusBadgeVariant: Badge.BadgeVariant {
-        switch session.status {
-        case .active:
-            return .default
-        case .archived:
-            return .secondary
-        case .error:
-            return .destructive
-        }
-    }
-
-    private var emptyState: some View {
-        ContentUnavailableView(
-            "No Renderable Messages",
-            systemImage: "text.bubble",
-            description: Text("Fixture loaded, but no assistant/user timeline messages were parsed.")
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-#if DEBUG
+private struct SessionDetailPreviewContext {
+    let repository: Repository
+    let appState: AppState
+    let editorState: EditorState
+
+    static func make(session: Session, messages: [ChatMessage]) -> SessionDetailPreviewContext {
+        let repository = resolveRepository(for: session)
+
+        let appState = AppState()
+        appState.configureForPreview(
+            repositories: [repository],
+            sessions: [repository.id: [session]],
+            selectedRepositoryId: repository.id,
+            selectedSessionId: session.id
+        )
+
+        let liveState = SessionLiveState(sessionId: session.id)
+        liveState.configureForPreview(messages: messages)
+        appState.sessionStateManager.registerForPreview(sessionId: session.id, state: liveState)
+
+        let editorState = EditorState.preview()
+        return SessionDetailPreviewContext(
+            repository: repository,
+            appState: appState,
+            editorState: editorState
+        )
+    }
+
+    private static func resolveRepository(for session: Session) -> Repository {
+        if let existing = PreviewData.repositories.first(where: { $0.id == session.repositoryId }) {
+            return existing
+        }
+
+        if let fallback = PreviewData.repositories.first {
+            return Repository(
+                id: session.repositoryId,
+                path: fallback.path,
+                name: fallback.name,
+                lastAccessed: session.lastAccessed,
+                addedAt: fallback.addedAt,
+                isGitRepository: fallback.isGitRepository,
+                sessionsPath: fallback.sessionsPath,
+                defaultBranch: fallback.defaultBranch,
+                defaultRemote: fallback.defaultRemote
+            )
+        }
+
+        return Repository(
+            id: session.repositoryId,
+            path: FileManager.default.homeDirectoryForCurrentUser.path,
+            name: "Preview Repository",
+            lastAccessed: session.lastAccessed,
+            addedAt: session.createdAt,
+            isGitRepository: true
+        )
+    }
+}
+
 private struct SessionDetailScenarioPreview: View {
     let scenario: SessionDetailPreviewScenario
 
@@ -309,6 +268,18 @@ private struct SessionDetailFixtureErrorView: View {
 
 #Preview("Session Detail - Fixture Max") {
     SessionDetailScenarioPreview(scenario: .fixtureMax)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Fixture Max (Light)") {
+    SessionDetailScenarioPreview(scenario: .fixtureMax)
+        .preferredColorScheme(.light)
+        .frame(width: 960, height: 700)
+}
+
+#Preview("Session Detail - Fixture Max (Dark)") {
+    SessionDetailScenarioPreview(scenario: .fixtureMax)
+        .preferredColorScheme(.dark)
         .frame(width: 960, height: 700)
 }
 

@@ -63,6 +63,42 @@
           }
         }
       ],
+      "expect": { "entryCount": 0 }
+    },
+    {
+      "id": "user_prompt_command_text",
+      "description": "User prompt command message should map to user text entry",
+      "events": [
+        {
+          "type": "user_prompt_command",
+          "message": "Ship this fix now."
+        }
+      ],
+      "expect": { "roles": ["user"], "blockTypes": ["text"] }
+    },
+    {
+      "id": "user_text_with_parent_tool_hidden",
+      "description": "User-role tool envelope prompt with parent tool id should be suppressed",
+      "events": [
+        {
+          "type": "user",
+          "parent_tool_use_id": "tool_parent_1",
+          "message": {
+            "content": [{ "type": "text", "text": "Find files related to crypto" }]
+          }
+        }
+      ],
+      "expect": { "entryCount": 0 }
+    },
+    {
+      "id": "user_top_level_message_text",
+      "description": "Top-level user message string should render as user text",
+      "events": [
+        {
+          "type": "user",
+          "message": "actual user text"
+        }
+      ],
       "expect": { "roles": ["user"], "blockTypes": ["text"] }
     },
     {
@@ -394,8 +430,8 @@
         }
       ],
       "expect": {
-        "roles": ["assistant", "user"],
-        "blockTypes": ["toolCall", "text"]
+        "roles": ["assistant"],
+        "blockTypes": ["toolCall"]
       }
     }
   ]

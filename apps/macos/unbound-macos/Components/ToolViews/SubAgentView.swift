@@ -2,9 +2,10 @@
 //  SubAgentView.swift
 //  unbound-macos
 //
-//  Unified sub-agent surface for live and historical states.
+//  Card-based sub-agent rendering that mirrors timeline design nodes.
 //
 
+import Foundation
 import SwiftUI
 
 private enum SubAgentPayload {
@@ -13,95 +14,277 @@ private enum SubAgentPayload {
 }
 
 struct SubAgentView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     private let payload: SubAgentPayload
-    private let initiallyExpanded: Bool
+    @State private var isExpanded: Bool
 
     init(activeSubAgent: ActiveSubAgent, initiallyExpanded: Bool = true) {
         self.payload = .active(activeSubAgent)
-        self.initiallyExpanded = initiallyExpanded
+        _isExpanded = State(initialValue: initiallyExpanded)
     }
 
     init(activity: SubAgentActivity, initiallyExpanded: Bool = false) {
         self.payload = .historical(activity)
-        self.initiallyExpanded = initiallyExpanded
+        _isExpanded = State(initialValue: initiallyExpanded)
+    }
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var subagentType: String {
+        switch payload {
+        case .active(let subAgent):
+            return subAgent.subagentType
+        case .historical(let activity):
+            return activity.subagentType
+        }
+    }
+
+    private var descriptionText: String {
+        switch payload {
+        case .active(let subAgent):
+            return subAgent.description
+        case .historical(let activity):
+            return activity.description
+        }
+    }
+
+    private var tools: [ToolUse] {
+        switch payload {
+        case .active(let subAgent):
+            return subAgent.childTools.map {
+                ToolUse(
+                    toolUseId: $0.id,
+                    parentToolUseId: subAgent.id,
+                    toolName: $0.name,
+                    input: normalizedInput(for: $0),
+                    output: $0.output,
+                    status: $0.status
+                )
+            }
+        case .historical(let activity):
+            return activity.tools
+        }
+    }
+
+    private var status: ToolStatus {
+        switch payload {
+        case .active(let subAgent):
+            return subAgent.status
+        case .historical(let activity):
+            return activity.status
+        }
+    }
+
+    private var cardBorderColor: Color {
+        switch status {
+        case .failed:
+            return Color(hex: "F8714930")
+        case .running, .completed:
+            return Color(hex: "2A2A2A")
+        }
     }
 
     var body: some View {
-        switch payload {
-        case .active(let subAgent):
-            AgentCardView(subAgent: subAgent, initiallyExpanded: initiallyExpanded)
+        VStack(alignment: .leading, spacing: 0) {
+            header
 
-        case .historical(let activity):
-            HistoricalAgentCardView(activity: activity, initiallyExpanded: initiallyExpanded)
+            if isExpanded && !tools.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
+                        NestedToolRow(
+                            tool: tool,
+                            isLast: index == tools.count - 1
+                        )
+                    }
+                }
+                .padding(.top, 10)
+                .padding(.leading, 24)
+                .padding(.trailing, 14)
+                .padding(.bottom, 14)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color(hex: "2A2A2A"))
+                        .frame(height: 1)
+                }
+            }
+        }
+        .background(Color(hex: "1A1A1A"))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(cardBorderColor, lineWidth: BorderWidth.default)
+        )
+    }
+
+    private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: Duration.fast)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: agentIcon(for: subagentType))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(colors.mutedForeground)
+                    .frame(width: 18, height: 18)
+
+                Text(agentDisplayName(for: subagentType))
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(colors.foreground)
+
+                if !descriptionText.isEmpty {
+                    Text("·")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+
+                    Text(descriptionText)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                statusBadge
+
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: IconSize.xs))
+                    .foregroundStyle(colors.mutedForeground)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        switch status {
+        case .running:
+            Text("Running")
+                .font(Typography.caption)
+                .foregroundStyle(Color(hex: "F59E0B"))
+        case .completed:
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(colors.success)
+        case .failed:
+            Text("Failed")
+                .font(Typography.caption)
+                .foregroundStyle(Color(hex: "F87149"))
         }
     }
-}
 
-private enum SubAgentPreviewData {
-    static let activeRunning = ActiveSubAgent(
-        id: "active-task-1",
-        subagentType: "Plan",
-        description: "Defining parser + renderer contracts",
-        childTools: [
-            ActiveTool(id: "active-tool-1", name: "Read", inputPreview: "SessionLiveState.swift", status: .completed),
-            ActiveTool(id: "active-tool-2", name: "Write", inputPreview: "parser-contract.md", status: .running),
-            ActiveTool(id: "active-tool-3", name: "Bash", inputPreview: "xcodebuild -project apps/macos/unbound-macos.xcodeproj", status: .completed),
-        ],
-        status: .running
-    )
-
-    static let activeCompleted = ActiveSubAgent(
-        id: "active-task-3",
-        subagentType: "Bash",
-        description: "Compiled and validated parser matrix coverage",
-        childTools: [
-            ActiveTool(id: "active-tool-6", name: "Read", inputPreview: "SessionLiveState.swift", status: .completed),
-            ActiveTool(id: "active-tool-7", name: "Bash", inputPreview: "xcodebuild -project apps/macos/unbound-macos.xcodeproj", status: .completed),
-        ],
-        status: .completed
-    )
-
-    static let activeFailed = ActiveSubAgent(
-        id: "active-task-2",
-        subagentType: "Explore",
-        description: "Validating malformed payload deterministic fallback",
-        childTools: [
-            ActiveTool(id: "active-tool-4", name: "Grep", inputPreview: "raw_json", status: .completed),
-            ActiveTool(id: "active-tool-5", name: "Read", inputPreview: "ClaudeMessageParser.swift", status: .failed),
-        ],
-        status: .failed
-    )
-
-    static let historicalCompleted = SubAgentActivity(
-        parentToolUseId: "hist-task-1",
-        subagentType: "Explore",
-        description: "Validated malformed payload fallback behavior",
-        tools: [
-            ToolUse(toolUseId: "hist-tool-1", parentToolUseId: "hist-task-1", toolName: "Grep", input: "{\"pattern\":\"tool_result\"}", status: .completed),
-            ToolUse(toolUseId: "hist-tool-2", parentToolUseId: "hist-task-1", toolName: "Read", input: "{\"file_path\":\"SessionMessagePayloadParser.swift\"}", status: .completed),
-        ],
-        status: .completed
-    )
-
-    static let historicalCompact = SubAgentActivity(
-        parentToolUseId: "hist-task-2",
-        subagentType: "general-purpose",
-        description: "Summarized contract deltas",
-        tools: [],
-        status: .completed
-    )
-}
-
-#Preview("SubAgent Wrapper Variants") {
-    VStack(alignment: .leading, spacing: Spacing.lg) {
-        SubAgentView(activeSubAgent: SubAgentPreviewData.activeRunning)
-        SubAgentView(activeSubAgent: SubAgentPreviewData.activeCompleted)
-        SubAgentView(activeSubAgent: SubAgentPreviewData.activeFailed)
-        SubAgentView(activeSubAgent: SubAgentPreviewData.activeCompleted, initiallyExpanded: false)
-        SubAgentView(activity: SubAgentPreviewData.historicalCompleted)
-        SubAgentView(activity: SubAgentPreviewData.historicalCompact)
-        SubAgentView(activity: SubAgentPreviewData.historicalCompleted, initiallyExpanded: true)
+    private func agentDisplayName(for type: String) -> String {
+        switch type.lowercased() {
+        case "explore":
+            return "Explore Agent"
+        case "plan":
+            return "Plan Agent"
+        case "bash":
+            return "Bash Agent"
+        case "general-purpose":
+            return "General Agent"
+        default:
+            return "\(type) Agent"
+        }
     }
-    .frame(width: 540)
-    .padding()
+
+    private func agentIcon(for type: String) -> String {
+        switch type.lowercased() {
+        case "explore":
+            return "binoculars.fill"
+        case "plan":
+            return "list.bullet.clipboard.fill"
+        case "bash":
+            return "terminal.fill"
+        default:
+            return "cpu.fill"
+        }
+    }
+
+    private func normalizedInput(for tool: ActiveTool) -> String? {
+        guard let preview = tool.inputPreview, !preview.isEmpty else { return nil }
+        let key: String = switch tool.name {
+        case "Read", "Write", "Edit": "file_path"
+        case "Bash": "command"
+        case "Glob", "Grep": "pattern"
+        case "WebSearch": "query"
+        case "WebFetch": "url"
+        default: "description"
+        }
+        let payload = [key: preview]
+        return (try? JSONSerialization.data(withJSONObject: payload))
+            .flatMap { String(data: $0, encoding: .utf8) }
+    }
+}
+
+private struct NestedToolRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let tool: ToolUse
+    let isLast: Bool
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var previewText: String? {
+        let parser = ToolInputParser(tool.input)
+        return parser.filePath ?? parser.pattern ?? parser.command ?? parser.query ?? parser.url
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Spacing.sm) {
+            Image(systemName: ToolIcon.icon(for: tool.toolName))
+                .font(.system(size: 10))
+                .foregroundStyle(colors.mutedForeground)
+                .frame(width: 14, height: 14)
+
+            Text(tool.toolName)
+                .font(Typography.code)
+                .foregroundStyle(colors.foreground)
+
+            if let previewText, !previewText.isEmpty {
+                Text(previewText)
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            statusIcon
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color(hex: "2A2A2A"))
+                .frame(width: 1)
+                .offset(x: -10)
+                .opacity(isLast ? 0 : 1)
+        }
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch tool.status {
+        case .running:
+            ProgressView()
+                .scaleEffect(0.5)
+                .frame(width: 12, height: 12)
+        case .completed:
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color(hex: "3FB950"))
+        case .failed:
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color(hex: "F87149"))
+        }
+    }
 }

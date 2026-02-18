@@ -22,24 +22,25 @@ struct AskUserQuestionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            // Header badge
-            if let header = question.header {
-                Text(header)
-                    .font(Typography.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(colors.primary)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .fill(colors.primary.opacity(0.1))
-                    )
-            }
+            HStack(spacing: Spacing.sm) {
+                if let header = question.header {
+                    Text(header)
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color(hex: "F59E0B"))
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .fill(Color(hex: "F59E0B15"))
+                        )
+                }
 
-            // Question text
-            Text(question.question)
-                .font(Typography.body)
-                .foregroundStyle(colors.foreground)
+                Text(question.question)
+                    .font(Typography.body)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(nil)
+            }
 
             // Options
             VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -65,12 +66,13 @@ struct AskUserQuestionView: View {
                     TextField("Your response...", text: $textInput)
                         .textFieldStyle(.plain)
                         .font(Typography.body)
-                        .padding(Spacing.sm)
-                        .background(colors.card)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(hex: "0D0D0D"))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                         .overlay(
-                            RoundedRectangle(cornerRadius: Radius.md)
-                                .stroke(colors.border, lineWidth: BorderWidth.default)
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
                         )
                 }
             }
@@ -89,14 +91,15 @@ struct AskUserQuestionView: View {
                 .disabled(!canSubmit)
             }
         }
-        .padding(Spacing.lg)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(colors.card)
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(hex: "1A1A1A"))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .stroke(colors.primary.opacity(0.3), lineWidth: BorderWidth.default)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(hex: "F59E0B40"), lineWidth: BorderWidth.default)
         )
     }
 
@@ -185,12 +188,12 @@ struct OptionButton: View {
             }
             .padding(Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color(hex: "F59E0B15") : (isHovered ? Color(hex: "0D0D0D") : Color.clear))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .stroke(isSelected ? colors.primary : colors.border, lineWidth: BorderWidth.default)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? Color(hex: "F59E0B40") : Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
             )
             .contentShape(Rectangle())
         }

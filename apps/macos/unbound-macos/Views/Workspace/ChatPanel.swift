@@ -423,6 +423,8 @@ struct ChatPanel: View {
 
                             ScrollView {
                                 LazyVStack(spacing: 0) {
+                                    sessionTimelineHeaderCard
+
                                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                                         let shouldAnimate = animateMessageIds.contains(message.id) && isAtBottom
                                         let animationIndex = shouldAnimate ? (animateIndexById[message.id] ?? 0) : 0
@@ -569,6 +571,44 @@ struct ChatPanel: View {
             .background(colors.chatBackground)
         }
         .frame(minWidth: 300)
+    }
+
+    private var sessionTimelineHeaderCard: some View {
+        HStack(alignment: .center, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(session?.displayTitle ?? "Session")
+                    .font(Typography.bodyMedium)
+                    .foregroundStyle(colors.foreground)
+                    .lineLimit(1)
+
+                Text(session?.id.uuidString.lowercased() ?? "")
+                    .font(Typography.mono)
+                    .foregroundStyle(colors.mutedForeground)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                Text("Rendered")
+                    .font(Typography.micro)
+                    .foregroundStyle(colors.mutedForeground)
+                Text("\(messages.count)")
+                    .font(Typography.captionMedium)
+                    .foregroundStyle(colors.foreground)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(hex: "1A1A1A"))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
+        )
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.md)
     }
 
     // MARK: - Footer Panel
@@ -1291,6 +1331,36 @@ private struct ChatMessageRow: View, Equatable {
         editorState: EditorState()
     )
     .environment(AppState.preview())
+    .frame(width: 900, height: 600)
+}
+
+#Preview("With Messages (Light)") {
+    ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: EditorState()
+    )
+    .environment(AppState.preview())
+    .preferredColorScheme(.light)
+    .frame(width: 900, height: 600)
+}
+
+#Preview("With Messages (Dark)") {
+    ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: EditorState()
+    )
+    .environment(AppState.preview())
+    .preferredColorScheme(.dark)
     .frame(width: 900, height: 600)
 }
 

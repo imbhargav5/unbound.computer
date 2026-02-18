@@ -514,7 +514,7 @@ struct ChatMessageView: View {
             }
 
             // Content
-            VStack(alignment: isUser ? .trailing : .leading, spacing: Spacing.sm) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: Spacing.md) {
                 // Streaming indicator for assistant
                 if !isUser && message.isStreaming {
                     TypingDotsIndicator()
@@ -538,12 +538,20 @@ struct ChatMessageView: View {
                 }
             }
             .padding(.vertical, isUser ? 10 : 0)
-            .padding(.horizontal, isUser ? Spacing.lg : 0)
+            .padding(.horizontal, isUser ? 14 : 0)
             .background(
                 Group {
                     if isUser {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hex: "2A2A2A"))
+                            .fill(colors.chatUserBubbleBackground)
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if isUser {
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(colors.chatUserBubbleBorder, lineWidth: BorderWidth.default)
                     }
                 }
             )
@@ -553,7 +561,7 @@ struct ChatMessageView: View {
             }
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, isUser ? Spacing.lg : Spacing.sm)
+        .padding(.top, Spacing.sm)
         .padding(.bottom, Spacing.sm)
     }
 
@@ -666,6 +674,7 @@ struct TextContentView: View {
                 switch segment {
                 case .text(let text):
                     MarkdownTextView(text: text)
+                        .foregroundStyle(colors.textMuted)
                 case .table(let table):
                     MarkdownTableView(table: table)
                 }

@@ -13,7 +13,7 @@ const (
 	DefaultSocketName        = "ably.sock"
 	DefaultBaseDir           = ".unbound"
 	DefaultMaxFrameBytes     = 2 * 1024 * 1024
-	DefaultHeartbeatInterval = 5 * time.Second
+	DefaultHeartbeatInterval = 20 * time.Second
 	DefaultPublishTimeout    = 5 * time.Second
 	DefaultShutdownTimeout   = 2 * time.Second
 	DefaultPresenceEventName = "daemon.presence.v1"

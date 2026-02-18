@@ -2,6 +2,27 @@ import Foundation
 
 public final class ClaudeConversationTimelineParser {
     private let maxRawJSONDepth = 4
+    private static let protocolTypes: Set<String> = [
+        "assistant", "mcq_response_command", "output_chunk", "result", "stream_event",
+        "streaming_generating", "streaming_thinking", "system", "terminal_output",
+        "tool_result", "user", "user_confirmation_command", "user_prompt_command"
+    ]
+    private static let userCommandTypes: Set<String> = [
+        "user_prompt_command",
+        "user_confirmation_command",
+        "mcq_response_command",
+    ]
+    private static let toolEnvelopeBlockTypes: Set<String> = ["tool_result", "tool_use"]
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private static let iso8601PlainFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
     private var timeline: [ClaudeConversationTimelineEntry] = []
 
     public init() {}
@@ -20,38 +41,57 @@ public final class ClaudeConversationTimelineParser {
     @discardableResult
     public func ingest(payload: [String: Any]) -> [ClaudeConversationTimelineEntry] {
         let resolved = resolvedPayload(from: payload)
-        guard let type = messageType(from: resolved) else { return timeline }
+        let normalized = mergedEnvelopeMetadata(payload: payload, resolvedPayload: resolved)
+        guard let type = messageType(from: normalized) else { return timeline }
 
         switch type {
         case "assistant":
-            if let entry = parseAssistant(payload: resolved) {
+            if let entry = parseAssistant(payload: normalized) {
                 upsert(entry: entry)
             }
 
-        case "user":
-            if let entry = parseUser(payload: resolved) {
+        case "user", "user_prompt_command", "user_confirmation_command", "mcq_response_command":
+            if let entry = parseUser(payload: normalized) {
                 upsert(entry: entry)
             }
-            applyToolResultUpdates(from: resolved)
+            applyToolResultUpdates(from: normalized)
 
         case "system":
-            if let entry = parseSystem(payload: resolved) {
+            if let entry = parseSystem(payload: normalized) {
                 upsert(entry: entry)
             }
 
         case "result":
-            if let entry = parseResult(payload: resolved) {
+            if let entry = parseResult(payload: normalized) {
                 upsert(entry: entry)
             }
 
         case "stream_event":
-            handleStreamEvent(payload: resolved)
+            handleStreamEvent(payload: normalized)
 
         default:
             break
         }
 
         return timeline
+    }
+
+    private func mergedEnvelopeMetadata(payload: [String: Any], resolvedPayload: [String: Any]) -> [String: Any] {
+        var merged = resolvedPayload
+
+        if parseSequence(merged) == nil {
+            if let sequenceNumber = integerValue(payload["sequence_number"]) {
+                merged["sequence_number"] = sequenceNumber
+            } else if let sequence = integerValue(payload["sequence"]) {
+                merged["sequence"] = sequence
+            }
+        }
+
+        if parseDate(merged["created_at"]) == nil, let createdAt = payload["created_at"] {
+            merged["created_at"] = createdAt
+        }
+
+        return merged
     }
 
     public func currentTimeline() -> [ClaudeConversationTimelineEntry] {
@@ -167,35 +207,63 @@ public final class ClaudeConversationTimelineParser {
     }
 
     private func parseUser(payload: [String: Any]) -> ClaudeConversationTimelineEntry? {
-        var blocks: [ClaudeConversationBlock] = []
+        let sourceType = messageType(from: payload) ?? "user"
+        if shouldSuppressUserPayload(payload, sourceType: sourceType) {
+            return nil
+        }
 
-        if let text = sanitizedText(payload["message"] as? String) {
-            blocks.append(.text(text))
-        } else if let message = payload["message"] as? [String: Any],
-                  let contentBlocks = message["content"] as? [[String: Any]] {
+        var blocks: [ClaudeConversationBlock] = []
+        var sawEnvelopeOnly = false
+
+        if let message = payload["message"] as? [String: Any],
+           let contentBlocks = message["content"] as? [[String: Any]] {
             for block in contentBlocks {
                 guard let blockType = (block["type"] as? String)?.lowercased() else { continue }
+
                 switch blockType {
                 case "text":
-                    if let text = sanitizedText(block["text"] as? String) {
+                    if block["tool_use_id"] != nil {
+                        sawEnvelopeOnly = true
+                        continue
+                    }
+
+                    if let text = sanitizedText(block["text"] as? String),
+                       !looksLikeProtocolArtifact(text),
+                       !looksLikeSerializedToolEnvelope(text) {
                         blocks.append(.text(text))
                     }
+
                 case "tool_result":
-                    if let content = sanitizedText(block["content"] as? String),
-                       !looksLikeProtocolArtifact(content) {
-                        blocks.append(.text(content))
-                    } else if let contentArray = block["content"] as? [[String: Any]] {
-                        for item in contentArray {
-                            if let text = sanitizedText(item["text"] as? String),
-                               !looksLikeProtocolArtifact(text) {
-                                blocks.append(.text(text))
-                            }
-                        }
-                    }
+                    sawEnvelopeOnly = true
+
+                case "tool_use":
+                    sawEnvelopeOnly = true
+
                 default:
-                    break
+                    if block["tool_use_id"] != nil {
+                        sawEnvelopeOnly = true
+                        continue
+                    }
+
+                    if let text = extractVisibleText(from: block),
+                       !looksLikeProtocolArtifact(text),
+                       !looksLikeSerializedToolEnvelope(text) {
+                        blocks.append(.text(text))
+                    }
                 }
             }
+
+            if blocks.isEmpty, sawEnvelopeOnly {
+                return nil
+            }
+        }
+
+        if blocks.isEmpty,
+           (Self.userCommandTypes.contains(sourceType) || sourceType == "user"),
+           let text = extractVisibleText(from: payload),
+           !looksLikeProtocolArtifact(text),
+           !looksLikeSerializedToolEnvelope(text) {
+            blocks.append(.text(text))
         }
 
         guard !blocks.isEmpty else { return nil }
@@ -206,7 +274,7 @@ public final class ClaudeConversationTimelineParser {
             blocks: blocks,
             createdAt: parseDate(payload["created_at"]),
             sequence: parseSequence(payload),
-            sourceType: "user"
+            sourceType: sourceType
         )
     }
 
@@ -382,6 +450,20 @@ public final class ClaudeConversationTimelineParser {
         return type.lowercased()
     }
 
+    private func hasParentToolUseId(_ payload: [String: Any]) -> Bool {
+        guard let parentToolUseId = payload["parent_tool_use_id"] as? String else {
+            return false
+        }
+        return !parentToolUseId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func shouldSuppressUserPayload(_ payload: [String: Any], sourceType: String) -> Bool {
+        if sourceType == "user", hasParentToolUseId(payload) {
+            return true
+        }
+        return false
+    }
+
     private func canonicalId(from payload: [String: Any], fallbackPrefix: String) -> String {
         if let message = payload["message"] as? [String: Any],
            let messageId = message["id"] as? String {
@@ -397,8 +479,8 @@ public final class ClaudeConversationTimelineParser {
     }
 
     private func parseSequence(_ payload: [String: Any]) -> Int? {
-        if let sequence = payload["sequence_number"] as? Int { return sequence }
-        if let sequence = payload["sequence"] as? Int { return sequence }
+        if let sequence = integerValue(payload["sequence_number"]) { return sequence }
+        if let sequence = integerValue(payload["sequence"]) { return sequence }
         return nil
     }
 
@@ -407,11 +489,27 @@ public final class ClaudeConversationTimelineParser {
         if let timestamp = value as? TimeInterval {
             return Date(timeIntervalSince1970: timestamp)
         }
+        if let number = value as? NSNumber {
+            return Date(timeIntervalSince1970: number.doubleValue)
+        }
         if let dateString = value as? String {
-            let formatter = ISO8601DateFormatter()
-            if let parsed = formatter.date(from: dateString) {
+            let trimmed = dateString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsed = Self.iso8601FractionalFormatter.date(from: trimmed)
+                ?? Self.iso8601PlainFormatter.date(from: trimmed) {
                 return parsed
             }
+            if let seconds = TimeInterval(trimmed) {
+                return Date(timeIntervalSince1970: seconds)
+            }
+        }
+        return nil
+    }
+
+    private func integerValue(_ value: Any?) -> Int? {
+        if let intValue = value as? Int { return intValue }
+        if let number = value as? NSNumber { return number.intValue }
+        if let stringValue = value as? String {
+            return Int(stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return nil
     }
@@ -434,8 +532,111 @@ public final class ClaudeConversationTimelineParser {
             return false
         }
 
-        let protocolTypes: Set<String> = ["user", "assistant", "system", "result", "tool_result"]
-        return protocolTypes.contains(type)
+        return Self.protocolTypes.contains(type)
+    }
+
+    private func extractVisibleText(from payload: [String: Any]) -> String? {
+        if let text = sanitizedText(payload["text"] as? String) { return text }
+        if let message = sanitizedText(payload["message"] as? String) { return message }
+
+        if let message = payload["message"] as? [String: Any] {
+            if let text = sanitizedText(message["text"] as? String) { return text }
+
+            if let content = message["content"] {
+                let fragments = textFragments(from: content)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                if !fragments.isEmpty {
+                    return fragments.joined(separator: "\n")
+                }
+            }
+        }
+
+        if let content = sanitizedText(payload["content"] as? String) { return content }
+
+        if let content = payload["content"] {
+            let fragments = textFragments(from: content)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !fragments.isEmpty {
+                return fragments.joined(separator: "\n")
+            }
+        }
+
+        return nil
+    }
+
+    private func textFragments(from value: Any) -> [String] {
+        if let text = value as? String {
+            return text.isEmpty ? [] : [text]
+        }
+
+        if let array = value as? [Any] {
+            return array.flatMap { item in
+                if let text = item as? String {
+                    return text.isEmpty ? [] : [text]
+                }
+                if let dict = item as? [String: Any] {
+                    if let text = dict["text"] as? String, !text.isEmpty {
+                        return [text]
+                    }
+                    if let content = dict["content"] as? String, !content.isEmpty {
+                        return [content]
+                    }
+                }
+                return []
+            }
+        }
+
+        if let dict = value as? [String: Any] {
+            if let text = dict["text"] as? String, !text.isEmpty {
+                return [text]
+            }
+            if let content = dict["content"] as? String, !content.isEmpty {
+                return [content]
+            }
+        }
+
+        return []
+    }
+
+    private func looksLikeSerializedToolEnvelope(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else {
+            return false
+        }
+
+        if let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if json["raw_json"] as? String != nil {
+                return true
+            }
+
+            if let type = (json["type"] as? String)?.lowercased(),
+               Self.protocolTypes.contains(type) {
+                return true
+            }
+
+            if let message = json["message"] as? [String: Any],
+               let contentBlocks = message["content"] as? [[String: Any]] {
+                return contentBlocks.contains { block in
+                    guard let blockType = (block["type"] as? String)?.lowercased() else {
+                        return false
+                    }
+                    return Self.toolEnvelopeBlockTypes.contains(blockType)
+                }
+            }
+
+            return false
+        }
+
+        let normalized = trimmed.lowercased()
+        let hasTypeMarker = normalized.contains("\"type\"")
+        let hasToolMarkers = normalized.contains("\"tool_use\"")
+            || normalized.contains("\"tool_result\"")
+            || normalized.contains("\"tool_use_id\"")
+            || normalized.contains("\"raw_json\"")
+        return hasTypeMarker && hasToolMarkers
     }
 
     private func appendOrUpdateStandaloneTool(_ toolUse: ClaudeToolCallBlock, to blocks: inout [ClaudeConversationBlock]) {

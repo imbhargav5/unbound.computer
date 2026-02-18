@@ -202,7 +202,7 @@ Inbound push frame:
 | `UNBOUND_ABLY_BROKER_TOKEN_FALCO` | (required) | Audience token used by Falco publish client |
 | `UNBOUND_ABLY_BROKER_TOKEN_NAGATO` | (required) | Audience token used by Nagato subscribe/ack client |
 | `DAEMON_ABLY_MAX_FRAME_BYTES` | `2097152` | Maximum NDJSON frame size accepted on IPC socket |
-| `DAEMON_ABLY_HEARTBEAT_INTERVAL` | `5` | Heartbeat interval in seconds |
+| `DAEMON_ABLY_HEARTBEAT_INTERVAL` | `20` | Heartbeat interval in seconds |
 | `DAEMON_ABLY_PUBLISH_TIMEOUT` | `5` | Publish/subscribe timeout in seconds |
 | `DAEMON_ABLY_SHUTDOWN_TIMEOUT` | `2` | Graceful shutdown timeout in seconds |
 | `UNBOUND_PRESENCE_DO_HEARTBEAT_URL` | (required) | DO presence heartbeat ingest endpoint |
