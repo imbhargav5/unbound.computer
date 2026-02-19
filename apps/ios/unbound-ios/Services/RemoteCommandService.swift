@@ -280,12 +280,16 @@ final class RemoteCommandService {
     func sendMessage(
         targetDeviceId: String,
         sessionId: String,
-        content: String
+        content: String,
+        permissionMode: String? = nil
     ) async throws -> SendMessageResult {
-        let params: [String: AnyCodableValue] = [
+        var params: [String: AnyCodableValue] = [
             "session_id": .string(sessionId),
             "content": .string(content),
         ]
+        if let permissionMode {
+            params["permission_mode"] = .string(permissionMode)
+        }
 
         let response = try await sendCommand(
             type: "claude.send.v1",
