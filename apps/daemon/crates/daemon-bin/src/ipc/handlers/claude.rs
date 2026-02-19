@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_events;
 use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use deku::{ClaudeConfig, ClaudeProcess};
+use deku::{ClaudeConfig, ClaudeProcess, PermissionMode};
 use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use tracing::{info, warn};
 
@@ -30,6 +30,7 @@ pub async fn claude_send_core(
         .get("content")
         .and_then(|v| v.as_str())
         .map(String::from);
+    let permission_mode = params.get("permission_mode").and_then(|v| v.as_str());
 
     let (Some(session_id), Some(content)) = (session_id, content) else {
         return Err((
@@ -68,8 +69,22 @@ pub async fn claude_send_core(
         }
     }
 
+    let permission_mode = match permission_mode {
+        None => None,
+        Some("plan") => Some(PermissionMode::Plan),
+        Some(_) => {
+            return Err((
+                "invalid_params".to_string(),
+                "permission_mode must be \"plan\" when provided".to_string(),
+            ));
+        }
+    };
+
     // Build Claude configuration using Deku
     let mut config = ClaudeConfig::new(&content, &working_dir);
+    if let Some(permission_mode) = permission_mode {
+        config = config.with_permission_mode(permission_mode);
+    }
     if let Some(ref prev_session_id) = claude_session_id {
         info!(prev_session_id = %prev_session_id, "Resuming previous Claude session");
         config = config.with_resume_session(prev_session_id);
