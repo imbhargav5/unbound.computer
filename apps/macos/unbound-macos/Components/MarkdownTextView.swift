@@ -12,6 +12,7 @@ import AppKit
 
 private enum MarkdownBlock: Identifiable {
     case heading(level: Int, text: String)
+    case listHeading(text: String)
     case paragraph(text: String)
     case bulletList(items: [ListItem])
     case numberedList(items: [ListItem])
@@ -23,12 +24,14 @@ private enum MarkdownBlock: Identifiable {
         switch self {
         case .heading(let level, let text):
             return "h\(level)-\(text.hashValue)"
+        case .listHeading(let text):
+            return "lh-\(text.hashValue)"
         case .paragraph(let text):
             return "p-\(text.hashValue)"
         case .bulletList(let items):
             return "ul-\(items.map { $0.text }.joined().hashValue)"
         case .numberedList(let items):
-            return "ol-\(items.map { $0.text }.joined().hashValue)"
+            return "ol-\(items.map { "\($0.marker ?? "")\($0.text)" }.joined().hashValue)"
         case .codeBlock(let lang, let code):
             return "code-\(lang ?? "")-\(code.hashValue)"
         case .horizontalRule:
@@ -43,6 +46,13 @@ private struct ListItem: Identifiable {
     let id = UUID()
     let text: String
     let indent: Int
+    let marker: String?
+
+    init(text: String, indent: Int, marker: String? = nil) {
+        self.text = text
+        self.indent = indent
+        self.marker = marker
+    }
 }
 
 // MARK: - Markdown Parser
@@ -175,7 +185,7 @@ private enum MarkdownBlockParser {
         flushParagraph()
         flushList()
 
-        return blocks
+        return promoteListHeadings(in: blocks)
     }
 
     private static func parseHeading(_ line: String) -> (level: Int, text: String)? {
@@ -223,7 +233,7 @@ private enum MarkdownBlockParser {
         guard remaining[afterMarker] == " " else { return nil }
 
         let text = String(remaining[remaining.index(afterMarker, offsetBy: 1)...]).trimmingCharacters(in: .whitespaces)
-        return ListItem(text: text, indent: indent)
+        return ListItem(text: text, indent: indent, marker: nil)
     }
 
     private static func parseNumberedListItem(_ line: String) -> ListItem? {
@@ -238,128 +248,107 @@ private enum MarkdownBlockParser {
 
         let remaining = String(line[index...])
 
-        // Match pattern: number followed by . or ) and space
-        guard let regex = try? NSRegularExpression(pattern: #"^(\d+)[.\)]\s+(.+)$"#),
+        // Match pattern: number+delimiter followed by whitespace and text.
+        // We keep the source marker intact (e.g. "3." or "7)").
+        guard let regex = try? NSRegularExpression(pattern: #"^(\d+[\.\)])\s+(.+)$"#),
               let match = regex.firstMatch(in: remaining, range: NSRange(remaining.startIndex..., in: remaining)),
+              let markerRange = Range(match.range(at: 1), in: remaining),
               let textRange = Range(match.range(at: 2), in: remaining) else {
             return nil
         }
 
+        let marker = String(remaining[markerRange])
         let text = String(remaining[textRange]).trimmingCharacters(in: .whitespaces)
-        return ListItem(text: text, indent: indent)
+        return ListItem(text: text, indent: indent, marker: marker)
+    }
+
+    private static func promoteListHeadings(in blocks: [MarkdownBlock]) -> [MarkdownBlock] {
+        guard !blocks.isEmpty else { return blocks }
+
+        var promoted: [MarkdownBlock] = []
+        var index = 0
+
+        while index < blocks.count {
+            let current = blocks[index]
+
+            if case .paragraph(let text) = current,
+               isSingleLineParagraph(text),
+               index + 1 < blocks.count,
+               isListBlock(blocks[index + 1]) {
+                promoted.append(.listHeading(text: text.trimmingCharacters(in: .whitespacesAndNewlines)))
+                index += 1
+                continue
+            }
+
+            promoted.append(current)
+            index += 1
+        }
+
+        return promoted
+    }
+
+    private static func isSingleLineParagraph(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !trimmed.contains("\n")
+    }
+
+    private static func isListBlock(_ block: MarkdownBlock) -> Bool {
+        switch block {
+        case .bulletList, .numberedList:
+            return true
+        default:
+            return false
+        }
     }
 }
 
-// MARK: - Inline Text Renderer
+// MARK: - Parser Debug Snapshot
 
-private struct InlineMarkdownText: View {
+struct MarkdownListDebugItem: Equatable {
     let text: String
-    let colors: ThemeColors
-    let baseFont: Font
+    let indent: Int
+    let marker: String?
+}
 
-    init(_ text: String, colors: ThemeColors, baseFont: Font? = nil) {
-        self.text = text
-        self.colors = colors
-        self.baseFont = baseFont ?? Typography.body
+enum MarkdownBlockDebug: Equatable {
+    case heading(level: Int, text: String)
+    case listHeading(text: String)
+    case paragraph(text: String)
+    case bulletList(items: [MarkdownListDebugItem])
+    case numberedList(items: [MarkdownListDebugItem])
+    case codeBlock(language: String?, code: String)
+    case horizontalRule
+    case blockquote(text: String)
+}
+
+enum MarkdownParserDebug {
+    static func parse(_ text: String) -> [MarkdownBlockDebug] {
+        MarkdownBlockParser.parse(text).map { block in
+            switch block {
+            case .heading(let level, let text):
+                return .heading(level: level, text: text)
+            case .listHeading(let text):
+                return .listHeading(text: text)
+            case .paragraph(let text):
+                return .paragraph(text: text)
+            case .bulletList(let items):
+                return .bulletList(items: debugItems(from: items))
+            case .numberedList(let items):
+                return .numberedList(items: debugItems(from: items))
+            case .codeBlock(let language, let code):
+                return .codeBlock(language: language, code: code)
+            case .horizontalRule:
+                return .horizontalRule
+            case .blockquote(let text):
+                return .blockquote(text: text)
+            }
+        }
     }
 
-    var body: some View {
-        Text(parse())
-            .font(baseFont)
-            .textSelection(.enabled)
-            .lineSpacing(Spacing.xs)
-    }
-
-    private func parse() -> AttributedString {
-        var result = AttributedString()
-
-        let patterns: [(pattern: String, transform: (String) -> AttributedString)] = [
-            // Bold + Code: **`text`**
-            (#"\*\*`([^`]+)`\*\*"#, { match in
-                var attr = AttributedString(match)
-                attr.font = Typography.code.weight(.semibold)
-                attr.backgroundColor = colors.muted
-                attr.foregroundColor = colors.foreground
-                return attr
-            }),
-            // Code (backticks) - use foreground color for readability
-            (#"`([^`]+)`"#, { match in
-                var attr = AttributedString(match)
-                attr.font = Typography.code
-                attr.backgroundColor = colors.muted
-                attr.foregroundColor = colors.foreground
-                return attr
-            }),
-            // Bold (double asterisks)
-            (#"\*\*([^*]+)\*\*"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.weight(.semibold)
-                return attr
-            }),
-            // Bold (double underscores)
-            (#"__([^_]+)__"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.weight(.semibold)
-                return attr
-            }),
-            // Italic (single asterisk)
-            (#"(?<!\*)\*([^*]+)\*(?!\*)"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.italic()
-                return attr
-            }),
-            // Italic (single underscore)
-            (#"(?<!_)_([^_]+)_(?!_)"#, { match in
-                var attr = AttributedString(match)
-                attr.font = baseFont.italic()
-                return attr
-            })
-        ]
-
-        var processedRanges: [(Range<String.Index>, AttributedString)] = []
-
-        for (pattern, transform) in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches {
-                guard let fullRange = Range(match.range, in: text),
-                      let captureRange = Range(match.range(at: 1), in: text) else { continue }
-
-                let capturedText = String(text[captureRange])
-                let formatted = transform(capturedText)
-
-                processedRanges.append((fullRange, formatted))
-            }
+    private static func debugItems(from items: [ListItem]) -> [MarkdownListDebugItem] {
+        items.map { item in
+            MarkdownListDebugItem(text: item.text, indent: item.indent, marker: item.marker)
         }
-
-        processedRanges.sort { $0.0.lowerBound < $1.0.lowerBound }
-
-        var filteredRanges: [(Range<String.Index>, AttributedString)] = []
-        var lastEnd: String.Index = text.startIndex
-        for (range, attr) in processedRanges {
-            if range.lowerBound >= lastEnd {
-                filteredRanges.append((range, attr))
-                lastEnd = range.upperBound
-            }
-        }
-
-        var currentIndex = text.startIndex
-        for (range, formatted) in filteredRanges {
-            if currentIndex < range.lowerBound {
-                let plainText = String(text[currentIndex..<range.lowerBound])
-                result.append(AttributedString(plainText))
-            }
-            result.append(formatted)
-            currentIndex = range.upperBound
-        }
-
-        if currentIndex < text.endIndex {
-            let plainText = String(text[currentIndex...])
-            result.append(AttributedString(plainText))
-        }
-
-        return result
     }
 }
 
@@ -468,9 +457,16 @@ struct MarkdownTextView: View {
         case .heading(let level, let text):
             headingView(level: level, text: text)
 
+        case .listHeading(let text):
+            listHeadingView(text: text)
+
         case .paragraph(let text):
-            InlineMarkdownText(text, colors: colors, baseFont: Typography.body)
-                .foregroundStyle(colors.textMuted)
+            ChatInlineText(
+                text: text,
+                style: proseBodyStyle,
+                colors: colors,
+                options: .prose
+            )
 
         case .bulletList(let items):
             bulletListView(items: items)
@@ -482,7 +478,9 @@ struct MarkdownTextView: View {
             codeBlockView(language: language, code: code)
 
         case .horizontalRule:
-            Divider()
+            Rectangle()
+                .fill(MarkdownProseTokens.horizontalRuleColor(colors: colors, colorScheme: colorScheme))
+                .frame(height: MarkdownProseTokens.horizontalRuleHeight)
                 .padding(.vertical, Spacing.sm)
 
         case .blockquote(let text):
@@ -492,53 +490,74 @@ struct MarkdownTextView: View {
 
     @ViewBuilder
     private func headingView(level: Int, text: String) -> some View {
-        let font: Font = switch level {
-        case 1: Typography.h1
-        case 2: Typography.h2
-        case 3: Typography.h3
-        case 4: Typography.h4
-        default: Typography.label
-        }
+        ChatInlineText(
+            text: text,
+            style: proseHeadingStyle(level: level),
+            colors: colors,
+            options: .prose
+        )
+    }
 
-        InlineMarkdownText(text, colors: colors, baseFont: font)
-            .foregroundStyle(colors.foreground)
-            .padding(.top, level <= 2 ? Spacing.lg : Spacing.md)
-            .padding(.bottom, Spacing.xs)
+    @ViewBuilder
+    private func listHeadingView(text: String) -> some View {
+        ChatInlineText(
+            text: text,
+            style: listHeadingStyle,
+            colors: colors,
+            options: .prose
+        )
+        .padding(.bottom, MarkdownListTokens.headingBottomSpacing)
     }
 
     @ViewBuilder
     private func bulletListView(items: [ListItem]) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
+        VStack(alignment: .leading, spacing: MarkdownListTokens.itemVerticalSpacing) {
             ForEach(items) { item in
-                HStack(alignment: .top, spacing: Spacing.sm) {
+                HStack(alignment: .top, spacing: MarkdownListTokens.markerToTextSpacing) {
                     Text("•")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-                        .padding(.leading, CGFloat(item.indent) * Spacing.md)
+                        .font(MarkdownListTokens.unorderedMarkerFont)
+                        .foregroundStyle(colors.sidebarMeta)
 
-                    InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
-                        .foregroundStyle(colors.textMuted)
+                    ChatInlineText(
+                        text: item.text,
+                        style: listItemStyle,
+                        colors: colors,
+                        options: .prose
+                    )
                 }
+                .padding(.leading, CGFloat(item.indent) * MarkdownListTokens.indentStep)
             }
         }
+        .padding(.top, MarkdownListTokens.listPaddingTop)
+        .padding(.trailing, MarkdownListTokens.listPaddingRight)
+        .padding(.bottom, MarkdownListTokens.listPaddingBottom)
+        .padding(.leading, MarkdownListTokens.listPaddingLeft)
     }
 
     @ViewBuilder
     private func numberedListView(items: [ListItem]) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                HStack(alignment: .top, spacing: Spacing.sm) {
-                    Text("\(index + 1).")
-                        .font(Typography.body)
-                        .foregroundStyle(colors.mutedForeground)
-                        .frame(minWidth: 20, alignment: .trailing)
-                        .padding(.leading, CGFloat(item.indent) * Spacing.md)
+        VStack(alignment: .leading, spacing: MarkdownListTokens.itemVerticalSpacing) {
+            ForEach(items) { item in
+                HStack(alignment: .top, spacing: MarkdownListTokens.markerToTextSpacing) {
+                    Text(item.marker ?? "")
+                        .font(MarkdownListTokens.orderedMarkerFont)
+                        .foregroundStyle(colors.sidebarMeta)
+                        .frame(width: MarkdownListTokens.orderedMarkerColumnWidth, alignment: .leading)
 
-                    InlineMarkdownText(item.text, colors: colors, baseFont: Typography.body)
-                        .foregroundStyle(colors.textMuted)
+                    ChatInlineText(
+                        text: item.text,
+                        style: listItemStyle,
+                        colors: colors,
+                        options: .prose
+                    )
                 }
+                .padding(.leading, CGFloat(item.indent) * MarkdownListTokens.indentStep)
             }
         }
+        .padding(.top, MarkdownListTokens.listPaddingTop)
+        .padding(.trailing, MarkdownListTokens.listPaddingRight)
+        .padding(.bottom, MarkdownListTokens.listPaddingBottom)
+        .padding(.leading, MarkdownListTokens.listPaddingLeft)
     }
 
     @ViewBuilder
@@ -548,43 +567,127 @@ struct MarkdownTextView: View {
 
     @ViewBuilder
     private func blockquoteView(text: String) -> some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(alignment: .top, spacing: Spacing.md) {
             Rectangle()
-                .fill(colors.border)
-                .frame(width: 3)
+                .fill(MarkdownProseTokens.blockquoteRailColor(colors: colors, colorScheme: colorScheme))
+                .frame(width: MarkdownProseTokens.blockquoteRailWidth)
 
-            InlineMarkdownText(text, colors: colors)
-                .foregroundStyle(colors.mutedForeground)
-                .italic()
+            ChatInlineText(
+                text: text,
+                style: blockquoteStyle,
+                colors: colors,
+                options: .prose
+            )
         }
-        .padding(.vertical, Spacing.xs)
+        .padding(.vertical, MarkdownProseTokens.blockquoteVerticalPadding)
+        .padding(.horizontal, MarkdownProseTokens.blockquoteHorizontalPadding)
+    }
+
+    private var proseBodyStyle: ChatInlineRenderStyle {
+        ChatInlineRenderStyle(
+            baseFont: MarkdownProseTokens.paragraphFont,
+            baseColor: MarkdownProseTokens.paragraphColor(colors: colors, colorScheme: colorScheme),
+            boldColor: MarkdownProseTokens.boldColor(colors: colors, colorScheme: colorScheme),
+            italicColor: MarkdownProseTokens.italicColor(colors: colors, colorScheme: colorScheme),
+            linkColor: MarkdownProseTokens.linkColor(colors: colors, colorScheme: colorScheme),
+            strikethroughColor: MarkdownProseTokens.strikethroughColor(colors: colors, colorScheme: colorScheme),
+            lineSpacing: MarkdownProseTokens.paragraphLineSpacing,
+            linksAreInteractive: true,
+            enableTextSelection: true
+        )
+    }
+
+    private var listHeadingStyle: ChatInlineRenderStyle {
+        ChatInlineRenderStyle(
+            baseFont: MarkdownListTokens.headingFont,
+            baseColor: MarkdownListTokens.headingColor(colors: colors, colorScheme: colorScheme),
+            boldColor: MarkdownListTokens.headingColor(colors: colors, colorScheme: colorScheme),
+            italicColor: MarkdownListTokens.headingColor(colors: colors, colorScheme: colorScheme),
+            linkColor: MarkdownProseTokens.linkColor(colors: colors, colorScheme: colorScheme),
+            strikethroughColor: MarkdownProseTokens.strikethroughColor(colors: colors, colorScheme: colorScheme),
+            lineSpacing: MarkdownListTokens.headingLineSpacing,
+            linksAreInteractive: true,
+            enableTextSelection: true
+        )
+    }
+
+    private var listItemStyle: ChatInlineRenderStyle {
+        ChatInlineRenderStyle(
+            baseFont: MarkdownListTokens.itemTextFont,
+            baseColor: colors.textMuted,
+            boldColor: MarkdownProseTokens.boldColor(colors: colors, colorScheme: colorScheme),
+            italicColor: MarkdownProseTokens.italicColor(colors: colors, colorScheme: colorScheme),
+            linkColor: MarkdownProseTokens.linkColor(colors: colors, colorScheme: colorScheme),
+            strikethroughColor: MarkdownProseTokens.strikethroughColor(colors: colors, colorScheme: colorScheme),
+            lineSpacing: MarkdownProseTokens.paragraphLineSpacing,
+            linksAreInteractive: true,
+            enableTextSelection: true
+        )
+    }
+
+    private var blockquoteStyle: ChatInlineRenderStyle {
+        ChatInlineRenderStyle(
+            baseFont: MarkdownProseTokens.paragraphFont.italic(),
+            baseColor: MarkdownProseTokens.blockquoteTextColor(colors: colors, colorScheme: colorScheme),
+            boldColor: MarkdownProseTokens.blockquoteTextColor(colors: colors, colorScheme: colorScheme),
+            italicColor: MarkdownProseTokens.blockquoteTextColor(colors: colors, colorScheme: colorScheme),
+            linkColor: MarkdownProseTokens.linkColor(colors: colors, colorScheme: colorScheme),
+            strikethroughColor: MarkdownProseTokens.strikethroughColor(colors: colors, colorScheme: colorScheme),
+            lineSpacing: MarkdownProseTokens.paragraphLineSpacing,
+            linksAreInteractive: true,
+            enableTextSelection: true
+        )
+    }
+
+    private func proseHeadingStyle(level: Int) -> ChatInlineRenderStyle {
+        let baseFont: Font
+        let baseColor: Color
+
+        switch level {
+        case 1:
+            baseFont = MarkdownProseTokens.headingH1Font
+            baseColor = MarkdownProseTokens.headingH1Color(colors: colors, colorScheme: colorScheme)
+        case 2:
+            baseFont = MarkdownProseTokens.headingH2Font
+            baseColor = MarkdownProseTokens.headingH2Color(colors: colors, colorScheme: colorScheme)
+        default:
+            baseFont = MarkdownProseTokens.headingH3Font
+            baseColor = MarkdownProseTokens.headingH3Color(colors: colors, colorScheme: colorScheme)
+        }
+
+        return ChatInlineRenderStyle(
+            baseFont: baseFont,
+            baseColor: baseColor,
+            boldColor: baseColor,
+            italicColor: baseColor,
+            linkColor: MarkdownProseTokens.linkColor(colors: colors, colorScheme: colorScheme),
+            strikethroughColor: MarkdownProseTokens.strikethroughColor(colors: colors, colorScheme: colorScheme),
+            lineSpacing: MarkdownProseTokens.headingLineSpacing,
+            linksAreInteractive: true,
+            enableTextSelection: true
+        )
     }
 }
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Pencil Lists (Tjnze + 5EFvs)") {
     ScrollView {
         MarkdownTextView(text: """
-        ### **5. Events & Interactions**
-        - **`useSwipe`** - Detect swipe gestures (direction, velocity, distance)
-        - **`usePinchZoom`** - Handle pinch-to-zoom gestures
-        - **`useDoubleTap`** - Detect double tap/click with configurable delay
+        Key Changes
+        - Replace session-based auth with JWT access + refresh tokens
+        - Add token rotation and automatic expiry handling
+        - Ensure backward compatibility with existing API tests
+        - Update middleware to validate tokens on each request
 
-        ### **6. Network & Data**
-        - **`useAbortController`** - Manage AbortController for cancellable fetch requests
-        - **`useSSE`** - Server-Sent Events subscription management
-        - **`useWebSocket`** - WebSocket connection with auto-reconnect
-
-        This is a regular paragraph with **bold text**, *italic text*, and `inline code`.
-
-        > This is a blockquote
-
-        1. First numbered item
-        2. Second numbered item
-        3. Third numbered item
+        Getting Started
+        1. Clone the repository and install dependencies using npm
+        2. Configure environment variables in the .env file
+        3. Run database migrations to set up the schema
+        4. Start the development server with npm run dev
         """)
         .padding()
     }
-    .frame(width: 600, height: 500)
+    .frame(width: 600, height: 320)
+    .preferredColorScheme(.dark)
 }

@@ -920,17 +920,22 @@ struct TextContentView: View {
     private func tableAwareSegmentView(_ item: TableAwareSegment) -> some View {
         switch item.kind {
         case .heading:
-            Text(
-                InlineMarkdownParser.parse(
-                    item.headingText ?? "",
+            ChatInlineText(
+                text: item.headingText ?? "",
+                style: ChatInlineRenderStyle(
                     baseFont: sectionHeadingFont,
-                    colors: colors
-                )
+                    baseColor: colors.textSecondary,
+                    boldColor: colors.textSecondary,
+                    italicColor: colors.textSecondary,
+                    linkColor: colors.textSecondary,
+                    strikethroughColor: colors.textSecondary,
+                    lineSpacing: Spacing.xxs,
+                    linksAreInteractive: false,
+                    enableTextSelection: true
+                ),
+                colors: colors,
+                options: .table
             )
-            .font(sectionHeadingFont)
-            .foregroundStyle(colors.textSecondary)
-            .lineSpacing(Spacing.xxs)
-            .textSelection(.enabled)
 
         case .table:
             if case .table(let table) = item.segment {

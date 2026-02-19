@@ -8,37 +8,6 @@
 import ClaudeConversationTimeline
 import SwiftUI
 
-// MARK: - Inline Markdown Parser
-
-enum InlineMarkdownParser {
-    /// Parse inline markdown (bold, italic, code) and return AttributedString
-    static func parse(_ text: String, baseFont: Font, colors: ThemeColors) -> AttributedString {
-        var result = AttributedString()
-        for span in InlineMarkdownTokenizer.tokenize(text) {
-            var attr = AttributedString(span.text)
-            switch span.style {
-            case .bold:
-                attr.font = baseFont.weight(.semibold)
-            case .italic:
-                attr.font = baseFont.italic()
-            case .code:
-                attr.font = Typography.code
-                attr.backgroundColor = colors.muted
-                attr.foregroundColor = colors.foreground
-            case .boldCode:
-                attr.font = Typography.code.weight(.semibold)
-                attr.backgroundColor = colors.muted
-                attr.foregroundColor = colors.foreground
-            case .none:
-                break
-            }
-            result.append(attr)
-        }
-
-        return result
-    }
-}
-
 // MARK: - Table Tokens + Layout Helpers
 
 enum MarkdownTableStyleTokens {
@@ -272,15 +241,30 @@ private struct TableCell: View {
         return MarkdownTableStyleTokens.bodyText(colors: colors, colorScheme: colorScheme)
     }
 
+    private var inlineStyle: ChatInlineRenderStyle {
+        ChatInlineRenderStyle(
+            baseFont: baseFont,
+            baseColor: foregroundColor,
+            boldColor: foregroundColor,
+            italicColor: foregroundColor,
+            linkColor: foregroundColor,
+            strikethroughColor: foregroundColor,
+            lineSpacing: Spacing.xxs,
+            linksAreInteractive: false,
+            enableTextSelection: true
+        )
+    }
+
     var body: some View {
-        Text(InlineMarkdownParser.parse(content, baseFont: baseFont, colors: colors))
-            .font(baseFont)
-            .foregroundStyle(foregroundColor)
-            .multilineTextAlignment(alignment.textAlignment)
-            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment.horizontalAlignment, vertical: .top))
-            .textSelection(.enabled)
-            .lineSpacing(Spacing.xxs)
-            .fixedSize(horizontal: false, vertical: true)
+        ChatInlineText(
+            text: content,
+            style: inlineStyle,
+            colors: colors,
+            options: .table
+        )
+        .multilineTextAlignment(alignment.textAlignment)
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment.horizontalAlignment, vertical: .top))
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
