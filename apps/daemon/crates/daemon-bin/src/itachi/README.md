@@ -73,6 +73,18 @@ The router (`handle_remote_command`) tries to parse the payload as a generic `Re
 
 Main-directory creation should pass `is_worktree=false`. Worktree creation should pass `is_worktree=true` and may include `base_branch` / `worktree_branch`.
 
+### `claude.send.v1` Params
+
+`params` supports the same contract as daemon IPC `claude.send`:
+
+- Required:
+  - `session_id` (string UUID)
+  - `content` (string)
+- Optional:
+  - `working_directory` (string path)
+  - `model` (string)
+  - `permission_mode` (string, currently only `"plan"` is accepted)
+
 ### `session.create.v1` Error Semantics
 
 Remote responses are emitted as `remote.command.response.v1` with:
