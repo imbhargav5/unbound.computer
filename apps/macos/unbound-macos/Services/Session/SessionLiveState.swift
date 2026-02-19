@@ -342,7 +342,8 @@ class SessionLiveState {
         _ text: String,
         session: Session,
         workspacePath: String,
-        modelIdentifier: String?
+        modelIdentifier: String?,
+        isPlanMode: Bool
     ) async {
         logger.info("sendMessage called for session \(session.id)")
 
@@ -357,7 +358,8 @@ class SessionLiveState {
                 sessionId: session.id.uuidString.lowercased(),
                 content: messageText,
                 workingDirectory: workspacePath,
-                modelIdentifier: modelIdentifier
+                modelIdentifier: modelIdentifier,
+                permissionMode: isPlanMode ? "plan" : nil
             )
 
             logger.info("Message sent to Claude via daemon")

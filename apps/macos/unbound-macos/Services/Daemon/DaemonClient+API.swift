@@ -253,7 +253,8 @@ extension DaemonClient {
         sessionId: String,
         content: String,
         workingDirectory: String? = nil,
-        modelIdentifier: String? = nil
+        modelIdentifier: String? = nil,
+        permissionMode: String? = nil
     ) async throws {
         var params: [String: Any] = [
             "session_id": sessionId,
@@ -264,6 +265,9 @@ extension DaemonClient {
         }
         if let modelIdentifier {
             params["model"] = modelIdentifier
+        }
+        if let permissionMode {
+            params["permission_mode"] = permissionMode
         }
 
         _ = try await call(method: .claudeSend, params: params)

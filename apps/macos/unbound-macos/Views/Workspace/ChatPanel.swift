@@ -1162,7 +1162,8 @@ struct ChatPanel: View {
                 messageText,
                 session: session,
                 workspacePath: path,
-                modelIdentifier: selectedModel.modelIdentifier
+                modelIdentifier: selectedModel.modelIdentifier,
+                isPlanMode: isPlanMode
             )
         }
     }
