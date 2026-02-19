@@ -94,6 +94,12 @@ final class ClaudeSyncedSessionDetailViewModel {
         claudeState.decryptedMessageCount
     }
     var inputText = ""
+    private let planModeDefaultsKey: String
+    var isPlanModeEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isPlanModeEnabled, forKey: planModeDefaultsKey)
+        }
+    }
     private(set) var isSending = false
     private(set) var isStopping = false
     private(set) var isCommitting = false
@@ -170,6 +176,8 @@ final class ClaudeSyncedSessionDetailViewModel {
         presenceService: DevicePresenceService? = nil
     ) {
         self.session = session
+        self.planModeDefaultsKey = "plan_mode_\(session.id.uuidString.lowercased())"
+        self.isPlanModeEnabled = UserDefaults.standard.bool(forKey: planModeDefaultsKey)
         let source = claudeMessageSource ?? ClaudeRemoteSessionMessageSource()
         self.claudeState = ClaudeCodingSessionState(source: source)
         self.runtimeStatusService = runtimeStatusService ?? AblyRuntimeStatusService()
@@ -213,7 +221,8 @@ final class ClaudeSyncedSessionDetailViewModel {
             let result = try await remoteCommandService.sendMessage(
                 targetDeviceId: deviceId.uuidString.lowercased(),
                 sessionId: session.id.uuidString.lowercased(),
-                content: content
+                content: content,
+                permissionMode: isPlanModeEnabled ? "plan" : nil
             )
             sessionDetailLogger.info("Message sent to session \(result.sessionId)")
         } catch {
