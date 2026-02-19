@@ -2,13 +2,18 @@
 
 use crate::app::DaemonState;
 use armin::{CodingSessionStatus, NewMessage, SessionId, SessionWriter};
+use claude_debug_logs::ClaudeDebugLogs;
 use daemon_ipc::{Event, EventType};
 use deku::{ClaudeEvent, ClaudeEventStream};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{
+    atomic::{AtomicI64, Ordering},
+    OnceLock,
+};
 use tracing::{debug, error, info, warn};
 
 /// Global sequence counter for streaming events.
 static STREAM_SEQUENCE: AtomicI64 = AtomicI64::new(0);
+static CLAUDE_DEBUG_LOGS: OnceLock<ClaudeDebugLogs> = OnceLock::new();
 
 /// Handle Claude events from a Deku event stream.
 ///
@@ -267,6 +272,31 @@ pub async fn handle_claude_events(
 /// Broadcast a raw JSON event to IPC subscribers.
 fn broadcast_event(state: &DaemonState, session_id: &str, raw_json: &str) {
     let seq = STREAM_SEQUENCE.fetch_add(1, Ordering::SeqCst);
+    let claude_debug_logs = get_claude_debug_logs();
+    if claude_debug_logs.is_enabled() {
+        let claude_type = ClaudeDebugLogs::extract_claude_type(raw_json);
+        info!(
+            target: "unbound.claude.raw",
+            event_code = "daemon.claude.raw",
+            obs_prefix = "claude.raw",
+            session_id = %session_id,
+            sequence = seq,
+            claude_type = %claude_type,
+            raw_json = raw_json,
+            "Claude raw event generated"
+        );
+
+        if let Err(e) = claude_debug_logs.record_raw_event(session_id, seq, raw_json) {
+            warn!(
+                session_id = %session_id,
+                sequence = seq,
+                base_dir = ?claude_debug_logs.base_dir(),
+                error = %e,
+                "Failed to append Claude debug log entry"
+            );
+        }
+    }
+
     let event = Event::new(
         EventType::ClaudeEvent,
         session_id,
@@ -280,6 +310,10 @@ fn broadcast_event(state: &DaemonState, session_id: &str, raw_json: &str) {
             .broadcast_or_create(&session_id_for_broadcast, event)
             .await;
     });
+}
+
+fn get_claude_debug_logs() -> &'static ClaudeDebugLogs {
+    CLAUDE_DEBUG_LOGS.get_or_init(ClaudeDebugLogs::from_env)
 }
 
 fn write_runtime_status_if_changed(

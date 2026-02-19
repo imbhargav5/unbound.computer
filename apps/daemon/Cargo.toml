@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/armin",
+    "crates/claude-debug-logs",
     "crates/daemon-config-and-utils",
     "crates/daemon-storage",
     "crates/daemon-database",
@@ -88,6 +89,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 
 # Local workspace crates
 armin = { path = "crates/armin" }
+claude-debug-logs = { path = "crates/claude-debug-logs" }
 daemon-config-and-utils = { path = "crates/daemon-config-and-utils" }
 daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }

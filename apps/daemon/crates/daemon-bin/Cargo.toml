@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 armin = { workspace = true }
+claude-debug-logs = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
