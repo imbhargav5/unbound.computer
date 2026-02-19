@@ -293,6 +293,112 @@ final class ClaudeTimelineFixtureContractTests: XCTestCase {
         XCTAssertEqual(entries.map(\.role), [.user, .assistant])
     }
 
+    func testAssistantSameIdTextThenToolUseRetainsTextAndTool() throws {
+        let parser = ClaudeConversationTimelineParser()
+
+        let textPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_same_id_merge",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": "I'll create 3 explore agents in parallel.",
+                    ],
+                ],
+            ],
+        ]
+
+        let toolPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_same_id_merge",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "tool_same_id_read",
+                        "name": "Read",
+                        "input": ["file_path": "README.md"],
+                    ],
+                ],
+            ],
+        ]
+
+        parser.ingest(payload: textPayload)
+        parser.ingest(payload: toolPayload)
+
+        let entries = parser.currentTimeline()
+        XCTAssertEqual(entries.count, 1)
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.role, .assistant)
+
+        let visibleText = entry.blocks.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }
+        XCTAssertEqual(visibleText, ["I'll create 3 explore agents in parallel."])
+
+        let toolCalls = entry.blocks.compactMap { block -> ClaudeToolCallBlock? in
+            guard case .toolCall(let tool) = block else { return nil }
+            return tool
+        }
+        XCTAssertEqual(toolCalls.map(\.toolUseId), ["tool_same_id_read"])
+        XCTAssertEqual(toolCalls.map(\.name), ["Read"])
+    }
+
+    func testAssistantSameIdLatestNonEmptyTextWins() throws {
+        let parser = ClaudeConversationTimelineParser()
+
+        let firstPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_same_id_text_update",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": "First commentary",
+                    ],
+                ],
+            ],
+        ]
+
+        let secondPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_same_id_text_update",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": "Second commentary",
+                    ],
+                ],
+            ],
+        ]
+
+        parser.ingest(payload: firstPayload)
+        parser.ingest(payload: secondPayload)
+
+        let entry = try XCTUnwrap(parser.currentTimeline().first)
+        let visibleText = entry.blocks.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }
+        XCTAssertEqual(visibleText, ["Second commentary"])
+    }
+
+    func testSystemInitRemainsSuppressed() {
+        let parser = ClaudeConversationTimelineParser()
+        let payload: [String: Any] = [
+            "type": "system",
+            "subtype": "init",
+            "model": "claude-opus-4-5-20251101",
+        ]
+
+        parser.ingest(payload: payload)
+
+        XCTAssertTrue(parser.currentTimeline().isEmpty)
+    }
+
     func testParserOrdersEntriesUsingFractionalCreatedAt() throws {
         let parser = ClaudeConversationTimelineParser()
 
@@ -348,6 +454,45 @@ final class ClaudeTimelineFixtureContractTests: XCTestCase {
 
         XCTAssertEqual(state.timeline.map(\.id), ["row-user", "row-assistant"])
         XCTAssertEqual(state.timeline.map(\.role), [.user, .assistant])
+    }
+
+    func testCodingSessionStateRetainsAssistantSameMessageIdUpdatesForMerge() throws {
+        let state = ClaudeCodingSessionState(source: EmptySessionMessageSource())
+
+        let first = RawSessionRow(
+            id: "assistant-row-1",
+            sequenceNumber: 1,
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: nil,
+            payload: #"{"type":"assistant","message":{"id":"msg_shared","content":[{"type":"text","text":"I'll create 3 explore agents in parallel."}]}}"#
+        )
+
+        let second = RawSessionRow(
+            id: "assistant-row-2",
+            sequenceNumber: 2,
+            createdAt: Date(timeIntervalSince1970: 2),
+            updatedAt: nil,
+            payload: #"{"type":"assistant","message":{"id":"msg_shared","content":[{"type":"tool_use","id":"tool_shared","name":"Read","input":{"file_path":"README.md"}}]}}"#
+        )
+
+        state.ingest(rows: [first, second])
+
+        XCTAssertEqual(state.timeline.count, 1)
+        let entry = try XCTUnwrap(state.timeline.first)
+        XCTAssertEqual(entry.role, .assistant)
+
+        let textBlocks = entry.blocks.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }
+        XCTAssertEqual(textBlocks, ["I'll create 3 explore agents in parallel."])
+
+        let tools = entry.blocks.compactMap { block -> ClaudeToolCallBlock? in
+            guard case .toolCall(let tool) = block else { return nil }
+            return tool
+        }
+        XCTAssertEqual(tools.map(\.toolUseId), ["tool_shared"])
+        XCTAssertEqual(tools.map(\.name), ["Read"])
     }
 
     private func sharedFixtureURL() throws -> URL {

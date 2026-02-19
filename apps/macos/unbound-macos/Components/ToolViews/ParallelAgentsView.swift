@@ -171,15 +171,27 @@ struct ParallelToolItem: Identifiable, Equatable {
 struct ParallelAgentsView: View {
     private let agents: [ParallelAgentItem]
     private let defaultExpanded: Bool
+    private let outerPadding: EdgeInsets
+    private static let defaultOuterPadding = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
 
-    init(activities: [SubAgentActivity], defaultExpanded: Bool = false) {
+    init(
+        activities: [SubAgentActivity],
+        defaultExpanded: Bool = false,
+        outerPadding: EdgeInsets = Self.defaultOuterPadding
+    ) {
         self.agents = activities.map(ParallelAgentItem.init(activity:))
         self.defaultExpanded = defaultExpanded
+        self.outerPadding = outerPadding
     }
 
-    init(activeSubAgents: [ActiveSubAgent], defaultExpanded: Bool = false) {
+    init(
+        activeSubAgents: [ActiveSubAgent],
+        defaultExpanded: Bool = false,
+        outerPadding: EdgeInsets = Self.defaultOuterPadding
+    ) {
         self.agents = activeSubAgents.map(ParallelAgentItem.init(activeSubAgent:))
         self.defaultExpanded = defaultExpanded
+        self.outerPadding = outerPadding
     }
 
     @State private var expandedAgentIDs: Set<String> = []
@@ -214,7 +226,7 @@ struct ParallelAgentsView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
             )
-            .padding(16)
+            .padding(outerPadding)
         }
     }
 

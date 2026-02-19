@@ -115,6 +115,31 @@ final class ClaudeTimelineChatMessageMapperTests: XCTestCase {
         XCTAssertEqual(subAgent?.tools.compactMap(\.toolUseId), ["tool-2"])
     }
 
+    func testMapEntriesKeepsAssistantTextAlongsideStandaloneToolUse() throws {
+        let entry = ClaudeConversationTimelineEntry(
+            id: "assistant-text-and-tool",
+            role: .assistant,
+            blocks: [
+                .text("I'll create 3 explore agents in parallel."),
+                .toolCall(makeTool(toolUseId: "tool-standalone", parentToolUseId: nil, name: "Read")),
+            ],
+            createdAt: Date(timeIntervalSince1970: 1),
+            sequence: 1,
+            sourceType: "assistant"
+        )
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries([entry])
+
+        XCTAssertEqual(messages.count, 1)
+        let message = try XCTUnwrap(messages.first)
+        XCTAssertEqual(message.textContent, "I'll create 3 explore agents in parallel.")
+        let toolUses = message.content.compactMap { content -> ToolUse? in
+            guard case .toolUse(let toolUse) = content else { return nil }
+            return toolUse
+        }
+        XCTAssertEqual(toolUses.map(\.toolUseId), ["tool-standalone"])
+    }
+
     private func firstSubAgent(in messages: [ChatMessage]) -> SubAgentActivity? {
         for message in messages {
             for content in message.content {

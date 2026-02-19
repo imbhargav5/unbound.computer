@@ -31,6 +31,8 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 | --- | --- | --- |
 | `assistant` with text | Emits `.text` content | Text row visible |
 | `assistant` with `tool_use` | Emits `.toolUse` or `.subAgentActivity` (`Task`) | Tool/sub-agent cards render from typed models |
+| same-id `assistant` text then same-id `assistant` `tool_use` | Merged by `message.id`; text retained while tools update | Commentary remains visible and tool/sub-agent cards appear in same row |
+| duplicate same-id `assistant` text update | Latest non-empty text wins for that `message.id` | No duplicate rows; most recent commentary text visible |
 | child tool before `Task` parent | Queued then attached when parent appears | No orphan child card when parent arrives |
 | duplicate `tool_use_id` update | Latest update wins | No duplicate cards, no stale status |
 | consecutive `subAgentActivity` blocks | Batched into a single parallel group render block | One grouped Parallel Agents card |

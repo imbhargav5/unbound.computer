@@ -220,6 +220,10 @@ public final class ClaudeCodingSessionState {
         }
 
         let resolved = resolveRawJSON(from: json)
+        if let assistantCanonicalId = assistantCanonicalRowId(from: resolved, row: row) {
+            return assistantCanonicalId
+        }
+
         if let message = resolved["message"] as? [String: Any],
            let messageId = message["id"] as? String {
             return messageId
@@ -231,6 +235,28 @@ public final class ClaudeCodingSessionState {
             return eventId
         }
         return row.id
+    }
+
+    private func assistantCanonicalRowId(from payload: [String: Any], row: RawSessionRow) -> String? {
+        guard let type = (payload["type"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              type == "assistant",
+              let message = payload["message"] as? [String: Any],
+              let rawMessageId = message["id"] as? String else {
+            return nil
+        }
+
+        let messageId = rawMessageId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !messageId.isEmpty else { return nil }
+
+        let sequence = row.sequenceNumber
+            ?? parseInteger(payload["sequence_number"])
+            ?? parseInteger(payload["sequence"])
+
+        if let sequence {
+            return "assistant:\(messageId):\(sequence)"
+        }
+
+        return "assistant:\(messageId):row:\(row.id)"
     }
 
     private func resolveRawJSON(from payload: [String: Any]) -> [String: Any] {

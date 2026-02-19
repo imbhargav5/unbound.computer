@@ -684,7 +684,10 @@ struct ChatMessageView: View {
                     case .standaloneTools(let tools):
                         StandaloneToolCallsView(historyTools: tools)
                     case .parallelAgents(let activities):
-                        ParallelAgentsView(activities: activities)
+                        ParallelAgentsView(
+                            activities: activities,
+                            outerPadding: EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 16)
+                        )
                     }
                 }
 

@@ -296,6 +296,64 @@
       "expect": { "roles": ["assistant"], "blockTypes": ["text"] }
     },
     {
+      "id": "assistant_same_id_text_then_tool_use_merge",
+      "description": "Same message id assistant commentary remains visible when later tool_use update arrives",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_same_id_merge",
+            "content": [
+              {
+                "type": "text",
+                "text": "I'll create 3 explore agents in parallel."
+              }
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_same_id_merge",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "tool_same_id_read",
+                "name": "Read",
+                "input": { "file_path": "README.md" }
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "entryCount": 1,
+        "roles": ["assistant"],
+        "blockTypes": ["text", "toolCall"]
+      }
+    },
+    {
+      "id": "assistant_same_id_latest_non_empty_text_wins",
+      "description": "When same-id assistant text updates repeat, latest non-empty text wins",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_same_id_text_update",
+            "content": [{ "type": "text", "text": "First commentary" }]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "id": "msg_same_id_text_update",
+            "content": [{ "type": "text", "text": "Second commentary" }]
+          }
+        }
+      ],
+      "expect": { "entryCount": 1, "roles": ["assistant"], "blockTypes": ["text"] }
+    },
+    {
       "id": "out_of_order_sequence",
       "description": "Out-of-order timestamps/sequence convergence",
       "events": [

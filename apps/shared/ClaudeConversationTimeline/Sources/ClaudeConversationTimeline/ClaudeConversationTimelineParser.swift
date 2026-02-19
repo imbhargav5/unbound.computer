@@ -418,12 +418,119 @@ public final class ClaudeConversationTimelineParser {
 
     private func upsert(entry: ClaudeConversationTimelineEntry) {
         if let index = timeline.firstIndex(where: { $0.id == entry.id }) {
-            timeline[index] = entry
+            let existing = timeline[index]
+            if existing.role == .assistant, entry.role == .assistant {
+                timeline[index] = mergeAssistantEntry(existing: existing, incoming: entry)
+            } else {
+                timeline[index] = entry
+            }
         } else {
             timeline.append(entry)
         }
 
         timeline.sort(by: entrySort(lhs:rhs:))
+    }
+
+    private func mergeAssistantEntry(
+        existing: ClaudeConversationTimelineEntry,
+        incoming: ClaudeConversationTimelineEntry
+    ) -> ClaudeConversationTimelineEntry {
+        ClaudeConversationTimelineEntry(
+            id: existing.id,
+            role: .assistant,
+            blocks: mergeAssistantBlocks(existing: existing.blocks, incoming: incoming.blocks),
+            createdAt: incoming.createdAt ?? existing.createdAt,
+            sequence: incoming.sequence ?? existing.sequence,
+            sourceType: incoming.sourceType
+        )
+    }
+
+    private func mergeAssistantBlocks(
+        existing: [ClaudeConversationBlock],
+        incoming: [ClaudeConversationBlock]
+    ) -> [ClaudeConversationBlock] {
+        let existingText = existing.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }
+        let incomingText = incoming.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }
+        let mergedText = incomingText.isEmpty ? existingText : incomingText
+
+        var subAgentsByParent: [String: ClaudeSubAgentBlock] = [:]
+        var toolsByKey: [String: ClaudeToolCallBlock] = [:]
+        var otherByKey: [String: ClaudeConversationBlock] = [:]
+
+        for block in existing {
+            switch block {
+            case .subAgent(let subAgent):
+                subAgentsByParent[subAgent.parentToolUseId] = subAgent
+            case .toolCall(let tool):
+                toolsByKey[toolDedupKey(for: tool)] = tool
+            default:
+                if let key = assistantOtherBlockKey(for: block) {
+                    otherByKey[key] = block
+                }
+            }
+        }
+
+        for block in incoming {
+            switch block {
+            case .subAgent(let subAgent):
+                if let existingSubAgent = subAgentsByParent[subAgent.parentToolUseId] {
+                    subAgentsByParent[subAgent.parentToolUseId] = mergeSubAgent(
+                        existing: existingSubAgent,
+                        incoming: subAgent
+                    )
+                } else {
+                    subAgentsByParent[subAgent.parentToolUseId] = subAgent
+                }
+            case .toolCall(let tool):
+                toolsByKey[toolDedupKey(for: tool)] = tool
+            default:
+                if let key = assistantOtherBlockKey(for: block) {
+                    otherByKey[key] = block
+                }
+            }
+        }
+
+        var orderedTokens: [AssistantMergeToken] = []
+        var seenTokens: Set<AssistantMergeToken> = []
+
+        for block in existing + incoming {
+            guard let token = assistantMergeToken(for: block) else { continue }
+            if seenTokens.insert(token).inserted {
+                orderedTokens.append(token)
+            }
+        }
+
+        var mergedBlocks: [ClaudeConversationBlock] = []
+        for token in orderedTokens {
+            switch token {
+            case .text:
+                mergedBlocks.append(contentsOf: mergedText.map { .text($0) })
+            case .subAgent(let parentToolUseId):
+                if let subAgent = subAgentsByParent[parentToolUseId] {
+                    mergedBlocks.append(.subAgent(subAgent))
+                }
+            case .tool(let key):
+                if let tool = toolsByKey[key] {
+                    mergedBlocks.append(.toolCall(tool))
+                }
+            case .other(let key):
+                if let block = otherByKey[key] {
+                    mergedBlocks.append(block)
+                }
+            }
+        }
+
+        if mergedBlocks.isEmpty {
+            return incoming
+        }
+
+        return mergedBlocks
     }
 
     private func entrySort(lhs: ClaudeConversationTimelineEntry, rhs: ClaudeConversationTimelineEntry) -> Bool {
@@ -697,6 +804,42 @@ public final class ClaudeConversationTimelineParser {
             || normalized.contains("\"tool_use_id\"")
             || normalized.contains("\"raw_json\"")
         return hasTypeMarker && hasToolMarkers
+    }
+
+    private enum AssistantMergeToken: Hashable {
+        case text
+        case subAgent(String)
+        case tool(String)
+        case other(String)
+    }
+
+    private func assistantMergeToken(for block: ClaudeConversationBlock) -> AssistantMergeToken? {
+        switch block {
+        case .text:
+            return .text
+        case .subAgent(let subAgent):
+            return .subAgent(subAgent.parentToolUseId)
+        case .toolCall(let tool):
+            return .tool(toolDedupKey(for: tool))
+        case .result, .error, .compactBoundary, .unknown:
+            guard let key = assistantOtherBlockKey(for: block) else { return nil }
+            return .other(key)
+        }
+    }
+
+    private func assistantOtherBlockKey(for block: ClaudeConversationBlock) -> String? {
+        switch block {
+        case .result:
+            return "result"
+        case .error:
+            return "error"
+        case .compactBoundary:
+            return "compact_boundary"
+        case .unknown(let value):
+            return "unknown:\(value)"
+        default:
+            return nil
+        }
     }
 
     private func appendOrUpdateStandaloneTool(_ toolUse: ClaudeToolCallBlock, to blocks: inout [ClaudeConversationBlock]) {
