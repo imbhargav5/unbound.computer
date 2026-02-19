@@ -29,6 +29,9 @@ dist
 
 # Rust build artifacts
 target/
+
+# Swift package build artifacts
+.build/
 .unbound-worktrees/
 
 # Xcode local configuration
