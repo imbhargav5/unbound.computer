@@ -76,7 +76,8 @@ extension SessionLiveState {
     static func preview(
         claudeRunning: Bool = false,
         withActiveTools: Bool = false,
-        withMessages: Bool = true
+        withMessages: Bool = true,
+        runtimeStatus: RuntimeStatusEnvelope? = nil
     ) -> SessionLiveState {
         let state = SessionLiveState(sessionId: PreviewData.sessionId1)
         state.configureForPreview(
@@ -84,7 +85,8 @@ extension SessionLiveState {
             claudeRunning: claudeRunning,
             activeTools: withActiveTools ? PreviewData.activeTools : [],
             activeSubAgents: withActiveTools ? PreviewData.activeSubAgents : [],
-            toolHistory: withMessages ? PreviewData.toolHistory : []
+            toolHistory: withMessages ? PreviewData.toolHistory : [],
+            runtimeStatus: runtimeStatus
         )
         return state
     }
@@ -103,7 +105,8 @@ extension AppState {
     /// registered in the SessionStateManager for the selected session.
     static func preview(
         withSessionState: Bool = true,
-        claudeRunning: Bool = false
+        claudeRunning: Bool = false,
+        runtimeStatus: RuntimeStatusEnvelope? = nil
     ) -> AppState {
         let state = AppState()
         state.configureForPreview(
@@ -117,7 +120,8 @@ extension AppState {
         if withSessionState {
             let sessionState = SessionLiveState.preview(
                 claudeRunning: claudeRunning,
-                withActiveTools: claudeRunning
+                withActiveTools: claudeRunning,
+                runtimeStatus: runtimeStatus
             )
             state.sessionStateManager.registerForPreview(
                 sessionId: PreviewData.sessionId1,
