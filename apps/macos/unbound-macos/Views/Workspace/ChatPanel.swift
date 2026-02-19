@@ -185,10 +185,10 @@ struct ChatPanel: View {
 
     private var runtimeStatusSummary: (status: CodingSessionRuntimeStatus, errorMessage: String?)? {
         guard let liveState else { return nil }
-        return (
-            status: liveState.codingSessionStatus,
-            errorMessage: liveState.codingSessionErrorMessage
-        )
+        let status = liveState.codingSessionStatus
+        let errorMessage = liveState.codingSessionErrorMessage
+        if status == .idle && errorMessage == nil { return nil }
+        return (status: status, errorMessage: errorMessage)
     }
 
     private var activeTerminalTab: TerminalTab? {
