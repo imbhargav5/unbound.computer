@@ -1699,6 +1699,48 @@ private struct ChatMessageRow: View, Equatable {
     .frame(width: 900, height: 600)
 }
 
+#Preview("Runtime Status - Running") {
+    let runtimeStatus = RuntimeStatusEnvelope.legacyFallback(
+        status: .running,
+        errorMessage: nil,
+        sessionId: PreviewData.sessionId1.uuidString,
+        updatedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
+    )
+
+    return ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.sonnet),
+        selectedThinkMode: .constant(.think),
+        isPlanMode: .constant(false),
+        editorState: EditorState()
+    )
+    .environment(AppState.preview(runtimeStatus: runtimeStatus))
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Runtime Status - Idle (Hidden)") {
+    let runtimeStatus = RuntimeStatusEnvelope.legacyFallback(
+        status: .idle,
+        errorMessage: nil,
+        sessionId: PreviewData.sessionId1.uuidString,
+        updatedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
+    )
+
+    return ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.sonnet),
+        selectedThinkMode: .constant(.think),
+        isPlanMode: .constant(false),
+        editorState: EditorState()
+    )
+    .environment(AppState.preview(runtimeStatus: runtimeStatus))
+    .frame(width: 900, height: 600)
+}
+
 #Preview("Empty") {
     ChatPanel(
         session: FakeData.sessions.first,

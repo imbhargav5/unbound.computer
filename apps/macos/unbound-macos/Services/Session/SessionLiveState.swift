@@ -1035,7 +1035,8 @@ class SessionLiveState {
         activeSubAgents: [ActiveSubAgent] = [],
         toolHistory: [ToolHistoryEntry] = [],
         streamingContent: String? = nil,
-        pendingPrompt: PendingPrompt? = nil
+        pendingPrompt: PendingPrompt? = nil,
+        runtimeStatus: RuntimeStatusEnvelope? = nil
     ) {
         self.messages = messages
         self.claudeRunning = claudeRunning
@@ -1045,6 +1046,7 @@ class SessionLiveState {
         self.toolHistory = toolHistory
         self.streamingContent = streamingContent
         self.pendingPrompt = pendingPrompt
+        self.runtimeStatus = runtimeStatus
     }
     #endif
 }
