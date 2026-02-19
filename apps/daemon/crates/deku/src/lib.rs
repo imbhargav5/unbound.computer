@@ -63,7 +63,7 @@ mod event;
 mod process;
 mod stream;
 
-pub use config::{ClaudeConfig, DEFAULT_ALLOWED_TOOLS};
+pub use config::{ClaudeConfig, PermissionMode, DEFAULT_ALLOWED_TOOLS};
 pub use error::{DekuError, DekuResult};
 pub use event::ClaudeEvent;
 pub use process::ClaudeProcess;

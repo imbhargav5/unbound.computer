@@ -17,6 +17,14 @@ pub struct ClaudeConfig {
 
     /// Optional custom allowed tools (uses DEFAULT_ALLOWED_TOOLS if None).
     pub allowed_tools: Option<String>,
+
+    /// Optional permission mode for Claude CLI.
+    pub permission_mode: Option<PermissionMode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionMode {
+    Plan,
 }
 
 impl ClaudeConfig {
@@ -27,6 +35,7 @@ impl ClaudeConfig {
             working_dir: working_dir.into(),
             resume_session_id: None,
             allowed_tools: None,
+            permission_mode: None,
         }
     }
 
@@ -39,6 +48,12 @@ impl ClaudeConfig {
     /// Set custom allowed tools.
     pub fn with_allowed_tools(mut self, tools: impl Into<String>) -> Self {
         self.allowed_tools = Some(tools.into());
+        self
+    }
+
+    /// Set permission mode.
+    pub fn with_permission_mode(mut self, permission_mode: PermissionMode) -> Self {
+        self.permission_mode = Some(permission_mode);
         self
     }
 
@@ -63,6 +78,10 @@ impl ClaudeConfig {
             cmd.push_str(&format!(" -r {}", session_id));
         }
 
+        if matches!(self.permission_mode, Some(PermissionMode::Plan)) {
+            cmd.push_str(" --permission-mode plan");
+        }
+
         cmd
     }
 }
@@ -85,6 +104,7 @@ mod tests {
         assert_eq!(config.working_dir, "/tmp");
         assert!(config.resume_session_id.is_none());
         assert!(config.allowed_tools.is_none());
+        assert!(config.permission_mode.is_none());
     }
 
     #[test]
