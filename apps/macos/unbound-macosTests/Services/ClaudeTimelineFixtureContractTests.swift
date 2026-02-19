@@ -399,6 +399,261 @@ final class ClaudeTimelineFixtureContractTests: XCTestCase {
         XCTAssertTrue(parser.currentTimeline().isEmpty)
     }
 
+    func testParserTaskToolResultUpdatesSubAgentStatus() throws {
+        let parser = ClaudeConversationTimelineParser()
+
+        let assistantTaskPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_task_status",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "task_status",
+                        "name": "Task",
+                        "input": [
+                            "subagent_type": "Explore",
+                            "description": "Inspect daemon structure",
+                        ],
+                    ],
+                ],
+            ],
+        ]
+        let toolResultPayload: [String: Any] = [
+            "type": "user",
+            "message": [
+                "content": [
+                    [
+                        "type": "tool_result",
+                        "tool_use_id": "task_status",
+                        "is_error": false,
+                        "content": "Sub-agent done",
+                    ],
+                ],
+            ],
+        ]
+
+        parser.ingest(payload: assistantTaskPayload)
+        parser.ingest(payload: toolResultPayload)
+
+        let entry = try XCTUnwrap(parser.currentTimeline().first(where: { $0.id == "msg_task_status" }))
+        let subAgent = try XCTUnwrap(entry.blocks.compactMap { block -> ClaudeSubAgentBlock? in
+            guard case .subAgent(let value) = block else { return nil }
+            return value
+        }.first)
+
+        XCTAssertEqual(subAgent.status, .completed)
+        XCTAssertEqual(subAgent.result, "Sub-agent done")
+    }
+
+    func testParserTaskToolResultArrayContentUpdatesSubAgentResult() throws {
+        let parser = ClaudeConversationTimelineParser()
+
+        let assistantTaskPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_task_array_result",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "task_array_result",
+                        "name": "Task",
+                        "input": [
+                            "subagent_type": "Explore",
+                            "description": "Inspect daemon structure",
+                        ],
+                    ],
+                ],
+            ],
+        ]
+        let toolResultPayload: [String: Any] = [
+            "type": "user",
+            "message": [
+                "content": [
+                    [
+                        "type": "tool_result",
+                        "tool_use_id": "task_array_result",
+                        "is_error": false,
+                        "content": [
+                            [
+                                "type": "text",
+                                "text": "Found issues in daemon lifecycle.",
+                            ],
+                            [
+                                "type": "text",
+                                "text": "agentId: a12ae7a",
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]
+
+        parser.ingest(payload: assistantTaskPayload)
+        parser.ingest(payload: toolResultPayload)
+
+        let entry = try XCTUnwrap(parser.currentTimeline().first(where: { $0.id == "msg_task_array_result" }))
+        let subAgent = try XCTUnwrap(entry.blocks.compactMap { block -> ClaudeSubAgentBlock? in
+            guard case .subAgent(let value) = block else { return nil }
+            return value
+        }.first)
+
+        XCTAssertEqual(subAgent.status, .completed)
+        XCTAssertEqual(subAgent.result, "Found issues in daemon lifecycle.\nagentId: a12ae7a")
+    }
+
+    func testParserChildToolResultArrayContentUpdatesToolOutput() throws {
+        let parser = ClaudeConversationTimelineParser()
+
+        let parentTaskPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_task_parent",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "task_parent",
+                        "name": "Task",
+                        "input": [
+                            "subagent_type": "Explore",
+                            "description": "Inspect files",
+                        ],
+                    ],
+                ],
+            ],
+        ]
+        let childToolPayload: [String: Any] = [
+            "type": "assistant",
+            "parent_tool_use_id": "task_parent",
+            "message": [
+                "id": "msg_task_child",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "tool_child_array",
+                        "name": "Bash",
+                        "input": [
+                            "command": "echo hello",
+                        ],
+                    ],
+                ],
+            ],
+        ]
+        let childToolResultPayload: [String: Any] = [
+            "type": "user",
+            "message": [
+                "content": [
+                    [
+                        "type": "tool_result",
+                        "tool_use_id": "tool_child_array",
+                        "is_error": false,
+                        "content": [
+                            [
+                                "type": "text",
+                                "text": "stdout line 1",
+                            ],
+                            [
+                                "type": "text",
+                                "text": "stdout line 2",
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]
+
+        parser.ingest(payload: parentTaskPayload)
+        parser.ingest(payload: childToolPayload)
+        parser.ingest(payload: childToolResultPayload)
+
+        let childEntry = try XCTUnwrap(parser.currentTimeline().first(where: { $0.id == "msg_task_child" }))
+        let childTool = try XCTUnwrap(childEntry.blocks.compactMap { block -> ClaudeToolCallBlock? in
+            guard case .toolCall(let value) = block else { return nil }
+            return value
+        }.first(where: { $0.toolUseId == "tool_child_array" }))
+
+        XCTAssertEqual(childTool.status, .completed)
+        XCTAssertEqual(childTool.resultText, "stdout line 1\nstdout line 2")
+    }
+
+    func testParserResultFinalizesResidualRunningStates() {
+        let parser = ClaudeConversationTimelineParser()
+
+        let standaloneToolPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_running_tool",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "tool_running",
+                        "name": "Read",
+                        "input": ["file_path": "README.md"],
+                    ],
+                ],
+            ],
+        ]
+        let taskPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_running_task",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "task_running",
+                        "name": "Task",
+                        "input": [
+                            "subagent_type": "Explore",
+                            "description": "Inspect files",
+                        ],
+                    ],
+                ],
+            ],
+        ]
+        let childToolPayload: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "id": "msg_running_child",
+                "content": [
+                    [
+                        "type": "tool_use",
+                        "id": "child_running",
+                        "name": "Grep",
+                        "parent_tool_use_id": "task_running",
+                        "input": ["pattern": "TODO"],
+                    ],
+                ],
+            ],
+        ]
+        let resultPayload: [String: Any] = [
+            "type": "result",
+            "is_error": false,
+            "result": "Done",
+        ]
+
+        parser.ingest(payload: standaloneToolPayload)
+        parser.ingest(payload: taskPayload)
+        parser.ingest(payload: childToolPayload)
+        parser.ingest(payload: resultPayload)
+
+        let statuses: [ClaudeToolCallStatus] = parser.currentTimeline().flatMap { entry in
+            entry.blocks.flatMap { block -> [ClaudeToolCallStatus] in
+                switch block {
+                case .toolCall(let tool):
+                    return [tool.status]
+                case .subAgent(let subAgent):
+                    return [subAgent.status] + subAgent.tools.map(\.status)
+                default:
+                    return []
+                }
+            }
+        }
+
+        XCTAssertFalse(statuses.isEmpty)
+        XCTAssertFalse(statuses.contains(.running))
+        XCTAssertTrue(statuses.allSatisfy { $0 == .completed })
+    }
+
     func testParserOrdersEntriesUsingFractionalCreatedAt() throws {
         let parser = ClaudeConversationTimelineParser()
 

@@ -38,6 +38,9 @@ struct ChatPanel: View {
     @State private var activeTerminalTabId: UUID?
     @State private var terminalTabSequence: Int = 0
 
+    private static let streamingMessageRowID = UUID(uuidString: "b4a4f0e9-1a89-4c21-9f3d-8bd83e3d7b9a")!
+    private static let streamingTextContentID = UUID(uuidString: "8ee4f4a5-9d46-43f2-8b1e-7f0cc4a533fa")!
+
     // Editor tab close/save dialog state
     @State private var pendingCloseTabId: UUID?
     @State private var showUnsavedCloseDialog: Bool = false
@@ -133,19 +136,81 @@ struct ChatPanel: View {
         liveState?.messages ?? []
     }
 
-    /// Tool history from live state
-    private var toolHistory: [ToolHistoryEntry] {
+    /// Live in-progress assistant text shown while streaming before final message rows settle.
+    private var streamingAssistantMessage: ChatMessage? {
+        guard isSessionStreaming,
+              let rawStreamingText = liveState?.streamingContent else {
+            return nil
+        }
+
+        var visibleText = rawStreamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !visibleText.isEmpty else { return nil }
+
+        if let latestAssistantText = messages.last(where: { $0.role == .assistant })?
+            .textContent
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !latestAssistantText.isEmpty {
+            if visibleText == latestAssistantText || latestAssistantText.hasSuffix(visibleText) {
+                return nil
+            }
+
+            if visibleText.hasPrefix(latestAssistantText) {
+                let start = visibleText.index(visibleText.startIndex, offsetBy: latestAssistantText.count)
+                visibleText = String(visibleText[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !visibleText.isEmpty else { return nil }
+            }
+        }
+
+        let nextSequence = (messages.last?.sequenceNumber ?? 0) + 1
+        let timestamp = messages.last?.timestamp ?? Date(timeIntervalSince1970: 0)
+
+        return ChatMessage(
+            id: Self.streamingMessageRowID,
+            role: .assistant,
+            content: [.text(TextContent(id: Self.streamingTextContentID, text: visibleText))],
+            timestamp: timestamp,
+            isStreaming: true,
+            sequenceNumber: nextSequence
+        )
+    }
+
+    /// Raw tool history from live state
+    private var rawToolHistory: [ToolHistoryEntry] {
         liveState?.toolHistory ?? []
     }
 
-    /// Currently active sub-agent (if any)
-    private var activeSubAgents: [ActiveSubAgent] {
+    /// Raw active sub-agents from live state
+    private var rawActiveSubAgents: [ActiveSubAgent] {
         liveState?.activeSubAgents ?? []
     }
 
-    /// Currently active standalone tools (not in a sub-agent)
-    private var activeTools: [ActiveTool] {
+    /// Raw active standalone tools (not in a sub-agent)
+    private var rawActiveTools: [ActiveTool] {
         liveState?.activeTools ?? []
+    }
+
+    private var dedupedToolSurfaceState: ChatToolSurfaceDeduper.DisplayState {
+        ChatToolSurfaceDeduper.dedupe(
+            messages: messages,
+            toolHistory: rawToolHistory,
+            activeSubAgents: rawActiveSubAgents,
+            activeTools: rawActiveTools
+        )
+    }
+
+    /// Tool history rendered in chat after removing duplicate message-surface cards
+    private var toolHistory: [ToolHistoryEntry] {
+        dedupedToolSurfaceState.visibleToolHistory
+    }
+
+    /// Active sub-agents rendered in the bottom live area after dedupe
+    private var activeSubAgents: [ActiveSubAgent] {
+        dedupedToolSurfaceState.visibleActiveSubAgents
+    }
+
+    /// Active standalone tools rendered in the bottom live area after dedupe
+    private var activeTools: [ActiveTool] {
+        dedupedToolSurfaceState.visibleActiveTools
     }
 
     /// Whether there's any active tool state to display
@@ -164,6 +229,7 @@ struct ChatPanel: View {
         hasher.combine(activeSubAgents.last?.childTools.count)
         hasher.combine(activeSubAgents.last?.childTools.last?.id)
         hasher.combine(activeTools.last?.id)
+        hasher.combine(streamingAssistantMessage?.textContent.count ?? 0)
         if let last = messages.last {
             hasher.combine(last.content.count)
             // Include text length for smooth streaming scroll
@@ -416,7 +482,7 @@ struct ChatPanel: View {
                     if isLoadingMessages {
                         ProgressView("Loading messages...")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if messages.isEmpty && !hasActiveToolState {
+                    } else if messages.isEmpty && !hasActiveToolState && streamingAssistantMessage == nil {
                         switch workspacePathResult {
                         case .noRepository:
                             // No workspace selected
@@ -470,6 +536,18 @@ struct ChatPanel: View {
                                         ForEach(toolHistoryByIndex[index] ?? []) { entry in
                                             ToolHistoryEntryView(entry: entry)
                                         }
+                                    }
+
+                                    if let streamingAssistantMessage {
+                                        ChatMessageRow(
+                                            message: streamingAssistantMessage,
+                                            animationIndex: 0,
+                                            shouldAnimate: false,
+                                            onQuestionSubmit: handleQuestionSubmit,
+                                            onRowAppear: nil
+                                        )
+                                        .equatable()
+                                        .id(streamingAssistantMessage.id)
                                     }
 
                                     // Render active sub-agents in grouped parallel-agents surface

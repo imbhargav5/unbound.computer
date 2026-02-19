@@ -8,6 +8,7 @@ enum SessionDetailPreviewScenario: String, CaseIterable, Identifiable {
     case emptyTimeline
     case textHeavySynthetic
     case toolHeavySynthetic
+    case tableSpecSynthetic
 
     var id: String { rawValue }
 
@@ -23,6 +24,8 @@ enum SessionDetailPreviewScenario: String, CaseIterable, Identifiable {
             return "Loading Text-Heavy Scenario..."
         case .toolHeavySynthetic:
             return "Loading Tool-Heavy Scenario..."
+        case .tableSpecSynthetic:
+            return "Loading Table Spec Scenario..."
         }
     }
 }
@@ -48,6 +51,8 @@ enum SessionDetailPreviewScenarioBuilder {
             return loadTextHeavySynthetic()
         case .toolHeavySynthetic:
             return loadToolHeavySynthetic()
+        case .tableSpecSynthetic:
+            return loadTableSpecSynthetic()
         }
     }
 
@@ -140,6 +145,46 @@ enum SessionDetailPreviewScenarioBuilder {
 
         return SessionDetailPreviewData(
             session: syntheticSession(title: "Session Detail Tool Preview"),
+            sourceMessageCount: messages.count,
+            parsedMessages: messages
+        )
+    }
+
+    private static func loadTableSpecSynthetic() -> SessionDetailPreviewData {
+        let markdown = """
+        ### Agent Runtime & Session
+        | File | Purpose |
+        | --- | --- |
+        | packages/agent-runtime/src/encryption... | Session encryption contexts, message encryption |
+        | packages/session/src/manager.ts | Multi-device encrypted broadcasting |
+        | packages/session/src/participant.ts | Participant-side message decryption |
+
+        ### Protocol Definitions
+        | File | Purpose |
+        | --- | --- |
+        | packages/protocol/src/pairing... | Pairing protocol with encrypted keys |
+        | packages/protocol/src/multide... | Multi-device message schemas |
+
+        ### iOS (Swift/CryptoKit)
+        | File | Purpose |
+        | --- | --- |
+        | apps/ios/unbound-ios/Services/CryptoService.swift | X25519, ECDH, HKDF, ChaCha20-Poly1305 |
+        | apps/ios/unbound-ios/Utils/CryptoUtils.swift | Crypto validation & utilities |
+        | apps/ios/unbound-ios/Services/Database/Encryption/... | Database message encryption |
+        | apps/ios/unbound-ios/Services/SessionSecretService... | Session secret decryption |
+        | apps/ios/unbound-ios/Services/DeviceTrustService.s... | Device pairing & trust management |
+        """
+
+        let messages = normalizeSequence([
+            ChatMessage(
+                role: .assistant,
+                content: [.text(TextContent(text: markdown))],
+                sequenceNumber: 1
+            )
+        ])
+
+        return SessionDetailPreviewData(
+            session: syntheticSession(title: "Session Detail Table Spec Preview"),
             sourceMessageCount: messages.count,
             parsedMessages: messages
         )

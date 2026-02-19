@@ -303,6 +303,11 @@ private struct SessionDetailFixtureErrorView: View {
         .frame(width: 960, height: 700)
 }
 
+#Preview("Session Detail - Table Spec") {
+    SessionDetailScenarioPreview(scenario: .tableSpecSynthetic)
+        .frame(width: 960, height: 700)
+}
+
 #Preview("Session Detail - Status Variants") {
     SessionDetailStatusVariantsPreview()
         .frame(width: 960, height: 700)

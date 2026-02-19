@@ -56,7 +56,11 @@ enum ClaudeTimelineChatMessageMapper {
                 }
 
             case .toolCall(let tool):
-                mapped.append(.toolUse(makeToolUse(from: tool)))
+                if let todoList = makeTodoList(from: tool) {
+                    mapped.append(.todoList(todoList))
+                } else {
+                    mapped.append(.toolUse(makeToolUse(from: tool)))
+                }
 
             case .subAgent(let subAgent):
                 mapped.append(.subAgentActivity(makeSubAgent(from: subAgent)))
@@ -78,6 +82,43 @@ enum ClaudeTimelineChatMessageMapper {
         }
 
         return mapped
+    }
+
+    private static func makeTodoList(from tool: ClaudeToolCallBlock) -> TodoList? {
+        guard tool.name == "TodoWrite",
+              let input = tool.input,
+              let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        let todosValue = (json["todos"] as? [[String: Any]])
+            ?? ((json["input"] as? [String: Any])?["todos"] as? [[String: Any]])
+        guard let todosValue, !todosValue.isEmpty else {
+            return nil
+        }
+
+        let items = todosValue.compactMap { todo -> TodoItem? in
+            guard let content = todo["content"] as? String else { return nil }
+            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+
+            let rawStatus = (todo["status"] as? String)?.lowercased()
+            let status: TodoStatus
+            switch rawStatus {
+            case "completed":
+                status = .completed
+            case "in_progress":
+                status = .inProgress
+            default:
+                status = .pending
+            }
+
+            return TodoItem(content: trimmed, status: status)
+        }
+
+        guard !items.isEmpty else { return nil }
+        return TodoList(items: items)
     }
 
     private static func makeToolUse(from tool: ClaudeToolCallBlock) -> ToolUse {

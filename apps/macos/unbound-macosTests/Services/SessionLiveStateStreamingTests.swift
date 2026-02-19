@@ -89,6 +89,47 @@ final class SessionLiveStateStreamingTests: XCTestCase {
         XCTAssertEqual(state.activeTools.first?.status, .failed)
     }
 
+    func testTodoWriteDoesNotCreateActiveToolCards() {
+        let state = SessionLiveState(sessionId: UUID())
+
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(
+                id: "todo_standalone",
+                name: "TodoWrite",
+                input: [
+                    "todos": [
+                        ["content": "Ship parser fix", "status": "pending"],
+                    ],
+                ]
+            ),
+        ]))
+        XCTAssertTrue(state.activeTools.isEmpty)
+
+        state.ingestClaudeEventForTests(assistantEvent(toolUses: [
+            toolUse(id: "task_todo_parent", name: "Task", input: ["subagent_type": "Explore", "description": "Track todos"])
+        ]))
+        XCTAssertEqual(state.activeSubAgents.count, 1)
+        XCTAssertEqual(state.activeSubAgents.first?.childTools.count, 0)
+
+        state.ingestClaudeEventForTests(assistantEvent(
+            toolUses: [
+                toolUse(
+                    id: "todo_child",
+                    name: "TodoWrite",
+                    input: [
+                        "todos": [
+                            ["content": "Run tests", "status": "in_progress"],
+                        ],
+                    ]
+                ),
+            ],
+            parent: "task_todo_parent"
+        ))
+
+        XCTAssertEqual(state.activeSubAgents.first?.childTools.count, 0)
+        XCTAssertTrue(state.activeTools.isEmpty)
+    }
+
     func testDuplicateStandaloneToolUseKeepsLatestState() {
         let state = SessionLiveState(sessionId: UUID())
 
@@ -388,6 +429,84 @@ final class SessionLiveStateStreamingTests: XCTestCase {
         XCTAssertFalse(state.canSendMessage)
     }
 
+    func testStreamingChunksAccumulateAndPreferLatestCompleteText() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+        let normalizedSessionId = sessionId.uuidString.lowercased()
+
+        state.ingestDaemonEventForTests(
+            streamingEvent(
+                sessionId: normalizedSessionId,
+                content: "Hello"
+            )
+        )
+        XCTAssertEqual(state.streamingContent, "Hello")
+
+        state.ingestDaemonEventForTests(
+            streamingEvent(
+                sessionId: normalizedSessionId,
+                content: " world",
+                sequence: 2
+            )
+        )
+        XCTAssertEqual(state.streamingContent, "Hello world")
+
+        state.ingestDaemonEventForTests(
+            streamingEvent(
+                sessionId: normalizedSessionId,
+                content: "Hello world!",
+                sequence: 3
+            )
+        )
+        XCTAssertEqual(state.streamingContent, "Hello world!")
+    }
+
+    func testMessageEventDoesNotClearStreamingContent() {
+        let sessionId = UUID()
+        let state = SessionLiveState(sessionId: sessionId)
+        let normalizedSessionId = sessionId.uuidString.lowercased()
+
+        state.ingestDaemonEventForTests(
+            streamingEvent(
+                sessionId: normalizedSessionId,
+                content: "Planning fixes..."
+            )
+        )
+        XCTAssertEqual(state.streamingContent, "Planning fixes...")
+
+        state.ingestDaemonEventForTests(
+            messageEvent(sessionId: normalizedSessionId, sequence: 2)
+        )
+
+        XCTAssertEqual(state.streamingContent, "Planning fixes...")
+    }
+
+    func testAssistantTextMergesIntoExistingStreamingContent() {
+        let state = SessionLiveState(sessionId: UUID())
+
+        state.ingestDaemonEventForTests(
+            streamingEvent(
+                sessionId: state.sessionId.uuidString.lowercased(),
+                content: "Based on exploration"
+            )
+        )
+
+        let assistantTextEvent = jsonString([
+            "type": "assistant",
+            "message": [
+                "content": [
+                    [
+                        "type": "text",
+                        "text": "Based on exploration, here are the top improvements."
+                    ]
+                ]
+            ]
+        ])
+        state.ingestClaudeEventForTests(assistantTextEvent)
+
+        XCTAssertEqual(state.streamingContent, "Based on exploration, here are the top improvements.")
+    }
+
     // MARK: - Helpers
 
     private func assistantEvent(toolUses: [[String: Any]], parent: String? = nil) -> String {
@@ -465,6 +584,29 @@ final class SessionLiveStateStreamingTests: XCTestCase {
 
     private func wrappedRawJSON(_ rawJSON: String) -> String {
         jsonString(["raw_json": rawJSON])
+    }
+
+    private func streamingEvent(
+        type: DaemonEventType = .streamingChunk,
+        sessionId: String,
+        content: String,
+        sequence: Int64 = 1
+    ) -> DaemonEvent {
+        DaemonEvent(
+            type: type,
+            sessionId: sessionId,
+            data: ["content": AnyCodableValue(content)],
+            sequence: sequence
+        )
+    }
+
+    private func messageEvent(sessionId: String, sequence: Int64 = 1) -> DaemonEvent {
+        DaemonEvent(
+            type: .message,
+            sessionId: sessionId,
+            data: [:],
+            sequence: sequence
+        )
     }
 
     private func runtimeStatusChangeEvent(

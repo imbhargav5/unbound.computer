@@ -70,6 +70,19 @@ struct Session: Identifiable, Codable, Hashable {
     }
 }
 
+extension Session {
+    /// Returns true when lhs should appear before rhs in recency-first lists.
+    static func isMoreRecent(_ lhs: Session, than rhs: Session) -> Bool {
+        if lhs.lastAccessed != rhs.lastAccessed {
+            return lhs.lastAccessed > rhs.lastAccessed
+        }
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt > rhs.createdAt
+        }
+        return lhs.id.uuidString > rhs.id.uuidString
+    }
+}
+
 // MARK: - Agent Status
 
 enum AgentStatus: String, Codable, Hashable {

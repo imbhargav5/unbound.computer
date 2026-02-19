@@ -140,6 +140,78 @@ final class ClaudeTimelineChatMessageMapperTests: XCTestCase {
         XCTAssertEqual(toolUses.map(\.toolUseId), ["tool-standalone"])
     }
 
+    func testMapEntriesMapsTodoWriteToolToTodoList() throws {
+        let todoInput = #"{"todos":[{"content":"Ship parser fix","status":"pending"},{"content":"Run tests","status":"in_progress"},{"content":"Write summary","status":"completed"}]}"#
+        let todoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-1",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: todoInput,
+            status: .completed,
+            resultText: nil
+        )
+        let entry = ClaudeConversationTimelineEntry(
+            id: "assistant-todo",
+            role: .assistant,
+            blocks: [.toolCall(todoTool)],
+            createdAt: Date(timeIntervalSince1970: 1),
+            sequence: 1,
+            sourceType: "assistant"
+        )
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries([entry])
+        let message = try XCTUnwrap(messages.first)
+
+        let todoLists = message.content.compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertEqual(todoLists.count, 1)
+        XCTAssertEqual(todoLists[0].items.map(\.content), ["Ship parser fix", "Run tests", "Write summary"])
+        XCTAssertEqual(todoLists[0].items.map(\.status), [.pending, .inProgress, .completed])
+
+        let toolUses = message.content.compactMap { content -> ToolUse? in
+            guard case .toolUse(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertTrue(toolUses.isEmpty)
+    }
+
+    func testMapEntriesTodoWriteMalformedInputFallsBackToGenericToolUse() throws {
+        let malformedTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-bad",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: "{this is invalid json}",
+            status: .running,
+            resultText: nil
+        )
+        let entry = ClaudeConversationTimelineEntry(
+            id: "assistant-todo-bad",
+            role: .assistant,
+            blocks: [.toolCall(malformedTodoTool)],
+            createdAt: Date(timeIntervalSince1970: 1),
+            sequence: 1,
+            sourceType: "assistant"
+        )
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries([entry])
+        let message = try XCTUnwrap(messages.first)
+
+        let toolUses = message.content.compactMap { content -> ToolUse? in
+            guard case .toolUse(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertEqual(toolUses.count, 1)
+        XCTAssertEqual(toolUses.first?.toolName, "TodoWrite")
+
+        let todoLists = message.content.compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertTrue(todoLists.isEmpty)
+    }
+
     private func firstSubAgent(in messages: [ChatMessage]) -> SubAgentActivity? {
         for message in messages {
             for content in message.content {

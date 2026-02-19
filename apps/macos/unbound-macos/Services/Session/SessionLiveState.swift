@@ -58,10 +58,22 @@ struct PendingPrompt: Identifiable {
 
 /// Entry in the tool history after completion.
 struct ToolHistoryEntry: Identifiable {
-    let id = UUID()
+    let id: UUID
     let tools: [ActiveTool]
     let subAgent: ActiveSubAgent?
     let afterMessageIndex: Int
+
+    init(
+        id: UUID = UUID(),
+        tools: [ActiveTool],
+        subAgent: ActiveSubAgent?,
+        afterMessageIndex: Int
+    ) {
+        self.id = id
+        self.tools = tools
+        self.subAgent = subAgent
+        self.afterMessageIndex = afterMessageIndex
+    }
 }
 
 struct SessionCompletionSummary: Equatable {
@@ -509,12 +521,11 @@ class SessionLiveState {
         case .streamingChunk, .claudeStreaming:
             if let content: String = event.dataValue(for: "content") ?? event.dataValue(for: "chunk") {
                 logger.debug("Received streaming chunk (\(content.count) chars) for session \(sessionId)")
-                streamingContent = content
+                mergeStreamingContent(with: content)
             }
 
         case .message:
             logger.info("Received message event for session \(sessionId)")
-            streamingContent = nil
             debouncedFetchMessages()
 
         case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
@@ -705,7 +716,7 @@ class SessionLiveState {
         }
 
         if !textParts.isEmpty {
-            streamingContent = textParts.joined()
+            mergeStreamingContent(with: textParts.joined())
         }
     }
 
@@ -781,6 +792,10 @@ class SessionLiveState {
             return
         }
 
+        if name == "TodoWrite" {
+            return
+        }
+
         // Regular tool
         let inputPreview = createToolInputPreview(name: name, input: input)
         let tool = ActiveTool(id: id, name: name, inputPreview: inputPreview, status: .running)
@@ -818,6 +833,54 @@ class SessionLiveState {
             break
         }
         return nil
+    }
+
+    private func mergeStreamingContent(with incomingChunk: String) {
+        guard !incomingChunk.isEmpty else { return }
+        guard let existing = streamingContent, !existing.isEmpty else {
+            streamingContent = incomingChunk
+            return
+        }
+
+        if incomingChunk == existing {
+            return
+        }
+
+        if incomingChunk.hasPrefix(existing) {
+            streamingContent = incomingChunk
+            return
+        }
+
+        if existing.hasPrefix(incomingChunk) || existing.hasSuffix(incomingChunk) {
+            return
+        }
+
+        if incomingChunk.hasSuffix(existing) {
+            streamingContent = incomingChunk
+            return
+        }
+
+        let overlap = overlapLength(existingSuffix: existing, incomingPrefix: incomingChunk)
+        if overlap > 0 {
+            let appendStart = incomingChunk.index(incomingChunk.startIndex, offsetBy: overlap)
+            streamingContent = existing + String(incomingChunk[appendStart...])
+        } else {
+            streamingContent = existing + incomingChunk
+        }
+    }
+
+    private func overlapLength(existingSuffix: String, incomingPrefix: String) -> Int {
+        let maxOverlap = min(existingSuffix.count, incomingPrefix.count)
+        guard maxOverlap > 0 else { return 0 }
+
+        for size in stride(from: maxOverlap, through: 1, by: -1) {
+            let incomingSegment = String(incomingPrefix.prefix(size))
+            if existingSuffix.hasSuffix(incomingSegment) {
+                return size
+            }
+        }
+
+        return 0
     }
 
     private func redactedPayloadSummary(_ payload: String) -> String {

@@ -360,7 +360,7 @@ class AppState {
 
     /// Get sessions for a repository (cached).
     func sessionsForRepository(_ repositoryId: UUID) -> [Session] {
-        sessions[repositoryId] ?? []
+        (sessions[repositoryId] ?? []).sorted(by: Session.isMoreRecent(_:than:))
     }
 
     /// Clear all cached data.

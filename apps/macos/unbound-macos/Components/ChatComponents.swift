@@ -594,46 +594,27 @@ struct ChatMessageView: View {
         Double(animationIndex) * Duration.staggerInterval
     }
 
-    /// Get deduplicated content for display - tools with the same toolUseId show only the latest state
-    /// This preserves stream order in storage/relay while preventing duplicate tool UI
-    /// Also fixes "stuck running" tools in non-streaming messages (legacy data)
+    /// Get deduplicated content for display - tools with the same toolUseId show only the latest state.
+    /// This preserves stream order in storage/relay while preventing duplicate tool UI.
     private var displayContent: [MessageContent] {
         var seenToolUseIds: Set<String> = []
         var result: [MessageContent] = []
 
         // Process in reverse to find the latest state of each tool first
         for content in message.content.reversed() {
-            if case .toolUse(var toolUse) = content,
+            if case .toolUse(let toolUse) = content,
                let toolUseId = toolUse.toolUseId {
                 // Only include the first occurrence (which is the latest due to reverse)
                 if seenToolUseIds.contains(toolUseId) {
                     continue
                 }
                 seenToolUseIds.insert(toolUseId)
-
-                // Fix legacy data: if message is not streaming but tool shows "running", mark as completed
-                if !message.isStreaming && toolUse.status == .running {
-                    toolUse.status = .completed
-                    result.append(.toolUse(toolUse))
-                    continue
-                }
-            } else if case .subAgentActivity(var subAgent) = content {
+            } else if case .subAgentActivity(let subAgent) = content {
                 // Track sub-agent's parent tool ID
                 if seenToolUseIds.contains(subAgent.parentToolUseId) {
                     continue
                 }
                 seenToolUseIds.insert(subAgent.parentToolUseId)
-
-                // Fix legacy data: if message is not streaming but sub-agent shows "running", mark as completed
-                if !message.isStreaming && subAgent.status == .running {
-                    subAgent.status = .completed
-                    // Also mark all child tools as completed
-                    for i in 0..<subAgent.tools.count where subAgent.tools[i].status == .running {
-                        subAgent.tools[i].status = .completed
-                    }
-                    result.append(.subAgentActivity(subAgent))
-                    continue
-                }
             }
             result.append(content)
         }
@@ -793,6 +774,50 @@ struct MessageContentView: View {
 
 // MARK: - Text Content View
 
+enum SessionMarkdownTableTextLayout {
+    enum SegmentKind: Equatable {
+        case heading
+        case table
+        case text
+    }
+
+    static func headingText(from text: String) -> String? {
+        let nonEmptyLines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard nonEmptyLines.count == 1 else { return nil }
+        let line = nonEmptyLines[0]
+
+        guard let regex = try? NSRegularExpression(pattern: #"^#{1,6}\s+(.+)$"#),
+              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              let range = Range(match.range(at: 1), in: line) else {
+            return nil
+        }
+
+        let heading = line[range].trimmingCharacters(in: .whitespacesAndNewlines)
+        return heading.isEmpty ? nil : heading
+    }
+
+    static func topPadding(for kinds: [SegmentKind], at index: Int) -> CGFloat {
+        guard index > 0 else { return 0 }
+
+        let previous = kinds[index - 1]
+        let current = kinds[index]
+
+        if previous == .table && current == .heading {
+            return MarkdownTableStyleTokens.sectionToSectionGap
+        }
+
+        if previous == .heading && current == .table {
+            return MarkdownTableStyleTokens.sectionHeadingGap
+        }
+
+        return MarkdownTableStyleTokens.sectionHeadingGap
+    }
+}
+
 struct TextContentView: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -826,16 +851,96 @@ struct TextContentView: View {
         MarkdownTableParser.parseContent(displayText)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            ForEach(segments) { segment in
-                switch segment {
-                case .text(let text):
-                    MarkdownTextView(text: text)
-                        .foregroundStyle(colors.textMuted)
-                case .table(let table):
-                    MarkdownTableView(table: table)
+    private var containsTableSegments: Bool {
+        segments.contains { segment in
+            if case .table = segment {
+                return true
+            }
+            return false
+        }
+    }
+
+    private var tableAwareSegments: [TableAwareSegment] {
+        segments.map { segment in
+            switch segment {
+            case .table:
+                return TableAwareSegment(segment: segment, kind: .table, headingText: nil)
+            case .text(let text):
+                if let heading = SessionMarkdownTableTextLayout.headingText(from: text) {
+                    return TableAwareSegment(segment: segment, kind: .heading, headingText: heading)
                 }
+
+                return TableAwareSegment(segment: segment, kind: .text, headingText: nil)
+            }
+        }
+    }
+
+    private struct TableAwareSegment {
+        let segment: TextContentSegment
+        let kind: SessionMarkdownTableTextLayout.SegmentKind
+        let headingText: String?
+    }
+
+    @MainActor
+    private var sectionHeadingFont: Font {
+        GeistFont.sans(size: 15, weight: .semibold)
+    }
+
+    var body: some View {
+        if containsTableSegments {
+            tableAwareContent
+        } else {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                ForEach(segments) { segment in
+                    switch segment {
+                    case .text(let text):
+                        MarkdownTextView(text: text)
+                            .foregroundStyle(colors.textMuted)
+                    case .table(let table):
+                        MarkdownTableView(table: table)
+                    }
+                }
+            }
+        }
+    }
+
+    private var tableAwareContent: some View {
+        let kinds = tableAwareSegments.map(\.kind)
+
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(tableAwareSegments.enumerated()), id: \.offset) { index, item in
+                tableAwareSegmentView(item)
+                    .padding(.top, SessionMarkdownTableTextLayout.topPadding(for: kinds, at: index))
+            }
+        }
+        .padding(Spacing.lg)
+    }
+
+    @ViewBuilder
+    private func tableAwareSegmentView(_ item: TableAwareSegment) -> some View {
+        switch item.kind {
+        case .heading:
+            Text(
+                InlineMarkdownParser.parse(
+                    item.headingText ?? "",
+                    baseFont: sectionHeadingFont,
+                    colors: colors
+                )
+            )
+            .font(sectionHeadingFont)
+            .foregroundStyle(colors.textSecondary)
+            .lineSpacing(Spacing.xxs)
+            .textSelection(.enabled)
+
+        case .table:
+            if case .table(let table) = item.segment {
+                MarkdownTableView(table: table)
+            }
+
+        case .text:
+            if case .text(let text) = item.segment {
+                MarkdownTextView(text: text)
+                    .foregroundStyle(colors.textMuted)
             }
         }
     }

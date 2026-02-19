@@ -39,6 +39,14 @@ You can tail it with:
 tail -f ~/.unbound/logs/dev.jsonl | jq
 ```
 
+### How to Read Logs in Development Mode
+
+For Claude debug session logs, you can stream a dated session file with:
+
+```bash
+tail -n 500 -F ~/.unbound/logs/claude-debug-logs/2026-02-19_a83286a7-2f17-4cda-a547-b92c27516a32.jsonl
+```
+
 ## Usage
 
 ```rust

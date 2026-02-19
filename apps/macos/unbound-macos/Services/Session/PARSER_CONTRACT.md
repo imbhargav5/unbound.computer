@@ -35,9 +35,15 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 | duplicate same-id `assistant` text update | Latest non-empty text wins for that `message.id` | No duplicate rows; most recent commentary text visible |
 | child tool before `Task` parent | Queued then attached when parent appears | No orphan child card when parent arrives |
 | duplicate `tool_use_id` update | Latest update wins | No duplicate cards, no stale status |
+| same-id tool/sub-agent shown in message and live/history surfaces | Message-surface tool IDs are canonical for rendering | Bottom live/history duplicates are suppressed |
+| inline tool/sub-agent status rendering | Uses parser/live model status directly | Running stays running until completion event (no view-layer auto-complete) |
 | consecutive `subAgentActivity` blocks | Batched into a single parallel group render block | One grouped Parallel Agents card |
 | `user` with `tool_result` success | Matched tool becomes `.completed` | Running indicator clears |
 | `user` with `tool_result` error | Matched tool becomes `.failed` | Failed state shown |
+| `user` with `tool_result` where `content` is text array | Text fragments are extracted and joined with newlines | Tool/sub-agent result text is visible (not dropped) |
+| parent `Task` `tool_result` | Matched sub-agent parent updates `.status`/`.result` | Parent card switches running → terminal state correctly |
+| parent `Task` result text rendering | Stored on sub-agent `.result` only | Output appears in expanded sub-agent card without duplicate standalone text row |
+| `assistant` `tool_use` with `name=TodoWrite` | Mapped to typed `TodoList` content | Todo checklist card renders in message surface (no duplicate generic tool card) |
 | `result` success | Hidden as message; running tools finalize to completed in live state | No stale running after turn ends |
 | `result` error | Error surfaced (historical parse) and running tools finalize to failed (live state) | Failure is visible and deterministic |
 | wrapped `raw_json` payload | Unwrapped up to bounded depth | Same semantics as unwrapped payload |
@@ -57,6 +63,7 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 
 | Typed state | Rendering entry point |
 | --- | --- |
+| `MessageContent.todoList` | `TodoListView` |
 | `MessageContent.subAgentActivity` | `ParallelAgentsView(activities:)` (grouped render block) |
 | active `ActiveSubAgent` | `ParallelAgentsView(activeSubAgents:)` |
 | grouped standalone `ToolUse` | `StandaloneToolCallsView(historyTools:)` |

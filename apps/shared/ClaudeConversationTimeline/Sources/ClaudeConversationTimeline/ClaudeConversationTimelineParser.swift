@@ -65,6 +65,8 @@ public final class ClaudeConversationTimelineParser {
             if let entry = parseResult(payload: normalized) {
                 upsert(entry: entry)
             }
+            let terminalStatus: ClaudeToolCallStatus = (normalized["is_error"] as? Bool ?? false) ? .failed : .completed
+            finalizeRunningToolStates(terminalStatus: terminalStatus)
 
         case "stream_event":
             handleStreamEvent(payload: normalized)
@@ -372,10 +374,27 @@ public final class ClaudeConversationTimelineParser {
 
             let isError = block["is_error"] as? Bool ?? false
             let status: ClaudeToolCallStatus = isError ? .failed : .completed
-            let resultText = sanitizedText(block["content"] as? String)
+            let resultText = extractToolResultText(from: block)
 
             updateTool(withId: toolUseId, status: status, resultText: resultText)
         }
+    }
+
+    private func extractToolResultText(from block: [String: Any]) -> String? {
+        if let contentText = sanitizedText(block["content"] as? String) {
+            return contentText
+        }
+
+        if let content = block["content"] {
+            let fragments = textFragments(from: content)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !fragments.isEmpty {
+                return fragments.joined(separator: "\n")
+            }
+        }
+
+        return extractVisibleText(from: block)
     }
 
     private func updateTool(withId toolUseId: String, status: ClaudeToolCallStatus, resultText: String?) {
@@ -389,12 +408,37 @@ public final class ClaudeConversationTimelineParser {
                     updatedBlocks[blockIndex] = .toolCall(tool.with(status: status, resultText: resultText))
                     changed = true
                 case .subAgent(let subAgent):
+                    var updatedSubAgent = subAgent
+                    var subAgentChanged = false
+
+                    if toolUseId == subAgent.parentToolUseId {
+                        let nextResult = resultText ?? subAgent.result
+                        let parentUpdated = subAgent.with(
+                            tools: subAgent.tools,
+                            status: status,
+                            result: nextResult
+                        )
+                        if parentUpdated != subAgent {
+                            updatedSubAgent = parentUpdated
+                            subAgentChanged = true
+                        }
+                    }
+
                     let updatedTools = subAgent.tools.map { tool in
                         guard tool.toolUseId == toolUseId else { return tool }
                         return tool.with(status: status, resultText: resultText)
                     }
-                    if updatedTools != subAgent.tools {
-                        updatedBlocks[blockIndex] = .subAgent(subAgent.with(tools: updatedTools, status: subAgent.status, result: subAgent.result))
+                    if updatedTools != updatedSubAgent.tools {
+                        updatedSubAgent = updatedSubAgent.with(
+                            tools: updatedTools,
+                            status: updatedSubAgent.status,
+                            result: updatedSubAgent.result
+                        )
+                        subAgentChanged = true
+                    }
+
+                    if subAgentChanged {
+                        updatedBlocks[blockIndex] = .subAgent(updatedSubAgent)
                         changed = true
                     }
                 default:
@@ -412,6 +456,61 @@ public final class ClaudeConversationTimelineParser {
                     sourceType: entry.sourceType
                 )
                 timeline[entryIndex] = updatedEntry
+            }
+        }
+    }
+
+    private func finalizeRunningToolStates(terminalStatus: ClaudeToolCallStatus) {
+        for (entryIndex, entry) in timeline.enumerated() {
+            var updatedBlocks = entry.blocks
+            var changed = false
+
+            for (blockIndex, block) in entry.blocks.enumerated() {
+                switch block {
+                case .toolCall(let tool):
+                    guard tool.status == .running else { continue }
+                    updatedBlocks[blockIndex] = .toolCall(tool.with(status: terminalStatus, resultText: tool.resultText))
+                    changed = true
+
+                case .subAgent(let subAgent):
+                    var subAgentChanged = false
+
+                    let updatedTools = subAgent.tools.map { tool -> ClaudeToolCallBlock in
+                        guard tool.status == .running else { return tool }
+                        subAgentChanged = true
+                        return tool.with(status: terminalStatus, resultText: tool.resultText)
+                    }
+
+                    let updatedStatus: ClaudeToolCallStatus
+                    if subAgent.status == .running {
+                        updatedStatus = terminalStatus
+                        subAgentChanged = true
+                    } else {
+                        updatedStatus = subAgent.status
+                    }
+
+                    guard subAgentChanged else { continue }
+                    updatedBlocks[blockIndex] = .subAgent(subAgent.with(
+                        tools: updatedTools,
+                        status: updatedStatus,
+                        result: subAgent.result
+                    ))
+                    changed = true
+
+                default:
+                    continue
+                }
+            }
+
+            if changed {
+                timeline[entryIndex] = ClaudeConversationTimelineEntry(
+                    id: entry.id,
+                    role: entry.role,
+                    blocks: updatedBlocks,
+                    createdAt: entry.createdAt,
+                    sequence: entry.sequence,
+                    sourceType: entry.sourceType
+                )
             }
         }
     }
