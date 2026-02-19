@@ -130,6 +130,14 @@ mod tests {
     }
 
     #[test]
+    fn test_build_command_with_permission_mode_plan() {
+        let config = ClaudeConfig::new("Hello", "/tmp")
+            .with_permission_mode(PermissionMode::Plan);
+        let cmd = config.build_command();
+        assert!(cmd.contains("--permission-mode plan"));
+    }
+
+    #[test]
     fn test_shell_escape() {
         assert_eq!(shell_escape("hello"), "'hello'");
         assert_eq!(shell_escape("it's"), "'it'\"'\"'s'");

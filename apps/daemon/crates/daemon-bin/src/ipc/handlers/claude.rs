@@ -30,7 +30,7 @@ pub async fn claude_send_core(
         .get("content")
         .and_then(|v| v.as_str())
         .map(String::from);
-    let permission_mode = params.get("permission_mode").and_then(|v| v.as_str());
+    let permission_mode = parse_permission_mode(params)?;
 
     let (Some(session_id), Some(content)) = (session_id, content) else {
         return Err((
@@ -68,17 +68,6 @@ pub async fn claude_send_core(
             }
         }
     }
-
-    let permission_mode = match permission_mode {
-        None => None,
-        Some("plan") => Some(PermissionMode::Plan),
-        Some(_) => {
-            return Err((
-                "invalid_params".to_string(),
-                "permission_mode must be \"plan\" when provided".to_string(),
-            ));
-        }
-    };
 
     // Build Claude configuration using Deku
     let mut config = ClaudeConfig::new(&content, &working_dir);
@@ -222,6 +211,50 @@ fn map_resolve_error(err: ResolveError) -> (String, String) {
             "internal_error".to_string(),
             format!("Failed to resolve working directory: {}", err),
         ),
+    }
+}
+
+fn parse_permission_mode(
+    params: &serde_json::Value,
+) -> Result<Option<PermissionMode>, (String, String)> {
+    let permission_mode = params.get("permission_mode").and_then(|v| v.as_str());
+    match permission_mode {
+        None => Ok(None),
+        Some("plan") => Ok(Some(PermissionMode::Plan)),
+        Some(_) => Err((
+            "invalid_params".to_string(),
+            "permission_mode must be \"plan\" when provided".to_string(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_permission_mode_missing() {
+        let parsed = parse_permission_mode(&json!({}));
+        assert_eq!(parsed, Ok(None));
+    }
+
+    #[test]
+    fn parse_permission_mode_plan() {
+        let parsed = parse_permission_mode(&json!({ "permission_mode": "plan" }));
+        assert_eq!(parsed, Ok(Some(PermissionMode::Plan)));
+    }
+
+    #[test]
+    fn parse_permission_mode_invalid() {
+        let parsed = parse_permission_mode(&json!({ "permission_mode": "something" }));
+        assert_eq!(
+            parsed,
+            Err((
+                "invalid_params".to_string(),
+                "permission_mode must be \"plan\" when provided".to_string()
+            ))
+        );
     }
 }
 

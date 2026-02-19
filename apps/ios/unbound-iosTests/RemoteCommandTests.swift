@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import MobileClaudeCodeConversationTimeline
 
 @testable import unbound_ios
 
@@ -727,6 +728,104 @@ final class RemoteCommandCreateSessionPayloadTests: XCTestCase {
     }
 }
 
+final class RemoteCommandSendMessagePayloadTests: XCTestCase {
+    func testSendMessageIncludesPermissionModeWhenProvided() async throws {
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        _ = try await service.sendMessage(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            sessionId: "session-1",
+            content: "hello world",
+            permissionMode: "plan"
+        )
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["permission_mode"], .string("plan"))
+    }
+
+    func testSendMessageOmitsPermissionModeWhenNil() async throws {
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        _ = try await service.sendMessage(
+            targetDeviceId: "22222222-2222-2222-2222-222222222222",
+            sessionId: "session-1",
+            content: "hello world"
+        )
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertNil(params?["permission_mode"])
+    }
+}
+
+final class PlanModeViewModelTests: XCTestCase {
+    func testPlanModeTogglePersistsAndInfluencesSendParams() async throws {
+        let session = makeSyncedSession()
+        let key = "plan_mode_\(session.id.uuidString.lowercased())"
+        UserDefaults.standard.removeObject(forKey: key)
+
+        let transport = CapturingRemoteTransport()
+        let service = RemoteCommandService(
+            transport: transport,
+            authContextResolver: {
+                (
+                    userId: "test-user-id",
+                    deviceId: "11111111-1111-1111-1111-111111111111"
+                )
+            },
+            targetAvailabilityResolver: { _ in .online }
+        )
+
+        let viewModel = ClaudeSyncedSessionDetailViewModel(
+            session: session,
+            claudeMessageSource: EmptyClaudeSessionMessageSource(),
+            runtimeStatusService: StubRuntimeStatusService(),
+            remoteCommandService: service,
+            presenceService: DevicePresenceService.shared
+        )
+
+        XCTAssertFalse(viewModel.isPlanModeEnabled)
+        viewModel.isPlanModeEnabled = true
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: key))
+
+        viewModel.inputText = "hello world"
+        await viewModel.sendMessage()
+
+        let params = transport.publishedEnvelopes.last?.params
+        XCTAssertEqual(params?["permission_mode"], .string("plan"))
+
+        let reloaded = ClaudeSyncedSessionDetailViewModel(
+            session: session,
+            claudeMessageSource: EmptyClaudeSessionMessageSource(),
+            runtimeStatusService: StubRuntimeStatusService(),
+            remoteCommandService: service,
+            presenceService: DevicePresenceService.shared
+        )
+        XCTAssertTrue(reloaded.isPlanModeEnabled)
+
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 final class RemoteCommandGitPayloadTests: XCTestCase {
     func testCommitChangesSendsPayloadAndParsesResult() async throws {
         let transport = CapturingResponseRemoteTransport(
@@ -934,6 +1033,46 @@ private final class NoopRemoteTransport: RemoteCommandTransport {
             createdAtMs: 1
         )
     }
+}
+
+private struct StubRuntimeStatusService: SessionDetailRuntimeStatusStreaming {
+    func subscribe(sessionId _: UUID) -> AsyncThrowingStream<SessionDetailRuntimeStatusEnvelope, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+private final class EmptyClaudeSessionMessageSource: ClaudeSessionMessageSource {
+    var isDeviceSource: Bool { false }
+
+    func loadInitial(sessionId _: UUID) async throws -> [RawSessionRow] {
+        []
+    }
+
+    func stream(sessionId _: UUID) -> AsyncThrowingStream<RawSessionRow, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+private func makeSyncedSession() -> SyncedSession {
+    let now = Date()
+    let record = SessionRecord(
+        id: UUID().uuidString.lowercased(),
+        repositoryId: UUID().uuidString.lowercased(),
+        title: "Test Session",
+        claudeSessionId: nil,
+        isWorktree: false,
+        worktreePath: nil,
+        status: "active",
+        deviceId: UUID().uuidString.lowercased(),
+        createdAt: now,
+        lastAccessedAt: now,
+        updatedAt: now
+    )
+    return SyncedSession(from: record)
 }
 
 private final class CapturingRemoteTransport: RemoteCommandTransport {
