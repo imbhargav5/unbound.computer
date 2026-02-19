@@ -222,11 +222,38 @@ struct SyncedSessionDetailView: View {
                 offlineBanner
             }
 
+            planModeToggle
+
             ChatInputView(text: $viewModel.inputText, placeholder: viewModel.inputPlaceholder) {
                 Task { await viewModel.sendMessage() }
             }
             .disabled(!viewModel.canSendMessage)
         }
+    }
+
+    private var planModeToggle: some View {
+        Button {
+            viewModel.isPlanModeEnabled.toggle()
+        } label: {
+            HStack(spacing: AppTheme.spacingS) {
+                Image(systemName: viewModel.isPlanModeEnabled ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(viewModel.isPlanModeEnabled ? AppTheme.accent : AppTheme.textSecondary)
+                Text("Plan")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+            .padding(.horizontal, AppTheme.spacingM)
+            .padding(.vertical, AppTheme.spacingXS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            )
+            .padding(.horizontal, AppTheme.spacingM)
+        }
+        .buttonStyle(.plain)
     }
 
     private var offlineBanner: some View {
