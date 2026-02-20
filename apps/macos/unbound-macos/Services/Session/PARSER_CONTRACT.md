@@ -44,6 +44,7 @@ macOS and iOS tests load this file to keep timeline parsing consistent across pl
 | parent `Task` `tool_result` | Matched sub-agent parent updates `.status`/`.result` | Parent card switches running → terminal state correctly |
 | parent `Task` result text rendering | Stored on sub-agent `.result` only | Output appears in expanded sub-agent card without duplicate standalone text row |
 | `assistant` `tool_use` with `name=TodoWrite` | Mapped to typed `TodoList` content | Todo checklist card renders in message surface (no duplicate generic tool card) |
+| repeated `TodoWrite` with same parent scope + same normalized item content | Merged as latest-state update (latest status wins) | One evolving todo card; duplicate snapshots suppressed |
 | `result` success | Hidden as message; running tools finalize to completed in live state | No stale running after turn ends |
 | `result` error | Error surfaced (historical parse) and running tools finalize to failed (live state) | Failure is visible and deterministic |
 | wrapped `raw_json` payload | Unwrapped up to bounded depth | Same semantics as unwrapped payload |

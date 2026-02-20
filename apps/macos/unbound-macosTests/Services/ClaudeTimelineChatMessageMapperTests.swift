@@ -212,6 +212,194 @@ final class ClaudeTimelineChatMessageMapperTests: XCTestCase {
         XCTAssertTrue(todoLists.isEmpty)
     }
 
+    func testMapEntriesMergesTodoWriteUpdatesWithSameContentAndParentScope() throws {
+        let firstTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-merge-1",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Analyze design system differences","status":"completed"},{"content":"Document key alignment areas","status":"in_progress"},{"content":"Create consistency plan","status":"pending"}]}"#,
+            status: .running,
+            resultText: nil
+        )
+        let secondTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-merge-2",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Analyze design system differences","status":"completed"},{"content":"Document key alignment areas","status":"completed"},{"content":"Create consistency plan","status":"completed"}]}"#,
+            status: .completed,
+            resultText: nil
+        )
+        let entries = [
+            ClaudeConversationTimelineEntry(
+                id: "assistant-todo-merge-1",
+                role: .assistant,
+                blocks: [.toolCall(firstTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 1),
+                sequence: 1,
+                sourceType: "assistant"
+            ),
+            ClaudeConversationTimelineEntry(
+                id: "assistant-todo-merge-2",
+                role: .assistant,
+                blocks: [.toolCall(secondTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 2),
+                sequence: 2,
+                sourceType: "assistant"
+            ),
+        ]
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries(entries)
+        XCTAssertEqual(messages.count, 1)
+
+        let todoLists = messages.flatMap(\.content).compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertEqual(todoLists.count, 1)
+        XCTAssertEqual(todoLists[0].items.map(\.status), [.completed, .completed, .completed])
+        XCTAssertEqual(todoLists[0].sourceToolUseId, "todo-merge-2")
+        XCTAssertNil(todoLists[0].parentToolUseId)
+    }
+
+    func testMapEntriesMergesTodoWriteUpdatesFromDebugLog1370And1373() {
+        let firstTodoTool = ClaudeToolCallBlock(
+            toolUseId: "toolu_01T2Ge6gb3KxZ28FoTmAcvmv",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Analyze design system differences between macOS and web apps","status":"completed"},{"content":"Document key alignment areas and gaps","status":"in_progress"},{"content":"Create consistency plan with actionable steps","status":"pending"}]}"#,
+            status: .running,
+            resultText: nil
+        )
+        let secondTodoTool = ClaudeToolCallBlock(
+            toolUseId: "toolu_01QEh4csPNoGvRe4fhKWra1L",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Analyze design system differences between macOS and web apps","status":"completed"},{"content":"Document key alignment areas and gaps","status":"completed"},{"content":"Create consistency plan with actionable steps","status":"completed"}]}"#,
+            status: .completed,
+            resultText: nil
+        )
+        let entries = [
+            ClaudeConversationTimelineEntry(
+                id: "assistant-1370",
+                role: .assistant,
+                blocks: [.toolCall(firstTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 1370),
+                sequence: 1370,
+                sourceType: "assistant"
+            ),
+            ClaudeConversationTimelineEntry(
+                id: "assistant-1373",
+                role: .assistant,
+                blocks: [.toolCall(secondTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 1373),
+                sequence: 1373,
+                sourceType: "assistant"
+            ),
+        ]
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries(entries)
+        XCTAssertEqual(messages.count, 1)
+
+        let todoLists = messages.flatMap(\.content).compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+        XCTAssertEqual(todoLists.count, 1)
+        XCTAssertEqual(todoLists[0].items.map(\.status), [.completed, .completed, .completed])
+        XCTAssertEqual(todoLists[0].sourceToolUseId, "toolu_01QEh4csPNoGvRe4fhKWra1L")
+    }
+
+    func testMapEntriesDoesNotMergeTodoWriteUpdatesAcrossDifferentParentScopes() {
+        let taskATodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-task-a",
+            parentToolUseId: "task-a",
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Run tests","status":"pending"}]}"#,
+            status: .running,
+            resultText: nil
+        )
+        let taskBTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-task-b",
+            parentToolUseId: "task-b",
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Run tests","status":"completed"}]}"#,
+            status: .completed,
+            resultText: nil
+        )
+        let entries = [
+            ClaudeConversationTimelineEntry(
+                id: "assistant-task-a-todo",
+                role: .assistant,
+                blocks: [.toolCall(taskATodoTool)],
+                createdAt: Date(timeIntervalSince1970: 1),
+                sequence: 1,
+                sourceType: "assistant"
+            ),
+            ClaudeConversationTimelineEntry(
+                id: "assistant-task-b-todo",
+                role: .assistant,
+                blocks: [.toolCall(taskBTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 2),
+                sequence: 2,
+                sourceType: "assistant"
+            ),
+        ]
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries(entries)
+        let todoLists = messages.flatMap(\.content).compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+
+        XCTAssertEqual(todoLists.count, 2)
+        XCTAssertEqual(Set(todoLists.compactMap(\.parentToolUseId)), Set(["task-a", "task-b"]))
+    }
+
+    func testMapEntriesDoesNotMergeTodoWriteUpdatesWhenContentChanges() {
+        let firstTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-content-1",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Task A","status":"pending"},{"content":"Task B","status":"pending"}]}"#,
+            status: .running,
+            resultText: nil
+        )
+        let secondTodoTool = ClaudeToolCallBlock(
+            toolUseId: "todo-content-2",
+            parentToolUseId: nil,
+            name: "TodoWrite",
+            input: #"{"todos":[{"content":"Task A","status":"completed"},{"content":"Task B updated","status":"pending"}]}"#,
+            status: .running,
+            resultText: nil
+        )
+        let entries = [
+            ClaudeConversationTimelineEntry(
+                id: "assistant-content-1",
+                role: .assistant,
+                blocks: [.toolCall(firstTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 1),
+                sequence: 1,
+                sourceType: "assistant"
+            ),
+            ClaudeConversationTimelineEntry(
+                id: "assistant-content-2",
+                role: .assistant,
+                blocks: [.toolCall(secondTodoTool)],
+                createdAt: Date(timeIntervalSince1970: 2),
+                sequence: 2,
+                sourceType: "assistant"
+            ),
+        ]
+
+        let messages = ClaudeTimelineChatMessageMapper.mapEntries(entries)
+        let todoLists = messages.flatMap(\.content).compactMap { content -> TodoList? in
+            guard case .todoList(let value) = content else { return nil }
+            return value
+        }
+
+        XCTAssertEqual(todoLists.count, 2)
+    }
+
     private func firstSubAgent(in messages: [ChatMessage]) -> SubAgentActivity? {
         for message in messages {
             for content in message.content {

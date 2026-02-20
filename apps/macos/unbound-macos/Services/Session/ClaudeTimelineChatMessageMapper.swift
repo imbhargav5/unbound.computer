@@ -41,7 +41,8 @@ enum ClaudeTimelineChatMessageMapper {
 
         // Re-associate child tool calls with their Task parent across message boundaries.
         // This keeps the UI reactive when tool events arrive out of order.
-        return ChatMessageGrouper.groupSubAgentTools(messages: mappedMessages)
+        let grouped = ChatMessageGrouper.groupSubAgentTools(messages: mappedMessages)
+        return mergeTodoListUpdates(messages: grouped)
     }
 
     private static func mapBlocks(_ blocks: [ClaudeConversationBlock]) -> [MessageContent] {
@@ -118,7 +119,11 @@ enum ClaudeTimelineChatMessageMapper {
         }
 
         guard !items.isEmpty else { return nil }
-        return TodoList(items: items)
+        return TodoList(
+            items: items,
+            sourceToolUseId: tool.toolUseId,
+            parentToolUseId: tool.parentToolUseId
+        )
     }
 
     private static func makeToolUse(from tool: ClaudeToolCallBlock) -> ToolUse {
@@ -168,6 +173,94 @@ enum ClaudeTimelineChatMessageMapper {
             bytes[8], bytes[9], bytes[10], bytes[11],
             bytes[12], bytes[13], bytes[14], bytes[15]
         ))
+    }
+
+    private static func mergeTodoListUpdates(messages: [ChatMessage]) -> [ChatMessage] {
+        var result: [ChatMessage] = []
+        var anchorByKey: [String: TodoAnchor] = [:]
+
+        for message in messages {
+            var newMessage = message
+            var newContent: [MessageContent] = []
+
+            for content in message.content {
+                guard case .todoList(let todoList) = content,
+                      let mergeKey = todoMergeKey(for: todoList) else {
+                    newContent.append(content)
+                    continue
+                }
+
+                if let anchor = anchorByKey[mergeKey],
+                   anchor.messageIndex == result.count {
+                    if newContent.indices.contains(anchor.contentIndex),
+                       case .todoList(let existingTodoList) = newContent[anchor.contentIndex] {
+                        let merged = TodoList(
+                            id: existingTodoList.id,
+                            items: todoList.items,
+                            sourceToolUseId: todoList.sourceToolUseId,
+                            parentToolUseId: todoList.parentToolUseId
+                        )
+                        newContent[anchor.contentIndex] = .todoList(merged)
+                        continue
+                    }
+                } else if let anchor = anchorByKey[mergeKey],
+                          result.indices.contains(anchor.messageIndex) {
+                    var anchorMessage = result[anchor.messageIndex]
+                    if anchorMessage.content.indices.contains(anchor.contentIndex),
+                       case .todoList(let existingTodoList) = anchorMessage.content[anchor.contentIndex] {
+                        let merged = TodoList(
+                            id: existingTodoList.id,
+                            items: todoList.items,
+                            sourceToolUseId: todoList.sourceToolUseId,
+                            parentToolUseId: todoList.parentToolUseId
+                        )
+                        anchorMessage.content[anchor.contentIndex] = .todoList(merged)
+                        result[anchor.messageIndex] = anchorMessage
+                        continue
+                    }
+                }
+
+                newContent.append(content)
+                anchorByKey[mergeKey] = TodoAnchor(
+                    messageIndex: result.count,
+                    contentIndex: newContent.count - 1
+                )
+            }
+
+            newMessage.content = newContent
+            if !newContent.isEmpty {
+                result.append(newMessage)
+            }
+        }
+
+        return result
+    }
+
+    private static func todoMergeKey(for todoList: TodoList) -> String? {
+        let signature = todoList.items
+            .map { normalizedTodoContent($0.content) }
+            .joined(separator: "|")
+        guard !signature.isEmpty else { return nil }
+
+        let parentKey = normalizedParentKey(todoList.parentToolUseId)
+        return "\(parentKey)|\(signature)"
+    }
+
+    private static func normalizedTodoContent(_ content: String) -> String {
+        content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func normalizedParentKey(_ parentToolUseId: String?) -> String {
+        let parent = parentToolUseId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let parent, !parent.isEmpty {
+            return parent
+        }
+        return "root"
+    }
+
+    private struct TodoAnchor {
+        let messageIndex: Int
+        let contentIndex: Int
     }
 
     private static func hasVisibleUserText(_ content: [MessageContent]) -> Bool {

@@ -660,7 +660,8 @@ struct ChatMessageView: View {
                     case .content(let content):
                         MessageContentView(
                             content: content,
-                            onQuestionSubmit: onQuestionSubmit
+                            onQuestionSubmit: onQuestionSubmit,
+                            isAssistantMessage: !isUser
                         )
                     case .standaloneTools(let tools):
                         StandaloneToolCallsView(historyTools: tools)
@@ -731,16 +732,22 @@ struct ChatMessageView: View {
 struct MessageContentView: View {
     let content: MessageContent
     var onQuestionSubmit: ((AskUserQuestion) -> Void)?
+    var isAssistantMessage: Bool
 
-    init(content: MessageContent, onQuestionSubmit: ((AskUserQuestion) -> Void)? = nil) {
+    init(
+        content: MessageContent,
+        onQuestionSubmit: ((AskUserQuestion) -> Void)? = nil,
+        isAssistantMessage: Bool = false
+    ) {
         self.content = content
         self.onQuestionSubmit = onQuestionSubmit
+        self.isAssistantMessage = isAssistantMessage
     }
 
     var body: some View {
         switch content {
         case .text(let textContent):
-            TextContentView(textContent: textContent)
+            TextContentView(textContent: textContent, isAssistantMessage: isAssistantMessage)
 
         case .codeBlock(let codeBlock):
             CodeBlockView(codeBlock: codeBlock)
@@ -822,6 +829,7 @@ struct TextContentView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let textContent: TextContent
+    var isAssistantMessage: Bool = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -860,6 +868,11 @@ struct TextContentView: View {
         }
     }
 
+    private var parsedPlan: PlanModeMessageParser.ParsedPlan? {
+        guard isAssistantMessage else { return nil }
+        return PlanModeMessageParser.parse(displayText)
+    }
+
     private var tableAwareSegments: [TableAwareSegment] {
         segments.map { segment in
             switch segment {
@@ -887,7 +900,12 @@ struct TextContentView: View {
     }
 
     var body: some View {
-        if containsTableSegments {
+        if displayText.isEmpty {
+            EmptyView()
+        } else if let parsedPlan {
+            PlanModeCardView(rawText: displayText, parsedPlan: parsedPlan)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else if containsTableSegments {
             tableAwareContent
         } else {
             VStack(alignment: .leading, spacing: Spacing.sm) {

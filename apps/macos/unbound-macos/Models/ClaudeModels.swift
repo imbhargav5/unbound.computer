@@ -113,10 +113,19 @@ struct QuestionOption: Identifiable, Hashable, Codable {
 struct TodoList: Identifiable, Hashable, Codable {
     let id: UUID
     var items: [TodoItem]
+    let sourceToolUseId: String?
+    let parentToolUseId: String?
 
-    init(id: UUID = UUID(), items: [TodoItem] = []) {
+    init(
+        id: UUID = UUID(),
+        items: [TodoItem] = [],
+        sourceToolUseId: String? = nil,
+        parentToolUseId: String? = nil
+    ) {
         self.id = id
         self.items = items
+        self.sourceToolUseId = sourceToolUseId
+        self.parentToolUseId = parentToolUseId
     }
 }
 
