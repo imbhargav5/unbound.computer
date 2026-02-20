@@ -111,6 +111,21 @@ final class SessionRepository {
         }
     }
 
+    /// Update session title
+    func updateTitle(id: UUID, title: String, updatedAt: Date) async throws {
+        let db = try databaseService.getDatabase()
+        try await db.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE agent_coding_sessions
+                    SET title = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                arguments: [title, updatedAt, id.uuidString]
+            )
+        }
+    }
+
     /// Update last accessed time
     func updateLastAccessed(id: UUID) async throws {
         let db = try databaseService.getDatabase()
