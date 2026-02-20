@@ -46,9 +46,12 @@ struct SidebarHeader: View {
                 Button {
                     showMenu = true
                 } label: {
+                    let iconSize = LayoutMetrics.toolbarIconHitSize - (Spacing.xs * 2)
                     Image(systemName: "ellipsis")
                         .font(.system(size: IconSize.sm))
                         .foregroundStyle(colors.mutedForeground)
+                        .frame(width: iconSize, height: iconSize, alignment: .center)
+                        .contentShape(Rectangle())
                 }
                 .buttonGhost(size: .icon)
                 .popover(isPresented: $showMenu, arrowEdge: .trailing) {
