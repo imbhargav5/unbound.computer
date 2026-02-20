@@ -82,6 +82,7 @@ class AppState {
     // MARK: - Session State Manager
 
     let sessionStateManager = SessionStateManager()
+    let sessionRuntimeStatusService = SessionRuntimeStatusService.shared
 
     // MARK: - Daemon Connection State
 
@@ -195,6 +196,7 @@ class AppState {
     func disconnectFromDaemon() {
         logger.info("Disconnecting from daemon")
         sessionStateManager.deactivateAll()
+        sessionRuntimeStatusService.stop()
         daemonClient.disconnect()
         daemonConnectionState = .disconnected
         clearCachedData()
@@ -228,6 +230,8 @@ class AppState {
             currentUserId = nil
             currentUserEmail = nil
         }
+
+        await updateRuntimeStatusSubscription()
     }
 
     /// Login via daemon with email and password.
@@ -269,7 +273,17 @@ class AppState {
         currentUserEmail = nil
         dependencyStatus = .unchecked
         isGhInstalled = nil
+        sessionRuntimeStatusService.stop()
         clearCachedData()
+    }
+
+    private func updateRuntimeStatusSubscription() async {
+        guard isAuthenticated, daemonConnectionState.isConnected, let userId = currentUserId else {
+            sessionRuntimeStatusService.stop()
+            return
+        }
+
+        await sessionRuntimeStatusService.start(userId: userId)
     }
 
     // MARK: - Dependency Checking
