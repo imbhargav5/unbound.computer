@@ -14,6 +14,7 @@ struct DeviceHomeView: View {
     private let syncedDataService = SyncedDataService.shared
     private let remoteCommandService = RemoteCommandService.shared
     @State private var presenceService = DevicePresenceService.shared
+    @State private var sessionRuntimeStatusService = SessionRuntimeStatusService.shared
 
     @State private var selectedDevice: SyncedDevice?
     @State private var expandedRepoIds: Set<UUID> = []
@@ -35,6 +36,7 @@ struct DeviceHomeView: View {
 
     var body: some View {
         let _ = presenceService.daemonStatusVersion
+        let _ = sessionRuntimeStatusService.runtimeStatusBySessionId
         VStack(spacing: 0) {
             // Device picker header
             DevicePickerHeader(
@@ -59,6 +61,7 @@ struct DeviceHomeView: View {
                             RepositoryCardView(
                                 repository: repo,
                                 sessions: sessions,
+                                runtimeStatusBySessionId: sessionRuntimeStatusService.runtimeStatusBySessionId,
                                 isExpanded: expandedBinding(for: repo.id),
                                 onSessionTap: { session in
                                     navigationManager.navigateToSyncedSession(session)

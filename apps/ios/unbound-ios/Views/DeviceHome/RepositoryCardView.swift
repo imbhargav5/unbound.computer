@@ -3,6 +3,7 @@ import SwiftUI
 struct RepositoryCardView: View {
     let repository: SyncedRepository
     let sessions: [SyncedSession]
+    let runtimeStatusBySessionId: [UUID: SessionDetailRuntimeStatusEnvelope]
     @Binding var isExpanded: Bool
     let onSessionTap: (SyncedSession) -> Void
     var onCreateSession: (() -> Void)?
@@ -58,7 +59,10 @@ struct RepositoryCardView: View {
                 } else {
                     VStack(spacing: 4) {
                         ForEach(sessions) { session in
-                            DeviceSessionRowView(session: session)
+                            DeviceSessionRowView(
+                                session: session,
+                                runtimeStatus: runtimeStatusBySessionId[session.id]
+                            )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)

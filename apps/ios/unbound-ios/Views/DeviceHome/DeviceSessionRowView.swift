@@ -2,13 +2,32 @@ import SwiftUI
 
 struct DeviceSessionRowView: View {
     let session: SyncedSession
+    let runtimeStatus: SessionDetailRuntimeStatusEnvelope?
+
+    private var iconColor: Color {
+        session.isActive ? AppTheme.amberAccent : AppTheme.textTertiary
+    }
+
+    private var shouldShowSpinner: Bool {
+        guard let status = runtimeStatus?.codingSession.status else { return false }
+        return status == .running || status == .waiting
+    }
 
     var body: some View {
         HStack(spacing: AppTheme.spacingM) {
-            Image(systemName: "archivebox")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(session.isActive ? AppTheme.amberAccent : AppTheme.textTertiary)
-                .frame(width: 20)
+            Group {
+                if shouldShowSpinner {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(iconColor)
+                        .scaleEffect(0.75)
+                } else {
+                    Image(systemName: "message.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+            }
+            .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.title)
