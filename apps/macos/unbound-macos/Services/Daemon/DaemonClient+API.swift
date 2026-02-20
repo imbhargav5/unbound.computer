@@ -37,6 +37,12 @@ extension DaemonClient {
         return try response.resultAs(DaemonAuthStatus.self)
     }
 
+    /// Get Supabase auth session tokens for realtime subscribers.
+    func getSupabaseAuthSession() async throws -> DaemonSupabaseSession {
+        let response = try await call(method: .authSupabaseSession)
+        return try response.resultAs(DaemonSupabaseSession.self)
+    }
+
     /// Start login flow with email and password.
     /// - Parameters:
     ///   - email: User's email address.
