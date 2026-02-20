@@ -36,6 +36,8 @@ pub enum Method {
     SessionCreate,
     #[serde(rename = "session.get")]
     SessionGet,
+    #[serde(rename = "session.update")]
+    SessionUpdate,
     #[serde(rename = "session.delete")]
     SessionDelete,
 
@@ -375,6 +377,7 @@ mod tests {
             (Method::SessionList, "\"session.list\""),
             (Method::SessionCreate, "\"session.create\""),
             (Method::SessionGet, "\"session.get\""),
+            (Method::SessionUpdate, "\"session.update\""),
             (Method::SessionDelete, "\"session.delete\""),
             (Method::MessageList, "\"message.list\""),
             (Method::MessageSend, "\"message.send\""),
@@ -450,6 +453,7 @@ mod tests {
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
+            Method::SessionUpdate,
             Method::SessionDelete,
             Method::MessageList,
             Method::MessageSend,
@@ -907,7 +911,7 @@ mod tests {
 
     #[test]
     fn all_method_count() {
-        // Ensure we have exactly 47 methods by trying to serialize each.
+        // Ensure we have exactly 49 methods by trying to serialize each.
         let methods = vec![
             Method::Health,
             Method::Shutdown,
@@ -919,6 +923,7 @@ mod tests {
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
+            Method::SessionUpdate,
             Method::SessionDelete,
             Method::MessageList,
             Method::MessageSend,
@@ -958,6 +963,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 48);
+        assert_eq!(methods.len(), 49);
     }
 }

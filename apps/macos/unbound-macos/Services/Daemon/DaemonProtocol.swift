@@ -29,6 +29,7 @@ enum DaemonMethod: String, Codable {
     case sessionList = "session.list"
     case sessionCreate = "session.create"
     case sessionGet = "session.get"
+    case sessionUpdate = "session.update"
     case sessionDelete = "session.delete"
 
     // Messages
