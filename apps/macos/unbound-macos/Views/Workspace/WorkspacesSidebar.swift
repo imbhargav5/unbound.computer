@@ -108,6 +108,21 @@ struct WorkspacesSidebar: View {
         }
     }
 
+    /// Rename a session.
+    private func renameSession(_ session: Session, title: String) {
+        Task {
+            do {
+                _ = try await appState.renameSession(
+                    session.id,
+                    repositoryId: session.repositoryId,
+                    title: title
+                )
+            } catch {
+                logger.error("Failed to rename session: \(error)")
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Machine name header (top bar with fixed 64px height)
@@ -140,6 +155,7 @@ struct WorkspacesSidebar: View {
                                     onRequestRemoveRepository(repository)
                                 },
                                 onArchiveSession: archiveSession,
+                                onRenameSession: renameSession,
                                 onDeleteSession: deleteSession
                             )
                             .transition(.asymmetric(
@@ -189,6 +205,7 @@ struct RepositoryGroup: View {
     var onCreateSession: (Repository, SessionLocationType) -> Void
     var onRequestRemoveRepository: ((Repository) -> Void)?
     var onArchiveSession: ((Session) -> Void)?
+    var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
     @State private var isExpanded: Bool = true
@@ -302,6 +319,7 @@ struct RepositoryGroup: View {
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .mainDirectory) },
                             onArchiveSession: onArchiveSession,
+                            onRenameSession: onRenameSession,
                             onDeleteSession: onDeleteSession
                         )
                     }
@@ -315,6 +333,7 @@ struct RepositoryGroup: View {
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .worktree) },
                             onArchiveSession: onArchiveSession,
+                            onRenameSession: onRenameSession,
                             onDeleteSession: onDeleteSession
                         )
                     }
@@ -340,6 +359,7 @@ struct MainDirectorySection: View {
     var onSelectSession: (Session) -> Void
     var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
+    var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
     @State private var isHoveringAdd: Bool = false
@@ -389,6 +409,9 @@ struct MainDirectorySection: View {
                         isSelected: selectedSessionId == session.id,
                         onSelect: { onSelectSession(session) },
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
+                        onRename: onRenameSession != nil ? { newTitle in
+                            onRenameSession?(session, newTitle)
+                        } : nil,
                         onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil
                     )
                 }
@@ -413,6 +436,7 @@ struct WorktreeSection: View {
     var onSelectSession: (Session) -> Void
     var onCreateSession: (() -> Void)?
     var onArchiveSession: ((Session) -> Void)?
+    var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
     @State private var isHoveringAdd: Bool = false
@@ -463,6 +487,9 @@ struct WorktreeSection: View {
                         isSelected: selectedSessionId == session.id,
                         onSelect: { onSelectSession(session) },
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
+                        onRename: onRenameSession != nil ? { newTitle in
+                            onRenameSession?(session, newTitle)
+                        } : nil,
                         onDelete: onDeleteSession != nil ? { onDeleteSession?(session) } : nil
                     )
                 }
@@ -486,11 +513,14 @@ struct SessionRow: View {
     let isSelected: Bool
     var onSelect: () -> Void
     var onArchive: (() -> Void)?
+    var onRename: ((String) -> Void)?
     var onDelete: (() -> Void)?
 
     @State private var isHovered = false
     @State private var showArchiveConfirmation = false
     @State private var showDeleteConfirmation = false
+    @State private var showRenameDialog = false
+    @State private var renameTitle = ""
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -547,6 +577,17 @@ struct SessionRow: View {
             isHovered = hovering
         }
         .contextMenu {
+            if onRename != nil {
+                Button {
+                    renameTitle = session.displayTitle
+                    showRenameDialog = true
+                } label: {
+                    Label("Rename...", systemImage: "pencil")
+                }
+
+                Divider()
+            }
+
             Button {
                 showArchiveConfirmation = true
             } label: {
@@ -585,6 +626,60 @@ struct SessionRow: View {
         } message: {
             Text("This action cannot be undone. All messages in this session will be permanently deleted.")
         }
+        .sheet(isPresented: $showRenameDialog) {
+            RenameSessionSheet(initialTitle: renameTitle) { newTitle in
+                onRename?(newTitle)
+            }
+        }
+    }
+}
+
+private struct RenameSessionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    let onSave: (String) -> Void
+
+    init(initialTitle: String, onSave: @escaping (String) -> Void) {
+        _title = State(initialValue: initialTitle)
+        self.onSave = onSave
+    }
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Rename Session")
+                .font(Typography.body)
+
+            TextField("Session title", text: $title)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit {
+                    handleSave()
+                }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                Button("Save") {
+                    handleSave()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(trimmedTitle.isEmpty)
+            }
+        }
+        .padding(Spacing.md)
+        .frame(minWidth: 320)
+    }
+
+    private func handleSave() {
+        let newTitle = trimmedTitle
+        guard !newTitle.isEmpty else { return }
+        onSave(newTitle)
+        dismiss()
     }
 }
 
