@@ -20,6 +20,8 @@ pub enum Method {
     AuthLogin,
     #[serde(rename = "auth.complete_social")]
     AuthCompleteSocial,
+    #[serde(rename = "auth.supabase_session")]
+    AuthSupabaseSession,
     #[serde(rename = "auth.logout")]
     AuthLogout,
 
@@ -367,6 +369,7 @@ mod tests {
             (Method::AuthStatus, "\"auth.status\""),
             (Method::AuthLogin, "\"auth.login\""),
             (Method::AuthCompleteSocial, "\"auth.complete_social\""),
+            (Method::AuthSupabaseSession, "\"auth.supabase_session\""),
             (Method::AuthLogout, "\"auth.logout\""),
             (Method::BillingUsageStatus, "\"billing.usage_status\""),
             (Method::SessionList, "\"session.list\""),

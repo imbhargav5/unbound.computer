@@ -7,6 +7,7 @@ mod login;
 mod logout;
 mod social_complete;
 mod status;
+mod supabase_session;
 
 use crate::app::DaemonState;
 use daemon_ipc::IpcServer;
@@ -14,6 +15,7 @@ use daemon_ipc::IpcServer;
 /// Register all authentication handlers.
 pub async fn register_handlers(server: &IpcServer, state: DaemonState) {
     status::register(server, state.clone()).await;
+    supabase_session::register(server, state.clone()).await;
     logout::register(server, state.clone()).await;
     social_complete::register(server, state.clone()).await;
     login::register(server, state).await;

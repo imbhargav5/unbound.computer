@@ -21,6 +21,7 @@ enum DaemonMethod: String, Codable {
     case authStatus = "auth.status"
     case authLogin = "auth.login"
     case authCompleteSocial = "auth.complete_social"
+    case authSupabaseSession = "auth.supabase_session"
     case authLogout = "auth.logout"
     case billingUsageStatus = "billing.usage_status"
 
@@ -579,6 +580,20 @@ struct DaemonAuthStatus: Codable {
         case state
         case userId = "user_id"
         case email
+        case expiresAt = "expires_at"
+    }
+}
+
+struct DaemonSupabaseSession: Codable {
+    let accessToken: String
+    let userId: String
+    let deviceId: String
+    let expiresAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case userId = "user_id"
+        case deviceId = "device_id"
         case expiresAt = "expires_at"
     }
 }
