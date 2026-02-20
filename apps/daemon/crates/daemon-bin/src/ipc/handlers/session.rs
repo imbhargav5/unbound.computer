@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
 };
-use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionWriter};
+use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
 use piccolo::{create_worktree_with_options, remove_worktree};
@@ -316,6 +316,7 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_session_list(server, state.clone()).await;
     register_session_create(server, state.clone()).await;
     register_session_get(server, state.clone()).await;
+    register_session_update(server, state.clone()).await;
     register_session_delete(server, state).await;
 }
 
@@ -754,6 +755,128 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                     Ok(None) => {
                         Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
                     }
+                    Err(e) => Response::error(
+                        &req.id,
+                        error_codes::INTERNAL_ERROR,
+                        &format!("Failed to get session: {}", e),
+                    ),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_session_update(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::SessionUpdate, move |req| {
+            let armin = state.armin.clone();
+            async move {
+                let params = match req.params.as_ref() {
+                    Some(params) => params,
+                    None => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INVALID_PARAMS,
+                            "session_id and title are required",
+                        );
+                    }
+                };
+
+                let session_id = params
+                    .get("session_id")
+                    .or_else(|| params.get("id"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
+                let title = normalize_optional_string(params.get("title").and_then(|v| v.as_str()));
+
+                let Some(session_id) = session_id else {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "session_id is required",
+                    );
+                };
+
+                let Some(title) = title else {
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "title must not be empty",
+                    );
+                };
+
+                let session_id = SessionId::from_string(&session_id);
+                let current = match armin.get_session(&session_id) {
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::NOT_FOUND,
+                            "Session not found",
+                        );
+                    }
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to get session: {}", e),
+                        );
+                    }
+                };
+
+                if current.title == title {
+                    return Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "session": {
+                                "id": current.id.as_str(),
+                                "repository_id": current.repository_id.as_str(),
+                                "title": current.title,
+                                "status": current.status.as_str(),
+                                "created_at": current.created_at.to_rfc3339(),
+                                "last_accessed_at": current.last_accessed_at.to_rfc3339(),
+                            }
+                        }),
+                    );
+                }
+
+                let update = SessionUpdate {
+                    title: Some(title),
+                    last_accessed_at: Some(chrono::Utc::now()),
+                    ..SessionUpdate::default()
+                };
+
+                let updated = match armin.update_session(&session_id, update) {
+                    Ok(updated) => updated,
+                    Err(e) => {
+                        return Response::error(
+                            &req.id,
+                            error_codes::INTERNAL_ERROR,
+                            &format!("Failed to update session: {}", e),
+                        );
+                    }
+                };
+
+                if !updated {
+                    return Response::error(&req.id, error_codes::NOT_FOUND, "Session not found");
+                }
+
+                match armin.get_session(&session_id) {
+                    Ok(Some(s)) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "session": {
+                                "id": s.id.as_str(),
+                                "repository_id": s.repository_id.as_str(),
+                                "title": s.title,
+                                "status": s.status.as_str(),
+                                "created_at": s.created_at.to_rfc3339(),
+                                "last_accessed_at": s.last_accessed_at.to_rfc3339(),
+                            }
+                        }),
+                    ),
+                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Session not found"),
                     Err(e) => Response::error(
                         &req.id,
                         error_codes::INTERNAL_ERROR,
