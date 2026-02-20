@@ -142,6 +142,7 @@ export type Database = {
           session_pid: number | null;
           session_started_at: string;
           status: Database["public"]["Enums"]["coding_session_status"];
+          title: string | null;
           updated_at: string;
           user_id: string;
           working_directory: string | null;
@@ -161,6 +162,7 @@ export type Database = {
           session_pid?: number | null;
           session_started_at?: string;
           status?: Database["public"]["Enums"]["coding_session_status"];
+          title?: string | null;
           updated_at?: string;
           user_id: string;
           working_directory?: string | null;
@@ -180,6 +182,7 @@ export type Database = {
           session_pid?: number | null;
           session_started_at?: string;
           status?: Database["public"]["Enums"]["coding_session_status"];
+          title?: string | null;
           updated_at?: string;
           user_id?: string;
           working_directory?: string | null;
