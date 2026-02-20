@@ -155,7 +155,7 @@ struct WorkspacesSidebar: View {
                         )
                     }
                     .padding(.top, Spacing.compact)
-                    .padding(.horizontal, Spacing.compact)
+                    .padding(.horizontal, LayoutMetrics.sidebarInset)
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sessionsByRepository.map(\.repository.id))
                 }
             }
@@ -281,7 +281,7 @@ struct RepositoryGroup: View {
                     )
                 }
             }
-            .padding(.horizontal, Spacing.md)
+            .padding(.horizontal, LayoutMetrics.sidebarInset)
             .frame(height: 36)
             .contextMenu {
                 Button {
