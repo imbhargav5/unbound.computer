@@ -166,6 +166,7 @@ struct ChatInputField: View {
     @Binding var selectedModel: AIModel
     @Binding var selectedThinkMode: ThinkMode
     @Binding var isPlanMode: Bool
+    var latestCompletionSummary: SessionCompletionSummary?
     var isStreaming: Bool = false
     var onSend: () -> Void
     var onCancel: (() -> Void)?
@@ -213,6 +214,17 @@ struct ChatInputField: View {
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+    }
+
+    private var completionTokenCostLabel: String? {
+        guard let summary = latestCompletionSummary,
+              let totalTokens = summary.totalTokens,
+              let totalCostUSD = summary.totalCostUSD
+        else {
+            return nil
+        }
+
+        return "\(compactNumber(totalTokens)) tokens · \(String(format: "$%.2f", totalCostUSD))"
     }
 
     private var planHeader: some View {
@@ -372,6 +384,12 @@ struct ChatInputField: View {
                 if !isCompact {
                     HStack(spacing: 12) {
                         plusMenuButton
+                        if let completionTokenCostLabel {
+                            Text(completionTokenCostLabel)
+                                .font(GeistFont.mono(size: 10, weight: .regular))
+                                .foregroundStyle(Color(hex: "666666"))
+                                .lineLimit(1)
+                        }
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 18))
                             .foregroundStyle(Color(hex: "8A8A8A"))
@@ -419,6 +437,20 @@ struct ChatInputField: View {
             isFocused = true
         }
     }
+}
+
+private func compactNumber(_ value: Int) -> String {
+    if value >= 1_000_000 {
+        let formatted = Double(value) / 1_000_000
+        return String(format: "%.1fm", formatted)
+    }
+
+    if value >= 1_000 {
+        let formatted = Double(value) / 1_000
+        return String(format: "%.1fk", formatted)
+    }
+
+    return "\(value)"
 }
 
 // MARK: - Model Selector
