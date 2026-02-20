@@ -480,6 +480,7 @@ struct WorktreeSection: View {
 /// A session row with icon and flat list styling
 struct SessionRow: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppState.self) private var appState
 
     let session: Session
     let isSelected: Bool
@@ -495,12 +496,31 @@ struct SessionRow: View {
         ThemeColors(colorScheme)
     }
 
+    private var runtimeStatus: CodingSessionRuntimeStatus? {
+        appState.sessionRuntimeStatusService.runtimeStatusBySessionId[session.id]?.codingSession.status
+    }
+
+    private var shouldShowSpinner: Bool {
+        guard let runtimeStatus else { return false }
+        return runtimeStatus == .running || runtimeStatus == .waiting
+    }
+
     var body: some View {
+        let _ = appState.sessionRuntimeStatusService.runtimeStatusBySessionId
         Button(action: onSelect) {
             HStack(spacing: Spacing.sm) {
-                Image(systemName: "message.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? colors.primary : colors.gray525)
+                Group {
+                    if shouldShowSpinner {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(isSelected ? colors.primary : colors.gray525)
+                    } else {
+                        Image(systemName: "message.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isSelected ? colors.primary : colors.gray525)
+                    }
+                }
+                .frame(width: 12, height: 12)
 
                 Text(session.displayTitle)
                     .font(Typography.caption)
