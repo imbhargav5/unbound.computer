@@ -136,6 +136,7 @@ impl SupabaseClient {
         device_id: &str,
         repository_id: &str,
         status: &str,
+        title: Option<&str>,
         current_branch: Option<&str>,
         working_directory: Option<&str>,
         is_worktree: bool,
@@ -161,6 +162,9 @@ impl SupabaseClient {
         // Add optional fields only if provided
         if let Some(branch) = current_branch {
             body["current_branch"] = serde_json::json!(branch);
+        }
+        if let Some(title) = title {
+            body["title"] = serde_json::json!(title);
         }
         if let Some(dir) = working_directory {
             body["working_directory"] = serde_json::json!(dir);

@@ -16,6 +16,7 @@ use crate::ipc::register_handlers;
 use crate::itachi::idempotency::IdempotencyStore;
 use crate::itachi::runtime::spawn_billing_quota_refresh_loop;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
+use armin::{SessionId, SessionReader};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
@@ -29,12 +30,33 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use toshinori::{
-    AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext, ToshinoriSink,
+    AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SessionMetadata,
+    SessionMetadataProvider, SyncContext, ToshinoriSink,
 };
 use tracing::{debug, info, warn};
 use ymir::{DaemonAuthRuntime, SessionManager, SupabaseClient};
 
 const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
+
+struct ArminSessionMetadataProvider {
+    armin: Arc<crate::armin_adapter::DaemonArmin>,
+}
+
+impl SessionMetadataProvider for ArminSessionMetadataProvider {
+    fn get_session_metadata(&self, session_id: &str) -> Option<SessionMetadata> {
+        let session_id = SessionId::from_string(session_id);
+        let session = self.armin.get_session(&session_id).ok().flatten()?;
+
+        Some(SessionMetadata {
+            repository_id: session.repository_id.as_str().to_string(),
+            title: Some(session.title),
+            current_branch: None,
+            working_directory: None,
+            is_worktree: session.is_worktree,
+            worktree_path: session.worktree_path,
+        })
+    }
+}
 
 /// Run the daemon.
 pub async fn run_daemon(
@@ -103,6 +125,12 @@ pub async fn run_daemon(
         path = %paths.database_file().display(),
         "Armin session engine initialized"
     );
+
+    toshinori
+        .set_metadata_provider(Arc::new(ArminSessionMetadataProvider {
+            armin: armin.clone(),
+        }))
+        .await;
 
     // Async database for operations not yet migrated to Armin
     let db = AsyncDatabase::open(&paths.database_file())

@@ -347,6 +347,7 @@ impl SessionSyncService {
                 &device_id,
                 &session.repository_id,
                 status,
+                Some(session.title.as_str()),
                 None, // current_branch
                 None, // working_directory
                 sync_fields.is_worktree,
