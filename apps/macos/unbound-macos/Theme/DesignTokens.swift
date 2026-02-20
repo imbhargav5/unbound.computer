@@ -136,6 +136,8 @@ enum LayoutMetrics {
     static let toolbarHeight: CGFloat = 40
     /// Compact toolbar height for dense headers
     static let compactToolbarHeight: CGFloat = 36
+    /// Toolbar icon button hit target size
+    static let toolbarIconHitSize: CGFloat = 24
     /// Session row height in sidebar
     static let sidebarRowHeight: CGFloat = 28
 }
