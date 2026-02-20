@@ -14,7 +14,7 @@
 
 use crate::reader::SessionReader;
 use crate::side_effect::RecordingSink;
-use crate::types::{NewMessage, SessionId};
+use crate::types::{NewMessage, SessionId, SessionUpdate};
 use crate::writer::SessionWriter;
 use crate::{Armin, SideEffect};
 use tempfile::NamedTempFile;
@@ -170,6 +170,35 @@ fn rule_14_side_effects_contain_correct_session_id() {
         }
         _ => panic!("Expected MessageAppended"),
     }
+}
+
+#[test]
+fn session_update_emits_side_effect_and_persists_title() {
+    let sink = RecordingSink::new();
+    let armin = Armin::in_memory(sink).unwrap();
+    let session_id = armin.create_session().unwrap();
+    armin.sink().clear();
+
+    let updated = armin
+        .update_session(
+            &session_id,
+            SessionUpdate {
+                title: Some("Renamed Session".to_string()),
+                ..SessionUpdate::default()
+            },
+        )
+        .unwrap();
+
+    assert!(updated, "Update should return true for existing session");
+
+    let session = armin.get_session(&session_id).unwrap().unwrap();
+    assert_eq!(session.title, "Renamed Session");
+
+    let effects = armin.sink().effects();
+    assert!(effects.iter().any(|e| matches!(
+        e,
+        SideEffect::SessionUpdated { session_id: s } if *s == session_id
+    )));
 }
 
 /// Rule 15: Side-effects contain correct message_id
