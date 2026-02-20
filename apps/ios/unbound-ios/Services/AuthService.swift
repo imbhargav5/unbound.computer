@@ -320,6 +320,7 @@ final class AuthService {
         // Stop presence service
         DevicePresenceService.shared.stop()
         SessionRuntimeStatusService.shared.stop()
+        SessionTitleSyncService.shared.stop()
 
         do {
             try await supabaseClient.auth.signOut()
@@ -475,6 +476,11 @@ final class AuthService {
             )
 
             SessionRuntimeStatusService.shared.start(
+                supabase: supabaseClient,
+                userId: userId
+            )
+
+            SessionTitleSyncService.shared.start(
                 supabase: supabaseClient,
                 userId: userId
             )
