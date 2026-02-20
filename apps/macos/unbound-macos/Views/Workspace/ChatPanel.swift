@@ -564,12 +564,6 @@ struct ChatPanel: View {
                                             .padding(.vertical, Spacing.sm)
                                     }
 
-                                    if let latestCompletionSummary {
-                                        sessionCompletionFooterCard(summary: latestCompletionSummary)
-                                            .padding(.horizontal, Spacing.lg)
-                                            .padding(.vertical, Spacing.sm)
-                                    }
-
                                     // Invisible scroll anchor at bottom for reliable scrolling
                                     Color.clear
                                         .frame(height: 1)
@@ -710,116 +704,6 @@ struct ChatPanel: View {
         )
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
-    }
-
-    private func sessionCompletionFooterCard(summary: SessionCompletionSummary) -> some View {
-        let metrics = sessionCompletionMetrics(for: summary)
-
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color(hex: "3FB950"))
-
-                Text("Session Complete")
-                    .font(GeistFont.sans(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(hex: "E5E5E5"))
-
-                Text(summary.outcomeLabel)
-                    .font(GeistFont.mono(size: 10, weight: .medium))
-                    .foregroundStyle(Color(hex: "A3A3A3"))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            }
-
-            if let summaryText = summary.summaryText {
-                Text(summaryText)
-                    .font(GeistFont.sans(size: 12, weight: .regular))
-                    .foregroundStyle(Color(hex: "A3A3A3"))
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .textSelection(.enabled)
-            }
-
-            if !metrics.isEmpty {
-                HStack(spacing: 8) {
-                    ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
-                        Text(metric)
-                            .font(GeistFont.mono(size: 10, weight: .regular))
-                            .foregroundStyle(Color(hex: "525252"))
-
-                        if index < metrics.count - 1 {
-                            Text("|")
-                                .font(GeistFont.mono(size: 10, weight: .regular))
-                                .foregroundStyle(Color(hex: "333333"))
-                        }
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(hex: "1A1A1A"))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(hex: "3FB95040"), lineWidth: 1)
-        )
-    }
-
-    private func sessionCompletionMetrics(for summary: SessionCompletionSummary) -> [String] {
-        var metrics: [String] = []
-
-        if let turns = summary.turns {
-            let suffix = turns == 1 ? "" : "s"
-            metrics.append("\(turns) turn\(suffix)")
-        }
-
-        if let totalTokens = summary.totalTokens {
-            metrics.append("\(compactNumber(totalTokens)) tokens")
-        }
-
-        if let totalCostUSD = summary.totalCostUSD {
-            metrics.append(String(format: "$%.2f", totalCostUSD))
-        }
-
-        if let durationMs = summary.durationMs {
-            metrics.append(formattedDuration(milliseconds: durationMs))
-        }
-
-        return metrics
-    }
-
-    private func compactNumber(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            let formatted = Double(value) / 1_000_000
-            return String(format: "%.1fm", formatted)
-        }
-
-        if value >= 1_000 {
-            let formatted = Double(value) / 1_000
-            return String(format: "%.1fk", formatted)
-        }
-
-        return "\(value)"
-    }
-
-    private func formattedDuration(milliseconds: Int) -> String {
-        if milliseconds < 1000 {
-            return "\(milliseconds)ms"
-        }
-
-        let seconds = Double(milliseconds) / 1000
-        if seconds < 60 {
-            return String(format: "%.1fs", seconds)
-        }
-
-        let minutes = Int(seconds) / 60
-        let remainingSeconds = Int(seconds) % 60
-        return "\(minutes)m \(remainingSeconds)s"
     }
 
     // MARK: - Footer Panel
