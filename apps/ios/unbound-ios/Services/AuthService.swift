@@ -319,6 +319,7 @@ final class AuthService {
     func signOut() async throws {
         // Stop presence service
         DevicePresenceService.shared.stop()
+        SessionRuntimeStatusService.shared.stop()
 
         do {
             try await supabaseClient.auth.signOut()
@@ -470,6 +471,11 @@ final class AuthService {
             DevicePresenceService.shared.start(
                 supabase: supabaseClient,
                 deviceId: normalizedDeviceId,
+                userId: userId
+            )
+
+            SessionRuntimeStatusService.shared.start(
+                supabase: supabaseClient,
                 userId: userId
             )
         } catch {
