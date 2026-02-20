@@ -377,7 +377,7 @@ struct MainDirectorySection: View {
                     }
                 }
             }
-            .padding(.leading, 28)
+            .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.md)
             .frame(height: LayoutMetrics.sidebarRowHeight)
 
@@ -394,7 +394,8 @@ struct MainDirectorySection: View {
                 }
             }
             .padding(.top, Spacing.xxs)
-            .padding(.horizontal, Spacing.sm)
+            .padding(.leading, LayoutMetrics.sidebarInset)
+            .padding(.trailing, Spacing.sm)
             .padding(.bottom, Spacing.xs + Spacing.xxs)
         }
     }
@@ -450,7 +451,7 @@ struct WorktreeSection: View {
                     }
                 }
             }
-            .padding(.leading, 28)
+            .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.md)
             .frame(height: LayoutMetrics.sidebarRowHeight)
 
@@ -467,7 +468,8 @@ struct WorktreeSection: View {
                 }
             }
             .padding(.top, Spacing.xxs)
-            .padding(.horizontal, Spacing.sm)
+            .padding(.leading, LayoutMetrics.sidebarInset)
+            .padding(.trailing, Spacing.sm)
             .padding(.bottom, Spacing.xs + Spacing.xxs)
         }
     }
@@ -507,7 +509,7 @@ struct SessionRow: View {
 
                 Spacer()
             }
-            .padding(.leading, 24)
+            .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.sm)
             .frame(height: LayoutMetrics.sidebarRowHeight)
             .fullRowHitTarget()
