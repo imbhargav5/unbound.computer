@@ -138,6 +138,8 @@ enum LayoutMetrics {
     static let compactToolbarHeight: CGFloat = 36
     /// Session row height in sidebar
     static let sidebarRowHeight: CGFloat = 28
+    /// Shared left inset for sidebar rows/headers
+    static let sidebarInset: CGFloat = 10
 }
 
 // MARK: - Elevation (Shadow/Depth)
