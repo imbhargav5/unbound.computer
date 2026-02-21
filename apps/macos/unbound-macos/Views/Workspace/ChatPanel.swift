@@ -653,6 +653,7 @@ struct ChatPanel: View {
                         selectedModel: $selectedModel,
                         selectedThinkMode: $selectedThinkMode,
                         isPlanMode: $isPlanMode,
+                        latestCompletionSummary: latestCompletionSummary,
                         isStreaming: isSessionStreaming,
                         onSend: sendMessage,
                         onCancel: cancelStream
