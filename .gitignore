@@ -1,6 +1,7 @@
 .env
 .env.local
 .env.*.local
+.env.release
 node_modules
 .next
 tsconfig.tsbuildinfo

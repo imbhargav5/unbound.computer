@@ -2,6 +2,19 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Source release env vars (Supabase URL/key, presence config, etc.)
+# These are compile-time values baked into the daemon binary.
+if [[ -f "$ROOT_DIR/.env.release" ]]; then
+  echo "==> Loading .env.release"
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env.release"
+else
+  echo "WARNING: No .env.release found at $ROOT_DIR/.env.release" >&2
+  echo "  Daemon will be built with default (non-production) Supabase config." >&2
+  echo "  Create .env.release with SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, etc." >&2
+fi
+
 PROJECT_DIR="$ROOT_DIR/apps/macos"
 PROJECT_FILE="$PROJECT_DIR/unbound-macos.xcodeproj"
 SCHEME="unbound-macos"

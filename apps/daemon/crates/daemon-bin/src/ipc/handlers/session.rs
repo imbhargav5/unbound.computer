@@ -876,7 +876,9 @@ async fn register_session_update(server: &IpcServer, state: DaemonState) {
                             }
                         }),
                     ),
-                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Session not found"),
+                    Ok(None) => {
+                        Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
+                    }
                     Err(e) => Response::error(
                         &req.id,
                         error_codes::INTERNAL_ERROR,
