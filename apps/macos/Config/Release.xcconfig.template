@@ -11,6 +11,15 @@
 //      or point Xcode Release configuration to Release.xcconfig
 
 // ================================
+// App Identity (Production)
+// ================================
+
+UNBOUND_BASE_DIR = .unbound
+PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos
+PRODUCT_NAME = Unbound
+UNBOUND_URL_SCHEME = unbound
+
+// ================================
 // Production URLs
 // ================================
 

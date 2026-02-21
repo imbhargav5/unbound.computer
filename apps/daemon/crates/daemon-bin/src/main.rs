@@ -10,6 +10,8 @@ mod machines;
 mod types;
 mod utils;
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use daemon_config_and_utils::{init_logging, Config, Paths};
 
@@ -25,6 +27,10 @@ struct Cli {
     /// Log level (trace, debug, info, warn, error)
     #[arg(short, long, default_value = "info", global = true)]
     log_level: String,
+
+    /// Base directory for runtime files (socket, logs, config). Defaults to ~/.unbound
+    #[arg(long, global = true)]
+    base_dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -49,7 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_logging(&cli.log_level);
 
     // Load configuration
-    let paths = Paths::new()?;
+    let paths = match cli.base_dir {
+        Some(base) => Paths::with_base_dir(base),
+        None => Paths::new()?,
+    };
     let config = Config::load(&paths)?;
 
     match cli.command {
