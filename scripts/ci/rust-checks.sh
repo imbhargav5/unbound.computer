@@ -30,10 +30,28 @@ print_cache_targets() {
   done
 }
 
+print_debug() {
+  if [[ -z "${RUST_CHECKS_DEBUG:-}" ]]; then
+    return 0
+  fi
+
+  echo "pwd: $(pwd)"
+  if command -v rustc >/dev/null 2>&1; then
+    rustc --version
+  fi
+  if command -v cargo >/dev/null 2>&1; then
+    cargo --version
+  fi
+  if command -v rustfmt >/dev/null 2>&1; then
+    rustfmt --version
+  fi
+}
+
 run_fmt() {
   for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
+      print_debug
       cargo fmt --check
     )
   done
@@ -43,6 +61,7 @@ run_clippy() {
   for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
+      print_debug
       if [[ "${workspace}" == "apps/daemon" ]]; then
         cargo clippy --workspace
       else
@@ -56,6 +75,7 @@ run_test() {
   for workspace in "${selected_workspaces[@]}"; do
     (
       cd "${workspace}"
+      print_debug
       if [[ "${workspace}" == "apps/daemon" ]]; then
         cargo test --workspace --exclude piccolo -j 1 -- --test-threads=1
         cargo test -p piccolo --lib -j 1 -- --test-threads=1
@@ -95,7 +115,7 @@ case "${command}" in
     ;;
   *)
     echo "Unknown command: ${command}" >&2
-    echo "Usage: $0 [--workspace <path>] {list|cache-targets|fmt|clippy|test|all}" >&2
+    echo "Usage: RUST_CHECKS_DEBUG=1 $0 [--workspace <path>] {list|cache-targets|fmt|clippy|test|all}" >&2
     exit 1
     ;;
  esac
