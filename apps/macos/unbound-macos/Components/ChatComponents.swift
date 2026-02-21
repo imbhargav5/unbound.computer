@@ -216,15 +216,15 @@ struct ChatInputField: View {
         }
     }
 
-    private var completionTokenCostLabel: String? {
-        guard let summary = latestCompletionSummary,
-              let totalTokens = summary.totalTokens,
-              let totalCostUSD = summary.totalCostUSD
-        else {
-            return nil
-        }
+    @ViewBuilder
+    private var completionMetricsLabel: some View {
+        guard let summary = latestCompletionSummary else { return }
+        let metrics = completionMetrics(for: summary)
+        guard !metrics.isEmpty else { return }
 
-        return "\(compactNumber(totalTokens)) tokens · \(String(format: "$%.2f", totalCostUSD))"
+        Text(metrics.joined(separator: " • "))
+            .font(GeistFont.sans(size: 11, weight: .regular))
+            .foregroundStyle(Color(hex: "6B6B6B"))
     }
 
     private var planHeader: some View {
@@ -342,6 +342,34 @@ struct ChatInputField: View {
         .shadow(color: Color.black.opacity(0.38), radius: 24, y: 8)
     }
 
+    private func completionMetrics(for summary: SessionCompletionSummary) -> [String] {
+        var metrics: [String] = []
+
+        if let totalTokens = summary.totalTokens {
+            metrics.append("\(compactNumber(totalTokens)) tokens")
+        }
+
+        if let totalCostUSD = summary.totalCostUSD {
+            metrics.append(String(format: "$%.2f", totalCostUSD))
+        }
+
+        return metrics
+    }
+
+    private func compactNumber(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            let formatted = Double(value) / 1_000_000
+            return String(format: "%.1fm", formatted)
+        }
+
+        if value >= 1_000 {
+            let formatted = Double(value) / 1_000
+            return String(format: "%.1fk", formatted)
+        }
+
+        return "\(value)"
+    }
+
     var body: some View {
         VStack(spacing: isCompact ? 0 : Spacing.md) {
             if !isCompact && isPlanMode {
@@ -384,12 +412,7 @@ struct ChatInputField: View {
                 if !isCompact {
                     HStack(spacing: 12) {
                         plusMenuButton
-                        if let completionTokenCostLabel {
-                            Text(completionTokenCostLabel)
-                                .font(GeistFont.mono(size: 10, weight: .regular))
-                                .foregroundStyle(Color(hex: "666666"))
-                                .lineLimit(1)
-                        }
+                        completionMetricsLabel
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 18))
                             .foregroundStyle(Color(hex: "8A8A8A"))
@@ -437,20 +460,6 @@ struct ChatInputField: View {
             isFocused = true
         }
     }
-}
-
-private func compactNumber(_ value: Int) -> String {
-    if value >= 1_000_000 {
-        let formatted = Double(value) / 1_000_000
-        return String(format: "%.1fm", formatted)
-    }
-
-    if value >= 1_000 {
-        let formatted = Double(value) / 1_000
-        return String(format: "%.1fk", formatted)
-    }
-
-    return "\(value)"
 }
 
 // MARK: - Model Selector

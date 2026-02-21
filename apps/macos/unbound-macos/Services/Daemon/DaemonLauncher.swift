@@ -32,7 +32,18 @@ enum DaemonLauncher {
 
     /// Find the daemon binary path (async, non-blocking).
     private static func findDaemonBinary() async -> String? {
-        // First check known paths synchronously (fast file system check)
+        // 1. Check bundled binary first (inside app bundle)
+        if let bundledPath = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("unbound-daemon")
+            .path,
+           FileManager.default.isExecutableFile(atPath: bundledPath)
+        {
+            logger.info("Found bundled daemon binary")
+            return bundledPath
+        }
+
+        // 2. Fall back to known system paths
         for path in daemonPaths {
             let expandedPath = NSString(string: path).expandingTildeInPath
             if FileManager.default.isExecutableFile(atPath: expandedPath) {
@@ -40,7 +51,7 @@ enum DaemonLauncher {
             }
         }
 
-        // Try which command as fallback (async to avoid blocking)
+        // 3. Try which command as last resort (async to avoid blocking)
         return await findDaemonBinaryViaWhich()
     }
 
@@ -77,6 +88,59 @@ enum DaemonLauncher {
         }
     }
 
+    // MARK: - CLI Symlink
+
+    /// Install a symlink to the bundled daemon binary so it's accessible from the terminal.
+    /// Creates `~/.local/bin/unbound-daemon` → bundled binary in app bundle.
+    static func installCLISymlink() {
+        guard let bundledPath = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("unbound-daemon")
+            .path,
+              FileManager.default.isExecutableFile(atPath: bundledPath)
+        else {
+            logger.debug("No bundled daemon binary found, skipping symlink install")
+            return
+        }
+
+        let binDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/bin")
+        let symlinkPath = binDir.appendingPathComponent("unbound-daemon").path
+
+        // Create ~/.local/bin if needed
+        if !FileManager.default.fileExists(atPath: binDir.path) {
+            do {
+                try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+            } catch {
+                logger.warning("Could not create ~/.local/bin: \(error)")
+                return
+            }
+        }
+
+        // Remove existing file/symlink at destination
+        if FileManager.default.fileExists(atPath: symlinkPath) {
+            // If it's already a symlink pointing to the right place, nothing to do
+            if let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: symlinkPath),
+               dest == bundledPath
+            {
+                return
+            }
+            do {
+                try FileManager.default.removeItem(atPath: symlinkPath)
+            } catch {
+                logger.warning("Could not remove existing file at \(symlinkPath): \(error)")
+                return
+            }
+        }
+
+        do {
+            try FileManager.default.createSymbolicLink(atPath: symlinkPath, withDestinationPath: bundledPath)
+            logger.info("Installed CLI symlink: \(symlinkPath) → \(bundledPath)")
+        } catch {
+            logger.warning("Could not create CLI symlink: \(error)")
+        }
+    }
+
     // MARK: - Launch Methods
 
     /// Ensure the daemon is running, starting it if necessary.
@@ -108,7 +172,7 @@ enum DaemonLauncher {
     private static func startDaemon(at path: String) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = ["start", "--background"]
+        process.arguments = ["start", "--base-dir", Config.daemonBaseDir]
         var environment = ProcessInfo.processInfo.environment
         if let heartbeatURL = Config.presenceDOHeartbeatURL {
             environment["UNBOUND_PRESENCE_DO_HEARTBEAT_URL"] = heartbeatURL
@@ -169,6 +233,16 @@ enum DaemonLauncher {
     /// Check if daemon is installed (sync, only checks known paths).
     /// For a complete check including PATH lookup, use the async version.
     static func isDaemonInstalledSync() -> Bool {
+        // Check bundled binary first
+        if let bundledPath = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("unbound-daemon")
+            .path,
+           FileManager.default.isExecutableFile(atPath: bundledPath)
+        {
+            return true
+        }
+
         for path in daemonPaths {
             let expandedPath = NSString(string: path).expandingTildeInPath
             if FileManager.default.isExecutableFile(atPath: expandedPath) {

@@ -72,10 +72,44 @@ enum Config {
         #endif
     }
 
+    // MARK: - Daemon Paths
+
+    /// Base directory name (e.g. ".unbound-dev" or ".unbound")
+    static var baseDirName: String {
+        if let value = readOptionalConfigValue(env: "UNBOUND_BASE_DIR", plist: "UNBOUND_BASE_DIR") {
+            return value
+        }
+        #if DEBUG
+        return ".unbound-dev"
+        #else
+        return ".unbound"
+        #endif
+    }
+
+    /// Full path to the daemon base directory
+    static var daemonBaseDir: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/\(baseDirName)"
+    }
+
+    /// Full path to the daemon socket
+    static var socketPath: String {
+        "\(daemonBaseDir)/daemon.sock"
+    }
+
     // MARK: - OAuth Configuration
 
     /// OAuth redirect URL scheme for deep linking
-    static let oauthRedirectScheme = "unbound"
+    static var oauthRedirectScheme: String {
+        if let value = readOptionalConfigValue(env: "UNBOUND_URL_SCHEME", plist: "UNBOUND_URL_SCHEME") {
+            return value
+        }
+        #if DEBUG
+        return "unbound-dev"
+        #else
+        return "unbound"
+        #endif
+    }
 
     /// Full OAuth redirect URL for Supabase auth callbacks
     static var oauthRedirectURL: URL {
@@ -195,6 +229,8 @@ enum Config {
         logger.debug("  - API URL: \(apiURL)")
         logger.debug("  - Supabase URL: \(supabaseURL)")
         logger.debug("  - OAuth Redirect: \(oauthRedirectURL)")
+        logger.debug("  - Daemon Base Dir: \(daemonBaseDir)")
+        logger.debug("  - Socket Path: \(socketPath)")
         logger.debug("  - Debug Mode: \(isDebug)")
         logger.debug("  - Observability Mode: \(observabilityMode)")
         #endif

@@ -45,7 +45,7 @@ struct RepositorySettingsView: View {
     }
 
     private var defaultWorktreeRootDir: String {
-        "~/.unbound/\(repository.id.uuidString.lowercased())/worktrees"
+        "~/\(Config.baseDirName)/\(repository.id.uuidString.lowercased())/worktrees"
     }
 
     var body: some View {

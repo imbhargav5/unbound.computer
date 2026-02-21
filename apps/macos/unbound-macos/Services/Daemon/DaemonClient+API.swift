@@ -196,6 +196,24 @@ extension DaemonClient {
         return try decoder.decode(DaemonSession.self, from: data)
     }
 
+    /// Update a session title.
+    func updateSessionTitle(sessionId: String, title: String) async throws -> DaemonSession {
+        let response = try await call(
+            method: .sessionUpdate,
+            params: ["session_id": sessionId, "title": title]
+        )
+
+        guard let result = response.resultAsDict(),
+              let sessionData = result["session"] as? [String: Any] else {
+            throw DaemonError.notFound("session")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let data = try JSONSerialization.data(withJSONObject: sessionData)
+        return try decoder.decode(DaemonSession.self, from: data)
+    }
+
     /// Delete a session.
     func deleteSession(sessionId: String) async throws {
         _ = try await call(method: .sessionDelete, params: ["session_id": sessionId])

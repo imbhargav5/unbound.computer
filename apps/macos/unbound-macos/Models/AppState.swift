@@ -503,6 +503,39 @@ class AppState {
         }
     }
 
+    /// Rename a session.
+    func renameSession(_ sessionId: UUID, repositoryId: UUID, title: String) async throws -> Session {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTitle.isEmpty {
+            throw DaemonError.serverError(
+                code: DaemonErrorCode.invalidParams,
+                message: "title must not be empty"
+            )
+        }
+
+        if let existing = session(id: sessionId), existing.title == trimmedTitle {
+            return existing
+        }
+
+        let daemonSession = try await daemonClient.updateSessionTitle(
+            sessionId: sessionId.uuidString,
+            title: trimmedTitle
+        )
+        guard let session = daemonSession.toSession() else {
+            throw DaemonError.decodingFailed("Invalid session data")
+        }
+
+        if let index = sessions[repositoryId]?.firstIndex(where: { $0.id == sessionId }) {
+            sessions[repositoryId]?[index] = session
+        } else if sessions[repositoryId] != nil {
+            sessions[repositoryId]?.append(session)
+        } else {
+            sessions[repositoryId] = [session]
+        }
+
+        return session
+    }
+
     /// Get a session by ID (from cache).
     func session(id: UUID) -> Session? {
         for (_, repoSessions) in sessions {

@@ -115,7 +115,7 @@ struct unbound_macosApp: App {
                     logger.info("Deep link received: \(url.absoluteString)")
 
                     // If this is an auth callback, refresh auth status
-                    if url.scheme == "unbound" && url.host == "auth" {
+                    if url.scheme == Config.oauthRedirectScheme && url.host == "auth" {
                         Task {
                             await appState?.refreshAuthStatus()
                             if appState?.isAuthenticated == true {
@@ -147,6 +147,9 @@ struct unbound_macosApp: App {
 
         // Reset to loading state
         initializationState = .loading(message: "Starting...", progress: 0)
+
+        // Install CLI symlink so terminal users get the bundled daemon
+        DaemonLauncher.installCLISymlink()
 
         // Create AppState immediately so UI can render
         logger.info("Creating AppState...")

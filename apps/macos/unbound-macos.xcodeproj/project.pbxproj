@@ -33,6 +33,8 @@
 /* Begin PBXFileReference section */
 		0BEC16D518A64A1A32B1C155 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 		8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "unbound-macosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABB00012F80A00000000001 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Config/Debug.xcconfig; sourceTree = "<group>"; };
+		AABB00012F80A00000000002 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Config/Release.xcconfig; sourceTree = "<group>"; };
 		CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "unbound-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -78,6 +80,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AABB00012F80A00000000003 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				AABB00012F80A00000000001 /* Debug.xcconfig */,
+				AABB00012F80A00000000002 /* Release.xcconfig */,
+			);
+			name = Config;
+			sourceTree = "<group>";
+		};
 		CD473B7C2F34753D00622019 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
@@ -89,6 +100,7 @@
 		CDD3C14B2EFFB85C00CDEC43 = {
 			isa = PBXGroup;
 			children = (
+				AABB00012F80A00000000003 /* Config */,
 				CDD3C1562EFFB85C00CDEC43 /* unbound-macos */,
 				0116ED91ED9D93FFC27748DA /* unbound-macosTests */,
 				CDD3C1552EFFB85C00CDEC43 /* Products */,
@@ -112,6 +124,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = CDD3C15F2EFFB85D00CDEC43 /* Build configuration list for PBXNativeTarget "unbound-macos" */;
 			buildPhases = (
+				AABB00022F80B00000000001 /* Build Daemon */,
 				CDD3C1502EFFB85C00CDEC43 /* Sources */,
 				CDD3C1512EFFB85C00CDEC43 /* Frameworks */,
 				CDD3C1522EFFB85C00CDEC43 /* Resources */,
@@ -224,6 +237,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		AABB00022F80B00000000001 /* Build Daemon */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Daemon";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(EXECUTABLE_FOLDER_PATH)/unbound-daemon",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Build the Rust daemon for the current architecture\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\n\nDAEMON_SRC=\"${PROJECT_DIR}/../daemon\"\nDAEMON_BIN_NAME=\"unbound-daemon\"\n\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  CARGO_FLAGS=\"--release\"\n  CARGO_PROFILE=\"release\"\nelse\n  CARGO_FLAGS=\"\"\n  CARGO_PROFILE=\"debug\"\nfi\n\n# Set compile-time Supabase config for the daemon.\n# xcconfig cannot hold URLs with // (treated as inline comments),\n# so we set these explicitly, matching Config.swift defaults.\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n  export SUPABASE_URL=\"http://127.0.0.1:54321\"\n  export SUPABASE_PUBLISHABLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0\"\nfi\n\n# ARCHS contains target architecture(s), take the first one\n# CURRENT_ARCH is not available in Run Script phases\nARCH=\"${ARCHS%% *}\"\n\ncase \"$ARCH\" in\n  arm64) RUST_TARGET=\"aarch64-apple-darwin\" ;;\n  x86_64) RUST_TARGET=\"x86_64-apple-darwin\" ;;\n  *) echo \"error: Unsupported architecture: $ARCH\"; exit 1 ;;\nesac\n\ncd \"$DAEMON_SRC\"\ncargo build -p daemon-bin $CARGO_FLAGS --target \"$RUST_TARGET\"\n\n# Copy binary into app bundle's MacOS directory\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${EXECUTABLE_FOLDER_PATH}\"\nmkdir -p \"$DEST_DIR\"\ncp \"${DAEMON_SRC}/target/${RUST_TARGET}/${CARGO_PROFILE}/${DAEMON_BIN_NAME}\" \"${DEST_DIR}/${DAEMON_BIN_NAME}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		1E1A73B35E5EDED09EE66ED4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -293,6 +328,7 @@
 		};
 		CDD3C15D2EFFB85D00CDEC43 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AABB00012F80A00000000001 /* Debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -329,7 +365,7 @@
 				DEVELOPMENT_TEAM = LLC6TV7P6M;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -357,6 +393,7 @@
 		};
 		CDD3C15E2EFFB85D00CDEC43 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AABB00012F80A00000000002 /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -393,7 +430,7 @@
 				DEVELOPMENT_TEAM = LLC6TV7P6M;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -425,14 +462,13 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "unbound-macos/Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-macos";
-				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -458,14 +494,13 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "unbound-macos/Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.arni.unbound-macos";
-				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

@@ -43,8 +43,7 @@ final class DaemonClient {
 
     /// Default daemon socket path.
     static var defaultSocketPath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.unbound/daemon.sock"
+        Config.socketPath
     }
 
     private let socketPath: String

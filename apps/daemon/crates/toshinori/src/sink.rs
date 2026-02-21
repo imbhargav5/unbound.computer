@@ -38,6 +38,8 @@ pub struct SyncContext {
 pub struct SessionMetadata {
     /// The repository this session belongs to.
     pub repository_id: String,
+    /// Human-readable session title (for cross-device rename sync).
+    pub title: Option<String>,
     /// The git branch being worked on (if applicable).
     pub current_branch: Option<String>,
     /// The working directory path within the repository.
@@ -458,6 +460,7 @@ impl ToshinoriSink {
                                 &ctx.device_id,
                                 &metadata.repository_id,
                                 "active",
+                                metadata.title.as_deref(),
                                 metadata.current_branch.as_deref(),
                                 metadata.working_directory.as_deref(),
                                 metadata.is_worktree,
@@ -502,6 +505,7 @@ impl ToshinoriSink {
                                 &ctx.device_id,
                                 &metadata.repository_id,
                                 "active",
+                                metadata.title.as_deref(),
                                 metadata.current_branch.as_deref(),
                                 metadata.working_directory.as_deref(),
                                 metadata.is_worktree,
@@ -1221,6 +1225,7 @@ mod tests {
     fn session_metadata_is_cloneable_and_debuggable() {
         let meta = SessionMetadata {
             repository_id: "repo-1".to_string(),
+            title: Some("Session Title".to_string()),
             current_branch: Some("main".to_string()),
             working_directory: Some("/home/user/project".to_string()),
             is_worktree: false,
@@ -1268,6 +1273,7 @@ mod tests {
             "sess-1",
             SessionMetadata {
                 repository_id: "repo-1".to_string(),
+                title: Some("Session Title".to_string()),
                 current_branch: Some("main".to_string()),
                 working_directory: None,
                 is_worktree: false,

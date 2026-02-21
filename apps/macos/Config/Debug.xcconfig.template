@@ -10,6 +10,15 @@
 //   3. In Xcode: Project > Info > Configurations > Debug > Set to Debug.xcconfig
 
 // ================================
+// App Identity (Dev)
+// ================================
+
+UNBOUND_BASE_DIR = .unbound-dev
+PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos-dev
+PRODUCT_NAME = Unbound Dev
+UNBOUND_URL_SCHEME = unbound-dev
+
+// ================================
 // Local Development URLs
 // ================================
 
