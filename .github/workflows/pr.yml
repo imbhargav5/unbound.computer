@@ -17,7 +17,7 @@ jobs:
       - name: Install shell dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zsh
+          sudo apt-get install -y zsh pkg-config libssl-dev libz-dev libssh2-1-dev cmake
       - uses: ./.github/actions/ci-setup
       - name: test
         run: pnpm --filter @unbound/web test
