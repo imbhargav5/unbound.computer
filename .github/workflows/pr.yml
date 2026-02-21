@@ -8,6 +8,17 @@ on:
       - '**'
 
 jobs:
+  rust-workspaces:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          workspaces=$(./scripts/ci/rust-checks.sh list | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix=${workspaces}" >> "$GITHUB_OUTPUT"
+
   vitest:
     timeout-minutes: 20
 
@@ -23,14 +34,12 @@ jobs:
         run: pnpm --filter @unbound/web test
 
   rust:
+    needs: rust-workspaces
     timeout-minutes: 20
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        workspace:
-          - apps/daemon
-          - apps/cli-new
-          - packages/observability
+        workspace: ${{ fromJson(needs.rust-workspaces.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: Install shell dependencies
