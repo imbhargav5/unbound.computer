@@ -206,6 +206,8 @@ struct OptionButton: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     AskUserQuestionView(
         question: AskUserQuestion(
@@ -224,3 +226,5 @@ struct OptionButton: View {
     .frame(width: 450)
     .padding()
 }
+
+#endif

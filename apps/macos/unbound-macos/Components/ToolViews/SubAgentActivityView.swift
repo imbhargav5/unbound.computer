@@ -283,6 +283,8 @@ private struct SubAgentToolRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(alignment: .leading, spacing: Spacing.lg) {
         SubAgentActivityView(activity: SubAgentActivity(
@@ -311,3 +313,5 @@ private struct SubAgentToolRow: View {
     .frame(width: 500)
     .background(Color(hex: "0D0D0D"))
 }
+
+#endif

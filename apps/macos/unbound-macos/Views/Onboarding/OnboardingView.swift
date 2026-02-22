@@ -401,8 +401,12 @@ struct OnboardingView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     OnboardingView()
         .environment(AppState())
         .frame(width: 1000, height: 700)
 }
+
+#endif

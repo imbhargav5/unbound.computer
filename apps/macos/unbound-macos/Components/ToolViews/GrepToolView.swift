@@ -187,6 +187,8 @@ struct GrepResultRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         GrepToolView(toolUse: ToolUse(
@@ -211,3 +213,5 @@ struct GrepResultRow: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

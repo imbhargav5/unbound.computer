@@ -173,6 +173,8 @@ enum ToolIcon {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         ToolHeader(
@@ -202,3 +204,5 @@ enum ToolIcon {
     .frame(width: 500)
     .padding()
 }
+
+#endif

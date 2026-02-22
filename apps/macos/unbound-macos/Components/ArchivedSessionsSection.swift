@@ -234,6 +234,8 @@ struct ArchivedSessionRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     ArchivedSessionsSection(
         onRestoreSession: { _ in },
@@ -242,3 +244,5 @@ struct ArchivedSessionRow: View {
     .environment(AppState())
     .frame(width: 280)
 }
+
+#endif

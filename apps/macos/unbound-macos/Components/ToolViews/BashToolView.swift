@@ -96,6 +96,8 @@ struct BashToolView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         BashToolView(toolUse: ToolUse(
@@ -124,3 +126,5 @@ struct BashToolView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

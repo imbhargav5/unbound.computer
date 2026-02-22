@@ -87,6 +87,8 @@ struct ErrorStateView: View {
 
 // MARK: - Previews
 
+#if DEBUG
+
 #Preview("Error - Failed to load file") {
     ErrorStateView(
         icon: "doc.text",
@@ -128,3 +130,5 @@ struct ErrorStateView: View {
     .frame(width: 600, height: 400)
     .background(ShadcnColors.Dark.background)
 }
+
+#endif

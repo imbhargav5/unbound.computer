@@ -664,6 +664,8 @@ private struct PullRequestsTabView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("Changes Tab") {
     RightSidebarPanel(
         fileTreeViewModel: .preview(),
@@ -707,3 +709,5 @@ private struct PullRequestsTabView: View {
     )
     .frame(width: 300, height: 600)
 }
+
+#endif

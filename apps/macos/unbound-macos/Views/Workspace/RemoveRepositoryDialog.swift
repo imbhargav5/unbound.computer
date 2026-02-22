@@ -165,6 +165,8 @@ struct RemoveRepositoryOverlay: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     RemoveRepositoryOverlay(
         isPresented: .constant(true),
@@ -175,3 +177,5 @@ struct RemoveRepositoryOverlay: View {
     )
     .frame(width: 800, height: 600)
 }
+
+#endif

@@ -475,6 +475,8 @@ struct FileTreeRowWithDiff: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VersionControlPanel(
         viewModel: nil,
@@ -483,3 +485,5 @@ struct FileTreeRowWithDiff: View {
     )
     .frame(width: 280, height: 600)
 }
+
+#endif

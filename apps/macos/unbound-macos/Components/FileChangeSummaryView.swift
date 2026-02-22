@@ -133,6 +133,8 @@ private struct FileChangeSummaryRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     FileChangeSummaryView(fileChanges: [
         FileChange(filePath: "apps/macos/unbound-macos/Views/Workspace/RightSidebarPanel.swift", changeType: .modified, linesAdded: 2, linesRemoved: 2),
@@ -142,3 +144,5 @@ private struct FileChangeSummaryRow: View {
     .frame(width: 520)
     .padding()
 }
+
+#endif

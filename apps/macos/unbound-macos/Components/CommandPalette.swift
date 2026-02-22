@@ -275,6 +275,8 @@ struct CommandPaletteOverlay: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     ZStack {
         Color(hex: "0D0D0D").opacity(0.8)
@@ -291,3 +293,5 @@ struct CommandPaletteOverlay: View {
     }
     .frame(width: 600, height: 500)
 }
+
+#endif

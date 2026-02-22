@@ -160,6 +160,8 @@ private struct ChangeRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("With Changes") {
     ChangesTabView(
         gitViewModel: .preview(),
@@ -175,3 +177,5 @@ private struct ChangeRow: View {
     )
     .frame(width: 280, height: 400)
 }
+
+#endif

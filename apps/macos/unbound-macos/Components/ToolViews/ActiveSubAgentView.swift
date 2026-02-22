@@ -108,6 +108,8 @@ struct ActiveSubAgentView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.lg) {
         ActiveSubAgentView(subAgent: ActiveSubAgent(
@@ -136,3 +138,5 @@ struct ActiveSubAgentView: View {
     .frame(width: 520)
     .padding()
 }
+
+#endif

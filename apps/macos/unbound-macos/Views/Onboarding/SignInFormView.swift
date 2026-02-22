@@ -199,6 +199,8 @@ struct SignInFormView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     SignInFormView(
         onMagicLink: {},
@@ -210,3 +212,5 @@ struct SignInFormView: View {
     .background(ThemeColors(.dark).background)
     .frame(width: 400)
 }
+
+#endif

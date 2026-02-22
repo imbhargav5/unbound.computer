@@ -349,8 +349,12 @@ struct AccountSettings: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     AccountSettings()
         .environment(AppState())
         .frame(width: 500, height: 600)
 }
+
+#endif

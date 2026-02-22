@@ -84,14 +84,6 @@ struct SwiftTerminalWrapper: NSViewRepresentable {
     }
 }
 
-#Preview {
-    TerminalContainer(
-        tabId: UUID(),
-        workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path
-    )
-        .frame(width: 600, height: 400)
-}
-
 private extension NSColor {
     convenience init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -117,3 +109,15 @@ private extension NSColor {
         )
     }
 }
+
+#if DEBUG
+
+#Preview {
+    TerminalContainer(
+        tabId: UUID(),
+        workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path
+    )
+        .frame(width: 600, height: 400)
+}
+
+#endif

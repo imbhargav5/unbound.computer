@@ -218,13 +218,14 @@ struct ChatInputField: View {
 
     @ViewBuilder
     private var completionMetricsLabel: some View {
-        guard let summary = latestCompletionSummary else { return }
-        let metrics = completionMetrics(for: summary)
-        guard !metrics.isEmpty else { return }
-
-        Text(metrics.joined(separator: " • "))
-            .font(GeistFont.sans(size: 11, weight: .regular))
-            .foregroundStyle(Color(hex: "6B6B6B"))
+        if let summary = latestCompletionSummary {
+            let metrics = completionMetrics(for: summary)
+            if !metrics.isEmpty {
+                Text(metrics.joined(separator: " • "))
+                    .font(GeistFont.sans(size: 11, weight: .regular))
+                    .foregroundStyle(Color(hex: "6B6B6B"))
+            }
+        }
     }
 
     private var planHeader: some View {

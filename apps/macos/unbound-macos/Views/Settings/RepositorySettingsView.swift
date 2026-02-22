@@ -621,6 +621,8 @@ struct RepositorySettingsView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     @Previewable @State var navigationPath = NavigationPath()
     RepositorySettingsView(
@@ -632,3 +634,5 @@ struct RepositorySettingsView: View {
     )
     .environment(AppState())
 }
+
+#endif

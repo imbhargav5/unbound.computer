@@ -89,8 +89,12 @@ struct NetworkSettings: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     NetworkSettings()
         .environment(AppState())
         .frame(width: 500, height: 600)
 }
+
+#endif

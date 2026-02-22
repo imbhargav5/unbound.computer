@@ -183,8 +183,12 @@ struct ThemePreview: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     AppearanceSettings()
         .environment(AppState())
         .frame(width: 500, height: 400)
 }
+
+#endif

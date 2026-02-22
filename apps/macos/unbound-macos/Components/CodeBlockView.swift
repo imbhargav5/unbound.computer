@@ -92,6 +92,8 @@ struct CodeBlockView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     CodeBlockView(codeBlock: CodeBlock(
         language: "swift",
@@ -108,3 +110,5 @@ struct CodeBlockView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

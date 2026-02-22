@@ -145,7 +145,11 @@ struct FontSizePreview: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     GeneralSettings()
         .frame(width: 500, height: 400)
 }
+
+#endif

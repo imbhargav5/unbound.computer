@@ -671,6 +671,8 @@ struct MarkdownTextView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("Pencil Lists (Tjnze + 5EFvs)") {
     ScrollView {
         MarkdownTextView(text: """
@@ -691,3 +693,5 @@ struct MarkdownTextView: View {
     .frame(width: 600, height: 320)
     .preferredColorScheme(.dark)
 }
+
+#endif

@@ -246,6 +246,8 @@ struct SignUpFormView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     SignUpFormView(errorMessage: nil)
         .environment(AppState())
@@ -253,3 +255,5 @@ struct SignUpFormView: View {
         .background(ThemeColors(.dark).background)
         .frame(width: 400)
 }
+
+#endif

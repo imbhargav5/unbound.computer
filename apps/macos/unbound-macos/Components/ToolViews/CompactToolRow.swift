@@ -187,6 +187,8 @@ struct CompactToolRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: 0) {
         CompactToolRow(toolUse: ToolUse(
@@ -231,3 +233,5 @@ struct CompactToolRow: View {
     .padding()
     .background(ThemeColors(.dark).surface1)
 }
+
+#endif

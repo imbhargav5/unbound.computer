@@ -265,7 +265,11 @@ struct RepositorySelectionRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     AddWorkspaceSheet()
         .environment(AppState())
 }
+
+#endif

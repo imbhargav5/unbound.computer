@@ -300,6 +300,8 @@ struct SessionIcon: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("Workspace Icons") {
     VStack(spacing: 32) {
         Text("Simple Workspace Icon")
@@ -389,3 +391,5 @@ struct SessionIcon: View {
     return InteractivePreview()
         .frame(width: 300, height: 250)
 }
+
+#endif

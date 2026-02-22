@@ -153,7 +153,11 @@ struct TerminalLineView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     TerminalView(terminalState: TerminalState(workingDirectory: "/Users/test/project"))
         .frame(width: 400, height: 200)
 }
+
+#endif

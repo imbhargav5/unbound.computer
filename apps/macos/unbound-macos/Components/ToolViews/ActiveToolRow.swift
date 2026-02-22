@@ -91,6 +91,8 @@ struct ActiveToolRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: 0) {
         ActiveToolRow(tool: ActiveTool(
@@ -118,3 +120,5 @@ struct ActiveToolRow: View {
     .padding()
     .background(ThemeColors(.dark).surface1)
 }
+
+#endif

@@ -153,6 +153,8 @@ private struct FilesTabRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("With Files") {
     FilesTabView(
         fileTreeViewModel: .preview(),
@@ -168,3 +170,5 @@ private struct FilesTabRow: View {
     )
     .frame(width: 280, height: 400)
 }
+
+#endif

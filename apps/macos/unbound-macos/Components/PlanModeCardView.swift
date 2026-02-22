@@ -280,6 +280,8 @@ struct PlanModeCardView: View {
     }
 }
 
+#if DEBUG
+
 #Preview("Plan Mode Card - Collapsed") {
     let text = """
     ## Fix macOS Todo Card Dupes by Merging TodoWrite State
@@ -302,3 +304,5 @@ struct PlanModeCardView: View {
             .preferredColorScheme(.dark)
     }
 }
+
+#endif

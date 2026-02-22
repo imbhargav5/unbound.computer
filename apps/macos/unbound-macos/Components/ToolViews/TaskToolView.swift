@@ -201,6 +201,8 @@ struct InputDetailsView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         TaskToolView(toolUse: ToolUse(
@@ -229,3 +231,5 @@ struct InputDetailsView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

@@ -121,6 +121,8 @@ struct OAuthButtonsView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     OAuthButtonsView()
         .environment(AppState())
@@ -128,3 +130,5 @@ struct OAuthButtonsView: View {
         .background(ThemeColors(.dark).background)
         .frame(width: 400)
 }
+
+#endif

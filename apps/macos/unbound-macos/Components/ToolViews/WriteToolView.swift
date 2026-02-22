@@ -130,6 +130,8 @@ struct WriteToolView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         WriteToolView(toolUse: ToolUse(
@@ -151,3 +153,5 @@ struct WriteToolView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

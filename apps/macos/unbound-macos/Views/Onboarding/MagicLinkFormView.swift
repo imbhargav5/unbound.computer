@@ -126,6 +126,8 @@ struct MagicLinkFormView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     MagicLinkFormView { email in
         logger.info("Magic link sent to: \(email)")
@@ -135,3 +137,5 @@ struct MagicLinkFormView: View {
     .background(ThemeColors(.dark).background)
     .frame(width: 400)
 }
+
+#endif

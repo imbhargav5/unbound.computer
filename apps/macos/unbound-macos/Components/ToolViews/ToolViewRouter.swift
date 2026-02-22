@@ -23,6 +23,8 @@ struct ToolViewRouter: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         ToolViewRouter(toolUse: ToolUse(
@@ -51,3 +53,5 @@ struct ToolViewRouter: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

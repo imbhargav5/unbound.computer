@@ -186,6 +186,8 @@ struct DaemonErrorView: View {
     }
 }
 
+#if DEBUG
+
 #Preview("Connected - Authenticated") {
     ContentView()
         .environment(AppState())
@@ -196,3 +198,5 @@ struct DaemonErrorView: View {
     DaemonErrorView(reason: "Daemon socket not found. Is the daemon running?") {}
         .frame(width: 600, height: 400)
 }
+
+#endif

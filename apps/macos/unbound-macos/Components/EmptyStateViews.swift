@@ -251,6 +251,8 @@ struct KeyboardShortcutHint: View {
 
 // MARK: - Previews
 
+#if DEBUG
+
 #Preview("Sidebar Empty State") {
     RepositoriesEmptyState(onAddRepository: {})
         .frame(width: 280, height: 500)
@@ -268,3 +270,5 @@ struct KeyboardShortcutHint: View {
         .frame(width: 800, height: 600)
         .background(ShadcnColors.Dark.background)
 }
+
+#endif

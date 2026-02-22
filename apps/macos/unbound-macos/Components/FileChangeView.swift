@@ -153,6 +153,8 @@ struct FileChangeView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         FileChangeView(fileChange: FileChange(
@@ -179,3 +181,5 @@ struct FileChangeView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

@@ -158,6 +158,8 @@ struct FileListItem: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         GlobToolView(toolUse: ToolUse(
@@ -183,3 +185,5 @@ struct FileListItem: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

@@ -40,7 +40,11 @@ struct PairingQRView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     PairingQRView()
         .frame(width: 300, height: 400)
 }
+
+#endif

@@ -123,8 +123,12 @@ struct SettingsNavItem: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     SettingsSidebar(selectedSection: .constant(.appearance))
         .frame(width: 260, height: 500)
         .environment(AppState())
 }
+
+#endif

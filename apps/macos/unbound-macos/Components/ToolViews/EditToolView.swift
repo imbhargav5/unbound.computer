@@ -146,6 +146,8 @@ struct EditToolView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         EditToolView(toolUse: ToolUse(
@@ -169,3 +171,5 @@ struct EditToolView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

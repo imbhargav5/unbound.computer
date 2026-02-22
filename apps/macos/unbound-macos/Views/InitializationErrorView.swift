@@ -63,9 +63,13 @@ struct InitializationErrorView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     InitializationErrorView(
         error: NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database migration failed"]),
         onRetry: {}
     )
 }
+
+#endif

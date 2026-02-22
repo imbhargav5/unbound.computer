@@ -102,6 +102,8 @@ struct TodoItemRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     TodoListView(todoList: TodoList(items: [
         TodoItem(content: "Research existing metrics tracking in the codebase", status: .completed),
@@ -113,3 +115,5 @@ struct TodoItemRow: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

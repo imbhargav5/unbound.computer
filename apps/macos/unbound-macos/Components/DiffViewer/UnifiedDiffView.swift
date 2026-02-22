@@ -183,6 +183,8 @@ enum DiffConstants {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     ScrollView {
         UnifiedDiffView(hunks: [
@@ -220,3 +222,5 @@ enum DiffConstants {
     }
     .frame(width: 600, height: 400)
 }
+
+#endif

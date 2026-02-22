@@ -168,6 +168,8 @@ struct LocationOption: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     NewSessionDialog(
         isPresented: .constant(true),
@@ -180,3 +182,5 @@ struct LocationOption: View {
     .padding()
     .background(ThemeColors(.dark).muted.opacity(0.3))
 }
+
+#endif

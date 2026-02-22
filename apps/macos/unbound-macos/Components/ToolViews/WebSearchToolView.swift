@@ -204,6 +204,8 @@ struct SearchResultCard: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         WebSearchToolView(toolUse: ToolUse(
@@ -230,3 +232,5 @@ struct SearchResultCard: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

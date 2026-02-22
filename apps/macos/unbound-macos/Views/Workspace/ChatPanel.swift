@@ -1567,6 +1567,8 @@ private struct ChatMessageRow: View, Equatable {
     }
 }
 
+#if DEBUG
+
 #Preview("With Messages") {
     ChatPanel(
         session: PreviewData.allSessions.first,
@@ -1718,3 +1720,5 @@ private struct ChatMessageRow: View, Equatable {
     .environment(AppState())
     .frame(width: 900, height: 600)
 }
+
+#endif

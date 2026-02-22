@@ -97,6 +97,8 @@ struct ActiveToolsView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         ActiveToolsView(tools: [
@@ -116,3 +118,5 @@ struct ActiveToolsView: View {
     .frame(width: 450)
     .padding()
 }
+
+#endif

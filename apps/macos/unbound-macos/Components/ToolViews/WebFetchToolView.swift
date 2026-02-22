@@ -142,6 +142,8 @@ struct WebFetchToolView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         WebFetchToolView(toolUse: ToolUse(
@@ -168,3 +170,5 @@ struct WebFetchToolView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

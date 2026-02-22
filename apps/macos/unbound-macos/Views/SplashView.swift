@@ -50,6 +50,10 @@ struct SplashView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     SplashView(statusMessage: "Initializing database...", progress: 0.5)
 }
+
+#endif

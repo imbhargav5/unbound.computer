@@ -83,6 +83,8 @@ private extension ActiveTool {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.lg) {
         ToolHistoryEntryView(entry: ToolHistoryEntry(
@@ -113,3 +115,5 @@ private extension ActiveTool {
     .padding(Spacing.lg)
     .frame(width: 540)
 }
+
+#endif

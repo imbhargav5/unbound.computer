@@ -528,6 +528,8 @@ private struct ParallelAgentToolRowView: View {
     }
 }
 
+#if DEBUG
+
 #Preview("Parallel Agents - Historical") {
     VStack {
         ParallelAgentsView(activities: [
@@ -558,3 +560,5 @@ private struct ParallelAgentToolRowView: View {
     }
     .frame(width: 620)
 }
+
+#endif

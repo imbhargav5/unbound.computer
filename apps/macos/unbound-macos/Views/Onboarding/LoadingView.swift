@@ -43,7 +43,11 @@ struct LoadingView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     LoadingView()
         .frame(width: 400, height: 300)
 }
+
+#endif

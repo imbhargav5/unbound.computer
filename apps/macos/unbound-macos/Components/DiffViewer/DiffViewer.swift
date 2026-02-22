@@ -225,6 +225,8 @@ struct EmptyDiffView: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.lg) {
         DiffViewer(diff: FileDiff(
@@ -259,3 +261,5 @@ struct EmptyDiffView: View {
     .padding()
     .frame(width: 600)
 }
+
+#endif

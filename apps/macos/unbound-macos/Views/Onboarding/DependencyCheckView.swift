@@ -165,6 +165,8 @@ struct GhMissingBanner: View {
 
 // MARK: - Previews
 
+#if DEBUG
+
 #Preview("Checking") {
     let state = AppState()
     state.configureForPreview(dependencyStatus: .checking)
@@ -185,3 +187,5 @@ struct GhMissingBanner: View {
     GhMissingBanner()
         .frame(width: 600)
 }
+
+#endif

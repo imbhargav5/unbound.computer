@@ -15,7 +15,8 @@
 
 UNBOUND_BASE_DIR = .unbound-dev
 PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos-dev
-PRODUCT_NAME = Unbound Dev
+// PRODUCT_NAME is set in the Xcode target config (not here) to avoid
+// xcconfig applying it to all targets including Swift packages.
 UNBOUND_URL_SCHEME = unbound-dev
 
 // ================================

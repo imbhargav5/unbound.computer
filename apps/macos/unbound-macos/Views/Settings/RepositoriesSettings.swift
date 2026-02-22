@@ -242,8 +242,12 @@ struct RepositoryRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     RepositoriesSettings()
         .environment(AppState())
         .frame(width: 600, height: 500)
 }
+
+#endif

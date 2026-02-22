@@ -244,6 +244,8 @@ struct CommitRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview("With Commits") {
     CommitsTabView(gitViewModel: .preview())
         .frame(width: 300, height: 500)
@@ -253,3 +255,5 @@ struct CommitRow: View {
     CommitsTabView(gitViewModel: GitViewModel())
         .frame(width: 300, height: 500)
 }
+
+#endif

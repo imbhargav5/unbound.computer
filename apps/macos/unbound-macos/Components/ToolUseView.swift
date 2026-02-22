@@ -186,6 +186,8 @@ struct ToolUseView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: Spacing.md) {
         ToolUseView(toolUse: ToolUse(
@@ -215,3 +217,5 @@ struct ToolUseView: View {
     .frame(width: 500)
     .padding()
 }
+
+#endif

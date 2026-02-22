@@ -322,6 +322,8 @@ enum SplitDiffConstants {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     ScrollView {
         SplitDiffView(hunks: [
@@ -343,3 +345,5 @@ enum SplitDiffConstants {
     }
     .frame(width: 800, height: 300)
 }
+
+#endif

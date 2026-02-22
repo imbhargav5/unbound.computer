@@ -126,6 +126,8 @@ struct ForgotPasswordFormView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     ForgotPasswordFormView { email in
         logger.info("Reset link sent to: \(email)")
@@ -135,3 +137,5 @@ struct ForgotPasswordFormView: View {
     .background(ThemeColors(.dark).background)
     .frame(width: 400)
 }
+
+#endif

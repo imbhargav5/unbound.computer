@@ -212,7 +212,11 @@ struct AuthIllustrationView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     AuthIllustrationView()
         .frame(width: 600, height: 700)
 }
+
+#endif

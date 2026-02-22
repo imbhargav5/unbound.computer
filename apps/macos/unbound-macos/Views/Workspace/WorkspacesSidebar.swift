@@ -683,6 +683,8 @@ private struct RenameSessionSheet: View {
     }
 }
 
+#if DEBUG
+
 #Preview("With Repos & Sessions") {
     WorkspacesSidebar(
         onOpenSettings: {},
@@ -704,3 +706,5 @@ private struct RenameSessionSheet: View {
     .environment(AppState())
     .frame(width: 168, height: 600)
 }
+
+#endif

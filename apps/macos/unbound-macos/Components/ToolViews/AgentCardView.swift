@@ -645,6 +645,8 @@ struct HistoricalToolRow: View {
 
 // MARK: - Previews
 
+#if DEBUG
+
 #Preview("Active Agent Card") {
     VStack(alignment: .leading, spacing: Spacing.lg) {
         AgentCardView(subAgent: ActiveSubAgent(
@@ -731,3 +733,5 @@ struct HistoricalToolRow: View {
     .frame(width: 500)
     .background(Color(hex: "0D0D0D"))
 }
+
+#endif

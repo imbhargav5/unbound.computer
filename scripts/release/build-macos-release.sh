@@ -105,7 +105,7 @@ build_and_export() {
     -configuration Release \
     -destination "generic/platform=macOS" \
     -archivePath "$archive_path" \
-    "${XCCONFIG_ARGS[@]}" \
+    ${XCCONFIG_ARGS[@]+"${XCCONFIG_ARGS[@]}"} \
     ARCHS="$arch" \
     ONLY_ACTIVE_ARCH=NO \
     MARKETING_VERSION="$MACOS_RELEASE_VERSION" \

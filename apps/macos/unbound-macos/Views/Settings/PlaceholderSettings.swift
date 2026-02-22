@@ -36,7 +36,11 @@ struct PlaceholderSettings: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     PlaceholderSettings(section: .general)
         .frame(width: 400, height: 300)
 }
+
+#endif

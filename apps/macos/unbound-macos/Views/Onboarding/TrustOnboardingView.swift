@@ -78,7 +78,11 @@ struct FeatureRow: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     TrustOnboardingView(onComplete: { _ in })
         .frame(width: 500, height: 600)
 }
+
+#endif

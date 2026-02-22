@@ -481,6 +481,8 @@ struct KeyboardShortcutSequenceHandler: NSViewRepresentable {
     }
 }
 
+#if DEBUG
+
 #Preview("Populated Dashboard") {
     WorkspaceView()
         .environment(AppState.preview())
@@ -492,3 +494,5 @@ struct KeyboardShortcutSequenceHandler: NSViewRepresentable {
         .environment(AppState())
         .frame(width: 1200, height: 800)
 }
+
+#endif

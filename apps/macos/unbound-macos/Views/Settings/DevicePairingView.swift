@@ -51,7 +51,11 @@ struct DevicePairingView: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     DevicePairingView()
         .frame(width: 500, height: 400)
 }
+
+#endif

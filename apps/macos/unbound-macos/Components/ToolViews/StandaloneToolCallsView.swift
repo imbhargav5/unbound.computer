@@ -116,6 +116,8 @@ private enum StandaloneToolCallsPreviewData {
     ]
 }
 
+#if DEBUG
+
 #Preview("Standalone Tool Calls Variants") {
     VStack(alignment: .leading, spacing: Spacing.lg) {
         StandaloneToolCallsView(activeTools: StandaloneToolCallsPreviewData.activeRunningSingle)
@@ -129,3 +131,5 @@ private enum StandaloneToolCallsPreviewData {
     .frame(width: 540)
     .padding()
 }
+
+#endif

@@ -485,6 +485,8 @@ extension SyntaxHighlighter {
     }
 }
 
+#if DEBUG
+
 #Preview {
     ScrollView {
         VStack(alignment: .leading, spacing: 20) {
@@ -534,3 +536,5 @@ extension SyntaxHighlighter {
     }
     .frame(width: 600, height: 500)
 }
+
+#endif

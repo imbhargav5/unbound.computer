@@ -158,7 +158,11 @@ struct PrivacySettings: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     PrivacySettings()
         .frame(width: 500, height: 600)
 }
+
+#endif

@@ -121,6 +121,8 @@ struct DaemonConnectionBanner: View {
     }
 }
 
+#if DEBUG
+
 #Preview {
     VStack(spacing: 20) {
         DaemonConnectionBanner(state: .disconnected, onRetry: {})
@@ -130,3 +132,5 @@ struct DaemonConnectionBanner: View {
     .padding()
     .frame(width: 600)
 }
+
+#endif

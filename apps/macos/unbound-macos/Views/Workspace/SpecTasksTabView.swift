@@ -285,8 +285,12 @@ struct TaskRow: View {
 
 // MARK: - Preview
 
+#if DEBUG
+
 #Preview {
     SpecTasksTabView()
         .frame(width: 280, height: 500)
         .background(Color(hex: "0D0D0D"))
 }
+
+#endif
