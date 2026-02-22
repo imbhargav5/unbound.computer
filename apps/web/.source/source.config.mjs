@@ -3,24 +3,26 @@ import {
   defineConfig,
   defineDocs,
   frontmatterSchema,
-  metaSchema,
+  metaSchema
 } from "fumadocs-mdx/config";
-
 var docs = defineDocs({
   dir: "src/content/docs",
   docs: {
     schema: frontmatterSchema,
     postprocess: {
-      includeProcessedMarkdown: true,
-    },
+      includeProcessedMarkdown: true
+    }
   },
   meta: {
-    schema: metaSchema,
-  },
+    schema: metaSchema
+  }
 });
 var source_config_default = defineConfig({
   mdxOptions: {
     // MDX options
-  },
+  }
 });
-export { source_config_default as default, docs };
+export {
+  source_config_default as default,
+  docs
+};
