@@ -394,7 +394,7 @@ struct ChatInputField: View {
                 .frame(height: 18)
             }
 
-            HStack {
+            HStack(alignment: .center) {
                 if isCompact {
                     Text("What do you want to build?")
                         .font(GeistFont.sans(size: 14, weight: .regular))
@@ -406,6 +406,8 @@ struct ChatInputField: View {
                         isPlanMode: isPlanMode
                     )
                     .fixedSize()
+                    .frame(height: 24)
+                    .frame(maxHeight: .infinity, alignment: .center)
                 }
 
                 Spacer(minLength: 0)
@@ -418,6 +420,7 @@ struct ChatInputField: View {
                             .font(.system(size: 18))
                             .foregroundStyle(Color(hex: "8A8A8A"))
                     }
+                    .frame(height: 32, alignment: .center)
                     .padding(.trailing, 12)
                 }
 
