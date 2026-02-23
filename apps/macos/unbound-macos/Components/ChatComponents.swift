@@ -65,8 +65,10 @@ struct CommandReturnTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let colorScheme: ColorScheme
+    let maxHeight: CGFloat
     var onCommandReturn: () -> Void
     var onShiftTab: (() -> Void)?
+    var onHeightChange: ((CGFloat) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = CommandReturnNSTextView()
@@ -100,10 +102,11 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
         scrollView.contentView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
 
+        updateMeasuredHeight(for: textView, in: scrollView)
         return scrollView
     }
 
@@ -135,10 +138,23 @@ struct CommandReturnTextEditor: NSViewRepresentable {
         }
 
         textView.textColor = NSColor(hex: colorScheme == .dark ? "E5E5E5" : "0D0D0D")
+        updateMeasuredHeight(for: textView, in: scrollView)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, isFocused: $isFocused)
+    }
+
+    private func updateMeasuredHeight(for textView: NSTextView, in scrollView: NSScrollView) {
+        guard let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else {
+            return
+        }
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let measuredHeight = ceil(usedRect.height)
+        onHeightChange?(measuredHeight)
+        scrollView.hasVerticalScroller = measuredHeight > maxHeight
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
@@ -173,6 +189,10 @@ struct ChatInputField: View {
 
     @State private var isFocused: Bool = false
     @State private var isPlanDropdownOpen: Bool = false
+    @State private var measuredTextHeight: CGFloat = 18
+
+    private let minTextHeight: CGFloat = 18
+    private let maxTextHeight: CGFloat = 72
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -382,6 +402,7 @@ struct ChatInputField: View {
                     text: $text,
                     isFocused: $isFocused,
                     colorScheme: colorScheme,
+                    maxHeight: maxTextHeight,
                     onCommandReturn: {
                         if !isStreaming && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             onSend()
@@ -389,12 +410,15 @@ struct ChatInputField: View {
                     },
                     onShiftTab: {
                         isPlanMode.toggle()
+                    },
+                    onHeightChange: { newHeight in
+                        measuredTextHeight = min(max(newHeight, minTextHeight), maxTextHeight)
                     }
                 )
-                .frame(height: 18)
+                .frame(height: measuredTextHeight)
             }
 
-            HStack {
+            HStack(alignment: .center) {
                 if isCompact {
                     Text("What do you want to build?")
                         .font(GeistFont.sans(size: 14, weight: .regular))
@@ -406,6 +430,8 @@ struct ChatInputField: View {
                         isPlanMode: isPlanMode
                     )
                     .fixedSize()
+                    .frame(height: 24)
+                    .frame(maxHeight: .infinity, alignment: .center)
                 }
 
                 Spacer(minLength: 0)
@@ -418,6 +444,7 @@ struct ChatInputField: View {
                             .font(.system(size: 18))
                             .foregroundStyle(Color(hex: "8A8A8A"))
                     }
+                    .frame(height: 32, alignment: .center)
                     .padding(.trailing, 12)
                 }
 
