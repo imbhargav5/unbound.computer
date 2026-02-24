@@ -17,13 +17,13 @@ import { cn } from "@/lib/utils";
 import { generateAvatarPickerGrid, getInitials } from "@/utils/generate-avatar";
 
 interface OnboardingAvatarPickerDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   currentAvatarUrl: string;
   fullName: string;
+  isUploading: boolean;
   onAvatarSelect: (url: string) => void;
   onAvatarUpload: (file: File) => void;
-  isUploading: boolean;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
 }
 
 export function OnboardingAvatarPickerDialog({
@@ -218,7 +218,7 @@ export function OnboardingAvatarPickerDialog({
                       <AvatarFallback>Preview</AvatarFallback>
                     </Avatar>
                     <button
-                      className="-top-2 -right-2 absolute flex size-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => {
                         setUploadPreview(null);
                         setUploadFile(null);

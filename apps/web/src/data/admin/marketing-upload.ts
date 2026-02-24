@@ -6,8 +6,8 @@ import { toSiteURL } from "@/utils/helpers";
 export type MediaType = "image" | "video" | "gif";
 
 export interface UploadMediaResult {
-  url: string;
   type: MediaType;
+  url: string;
 }
 
 /**

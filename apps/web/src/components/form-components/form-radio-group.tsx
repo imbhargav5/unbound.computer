@@ -9,11 +9,11 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface FormRadioGroupProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
   options: { label: string; value: string }[];
 }
 

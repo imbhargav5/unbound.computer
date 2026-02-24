@@ -8,21 +8,21 @@ import { cn } from "@/lib/utils";
 export interface AnimatedBeamProps {
   className?: string;
   containerRef: RefObject<HTMLElement | null>; // Container ref
-  fromRef: RefObject<HTMLElement | null>;
-  toRef: RefObject<HTMLElement | null>;
   curvature?: number;
-  reverse?: boolean;
-  pathColor?: string;
-  pathWidth?: number;
-  pathOpacity?: number;
-  gradientStartColor?: string;
-  gradientStopColor?: string;
   delay?: number;
   duration?: number;
-  startXOffset?: number;
-  startYOffset?: number;
   endXOffset?: number;
   endYOffset?: number;
+  fromRef: RefObject<HTMLElement | null>;
+  gradientStartColor?: string;
+  gradientStopColor?: string;
+  pathColor?: string;
+  pathOpacity?: number;
+  pathWidth?: number;
+  reverse?: boolean;
+  startXOffset?: number;
+  startYOffset?: number;
+  toRef: RefObject<HTMLElement | null>;
 }
 
 export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({

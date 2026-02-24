@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/colors/index.css";
 @import "fumadocs-ui/css/preset.css";
 
 :root {
@@ -11,8 +12,8 @@
 .fd-sidebar,
 .fd-nav,
 .fd-toc {
-  background-color: #000;
   color: #fff;
+  background-color: #000;
 }
 
 .fd-sidebar,
@@ -37,7 +38,7 @@
 .fd-callout,
 .fd-search,
 .fd-codeblock {
-  border-color: rgba(255, 255, 255, 0.1);
   background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
   border-radius: 16px;
 }

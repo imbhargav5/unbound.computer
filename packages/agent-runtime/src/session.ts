@@ -16,11 +16,11 @@ import {
  * Session events interface
  */
 export interface SessionEvents {
-  stateChange: [data: StateChangeData];
-  message: [message: { type: MessageType; content: string }];
-  output: [content: string];
   error: [error: Error];
   exit: [code: number | null, signal: string | null];
+  message: [message: { type: MessageType; content: string }];
+  output: [content: string];
+  stateChange: [data: StateChangeData];
 }
 
 /**

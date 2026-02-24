@@ -9,12 +9,12 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 
 interface VideoFrameSelectorProps {
-  videoUrl: string;
-  selectedPosterUrl?: string | null;
-  onPosterSelect: (posterUrl: string) => void;
-  onPosterRemove: () => void;
-  onUploadPoster: (file: File) => Promise<string>;
   frameCount?: number;
+  onPosterRemove: () => void;
+  onPosterSelect: (posterUrl: string) => void;
+  onUploadPoster: (file: File) => Promise<string>;
+  selectedPosterUrl?: string | null;
+  videoUrl: string;
 }
 
 interface ExtractedFrame {

@@ -39,26 +39,26 @@ export const STATE_TRANSITIONS: Record<SessionState, SessionState[]> = {
  * Session configuration
  */
 export interface SessionConfig {
-  /** Session ID */
-  sessionId: string;
-  /** Repository path */
-  repositoryPath: string;
-  /** Worktree path (if using worktrees) */
-  worktreePath?: string;
   /** Branch name */
   branch?: string;
   /** Device ID */
   deviceId: string;
-  /** User ID */
-  userId: string;
-  /** Model to use */
-  model?: string;
-  /** Maximum tokens */
-  maxTokens?: number;
-  /** Timeout in milliseconds */
-  timeoutMs?: number;
   /** Environment variables */
   env?: Record<string, string>;
+  /** Maximum tokens */
+  maxTokens?: number;
+  /** Model to use */
+  model?: string;
+  /** Repository path */
+  repositoryPath: string;
+  /** Session ID */
+  sessionId: string;
+  /** Timeout in milliseconds */
+  timeoutMs?: number;
+  /** User ID */
+  userId: string;
+  /** Worktree path (if using worktrees) */
+  worktreePath?: string;
 }
 
 /**
@@ -74,41 +74,41 @@ export const SessionConfigSchema = z.object({
   model: z.string().optional(),
   maxTokens: z.number().optional(),
   timeoutMs: z.number().optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 /**
  * Session metadata
  */
 export interface SessionMetadata {
-  /** Session ID */
-  sessionId: string;
-  /** Current state */
-  state: SessionState;
-  /** Repository URL */
-  repositoryUrl?: string;
-  /** Worktree path */
-  worktreePath?: string;
   /** Branch name */
   branch?: string;
   /** Device ID */
   deviceId: string;
-  /** User ID */
-  userId: string;
-  /** Start time */
-  startedAt: Date;
-  /** Last activity time */
-  lastActivityAt: Date;
-  /** End time (if completed/error) */
-  endedAt?: Date;
   /** Total duration in milliseconds */
   durationMs?: number;
+  /** End time (if completed/error) */
+  endedAt?: Date;
   /** Error message (if error state) */
   error?: string;
-  /** Process ID */
-  pid?: number;
+  /** Last activity time */
+  lastActivityAt: Date;
   /** Message count */
   messageCount: number;
+  /** Process ID */
+  pid?: number;
+  /** Repository URL */
+  repositoryUrl?: string;
+  /** Session ID */
+  sessionId: string;
+  /** Start time */
+  startedAt: Date;
+  /** Current state */
+  state: SessionState;
+  /** User ID */
+  userId: string;
+  /** Worktree path */
+  worktreePath?: string;
 }
 
 /**
@@ -133,22 +133,22 @@ export type MessageType = (typeof MessageType)[keyof typeof MessageType];
  * Session message
  */
 export interface SessionMessage {
-  /** Unique message ID */
-  id: string;
-  /** Session ID */
-  sessionId: string;
-  /** Message type */
-  type: MessageType;
-  /** Message content */
-  content: string;
-  /** Timestamp */
-  timestamp: Date;
-  /** Sequence number for ordering */
-  sequence: number;
   /** Whether message has been acknowledged */
   acknowledged: boolean;
+  /** Message content */
+  content: string;
+  /** Unique message ID */
+  id: string;
   /** Retry count */
   retryCount: number;
+  /** Sequence number for ordering */
+  sequence: number;
+  /** Session ID */
+  sessionId: string;
+  /** Timestamp */
+  timestamp: Date;
+  /** Message type */
+  type: MessageType;
 }
 
 /**
@@ -173,40 +173,40 @@ export interface SpawnOptions {
   cwd: string;
   /** Environment variables */
   env?: Record<string, string>;
-  /** Timeout in milliseconds */
-  timeoutMs?: number;
   /** Maximum memory in bytes */
   maxMemory?: number;
+  /** Timeout in milliseconds */
+  timeoutMs?: number;
 }
 
 /**
  * Process info
  */
 export interface ProcessInfo {
+  /** End time */
+  endedAt?: Date;
+  /** Exit code (if exited) */
+  exitCode?: number;
   /** Process ID */
   pid: number;
   /** Whether process is running */
   running: boolean;
-  /** Exit code (if exited) */
-  exitCode?: number;
   /** Exit signal (if killed) */
   signal?: string;
   /** Start time */
   startedAt: Date;
-  /** End time */
-  endedAt?: Date;
 }
 
 /**
  * Stream chunk
  */
 export interface StreamChunk {
-  /** Stream type */
-  type: "stdout" | "stderr";
   /** Chunk data */
   data: Buffer;
   /** Timestamp */
   timestamp: Date;
+  /** Stream type */
+  type: "stdout" | "stderr";
 }
 
 /**
@@ -227,18 +227,18 @@ export type SessionEventType =
  * Session event
  */
 export interface SessionEvent {
-  type: SessionEventType;
+  data: unknown;
   sessionId: string;
   timestamp: Date;
-  data: unknown;
+  type: SessionEventType;
 }
 
 /**
  * State change event data
  */
 export interface StateChangeData {
-  previousState: SessionState;
   newState: SessionState;
+  previousState: SessionState;
   reason?: string;
 }
 
@@ -246,20 +246,20 @@ export interface StateChangeData {
  * Session manager configuration
  */
 export interface SessionManagerConfig {
-  /** Maximum concurrent sessions */
-  maxConcurrentSessions: number;
+  /** Claude Code arguments */
+  claudeArgs: string[];
+  /** Claude Code command */
+  claudeCommand: string;
   /** Default session timeout in milliseconds */
   defaultTimeoutMs: number;
+  /** Heartbeat interval in milliseconds */
+  heartbeatIntervalMs: number;
+  /** Maximum concurrent sessions */
+  maxConcurrentSessions: number;
   /** Message retry attempts */
   maxRetryAttempts: number;
   /** Message retry delay in milliseconds */
   retryDelayMs: number;
-  /** Heartbeat interval in milliseconds */
-  heartbeatIntervalMs: number;
-  /** Claude Code command */
-  claudeCommand: string;
-  /** Claude Code arguments */
-  claudeArgs: string[];
 }
 
 /**
@@ -279,7 +279,7 @@ export const DEFAULT_SESSION_MANAGER_CONFIG: SessionManagerConfig = {
  * Session result
  */
 export interface SessionResult<T> {
-  success: boolean;
   data?: T;
   error?: string;
+  success: boolean;
 }

@@ -19,8 +19,8 @@ interface GitExecOptions {
  * Git command result
  */
 interface GitResult {
-  stdout: string;
   stderr: string;
+  stdout: string;
 }
 
 /**

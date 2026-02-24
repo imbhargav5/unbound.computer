@@ -9,20 +9,20 @@ export type WorktreeStatus = "active" | "stale" | "locked" | "prunable";
  * Worktree information
  */
 export interface WorktreeInfo {
-  /** Absolute path to the worktree directory */
-  path: string;
-  /** HEAD commit SHA */
-  head: string;
   /** Branch name (if checked out) */
   branch: string | null;
-  /** Whether this is the main worktree */
-  isMain: boolean;
+  /** HEAD commit SHA */
+  head: string;
   /** Whether the worktree is locked */
   isLocked: boolean;
-  /** Lock reason if locked */
-  lockReason?: string;
+  /** Whether this is the main worktree */
+  isMain: boolean;
   /** Whether the worktree can be pruned */
   isPrunable: boolean;
+  /** Lock reason if locked */
+  lockReason?: string;
+  /** Absolute path to the worktree directory */
+  path: string;
   /** Prune reason if prunable */
   pruneReason?: string;
 }
@@ -31,44 +31,44 @@ export interface WorktreeInfo {
  * Session worktree - worktree created for an Unbound session
  */
 export interface SessionWorktree extends WorktreeInfo {
-  /** Session ID this worktree belongs to */
-  sessionId: string;
+  /** Base branch the worktree was created from */
+  baseBranch: string;
   /** When the worktree was created */
   createdAt: Date;
   /** Last activity timestamp */
   lastActivityAt: Date;
-  /** Base branch the worktree was created from */
-  baseBranch: string;
   /** Repository path (main worktree) */
   repositoryPath: string;
+  /** Session ID this worktree belongs to */
+  sessionId: string;
 }
 
 /**
  * Worktree creation options
  */
 export interface CreateWorktreeOptions {
-  /** Session ID for naming */
-  sessionId: string;
   /** Base branch to create from (default: current branch or main/master) */
   baseBranch?: string;
   /** Custom branch name (default: unbound/<sessionId>) */
   branchName?: string;
-  /** Force creation even if branch exists */
-  force?: boolean;
-  /** Track remote branch */
-  track?: boolean;
   /** Checkout after creation */
   checkout?: boolean;
+  /** Force creation even if branch exists */
+  force?: boolean;
+  /** Session ID for naming */
+  sessionId: string;
+  /** Track remote branch */
+  track?: boolean;
 }
 
 /**
  * Worktree removal options
  */
 export interface RemoveWorktreeOptions {
-  /** Force removal even if there are uncommitted changes */
-  force?: boolean;
   /** Also delete the branch */
   deleteBranch?: boolean;
+  /** Force removal even if there are uncommitted changes */
+  force?: boolean;
 }
 
 /**
@@ -80,55 +80,55 @@ export type CleanupStrategy = "manual" | "post-merge" | "timeout" | "on-demand";
  * Cleanup options
  */
 export interface CleanupOptions {
-  /** Strategy to use */
-  strategy: CleanupStrategy;
-  /** TTL in milliseconds for timeout strategy */
-  ttlMs?: number;
   /** Dry run - don't actually remove anything */
   dryRun?: boolean;
   /** Force removal of locked worktrees */
   force?: boolean;
+  /** Strategy to use */
+  strategy: CleanupStrategy;
+  /** TTL in milliseconds for timeout strategy */
+  ttlMs?: number;
 }
 
 /**
  * Git repository information
  */
 export interface RepositoryInfo {
-  /** Root path of the repository */
-  rootPath: string;
-  /** Git directory path */
-  gitDir: string;
   /** Common git directory (for worktrees) */
   commonDir: string;
-  /** Whether this is a worktree */
-  isWorktree: boolean;
   /** Current branch */
   currentBranch: string | null;
+  /** Git directory path */
+  gitDir: string;
   /** Current HEAD commit */
   head: string;
-  /** Remote URL (origin) */
-  remoteUrl: string | null;
   /** Whether there are uncommitted changes */
   isDirty: boolean;
+  /** Whether this is a worktree */
+  isWorktree: boolean;
+  /** Remote URL (origin) */
+  remoteUrl: string | null;
+  /** Root path of the repository */
+  rootPath: string;
 }
 
 /**
  * Branch information
  */
 export interface BranchInfo {
-  /** Branch name */
-  name: string;
-  /** Full ref name */
-  refName: string;
+  /** Ahead/behind counts */
+  ahead?: number;
+  behind?: number;
   /** Commit SHA */
   commit: string;
   /** Whether this is the current branch */
   isCurrent: boolean;
+  /** Branch name */
+  name: string;
+  /** Full ref name */
+  refName: string;
   /** Upstream branch if tracking */
   upstream?: string;
-  /** Ahead/behind counts */
-  ahead?: number;
-  behind?: number;
 }
 
 /**
@@ -151,17 +151,17 @@ export type WorktreeConfig = z.infer<typeof WorktreeConfigSchema>;
  * Worktree operation result
  */
 export interface WorktreeResult<T> {
-  success: boolean;
   data?: T;
   error?: string;
+  success: boolean;
 }
 
 /**
  * Disk usage information
  */
 export interface DiskUsage {
-  /** Total size in bytes */
-  totalBytes: number;
   /** Human-readable size */
   humanReadable: string;
+  /** Total size in bytes */
+  totalBytes: number;
 }

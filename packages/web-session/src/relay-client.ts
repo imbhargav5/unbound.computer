@@ -24,10 +24,10 @@ export type ConnectionState =
  * Event handlers for the relay client
  */
 export interface WebRelayClientEvents {
-  onMessage?: (sessionId: string, message: SessionMessage) => void;
-  onControl?: (message: ControlMessage) => void;
   onConnectionChange?: (state: ConnectionState) => void;
+  onControl?: (message: ControlMessage) => void;
   onError?: (error: Error) => void;
+  onMessage?: (sessionId: string, message: SessionMessage) => void;
   onPresence?: (
     deviceId: string,
     status: "online" | "offline" | "away"
@@ -38,16 +38,16 @@ export interface WebRelayClientEvents {
  * Options for the web relay client
  */
 export interface WebRelayClientOptions {
-  /** Relay server WebSocket URL */
-  relayUrl: string;
-  /** Session manager for encryption */
-  sessionManager: WebSessionManager;
   /** Event handlers */
   events?: WebRelayClientEvents;
   /** Reconnect attempts */
   maxReconnectAttempts?: number;
   /** Reconnect delay (ms) */
   reconnectDelay?: number;
+  /** Relay server WebSocket URL */
+  relayUrl: string;
+  /** Session manager for encryption */
+  sessionManager: WebSessionManager;
 }
 
 /**

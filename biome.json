@@ -2,15 +2,9 @@
   "extends": ["ultracite/core", "ultracite/react", "ultracite/next"],
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["!!.nextbase-references"]
+    "includes": ["!!.nextbase-references", "!**/.source", "!**/.pnp.loader.mjs"]
   },
   "overrides": [
-    {
-      "includes": [".source/**"],
-      "linter": {
-        "enabled": false
-      }
-    },
     {
       "includes": ["apps/web/e2e/**"],
       "linter": {
@@ -55,8 +49,7 @@
       },
       "nursery": {
         "noShadow": "off",
-        "noIncrementDecrement": "off",
-        "noReactForwardRef": "off"
+        "noIncrementDecrement": "off"
       },
       "a11y": {
         "noStaticElementInteractions": "off",
@@ -103,6 +96,7 @@
         "noEnum": "off"
       },
       "suspicious": {
+        "noReactForwardRef": "off",
         "noConsole": "off",
         "noEmptyBlockStatements": "off",
         "useAwait": "off",

@@ -130,8 +130,8 @@ const typeScale = {
 
 // Common interface for all text components
 interface TextProps extends ComponentPropsWithoutRef<"span"> {
-  asChild?: boolean;
   as?: React.ElementType;
+  asChild?: boolean;
 }
 
 /**

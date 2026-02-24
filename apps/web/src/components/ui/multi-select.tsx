@@ -32,14 +32,14 @@ import { cn } from "@/lib/utils";
 export interface AnimationConfig {
   /** Badge animation type */
   badgeAnimation?: "bounce" | "pulse" | "wiggle" | "fade" | "slide" | "none";
-  /** Popover animation type */
-  popoverAnimation?: "scale" | "slide" | "fade" | "flip" | "none";
-  /** Option hover animation type */
-  optionHoverAnimation?: "highlight" | "scale" | "glow" | "none";
-  /** Animation duration in seconds */
-  duration?: number;
   /** Animation delay in seconds */
   delay?: number;
+  /** Animation duration in seconds */
+  duration?: number;
+  /** Option hover animation type */
+  optionHoverAnimation?: "highlight" | "scale" | "glow" | "none";
+  /** Popover animation type */
+  popoverAnimation?: "scale" | "slide" | "fade" | "flip" | "none";
 }
 
 /**
@@ -75,14 +75,12 @@ const multiSelectVariants = cva("m-1 transition-all duration-300 ease-in-out", {
  * Option interface for MultiSelect component
  */
 export interface MultiSelectOption {
-  /** The text to display for the option. */
-  label: string;
-  /** The unique value associated with the option. */
-  value: string;
-  /** Optional icon component to display alongside the option. */
-  icon?: React.ComponentType<{ className?: string }>;
   /** Whether this option is disabled */
   disabled?: boolean;
+  /** Optional icon component to display alongside the option. */
+  icon?: React.ComponentType<{ className?: string }>;
+  /** The text to display for the option. */
+  label: string;
   /** Custom styling for the option */
   style?: {
     /** Custom badge color */
@@ -92,6 +90,8 @@ export interface MultiSelectOption {
     /** Gradient background for badge */
     gradient?: string;
   };
+  /** The unique value associated with the option. */
+  value: string;
 }
 
 /**
@@ -114,25 +114,6 @@ export interface MultiSelectProps
     >,
     VariantProps<typeof multiSelectVariants> {
   /**
-   * An array of option objects or groups to be displayed in the multi-select component.
-   */
-  options: MultiSelectOption[] | MultiSelectGroup[];
-  /**
-   * Callback function triggered when the selected values change.
-   * Receives an array of the new selected values.
-   */
-  onValueChange: (value: string[]) => void;
-
-  /** The default selected values when the component mounts. */
-  defaultValue?: string[];
-
-  /**
-   * Placeholder text to be displayed when no values are selected.
-   * Optional, defaults to "Select options".
-   */
-  placeholder?: string;
-
-  /**
    * Animation duration in seconds for the visual effects (e.g., bouncing badges).
    * Optional, defaults to 0 (no animation).
    */
@@ -145,48 +126,10 @@ export interface MultiSelectProps
   animationConfig?: AnimationConfig;
 
   /**
-   * Maximum number of items to display. Extra selected items will be summarized.
-   * Optional, defaults to 3.
-   */
-  maxCount?: number;
-
-  /**
-   * The modality of the popover. When set to true, interaction with outside elements
-   * will be disabled and only popover content will be visible to screen readers.
-   * Optional, defaults to false.
-   */
-  modalPopover?: boolean;
-
-  /**
    * If true, renders the multi-select component as a child of another component.
    * Optional, defaults to false.
    */
   asChild?: boolean;
-
-  /**
-   * Additional class names to apply custom styles to the multi-select component.
-   * Optional, can be used to add custom styles.
-   */
-  className?: string;
-
-  /**
-   * If true, disables the select all functionality.
-   * Optional, defaults to false.
-   */
-  hideSelectAll?: boolean;
-
-  /**
-   * If true, shows search functionality in the popover.
-   * If false, hides the search input completely.
-   * Optional, defaults to true.
-   */
-  searchable?: boolean;
-
-  /**
-   * Custom empty state message when no options match search.
-   * Optional, defaults to "No results found."
-   */
-  emptyIndicator?: React.ReactNode;
 
   /**
    * If true, allows the component to grow and shrink with its content.
@@ -196,11 +139,86 @@ export interface MultiSelectProps
   autoSize?: boolean;
 
   /**
-   * If true, shows badges in a single line with horizontal scroll.
-   * If false, badges wrap to multiple lines.
+   * Additional class names to apply custom styles to the multi-select component.
+   * Optional, can be used to add custom styles.
+   */
+  className?: string;
+
+  /**
+   * If true, automatically closes the popover after selecting an option.
+   * Useful for single-selection-like behavior or mobile UX.
    * Optional, defaults to false.
    */
-  singleLine?: boolean;
+  closeOnSelect?: boolean;
+
+  /**
+   * If true, automatically removes duplicate options based on their value.
+   * Optional, defaults to false (shows warning in dev mode instead).
+   */
+  deduplicateOptions?: boolean;
+
+  /** The default selected values when the component mounts. */
+  defaultValue?: string[];
+
+  /**
+   * If true, disables the component completely.
+   * Optional, defaults to false.
+   */
+  disabled?: boolean;
+
+  /**
+   * Custom empty state message when no options match search.
+   * Optional, defaults to "No results found."
+   */
+  emptyIndicator?: React.ReactNode;
+
+  /**
+   * If true, disables the select all functionality.
+   * Optional, defaults to false.
+   */
+  hideSelectAll?: boolean;
+
+  /**
+   * Maximum number of items to display. Extra selected items will be summarized.
+   * Optional, defaults to 3.
+   */
+  maxCount?: number;
+
+  /**
+   * Maximum width for the component.
+   * Optional, defaults to 100% of container.
+   * Component will not exceed container boundaries.
+   */
+  maxWidth?: string;
+
+  /**
+   * Minimum width for the component.
+   * Optional, defaults to auto-sizing based on content.
+   * When set, component will not shrink below this width.
+   */
+  minWidth?: string;
+
+  /**
+   * The modality of the popover. When set to true, interaction with outside elements
+   * will be disabled and only popover content will be visible to screen readers.
+   * Optional, defaults to false.
+   */
+  modalPopover?: boolean;
+  /**
+   * Callback function triggered when the selected values change.
+   * Receives an array of the new selected values.
+   */
+  onValueChange: (value: string[]) => void;
+  /**
+   * An array of option objects or groups to be displayed in the multi-select component.
+   */
+  options: MultiSelectOption[] | MultiSelectGroup[];
+
+  /**
+   * Placeholder text to be displayed when no values are selected.
+   * Optional, defaults to "Select options".
+   */
+  placeholder?: string;
 
   /**
    * Custom CSS class for the popover content.
@@ -209,10 +227,11 @@ export interface MultiSelectProps
   popoverClassName?: string;
 
   /**
-   * If true, disables the component completely.
-   * Optional, defaults to false.
+   * If true, the component will reset its internal state when defaultValue changes.
+   * Useful for React Hook Form integration and form reset functionality.
+   * Optional, defaults to true.
    */
-  disabled?: boolean;
+  resetOnDefaultValueChange?: boolean;
 
   /**
    * Responsive configuration for different screen sizes.
@@ -243,56 +262,24 @@ export interface MultiSelectProps
       };
 
   /**
-   * Minimum width for the component.
-   * Optional, defaults to auto-sizing based on content.
-   * When set, component will not shrink below this width.
-   */
-  minWidth?: string;
-
-  /**
-   * Maximum width for the component.
-   * Optional, defaults to 100% of container.
-   * Component will not exceed container boundaries.
-   */
-  maxWidth?: string;
-
-  /**
-   * If true, automatically removes duplicate options based on their value.
-   * Optional, defaults to false (shows warning in dev mode instead).
-   */
-  deduplicateOptions?: boolean;
-
-  /**
-   * If true, the component will reset its internal state when defaultValue changes.
-   * Useful for React Hook Form integration and form reset functionality.
+   * If true, shows search functionality in the popover.
+   * If false, hides the search input completely.
    * Optional, defaults to true.
    */
-  resetOnDefaultValueChange?: boolean;
+  searchable?: boolean;
 
   /**
-   * If true, automatically closes the popover after selecting an option.
-   * Useful for single-selection-like behavior or mobile UX.
+   * If true, shows badges in a single line with horizontal scroll.
+   * If false, badges wrap to multiple lines.
    * Optional, defaults to false.
    */
-  closeOnSelect?: boolean;
+  singleLine?: boolean;
 }
 
 /**
  * Imperative methods exposed through ref
  */
 export interface MultiSelectRef {
-  /**
-   * Programmatically reset the component to its default value
-   */
-  reset: () => void;
-  /**
-   * Get current selected values
-   */
-  getSelectedValues: () => string[];
-  /**
-   * Set selected values programmatically
-   */
-  setSelectedValues: (values: string[]) => void;
   /**
    * Clear all selected values
    */
@@ -301,6 +288,18 @@ export interface MultiSelectRef {
    * Focus the component
    */
   focus: () => void;
+  /**
+   * Get current selected values
+   */
+  getSelectedValues: () => string[];
+  /**
+   * Programmatically reset the component to its default value
+   */
+  reset: () => void;
+  /**
+   * Set selected values programmatically
+   */
+  setSelectedValues: (values: string[]) => void;
 }
 
 export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(

@@ -1,5 +1,5 @@
 {
-  "originHash" : "c3957f5b11b0080d5fd755e4b3d0d57928761442d8b2119f4a334f89b51e9a9a",
+  "originHash" : "b39c39db3805a95e2773432c1cf4d79a561417c7122d4f1f873cd4c2ca419947",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "aa0079aeb82a4bf00324561a40bffe68c6fe1c26"
+        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/supabase/supabase-swift",
       "state" : {
-        "revision" : "f633f1ce9ff6dac9f33a1717d191a6c3985148fa",
-        "version" : "2.39.0"
+        "revision" : "0f8bf83b55709e5530cd842a0185b9abba7a3c6c",
+        "version" : "2.41.1"
       }
     },
     {
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "2778fd4e5a12a8aaa30a3ee8285f4ce54c5f3181",
-        "version" : "1.9.1"
+        "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
+        "version" : "1.10.1"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/migueldeicaza/SwiftTerm",
       "state" : {
-        "revision" : "0b8d99bd19b694df44e1ccaa3891309719d34330",
-        "version" : "1.5.1"
+        "revision" : "b1262db5b6bea699a8260a8c66999436c508ca56",
+        "version" : "1.11.2"
       }
     },
     {
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "31073495cae9caf243c440eac94b3ab067e3d7bc",
-        "version" : "1.8.0"
+        "revision" : "dfd70507def84cb5fb821278448a262c6ff2bbad",
+        "version" : "1.9.0"
       }
     }
   ],

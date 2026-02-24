@@ -2,16 +2,16 @@
  * Key pair for X25519 asymmetric encryption
  */
 export interface KeyPair {
-  publicKey: Uint8Array;
   privateKey: Uint8Array;
+  publicKey: Uint8Array;
 }
 
 /**
  * Encrypted message with nonce
  */
 export interface EncryptedMessage {
-  nonce: Uint8Array;
   ciphertext: Uint8Array;
+  nonce: Uint8Array;
 }
 
 /**

@@ -14,8 +14,8 @@
     "@cloudflare/workers-types": "^4.20250214.0",
     "@unbound/typescript-config": "workspace:*",
     "miniflare": "^3.20250214.0",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
     "wrangler": "^4.66.0"
   }
 }

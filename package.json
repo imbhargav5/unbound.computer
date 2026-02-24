@@ -28,9 +28,9 @@
     "cli": "./apps/cli-new/target/release/unbound-cli"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.4",
+    "@biomejs/biome": "2.4.4",
     "tsx": "^4.19.2",
-    "turbo": "^2.2.3",
-    "ultracite": "6.3.2"
+    "turbo": "^2.8.10",
+    "ultracite": "7.2.3"
   }
 }

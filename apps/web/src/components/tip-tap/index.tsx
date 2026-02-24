@@ -406,9 +406,9 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
 
 interface TiptapProps {
   initialContent: JSONContent;
+  onImageUpload?: (file: File) => Promise<string>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onUpdate: (props: any) => void;
-  onImageUpload?: (file: File) => Promise<string>;
   onVideoUpload?: (file: File) => Promise<string>;
 }
 

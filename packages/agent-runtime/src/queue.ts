@@ -6,25 +6,25 @@ import type { MessageType, SessionMessage } from "./types.js";
  * Message queue events interface
  */
 export interface QueueEvents {
-  enqueue: [message: SessionMessage];
-  dequeue: [message: SessionMessage];
   acknowledge: [messageId: string];
-  retry: [message: SessionMessage];
+  dequeue: [message: SessionMessage];
   drop: [message: SessionMessage, reason: string];
+  enqueue: [message: SessionMessage];
+  retry: [message: SessionMessage];
 }
 
 /**
  * Message queue configuration
  */
 export interface QueueConfig {
-  /** Maximum queue size */
-  maxSize: number;
   /** Maximum retry attempts */
   maxRetries: number;
-  /** Retry delay in milliseconds */
-  retryDelayMs: number;
+  /** Maximum queue size */
+  maxSize: number;
   /** Message TTL in milliseconds */
   messageTtlMs: number;
+  /** Retry delay in milliseconds */
+  retryDelayMs: number;
 }
 
 /**

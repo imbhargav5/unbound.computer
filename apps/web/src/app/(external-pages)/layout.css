@@ -32,21 +32,19 @@ code:before {
 }
 
 code {
-  counter-reset: line;
   padding: 1rem;
   overflow-x: auto;
+  counter-reset: line;
 }
 
 code > [data-line]::before {
-  counter-increment: line;
-  content: counter(line);
-
-  /* Other styling */
   display: inline-block;
   width: 1rem;
   margin-right: 1rem;
-  text-align: right;
   color: text-neutral-500;
+  text-align: right;
+  content: counter(line);
+  counter-increment: line;
 }
 
 code[data-line-numbers-max-digits="2"] > [data-line]::before {
@@ -58,13 +56,13 @@ code[data-line-numbers-max-digits="3"] > [data-line]::before {
 }
 
 [data-rehype-pretty-code-title] {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
   border-top-left-radius: 0.5rem;
   border-top-right-radius: 0.5rem;
   @apply bg-neutral-100;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
   @apply text-neutral-200;
 }
 

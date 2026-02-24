@@ -161,32 +161,32 @@ export function sha256Hash(data: Uint8Array): Uint8Array {
  * Web session authorization data structure
  */
 export interface WebSessionAuthData {
-  /** Web session ID */
-  sessionId: string;
+  /** Authorizing device ID */
+  deviceId: string;
   /** Encrypted session key (base64) */
   encryptedSessionKey: string;
   /** Authorizing device's ephemeral public key (base64) */
   responderPublicKey: string;
-  /** Authorizing device ID */
-  deviceId: string;
+  /** Web session ID */
+  sessionId: string;
 }
 
 /**
  * Web session info for the client
  */
 export interface WebSessionInfo {
-  /** Session ID */
-  id: string;
-  /** Current status */
-  status: "pending" | "active" | "expired" | "revoked";
-  /** Ephemeral public key (base64) */
-  publicKey: string;
   /** When the session was created */
   createdAt: Date;
-  /** When the session expires */
-  expiresAt: Date;
   /** Encrypted session key (only present when active) */
   encryptedSessionKey?: string;
+  /** When the session expires */
+  expiresAt: Date;
+  /** Session ID */
+  id: string;
+  /** Ephemeral public key (base64) */
+  publicKey: string;
   /** Responder public key (only present when active) */
   responderPublicKey?: string;
+  /** Current status */
+  status: "pending" | "active" | "expired" | "revoked";
 }

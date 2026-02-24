@@ -94,9 +94,9 @@ export function createPairingRequest(
 export interface CreatePairingResponseOptions {
   deviceId: string;
   encryptedMasterKey: string;
+  error?: string;
   nonce: string;
   success: boolean;
-  error?: string;
 }
 
 /**

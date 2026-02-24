@@ -16,13 +16,13 @@
 import { execSync } from "node:child_process";
 
 interface Commit {
+  author: string;
+  description: string;
   hash: string;
+  scope: string | null;
   shortHash: string;
   subject: string;
   type: string | null;
-  scope: string | null;
-  description: string;
-  author: string;
 }
 
 const COMMIT_TYPES: Record<string, string> = {

@@ -10,11 +10,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 interface FormTextareaProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
   placeholder?: string;
 }
 

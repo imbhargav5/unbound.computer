@@ -6,9 +6,9 @@ type CodingSession =
   Database["public"]["Tables"]["agent_coding_sessions"]["Row"];
 
 export interface SessionValidationResult {
-  valid: boolean;
-  error?: string;
   code?: string;
+  error?: string;
+  valid: boolean;
 }
 
 /**

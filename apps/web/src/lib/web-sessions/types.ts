@@ -26,39 +26,39 @@ export const WEB_SESSION_EXPIRY = {
  * QR code data for web session authorization
  */
 export interface WebSessionQRData {
-  version: number;
-  type: "web-session";
-  sessionId: string;
-  publicKey: string;
   expiresAt: number;
+  publicKey: string;
+  sessionId: string;
   timestamp: number;
+  type: "web-session";
+  version: number;
 }
 
 /**
  * Web session init response
  */
 export interface WebSessionInitResponse {
-  sessionId: string;
-  qrData: string;
   expiresAt: string;
+  qrData: string;
+  sessionId: string;
 }
 
 /**
  * Web session status response
  */
 export interface WebSessionStatusResponse {
-  id: string;
-  status: WebSessionStatus;
-  createdAt: string;
-  expiresAt: string;
   authorizedAt: string | null;
-  encryptedSessionKey: string | null;
-  responderPublicKey: string | null;
   authorizingDevice: {
     id: string;
     name: string;
     deviceType: string;
   } | null;
+  createdAt: string;
+  encryptedSessionKey: string | null;
+  expiresAt: string;
+  id: string;
+  responderPublicKey: string | null;
+  status: WebSessionStatus;
 }
 
 /**

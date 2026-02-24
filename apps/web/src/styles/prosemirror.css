@@ -1,16 +1,16 @@
 .ProseMirror .is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
   float: left;
+  height: 0;
   color: var(--novel-stone-400);
   pointer-events: none;
-  height: 0;
+  content: attr(data-placeholder);
 }
 .ProseMirror .is-empty::before {
-  content: attr(data-placeholder);
   float: left;
+  height: 0;
   color: var(--novel-stone-400);
   pointer-events: none;
-  height: 0;
+  content: attr(data-placeholder);
 }
 
 /* Custom image styles */
@@ -33,16 +33,16 @@
   position: relative;
 
   &:before {
-    content: "";
-    box-sizing: border-box;
     position: absolute;
     top: 50%;
     left: 50%;
+    box-sizing: border-box;
     width: 36px;
     height: 36px;
-    border-radius: 50%;
+    content: "";
     border: 3px solid var(--novel-stone-200);
     border-top-color: var(--novel-stone-800);
+    border-radius: 50%;
     animation: spinning 0.6s linear infinite;
   }
 }
@@ -67,19 +67,19 @@ ul[data-type="taskList"] li > label {
 }
 
 ul[data-type="taskList"] li > label input[type="checkbox"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background-color: var(--novel-white);
-  margin: 0;
-  cursor: pointer;
-  width: 1.2em;
-  height: 1.2em;
   position: relative;
   top: 5px;
-  border: 2px solid var(--novel-stone-900);
-  margin-right: 0.3rem;
   display: grid;
   place-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0;
+  margin-right: 0.3rem;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  background-color: var(--novel-white);
+  border: 2px solid var(--novel-stone-900);
 
   &:hover {
     background-color: var(--novel-stone-50);
@@ -90,14 +90,14 @@ ul[data-type="taskList"] li > label input[type="checkbox"] {
   }
 
   &::before {
-    content: "";
     width: 0.65em;
     height: 0.65em;
-    transform: scale(0);
-    transition: 120ms transform ease-in-out;
+    content: "";
     box-shadow: inset 1em 1em;
-    transform-origin: center;
     clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transform-origin: center;
+    transition: 120ms transform ease-in-out;
   }
 
   &:checked::before {

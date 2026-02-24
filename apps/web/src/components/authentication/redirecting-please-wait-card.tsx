@@ -3,8 +3,8 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface RedirectingPleaseWaitCardProps {
-  message: string;
   heading: string;
+  message: string;
 }
 
 export function RedirectingPleaseWaitCard({

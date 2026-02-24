@@ -9,11 +9,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 interface FormSwitchProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
 }
 
 export function FormSwitch<TFieldValues extends FieldValues>({

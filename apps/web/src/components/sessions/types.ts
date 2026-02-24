@@ -2,23 +2,23 @@
  * Tool use representation in the UI
  */
 export interface ToolUse {
+  duration?: number;
   id: string;
-  name: string;
   input?: unknown;
+  name: string;
   output?: unknown;
   status: "pending" | "running" | "completed" | "error";
-  duration?: number;
 }
 
 /**
  * Session message representation in the UI
  */
 export interface SessionMessage {
+  content?: string;
   id: string;
   role: "user" | "assistant";
-  content?: string;
-  toolUses?: ToolUse[];
   timestamp: string;
+  toolUses?: ToolUse[];
 }
 
 /**
@@ -30,11 +30,11 @@ export type SessionStatus = "active" | "paused" | "ended";
  * Full session data for the UI
  */
 export interface Session {
-  id: string;
-  status: SessionStatus;
-  repositoryName: string;
   branchName: string;
   deviceName: string;
-  startedAt: string;
   endedAt?: string;
+  id: string;
+  repositoryName: string;
+  startedAt: string;
+  status: SessionStatus;
 }

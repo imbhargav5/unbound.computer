@@ -3,14 +3,14 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 interface Step {
-  name: string;
   icon: React.ReactNode;
   isActive: boolean;
+  name: string;
 }
 
 interface StepperProps {
-  steps: Step[];
   onStepChangeRequest?: (index: number) => void;
+  steps: Step[];
 }
 
 export function Stepper({ steps, onStepChangeRequest }: StepperProps) {

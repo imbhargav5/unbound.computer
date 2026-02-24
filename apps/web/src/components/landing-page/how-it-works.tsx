@@ -35,7 +35,7 @@ export default function HowItWorks() {
 
       <div className="relative">
         {/* Connecting line */}
-        <div className="-translate-x-1/2 absolute top-12 left-1/2 hidden h-[2px] w-[60%] bg-gradient-to-r from-transparent via-white/10 to-transparent lg:block" />
+        <div className="absolute top-12 left-1/2 hidden h-[2px] w-[60%] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent lg:block" />
 
         <div className="grid gap-12 lg:grid-cols-3 lg:gap-8">
           {steps.map((step) => (
@@ -49,7 +49,7 @@ export default function HowItWorks() {
               </div>
 
               {/* Number badge */}
-              <span className="-top-2 absolute right-1/2 translate-x-12 font-mono text-white/30 text-xs">
+              <span className="absolute -top-2 right-1/2 translate-x-12 font-mono text-white/30 text-xs">
                 {step.number}
               </span>
 

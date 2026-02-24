@@ -16,12 +16,12 @@ import {
 } from "@/components/ui/select";
 
 interface DataTablePaginationProps {
-  page: number;
-  pageSize: number;
-  totalItems: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  page: number;
+  pageSize: number;
   pageSizeOptions?: number[];
+  totalItems: number;
 }
 
 export function DataTablePagination({

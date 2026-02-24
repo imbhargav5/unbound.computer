@@ -5,8 +5,8 @@ const isDevEnvironment = process.env.NODE_ENV === "development";
 type LogFunction = (...args: (string | number | boolean | object)[]) => void;
 
 interface Logger {
-  log: LogFunction;
   error: LogFunction;
+  log: LogFunction;
 }
 
 function createLogger(scope: string): Logger {

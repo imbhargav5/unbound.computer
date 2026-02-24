@@ -6,19 +6,19 @@ import type { Database } from "database/types";
  * Environment configuration for the worker
  */
 interface WorkerConfig {
-  supabaseUrl: string;
-  supabaseServiceKey: string;
-  redisUrl: string;
   redisToken: string;
+  redisUrl: string;
+  supabaseServiceKey: string;
+  supabaseUrl: string;
 }
 
 /**
  * Stream position tracker
  */
 interface StreamPosition {
-  sessionId: string;
   lastMessageId: string;
   lastProcessedAt: number;
+  sessionId: string;
 }
 
 /**
@@ -49,15 +49,15 @@ async function getActiveSessions(
  * Redis stream message data structure (from relay /messages endpoint)
  */
 interface RedisMessageData {
+  contentEncrypted: string; // Base64 encoded
+  contentNonce: string; // Base64 encoded
+  createdAt: string;
   eventId: string;
+  eventType: string;
   messageId: string;
   role: string;
   sequenceNumber: string;
-  contentEncrypted: string; // Base64 encoded
-  contentNonce: string; // Base64 encoded
-  eventType: string;
   sessionEventType: string;
-  createdAt: string;
 }
 
 /**

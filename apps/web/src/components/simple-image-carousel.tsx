@@ -11,8 +11,8 @@ import {
 import { Typography } from "./ui/typography-ui";
 
 interface ImageObject {
-  src: string;
   alt: string;
+  src: string;
 }
 
 interface SimpleImageCarouselProps {

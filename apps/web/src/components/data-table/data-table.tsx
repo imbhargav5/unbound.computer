@@ -24,17 +24,17 @@ import { DataTablePagination } from "./data-table-pagination";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  emptyMessage?: string;
+  enablePagination?: boolean;
   // Optional features
   enableSorting?: boolean;
-  enablePagination?: boolean;
-  // Server-side pagination
-  pageCount?: number;
-  manualPagination?: boolean;
-  onPaginationChange?: (pagination: PaginationState) => void;
   initialPagination?: PaginationState;
   // Loading state
   isLoading?: boolean;
-  emptyMessage?: string;
+  manualPagination?: boolean;
+  onPaginationChange?: (pagination: PaginationState) => void;
+  // Server-side pagination
+  pageCount?: number;
 }
 
 export function DataTable<TData, TValue>({

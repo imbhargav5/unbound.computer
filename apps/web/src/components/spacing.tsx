@@ -87,8 +87,8 @@ function getSpacingValue(space: SpacingValue): string {
 interface StackProps
   extends SpacingProps,
     React.HTMLAttributes<HTMLDivElement> {
-  gap?: SpacingValue;
   align?: "start" | "center" | "end" | "stretch";
+  gap?: SpacingValue;
   justify?: "start" | "center" | "end" | "between" | "around" | "evenly";
 }
 
@@ -219,12 +219,12 @@ export function HStack({
 
 // Grid - Grid layout with consistent spacing
 interface GridProps extends SpacingProps, React.HTMLAttributes<HTMLDivElement> {
-  gap?: SpacingValue;
-  columnGap?: SpacingValue;
-  rowGap?: SpacingValue;
-  columns?: number | { sm?: number; md?: number; lg?: number; xl?: number };
   align?: "start" | "center" | "end" | "stretch";
+  columnGap?: SpacingValue;
+  columns?: number | { sm?: number; md?: number; lg?: number; xl?: number };
+  gap?: SpacingValue;
   justify?: "start" | "center" | "end" | "between" | "around" | "evenly";
+  rowGap?: SpacingValue;
 }
 
 /**
@@ -312,9 +312,9 @@ export function Grid({
 
 // Spacer - Creates empty space
 interface SpacerProps extends React.HTMLAttributes<HTMLDivElement> {
-  size?: SpacingValue;
   axis?: "horizontal" | "vertical";
   grow?: boolean;
+  size?: SpacingValue;
 }
 
 /**
@@ -372,9 +372,9 @@ export function Spacer({
 interface ContainerProps
   extends SpacingProps,
     React.HTMLAttributes<HTMLDivElement> {
+  centered?: boolean;
   maxWidth?: keyof typeof sizeTokens | string;
   padding?: SpacingValue;
-  centered?: boolean;
 }
 
 /**
@@ -559,10 +559,10 @@ export function Center({
 
 // Divider - Horizontal or vertical divider line
 interface DividerProps extends React.HTMLAttributes<HTMLHRElement> {
-  orientation?: "horizontal" | "vertical";
-  thickness?: number;
   color?: string;
   margin?: SpacingValue;
+  orientation?: "horizontal" | "vertical";
+  thickness?: number;
 }
 
 /**

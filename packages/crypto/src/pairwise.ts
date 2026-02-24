@@ -26,12 +26,12 @@ export const PAIRWISE_CONTEXT = {
  * Pairwise secret between two devices
  */
 export interface PairwiseSecret {
-  /** Raw 32-byte shared secret from X25519 ECDH */
-  secret: Uint8Array;
   /** ID of device A (smaller UUID for consistent ordering) */
   deviceAId?: string;
   /** ID of device B (larger UUID for consistent ordering) */
   deviceBId?: string;
+  /** Raw 32-byte shared secret from X25519 ECDH */
+  secret: Uint8Array;
 }
 
 /**

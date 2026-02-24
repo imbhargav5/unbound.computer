@@ -1,8 +1,8 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 
 export interface VideoOptions {
-  HTMLAttributes: Record<string, unknown>;
   allowFullscreen: boolean;
+  HTMLAttributes: Record<string, unknown>;
 }
 
 declare module "@tiptap/core" {

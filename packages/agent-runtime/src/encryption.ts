@@ -17,16 +17,16 @@ import type { SessionMessage } from "./types.js";
 export interface EncryptedSessionMessage {
   /** Message ID */
   id: string;
-  /** Session ID */
-  sessionId: string;
-  /** Encrypted payload (base64) */
-  payload: string;
   /** Nonce used for encryption (base64) */
   nonce: string;
-  /** Timestamp */
-  timestamp: number;
+  /** Encrypted payload (base64) */
+  payload: string;
   /** Sequence number */
   sequence: number;
+  /** Session ID */
+  sessionId: string;
+  /** Timestamp */
+  timestamp: number;
 }
 
 /**
@@ -136,12 +136,12 @@ export class SessionEncryption {
  * Options for creating a pairwise session encryption context
  */
 export interface PairwiseSessionEncryptionOptions {
-  /** Session ID */
-  sessionId: string;
   /** My device's private key */
   myPrivateKey: Uint8Array;
   /** Peer device's public key */
   peerPublicKey: Uint8Array;
+  /** Session ID */
+  sessionId: string;
 }
 
 /**

@@ -11,14 +11,14 @@ const uuidRegex =
 const DEFAULT_KEEPALIVE_FLUSH_MS = 30_000;
 
 interface PresencePayload {
-  schema_version: number;
-  user_id: string;
   device_id: string;
-  status: "online" | "offline";
-  source: string;
+  schema_version: number;
   sent_at_ms: number;
   seq: number;
+  source: string;
+  status: "online" | "offline";
   ttl_ms: number;
+  user_id: string;
 }
 
 interface PresenceStorageRecord extends PresencePayload {
@@ -28,27 +28,27 @@ interface PresenceStorageRecord extends PresencePayload {
 }
 
 interface PresenceTokenPayload {
-  token_id: string;
-  user_id: string;
   device_id: string;
-  scope: string[];
   exp_ms: number;
   issued_at_ms: number;
+  scope: string[];
+  token_id: string;
+  user_id: string;
 }
 
 interface PresenceDebugStats {
-  storage_puts_total: number;
-  set_alarm_total: number;
   delete_alarm_total: number;
   list_records_total: number;
+  set_alarm_total: number;
+  storage_puts_total: number;
 }
 
 interface Env {
-  PRESENCE_DO: DurableObjectNamespace;
-  PRESENCE_DO_TOKEN_SIGNING_KEY: string;
-  PRESENCE_DO_INGEST_TOKEN: string;
   ENVIRONMENT: string;
+  PRESENCE_DO: DurableObjectNamespace;
+  PRESENCE_DO_INGEST_TOKEN: string;
   PRESENCE_DO_KEEPALIVE_FLUSH_MS?: string;
+  PRESENCE_DO_TOKEN_SIGNING_KEY: string;
 }
 
 function jsonResponse(
@@ -148,9 +148,9 @@ interface PresencePayloadValidationSuccess {
 }
 
 interface PresencePayloadValidationFailure {
-  ok: false;
-  error: "invalid_payload";
   details: string;
+  error: "invalid_payload";
+  ok: false;
 }
 
 function validatePresencePayload(

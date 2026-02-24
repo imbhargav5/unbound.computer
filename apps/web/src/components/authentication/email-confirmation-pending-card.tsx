@@ -4,11 +4,11 @@ import Link from "next/link";
 import type React from "react";
 
 interface IConfirmationPendingCardProps {
-  message: string;
   heading: string;
-  type: "login" | "sign-up" | "reset-password";
-  resetSuccessMessage: React.Dispatch<React.SetStateAction<string | null>>;
+  message: string;
   resendEmail?: () => void;
+  resetSuccessMessage: React.Dispatch<React.SetStateAction<string | null>>;
+  type: "login" | "sign-up" | "reset-password";
 }
 
 export function EmailConfirmationPendingCard({

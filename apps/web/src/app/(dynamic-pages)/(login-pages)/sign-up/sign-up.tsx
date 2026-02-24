@@ -184,7 +184,7 @@ export function SignUp({ next }: SignUpProps) {
                 <div className="relative">
                   <Mail
                     className={cn(
-                      "-translate-y-1/2 absolute top-1/2 left-3 size-4 transition-colors duration-200",
+                      "absolute top-1/2 left-3 size-4 -translate-y-1/2 transition-colors duration-200",
                       focusedField === "email" ? "text-white" : "text-white/40"
                     )}
                   />

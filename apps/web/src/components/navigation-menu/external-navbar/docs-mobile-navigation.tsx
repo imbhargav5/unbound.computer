@@ -68,7 +68,7 @@ export function DocsMobileNavigation() {
       >
         <div className="flex items-center">
           <Link className="font-bold text-xl" href={"/"}>
-            <div className="dark:-ml-4 relative flex items-center space-x-2 text-black dark:text-white">
+            <div className="relative flex items-center space-x-2 text-black dark:-ml-4 dark:text-white">
               <Image
                 alt="logo"
                 className="block h-10 w-10 dark:hidden"

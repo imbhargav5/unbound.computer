@@ -51,7 +51,7 @@ export function DocsClientContent() {
             {...fadeIn}
           >
             <Link className="block" href="/docs/overview">
-              <div className="hover:-translate-y-0.5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:bg-white/[0.04]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.04]">
                 <h3 className="mb-2 font-medium text-lg">Overview</h3>
                 <p className="text-sm text-white/60">
                   The system follows a local-first architecture: all session
@@ -61,7 +61,7 @@ export function DocsClientContent() {
               </div>
             </Link>
             <Link className="block" href="/docs/about">
-              <div className="hover:-translate-y-0.5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:bg-white/[0.04]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.04]">
                 <h3 className="mb-2 font-medium text-lg">About</h3>
                 <p className="text-sm text-white/60">
                   When signed in, sessions optionally sync to Supabase with
@@ -71,7 +71,7 @@ export function DocsClientContent() {
               </div>
             </Link>
             <Link className="block" href="/docs/internals">
-              <div className="hover:-translate-y-0.5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:bg-white/[0.04]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.04]">
                 <h3 className="mb-2 font-medium text-lg">Internals</h3>
                 <p className="text-sm text-white/60">
                   The Rust daemon is organized into focused crates under

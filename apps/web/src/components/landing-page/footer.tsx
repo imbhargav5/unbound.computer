@@ -1,5 +1,6 @@
 import { Terminal } from "lucide-react";
 import { Link } from "@/components/intl-link";
+import { CopyrightYear } from "./copyright-year";
 import { footerItems, footerSocialItems } from "./footer-items";
 
 export function Footer() {
@@ -48,7 +49,7 @@ export function Footer() {
         {/* Bottom */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-white/10 border-t pt-8 md:flex-row">
           <p className="text-sm text-white/30">
-            © {new Date().getFullYear()} Unbound. All Rights Reserved.
+            © <CopyrightYear /> Unbound. All Rights Reserved.
           </p>
           <div className="flex gap-4">
             {footerSocialItems.map((item) => (

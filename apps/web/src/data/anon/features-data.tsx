@@ -43,7 +43,7 @@ export const featuresData = [
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit,sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
     background: (
       <Command
-        className="-right-5 group-hover:-translate-x-10 absolute top-10 w-[70%] origin-top translate-x-0 border transition-all duration-300 ease-out [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)]"
+        className="absolute top-10 -right-5 w-[70%] origin-top translate-x-0 border transition-all duration-300 ease-out [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] group-hover:-translate-x-10"
         value="0"
       >
         <CommandInput

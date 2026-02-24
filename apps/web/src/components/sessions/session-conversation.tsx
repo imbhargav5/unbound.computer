@@ -10,18 +10,18 @@ import { SessionHeader } from "./session-header";
 import type { SessionMessage } from "./types";
 
 export interface SessionConversationProps {
-  sessionId: string;
-  status: "active" | "paused" | "ended";
-  repositoryName: string;
   branchName: string;
   deviceName: string;
-  onSendMessage?: (message: string) => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onTerminate?: () => void;
-  messages: SessionMessage[];
   isConnected: boolean;
   isTyping?: boolean;
+  messages: SessionMessage[];
+  onPause?: () => void;
+  onResume?: () => void;
+  onSendMessage?: (message: string) => void;
+  onTerminate?: () => void;
+  repositoryName: string;
+  sessionId: string;
+  status: "active" | "paused" | "ended";
 }
 
 export function SessionConversation({

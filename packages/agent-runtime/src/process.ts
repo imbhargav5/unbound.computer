@@ -6,11 +6,11 @@ import type { ProcessInfo, SpawnOptions, StreamChunk } from "./types.js";
  * Process events interface for documentation
  */
 export interface ProcessEvents {
-  stdout: [chunk: StreamChunk];
-  stderr: [chunk: StreamChunk];
-  exit: [code: number | null, signal: string | null];
   error: [error: Error];
+  exit: [code: number | null, signal: string | null];
   spawn: [];
+  stderr: [chunk: StreamChunk];
+  stdout: [chunk: StreamChunk];
 }
 
 /**

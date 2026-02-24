@@ -5,10 +5,10 @@ import { getRedisTCPClient } from "./tcp-client.js";
  * Options for XADD with MAXLEN trimming
  */
 export interface XAddOptions {
-  /** Maximum stream length */
-  maxlen?: number;
   /** Use approximate trimming (~) for better performance */
   approximate?: boolean;
+  /** Maximum stream length */
+  maxlen?: number;
 }
 
 /**

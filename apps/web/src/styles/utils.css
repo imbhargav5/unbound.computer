@@ -54,8 +54,8 @@
       #eef2f6 35% 40%,
       transparent 40%
     );
-  background-size: 2em 2em;
   background-color: #ffffff;
+  background-size: 2em 2em;
   opacity: 1;
 }
 
@@ -73,8 +73,8 @@
 }
 
 .border-grid {
-  border-style: dashed;
   border-color: var(--color-border) / 0.5;
+  border-style: dashed;
   &:is(.dark *) {
     border-color: var(--color-border);
   }

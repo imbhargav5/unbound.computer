@@ -16,10 +16,10 @@ import type { EncryptedParticipantMessage } from "./types.js";
  * Options for creating a participant encryption context
  */
 export interface ParticipantEncryptionOptions {
-  /** Participant's private key */
-  participantPrivateKey: Uint8Array;
   /** Host's public key (base64) */
   hostPublicKey: string;
+  /** Participant's private key */
+  participantPrivateKey: Uint8Array;
   /** Session ID */
   sessionId: string;
 }

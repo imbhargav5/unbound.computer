@@ -15,11 +15,11 @@ import {
 } from "@/components/ui/select";
 
 interface FormSelectProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
   options: { label: string; value: string }[];
   placeholder?: string;
 }

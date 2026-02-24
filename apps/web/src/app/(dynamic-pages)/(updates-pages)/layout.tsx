@@ -64,7 +64,7 @@ export default async function UpdatesPagesLayout({
   return (
     <div className="relative z-0 mx-auto w-full max-w-4xl p-1">
       {/* Decorative top element */}
-      <div className="-z-10 pointer-events-none fixed top-0 right-0 left-0 h-64 select-none border-b bg-muted sm:h-52" />
+      <div className="pointer-events-none fixed top-0 right-0 left-0 -z-10 h-64 select-none border-b bg-muted sm:h-52" />
       <UpdatesNavigation />
       <div>{children}</div>
     </div>

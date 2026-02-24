@@ -27,52 +27,52 @@ export interface SessionParticipant {
   deviceId: string;
   /** Participant's device public key (base64) */
   devicePublicKey: string;
-  /** Role in the session */
-  role: ParticipantRole;
-  /** Permission level */
-  permission: SessionPermission;
-  /** Session-specific encryption key for this participant */
-  sessionKey?: Uint8Array;
-  /** When the participant joined */
-  joinedAt: Date;
   /** Whether the participant is currently active */
   isActive: boolean;
+  /** When the participant joined */
+  joinedAt: Date;
+  /** Permission level */
+  permission: SessionPermission;
+  /** Role in the session */
+  role: ParticipantRole;
+  /** Session-specific encryption key for this participant */
+  sessionKey?: Uint8Array;
 }
 
 /**
  * A multi-device session
  */
 export interface MultiDeviceSession {
-  /** Unique session ID */
-  id: string;
-  /** Device ID of the session host (executor) */
-  hostDeviceId: string;
-  /** Current session state */
-  state: SessionState;
-  /** Session participants */
-  participants: Map<string, SessionParticipant>;
   /** When the session was created */
   createdAt: Date;
   /** When the session will expire */
   expiresAt?: Date;
+  /** Device ID of the session host (executor) */
+  hostDeviceId: string;
+  /** Unique session ID */
+  id: string;
   /** Session metadata */
   metadata?: Record<string, unknown>;
+  /** Session participants */
+  participants: Map<string, SessionParticipant>;
+  /** Current session state */
+  state: SessionState;
 }
 
 /**
  * Options for creating a multi-device session
  */
 export interface CreateSessionOptions {
-  /** Session ID (generated if not provided) */
-  sessionId?: string;
+  /** Session duration in milliseconds */
+  durationMs?: number;
   /** Host device ID */
   hostDeviceId: string;
   /** Host device public key (base64) */
   hostPublicKey: string;
-  /** Session duration in milliseconds */
-  durationMs?: number;
   /** Session metadata */
   metadata?: Record<string, unknown>;
+  /** Session ID (generated if not provided) */
+  sessionId?: string;
 }
 
 /**
@@ -83,32 +83,32 @@ export interface AddParticipantOptions {
   deviceId: string;
   /** Participant's device public key (base64) */
   devicePublicKey: string;
-  /** Role in the session */
-  role: ParticipantRole;
   /** Permission level (defaults to view_only) */
   permission?: SessionPermission;
+  /** Role in the session */
+  role: ParticipantRole;
 }
 
 /**
  * Encrypted message for a specific participant
  */
 export interface EncryptedParticipantMessage {
-  /** Target participant's device ID */
-  targetDeviceId: string;
-  /** Encrypted payload (base64) */
-  payload: string;
   /** Nonce used for encryption (base64) */
   nonce: string;
+  /** Encrypted payload (base64) */
+  payload: string;
+  /** Target participant's device ID */
+  targetDeviceId: string;
 }
 
 /**
  * Broadcast result with encrypted messages for all participants
  */
 export interface BroadcastResult {
-  /** Session ID */
-  sessionId: string;
-  /** Encrypted messages keyed by device ID */
-  messages: Map<string, EncryptedParticipantMessage>;
   /** Device IDs that failed encryption */
   failed: string[];
+  /** Encrypted messages keyed by device ID */
+  messages: Map<string, EncryptedParticipantMessage>;
+  /** Session ID */
+  sessionId: string;
 }

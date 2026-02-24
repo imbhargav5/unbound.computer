@@ -48,7 +48,7 @@ async function UserAvatarWithFullname({
               height: size,
             }}
           >
-            <span className="-translate-x-1/2 -translate-y-1/2 absolute top-[50%] left-[50%] capitalize">
+            <span className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 capitalize">
               {userFullName}
             </span>
           </div>

@@ -7,8 +7,8 @@ import { createUserCheckoutSession } from "@/data/user/billing";
 import { Button } from "./ui/button";
 
 interface SubscriptionSelectProps {
-  priceId: string;
   isOneTimePurchase?: boolean;
+  priceId: string;
 }
 
 export function SubscriptionSelect({

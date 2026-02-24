@@ -98,11 +98,11 @@ export type StreamChunk = z.infer<typeof StreamChunkSchema>;
  * Options for creating a stream chunk
  */
 export interface CreateStreamChunkOptions {
-  sessionId: string;
-  sequenceNumber: number;
-  contentType: StreamContentType;
   content: string;
+  contentType: StreamContentType;
   isComplete?: boolean;
+  sequenceNumber: number;
+  sessionId: string;
 }
 
 /**
@@ -150,10 +150,10 @@ export type ViewerKeyExchange = z.infer<typeof ViewerKeyExchangeSchema>;
  * Options for creating a viewer key exchange
  */
 export interface CreateViewerKeyExchangeOptions {
+  sessionId: string;
   viewerId: string;
   viewerPublicKey: string;
   viewerType: ViewerType;
-  sessionId: string;
 }
 
 /**
@@ -228,10 +228,10 @@ export type RemoteControl = z.infer<typeof RemoteControlSchema>;
  */
 export interface CreateRemoteControlOptions {
   action: RemoteControlAction;
-  sessionId: string;
-  requesterId: string;
   content?: string;
   force?: boolean;
+  requesterId: string;
+  sessionId: string;
 }
 
 /**

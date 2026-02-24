@@ -7,9 +7,9 @@ interface Avatar {
   profileUrl: string;
 }
 interface AvatarCirclesProps {
+  avatarUrls: Avatar[];
   className?: string;
   numPeople?: number;
-  avatarUrls: Avatar[];
 }
 
 export const AvatarCircles = ({
@@ -17,7 +17,7 @@ export const AvatarCircles = ({
   className,
   avatarUrls,
 }: AvatarCirclesProps) => (
-  <div className={cn("-space-x-4 z-10 flex rtl:space-x-reverse", className)}>
+  <div className={cn("z-10 flex -space-x-4 rtl:space-x-reverse", className)}>
     {avatarUrls.map((url, index) => (
       <a
         href={url.profileUrl}

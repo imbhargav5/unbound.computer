@@ -253,7 +253,7 @@ struct SyncedRepositoryGroupView: View {
 
                     VStack(spacing: 4) {
                         ForEach(sessions) { session in
-                            DeviceSessionRowView(session: session)
+                            DeviceSessionRowView(session: session, runtimeStatus: nil)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)

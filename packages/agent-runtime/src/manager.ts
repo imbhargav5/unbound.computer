@@ -13,11 +13,11 @@ import {
  * Session manager events
  */
 export interface SessionManagerEvents {
+  output: [sessionId: string, content: string];
   sessionCreated: [sessionId: string];
-  sessionStarted: [sessionId: string];
   sessionEnded: [sessionId: string, state: SessionState];
   sessionError: [sessionId: string, error: Error];
-  output: [sessionId: string, content: string];
+  sessionStarted: [sessionId: string];
 }
 
 /**

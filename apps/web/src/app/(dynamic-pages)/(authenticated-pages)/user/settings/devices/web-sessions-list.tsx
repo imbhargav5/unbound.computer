@@ -15,18 +15,18 @@ import {
 } from "@/components/ui/card";
 
 interface WebSession {
-  id: string;
-  status: string;
-  user_agent: string | null;
-  ip_address: unknown; // INET type from PostgreSQL
-  created_at: string;
   authorized_at: string | null;
-  expires_at: string;
   authorizing_device: {
     id: string;
     name: string;
     device_type: string;
   } | null;
+  created_at: string;
+  expires_at: string;
+  id: string;
+  ip_address: unknown; // INET type from PostgreSQL
+  status: string;
+  user_agent: string | null;
 }
 
 function getBrowserName(userAgent: string | null): string {

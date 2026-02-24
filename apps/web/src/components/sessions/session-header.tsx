@@ -24,14 +24,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 interface SessionHeaderProps {
-  repositoryName: string;
   branchName: string;
   deviceName: string;
-  status: "active" | "paused" | "ended";
   isConnected: boolean;
   onPause?: () => void;
   onResume?: () => void;
   onTerminate?: () => void;
+  repositoryName: string;
+  status: "active" | "paused" | "ended";
 }
 
 export function SessionHeader({

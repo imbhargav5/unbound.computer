@@ -49,12 +49,12 @@ const EXPIRY_WARNING_TIME = 60_000;
  */
 interface WebSessionManagerOptions {
   apiBaseUrl: string;
-  pollingInterval: number;
-  maxPollingAttempts: number;
-  maxIdleSeconds: number;
-  sessionTtlSeconds: number;
   enableIdleTimeout: boolean;
+  maxIdleSeconds: number;
+  maxPollingAttempts: number;
   onExpiryWarning?: () => void;
+  pollingInterval: number;
+  sessionTtlSeconds: number;
 }
 
 export class WebSessionManager {

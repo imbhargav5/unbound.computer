@@ -13,10 +13,10 @@ import type { DBTable } from "@/types";
 import { parseNotification } from "@/utils/parse-notification";
 
 interface NotificationsListProps {
-  notifications: DBTable<"user_notifications">[];
-  hasNextPage: boolean | undefined;
   fetchNextPage: () => void;
+  hasNextPage: boolean | undefined;
   isFetchingNextPage: boolean;
+  notifications: DBTable<"user_notifications">[];
 }
 
 export function NotificationsList({

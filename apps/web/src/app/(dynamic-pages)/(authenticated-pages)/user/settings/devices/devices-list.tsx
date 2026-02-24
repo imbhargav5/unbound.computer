@@ -19,13 +19,13 @@ import {
 } from "@/components/ui/card";
 
 interface Device {
-  id: string;
-  name: string;
+  created_at: string;
   device_type: string;
   hostname: string | null;
+  id: string;
   is_active: boolean;
   last_seen_at: string | null;
-  created_at: string;
+  name: string;
 }
 
 function getDeviceIcon(deviceType: string) {

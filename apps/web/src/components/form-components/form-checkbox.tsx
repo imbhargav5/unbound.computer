@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/form";
 
 interface FormCheckboxProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
 }
 
 export function FormCheckbox<TFieldValues extends FieldValues>({

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseMinDelayConditionConfig {
-  enabled: boolean;
-  onComplete: () => void;
-  minDelayMs: number;
   condition: boolean;
+  enabled: boolean;
+  minDelayMs: number;
+  onComplete: () => void;
 }
 
 export function useMinDelayCondition({

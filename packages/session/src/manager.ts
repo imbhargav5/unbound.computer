@@ -31,12 +31,12 @@ const DEFAULT_SESSION_DURATION = 60 * 60 * 1000;
  * Options for MultiDeviceSessionManager
  */
 export interface SessionManagerOptions {
+  /** Host device ID */
+  hostDeviceId: string;
   /** Host device's private key for pairwise secret computation */
   hostPrivateKey: Uint8Array;
   /** Host device's public key */
   hostPublicKey: Uint8Array;
-  /** Host device ID */
-  hostDeviceId: string;
 }
 
 /**

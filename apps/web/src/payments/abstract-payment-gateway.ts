@@ -17,9 +17,9 @@ export class PaymentGatewayError extends Error {
 }
 
 export interface PaginationOptions {
+  endingBefore?: string;
   limit?: number;
   startingAfter?: string;
-  endingBefore?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -74,12 +74,12 @@ export interface CustomerPortalData {
 }
 
 export interface PaymentMethodData {
-  id: string;
   customerId: string;
-  type: "card" | "bank_account" | "other";
-  last4: string;
   expiryMonth?: number;
   expiryYear?: number;
+  id: string;
+  last4: string;
+  type: "card" | "bank_account" | "other";
 }
 
 export type CheckoutSessionOptions = {

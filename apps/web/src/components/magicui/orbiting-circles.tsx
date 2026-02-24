@@ -3,14 +3,14 @@ import { cn } from "@/lib/utils";
 
 export interface OrbitingCirclesProps
   extends React.HTMLAttributes<HTMLDivElement> {
-  className?: string;
   children?: React.ReactNode;
-  reverse?: boolean;
-  duration?: number;
+  className?: string;
   delay?: number;
-  radius?: number;
-  path?: boolean;
+  duration?: number;
   iconSize?: number;
+  path?: boolean;
+  radius?: number;
+  reverse?: boolean;
   speed?: number;
 }
 

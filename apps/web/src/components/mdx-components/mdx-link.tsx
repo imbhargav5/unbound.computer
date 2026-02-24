@@ -2,8 +2,8 @@ import { Link } from "@/components/intl-link";
 import { HashLink } from "./hash-link";
 
 interface MdxLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  href?: string;
   children: React.ReactNode;
+  href?: string;
 }
 
 export function MdxLink({ children, href, ...props }: MdxLinkProps) {

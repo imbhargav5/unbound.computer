@@ -19,11 +19,11 @@ import {
 import { cn } from "@/lib/utils";
 
 interface FormDatePickerProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  description?: string;
   id: string;
   label: string;
-  control: Control<TFieldValues>;
   name: Path<TFieldValues>;
-  description?: string;
 }
 
 export function FormDatePicker<TFieldValues extends FieldValues>({

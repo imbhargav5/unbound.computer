@@ -4,20 +4,20 @@ import { getRedisClient } from "./client.js";
  * Redis Stream message entry
  */
 export interface StreamMessage {
-  /** Redis message ID (e.g., "1234567890123-0") */
-  id: string;
   /** Key-value pairs in the message */
   data: Record<string, string>;
+  /** Redis message ID (e.g., "1234567890123-0") */
+  id: string;
 }
 
 /**
  * Options for XADD operation
  */
 export interface XAddOptions {
-  /** Maximum stream length (MAXLEN ~) */
-  maxlen?: number;
   /** Approximate trimming (more efficient) */
   approximate?: boolean;
+  /** Maximum stream length (MAXLEN ~) */
+  maxlen?: number;
 }
 
 /**

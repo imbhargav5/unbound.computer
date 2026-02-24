@@ -4,9 +4,9 @@ import fs from "fs";
 import path from "path";
 
 interface SupabaseStatus {
+  DB_URL: string;
   PUBLISHABLE_KEY: string;
   SECRET_KEY: string;
-  DB_URL: string;
 }
 
 function parseEnvOutput(output: string): Record<string, string> {
@@ -19,7 +19,7 @@ function parseEnvOutput(output: string): Record<string, string> {
 }
 
 function main() {
-  const projectDir = path.resolve(__dirname, "..");
+  const projectDir = path.resolve(import.meta.dirname, "..");
   const envExamplePath = path.join(projectDir, ".env.local.example");
   const envLocalPath = path.join(projectDir, ".env.local");
 
