@@ -83,7 +83,7 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `daemon-bin` | Binary entry point, CLI parsing, daemon lifecycle, IPC handlers |
 | `daemon-config-and-utils` | Shared config, paths, logging, hybrid encryption |
 | `daemon-ipc` | Unix socket server, NDJSON protocol, request routing |
-| `daemon-auth` | Backward-compat shim for `ymir` |
+| `daemon-auth` | Backward-compat shim for `auth-engine` |
 | `daemon-database` | Async SQLite executor, migrations, model types |
 | `daemon-storage` | Platform-specific secure storage (Keychain, Secret Service, Credential Vault) |
 | `armin` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
@@ -92,9 +92,9 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `bakugou` | GitHub CLI orchestration for PR workflows |
 | `levi` | Supabase message sync worker with batching, encryption, and retries |
 | `toshinori` | Supabase + Ably sync sink for Armin side-effects |
-| `yamcha` | Session title generation via Groq Llama 3.1 8B |
-| `yagami` | Safe directory listing with path traversal protection |
-| `ymir` | Auth FSM, OAuth flows, Supabase integration |
+| `session-title-generator` | Session title generation via Groq Llama 3.1 8B |
+| `safe-repo-dir-lister` | Safe directory listing with path traversal protection |
+| `auth-engine` | Auth FSM, OAuth flows, Supabase integration |
 | `gyomei` | Rope-backed file reader/writer with conflict detection |
 | `rengoku-sessions` | Session lifecycle orchestration |
 | `eren-machines` | Process lifecycle management |

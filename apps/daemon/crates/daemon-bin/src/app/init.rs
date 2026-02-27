@@ -34,7 +34,7 @@ use toshinori::{
     SessionMetadataProvider, SyncContext, ToshinoriSink,
 };
 use tracing::{debug, info, warn};
-use ymir::{DaemonAuthRuntime, SessionManager, SupabaseClient};
+use auth_engine::{DaemonAuthRuntime, SessionManager, SupabaseClient};
 
 const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
 

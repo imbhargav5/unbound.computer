@@ -174,10 +174,10 @@ sakura-working-dir-resolution/
 │   ├── lib.rs
 │   ├── resolver.rs     # Session → working directory resolution
 │   ├── file_ops.rs     # Orchestrate gyomei read/write with path validation
-│   └── directory.rs    # Orchestrate yagami listing with path validation
+│   └── directory.rs    # Orchestrate safe-repo-dir-lister listing with path validation
 ```
 
-**Dependencies:** `armin`, `gyomei`, `yagami`
+**Dependencies:** `armin`, `gyomei`, `safe-repo-dir-lister`
 
 **Rationale:** The "resolve session to working directory" pattern is duplicated across `claude.rs`, `terminal.rs`, `repository.rs`, and `git.rs`. Each reimplements the same lookup chain: `session_id → session.worktree_path || repo.path`. Extracting this eliminates duplication and makes the resolution logic testable.
 

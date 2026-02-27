@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
 use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, ToshinoriSink};
-use ymir::{DaemonAuthRuntime, SupabaseClient};
+use auth_engine::{DaemonAuthRuntime, SupabaseClient};
 
 /// Cached billing usage-status snapshot for relaxed local quota enforcement.
 #[derive(Debug, Clone)]

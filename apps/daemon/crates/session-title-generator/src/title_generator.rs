@@ -4,7 +4,7 @@
 //! on the first user message of a session.
 
 use crate::client::GroqClient;
-use crate::error::YamchaResult;
+use crate::error::SessionTitleGeneratorResult;
 
 /// Session title generator that runs on the first user message.
 ///
@@ -26,7 +26,7 @@ impl SessionTitleGenerator {
     ///
     /// # Errors
     /// Returns an error if the GROQ_API_KEY environment variable is not set.
-    pub fn from_env() -> YamchaResult<Self> {
+    pub fn from_env() -> SessionTitleGeneratorResult<Self> {
         Ok(Self {
             client: GroqClient::from_env()?,
         })
@@ -47,7 +47,7 @@ impl SessionTitleGenerator {
         &self,
         session_id: &str,
         first_message: &str,
-    ) -> YamchaResult<String> {
+    ) -> SessionTitleGeneratorResult<String> {
         tracing::debug!(
             session_id = %session_id,
             message_preview = %truncate_message(first_message, 100),
@@ -80,7 +80,7 @@ impl SessionTitleGenerator {
         session_id: &str,
         first_message: &str,
         on_title: F,
-    ) -> YamchaResult<String>
+    ) -> SessionTitleGeneratorResult<String>
     where
         F: FnOnce(&str),
     {
@@ -115,7 +115,7 @@ pub fn spawn_title_generation(
     api_key: String,
     session_id: String,
     first_message: String,
-) -> tokio::task::JoinHandle<YamchaResult<String>> {
+) -> tokio::task::JoinHandle<SessionTitleGeneratorResult<String>> {
     tokio::spawn(async move {
         let generator = SessionTitleGenerator::new(api_key);
         generator.generate_title(&session_id, &first_message).await
@@ -133,7 +133,7 @@ pub fn spawn_title_generation(
 pub fn spawn_title_generation_from_env(
     session_id: String,
     first_message: String,
-) -> tokio::task::JoinHandle<YamchaResult<String>> {
+) -> tokio::task::JoinHandle<SessionTitleGeneratorResult<String>> {
     tokio::spawn(async move {
         let generator = SessionTitleGenerator::from_env()?;
         generator.generate_title(&session_id, &first_message).await

@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 armin = { workspace = true }
-ymir = { workspace = true }
+auth-engine = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-database = { workspace = true }
 daemon-storage = { workspace = true }

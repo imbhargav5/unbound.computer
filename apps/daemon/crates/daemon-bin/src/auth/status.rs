@@ -2,7 +2,7 @@
 
 use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use ymir::AuthSnapshot;
+use auth_engine::AuthSnapshot;
 
 fn auth_status_payload(snapshot: &AuthSnapshot) -> serde_json::Value {
     // Keep compatibility aliases (`logged_in`, `authenticated`) pinned to
@@ -40,7 +40,7 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
 #[cfg(test)]
 mod tests {
     use super::auth_status_payload;
-    use ymir::{AuthSnapshot, AuthState};
+    use auth_engine::{AuthSnapshot, AuthState};
 
     #[test]
     fn auth_status_payload_includes_new_contract_fields() {

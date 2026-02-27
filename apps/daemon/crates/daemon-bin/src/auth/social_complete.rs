@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::auth::common::apply_login_side_effects;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use std::time::Duration;
-use ymir::AuthError;
+use auth_engine::AuthError;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 180;
 const MAX_TIMEOUT_SECS: u64 = 600;

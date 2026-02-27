@@ -15,7 +15,7 @@ use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
-use ymir::DaemonAuthRuntime;
+use auth_engine::DaemonAuthRuntime;
 
 const CACHE_REFRESH_MARGIN_MS: i64 = 120_000;
 const MAX_REQUEST_BYTES: usize = 16 * 1024;

@@ -1,5 +1,5 @@
 [package]
-name = "yamcha"
+name = "session-title-generator"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

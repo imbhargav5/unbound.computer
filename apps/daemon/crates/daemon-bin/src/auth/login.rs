@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::auth::common::apply_login_side_effects;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use tracing::info;
-use ymir::AuthError;
+use auth_engine::AuthError;
 
 /// Register the auth login handler.
 pub async fn register(server: &IpcServer, state: DaemonState) {

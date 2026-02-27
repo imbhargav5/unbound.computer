@@ -293,6 +293,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "auth-engine"
+version = "0.0.18"
+dependencies = [
+ "base64",
+ "chrono",
+ "daemon-config-and-utils",
+ "daemon-storage",
+ "reqwest",
+ "rust-fsm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tien",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -629,7 +649,7 @@ dependencies = [
 name = "daemon-auth"
 version = "0.0.18"
 dependencies = [
- "ymir",
+ "auth-engine",
 ]
 
 [[package]]
@@ -637,6 +657,7 @@ name = "daemon-bin"
 version = "0.0.18"
 dependencies = [
  "armin",
+ "auth-engine",
  "bakugou",
  "base64",
  "chrono",
@@ -655,6 +676,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rusqlite",
+ "safe-repo-dir-lister",
  "sakura-working-dir-resolution",
  "serde",
  "serde_json",
@@ -665,8 +687,6 @@ dependencies = [
  "tracing",
  "urlencoding",
  "uuid",
- "yagami",
- "ymir",
 ]
 
 [[package]]
@@ -1670,6 +1690,7 @@ name = "levi"
 version = "0.0.18"
 dependencies = [
  "armin",
+ "auth-engine",
  "base64",
  "chrono",
  "daemon-config-and-utils",
@@ -1678,7 +1699,6 @@ dependencies = [
  "tokio",
  "toshinori",
  "tracing",
- "ymir",
 ]
 
 [[package]]
@@ -2841,6 +2861,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "safe-repo-dir-lister"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "sakura-working-dir-resolution"
 version = "0.0.18"
 dependencies = [
@@ -3092,6 +3120,18 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "session-title-generator"
+version = "0.0.18"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4412,46 +4452,6 @@ checksum = "ec1cdab258fb55c0da61328dc52c8764709b249011b2cad0454c72f0bf10a1f6"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "yagami"
-version = "0.1.0"
-dependencies = [
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "yamcha"
-version = "0.0.18"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "ymir"
-version = "0.0.18"
-dependencies = [
- "base64",
- "chrono",
- "daemon-config-and-utils",
- "daemon-storage",
- "reqwest",
- "rust-fsm",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tien",
- "tokio",
- "tracing",
- "url",
- "uuid",
 ]
 
 [[package]]

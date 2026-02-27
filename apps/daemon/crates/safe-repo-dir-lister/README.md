@@ -1,10 +1,6 @@
----
-title: "Yagami"
----
+# Safe Repo Dir Lister
 
-# Yagami
-
-Yagami is a small, safety-focused directory listing helper used by the Unbound daemon.
+Safe Repo Dir Lister is a small, safety-focused directory listing helper used by the Unbound daemon.
 It enumerates repository files for UI trees while preventing path traversal and skipping
 heavy or hidden directories by default.
 
@@ -22,7 +18,7 @@ heavy or hidden directories by default.
 ## Usage
 ```rust
 use std::path::Path;
-use yagami::{list_dir, ListOptions};
+use safe_repo_dir_lister::{list_dir, ListOptions};
 
 let root = Path::new("/path/to/repo");
 let entries = list_dir(root, "src", ListOptions::default())?;
@@ -32,7 +28,7 @@ for entry in entries {
 ```
 
 ## Default skips
-Yagami skips hidden files (names starting with `.`) and the following directories by default:
+Safe Repo Dir Lister skips hidden files (names starting with `.`) and the following directories by default:
 `node_modules`, `.git`, `.unbound-worktrees`, `dist`, `build`, `.next`, `target`,
 `DerivedData`, `Pods`, `vendor`.
 

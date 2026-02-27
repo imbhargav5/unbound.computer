@@ -1,7 +1,7 @@
 # daemon-auth (compat shim)
 
-This crate is a backward-compatible re-export of `ymir`.
-New code should depend on `ymir` directly.
+This crate is a backward-compatible re-export of `auth-engine`.
+New code should depend on `auth-engine` directly.
 
 Authentication and session management for the daemon.
 

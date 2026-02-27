@@ -11,7 +11,7 @@ use gyomei::{FileRevision, GyomeiError};
 use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use std::path::Path;
 use tokio::task;
-use yagami::{ListOptions, YagamiError};
+use safe_repo_dir_lister::{ListOptions, SafeRepoDirListerError};
 
 /// Register repository handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -485,11 +485,11 @@ async fn register_repository_list_files(server: &IpcServer, state: DaemonState) 
                     ..Default::default()
                 };
 
-                let entries = match yagami::list_dir(Path::new(&root_path), relative_path, options)
+                let entries = match safe_repo_dir_lister::list_dir(Path::new(&root_path), relative_path, options)
                 {
                     Ok(entries) => entries,
                     Err(err) => {
-                        let (code, message) = map_yagami_error(err);
+                        let (code, message) = map_safe_repo_dir_lister_error(err);
                         return Response::error(&req.id, code, &message);
                     }
                 };
@@ -1110,14 +1110,14 @@ fn map_gyomei_error(id: &str, err: GyomeiError) -> Response {
     }
 }
 
-fn map_yagami_error(err: YagamiError) -> (i32, String) {
+fn map_safe_repo_dir_lister_error(err: SafeRepoDirListerError) -> (i32, String) {
     match err {
-        YagamiError::InvalidRoot => (error_codes::NOT_FOUND, err.to_string()),
-        YagamiError::InvalidRelativePath | YagamiError::PathTraversal => {
+        SafeRepoDirListerError::InvalidRoot => (error_codes::NOT_FOUND, err.to_string()),
+        SafeRepoDirListerError::InvalidRelativePath | SafeRepoDirListerError::PathTraversal => {
             (error_codes::INVALID_PARAMS, err.to_string())
         }
-        YagamiError::NotADirectory => (error_codes::INVALID_PARAMS, err.to_string()),
-        YagamiError::Io(_) => (error_codes::INTERNAL_ERROR, err.to_string()),
+        SafeRepoDirListerError::NotADirectory => (error_codes::INVALID_PARAMS, err.to_string()),
+        SafeRepoDirListerError::Io(_) => (error_codes::INTERNAL_ERROR, err.to_string()),
     }
 }
 

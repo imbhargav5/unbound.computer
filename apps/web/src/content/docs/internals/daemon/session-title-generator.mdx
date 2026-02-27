@@ -1,8 +1,8 @@
 ---
-title: "yamcha"
+title: "session-title-generator"
 ---
 
-# yamcha
+# session-title-generator
 
 Session title generation using Groq's Llama 3.1 8B Instant model.
 
@@ -19,7 +19,7 @@ Generates concise, descriptive session titles based on the first user message in
 ## Usage
 
 ```rust
-use yamcha::SessionTitleGenerator;
+use session_title_generator::SessionTitleGenerator;
 
 // Create generator (requires GROQ_API_KEY env var)
 let generator = SessionTitleGenerator::from_env()?;
@@ -37,7 +37,7 @@ let title = generator.generate_title(
 For non-blocking title generation:
 
 ```rust
-use yamcha::spawn_title_generation_from_env;
+use session_title_generator::spawn_title_generation_from_env;
 
 let handle = spawn_title_generation_from_env(
     "session-123".to_string(),
@@ -56,7 +56,7 @@ Uses Groq's `llama-3.1-8b-instant` model with 128k context for fast inference.
 
 ## Error Handling
 
-The crate returns `YamchaError` for various failure cases:
+The crate returns `SessionTitleGeneratorError` for various failure cases:
 
 - `MissingApiKey` - `GROQ_API_KEY` environment variable not set
 - `ApiError` - Groq API returned an error response

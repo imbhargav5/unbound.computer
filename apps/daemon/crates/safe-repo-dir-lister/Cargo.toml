@@ -1,5 +1,5 @@
 [package]
-name = "yagami"
+name = "safe-repo-dir-lister"
 version = "0.1.0"
 edition = "2021"
 description = "Directory listing utilities for daemon file tree loading"

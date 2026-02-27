@@ -102,16 +102,16 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Domain | Methods | Backing Crate |
 |--------|---------|---------------|
 | Health | `health`, `shutdown`, `outbox.status` | - |
-| Auth | `auth.login`, `auth.complete_social`, `auth.status`, `auth.logout` | ymir |
+| Auth | `auth.login`, `auth.complete_social`, `auth.status`, `auth.logout` | auth-engine |
 | Sessions | `session.list`, `session.create`, `session.get`, `session.delete` | armin |
 | Messages | `message.list`, `message.send` | armin |
 | Repos | `repository.list`, `repository.add`, `repository.remove` | armin |
-| Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | gyomei, yagami |
+| Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | gyomei, safe-repo-dir-lister |
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
 | Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | git-ops |
 | GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | bakugou |
-| System | `system.check_dependencies`, `system.refresh_capabilities` | tien, ymir |
+| System | `system.check_dependencies`, `system.refresh_capabilities` | tien, auth-engine |
 | Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
 
 ## Side-Effect Bridge
@@ -238,7 +238,7 @@ This crate depends on nearly every other workspace crate:
 - **daemon-ipc** - Unix socket server and protocol
 - **daemon-database** - Async SQLite persistence
 - **daemon-storage** - Platform keychain
-- **ymir** - OAuth flow and token/session management
+- **auth-engine** - OAuth flow and token/session management
 - **toshinori** - Supabase sync sink
 - **levi** - Message sync worker
 - **daemon-ably** (runtime process) - Shared Ably transport + heartbeat publisher
@@ -247,7 +247,7 @@ This crate depends on nearly every other workspace crate:
 - **deku** - Claude CLI process manager
 - **git-ops** - Native git operations (libgit2)
 - **gyomei** - Rope-backed file I/O
-- **yagami** - Directory listing
+- **safe-repo-dir-lister** - Directory listing
 - **eren-machines** - Process registry and event bridge
 - **historia-lifecycle** - PID/singleton management
 - **rengoku-sessions** - Session orchestration

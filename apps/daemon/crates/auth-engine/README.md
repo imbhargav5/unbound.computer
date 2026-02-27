@@ -1,4 +1,4 @@
-# ymir
+# auth-engine
 
 Authentication and session management for the daemon.
 

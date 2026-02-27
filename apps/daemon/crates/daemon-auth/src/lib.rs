@@ -1,5 +1,5 @@
 //! Backward-compatible shim for the renamed auth crate.
 //!
-//! New code should depend on `ymir` directly.
+//! New code should depend on `auth-engine` directly.
 
-pub use ymir::*;
+pub use auth_engine::*;

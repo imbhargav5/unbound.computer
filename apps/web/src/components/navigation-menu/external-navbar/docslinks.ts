@@ -45,9 +45,9 @@ export const navigation = [
       { title: "Bakugou", href: "/docs/internals/daemon/bakugou" },
       { title: "Levi", href: "/docs/internals/daemon/levi" },
       { title: "Toshinori", href: "/docs/internals/daemon/toshinori" },
-      { title: "Yamcha", href: "/docs/internals/daemon/yamcha" },
-      { title: "Yagami", href: "/docs/internals/daemon/yagami" },
-      { title: "Ymir", href: "/docs/internals/daemon/ymir" },
+      { title: "Session Title Generator", href: "/docs/internals/daemon/session-title-generator" },
+      { title: "Safe Repo Dir Lister", href: "/docs/internals/daemon/safe-repo-dir-lister" },
+      { title: "Auth Engine", href: "/docs/internals/daemon/auth-engine" },
       { title: "Gyomei", href: "/docs/internals/daemon/gyomei" },
       {
         title: "Rengoku Sessions",

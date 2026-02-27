@@ -1,10 +1,10 @@
-//! Error types for the yamcha session title generator.
+//! Error types for the session-title-generator session title generator.
 
 use thiserror::Error;
 
 /// Errors that can occur during session title generation.
 #[derive(Error, Debug)]
-pub enum YamchaError {
+pub enum SessionTitleGeneratorError {
     /// HTTP request failed
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
@@ -26,5 +26,5 @@ pub enum YamchaError {
     InvalidResponse(String),
 }
 
-/// Result type alias using YamchaError.
-pub type YamchaResult<T> = Result<T, YamchaError>;
+/// Result type alias using SessionTitleGeneratorError.
+pub type SessionTitleGeneratorResult<T> = Result<T, SessionTitleGeneratorError>;

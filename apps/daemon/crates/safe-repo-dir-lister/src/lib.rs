@@ -1,4 +1,4 @@
-//! Yagami: Safe directory listing utility for file tree exploration.
+//! Safe Repo Dir Lister: Safe directory listing utility for file tree exploration.
 //!
 //! Provides secure directory enumeration with path traversal protection
 //! and configurable filtering for hidden files and heavy directories.
@@ -53,7 +53,7 @@ pub struct FileEntry {
 /// Covers security violations (path traversal), invalid inputs,
 /// and underlying filesystem errors.
 #[derive(thiserror::Error, Debug)]
-pub enum YagamiError {
+pub enum SafeRepoDirListerError {
     /// The root path does not exist or cannot be canonicalized.
     #[error("root path does not exist or is invalid")]
     InvalidRoot,
@@ -88,14 +88,14 @@ pub fn list_dir(
     root: &Path,
     relative_path: &str,
     options: ListOptions,
-) -> Result<Vec<FileEntry>, YagamiError> {
+) -> Result<Vec<FileEntry>, SafeRepoDirListerError> {
     // Reject absolute paths in the relative path argument to prevent confusion
     if Path::new(relative_path).is_absolute() {
-        return Err(YagamiError::InvalidRelativePath);
+        return Err(SafeRepoDirListerError::InvalidRelativePath);
     }
 
     // Canonicalize root to resolve symlinks and get an absolute path
-    let root_canon = root.canonicalize().map_err(|_| YagamiError::InvalidRoot)?;
+    let root_canon = root.canonicalize().map_err(|_| SafeRepoDirListerError::InvalidRoot)?;
 
     // Build the target path by joining root with the relative path
     let target_path = if relative_path.is_empty() {
@@ -107,17 +107,17 @@ pub fn list_dir(
     // Canonicalize to resolve any .. or symlinks in the target path
     let target_canon = target_path
         .canonicalize()
-        .map_err(|_| YagamiError::InvalidRelativePath)?;
+        .map_err(|_| SafeRepoDirListerError::InvalidRelativePath)?;
 
     // Security check: ensure the resolved path is still within root
     if !target_canon.starts_with(&root_canon) {
-        return Err(YagamiError::PathTraversal);
+        return Err(SafeRepoDirListerError::PathTraversal);
     }
 
     // Verify the target is actually a directory
     let metadata = fs::metadata(&target_canon)?;
     if !metadata.is_dir() {
-        return Err(YagamiError::NotADirectory);
+        return Err(SafeRepoDirListerError::NotADirectory);
     }
 
     // Enumerate directory contents with filtering
@@ -141,7 +141,7 @@ pub fn list_dir(
         let entry_path = entry.path();
         let relative = entry_path
             .strip_prefix(&root_canon)
-            .map_err(|_| YagamiError::PathTraversal)?
+            .map_err(|_| SafeRepoDirListerError::PathTraversal)?
             .to_path_buf();
 
         let rel_str = path_to_string(&relative);
@@ -288,7 +288,7 @@ mod tests {
         let err = list_dir(root, "../", ListOptions::default()).unwrap_err();
         assert!(matches!(
             err,
-            YagamiError::PathTraversal | YagamiError::InvalidRelativePath
+            SafeRepoDirListerError::PathTraversal | SafeRepoDirListerError::InvalidRelativePath
         ));
     }
 }

@@ -3,7 +3,7 @@
 //! This module provides a client for calling Groq's Llama 3.1 8B Instant model
 //! to generate concise session titles based on the first user message.
 
-use crate::error::{YamchaError, YamchaResult};
+use crate::error::{SessionTitleGeneratorError, SessionTitleGeneratorResult};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -68,9 +68,9 @@ impl GroqClient {
     /// Create a new Groq client from the GROQ_API_KEY environment variable.
     ///
     /// # Errors
-    /// Returns `YamchaError::MissingApiKey` if the environment variable is not set.
-    pub fn from_env() -> YamchaResult<Self> {
-        let api_key = std::env::var("GROQ_API_KEY").map_err(|_| YamchaError::MissingApiKey)?;
+    /// Returns `SessionTitleGeneratorError::MissingApiKey` if the environment variable is not set.
+    pub fn from_env() -> SessionTitleGeneratorResult<Self> {
+        let api_key = std::env::var("GROQ_API_KEY").map_err(|_| SessionTitleGeneratorError::MissingApiKey)?;
         Ok(Self::new(api_key))
     }
 
@@ -84,7 +84,7 @@ impl GroqClient {
     ///
     /// # Returns
     /// A short title (typically 3-8 words) describing the session topic.
-    pub async fn generate_session_title(&self, first_message: &str) -> YamchaResult<String> {
+    pub async fn generate_session_title(&self, first_message: &str) -> SessionTitleGeneratorResult<String> {
         let system_prompt = include_str!("system_prompt.txt");
 
         let request = ChatCompletionRequest {
@@ -119,7 +119,7 @@ impl GroqClient {
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
             tracing::error!(status, body_summary = %body_summary, "Groq API error");
-            return Err(YamchaError::ApiError {
+            return Err(SessionTitleGeneratorError::ApiError {
                 status,
                 message: format!("upstream error ({body_summary})"),
             });
@@ -131,7 +131,7 @@ impl GroqClient {
             .choices
             .first()
             .map(|c| c.message.content.trim().to_string())
-            .ok_or_else(|| YamchaError::InvalidResponse("No choices in response".to_string()))?;
+            .ok_or_else(|| SessionTitleGeneratorError::InvalidResponse("No choices in response".to_string()))?;
 
         tracing::info!(title = %title, "Generated session title");
 
@@ -174,7 +174,7 @@ mod tests {
 
         let result = GroqClient::from_env();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), YamchaError::MissingApiKey));
+        assert!(matches!(result.unwrap_err(), SessionTitleGeneratorError::MissingApiKey));
 
         // Restore the original value if it existed
         if let Some(key) = original {

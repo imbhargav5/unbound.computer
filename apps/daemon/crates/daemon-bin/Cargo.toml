@@ -18,12 +18,12 @@ daemon-database = { workspace = true }
 git-ops = { workspace = true }
 tien = { workspace = true }
 bakugou = { workspace = true }
-ymir = { workspace = true }
+auth-engine = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }
 levi = { workspace = true }
 deku = { workspace = true }
-yagami = { workspace = true }
+safe-repo-dir-lister = { workspace = true }
 gyomei = { workspace = true }
 sakura-working-dir-resolution = { workspace = true }
 rusqlite = { workspace = true }

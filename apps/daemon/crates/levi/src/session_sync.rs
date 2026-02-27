@@ -53,7 +53,7 @@ use daemon_storage::SecretsManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
-use ymir::{CodingSessionSecretRecord, SupabaseClient};
+use auth_engine::{CodingSessionSecretRecord, SupabaseClient};
 
 /// Base64 encoding engine for keys and encrypted data.
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
@@ -798,7 +798,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_fails_without_session() {
-        let supabase_client = Arc::new(ymir::SupabaseClient::new(
+        let supabase_client = Arc::new(auth_engine::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_fails_without_device_id() {
-        let supabase_client = Arc::new(ymir::SupabaseClient::new(
+        let supabase_client = Arc::new(auth_engine::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn get_auth_context_succeeds_with_valid_state() {
-        let supabase_client = Arc::new(ymir::SupabaseClient::new(
+        let supabase_client = Arc::new(auth_engine::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));
@@ -927,7 +927,7 @@ mod tests {
 
     #[test]
     fn distribute_secret_fails_without_device_private_key() {
-        let supabase_client = Arc::new(ymir::SupabaseClient::new(
+        let supabase_client = Arc::new(auth_engine::SupabaseClient::new(
             "http://localhost:54321",
             "test-key",
         ));

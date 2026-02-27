@@ -6,4 +6,4 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-ymir = { workspace = true }
+auth-engine = { workspace = true }

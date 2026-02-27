@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use tracing::{debug, info, warn};
-use ymir::AuthLoginResult;
+use auth_engine::AuthLoginResult;
 
 const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
 
