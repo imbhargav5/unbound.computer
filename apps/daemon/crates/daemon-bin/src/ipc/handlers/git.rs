@@ -2,9 +2,9 @@
 
 use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use piccolo::{
+use git_ops::{
     commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
-    unstage_files, PiccoloError,
+    unstage_files, GitOpsError,
 };
 use sakura_working_dir_resolution::{
     resolve_repository_path, resolve_working_dir_from_str, ResolveError,
@@ -73,7 +73,7 @@ pub async fn git_commit_core(
         author_name,
         author_email,
     )
-    .map_err(map_piccolo_error)?;
+    .map_err(map_git_ops_error)?;
 
     Ok(serde_json::json!({
         "oid": result.oid,
@@ -101,7 +101,7 @@ pub async fn git_push_core(
         .filter(|v| !v.is_empty());
 
     let result =
-        push(std::path::Path::new(&repo_path), remote, branch).map_err(map_piccolo_error)?;
+        push(std::path::Path::new(&repo_path), remote, branch).map_err(map_git_ops_error)?;
 
     Ok(serde_json::json!({
         "remote": result.remote,
@@ -554,7 +554,7 @@ fn map_resolve_error_core(err: ResolveError) -> GitCoreError {
     }
 }
 
-fn map_piccolo_error(err: PiccoloError) -> GitCoreError {
+fn map_git_ops_error(err: GitOpsError) -> GitCoreError {
     GitCoreError {
         code: "command_failed".to_string(),
         message: err.to_string(),

@@ -1,6 +1,6 @@
-//! # Piccolo: Native Git Operations
+//! # Git Ops: Native Git Operations
 //!
-//! Piccolo provides native git integration for the Unbound daemon using libgit2.
+//! Git Ops provides native git integration for the Unbound daemon using libgit2.
 //! It encapsulates all git operations required for repository status, diffs,
 //! commit history, branch management, and worktree operations.
 //!
@@ -30,13 +30,13 @@
 //! ┌─────────────────────────────────────────────────────────────────┐
 //! │                           Daemon                                 │
 //! │                                                                  │
-//! │  IPC Handler ──► piccolo::get_status() ──► GitStatusResult      │
+//! │  IPC Handler ──► git_ops::get_status() ──► GitStatusResult      │
 //! │                                                                  │
-//! │  IPC Handler ──► piccolo::get_file_diff() ──► GitDiffResult     │
+//! │  IPC Handler ──► git_ops::get_file_diff() ──► GitDiffResult     │
 //! │                                                                  │
-//! │  IPC Handler ──► piccolo::get_log() ──► GitLogResult            │
+//! │  IPC Handler ──► git_ops::get_log() ──► GitLogResult            │
 //! │                                                                  │
-//! │  IPC Handler ──► piccolo::stage_files() ──► ()                  │
+//! │  IPC Handler ──► git_ops::stage_files() ──► ()                  │
 //! │                                                                  │
 //! └─────────────────────────────────────────────────────────────────┘
 //!                               │
@@ -51,7 +51,7 @@
 //! ## Example Usage
 //!
 //! ```ignore
-//! use piccolo::{get_status, get_file_diff, stage_files};
+//! use git_ops::{get_status, get_file_diff, stage_files};
 //! use std::path::Path;
 //!
 //! let repo_path = Path::new("/path/to/repo");
@@ -88,10 +88,10 @@
 //!
 //! ## Worktree Management
 //!
-//! Piccolo supports creating linked worktrees for parallel development:
+//! Git Ops supports creating linked worktrees for parallel development:
 //!
 //! ```ignore
-//! use piccolo::{create_worktree, create_worktree_with_options, remove_worktree};
+//! use git_ops::{create_worktree, create_worktree_with_options, remove_worktree};
 //! use std::path::Path;
 //!
 //! let repo_path = Path::new("/path/to/repo");
@@ -120,7 +120,7 @@ mod error;
 mod operations;
 mod types;
 
-pub use error::PiccoloError;
+pub use error::GitOpsError;
 pub use operations::{
     commit, create_worktree, create_worktree_with_options, discard_changes, get_branches,
     get_file_diff, get_log, get_status, push, remove_worktree, stage_files, unstage_files,

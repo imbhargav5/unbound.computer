@@ -65,7 +65,7 @@ match delete_session(&armin, &session_id)? {
         // Session was deleted - use returned data for cleanup
         if let Some(worktree_path) = &session.worktree_path {
             // Caller handles filesystem worktree removal
-            piccolo::remove_worktree(repo_path, Path::new(worktree_path))?;
+            git_ops::remove_worktree(repo_path, Path::new(worktree_path))?;
         }
     }
     None => {

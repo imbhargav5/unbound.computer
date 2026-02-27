@@ -41,7 +41,7 @@ export const navigation = [
       },
       { title: "Armin", href: "/docs/internals/daemon/armin" },
       { title: "Deku", href: "/docs/internals/daemon/deku" },
-      { title: "Piccolo", href: "/docs/internals/daemon/piccolo" },
+      { title: "Git Ops", href: "/docs/internals/daemon/git-ops" },
       { title: "Bakugou", href: "/docs/internals/daemon/bakugou" },
       { title: "Levi", href: "/docs/internals/daemon/levi" },
       { title: "Toshinori", href: "/docs/internals/daemon/toshinori" },

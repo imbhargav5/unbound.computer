@@ -22,8 +22,8 @@ chacha20poly1305 = { workspace = true }
 rand = { workspace = true }
 base64 = { workspace = true }
 
-# Git operations (re-exported from piccolo)
-piccolo = { workspace = true }
+# Git operations (re-exported from git-ops)
+git-ops = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

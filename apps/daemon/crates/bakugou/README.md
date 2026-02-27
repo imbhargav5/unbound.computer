@@ -2,7 +2,7 @@
 
 Bakugou is the daemon-side **GitHub CLI orchestration crate** for pull request workflows.
 
-It provides typed operations for `gh` command execution while keeping `piccolo` focused on Git/libgit2 operations.
+It provides typed operations for `gh` command execution while keeping `git-ops` focused on Git/libgit2 operations.
 
 ## Purpose and Boundaries
 
@@ -14,12 +14,12 @@ It provides typed operations for `gh` command execution while keeping `piccolo` 
 - command output parsing and normalization
 - stable machine-readable error taxonomy
 
-### Piccolo owns
+### Git Ops owns
 
 - local Git operations via libgit2
 - staging/unstaging, diffs, commit logs, commit/push primitives
 
-Bakugou does **not** replace Piccolo. It complements it for GitHub PR lifecycle actions.
+Bakugou does **not** replace Git Ops. It complements it for GitHub PR lifecycle actions.
 
 ## Architecture
 

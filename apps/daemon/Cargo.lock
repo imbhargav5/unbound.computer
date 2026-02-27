@@ -647,11 +647,11 @@ dependencies = [
  "daemon-ipc",
  "daemon-storage",
  "deku",
+ "git-ops",
  "gyomei",
  "hostname",
  "levi",
  "libc",
- "piccolo",
  "regex",
  "reqwest",
  "rusqlite",
@@ -676,9 +676,9 @@ dependencies = [
  "base64",
  "chacha20poly1305",
  "dirs",
+ "git-ops",
  "hkdf",
  "observability",
- "piccolo",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -1156,6 +1156,18 @@ name = "gimli"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
+
+[[package]]
+name = "git-ops"
+version = "0.0.18"
+dependencies = [
+ "git2",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+]
 
 [[package]]
 name = "git2"
@@ -2302,18 +2314,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "piccolo"
-version = "0.0.18"
-dependencies = [
- "git2",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tracing",
-]
 
 [[package]]
 name = "pin-project-lite"

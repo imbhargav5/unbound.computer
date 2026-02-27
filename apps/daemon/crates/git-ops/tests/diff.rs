@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::get_file_diff;
+use git_ops::get_file_diff;
 use std::path::Path;
 
 #[test]

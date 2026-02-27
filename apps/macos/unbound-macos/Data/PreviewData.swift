@@ -42,8 +42,8 @@ enum PreviewData {
         ),
         Repository(
             id: repoId2,
-            path: "/Users/dev/Code/piccolo",
-            name: "piccolo",
+            path: "/Users/dev/Code/git-ops",
+            name: "git-ops",
             lastAccessed: Date().addingTimeInterval(-3600),
             addedAt: Date().addingTimeInterval(-86400 * 60),
             isGitRepository: true,
@@ -181,7 +181,7 @@ enum PreviewData {
             GitCommit(
                 oid: "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
                 shortOid: "e5f6a1b",
-                message: "feat: implement git push via libgit2\n\nAdd push support to piccolo crate using libgit2 remote callbacks.\nSupports SSH and HTTPS authentication.",
+                message: "feat: implement git push via libgit2\n\nAdd push support to git-ops crate using libgit2 remote callbacks.\nSupports SSH and HTTPS authentication.",
                 summary: "feat: implement git push via libgit2",
                 authorName: "Bhargav Ponnapalli",
                 authorEmail: "bhargav@unbound.computer",
@@ -309,7 +309,7 @@ enum PreviewData {
         GitStatusFile(path: "apps/macos/unbound-macos/Views/Workspace/ChatPanel.swift", status: .modified, staged: true, additions: 45, deletions: 12),
         GitStatusFile(path: "apps/macos/unbound-macos/ViewModels/GitViewModel.swift", status: .modified, staged: true, additions: 23, deletions: 8),
         GitStatusFile(path: "apps/macos/unbound-macos/Services/Relay/RelayClient.swift", status: .added, staged: true, additions: 156, deletions: 0),
-        GitStatusFile(path: "apps/daemon/crates/piccolo/src/operations.rs", status: .modified, staged: false, additions: 34, deletions: 19),
+        GitStatusFile(path: "apps/daemon/crates/git-ops/src/operations.rs", status: .modified, staged: false, additions: 34, deletions: 19),
         GitStatusFile(path: "apps/daemon/crates/daemon-bin/src/ipc/handlers/git.rs", status: .modified, staged: false, additions: 12, deletions: 4),
         GitStatusFile(path: "apps/macos/unbound-macos/Models/RelayModels.swift", status: .added, staged: false, additions: 89, deletions: 0),
         GitStatusFile(path: "apps/macos/unbound-macos/Components/ToolViews/NewToolView.swift", status: .untracked, staged: false),
@@ -496,7 +496,7 @@ enum PreviewData {
             childTools: [
                 ActiveTool(id: "agent_tool_01", name: "Grep", inputPreview: "WebSocket.*connect", status: .completed),
                 ActiveTool(id: "agent_tool_02", name: "Read", inputPreview: "DaemonClient.swift", status: .completed),
-                ActiveTool(id: "agent_tool_03", name: "Bash", inputPreview: "cargo test -p piccolo", status: .running),
+                ActiveTool(id: "agent_tool_03", name: "Bash", inputPreview: "cargo test -p git-ops", status: .running),
             ],
             status: .running
         ),

@@ -7,7 +7,7 @@ use crate::utils::repository_config::{
 use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
-use piccolo::{create_worktree_with_options, remove_worktree};
+use git_ops::{create_worktree_with_options, remove_worktree};
 use std::path::Path;
 use std::process::Stdio;
 use tokio::io::AsyncReadExt;

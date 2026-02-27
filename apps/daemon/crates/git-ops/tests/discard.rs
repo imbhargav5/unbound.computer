@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::{discard_changes, get_status};
+use git_ops::{discard_changes, get_status};
 use std::fs;
 use std::path::Path;
 

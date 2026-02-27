@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::{create_worktree, create_worktree_with_options, get_branches, remove_worktree};
+use git_ops::{create_worktree, create_worktree_with_options, get_branches, remove_worktree};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};

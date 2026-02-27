@@ -16,7 +16,7 @@ members = [
     "crates/deku",
     "crates/yagami",
     "crates/yamcha",
-    "crates/piccolo",
+    "crates/git-ops",
     "crates/gyomei",
     "crates/one-for-all-protocol",
     "crates/sakura-working-dir-resolution",
@@ -102,7 +102,7 @@ levi = { path = "crates/levi" }
 deku = { path = "crates/deku" }
 yagami = { path = "crates/yagami" }
 yamcha = { path = "crates/yamcha" }
-piccolo = { path = "crates/piccolo" }
+git-ops = { path = "crates/git-ops" }
 gyomei = { path = "crates/gyomei" }
 one-for-all-protocol = { path = "crates/one-for-all-protocol" }
 sakura-working-dir-resolution = { path = "crates/sakura-working-dir-resolution" }

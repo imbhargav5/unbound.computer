@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::get_branches;
+use git_ops::get_branches;
 use std::path::Path;
 
 #[test]

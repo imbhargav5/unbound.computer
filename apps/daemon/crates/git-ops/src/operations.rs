@@ -6,7 +6,7 @@
 use git2::{BranchType, DiffOptions, Repository, Sort, StatusOptions};
 use std::path::{Path, PathBuf};
 
-use crate::error::PiccoloError;
+use crate::error::GitOpsError;
 use crate::types::{
     GitBranch, GitBranchesResult, GitCommit, GitCommitResult, GitDiffResult, GitFileStatus,
     GitLogResult, GitPushResult, GitStatusFile, GitStatusResult,
@@ -737,20 +737,20 @@ pub fn commit(
     message: &str,
     author_name: Option<&str>,
     author_email: Option<&str>,
-) -> Result<GitCommitResult, PiccoloError> {
+) -> Result<GitCommitResult, GitOpsError> {
     let repo = Repository::open(repo_path)?;
 
     let mut index = repo
         .index()
-        .map_err(|e| PiccoloError::IndexAccess(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::IndexAccess(e.message().to_string()))?;
 
     // Write the index as a tree
     let tree_oid = index
         .write_tree()
-        .map_err(|e| PiccoloError::IndexAccess(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::IndexAccess(e.message().to_string()))?;
     let tree = repo
         .find_tree(tree_oid)
-        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::CommitCreation(e.message().to_string()))?;
 
     // Check if there are actually staged changes by comparing tree to HEAD
     let head_tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
@@ -758,33 +758,33 @@ pub fn commit(
     if let Some(ref ht) = head_tree {
         let diff = repo
             .diff_tree_to_tree(Some(ht), Some(&tree), None)
-            .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+            .map_err(|e| GitOpsError::CommitCreation(e.message().to_string()))?;
         if diff.deltas().count() == 0 {
-            return Err(PiccoloError::NothingToCommit);
+            return Err(GitOpsError::NothingToCommit);
         }
     }
 
     // Get author info from params or git config
     let config = repo
         .config()
-        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::CommitCreation(e.message().to_string()))?;
 
     let name = match author_name {
         Some(n) => n.to_string(),
         None => config
             .get_string("user.name")
-            .map_err(|_| PiccoloError::CommitCreation("user.name not configured".to_string()))?,
+            .map_err(|_| GitOpsError::CommitCreation("user.name not configured".to_string()))?,
     };
 
     let email = match author_email {
         Some(e) => e.to_string(),
         None => config
             .get_string("user.email")
-            .map_err(|_| PiccoloError::CommitCreation("user.email not configured".to_string()))?,
+            .map_err(|_| GitOpsError::CommitCreation("user.email not configured".to_string()))?,
     };
 
     let signature = git2::Signature::now(&name, &email)
-        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::CommitCreation(e.message().to_string()))?;
 
     // Get parent commit (if any)
     let parent_commit = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
@@ -799,7 +799,7 @@ pub fn commit(
             &tree,
             &parents,
         )
-        .map_err(|e| PiccoloError::CommitCreation(e.message().to_string()))?;
+        .map_err(|e| GitOpsError::CommitCreation(e.message().to_string()))?;
 
     let oid_str = commit_oid.to_string();
     let short_oid = oid_str[..7.min(oid_str.len())].to_string();
@@ -839,7 +839,7 @@ pub fn push(
     repo_path: &Path,
     remote: Option<&str>,
     branch: Option<&str>,
-) -> Result<GitPushResult, PiccoloError> {
+) -> Result<GitPushResult, GitOpsError> {
     // Validate repo exists and get defaults
     let repo = Repository::open(repo_path)?;
 
@@ -858,7 +858,7 @@ pub fn push(
                 }
             })
             .ok_or_else(|| {
-                PiccoloError::PushFailed("No branch currently checked out".to_string())
+                GitOpsError::PushFailed("No branch currently checked out".to_string())
             })?,
     };
 
@@ -869,7 +869,7 @@ pub fn push(
         .args(["push", &remote_name, &branch_name])
         .current_dir(repo_path)
         .output()
-        .map_err(|e| PiccoloError::PushFailed(format!("Failed to execute git push: {}", e)))?;
+        .map_err(|e| GitOpsError::PushFailed(format!("Failed to execute git push: {}", e)))?;
 
     if output.status.success() {
         return Ok(GitPushResult {
@@ -889,13 +889,13 @@ pub fn push(
         || stderr_lower.contains("403")
         || stderr_lower.contains("401")
     {
-        return Err(PiccoloError::AuthRequired(remote_name));
+        return Err(GitOpsError::AuthRequired(remote_name));
     }
 
     if stderr_lower.contains("does not appear to be a git repository")
         || stderr_lower.contains("repository not found")
     {
-        return Err(PiccoloError::RemoteNotFound(remote_name));
+        return Err(GitOpsError::RemoteNotFound(remote_name));
     }
 
     if stderr_lower.contains("everything up-to-date") {
@@ -906,7 +906,7 @@ pub fn push(
         });
     }
 
-    Err(PiccoloError::PushFailed(stderr))
+    Err(GitOpsError::PushFailed(stderr))
 }
 
 const DEFAULT_WORKTREE_ROOT_DIR_TEMPLATE: &str = "~/.unbound/{repo_id}/worktrees";

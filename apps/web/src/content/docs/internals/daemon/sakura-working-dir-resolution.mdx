@@ -61,7 +61,7 @@ println!("Is worktree: {}", resolved.is_worktree);
 println!("Repo: {}", resolved.repository.path);
 
 // Use the working dir for operations
-piccolo::get_status(Path::new(&resolved.working_dir))?;
+git_ops::get_status(Path::new(&resolved.working_dir))?;
 ```
 
 ### Convenience: From String ID

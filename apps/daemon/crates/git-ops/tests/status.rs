@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::{get_status, GitFileStatus};
+use git_ops::{get_status, GitFileStatus};
 use std::fs;
 use std::path::Path;
 

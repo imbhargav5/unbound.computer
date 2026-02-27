@@ -15,7 +15,7 @@ claude-debug-logs = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
-piccolo = { workspace = true }
+git-ops = { workspace = true }
 tien = { workspace = true }
 bakugou = { workspace = true }
 ymir = { workspace = true }

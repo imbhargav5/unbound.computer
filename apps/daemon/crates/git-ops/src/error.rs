@@ -1,10 +1,10 @@
-//! Error types for Piccolo git operations.
+//! Error types for git-ops operations.
 
 use thiserror::Error;
 
 /// Errors that can occur during git operations.
 #[derive(Debug, Error)]
-pub enum PiccoloError {
+pub enum GitOpsError {
     /// Failed to open the repository.
     #[error("Failed to open repository: {0}")]
     RepositoryOpen(String),
@@ -102,21 +102,21 @@ pub enum PiccoloError {
     Filesystem(String),
 }
 
-impl From<git2::Error> for PiccoloError {
+impl From<git2::Error> for GitOpsError {
     fn from(err: git2::Error) -> Self {
         match err.class() {
-            git2::ErrorClass::Repository => PiccoloError::RepositoryOpen(err.message().to_string()),
-            git2::ErrorClass::Index => PiccoloError::IndexAccess(err.message().to_string()),
-            git2::ErrorClass::Reference => PiccoloError::HeadAccess(err.message().to_string()),
+            git2::ErrorClass::Repository => GitOpsError::RepositoryOpen(err.message().to_string()),
+            git2::ErrorClass::Index => GitOpsError::IndexAccess(err.message().to_string()),
+            git2::ErrorClass::Reference => GitOpsError::HeadAccess(err.message().to_string()),
             git2::ErrorClass::Net | git2::ErrorClass::Http | git2::ErrorClass::Ssh => {
-                PiccoloError::AuthRequired(err.message().to_string())
+                GitOpsError::AuthRequired(err.message().to_string())
             }
-            _ => PiccoloError::CommitCreation(err.message().to_string()),
+            _ => GitOpsError::CommitCreation(err.message().to_string()),
         }
     }
 }
 
-impl PiccoloError {
+impl GitOpsError {
     /// Converts the error to a simple string message.
     ///
     /// This is provided for backward compatibility with the existing
@@ -126,8 +126,8 @@ impl PiccoloError {
     }
 }
 
-impl From<PiccoloError> for String {
-    fn from(err: PiccoloError) -> Self {
+impl From<GitOpsError> for String {
+    fn from(err: GitOpsError) -> Self {
         err.to_string()
     }
 }
@@ -138,98 +138,98 @@ mod tests {
 
     #[test]
     fn display_messages_for_all_variants() {
-        let cases: Vec<(PiccoloError, &str)> = vec![
+        let cases: Vec<(GitOpsError, &str)> = vec![
             (
-                PiccoloError::RepositoryOpen("not found".into()),
+                GitOpsError::RepositoryOpen("not found".into()),
                 "Failed to open repository: not found",
             ),
             (
-                PiccoloError::HeadAccess("detached".into()),
+                GitOpsError::HeadAccess("detached".into()),
                 "Failed to get HEAD: detached",
             ),
             (
-                PiccoloError::IndexAccess("locked".into()),
+                GitOpsError::IndexAccess("locked".into()),
                 "Failed to access index: locked",
             ),
             (
-                PiccoloError::IndexWrite("permission".into()),
+                GitOpsError::IndexWrite("permission".into()),
                 "Failed to write index: permission",
             ),
             (
-                PiccoloError::StatusQuery("timeout".into()),
+                GitOpsError::StatusQuery("timeout".into()),
                 "Failed to get status: timeout",
             ),
             (
-                PiccoloError::DiffGeneration("corrupt".into()),
+                GitOpsError::DiffGeneration("corrupt".into()),
                 "Failed to generate diff: corrupt",
             ),
             (
-                PiccoloError::BranchNotFound("feature".into()),
+                GitOpsError::BranchNotFound("feature".into()),
                 "Branch not found: feature",
             ),
             (
-                PiccoloError::BranchList("io error".into()),
+                GitOpsError::BranchList("io error".into()),
                 "Failed to list branches: io error",
             ),
             (
-                PiccoloError::BranchCreate("exists".into()),
+                GitOpsError::BranchCreate("exists".into()),
                 "Failed to create branch: exists",
             ),
             (
-                PiccoloError::RevwalkCreate("memory".into()),
+                GitOpsError::RevwalkCreate("memory".into()),
                 "Failed to create revision walker: memory",
             ),
             (
-                PiccoloError::StageFile("main.rs".into(), "not found".into()),
+                GitOpsError::StageFile("main.rs".into(), "not found".into()),
                 "Failed to stage file 'main.rs': not found",
             ),
             (
-                PiccoloError::UnstageFile("lib.rs".into(), "locked".into()),
+                GitOpsError::UnstageFile("lib.rs".into(), "locked".into()),
                 "Failed to unstage file 'lib.rs': locked",
             ),
             (
-                PiccoloError::DiscardChanges("checkout failed".into()),
+                GitOpsError::DiscardChanges("checkout failed".into()),
                 "Failed to discard changes: checkout failed",
             ),
             (
-                PiccoloError::WorktreeCreate("dir exists".into()),
+                GitOpsError::WorktreeCreate("dir exists".into()),
                 "Failed to create worktree: dir exists",
             ),
             (
-                PiccoloError::WorktreeRemove("in use".into()),
+                GitOpsError::WorktreeRemove("in use".into()),
                 "Failed to remove worktree: in use",
             ),
             (
-                PiccoloError::WorktreeExists("session-1".into()),
+                GitOpsError::WorktreeExists("session-1".into()),
                 "Worktree already exists: session-1",
             ),
             (
-                PiccoloError::CommitCreation("tree empty".into()),
+                GitOpsError::CommitCreation("tree empty".into()),
                 "Failed to create commit: tree empty",
             ),
             (
-                PiccoloError::NothingToCommit,
+                GitOpsError::NothingToCommit,
                 "Nothing to commit: no staged changes",
             ),
             (
-                PiccoloError::PushFailed("rejected".into()),
+                GitOpsError::PushFailed("rejected".into()),
                 "Push failed: rejected",
             ),
             (
-                PiccoloError::NothingToPush,
+                GitOpsError::NothingToPush,
                 "Nothing to push: branch is up to date with remote",
             ),
             (
-                PiccoloError::AuthRequired("origin".into()),
+                GitOpsError::AuthRequired("origin".into()),
                 "Authentication required for remote: origin",
             ),
             (
-                PiccoloError::RemoteNotFound("upstream".into()),
+                GitOpsError::RemoteNotFound("upstream".into()),
                 "Remote not found: upstream",
             ),
-            (PiccoloError::InvalidPath("..".into()), "Invalid path: .."),
+            (GitOpsError::InvalidPath("..".into()), "Invalid path: .."),
             (
-                PiccoloError::Filesystem("read only".into()),
+                GitOpsError::Filesystem("read only".into()),
                 "Filesystem error: read only",
             ),
         ];
@@ -247,20 +247,20 @@ mod tests {
 
     #[test]
     fn to_error_string_matches_display() {
-        let err = PiccoloError::RepositoryOpen("test".into());
+        let err = GitOpsError::RepositoryOpen("test".into());
         assert_eq!(err.to_error_string(), err.to_string());
     }
 
     #[test]
     fn into_string_conversion() {
-        let err = PiccoloError::BranchNotFound("main".into());
+        let err = GitOpsError::BranchNotFound("main".into());
         let s: String = err.into();
         assert_eq!(s, "Branch not found: main");
     }
 
     #[test]
     fn debug_format_contains_variant_name() {
-        let err = PiccoloError::WorktreeCreate("test".into());
+        let err = GitOpsError::WorktreeCreate("test".into());
         let debug = format!("{:?}", err);
         assert!(
             debug.contains("WorktreeCreate"),

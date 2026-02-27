@@ -23,7 +23,7 @@ The **main binary entry point** for the Unbound daemon. It wires together all sp
 │              ┌───────────────┼───────────────┐                       │
 │              ▼               ▼               ▼                       │
 │         ┌────────┐    ┌──────────┐    ┌──────────┐                  │
-│         │ Armin  │    │   Deku   │    │ Piccolo  │                  │
+│         │ Armin  │    │   Deku   │    │ Git Ops  │                  │
 │         │(state) │    │ (Claude) │    │  (git)   │                  │
 │         └────────┘    └──────────┘    └──────────┘                  │
 │              │                                                       │
@@ -109,7 +109,7 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | gyomei, yagami |
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
-| Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | piccolo |
+| Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | git-ops |
 | GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | bakugou |
 | System | `system.check_dependencies`, `system.refresh_capabilities` | tien, ymir |
 | Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
@@ -161,7 +161,7 @@ daemon-bin/
     ├── machines/
     │   ├── claude/stream.rs        # Claude event → Armin bridge
     │   ├── terminal/stream.rs      # Terminal output → Armin bridge
-    │   └── git/operations.rs       # Piccolo wrappers
+    │   └── git/operations.rs       # Git Ops wrappers
     ├── armin_adapter.rs            # Composite side-effect sink
     └── utils/
         ├── secrets.rs              # Key derivation helpers
@@ -245,7 +245,7 @@ This crate depends on nearly every other workspace crate:
 - **daemon-falco** (runtime process) - Ably publisher for hot-path payloads
 - **daemon-nagato** (runtime process) - Remote command ingress sidecar
 - **deku** - Claude CLI process manager
-- **piccolo** - Native git operations (libgit2)
+- **git-ops** - Native git operations (libgit2)
 - **gyomei** - Rope-backed file I/O
 - **yagami** - Directory listing
 - **eren-machines** - Process registry and event bridge

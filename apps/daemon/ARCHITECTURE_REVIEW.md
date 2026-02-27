@@ -61,7 +61,7 @@ The CLI (`cli-new`) depends on `daemon-ipc` to get the protocol types, but this 
 | Crate | Tests | Assessment |
 |-------|-------|-----------|
 | armin | 190 | Excellent — 120 documented rules |
-| piccolo | 97 | Good — real integration tests |
+| git-ops | 97 | Good — real integration tests |
 | daemon-auth | 51 | Good — FSM coverage |
 | **daemon-bin** | **3** | **Almost zero coverage for 2000+ lines of business logic** |
 | daemon-ipc | 15 | Protocol only — no server/client integration tests |
@@ -89,7 +89,7 @@ rengoku-sessions/
 │   └── secret_loader.rs # Load secrets from Supabase at startup
 ```
 
-**Dependencies:** `armin`, `piccolo`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
+**Dependencies:** `armin`, `git-ops`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
 
 **What daemon-bin keeps:** Thin IPC handlers that parse params → call `rengoku_sessions::create_session(...)` → serialize response.
 
@@ -97,7 +97,7 @@ rengoku-sessions/
 - Test session creation without IPC server
 - Test secret cache tiers independently
 - Test worktree creation + session creation as a transaction
-- Mock Armin/piccolo/database independently via traits
+- Mock Armin/git-ops/database independently via traits
 
 **Example API:**
 

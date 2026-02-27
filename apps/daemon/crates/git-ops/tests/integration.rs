@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::{
+use git_ops::{
     discard_changes, get_branches, get_file_diff, get_log, get_status, stage_files, unstage_files,
     GitFileStatus,
 };
@@ -68,7 +68,7 @@ fn worktree_lifecycle() {
     let worktree_root = tempfile::tempdir().expect("create temp worktree root");
 
     // 1. Create worktree
-    let wt_path_str = piccolo::create_worktree_with_options(
+    let wt_path_str = git_ops::create_worktree_with_options(
         &repo_path,
         "lifecycle-test",
         worktree_root.path(),
@@ -98,7 +98,7 @@ fn worktree_lifecycle() {
     assert!(branch_names.contains(&"unbound/lifecycle-test"));
 
     // 5. Remove the worktree
-    piccolo::remove_worktree(&repo_path, wt_path).expect("remove_worktree failed");
+    git_ops::remove_worktree(&repo_path, wt_path).expect("remove_worktree failed");
     assert!(!wt_path.exists());
 }
 

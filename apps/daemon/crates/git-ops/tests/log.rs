@@ -1,6 +1,6 @@
 mod common;
 
-use piccolo::get_log;
+use git_ops::get_log;
 use std::path::Path;
 
 #[test]
