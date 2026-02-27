@@ -95,7 +95,7 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `session-title-generator` | Session title generation via Groq Llama 3.1 8B |
 | `safe-repo-dir-lister` | Safe directory listing with path traversal protection |
 | `auth-engine` | Auth FSM, OAuth flows, Supabase integration |
-| `gyomei` | Rope-backed file reader/writer with conflict detection |
+| `safe-file-ops` | Rope-backed file reader/writer with conflict detection |
 | `rengoku-sessions` | Session lifecycle orchestration |
 | `eren-machines` | Process lifecycle management |
 | `sakura-working-dir-resolution` | Workspace path resolution |

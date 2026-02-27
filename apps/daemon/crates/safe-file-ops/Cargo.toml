@@ -1,5 +1,5 @@
 [package]
-name = "gyomei"
+name = "safe-file-ops"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -7,7 +7,7 @@ use crate::utils::repository_config::{
 };
 use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use gyomei::{FileRevision, GyomeiError};
+use safe_file_ops::{FileRevision, SafeFileOpsError};
 use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
 use std::path::Path;
 use tokio::task;
@@ -555,11 +555,11 @@ async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
                     Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
-                let gyomei = state.gyomei.clone();
+                let safe_file_ops = state.safe_file_ops.clone();
                 let relative_path = relative_path.to_string();
                 let root_path_for_task = root_path.clone();
                 let read_result = task::spawn_blocking(move || {
-                    gyomei.read_full(
+                    safe_file_ops.read_full(
                         Path::new(&root_path_for_task),
                         &relative_path,
                         max_bytes as usize,
@@ -569,7 +569,7 @@ async fn register_repository_read_file(server: &IpcServer, state: DaemonState) {
 
                 let result = match read_result {
                     Ok(Ok(result)) => result,
-                    Ok(Err(err)) => return map_gyomei_error(&req.id, err),
+                    Ok(Err(err)) => return map_safe_file_ops_error(&req.id, err),
                     Err(err) => {
                         return Response::error(
                             &req.id,
@@ -663,11 +663,11 @@ async fn register_repository_read_file_slice(server: &IpcServer, state: DaemonSt
                     Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
-                let gyomei = state.gyomei.clone();
+                let safe_file_ops = state.safe_file_ops.clone();
                 let relative_path = relative_path.to_string();
                 let root_path_for_task = root_path.clone();
                 let slice_result = task::spawn_blocking(move || {
-                    gyomei.read_slice(
+                    safe_file_ops.read_slice(
                         Path::new(&root_path_for_task),
                         &relative_path,
                         start_line,
@@ -679,7 +679,7 @@ async fn register_repository_read_file_slice(server: &IpcServer, state: DaemonSt
 
                 let result = match slice_result {
                     Ok(Ok(result)) => result,
-                    Ok(Err(err)) => return map_gyomei_error(&req.id, err),
+                    Ok(Err(err)) => return map_safe_file_ops_error(&req.id, err),
                     Err(err) => {
                         return Response::error(
                             &req.id,
@@ -767,12 +767,12 @@ async fn register_repository_write_file(server: &IpcServer, state: DaemonState) 
                     Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
-                let gyomei = state.gyomei.clone();
+                let safe_file_ops = state.safe_file_ops.clone();
                 let relative_path = relative_path.to_string();
                 let content = content.to_string();
                 let root_path_for_task = root_path.clone();
                 let write_result = task::spawn_blocking(move || {
-                    gyomei.write_full(
+                    safe_file_ops.write_full(
                         Path::new(&root_path_for_task),
                         &relative_path,
                         &content,
@@ -791,7 +791,7 @@ async fn register_repository_write_file(server: &IpcServer, state: DaemonState) 
                             "total_lines": result.total_lines,
                         }),
                     ),
-                    Ok(Err(err)) => map_gyomei_error(&req.id, err),
+                    Ok(Err(err)) => map_safe_file_ops_error(&req.id, err),
                     Err(err) => Response::error(
                         &req.id,
                         error_codes::INTERNAL_ERROR,
@@ -889,12 +889,12 @@ async fn register_repository_replace_file_range(server: &IpcServer, state: Daemo
                     Err(err) => return repository_resolve_error_response(&req.id, err),
                 };
 
-                let gyomei = state.gyomei.clone();
+                let safe_file_ops = state.safe_file_ops.clone();
                 let relative_path = relative_path.to_string();
                 let replacement = replacement.to_string();
                 let root_path_for_task = root_path.clone();
                 let replace_result = task::spawn_blocking(move || {
-                    gyomei.replace_range(
+                    safe_file_ops.replace_range(
                         Path::new(&root_path_for_task),
                         &relative_path,
                         start_line as usize,
@@ -915,7 +915,7 @@ async fn register_repository_replace_file_range(server: &IpcServer, state: Daemo
                             "total_lines": result.total_lines,
                         }),
                     ),
-                    Ok(Err(err)) => map_gyomei_error(&req.id, err),
+                    Ok(Err(err)) => map_safe_file_ops_error(&req.id, err),
                     Err(err) => Response::error(
                         &req.id,
                         error_codes::INTERNAL_ERROR,
@@ -1088,25 +1088,25 @@ fn parse_expected_revision(
         .map_err(|err| format!("invalid expected_revision: {}", err))
 }
 
-fn map_gyomei_error(id: &str, err: GyomeiError) -> Response {
+fn map_safe_file_ops_error(id: &str, err: SafeFileOpsError) -> Response {
     let message = err.to_string();
     match err {
-        GyomeiError::InvalidRoot | GyomeiError::NotFound => {
+        SafeFileOpsError::InvalidRoot | SafeFileOpsError::NotFound => {
             Response::error(id, error_codes::NOT_FOUND, &message)
         }
-        GyomeiError::InvalidRelativePath
-        | GyomeiError::PathTraversal
-        | GyomeiError::NotAFile
-        | GyomeiError::InvalidUtf8
-        | GyomeiError::MissingExpectedRevision
-        | GyomeiError::InvalidRange => Response::error(id, error_codes::INVALID_PARAMS, &message),
-        GyomeiError::RevisionConflict { current_revision } => Response::error_with_data(
+        SafeFileOpsError::InvalidRelativePath
+        | SafeFileOpsError::PathTraversal
+        | SafeFileOpsError::NotAFile
+        | SafeFileOpsError::InvalidUtf8
+        | SafeFileOpsError::MissingExpectedRevision
+        | SafeFileOpsError::InvalidRange => Response::error(id, error_codes::INVALID_PARAMS, &message),
+        SafeFileOpsError::RevisionConflict { current_revision } => Response::error_with_data(
             id,
             error_codes::CONFLICT,
             "revision conflict",
             serde_json::json!({ "current_revision": current_revision }),
         ),
-        GyomeiError::Io(_) => Response::error(id, error_codes::INTERNAL_ERROR, &message),
+        SafeFileOpsError::Io(_) => Response::error(id, error_codes::INTERNAL_ERROR, &message),
     }
 }
 
@@ -1157,16 +1157,16 @@ mod tests {
     }
 
     #[test]
-    fn map_gyomei_conflict_to_conflict_response() {
+    fn map_safe_file_ops_conflict_to_conflict_response() {
         let revision = FileRevision {
             token: "conflict-token".to_string(),
             len_bytes: 12,
             modified_unix_ns: 345,
         };
 
-        let response = map_gyomei_error(
+        let response = map_safe_file_ops_error(
             "req-1",
-            GyomeiError::RevisionConflict {
+            SafeFileOpsError::RevisionConflict {
                 current_revision: revision.clone(),
             },
         );

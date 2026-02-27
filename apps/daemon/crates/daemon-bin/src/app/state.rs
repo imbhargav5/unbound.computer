@@ -9,7 +9,7 @@ use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
-use gyomei::Gyomei;
+use safe_file_ops::SafeFileOps;
 use levi::Levi;
 use levi::SessionSyncService;
 use std::collections::HashMap;
@@ -117,7 +117,7 @@ pub struct DaemonState {
     /// Uses UUID-based session IDs directly - no mapping needed.
     pub armin: Arc<DaemonArmin>,
     /// Rope-backed secure file reader/writer service.
-    pub gyomei: Arc<Gyomei>,
+    pub safe_file_ops: Arc<SafeFileOps>,
     /// Local cached billing usage status used by itachi quota gate.
     pub billing_quota_cache: Arc<Mutex<BillingQuotaCacheState>>,
 }

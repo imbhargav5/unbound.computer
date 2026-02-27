@@ -48,7 +48,7 @@ export const navigation = [
       { title: "Session Title Generator", href: "/docs/internals/daemon/session-title-generator" },
       { title: "Safe Repo Dir Lister", href: "/docs/internals/daemon/safe-repo-dir-lister" },
       { title: "Auth Engine", href: "/docs/internals/daemon/auth-engine" },
-      { title: "Gyomei", href: "/docs/internals/daemon/gyomei" },
+      { title: "SafeFileOps", href: "/docs/internals/daemon/safe-file-ops" },
       {
         title: "Rengoku Sessions",
         href: "/docs/internals/daemon/rengoku-sessions",

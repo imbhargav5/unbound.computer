@@ -21,7 +21,7 @@ use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
 use daemon_storage::create_secrets_manager;
-use gyomei::Gyomei;
+use safe_file_ops::SafeFileOps;
 use levi::SessionSyncService;
 use levi::{Levi, LeviConfig};
 use sha2::{Digest, Sha256};
@@ -499,7 +499,7 @@ pub async fn run_daemon(
     // The old armin.db path is no longer used - all data is in daemon.db
 
     // Create shared state (Clone-able with internal Arc)
-    let gyomei = Arc::new(Gyomei::with_defaults());
+    let safe_file_ops = Arc::new(SafeFileOps::with_defaults());
     let state = DaemonState {
         config: Arc::new(config),
         paths: Arc::new(paths.clone()),
@@ -535,7 +535,7 @@ pub async fn run_daemon(
         ably_broker_falco_token,
         ably_broker_cache,
         armin,
-        gyomei,
+        safe_file_ops,
         billing_quota_cache: Arc::new(Mutex::new(Default::default())),
     };
 

@@ -1,4 +1,4 @@
-//! Gyomei: secure rope-backed text file reading and writing.
+//! SafeFileOps: secure rope-backed text file reading and writing.
 
 use lru::LruCache;
 use ropey::Rope;
@@ -16,7 +16,7 @@ pub const DEFAULT_CACHE_MAX_BYTES: usize = 128 * 1024 * 1024;
 pub const DEFAULT_EDITABLE_MAX_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(thiserror::Error, Debug)]
-pub enum GyomeiError {
+pub enum SafeFileOpsError {
     #[error("root path does not exist or is invalid")]
     InvalidRoot,
     #[error("relative path is invalid")]
@@ -75,12 +75,12 @@ pub struct WriteResult {
 }
 
 #[derive(Clone)]
-pub struct Gyomei {
+pub struct SafeFileOps {
     cache: Arc<Mutex<RopeCache>>,
     editable_max_bytes: u64,
 }
 
-impl Gyomei {
+impl SafeFileOps {
     pub fn with_defaults() -> Self {
         Self::new(DEFAULT_CACHE_MAX_BYTES, DEFAULT_EDITABLE_MAX_BYTES)
     }
@@ -97,7 +97,7 @@ impl Gyomei {
         root: &Path,
         relative_path: &str,
         max_bytes: usize,
-    ) -> Result<ReadFullResult, GyomeiError> {
+    ) -> Result<ReadFullResult, SafeFileOpsError> {
         let path = resolve_existing_file_path(root, relative_path)?;
         let (rope, revision) = self.load_or_get_rope(&path)?;
         let raw_content = rope.to_string();
@@ -128,7 +128,7 @@ impl Gyomei {
         start_line: usize,
         line_count: usize,
         max_bytes: usize,
-    ) -> Result<ReadSliceResult, GyomeiError> {
+    ) -> Result<ReadSliceResult, SafeFileOpsError> {
         let path = resolve_existing_file_path(root, relative_path)?;
         let (rope, revision) = self.load_or_get_rope(&path)?;
 
@@ -164,7 +164,7 @@ impl Gyomei {
         content: &str,
         expected_revision: Option<&FileRevision>,
         force: bool,
-    ) -> Result<WriteResult, GyomeiError> {
+    ) -> Result<WriteResult, SafeFileOpsError> {
         let path = resolve_writable_file_path(root, relative_path)?;
         let current = self.current_revision_for_write(&path)?;
         self.validate_expected_revision(&current, expected_revision, force)?;
@@ -197,14 +197,14 @@ impl Gyomei {
         replacement: &str,
         expected_revision: Option<&FileRevision>,
         force: bool,
-    ) -> Result<WriteResult, GyomeiError> {
+    ) -> Result<WriteResult, SafeFileOpsError> {
         let path = resolve_existing_file_path(root, relative_path)?;
         let (current_rope, current_revision) = self.load_or_get_rope(&path)?;
         self.validate_expected_revision(&current_revision, expected_revision, force)?;
 
         let total_lines = current_rope.len_lines();
         if start_line > end_line_exclusive || end_line_exclusive > total_lines {
-            return Err(GyomeiError::InvalidRange);
+            return Err(SafeFileOpsError::InvalidRange);
         }
 
         let mut next_rope = (*current_rope).clone();
@@ -247,7 +247,7 @@ impl Gyomei {
             .len()
     }
 
-    fn current_revision_for_write(&self, path: &Path) -> Result<FileRevision, GyomeiError> {
+    fn current_revision_for_write(&self, path: &Path) -> Result<FileRevision, SafeFileOpsError> {
         if path.exists() {
             let (_, revision) = self.load_or_get_rope(path)?;
             Ok(revision)
@@ -261,25 +261,25 @@ impl Gyomei {
         current: &FileRevision,
         expected: Option<&FileRevision>,
         force: bool,
-    ) -> Result<(), GyomeiError> {
+    ) -> Result<(), SafeFileOpsError> {
         if force {
             return Ok(());
         }
 
-        let expected = expected.ok_or(GyomeiError::MissingExpectedRevision)?;
+        let expected = expected.ok_or(SafeFileOpsError::MissingExpectedRevision)?;
         if revisions_match(expected, current) {
             Ok(())
         } else {
-            Err(GyomeiError::RevisionConflict {
+            Err(SafeFileOpsError::RevisionConflict {
                 current_revision: current.clone(),
             })
         }
     }
 
-    fn load_or_get_rope(&self, path: &Path) -> Result<(Arc<Rope>, FileRevision), GyomeiError> {
+    fn load_or_get_rope(&self, path: &Path) -> Result<(Arc<Rope>, FileRevision), SafeFileOpsError> {
         let metadata = fs::metadata(path).map_err(map_io_not_found)?;
         if metadata.is_dir() {
-            return Err(GyomeiError::NotAFile);
+            return Err(SafeFileOpsError::NotAFile);
         }
 
         let revision = revision_from_metadata(path, &metadata);
@@ -380,96 +380,96 @@ impl RopeCache {
     }
 }
 
-fn resolve_existing_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, GyomeiError> {
+fn resolve_existing_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, SafeFileOpsError> {
     validate_relative_path(relative_path)?;
 
-    let root_canon = root.canonicalize().map_err(|_| GyomeiError::InvalidRoot)?;
+    let root_canon = root.canonicalize().map_err(|_| SafeFileOpsError::InvalidRoot)?;
     let target = root_canon.join(relative_path);
     let target_canon = target.canonicalize().map_err(map_io_not_found)?;
 
     if !target_canon.starts_with(&root_canon) {
-        return Err(GyomeiError::PathTraversal);
+        return Err(SafeFileOpsError::PathTraversal);
     }
 
     let metadata = fs::metadata(&target_canon).map_err(map_io_not_found)?;
     if metadata.is_dir() {
-        return Err(GyomeiError::NotAFile);
+        return Err(SafeFileOpsError::NotAFile);
     }
 
     Ok(target_canon)
 }
 
-fn resolve_writable_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, GyomeiError> {
+fn resolve_writable_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, SafeFileOpsError> {
     validate_relative_path(relative_path)?;
 
-    let root_canon = root.canonicalize().map_err(|_| GyomeiError::InvalidRoot)?;
+    let root_canon = root.canonicalize().map_err(|_| SafeFileOpsError::InvalidRoot)?;
     let target = root_canon.join(relative_path);
 
     if target.exists() {
         let target_canon = target.canonicalize().map_err(map_io_not_found)?;
         if !target_canon.starts_with(&root_canon) {
-            return Err(GyomeiError::PathTraversal);
+            return Err(SafeFileOpsError::PathTraversal);
         }
 
         let metadata = fs::metadata(&target_canon).map_err(map_io_not_found)?;
         if metadata.is_dir() {
-            return Err(GyomeiError::NotAFile);
+            return Err(SafeFileOpsError::NotAFile);
         }
 
         return Ok(target_canon);
     }
 
-    let parent = target.parent().ok_or(GyomeiError::InvalidRelativePath)?;
+    let parent = target.parent().ok_or(SafeFileOpsError::InvalidRelativePath)?;
     let parent_canon = parent.canonicalize().map_err(map_io_not_found)?;
     if !parent_canon.starts_with(&root_canon) {
-        return Err(GyomeiError::PathTraversal);
+        return Err(SafeFileOpsError::PathTraversal);
     }
 
     Ok(target)
 }
 
-fn validate_relative_path(relative_path: &str) -> Result<(), GyomeiError> {
+fn validate_relative_path(relative_path: &str) -> Result<(), SafeFileOpsError> {
     if relative_path.is_empty() {
-        return Err(GyomeiError::InvalidRelativePath);
+        return Err(SafeFileOpsError::InvalidRelativePath);
     }
 
     let path = Path::new(relative_path);
     if path.is_absolute() {
-        return Err(GyomeiError::InvalidRelativePath);
+        return Err(SafeFileOpsError::InvalidRelativePath);
     }
 
     if path
         .components()
         .any(|component| matches!(component, Component::ParentDir))
     {
-        return Err(GyomeiError::PathTraversal);
+        return Err(SafeFileOpsError::PathTraversal);
     }
 
     Ok(())
 }
 
-fn map_utf8_or_io(err: io::Error) -> GyomeiError {
+fn map_utf8_or_io(err: io::Error) -> SafeFileOpsError {
     if err.kind() == io::ErrorKind::InvalidData {
-        GyomeiError::InvalidUtf8
+        SafeFileOpsError::InvalidUtf8
     } else {
         map_io_not_found(err)
     }
 }
 
-fn map_io_not_found(err: io::Error) -> GyomeiError {
+fn map_io_not_found(err: io::Error) -> SafeFileOpsError {
     if err.kind() == io::ErrorKind::NotFound {
-        GyomeiError::NotFound
+        SafeFileOpsError::NotFound
     } else {
-        GyomeiError::Io(err)
+        SafeFileOpsError::Io(err)
     }
 }
 
-fn atomic_write_text(path: &Path, content: &str) -> Result<(), GyomeiError> {
-    let dir = path.parent().ok_or(GyomeiError::InvalidRelativePath)?;
+fn atomic_write_text(path: &Path, content: &str) -> Result<(), SafeFileOpsError> {
+    let dir = path.parent().ok_or(SafeFileOpsError::InvalidRelativePath)?;
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or(GyomeiError::InvalidRelativePath)?;
+        .ok_or(SafeFileOpsError::InvalidRelativePath)?;
 
     let tmp_name = format!(
         ".{}.unbound.tmp.{}",
@@ -597,23 +597,23 @@ mod tests {
     #[test]
     fn rejects_traversal() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        let err = gyomei
+        let err = safe_file_ops
             .read_full(temp.path(), "../outside.txt", 100)
             .expect_err("traversal should fail");
-        assert!(matches!(err, GyomeiError::PathTraversal));
+        assert!(matches!(err, SafeFileOpsError::PathTraversal));
     }
 
     #[test]
     fn rejects_absolute_relative_path() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        let err = gyomei
+        let err = safe_file_ops
             .read_full(temp.path(), "/tmp/absolute.txt", 100)
             .expect_err("absolute path should fail");
-        assert!(matches!(err, GyomeiError::InvalidRelativePath));
+        assert!(matches!(err, SafeFileOpsError::InvalidRelativePath));
     }
 
     #[test]
@@ -622,14 +622,14 @@ mod tests {
         let file_path = temp.path().join("main.rs");
         make_file(&file_path, "a\nb\nc\nd\n");
 
-        let gyomei = Gyomei::with_defaults();
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let full = safe_file_ops
             .read_full(temp.path(), "main.rs", 1024)
             .expect("read full");
         assert_eq!(full.content, "a\nb\nc\nd\n");
         assert!(!full.is_truncated);
 
-        let slice = gyomei
+        let slice = safe_file_ops
             .read_slice(temp.path(), "main.rs", 1, 2, 1024)
             .expect("read slice");
         assert_eq!(slice.content, "b\nc\n");
@@ -644,8 +644,8 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("file.txt"), "hello world");
 
-        let gyomei = Gyomei::with_defaults();
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let full = safe_file_ops
             .read_full(temp.path(), "file.txt", 0)
             .expect("read full");
         assert_eq!(full.content, "");
@@ -657,8 +657,8 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("main.rs"), "a\nb\nc");
 
-        let gyomei = Gyomei::with_defaults();
-        let slice = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let slice = safe_file_ops
             .read_slice(temp.path(), "main.rs", 1, 0, 1024)
             .expect("read slice");
         assert_eq!(slice.content, "");
@@ -673,8 +673,8 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("main.rs"), "a\nb\nc");
 
-        let gyomei = Gyomei::with_defaults();
-        let slice = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let slice = safe_file_ops
             .read_slice(temp.path(), "main.rs", 99, 10, 1024)
             .expect("read slice");
         assert_eq!(slice.content, "");
@@ -690,8 +690,8 @@ mod tests {
         let file_path = temp.path().join("emoji.txt");
         make_file(&file_path, "hello🙂world");
 
-        let gyomei = Gyomei::with_defaults();
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let full = safe_file_ops
             .read_full(temp.path(), "emoji.txt", 7)
             .expect("read full");
         assert!(full.is_truncated);
@@ -704,11 +704,11 @@ mod tests {
         let file_path = temp.path().join("invalid.bin");
         fs::write(&file_path, [0x66, 0x6f, 0x80]).expect("write invalid utf8");
 
-        let gyomei = Gyomei::with_defaults();
-        let err = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let err = safe_file_ops
             .read_full(temp.path(), "invalid.bin", 1024)
             .expect_err("invalid utf8 should fail");
-        assert!(matches!(err, GyomeiError::InvalidUtf8));
+        assert!(matches!(err, SafeFileOpsError::InvalidUtf8));
     }
 
     #[test]
@@ -717,8 +717,8 @@ mod tests {
         let file_path = temp.path().join("data.txt");
         make_file(&file_path, "one");
 
-        let gyomei = Gyomei::with_defaults();
-        let first = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let first = safe_file_ops
             .read_full(temp.path(), "data.txt", 1024)
             .expect("read first");
         assert_eq!(first.content, "one");
@@ -726,7 +726,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(1));
         make_file(&file_path, "two");
 
-        let second = gyomei
+        let second = safe_file_ops
             .read_full(temp.path(), "data.txt", 1024)
             .expect("read second");
         assert_eq!(second.content, "two");
@@ -739,36 +739,36 @@ mod tests {
         make_file(&temp.path().join("a.txt"), "aaaaaaaaaa");
         make_file(&temp.path().join("b.txt"), "bbbbbbbbbb");
 
-        let gyomei = Gyomei::new(12, 1024 * 1024);
-        gyomei
+        let safe_file_ops = SafeFileOps::new(12, 1024 * 1024);
+        safe_file_ops
             .read_full(temp.path(), "a.txt", 1024)
             .expect("read a");
-        gyomei
+        safe_file_ops
             .read_full(temp.path(), "b.txt", 1024)
             .expect("read b");
 
         // With 12-byte cap and ~10-byte files, one of the entries must be evicted.
-        assert_eq!(gyomei.cache_entry_count(), 1);
+        assert_eq!(safe_file_ops.cache_entry_count(), 1);
     }
 
     #[test]
     fn write_full_requires_expected_revision_unless_force() {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("main.rs"), "before\n");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        let err = gyomei
+        let err = safe_file_ops
             .write_full(temp.path(), "main.rs", "after\n", None, false)
             .expect_err("missing expected revision should fail");
-        assert!(matches!(err, GyomeiError::MissingExpectedRevision));
+        assert!(matches!(err, SafeFileOpsError::MissingExpectedRevision));
     }
 
     #[test]
     fn write_full_force_can_create_new_file_without_expected_revision() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        let result = gyomei
+        let result = safe_file_ops
             .write_full(temp.path(), "created.txt", "hello\n", None, true)
             .expect("force create");
         assert_eq!(result.bytes_written, 6);
@@ -782,9 +782,9 @@ mod tests {
     fn write_full_force_can_overwrite_without_expected_revision() {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("main.rs"), "before\n");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        gyomei
+        safe_file_ops
             .write_full(temp.path(), "main.rs", "after\n", None, true)
             .expect("force overwrite");
         assert_eq!(
@@ -803,11 +803,11 @@ mod tests {
         make_file(&file_path, "before\n");
         fs::set_permissions(&file_path, fs::Permissions::from_mode(0o640)).expect("set mode");
 
-        let gyomei = Gyomei::with_defaults();
-        let snapshot = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let snapshot = safe_file_ops
             .read_full(temp.path(), "main.rs", 1024)
             .expect("snapshot");
-        gyomei
+        safe_file_ops
             .write_full(
                 temp.path(),
                 "main.rs",
@@ -831,14 +831,14 @@ mod tests {
         let file_path = temp.path().join("main.rs");
         make_file(&file_path, "before\n");
 
-        let gyomei = Gyomei::with_defaults();
-        let snapshot = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let snapshot = safe_file_ops
             .read_full(temp.path(), "main.rs", 1024)
             .expect("snapshot read");
 
         make_file(&file_path, "external\n");
 
-        let err = gyomei
+        let err = safe_file_ops
             .write_full(
                 temp.path(),
                 "main.rs",
@@ -847,9 +847,9 @@ mod tests {
                 false,
             )
             .expect_err("must conflict");
-        assert!(matches!(err, GyomeiError::RevisionConflict { .. }));
+        assert!(matches!(err, SafeFileOpsError::RevisionConflict { .. }));
 
-        gyomei
+        safe_file_ops
             .write_full(
                 temp.path(),
                 "main.rs",
@@ -867,24 +867,24 @@ mod tests {
     fn replace_range_requires_expected_revision_unless_force() {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("mod.rs"), "line1\nline2\n");
-        let gyomei = Gyomei::with_defaults();
+        let safe_file_ops = SafeFileOps::with_defaults();
 
-        let err = gyomei
+        let err = safe_file_ops
             .replace_range(temp.path(), "mod.rs", 0, 1, "new\n", None, false)
             .expect_err("missing expected revision should fail");
-        assert!(matches!(err, GyomeiError::MissingExpectedRevision));
+        assert!(matches!(err, SafeFileOpsError::MissingExpectedRevision));
     }
 
     #[test]
     fn replace_range_rejects_invalid_range() {
         let temp = tempfile::tempdir().expect("tempdir");
         make_file(&temp.path().join("mod.rs"), "line1\nline2\n");
-        let gyomei = Gyomei::with_defaults();
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let full = safe_file_ops
             .read_full(temp.path(), "mod.rs", 1024)
             .expect("read full");
 
-        let err = gyomei
+        let err = safe_file_ops
             .replace_range(
                 temp.path(),
                 "mod.rs",
@@ -895,7 +895,7 @@ mod tests {
                 false,
             )
             .expect_err("invalid range");
-        assert!(matches!(err, GyomeiError::InvalidRange));
+        assert!(matches!(err, SafeFileOpsError::InvalidRange));
     }
 
     #[test]
@@ -904,12 +904,12 @@ mod tests {
         let file_path = temp.path().join("mod.rs");
         make_file(&file_path, "line1\nline2\nline3\n");
 
-        let gyomei = Gyomei::with_defaults();
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::with_defaults();
+        let full = safe_file_ops
             .read_full(temp.path(), "mod.rs", 1024)
             .expect("read full");
 
-        let result = gyomei
+        let result = safe_file_ops
             .replace_range(
                 temp.path(),
                 "mod.rs",
@@ -932,8 +932,8 @@ mod tests {
         let file_path = temp.path().join("huge.txt");
         make_file(&file_path, "abcdefghijklmnopqrstuvwxyz");
 
-        let gyomei = Gyomei::new(DEFAULT_CACHE_MAX_BYTES, 8);
-        let full = gyomei
+        let safe_file_ops = SafeFileOps::new(DEFAULT_CACHE_MAX_BYTES, 8);
+        let full = safe_file_ops
             .read_full(temp.path(), "huge.txt", 1024)
             .expect("read full");
 

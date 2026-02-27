@@ -17,7 +17,7 @@
     "session-title-generator",
     "safe-repo-dir-lister",
     "auth-engine",
-    "gyomei",
+    "safe-file-ops",
     "rengoku-sessions",
     "eren-machines",
     "sakura-working-dir-resolution",

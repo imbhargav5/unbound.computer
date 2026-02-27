@@ -24,7 +24,7 @@ toshinori = { workspace = true }
 levi = { workspace = true }
 deku = { workspace = true }
 safe-repo-dir-lister = { workspace = true }
-gyomei = { workspace = true }
+safe-file-ops = { workspace = true }
 sakura-working-dir-resolution = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }

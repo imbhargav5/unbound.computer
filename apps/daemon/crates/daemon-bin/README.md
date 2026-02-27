@@ -29,7 +29,7 @@ The **main binary entry point** for the Unbound daemon. It wires together all sp
 │              │                                                       │
 │     ┌────────┼────────┐                                             │
 │     ▼        ▼        ▼                                             │
-│  Toshinori  Levi  AblyRealtime  Gyomei                              │
+│  Toshinori  Levi  AblyRealtime  SafeFileOps                              │
 │  (sink)    (cold)   (hot)      (files)                              │
 └─────────────────────────────────────────────────────────────────────┘
                            │
@@ -66,7 +66,7 @@ On `start`, the daemon boots services in dependency order:
 12. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
 13. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
 14. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
-15. **Gyomei** - Rope-backed file I/O with cache
+15. **SafeFileOps** - Rope-backed file I/O with cache
 16. **Handler registration** - Wire IPC methods to handlers
 17. **Listen** - Accept client connections
 
@@ -83,7 +83,7 @@ All handlers share a `DaemonState` (cheap to clone via Arc):
 | `armin` | `Arc<DaemonArmin>` | Session engine (snapshot + delta views) |
 | `db` | `AsyncDatabase` | Thread-safe SQLite executor |
 | `secrets` | `Arc<Mutex<SecretsManager>>` | Platform keychain access |
-| `gyomei` | `Arc<Gyomei>` | Cached file I/O |
+| `safe-file-ops` | `Arc<SafeFileOps>` | Cached file I/O |
 | `config` | `Arc<Config>` | Supabase URLs, relay config |
 | `paths` | `Arc<Paths>` | Socket, PID, database paths |
 | `toshinori` | `Arc<ToshinoriSink>` | Supabase change sink |
@@ -106,7 +106,7 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Sessions | `session.list`, `session.create`, `session.get`, `session.delete` | armin |
 | Messages | `message.list`, `message.send` | armin |
 | Repos | `repository.list`, `repository.add`, `repository.remove` | armin |
-| Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | gyomei, safe-repo-dir-lister |
+| Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | safe-file-ops, safe-repo-dir-lister |
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
 | Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | git-ops |
@@ -246,7 +246,7 @@ This crate depends on nearly every other workspace crate:
 - **daemon-nagato** (runtime process) - Remote command ingress sidecar
 - **deku** - Claude CLI process manager
 - **git-ops** - Native git operations (libgit2)
-- **gyomei** - Rope-backed file I/O
+- **safe-file-ops** - Rope-backed file I/O
 - **safe-repo-dir-lister** - Directory listing
 - **eren-machines** - Process registry and event bridge
 - **historia-lifecycle** - PID/singleton management

@@ -669,13 +669,13 @@ dependencies = [
  "daemon-storage",
  "deku",
  "git-ops",
- "gyomei",
  "hostname",
  "levi",
  "libc",
  "regex",
  "reqwest",
  "rusqlite",
+ "safe-file-ops",
  "safe-repo-dir-lister",
  "sakura-working-dir-resolution",
  "serde",
@@ -1202,17 +1202,6 @@ dependencies = [
  "openssl-probe 0.1.6",
  "openssl-sys",
  "url",
-]
-
-[[package]]
-name = "gyomei"
-version = "0.0.18"
-dependencies = [
- "lru",
- "ropey",
- "serde",
- "tempfile",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2859,6 +2848,17 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "safe-file-ops"
+version = "0.0.18"
+dependencies = [
+ "lru",
+ "ropey",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "safe-repo-dir-lister"

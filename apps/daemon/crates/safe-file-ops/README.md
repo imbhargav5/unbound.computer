@@ -1,10 +1,6 @@
----
-title: "Gyomei"
----
+# SafeFileOps
 
-# Gyomei
-
-**Secure rope-backed text file read/write utilities for the Unbound daemon.** Gyomei provides cached, revision-tracked file I/O with path traversal protection and atomic writes.
+**Secure rope-backed text file read/write utilities for the Unbound daemon.** SafeFileOps provides cached, revision-tracked file I/O with path traversal protection and atomic writes.
 
 ## Architecture
 
@@ -12,7 +8,7 @@ title: "Gyomei"
 ┌─────────────────────────────────────────────────────────────────┐
 │                           Daemon                                 │
 │                                                                  │
-│  IPC Handler ──► Gyomei                                         │
+│  IPC Handler ──► SafeFileOps                                         │
 │                    │                                             │
 │                    ├── read_full()    ──► ReadFullResult         │
 │                    ├── read_slice()   ──► ReadSliceResult        │
@@ -39,10 +35,10 @@ title: "Gyomei"
 ### Reading Files
 
 ```rust
-use gyomei::Gyomei;
+use safe_file_ops::SafeFileOps;
 use std::path::Path;
 
-let g = Gyomei::with_defaults();
+let g = SafeFileOps::with_defaults();
 let root = Path::new("/path/to/repo");
 
 // Read entire file (up to 1 MB)
@@ -116,7 +112,7 @@ Writes validate the expected revision against the current file state. If another
 
 ## Caching
 
-Gyomei maintains an LRU cache of parsed `Rope` data structures:
+SafeFileOps maintains an LRU cache of parsed `Rope` data structures:
 
 - **Default capacity**: 128 MB total byte budget
 - **Cache key**: Canonical file path
@@ -162,7 +158,7 @@ No partial writes are ever visible to readers.
 
 ```rust
 // Custom limits
-let g = Gyomei::new(
+let g = SafeFileOps::new(
     64 * 1024 * 1024,  // 64 MB cache
     2 * 1024 * 1024,   // 2 MB editable limit
 );
@@ -186,7 +182,7 @@ let g = Gyomei::new(
 ## Testing
 
 ```bash
-cargo test -p gyomei
+cargo test -p safe-file-ops
 ```
 
 16 tests covering path security, read/write operations, UTF-8 handling, cache invalidation, LRU eviction, revision conflicts, atomic writes, and Unix permission preservation.

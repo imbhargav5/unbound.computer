@@ -23,7 +23,7 @@ state.rs:20-58 — DaemonState has fields for:
   config, paths, db, secrets, claude_processes, terminal_processes,
   db_encryption_key, subscriptions, session_secret_cache, supabase_client,
   device_id, device_private_key, session_sync, toshinori, message_sync,
-  armin, gyomei
+  armin, safe-file-ops
 ```
 
 ### 2. Business Logic Lives in IPC Handlers
@@ -173,11 +173,11 @@ sakura-working-dir-resolution/
 ├── src/
 │   ├── lib.rs
 │   ├── resolver.rs     # Session → working directory resolution
-│   ├── file_ops.rs     # Orchestrate gyomei read/write with path validation
+│   ├── file_ops.rs     # Orchestrate safe-file-ops read/write with path validation
 │   └── directory.rs    # Orchestrate safe-repo-dir-lister listing with path validation
 ```
 
-**Dependencies:** `armin`, `gyomei`, `safe-repo-dir-lister`
+**Dependencies:** `armin`, `safe-file-ops`, `safe-repo-dir-lister`
 
 **Rationale:** The "resolve session to working directory" pattern is duplicated across `claude.rs`, `terminal.rs`, `repository.rs`, and `git.rs`. Each reimplements the same lookup chain: `session_id → session.worktree_path || repo.path`. Extracting this eliminates duplication and makes the resolution logic testable.
 
@@ -343,7 +343,7 @@ pub struct DaemonState {
 
     // Core engines (shared by domain services)
     pub armin: Arc<DaemonArmin>,
-    pub gyomei: Arc<Gyomei>,
+    pub safe-file-ops: Arc<SafeFileOps>,
 }
 ```
 
