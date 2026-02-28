@@ -8,7 +8,7 @@
     "daemon-auth",
     "daemon-database",
     "daemon-storage",
-    "armin",
+    "agent-session-sqlite-persist-core",
     "deku",
     "git-ops",
     "bakugou",

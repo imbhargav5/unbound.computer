@@ -1,7 +1,7 @@
 //! Claude event handling - bridges Deku events to Armin and IPC.
 
 use crate::app::DaemonState;
-use armin::{CodingSessionStatus, NewMessage, SessionId, SessionWriter};
+use agent_session_sqlite_persist_core::{CodingSessionStatus, NewMessage, SessionId, SessionWriter};
 use claude_debug_logs::ClaudeDebugLogs;
 use daemon_ipc::{Event, EventType};
 use deku::{ClaudeEvent, ClaudeEventStream};

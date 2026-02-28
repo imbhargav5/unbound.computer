@@ -3,7 +3,7 @@
 //! Owns the process registry (tracking running processes by session ID)
 //! and the event bridge (converting process events to Armin messages).
 
-use armin::{AgentStatus, ArminError, NewMessage, SessionId, SessionWriter};
+use agent_session_sqlite_persist_core::{AgentStatus, ArminError, NewMessage, SessionId, SessionWriter};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use thiserror::Error;
@@ -117,7 +117,7 @@ pub mod claude_bridge {
         writer: &impl SessionWriter,
         session_id: &SessionId,
         raw_json: &str,
-    ) -> Result<armin::Message, ArminError> {
+    ) -> Result<agent_session_sqlite_persist_core::Message, ArminError> {
         writer.append(
             session_id,
             NewMessage {
@@ -160,7 +160,7 @@ pub mod terminal_bridge {
         writer: &impl SessionWriter,
         session_id: &SessionId,
         line: &str,
-    ) -> Result<armin::Message, ArminError> {
+    ) -> Result<agent_session_sqlite_persist_core::Message, ArminError> {
         let content = serde_json::json!({
             "type": "terminal_output",
             "stream": "stdout",
@@ -175,7 +175,7 @@ pub mod terminal_bridge {
         writer: &impl SessionWriter,
         session_id: &SessionId,
         line: &str,
-    ) -> Result<armin::Message, ArminError> {
+    ) -> Result<agent_session_sqlite_persist_core::Message, ArminError> {
         let content = serde_json::json!({
             "type": "terminal_output",
             "stream": "stderr",
@@ -190,7 +190,7 @@ pub mod terminal_bridge {
         writer: &impl SessionWriter,
         session_id: &SessionId,
         exit_code: i32,
-    ) -> Result<armin::Message, ArminError> {
+    ) -> Result<agent_session_sqlite_persist_core::Message, ArminError> {
         let content = serde_json::json!({
             "type": "terminal_finished",
             "exit_code": exit_code,
@@ -203,7 +203,7 @@ pub mod terminal_bridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::SessionReader;
+    use agent_session_sqlite_persist_core::SessionReader;
 
     // =========================================================================
     // ProcessRegistry tests
@@ -334,8 +334,8 @@ mod tests {
     // claude_bridge tests using Armin in-memory
     // =========================================================================
 
-    fn make_armin() -> armin::Armin<armin::NullSink> {
-        armin::Armin::in_memory(armin::NullSink).unwrap()
+    fn make_armin() -> agent_session_sqlite_persist_core::Armin<agent_session_sqlite_persist_core::NullSink> {
+        agent_session_sqlite_persist_core::Armin::in_memory(agent_session_sqlite_persist_core::NullSink).unwrap()
     }
 
     #[test]

@@ -7,9 +7,9 @@ license.workspace = true
 description = "Session-to-working-directory resolution for the Unbound daemon"
 
 [dependencies]
-armin = { workspace = true }
+agent-session-sqlite-persist-core = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-armin = { workspace = true }
+agent-session-sqlite-persist-core = { workspace = true }
 chrono = { workspace = true }

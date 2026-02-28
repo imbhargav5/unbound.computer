@@ -32,8 +32,8 @@ Or simply:
 ## Quick Start
 
 ```rust
-use armin::{Armin, NewMessage, Role, SessionReader, SessionWriter};
-use armin::side_effect::RecordingSink;
+use agent_session_sqlite_persist_core::{Armin, NewMessage, Role, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::side_effect::RecordingSink;
 
 // Create an in-memory engine for testing
 let sink = RecordingSink::new();
@@ -102,7 +102,7 @@ Rules:
 ## Crate Structure
 
 ```
-armin/
+agent-session-sqlite-persist-core/
 ├── Cargo.toml
 ├── README.md
 ├── ARCHITECTURE.md
@@ -129,7 +129,7 @@ armin/
 Side-effects are opaque and testable:
 
 ```rust
-use armin::side_effect::{SideEffect, SideEffectSink, RecordingSink};
+use agent_session_sqlite_persist_core::side_effect::{SideEffect, SideEffectSink, RecordingSink};
 
 // Armin emits
 // Sink decides what it means

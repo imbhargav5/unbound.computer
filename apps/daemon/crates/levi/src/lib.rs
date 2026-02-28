@@ -66,7 +66,7 @@ mod session_sync;
 
 pub use session_sync::{SessionSyncService, SyncError, SyncResult};
 
-use armin::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use daemon_config_and_utils::encrypt_conversation_message;
@@ -196,7 +196,7 @@ impl Levi {
     /// * `config` - Batching and retry configuration
     /// * `api_url` - Supabase API URL (e.g., `https://xxx.supabase.co`)
     /// * `anon_key` - Supabase anonymous API key
-    /// * `armin` - Handle to local session storage
+    /// * `agent-session-sqlite-persist-core` - Handle to local session storage
     /// * `db_encryption_key` - Key for decrypting stored session secrets
     ///
     /// # Returns
@@ -397,7 +397,7 @@ impl MessageSyncer for Levi {
 /// # Arguments
 ///
 /// * `client` - Supabase HTTP client
-/// * `armin` - Handle to local session storage
+/// * `agent-session-sqlite-persist-core` - Handle to local session storage
 /// * `context` - Authentication context with access token
 /// * `secret_cache` - Cache of decrypted session keys
 /// * `db_encryption_key` - Key for decrypting session secrets from storage
@@ -484,7 +484,7 @@ async fn send_session_batch(
 ///
 /// # Arguments
 ///
-/// * `armin` - Handle to local session storage (for retrieving session secret)
+/// * `agent-session-sqlite-persist-core` - Handle to local session storage (for retrieving session secret)
 /// * `secret_cache` - Cache of decrypted session keys (avoids repeated decryption)
 /// * `db_encryption_key` - Key for decrypting session secrets from storage
 /// * `session_id` - ID of the session this message belongs to
@@ -530,7 +530,7 @@ fn encrypt_message(
 ///
 /// # Arguments
 ///
-/// * `armin` - Handle to local session storage
+/// * `agent-session-sqlite-persist-core` - Handle to local session storage
 /// * `secret_cache` - In-memory cache of decrypted keys
 /// * `db_encryption_key` - Key for decrypting stored session secrets
 /// * `session_id` - ID of the session to get the key for
@@ -692,7 +692,7 @@ fn compute_backoff(retry_count: i32, config: &LeviConfig) -> chrono::Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::{Armin, NewMessage, NewSessionSecret, PendingSyncMessage, RecordingSink};
+    use agent_session_sqlite_persist_core::{Armin, NewMessage, NewSessionSecret, PendingSyncMessage, RecordingSink};
     use daemon_database::{encrypt_content, generate_nonce};
 
     fn setup_armin_with_secret() -> (ArminHandle, SessionId, Arc<Mutex<Option<[u8; 32]>>>) {
@@ -1000,7 +1000,7 @@ mod tests {
                 .into_iter()
                 .map(|(content, seq)| PendingSyncMessage {
                     session_id: session_id.clone(),
-                    message_id: armin::MessageId::from_string(format!("msg-{}", seq)),
+                    message_id: agent_session_sqlite_persist_core::MessageId::from_string(format!("msg-{}", seq)),
                     sequence_number: seq,
                     content: content.to_string(),
                 })

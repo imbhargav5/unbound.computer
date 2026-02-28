@@ -4,7 +4,7 @@ use crate::app::DaemonState;
 use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
 };
-use armin::{NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter};
+use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
 use git_ops::{create_worktree_with_options, remove_worktree};
@@ -596,7 +596,7 @@ pub async fn create_session_core(
         "Encrypted session secret, storing via Armin"
     );
 
-    let new_secret = armin::NewSessionSecret {
+    let new_secret = agent_session_sqlite_persist_core::NewSessionSecret {
         session_id: created_session.id.clone(),
         encrypted_secret,
         nonce: nonce.to_vec(),

@@ -1,8 +1,8 @@
 ---
-title: "Armin"
+title: "Agent Session Sqlite Persist Core"
 ---
 
-# Armin
+# Agent Session Sqlite Persist Core
 
 A SQLite-backed session engine that commits facts, derives fast read views, and emits side-effects.
 
@@ -31,13 +31,13 @@ CRASH:
 
 Or simply:
 
-> **Armin commits reality, then announces it.**
+> **agent-session-sqlite-persist-core commits reality, then announces it.**
 
 ## Quick Start
 
 ```rust
-use armin::{Armin, NewMessage, Role, SessionReader, SessionWriter};
-use armin::side_effect::RecordingSink;
+use agent_session_sqlite_persist_core::{Armin, NewMessage, Role, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::side_effect::RecordingSink;
 
 // Create an in-memory engine for testing
 let sink = RecordingSink::new();
@@ -106,7 +106,7 @@ Rules:
 ## Crate Structure
 
 ```
-armin/
+agent-session-sqlite-persist-core/
 ├── Cargo.toml
 ├── README.md
 ├── ARCHITECTURE.md
@@ -133,7 +133,7 @@ armin/
 Side-effects are opaque and testable:
 
 ```rust
-use armin::side_effect::{SideEffect, SideEffectSink, RecordingSink};
+use agent_session_sqlite_persist_core::side_effect::{SideEffect, SideEffectSink, RecordingSink};
 
 // Armin emits
 // Sink decides what it means
@@ -155,7 +155,7 @@ Available side-effects:
 - `MessageAppended { session_id, message_id, sequence_number, content }`
 - `SessionClosed { session_id }`
 
-## What Armin Deliberately Does NOT Do
+## What agent-session-sqlite-persist-core Deliberately Does NOT Do
 
 - ❌ No networking
 - ❌ No retries
@@ -163,7 +163,7 @@ Available side-effects:
 - ❌ No storage abstraction
 - ❌ No distributed guarantees
 
-Those live above Armin.
+Those live above agent-session-sqlite-persist-core.
 
 ## SQLite Schema
 

@@ -2,7 +2,7 @@
 //!
 //! This module bridges Armin's side-effects to the daemon's IPC subscription system.
 
-use armin::{Armin, SideEffect, SideEffectSink};
+use agent_session_sqlite_persist_core::{Armin, SideEffect, SideEffectSink};
 use daemon_ipc::{Event, EventType, SubscriptionManager};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -200,7 +200,7 @@ pub fn create_daemon_armin(
     db_path: &std::path::Path,
     subscriptions: SubscriptionManager,
     toshinori: Option<Arc<ToshinoriSink>>,
-) -> Result<Arc<DaemonArmin>, armin::ArminError> {
+) -> Result<Arc<DaemonArmin>, agent_session_sqlite_persist_core::ArminError> {
     let sink = DaemonCompositeSink::new(subscriptions, toshinori);
     let armin = Armin::open(db_path, sink)?;
 
@@ -213,7 +213,7 @@ pub fn create_daemon_armin(
 #[allow(dead_code)]
 pub fn create_test_armin(
     subscriptions: SubscriptionManager,
-) -> Result<Arc<DaemonArmin>, armin::ArminError> {
+) -> Result<Arc<DaemonArmin>, agent_session_sqlite_persist_core::ArminError> {
     let sink = DaemonCompositeSink::new(subscriptions, None);
     let armin = Armin::in_memory(sink)?;
 
@@ -223,5 +223,5 @@ pub fn create_test_armin(
 #[cfg(test)]
 mod tests {
     // Tests removed - the SessionIdMapper is no longer needed since Armin
-    // now uses UUIDs directly via armin::SessionId
+    // now uses UUIDs directly via agent_session_sqlite_persist_core::SessionId
 }

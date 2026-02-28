@@ -7,7 +7,7 @@ license.workspace = true
 description = "Process lifecycle management (Claude CLI, terminal) for the Unbound daemon"
 
 [dependencies]
-armin = { workspace = true }
+agent-session-sqlite-persist-core = { workspace = true }
 deku = { workspace = true }
 tokio = { workspace = true, features = ["process", "io-util", "sync"] }
 serde_json = { workspace = true }
@@ -16,4 +16,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }
-armin = { workspace = true }
+agent-session-sqlite-persist-core = { workspace = true }

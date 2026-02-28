@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/armin",
+    "crates/agent-session-sqlite-persist-core",
     "crates/claude-debug-logs",
     "crates/daemon-config-and-utils",
     "crates/daemon-storage",
@@ -88,7 +88,7 @@ ulid = "1.1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 # Local workspace crates
-armin = { path = "crates/armin" }
+agent-session-sqlite-persist-core = { path = "crates/agent-session-sqlite-persist-core" }
 claude-debug-logs = { path = "crates/claude-debug-logs" }
 daemon-config-and-utils = { path = "crates/daemon-config-and-utils" }
 daemon-storage = { path = "crates/daemon-storage" }

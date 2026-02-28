@@ -3,7 +3,7 @@
 //! Manages session creation (with optional worktree), deletion (with cleanup),
 //! and the session secret cache (memory → SQLite → keychain).
 
-use armin::{
+use agent_session_sqlite_persist_core::{
     ArminError, NewSession, NewSessionSecret, Repository, RepositoryId, Session, SessionId,
     SessionReader, SessionWriter,
 };
@@ -177,7 +177,7 @@ pub fn store_session_secret<A: SessionWriter>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::{Armin, NewRepository, NullSink, SessionReader, SessionWriter};
+    use agent_session_sqlite_persist_core::{Armin, NewRepository, NullSink, SessionReader, SessionWriter};
 
     fn make_armin() -> Armin<NullSink> {
         Armin::in_memory(NullSink).unwrap()

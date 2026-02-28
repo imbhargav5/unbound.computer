@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-armin = { workspace = true }
+agent-session-sqlite-persist-core = { workspace = true }
 auth-engine = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-database = { workspace = true }

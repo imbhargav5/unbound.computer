@@ -89,7 +89,7 @@ rengoku-sessions/
 │   └── secret_loader.rs # Load secrets from Supabase at startup
 ```
 
-**Dependencies:** `armin`, `git-ops`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
+**Dependencies:** `agent-session-sqlite-persist-core`, `git-ops`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
 
 **What daemon-bin keeps:** Thin IPC handlers that parse params → call `rengoku_sessions::create_session(...)` → serialize response.
 
@@ -133,7 +133,7 @@ eren-machines/
 │   └── types.rs           # ProcessStatus, ProcessHandle, etc.
 ```
 
-**Dependencies:** `armin`, `deku`
+**Dependencies:** `agent-session-sqlite-persist-core`, `deku`
 
 **What daemon-bin keeps:** IPC handlers that parse params → call `eren_machines::spawn_claude(...)` → serialize response. No more `tokio::spawn` in handlers.
 
@@ -177,7 +177,7 @@ sakura-working-dir-resolution/
 │   └── directory.rs    # Orchestrate safe-repo-dir-lister listing with path validation
 ```
 
-**Dependencies:** `armin`, `safe-file-ops`, `safe-repo-dir-lister`
+**Dependencies:** `agent-session-sqlite-persist-core`, `safe-file-ops`, `safe-repo-dir-lister`
 
 **Rationale:** The "resolve session to working directory" pattern is duplicated across `claude.rs`, `terminal.rs`, `repository.rs`, and `git.rs`. Each reimplements the same lookup chain: `session_id → session.worktree_path || repo.path`. Extracting this eliminates duplication and makes the resolution logic testable.
 

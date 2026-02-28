@@ -4,7 +4,7 @@
 //! eliminating the duplicated `session.worktree_path || repo.path` pattern
 //! across handlers.
 
-use armin::{ArminError, Repository, RepositoryId, Session, SessionId, SessionReader};
+use agent_session_sqlite_persist_core::{ArminError, Repository, RepositoryId, Session, SessionId, SessionReader};
 use std::path::Path;
 use thiserror::Error;
 
@@ -106,10 +106,10 @@ pub fn resolve_repository_path<R: SessionReader>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::delta::DeltaView;
-    use armin::live::LiveSubscription;
-    use armin::snapshot::SnapshotView;
-    use armin::*;
+    use agent_session_sqlite_persist_core::delta::DeltaView;
+    use agent_session_sqlite_persist_core::live::LiveSubscription;
+    use agent_session_sqlite_persist_core::snapshot::SnapshotView;
+    use agent_session_sqlite_persist_core::*;
 
     // =========================================================================
     // Mock SessionReader for testing

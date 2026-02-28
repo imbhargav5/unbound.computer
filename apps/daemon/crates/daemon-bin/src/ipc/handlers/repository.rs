@@ -5,7 +5,7 @@ use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, update_repository_config,
     RepositoryConfig, RepositoryConfigUpdate,
 };
-use armin::{NewRepository, RepositoryId, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use safe_file_ops::{FileRevision, SafeFileOpsError};
 use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
@@ -1019,7 +1019,7 @@ fn parse_optional_u64_param(params: &serde_json::Value, key: &str) -> Result<Opt
         .ok_or_else(|| format!("{key} must be an unsigned integer"))
 }
 
-fn repository_json(repo: &armin::Repository) -> serde_json::Value {
+fn repository_json(repo: &agent_session_sqlite_persist_core::Repository) -> serde_json::Value {
     serde_json::json!({
         "id": repo.id.as_str(),
         "path": repo.path,

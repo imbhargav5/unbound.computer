@@ -31,7 +31,7 @@
 
 ```rust
 use rengoku_sessions::{create_session, CreateSessionParams};
-use armin::SessionId;
+use agent_session_sqlite_persist_core::SessionId;
 
 let params = CreateSessionParams {
     repository_id: "repo-uuid".to_string(),

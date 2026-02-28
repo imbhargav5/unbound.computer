@@ -4,7 +4,7 @@
 //! Ably sync cursor table as a retry sweep for missed/failed messages. Payloads
 //! are forwarded to `daemon-falco` over its Unix socket protocol.
 
-use armin::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
 use chrono::{DateTime, Utc};
 use daemon_config_and_utils::encrypt_conversation_message;
 use daemon_storage::SecretsManager;

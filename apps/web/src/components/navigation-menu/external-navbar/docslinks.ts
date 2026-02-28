@@ -39,7 +39,7 @@ export const navigation = [
         title: "Daemon Storage",
         href: "/docs/internals/daemon/daemon-storage",
       },
-      { title: "Armin", href: "/docs/internals/daemon/armin" },
+      { title: "Agent Session Sqlite Persist Core", href: "/docs/internals/daemon/agent-session-sqlite-persist-core" },
       { title: "Deku", href: "/docs/internals/daemon/deku" },
       { title: "Git Ops", href: "/docs/internals/daemon/git-ops" },
       { title: "Bakugou", href: "/docs/internals/daemon/bakugou" },

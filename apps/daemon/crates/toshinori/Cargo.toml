@@ -2,11 +2,11 @@
 name = "toshinori"
 version = "0.1.0"
 edition = "2021"
-description = "Supabase sync sink for Armin side-effects"
+description = "Supabase sync sink for agent-session-sqlite-persist-core side-effects"
 
 [dependencies]
 # Armin types
-armin = { path = "../armin" }
+agent-session-sqlite-persist-core = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-database = { workspace = true }
 daemon-storage = { workspace = true }

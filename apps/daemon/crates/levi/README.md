@@ -154,7 +154,7 @@ service.distribute_secret(session_id, session_secret).await?;
 
 | Crate | Purpose |
 |-------|---------|
-| `armin` | Local session storage (SQLite) |
+| `agent-session-sqlite-persist-core` | Local session storage (SQLite) |
 | `toshinori` | Supabase HTTP client |
 | `daemon-auth` | Supabase types and client |
 | `daemon-config-and-utils` | Hybrid encryption utilities |

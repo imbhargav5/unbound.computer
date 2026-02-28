@@ -16,7 +16,7 @@ use crate::ipc::register_handlers;
 use crate::itachi::idempotency::IdempotencyStore;
 use crate::itachi::runtime::spawn_billing_quota_refresh_loop;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
-use armin::{SessionId, SessionReader};
+use agent_session_sqlite_persist_core::{SessionId, SessionReader};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
@@ -601,7 +601,7 @@ pub async fn run_daemon(
     // pending messages to sync also exists in Supabase's agent_coding_sessions
     // table. Without this, Levi's message inserts fail RLS policy checks.
     {
-        use armin::SessionReader;
+        use agent_session_sqlite_persist_core::SessionReader;
 
         let armin_ref = state.armin.clone();
         let session_sync_ref = state.session_sync.clone();

@@ -83,7 +83,7 @@ All handlers share a `DaemonState` (cheap to clone via Arc):
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `armin` | `Arc<DaemonArmin>` | Session engine (snapshot + delta views) |
+| `agent-session-sqlite-persist-core` | `Arc<DaemonArmin>` | Session engine (snapshot + delta views) |
 | `db` | `AsyncDatabase` | Thread-safe SQLite executor |
 | `secrets` | `Arc<Mutex<SecretsManager>>` | Platform keychain access |
 | `safe-file-ops` | `Arc<SafeFileOps>` | Cached file I/O |

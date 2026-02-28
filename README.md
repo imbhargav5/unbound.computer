@@ -86,7 +86,7 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `daemon-auth` | Backward-compat shim for `auth-engine` |
 | `daemon-database` | Async SQLite executor, migrations, model types |
 | `daemon-storage` | Platform-specific secure storage (Keychain, Secret Service, Credential Vault) |
-| `armin` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
+| `agent-session-sqlite-persist-core` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
 | `deku` | Claude CLI process manager: spawning, streaming, event parsing |
 | `git-ops` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
 | `bakugou` | GitHub CLI orchestration for PR workflows |

@@ -2,7 +2,7 @@
 
 use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_events;
-use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use deku::{ClaudeConfig, ClaudeProcess, PermissionMode};
 use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};

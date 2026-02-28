@@ -1,7 +1,7 @@
 //! Message handlers.
 
 use crate::app::DaemonState;
-use armin::{NewMessage, SessionId, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 
 /// Register message handlers.

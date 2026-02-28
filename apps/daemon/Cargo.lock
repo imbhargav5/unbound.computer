@@ -39,6 +39,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-session-sqlite-persist-core"
+version = "0.0.18"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,19 +142,6 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
-
-[[package]]
-name = "armin"
-version = "0.0.18"
-dependencies = [
- "chrono",
- "rusqlite",
- "serde",
- "tempfile",
- "thiserror 2.0.18",
- "tracing",
- "uuid",
-]
 
 [[package]]
 name = "async-broadcast"
@@ -656,7 +656,7 @@ dependencies = [
 name = "daemon-bin"
 version = "0.0.18"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "auth-engine",
  "bakugou",
  "base64",
@@ -898,7 +898,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 name = "eren-machines"
 version = "0.0.18"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "deku",
  "serde_json",
  "thiserror 2.0.18",
@@ -1678,7 +1678,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 name = "levi"
 version = "0.0.18"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "auth-engine",
  "base64",
  "chrono",
@@ -2635,7 +2635,7 @@ checksum = "a96887878f22d7bad8a3b6dc5b7440e0ada9a245242924394987b21cf2210a4c"
 name = "rengoku-sessions"
 version = "0.0.18"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "tempfile",
  "thiserror 2.0.18",
 ]
@@ -2872,7 +2872,7 @@ dependencies = [
 name = "sakura-working-dir-resolution"
 version = "0.0.18"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "chrono",
  "thiserror 2.0.18",
 ]
@@ -3496,7 +3496,7 @@ dependencies = [
 name = "toshinori"
 version = "0.1.0"
 dependencies = [
- "armin",
+ "agent-session-sqlite-persist-core",
  "base64",
  "chrono",
  "daemon-config-and-utils",

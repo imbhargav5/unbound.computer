@@ -9,7 +9,7 @@ use crate::itachi::errors::ResponseErrorCode;
 use crate::itachi::handler::handle_remote_command;
 use crate::itachi::idempotency::BeginResult;
 use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
-use armin::{SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{SessionReader, SessionWriter};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use daemon_config_and_utils::{compile_time_web_app_url, encrypt_for_device};
@@ -713,7 +713,7 @@ fn load_session_secret_plaintext(state: &DaemonState, session_id: &str) -> Resul
 
     let armin_result = state
         .armin
-        .get_session_secret(&armin::SessionId::from_string(session_id))
+        .get_session_secret(&agent_session_sqlite_persist_core::SessionId::from_string(session_id))
         .map_err(|err| format!("failed to get session secret: {err}"));
 
     let mut terminal_error = "session secret not found".to_string();
@@ -810,8 +810,8 @@ fn repair_armin_session_secret_from_plaintext(
         daemon_database::encrypt_content(&db_key, &nonce, plaintext_secret.as_bytes())
             .map_err(|err| format!("failed to encrypt recovered session secret: {err}"))?;
 
-    let secret = armin::NewSessionSecret {
-        session_id: armin::SessionId::from_string(session_id),
+    let secret = agent_session_sqlite_persist_core::NewSessionSecret {
+        session_id: agent_session_sqlite_persist_core::SessionId::from_string(session_id),
         encrypted_secret,
         nonce: nonce.to_vec(),
     };

@@ -1,7 +1,7 @@
 //! Terminal process output streaming and event handling.
 
 use crate::app::DaemonState;
-use armin::{NewMessage, SessionId, SessionWriter};
+use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionWriter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::broadcast;

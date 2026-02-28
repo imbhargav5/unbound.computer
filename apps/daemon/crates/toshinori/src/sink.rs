@@ -4,7 +4,7 @@
 //! side-effects to Supabase and dispatches hot-path message sync notifications.
 
 use crate::client::SupabaseClient;
-use armin::{RuntimeStatusEnvelope, SideEffect, SideEffectSink};
+use agent_session_sqlite_persist_core::{RuntimeStatusEnvelope, SideEffect, SideEffectSink};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, RwLock};
@@ -624,7 +624,7 @@ impl SideEffectSink for ToshinoriSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::types::{
+    use agent_session_sqlite_persist_core::types::{
         CodingSessionRuntimeState, CodingSessionStatus, MessageId, RepositoryId,
         RuntimeStatusEnvelope, SessionId, RUNTIME_STATUS_SCHEMA_VERSION,
     };

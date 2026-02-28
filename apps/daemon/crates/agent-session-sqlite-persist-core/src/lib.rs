@@ -1,4 +1,4 @@
-//! # Armin
+//! # agent-session-sqlite-persist-core
 //!
 //! A SQLite-backed session engine that commits facts, derives fast read views, and emits side-effects.
 //!
@@ -26,8 +26,8 @@
 //! ## Example
 //!
 //! ```rust
-//! use armin::{Armin, Message, NewMessage, SessionReader, SessionWriter};
-//! use armin::side_effect::{RecordingSink, SideEffect};
+//! use agent_session_sqlite_persist_core::{Armin, Message, NewMessage, SessionReader, SessionWriter};
+//! use agent_session_sqlite_persist_core::side_effect::{RecordingSink, SideEffect};
 //!
 //! // Create an in-memory engine for testing
 //! let sink = RecordingSink::new();
@@ -51,7 +51,7 @@
 //!
 //! ## Crate Structure
 //!
-//! - [`armin`] - The Armin engine (brain)
+//! - [`Armin`] - The core session engine
 //! - [`reader`] - Read-side traits
 //! - [`writer`] - Write-side traits
 //! - [`side_effect`] - Side-effect contracts

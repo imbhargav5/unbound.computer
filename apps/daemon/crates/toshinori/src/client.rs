@@ -4,7 +4,7 @@
 //! to sync Armin's local state with the cloud database.
 
 use crate::error::{ToshinoriError, ToshinoriResult};
-use armin::RuntimeStatusEnvelope;
+use agent_session_sqlite_persist_core::RuntimeStatusEnvelope;
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -433,7 +433,7 @@ impl std::fmt::Debug for SupabaseClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use armin::{
+    use agent_session_sqlite_persist_core::{
         CodingSessionRuntimeState, CodingSessionStatus, RuntimeStatusEnvelope, SessionId,
         RUNTIME_STATUS_SCHEMA_VERSION,
     };

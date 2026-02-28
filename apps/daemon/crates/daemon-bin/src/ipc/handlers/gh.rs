@@ -318,7 +318,7 @@ fn map_rpc_code(machine_code: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{map_resolve_error, map_rpc_code, parse_input, GhCoreError};
-    use armin::ArminError;
+    use agent_session_sqlite_persist_core::ArminError;
     use bakugou::PrListInput;
     use daemon_ipc::error_codes;
     use sakura_working_dir_resolution::ResolveError;

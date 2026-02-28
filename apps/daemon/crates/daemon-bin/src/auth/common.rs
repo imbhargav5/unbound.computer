@@ -7,7 +7,7 @@ use crate::app::sidecar_logs::{
     attach_sidecar_log_streams, reap_sidecar_log_tasks, replace_sidecar_log_tasks,
 };
 use crate::app::DaemonState;
-use armin::{CodingSessionStatus, SessionId, SessionWriter};
+use agent_session_sqlite_persist_core::{CodingSessionStatus, SessionId, SessionWriter};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::Arc;
