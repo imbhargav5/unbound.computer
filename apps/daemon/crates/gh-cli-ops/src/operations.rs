@@ -4,7 +4,7 @@ use crate::types::{
     PrChecksSummary, PrCreateInput, PrCreateResult, PrListInput, PrListResult, PrMergeInput,
     PrMergeResult, PrViewInput, PullRequestAuthor, PullRequestDetail, PullRequestLabel,
 };
-use crate::BakugouError;
+use crate::GhCliOpsError;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,7 +15,7 @@ const PR_JSON_FIELDS: &str = "number,title,url,state,isDraft,baseRefName,headRef
 const CHECKS_JSON_FIELDS: &str =
     "bucket,completedAt,description,event,link,name,startedAt,state,workflow";
 
-pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, BakugouError> {
+pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, GhCliOpsError> {
     let runner = GhCommandRunner::new();
 
     let mut args = vec![
@@ -27,7 +27,7 @@ pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, Bak
 
     if let Some(hostname) = input.hostname.as_deref() {
         if hostname.trim().is_empty() {
-            return Err(BakugouError::InvalidParams {
+            return Err(GhCliOpsError::InvalidParams {
                 message: "hostname must not be empty".to_string(),
             });
         }
@@ -42,7 +42,7 @@ pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, Bak
     let output = runner.run(&args, None, TIMEOUT_SHORT_SECS).await?;
 
     let parsed: GhAuthStatusEnvelope =
-        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
+        serde_json::from_str(&output.stdout).map_err(|err| GhCliOpsError::ParseError {
             message: format!("failed to parse gh auth status output: {err}"),
         })?;
 
@@ -78,9 +78,9 @@ pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, Bak
 pub async fn pr_create(
     working_dir: &Path,
     input: PrCreateInput,
-) -> Result<PrCreateResult, BakugouError> {
+) -> Result<PrCreateResult, GhCliOpsError> {
     if input.title.trim().is_empty() {
-        return Err(BakugouError::InvalidParams {
+        return Err(GhCliOpsError::InvalidParams {
             message: "title is required".to_string(),
         });
     }
@@ -132,7 +132,7 @@ pub async fn pr_create(
         .run(&args, Some(working_dir), TIMEOUT_LONG_SECS)
         .await?;
 
-    let url = extract_url(&output.stdout).ok_or_else(|| BakugouError::ParseError {
+    let url = extract_url(&output.stdout).ok_or_else(|| GhCliOpsError::ParseError {
         message: "could not extract pull request URL from gh pr create output".to_string(),
     })?;
 
@@ -150,7 +150,7 @@ pub async fn pr_create(
 pub async fn pr_view(
     working_dir: &Path,
     input: PrViewInput,
-) -> Result<PullRequestDetail, BakugouError> {
+) -> Result<PullRequestDetail, GhCliOpsError> {
     let runner = GhCommandRunner::new();
 
     let mut args = vec!["pr".to_string(), "view".to_string()];
@@ -168,14 +168,14 @@ pub async fn pr_view(
         .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
         .await?;
     let parsed: GhPullRequest =
-        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
+        serde_json::from_str(&output.stdout).map_err(|err| GhCliOpsError::ParseError {
             message: format!("failed to parse gh pr view output: {err}"),
         })?;
 
     Ok(map_pull_request(parsed))
 }
 
-pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, BakugouError> {
+pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, GhCliOpsError> {
     let runner = GhCommandRunner::new();
 
     let limit = if input.limit == 0 { 20 } else { input.limit };
@@ -209,7 +209,7 @@ pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListRes
         .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
         .await?;
     let parsed: Vec<GhPullRequest> =
-        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
+        serde_json::from_str(&output.stdout).map_err(|err| GhCliOpsError::ParseError {
             message: format!("failed to parse gh pr list output: {err}"),
         })?;
 
@@ -225,7 +225,7 @@ pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListRes
 pub async fn pr_checks(
     working_dir: &Path,
     input: PrChecksInput,
-) -> Result<PrChecksResult, BakugouError> {
+) -> Result<PrChecksResult, GhCliOpsError> {
     let runner = GhCommandRunner::new();
 
     let mut args = vec!["pr".to_string(), "checks".to_string()];
@@ -243,7 +243,7 @@ pub async fn pr_checks(
         .run(&args, Some(working_dir), TIMEOUT_SHORT_SECS)
         .await?;
     let parsed: Vec<GhPrCheck> =
-        serde_json::from_str(&output.stdout).map_err(|err| BakugouError::ParseError {
+        serde_json::from_str(&output.stdout).map_err(|err| GhCliOpsError::ParseError {
             message: format!("failed to parse gh pr checks output: {err}"),
         })?;
 
@@ -270,7 +270,7 @@ pub async fn pr_checks(
 pub async fn pr_merge(
     working_dir: &Path,
     input: PrMergeInput,
-) -> Result<PrMergeResult, BakugouError> {
+) -> Result<PrMergeResult, GhCliOpsError> {
     let selector = if let Some(selector) = input.selector.as_ref().filter(|s| !s.trim().is_empty())
     {
         selector.to_string()

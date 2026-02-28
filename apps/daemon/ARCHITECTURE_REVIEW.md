@@ -73,14 +73,14 @@ The handlers, machines, and secret management in `daemon-bin` have effectively *
 
 ## Proposed New Crates
 
-### Crate 1: `rengoku-sessions` — Session Orchestrator
+### Crate 1: `session-lifecycle-orchestrator` — Session Orchestrator
 
 **Extracted from:** `daemon-bin/src/ipc/handlers/session.rs`, `daemon-bin/src/utils/session_secret_cache.rs`
 
 **Responsibility:** Session lifecycle management — creation (with optional worktree), deletion (with worktree cleanup), secret generation/encryption/caching, and Supabase sync coordination.
 
 ```
-rengoku-sessions/
+session-lifecycle-orchestrator/
 ├── src/
 │   ├── lib.rs
 │   ├── create.rs        # Session creation: ID gen → worktree → Armin → encrypt secret → cache → sync
@@ -91,7 +91,7 @@ rengoku-sessions/
 
 **Dependencies:** `agent-session-sqlite-persist-core`, `git-ops`, `daemon-database`, `daemon-storage`, `daemon-config-and-utils`
 
-**What daemon-bin keeps:** Thin IPC handlers that parse params → call `rengoku_sessions::create_session(...)` → serialize response.
+**What daemon-bin keeps:** Thin IPC handlers that parse params → call `session_lifecycle_orchestrator::create_session(...)` → serialize response.
 
 **Testability gains:**
 - Test session creation without IPC server
@@ -219,14 +219,14 @@ one-for-all-protocol/
 
 ---
 
-### Crate 5: `sasuke-crypto` — Device Identity & Crypto Coordinator
+### Crate 5: `device-identity-crypto` — Device Identity & Crypto Coordinator
 
 **Extracted from:** `daemon-bin/src/app/init.rs` (crypto material loading), `daemon-bin/src/utils/secrets.rs` (Supabase secret loading)
 
 **Responsibility:** Device identity management — loading device ID/private key from keychain, deriving database encryption key, loading session secrets from Supabase.
 
 ```
-sasuke-crypto/
+device-identity-crypto/
 ├── src/
 │   ├── lib.rs
 │   ├── identity.rs       # Load/cache device_id and device_private_key
@@ -297,10 +297,10 @@ daemon-bin (thin shell: CLI, handler registration, state wiring)
 
 one-for-all-protocol  — protocol types (Method, Request, Response, Event)
 daemon-ipc            — transport (IpcServer, IpcClient) using one-for-all-protocol types
-rengoku-sessions      — session lifecycle (create, delete, secrets)
+session-lifecycle-orchestrator      — session lifecycle (create, delete, secrets)
 eren-machines         — process management (Claude, terminal)
 sakura-working-dir-resolution — workspace resolution (session → working dir)
-sasuke-crypto         — device identity & crypto coordination
+device-identity-crypto         — device identity & crypto coordination
 historia-lifecycle    — daemon lifecycle (startup, shutdown, singleton)
 ```
 
@@ -314,12 +314,12 @@ historia-lifecycle    — daemon lifecycle (startup, shutdown, singleton)
               |
           daemon-bin (thin shell)
          /    |    \               \
-  rengoku  eren   sakura     historia
+  session-lifecycle-orchestrator  eren   sakura     historia
  -sessions -machines -working   -lifecycle
     |         |     -dir-res.      |
     +---------+---------+----------+
     |                              |
-  armin                     sasuke-crypto
+  armin                     device-identity-crypto
     |                              |
 daemon-database             daemon-storage
                                    |
@@ -336,10 +336,10 @@ pub struct DaemonState {
     pub subscriptions: SubscriptionManager,
 
     // Domain services (each owns its own dependencies)
-    pub sessions: Arc<rengoku_sessions::SessionOrchestrator>,
+    pub sessions: Arc<session_lifecycle_orchestrator::SessionOrchestrator>,
     pub processes: Arc<eren_machines::ProcessManager>,
     pub workspace: Arc<sakura_working_dir_resolution::WorkspaceResolver>,
-    pub identity: Arc<sasuke_crypto::DeviceIdentity>,
+    pub identity: Arc<device_identity_crypto::DeviceIdentity>,
 
     // Core engines (shared by domain services)
     pub armin: Arc<DaemonArmin>,
@@ -375,13 +375,13 @@ From 17 fields to 9, with clear ownership boundaries.
 
 ### Phase 4: Extract session orchestration
 
-1. Create `rengoku-sessions` from session handler + secret cache
+1. Create `session-lifecycle-orchestrator` from session handler + secret cache
 2. Define `SecretStore` trait (implementations: SQLite, keychain, Supabase)
 3. Write tests for session creation flow with mock stores
 
 ### Phase 5: Extract identity and lifecycle
 
-1. Create `sasuke-crypto` from init.rs crypto loading + utils/secrets.rs
+1. Create `device-identity-crypto` from init.rs crypto loading + utils/secrets.rs
 2. Create `historia-lifecycle` from init.rs lifecycle + lifecycle.rs
 3. Write tests for startup/shutdown sequences
 
@@ -393,11 +393,11 @@ Following the existing convention of anime character names with descriptive suff
 
 | Crate | Character | Series | Mnemonic |
 |-------|-----------|--------|----------|
-| `rengoku-sessions` | Kyojuro Rengoku | Demon Slayer | Flame Hashira — burns bright protecting session state |
+| `session-lifecycle-orchestrator` | Kyojuro Rengoku | Demon Slayer | Flame Hashira — burns bright protecting session state |
 | `eren-machines` | Eren Yeager | Attack on Titan | Drives processes forward relentlessly |
 | `sakura-working-dir-resolution` | Sakura Haruno | Naruto | Precise and analytical — resolves the right path |
 | `one-for-all-protocol` | One For All | My Hero Academia | The shared power (protocol) passed between all crates |
-| `sasuke-crypto` | Sasuke Uchiha | Naruto | Sharingan — sees through encryption, guards secrets |
+| `device-identity-crypto` | Sasuke Uchiha | Naruto | Sharingan — sees through encryption, guards secrets |
 | `historia-lifecycle` | Historia Reiss | Attack on Titan | Oversees the kingdom's lifecycle |
 
 ---
@@ -409,4 +409,4 @@ Following the existing convention of anime character names with descriptive suff
 3. **Clear ownership**: Each crate has a single responsibility with a defined API
 4. **New transport options**: `one-for-all-protocol` types can be used for HTTP/WebSocket APIs without depending on Unix socket transport
 5. **Handler simplification**: IPC handlers become ~20-line parameter extractors that delegate to named crates
-6. **Compile-time dependency enforcement**: A handler that should only use `rengoku-sessions` can't accidentally reach into `eren-machines`'s internals
+6. **Compile-time dependency enforcement**: A handler that should only use `session-lifecycle-orchestrator` can't accidentally reach into `eren-machines`'s internals

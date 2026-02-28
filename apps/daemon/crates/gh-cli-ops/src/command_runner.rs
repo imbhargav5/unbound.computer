@@ -1,4 +1,4 @@
-use crate::BakugouError;
+use crate::GhCliOpsError;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -35,7 +35,7 @@ impl GhCommandRunner {
         args: &[String],
         working_dir: Option<&Path>,
         timeout_secs: u64,
-    ) -> Result<CommandRunOutput, BakugouError> {
+    ) -> Result<CommandRunOutput, GhCliOpsError> {
         let command_repr = format!("{} {}", self.executable, args.join(" "));
 
         let mut cmd = Command::new(&self.executable);
@@ -51,16 +51,16 @@ impl GhCommandRunner {
 
         let output = match timeout(Duration::from_secs(timeout_secs), cmd.output()).await {
             Err(_) => {
-                return Err(BakugouError::Timeout {
+                return Err(GhCliOpsError::Timeout {
                     command: command_repr,
                     timeout_secs,
                 });
             }
             Ok(Err(err)) => {
                 return if err.kind() == std::io::ErrorKind::NotFound {
-                    Err(BakugouError::GhNotInstalled)
+                    Err(GhCliOpsError::GhNotInstalled)
                 } else {
-                    Err(BakugouError::CommandFailed {
+                    Err(GhCliOpsError::CommandFailed {
                         message: format!("failed to execute gh command: {err}"),
                         exit_code: None,
                         stderr: String::new(),
@@ -108,14 +108,14 @@ fn resolve_gh_executable() -> String {
     "gh".to_string()
 }
 
-fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -> BakugouError {
+fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -> GhCliOpsError {
     let combined = format!("{stderr}\n{stdout}").to_ascii_lowercase();
 
     if combined.contains("not logged into")
         || combined.contains("authentication")
         || combined.contains("run `gh auth login`")
     {
-        return BakugouError::GhNotAuthenticated {
+        return GhCliOpsError::GhNotAuthenticated {
             message: non_empty(stderr, stdout, "GitHub CLI is not authenticated"),
         };
     }
@@ -125,7 +125,7 @@ fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -
         || combined.contains("unable to find git repository")
         || combined.contains("could not determine base repository")
     {
-        return BakugouError::InvalidRepository {
+        return GhCliOpsError::InvalidRepository {
             message: non_empty(stderr, stdout, "invalid repository"),
         };
     }
@@ -134,7 +134,7 @@ fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -
         || combined.contains("no pull requests found")
         || combined.contains("not found")
     {
-        return BakugouError::NotFound {
+        return GhCliOpsError::NotFound {
             message: non_empty(stderr, stdout, "resource not found"),
         };
     }
@@ -143,12 +143,12 @@ fn classify_failed_command(exit_code: Option<i32>, stdout: &str, stderr: &str) -
         || combined.contains("invalid value")
         || combined.contains("requires")
     {
-        return BakugouError::InvalidParams {
+        return GhCliOpsError::InvalidParams {
             message: non_empty(stderr, stdout, "invalid parameters"),
         };
     }
 
-    BakugouError::CommandFailed {
+    GhCliOpsError::CommandFailed {
         message: non_empty(
             stderr,
             stdout,
@@ -177,31 +177,31 @@ mod tests {
     #[test]
     fn classify_auth_error() {
         let err = classify_failed_command(Some(1), "", "not logged into any GitHub hosts");
-        assert!(matches!(err, BakugouError::GhNotAuthenticated { .. }));
+        assert!(matches!(err, GhCliOpsError::GhNotAuthenticated { .. }));
     }
 
     #[test]
     fn classify_repo_error() {
         let err = classify_failed_command(Some(1), "", "fatal: not a git repository");
-        assert!(matches!(err, BakugouError::InvalidRepository { .. }));
+        assert!(matches!(err, GhCliOpsError::InvalidRepository { .. }));
     }
 
     #[test]
     fn classify_not_found_error() {
         let err = classify_failed_command(Some(1), "", "pull request not found");
-        assert!(matches!(err, BakugouError::NotFound { .. }));
+        assert!(matches!(err, GhCliOpsError::NotFound { .. }));
     }
 
     #[test]
     fn classify_invalid_params_error() {
         let err = classify_failed_command(Some(1), "", "unknown flag: --oops");
-        assert!(matches!(err, BakugouError::InvalidParams { .. }));
+        assert!(matches!(err, GhCliOpsError::InvalidParams { .. }));
     }
 
     #[test]
     fn classify_fallback_command_error() {
         let err = classify_failed_command(Some(1), "", "some other failure");
-        assert!(matches!(err, BakugouError::CommandFailed { .. }));
+        assert!(matches!(err, GhCliOpsError::CommandFailed { .. }));
     }
 
     #[test]

@@ -3,7 +3,7 @@
 //! Pure async functions that detect whether system dependencies are installed
 //! by spawning a login shell and running `which <name>`.
 
-use crate::error::TienError;
+use crate::error::RuntimeCapabilityDetectorError;
 use crate::types::{
     Capabilities, CapabilitiesMetadata, CliCapabilities, DependencyCheckResult, DependencyInfo,
     ToolCapabilities,
@@ -16,7 +16,7 @@ use tracing::debug;
 ///
 /// Runs `/bin/zsh -l -c "which <name>"` to resolve the dependency path
 /// through the user's login shell (picking up PATH from .zprofile/.zshrc).
-pub async fn check_dependency(name: &str) -> Result<DependencyInfo, TienError> {
+pub async fn check_dependency(name: &str) -> Result<DependencyInfo, RuntimeCapabilityDetectorError> {
     debug!("Checking dependency: {}", name);
 
     let output = tokio::process::Command::new(login_shell())
@@ -46,7 +46,7 @@ pub async fn check_dependency(name: &str) -> Result<DependencyInfo, TienError> {
 /// Check all required system dependencies concurrently.
 ///
 /// Returns the status of both `claude` (required) and `gh` (optional).
-pub async fn check_all() -> Result<DependencyCheckResult, TienError> {
+pub async fn check_all() -> Result<DependencyCheckResult, RuntimeCapabilityDetectorError> {
     let (claude, gh) = tokio::join!(check_dependency("claude"), check_dependency("gh"));
 
     Ok(DependencyCheckResult {
@@ -56,7 +56,7 @@ pub async fn check_all() -> Result<DependencyCheckResult, TienError> {
 }
 
 /// Collect the canonical capabilities payload for syncing to Supabase.
-pub async fn collect_capabilities() -> Result<Capabilities, TienError> {
+pub async fn collect_capabilities() -> Result<Capabilities, RuntimeCapabilityDetectorError> {
     let (claude, gh, codex, ollama) = tokio::join!(
         check_dependency("claude"),
         check_dependency("gh"),
@@ -188,7 +188,7 @@ async fn try_claude_models_text() -> Option<Vec<String>> {
     normalize_models(models)
 }
 
-async fn run_login_shell(command: &str) -> Result<std::process::Output, TienError> {
+async fn run_login_shell(command: &str) -> Result<std::process::Output, RuntimeCapabilityDetectorError> {
     Ok(tokio::process::Command::new(login_shell())
         .args(["-l", "-c", command])
         .output()

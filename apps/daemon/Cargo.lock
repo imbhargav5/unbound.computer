@@ -301,11 +301,11 @@ dependencies = [
  "daemon-config-and-utils",
  "daemon-storage",
  "reqwest",
+ "runtime-capability-detector",
  "rust-fsm",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tien",
  "tokio",
  "tracing",
  "url",
@@ -331,17 +331,6 @@ dependencies = [
  "object",
  "rustc-demangle",
  "windows-link",
-]
-
-[[package]]
-name = "bakugou"
-version = "0.0.18"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -658,7 +647,6 @@ version = "0.0.18"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "auth-engine",
- "bakugou",
  "base64",
  "chrono",
  "clap",
@@ -668,12 +656,14 @@ dependencies = [
  "daemon-ipc",
  "daemon-storage",
  "deku",
+ "gh-cli-ops",
  "git-ops",
  "hostname",
  "levi",
  "libc",
  "regex",
  "reqwest",
+ "runtime-capability-detector",
  "rusqlite",
  "safe-file-ops",
  "safe-repo-dir-lister",
@@ -681,7 +671,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tien",
  "tokio",
  "toshinori",
  "tracing",
@@ -806,6 +795,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "device-identity-crypto"
+version = "0.0.18"
+dependencies = [
+ "base64",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1169,6 +1166,17 @@ dependencies = [
  "r-efi",
  "wasip2",
  "wasip3",
+]
+
+[[package]]
+name = "gh-cli-ops"
+version = "0.0.18"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2632,15 +2640,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a96887878f22d7bad8a3b6dc5b7440e0ada9a245242924394987b21cf2210a4c"
 
 [[package]]
-name = "rengoku-sessions"
-version = "0.0.18"
-dependencies = [
- "agent-session-sqlite-persist-core",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "reqwest"
 version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2705,6 +2704,18 @@ checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
 dependencies = [
  "smallvec",
  "str_indices",
+]
+
+[[package]]
+name = "runtime-capability-detector"
+version = "0.0.18"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2874,14 +2885,6 @@ version = "0.0.18"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "chrono",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "sasuke-crypto"
-version = "0.0.18"
-dependencies = [
- "base64",
  "thiserror 2.0.18",
 ]
 
@@ -3123,6 +3126,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "session-lifecycle-orchestrator"
+version = "0.0.18"
+dependencies = [
+ "agent-session-sqlite-persist-core",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "session-title-generator"
 version = "0.0.18"
 dependencies = [
@@ -3345,18 +3357,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "tien"
-version = "0.0.18"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
 ]
 
 [[package]]

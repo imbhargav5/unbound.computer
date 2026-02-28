@@ -1,8 +1,8 @@
-//! # Bakugou
+//! # GH CLI Ops
 //!
 //! Typed GitHub CLI orchestration for the Unbound daemon.
 //!
-//! Bakugou owns process execution, timeout control, output parsing, and
+//! GH CLI Ops owns process execution, timeout control, output parsing, and
 //! error normalization for `gh` pull-request workflows.
 
 mod command_runner;
@@ -10,7 +10,7 @@ mod error;
 mod operations;
 mod types;
 
-pub use error::BakugouError;
+pub use error::GhCliOpsError;
 pub use operations::{auth_status, pr_checks, pr_create, pr_list, pr_merge, pr_view};
 pub use types::{
     AuthStatusHost, AuthStatusInput, AuthStatusResult, PrCheckItem, PrChecksInput, PrChecksResult,

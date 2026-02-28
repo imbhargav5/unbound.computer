@@ -110,8 +110,8 @@ Every IPC method maps to a handler that extracts params, validates, delegates to
 | Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
 | Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
 | Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | git-ops |
-| GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | bakugou |
-| System | `system.check_dependencies`, `system.refresh_capabilities` | tien, auth-engine |
+| GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | gh-cli-ops |
+| System | `system.check_dependencies`, `system.refresh_capabilities` | runtime-capability-detector, auth-engine |
 | Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
 
 ## Side-Effect Bridge
@@ -250,6 +250,6 @@ This crate depends on nearly every other workspace crate:
 - **safe-repo-dir-lister** - Directory listing
 - **eren-machines** - Process registry and event bridge
 - **historia-lifecycle** - PID/singleton management
-- **rengoku-sessions** - Session orchestration
+- **session-lifecycle-orchestrator** - Session orchestration
 - **sakura-working-dir-resolution** - Working directory resolution
-- **sasuke-crypto** - Device identity and key management
+- **device-identity-crypto** - Device identity and key management

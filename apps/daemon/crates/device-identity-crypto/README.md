@@ -1,4 +1,4 @@
-# Sasuke Crypto
+# Device Identity Crypto
 
 **Device identity and crypto coordination for the Unbound daemon.** Sasuke manages the device's cryptographic identity - device ID, private key, and database encryption key - along with base64 utilities for key encoding and a type for remote secret records from Supabase.
 
@@ -36,7 +36,7 @@
 Tracks the device's cryptographic material with explicit state checking:
 
 ```rust
-use sasuke_crypto::DeviceIdentity;
+use device_identity_crypto::DeviceIdentity;
 
 // Unregistered device
 let identity = DeviceIdentity::empty();
@@ -66,7 +66,7 @@ Registration requires **both** `device_id` and `device_private_key`. The `db_enc
 ## Base64 Utilities
 
 ```rust
-use sasuke_crypto::{decode_key_base64, decode_bytes_base64, encode_base64};
+use device_identity_crypto::{decode_key_base64, decode_bytes_base64, encode_base64};
 
 // Decode exactly 32-byte key from base64
 let key: [u8; 32] = decode_key_base64("AAAA...base64...")?;
@@ -85,7 +85,7 @@ let encoded: String = encode_base64(&[1, 2, 3]);
 Represents encrypted session secrets fetched from Supabase for cross-device access:
 
 ```rust
-use sasuke_crypto::RemoteSecretRecord;
+use device_identity_crypto::RemoteSecretRecord;
 
 let record = RemoteSecretRecord {
     session_id: "session-uuid".to_string(),
@@ -127,7 +127,7 @@ pub enum CryptoError {
 ## Testing
 
 ```bash
-cargo test -p sasuke-crypto
+cargo test -p device-identity-crypto
 ```
 
 20+ tests covering identity state transitions, base64 round-trips, key length validation, error formatting, and edge cases.

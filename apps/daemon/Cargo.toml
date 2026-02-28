@@ -21,11 +21,11 @@ members = [
     "crates/one-for-all-protocol",
     "crates/sakura-working-dir-resolution",
     "crates/eren-machines",
-    "crates/rengoku-sessions",
-    "crates/sasuke-crypto",
+    "crates/session-lifecycle-orchestrator",
+    "crates/device-identity-crypto",
     "crates/historia-lifecycle",
-    "crates/tien",
-    "crates/bakugou",
+    "crates/runtime-capability-detector",
+    "crates/gh-cli-ops",
 ]
 
 [workspace.package]
@@ -107,11 +107,11 @@ safe-file-ops = { path = "crates/safe-file-ops" }
 one-for-all-protocol = { path = "crates/one-for-all-protocol" }
 sakura-working-dir-resolution = { path = "crates/sakura-working-dir-resolution" }
 eren-machines = { path = "crates/eren-machines" }
-rengoku-sessions = { path = "crates/rengoku-sessions" }
-sasuke-crypto = { path = "crates/sasuke-crypto" }
+session-lifecycle-orchestrator = { path = "crates/session-lifecycle-orchestrator" }
+device-identity-crypto = { path = "crates/device-identity-crypto" }
 historia-lifecycle = { path = "crates/historia-lifecycle" }
-tien = { path = "crates/tien" }
-bakugou = { path = "crates/bakugou" }
+runtime-capability-detector = { path = "crates/runtime-capability-detector" }
+gh-cli-ops = { path = "crates/gh-cli-ops" }
 
 # Redis
 redis = { version = "0.28", features = ["tokio-comp", "aio", "streams"] }

@@ -18,12 +18,12 @@ final class GitHubPRModelsTests: XCTestCase {
           "pull_requests": [
             {
               "number": 42,
-              "title": "Add bakugou GH integration",
+              "title": "Add gh-cli-ops GH integration",
               "url": "https://github.com/unbound/repo/pull/42",
               "state": "OPEN",
               "is_draft": false,
               "base_ref_name": "main",
-              "head_ref_name": "feature/bakugou",
+              "head_ref_name": "feature/gh-cli-ops",
               "merge_state_status": "CLEAN",
               "labels": [{"name": "automation"}],
               "author": {"login": "bhargav"}

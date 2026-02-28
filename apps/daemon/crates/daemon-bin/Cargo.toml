@@ -16,8 +16,8 @@ daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }
 git-ops = { workspace = true }
-tien = { workspace = true }
-bakugou = { workspace = true }
+runtime-capability-detector = { workspace = true }
+gh-cli-ops = { workspace = true }
 auth-engine = { workspace = true }
 daemon-ipc = { workspace = true }
 toshinori = { workspace = true }

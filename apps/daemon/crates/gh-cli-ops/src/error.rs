@@ -2,7 +2,7 @@ use thiserror::Error;
 
 /// Error taxonomy for GitHub CLI orchestration.
 #[derive(Debug, Error)]
-pub enum BakugouError {
+pub enum GhCliOpsError {
     #[error("GitHub CLI is not installed")]
     GhNotInstalled,
 
@@ -33,7 +33,7 @@ pub enum BakugouError {
     ParseError { message: String },
 }
 
-impl BakugouError {
+impl GhCliOpsError {
     /// Stable machine-readable error code for IPC and remote command clients.
     pub fn code(&self) -> &'static str {
         match self {

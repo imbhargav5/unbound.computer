@@ -42,7 +42,7 @@ export const navigation = [
       { title: "Agent Session Sqlite Persist Core", href: "/docs/internals/daemon/agent-session-sqlite-persist-core" },
       { title: "Deku", href: "/docs/internals/daemon/deku" },
       { title: "Git Ops", href: "/docs/internals/daemon/git-ops" },
-      { title: "Bakugou", href: "/docs/internals/daemon/bakugou" },
+      { title: "GH CLI Ops", href: "/docs/internals/daemon/gh-cli-ops" },
       { title: "Levi", href: "/docs/internals/daemon/levi" },
       { title: "Toshinori", href: "/docs/internals/daemon/toshinori" },
       { title: "Session Title Generator", href: "/docs/internals/daemon/session-title-generator" },
@@ -50,8 +50,8 @@ export const navigation = [
       { title: "Auth Engine", href: "/docs/internals/daemon/auth-engine" },
       { title: "SafeFileOps", href: "/docs/internals/daemon/safe-file-ops" },
       {
-        title: "Rengoku Sessions",
-        href: "/docs/internals/daemon/rengoku-sessions",
+        title: "Session Lifecycle Orchestrator",
+        href: "/docs/internals/daemon/session-lifecycle-orchestrator",
       },
       {
         title: "Eren Machines",
@@ -66,14 +66,14 @@ export const navigation = [
         href: "/docs/internals/daemon/one-for-all-protocol",
       },
       {
-        title: "Sasuke Crypto",
-        href: "/docs/internals/daemon/sasuke-crypto",
+        title: "Device Identity Crypto",
+        href: "/docs/internals/daemon/device-identity-crypto",
       },
       {
         title: "Historia Lifecycle",
         href: "/docs/internals/daemon/historia-lifecycle",
       },
-      { title: "Tien", href: "/docs/internals/daemon/tien" },
+      { title: "Runtime Capability Detector", href: "/docs/internals/daemon/runtime-capability-detector" },
     ],
   },
   {

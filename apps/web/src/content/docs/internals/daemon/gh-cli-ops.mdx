@@ -1,12 +1,16 @@
-# Bakugou
+---
+title: "GH CLI Ops"
+---
 
-Bakugou is the daemon-side **GitHub CLI orchestration crate** for pull request workflows.
+# GH CLI Ops
+
+GH CLI Ops is the daemon-side **GitHub CLI orchestration crate** for pull request workflows.
 
 It provides typed operations for `gh` command execution while keeping `git-ops` focused on Git/libgit2 operations.
 
 ## Purpose and Boundaries
 
-### Bakugou owns
+### GH CLI Ops owns
 
 - `gh` process orchestration (`tokio::process::Command`)
 - non-interactive environment setup
@@ -19,7 +23,7 @@ It provides typed operations for `gh` command execution while keeping `git-ops` 
 - local Git operations via libgit2
 - staging/unstaging, diffs, commit logs, commit/push primitives
 
-Bakugou does **not** replace Git Ops. It complements it for GitHub PR lifecycle actions.
+GH CLI Ops does **not** replace Git Ops. It complements it for GitHub PR lifecycle actions.
 
 ## Architecture
 
@@ -30,7 +34,7 @@ Bakugou does **not** replace Git Ops. It complements it for GitHub PR lifecycle 
 │ IPC handler / Itachi runtime                                              │
 │       │                                                                   │
 │       ▼                                                                   │
-│    bakugou::operations::*                                                 │
+│    gh_cli_ops::operations::*                                                 │
 │       │                                                                   │
 │       ├─► command_runner::GhCommandRunner (non-interactive env + timeout)
 │       │        │                                                          │
@@ -43,7 +47,7 @@ Bakugou does **not** replace Git Ops. It complements it for GitHub PR lifecycle 
 
 ## Supported Operations and `gh` Mapping
 
-| Bakugou operation | Primary command | Follow-up command |
+| GH CLI Ops operation | Primary command | Follow-up command |
 |---|---|---|
 | `auth_status` | `gh auth status --json hosts` | none |
 | `pr_create` | `gh pr create ...` | `gh pr view <url> --json ...` |
@@ -55,19 +59,19 @@ Bakugou does **not** replace Git Ops. It complements it for GitHub PR lifecycle 
 ## Public API
 
 ```rust
-pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, BakugouError>;
-pub async fn pr_create(working_dir: &Path, input: PrCreateInput) -> Result<PrCreateResult, BakugouError>;
-pub async fn pr_view(working_dir: &Path, input: PrViewInput) -> Result<PullRequestDetail, BakugouError>;
-pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, BakugouError>;
-pub async fn pr_checks(working_dir: &Path, input: PrChecksInput) -> Result<PrChecksResult, BakugouError>;
-pub async fn pr_merge(working_dir: &Path, input: PrMergeInput) -> Result<PrMergeResult, BakugouError>;
+pub async fn auth_status(input: AuthStatusInput) -> Result<AuthStatusResult, GhCliOpsError>;
+pub async fn pr_create(working_dir: &Path, input: PrCreateInput) -> Result<PrCreateResult, GhCliOpsError>;
+pub async fn pr_view(working_dir: &Path, input: PrViewInput) -> Result<PullRequestDetail, GhCliOpsError>;
+pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, GhCliOpsError>;
+pub async fn pr_checks(working_dir: &Path, input: PrChecksInput) -> Result<PrChecksResult, GhCliOpsError>;
+pub async fn pr_merge(working_dir: &Path, input: PrMergeInput) -> Result<PrMergeResult, GhCliOpsError>;
 ```
 
 All public input/output types are in `types.rs` and are `serde`-serializable for IPC usage.
 
 ## Error Model
 
-`BakugouError::code()` returns stable machine codes:
+`GhCliOpsError::code()` returns stable machine codes:
 
 - `gh_not_installed`
 - `gh_not_authenticated`
@@ -124,11 +128,11 @@ src/
 
 ### Daemon IPC
 
-`daemon-bin/src/ipc/handlers/gh.rs` invokes Bakugou operations and maps errors into IPC responses.
+`daemon-bin/src/ipc/handlers/gh.rs` invokes GH CLI Ops operations and maps errors into IPC responses.
 
 ### Itachi Remote Commands
 
-`daemon-bin/src/itachi/runtime.rs` routes `gh.pr.*.v1` remote commands to shared GH core functions backed by Bakugou.
+`daemon-bin/src/itachi/runtime.rs` routes `gh.pr.*.v1` remote commands to shared GH core functions backed by GH CLI Ops.
 
 ## Testing Strategy
 
@@ -143,7 +147,7 @@ src/
 
 ```bash
 cd apps/daemon
-cargo test -p bakugou
+cargo test -p gh-cli-ops
 ```
 
 Recommended companion checks:

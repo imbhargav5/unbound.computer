@@ -1,6 +1,6 @@
-//! # Tien: System Dependency Detection
+//! # Runtime Capability Detector: System Dependency Detection
 //!
-//! Tien provides system dependency checking for the Unbound daemon.
+//! Runtime Capability Detector provides system dependency checking for the Unbound daemon.
 //! It detects whether required tools (Claude Code CLI, GitHub CLI)
 //! are installed on the user's system.
 //!
@@ -21,7 +21,7 @@
 //! ## Example Usage
 //!
 //! ```ignore
-//! use tien::{check_all, check_dependency};
+//! use runtime_capability_detector::{check_all, check_dependency};
 //!
 //! // Check a single dependency
 //! let claude = check_dependency("claude").await?;
@@ -38,7 +38,7 @@ mod error;
 mod operations;
 mod types;
 
-pub use error::TienError;
+pub use error::RuntimeCapabilityDetectorError;
 pub use operations::{check_all, check_dependency, collect_capabilities};
 pub use types::{
     Capabilities, CapabilitiesMetadata, CliCapabilities, DependencyCheckResult, DependencyInfo,

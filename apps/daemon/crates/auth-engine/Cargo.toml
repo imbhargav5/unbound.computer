@@ -19,4 +19,4 @@ chrono = { workspace = true }
 base64 = { workspace = true }
 uuid = { workspace = true }
 rust-fsm = "0.7"
-tien = { workspace = true }
+runtime-capability-detector = { workspace = true }

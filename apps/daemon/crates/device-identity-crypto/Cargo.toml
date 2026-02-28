@@ -1,5 +1,5 @@
 [package]
-name = "sasuke-crypto"
+name = "device-identity-crypto"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

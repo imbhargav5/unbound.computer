@@ -156,7 +156,7 @@ final class SyncedSessionDetailViewModelTests: XCTestCase {
             "pull_requests": .array([
                 .object([
                     "number": .int(42),
-                    "title": .string("Add bakugou crate"),
+                    "title": .string("Add gh-cli-ops crate"),
                     "url": .string("https://github.com/unbound/repo/pull/42"),
                     "state": .string("OPEN"),
                     "is_draft": .bool(false),

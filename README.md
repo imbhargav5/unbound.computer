@@ -89,20 +89,20 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 | `agent-session-sqlite-persist-core` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
 | `deku` | Claude CLI process manager: spawning, streaming, event parsing |
 | `git-ops` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
-| `bakugou` | GitHub CLI orchestration for PR workflows |
+| `gh-cli-ops` | GitHub CLI orchestration for PR workflows |
 | `levi` | Supabase message sync worker with batching, encryption, and retries |
 | `toshinori` | Supabase + Ably sync sink for Armin side-effects |
 | `session-title-generator` | Session title generation via Groq Llama 3.1 8B |
 | `safe-repo-dir-lister` | Safe directory listing with path traversal protection |
 | `auth-engine` | Auth FSM, OAuth flows, Supabase integration |
 | `safe-file-ops` | Rope-backed file reader/writer with conflict detection |
-| `rengoku-sessions` | Session lifecycle orchestration |
+| `session-lifecycle-orchestrator` | Session lifecycle orchestration |
 | `eren-machines` | Process lifecycle management |
 | `sakura-working-dir-resolution` | Workspace path resolution |
 | `one-for-all-protocol` | Shared protocol types (extracted from daemon-ipc) |
-| `sasuke-crypto` | Device identity and crypto coordination |
+| `device-identity-crypto` | Device identity and crypto coordination |
 | `historia-lifecycle` | Daemon lifecycle and startup orchestration |
-| `tien` | System dependency detection for required CLI tools |
+| `runtime-capability-detector` | System dependency detection for required CLI tools |
 
 ## Daemon Sidecars
 

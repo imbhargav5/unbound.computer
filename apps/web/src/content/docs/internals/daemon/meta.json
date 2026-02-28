@@ -11,19 +11,19 @@
     "agent-session-sqlite-persist-core",
     "deku",
     "git-ops",
-    "bakugou",
+    "gh-cli-ops",
     "levi",
     "toshinori",
     "session-title-generator",
     "safe-repo-dir-lister",
     "auth-engine",
     "safe-file-ops",
-    "rengoku-sessions",
+    "session-lifecycle-orchestrator",
     "eren-machines",
     "sakura-working-dir-resolution",
     "one-for-all-protocol",
-    "sasuke-crypto",
+    "device-identity-crypto",
     "historia-lifecycle",
-    "tien"
+    "runtime-capability-detector"
   ]
 }

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tien::collect_capabilities;
+use runtime_capability_detector::collect_capabilities;
 use tracing::{info, warn};
 use uuid::Uuid;
 

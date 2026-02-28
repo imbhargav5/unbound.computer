@@ -1,8 +1,4 @@
----
-title: "Rengoku Sessions"
----
-
-# Rengoku Sessions
+# Session Lifecycle Orchestrator
 
 **Session lifecycle orchestration (create, delete, secrets) for the Unbound daemon.** Rengoku manages session creation with optional worktrees, session deletion with cleanup data, and a thread-safe in-memory cache for session encryption secrets.
 
@@ -34,7 +30,7 @@ title: "Rengoku Sessions"
 ## Session Creation
 
 ```rust
-use rengoku_sessions::{create_session, CreateSessionParams};
+use session_lifecycle_orchestrator::{create_session, CreateSessionParams};
 use agent_session_sqlite_persist_core::SessionId;
 
 let params = CreateSessionParams {
@@ -58,7 +54,7 @@ The function validates that the repository exists before creating the session. W
 ## Session Deletion
 
 ```rust
-use rengoku_sessions::delete_session;
+use session_lifecycle_orchestrator::delete_session;
 
 match delete_session(&armin, &session_id)? {
     Some(session) => {
@@ -81,7 +77,7 @@ Deletion returns the session data so the caller can handle filesystem cleanup (w
 Thread-safe in-memory cache for session encryption keys. Designed as the fast layer in a memory -> SQLite -> keychain fallback chain.
 
 ```rust
-use rengoku_sessions::SessionSecretCache;
+use session_lifecycle_orchestrator::SessionSecretCache;
 
 let cache = SessionSecretCache::new();
 
@@ -121,7 +117,7 @@ let cache2 = cache.clone();
 ## Storing Encrypted Secrets
 
 ```rust
-use rengoku_sessions::store_session_secret;
+use session_lifecycle_orchestrator::store_session_secret;
 
 // Store pre-encrypted secret in Armin (for persistence)
 store_session_secret(
@@ -154,7 +150,7 @@ pub enum SessionError {
 ## Testing
 
 ```bash
-cargo test -p rengoku-sessions
+cargo test -p session-lifecycle-orchestrator
 ```
 
 35+ tests covering session creation, deletion, secret caching, error handling, and concurrent access patterns.
