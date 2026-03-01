@@ -3,7 +3,7 @@
 use crate::app::DaemonState;
 use crate::machines::terminal::handle_terminal_process;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
+use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::sync::broadcast;

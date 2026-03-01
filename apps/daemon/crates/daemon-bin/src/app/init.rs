@@ -22,16 +22,16 @@ use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
 use daemon_storage::create_secrets_manager;
 use safe_file_ops::SafeFileOps;
-use levi::SessionSyncService;
-use levi::{Levi, LeviConfig};
+use message_sync_retriable_worker::SessionSyncService;
+use message_sync_retriable_worker::{MessageSyncWorker, MessageSyncWorkerConfig};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use toshinori::{
+use session_sync_sink::{
     AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SessionMetadata,
-    SessionMetadataProvider, SyncContext, ToshinoriSink,
+    SessionMetadataProvider, SyncContext, SessionSyncSink,
 };
 use tracing::{debug, info, warn};
 use auth_engine::{DaemonAuthRuntime, SessionManager, SupabaseClient};
@@ -107,7 +107,7 @@ pub async fn run_daemon(
     let ipc_server = IpcServer::new(&paths.socket_file().to_string_lossy());
 
     // Create Toshinori sink for Supabase sync
-    let toshinori = Arc::new(ToshinoriSink::new(
+    let sync_sink = Arc::new(SessionSyncSink::new(
         &config.supabase_url,
         &config.supabase_publishable_key,
         tokio::runtime::Handle::current(),
@@ -118,7 +118,7 @@ pub async fn run_daemon(
     let armin = create_daemon_armin(
         &paths.database_file(),
         ipc_server.subscriptions().clone(),
-        Some(toshinori.clone()),
+        Some(sync_sink.clone()),
     )
     .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
     info!(
@@ -126,7 +126,7 @@ pub async fn run_daemon(
         "Armin session engine initialized"
     );
 
-    toshinori
+    sync_sink
         .set_metadata_provider(Arc::new(ArminSessionMetadataProvider {
             armin: armin.clone(),
         }))
@@ -269,10 +269,10 @@ pub async fn run_daemon(
         session_secret_cache.inner(),
     ));
 
-    // Create Levi message sync worker
-    let armin_handle: levi::ArminHandle = armin.clone();
-    let message_sync = Arc::new(Levi::new(
-        LeviConfig::default(),
+    // Create message sync worker
+    let armin_handle: message_sync_retriable_worker::ArminHandle = armin.clone();
+    let message_sync = Arc::new(MessageSyncWorker::new(
+        MessageSyncWorkerConfig::default(),
         &config.supabase_url,
         &config.supabase_publishable_key,
         armin_handle,
@@ -417,7 +417,7 @@ pub async fn run_daemon(
                         initial_falco_process = Some(child);
                         match ensure_socket_connectable(&falco_socket_path).await {
                             Ok(()) => {
-                                let armin_handle: toshinori::AblyArminHandle = armin.clone();
+                                let armin_handle: session_sync_sink::AblyArminHandle = armin.clone();
                                 let syncer = Arc::new(AblyRealtimeSyncer::new(
                                     AblySyncConfig::default(),
                                     armin_handle,
@@ -426,8 +426,8 @@ pub async fn run_daemon(
                                 ));
                                 let runtime_status_syncer =
                                     Arc::new(AblyRuntimeStatusSyncer::new(falco_socket_path));
-                                toshinori.set_realtime_message_syncer(syncer.clone()).await;
-                                toshinori
+                                sync_sink.set_realtime_message_syncer(syncer.clone()).await;
+                                sync_sink
                                     .set_realtime_runtime_status_syncer(
                                         runtime_status_syncer.clone(),
                                     )
@@ -471,10 +471,10 @@ pub async fn run_daemon(
         None
     };
 
-    // Connect Toshinori to Levi for message sync
-    toshinori.set_message_syncer(message_sync.clone()).await;
+    // Connect session sync sink to message sync worker
+    sync_sink.set_message_syncer(message_sync.clone()).await;
 
-    // Start Levi processing loop
+    // Start message sync processing loop
     message_sync.start();
 
     // If startup validation recovered an authenticated session, initialize sync contexts.
@@ -484,7 +484,7 @@ pub async fn run_daemon(
             user_id: sync.user_id,
             device_id: sync.device_id,
         };
-        toshinori.set_context(sync_context.clone()).await;
+        sync_sink.set_context(sync_context.clone()).await;
         message_sync.set_context(sync_context.clone()).await;
         if let Some(syncer) = &initial_realtime_message_sync {
             syncer.set_context(sync_context.clone()).await;
@@ -515,7 +515,7 @@ pub async fn run_daemon(
         device_id: device_id_arc,
         device_private_key: device_private_key_arc,
         session_sync,
-        toshinori,
+        sync_sink,
         message_sync,
         realtime_message_sync: Arc::new(tokio::sync::RwLock::new(initial_realtime_message_sync)),
         realtime_runtime_status_sync: Arc::new(tokio::sync::RwLock::new(
@@ -599,7 +599,7 @@ pub async fn run_daemon(
 
     // Reconcile local sessions with Supabase: ensure any session that has
     // pending messages to sync also exists in Supabase's agent_coding_sessions
-    // table. Without this, Levi's message inserts fail RLS policy checks.
+    // table. Without this, message sync inserts fail RLS policy checks.
     {
         use agent_session_sqlite_persist_core::SessionReader;
 

@@ -21,7 +21,7 @@ echo "Total tests: $total"
 
 echo ""
 echo "=== Coverage by Crate ==="
-for crate in daemon-config-and-utils daemon-storage daemon-database daemon-auth daemon-ipc agent-session-sqlite-persist-core deku git-ops levi toshinori session-title-generator safe-repo-dir-lister; do
+for crate in daemon-config-and-utils daemon-storage daemon-database daemon-auth daemon-ipc agent-session-sqlite-persist-core claude-process-manager git-ops message-sync-retriable-worker session-sync-sink session-title-generator safe-repo-dir-lister; do
     count=$(cargo test -p $crate -- --list 2>/dev/null | grep -c "test$" || echo "0")
     echo "  $crate: $count tests"
 done

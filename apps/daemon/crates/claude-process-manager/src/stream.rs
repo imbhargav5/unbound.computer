@@ -28,8 +28,8 @@ impl ClaudeEventStream {
     pub(crate) fn new(
         mut child: Child,
         stop_rx: broadcast::Receiver<()>,
-    ) -> Result<Self, crate::DekuError> {
-        let stdout = child.stdout.take().ok_or(crate::DekuError::NoStdout)?;
+    ) -> Result<Self, crate::ClaudeProcessError> {
+        let stdout = child.stdout.take().ok_or(crate::ClaudeProcessError::NoStdout)?;
         let stderr = child.stderr.take();
 
         let stdout_reader = BufReader::new(stdout).lines();

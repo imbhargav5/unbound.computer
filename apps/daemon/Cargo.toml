@@ -11,19 +11,19 @@ members = [
     "crates/daemon-ipc",
     "crates/daemon-bin",
 
-    "crates/toshinori",
-    "crates/levi",
-    "crates/deku",
+    "crates/session-sync-sink",
+    "crates/message-sync-retriable-worker",
+    "crates/claude-process-manager",
     "crates/safe-repo-dir-lister",
     "crates/session-title-generator",
     "crates/git-ops",
     "crates/safe-file-ops",
-    "crates/one-for-all-protocol",
-    "crates/sakura-working-dir-resolution",
-    "crates/eren-machines",
+    "crates/ipc-protocol-types",
+    "crates/workspace-resolver",
+    "crates/process-event-bridge",
     "crates/session-lifecycle-orchestrator",
     "crates/device-identity-crypto",
-    "crates/historia-lifecycle",
+    "crates/daemon-lifecycle",
     "crates/runtime-capability-detector",
     "crates/gh-cli-ops",
 ]
@@ -97,19 +97,19 @@ auth-engine = { path = "crates/auth-engine" }
 daemon-auth = { path = "crates/daemon-auth" }
 daemon-ipc = { path = "crates/daemon-ipc" }
 
-toshinori = { path = "crates/toshinori" }
-levi = { path = "crates/levi" }
-deku = { path = "crates/deku" }
+session-sync-sink = { path = "crates/session-sync-sink" }
+message-sync-retriable-worker = { path = "crates/message-sync-retriable-worker" }
+claude-process-manager = { path = "crates/claude-process-manager" }
 safe-repo-dir-lister = { path = "crates/safe-repo-dir-lister" }
 session-title-generator = { path = "crates/session-title-generator" }
 git-ops = { path = "crates/git-ops" }
 safe-file-ops = { path = "crates/safe-file-ops" }
-one-for-all-protocol = { path = "crates/one-for-all-protocol" }
-sakura-working-dir-resolution = { path = "crates/sakura-working-dir-resolution" }
-eren-machines = { path = "crates/eren-machines" }
+ipc-protocol-types = { path = "crates/ipc-protocol-types" }
+workspace-resolver = { path = "crates/workspace-resolver" }
+process-event-bridge = { path = "crates/process-event-bridge" }
 session-lifecycle-orchestrator = { path = "crates/session-lifecycle-orchestrator" }
 device-identity-crypto = { path = "crates/device-identity-crypto" }
-historia-lifecycle = { path = "crates/historia-lifecycle" }
+daemon-lifecycle = { path = "crates/daemon-lifecycle" }
 runtime-capability-detector = { path = "crates/runtime-capability-detector" }
 gh-cli-ops = { path = "crates/gh-cli-ops" }
 

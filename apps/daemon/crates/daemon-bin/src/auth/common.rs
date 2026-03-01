@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
+use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use tracing::{debug, info, warn};
 use auth_engine::AuthLoginResult;
 
@@ -34,7 +34,7 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
         user_id: login.user_id.clone(),
         device_id: login.device_id.clone(),
     };
-    state.toshinori.set_context(sync_context.clone()).await;
+    state.sync_sink.set_context(sync_context.clone()).await;
     state.message_sync.set_context(sync_context.clone()).await;
     let realtime_syncer = { state.realtime_message_sync.read().await.clone() };
     if let Some(syncer) = realtime_syncer {
@@ -49,7 +49,7 @@ pub async fn apply_login_side_effects(state: &DaemonState, login: &AuthLoginResu
 /// Clear sync contexts after logout.
 pub async fn clear_login_side_effects(state: &DaemonState) {
     mark_active_sessions_not_available(state);
-    state.toshinori.clear_context().await;
+    state.sync_sink.clear_context().await;
     state.message_sync.clear_context().await;
     if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
         syncer.clear_context().await;
@@ -106,7 +106,7 @@ pub async fn reconcile_sidecars_with_auth(state: &DaemonState) -> bool {
                     user_id: sync.user_id,
                     device_id: sync.device_id,
                 };
-                state.toshinori.set_context(sync_context.clone()).await;
+                state.sync_sink.set_context(sync_context.clone()).await;
                 state.message_sync.set_context(sync_context.clone()).await;
                 if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
                     syncer.set_context(sync_context.clone()).await;
@@ -118,7 +118,7 @@ pub async fn reconcile_sidecars_with_auth(state: &DaemonState) -> bool {
             ready
         }
         Ok(None) => {
-            state.toshinori.clear_context().await;
+            state.sync_sink.clear_context().await;
             state.message_sync.clear_context().await;
             if let Some(syncer) = state.realtime_message_sync.read().await.clone() {
                 syncer.clear_context().await;
@@ -304,17 +304,17 @@ async fn ensure_realtime_sync_started_locked(state: &DaemonState, device_id: &st
         return true;
     }
 
-    // Install into Toshinori and then start worker.
+    // Install into session sync sink and then start worker.
     if install_message_syncer {
         state
-            .toshinori
+            .sync_sink
             .set_realtime_message_syncer(message_syncer.clone())
             .await;
         message_syncer.start();
     }
     if install_runtime_status_syncer {
         state
-            .toshinori
+            .sync_sink
             .set_realtime_runtime_status_syncer(runtime_status_syncer.clone())
             .await;
         runtime_status_syncer.start();
@@ -562,7 +562,7 @@ async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: b
     if let Some(syncer) = realtime_message_syncer {
         syncer.clear_context().await;
     }
-    state.toshinori.clear_realtime_message_syncer().await;
+    state.sync_sink.clear_realtime_message_syncer().await;
 
     let realtime_runtime_status_syncer = {
         let mut guard = state.realtime_runtime_status_sync.write().await;
@@ -571,7 +571,7 @@ async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: b
     if let Some(syncer) = realtime_runtime_status_syncer {
         syncer.clear_context().await;
     }
-    state.toshinori.clear_realtime_runtime_status_syncer().await;
+    state.sync_sink.clear_realtime_runtime_status_syncer().await;
 
     if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
         terminate_child(&mut child, "nagato");

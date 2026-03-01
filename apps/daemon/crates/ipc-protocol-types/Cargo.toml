@@ -1,5 +1,5 @@
 [package]
-name = "one-for-all-protocol"
+name = "ipc-protocol-types"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

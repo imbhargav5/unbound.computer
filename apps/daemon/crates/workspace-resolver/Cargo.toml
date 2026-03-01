@@ -1,5 +1,5 @@
 [package]
-name = "sakura-working-dir-resolution"
+name = "workspace-resolver"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

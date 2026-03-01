@@ -6,7 +6,7 @@ use git_ops::{
     commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
     unstage_files, GitOpsError,
 };
-use sakura_working_dir_resolution::{
+use workspace_resolver::{
     resolve_repository_path, resolve_working_dir_from_str, ResolveError,
 };
 

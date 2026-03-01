@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 daemon-config-and-utils = { workspace = true }
-one-for-all-protocol = { workspace = true }
+ipc-protocol-types = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

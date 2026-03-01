@@ -6,7 +6,7 @@ use agent_session_sqlite_persist_core::{Armin, SideEffect, SideEffectSink};
 use daemon_ipc::{Event, EventType, SubscriptionManager};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-use toshinori::ToshinoriSink;
+use session_sync_sink::SessionSyncSink;
 use tracing::{debug, info};
 
 /// A side-effect sink that bridges Armin events to daemon subscriptions.
@@ -23,14 +23,14 @@ pub struct DaemonSideEffectSink {
 /// Composite sink that broadcasts to IPC and optionally syncs to Supabase.
 pub struct DaemonCompositeSink {
     daemon_sink: DaemonSideEffectSink,
-    toshinori: Option<Arc<ToshinoriSink>>,
+    sync_sink: Option<Arc<SessionSyncSink>>,
 }
 
 impl DaemonCompositeSink {
-    pub fn new(subscriptions: SubscriptionManager, toshinori: Option<Arc<ToshinoriSink>>) -> Self {
+    pub fn new(subscriptions: SubscriptionManager, sync_sink: Option<Arc<SessionSyncSink>>) -> Self {
         Self {
             daemon_sink: DaemonSideEffectSink::new(subscriptions),
-            toshinori,
+            sync_sink,
         }
     }
 }
@@ -38,8 +38,8 @@ impl DaemonCompositeSink {
 impl SideEffectSink for DaemonCompositeSink {
     fn emit(&self, effect: SideEffect) {
         self.daemon_sink.emit(effect.clone());
-        if let Some(toshinori) = &self.toshinori {
-            toshinori.emit(effect);
+        if let Some(sync_sink) = &self.sync_sink {
+            sync_sink.emit(effect);
         }
     }
 }
@@ -199,9 +199,9 @@ pub type DaemonArmin = Armin<DaemonCompositeSink>;
 pub fn create_daemon_armin(
     db_path: &std::path::Path,
     subscriptions: SubscriptionManager,
-    toshinori: Option<Arc<ToshinoriSink>>,
+    sync_sink: Option<Arc<SessionSyncSink>>,
 ) -> Result<Arc<DaemonArmin>, agent_session_sqlite_persist_core::ArminError> {
-    let sink = DaemonCompositeSink::new(subscriptions, toshinori);
+    let sink = DaemonCompositeSink::new(subscriptions, sync_sink);
     let armin = Armin::open(db_path, sink)?;
 
     info!(path = %db_path.display(), "Armin session engine initialized");

@@ -10,14 +10,14 @@ use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
 use safe_file_ops::SafeFileOps;
-use levi::Levi;
-use levi::SessionSyncService;
+use message_sync_retriable_worker::MessageSyncWorker;
+use message_sync_retriable_worker::SessionSyncService;
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
-use toshinori::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, ToshinoriSink};
+use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, SessionSyncSink};
 use auth_engine::{DaemonAuthRuntime, SupabaseClient};
 
 /// Cached billing usage-status snapshot for relaxed local quota enforcement.
@@ -76,10 +76,10 @@ pub struct DaemonState {
     pub device_private_key: Arc<Mutex<Option<[u8; 32]>>>,
     /// Service for syncing sessions to Supabase.
     pub session_sync: Arc<SessionSyncService>,
-    /// Toshinori sink for Supabase sync.
-    pub toshinori: Arc<ToshinoriSink>,
-    /// Levi worker for Supabase message sync.
-    pub message_sync: Arc<Levi>,
+    /// Session sync sink for Supabase/Ably sync.
+    pub sync_sink: Arc<SessionSyncSink>,
+    /// Message sync worker for Supabase message sync.
+    pub message_sync: Arc<MessageSyncWorker>,
     /// Optional Ably hot-path worker for conversation message publish.
     /// Stored behind an async lock so it can be installed lazily after login.
     pub realtime_message_sync: Arc<RwLock<Option<Arc<AblyRealtimeSyncer>>>>,

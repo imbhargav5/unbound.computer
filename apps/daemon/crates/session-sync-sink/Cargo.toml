@@ -1,5 +1,5 @@
 [package]
-name = "toshinori"
+name = "session-sync-sink"
 version = "0.1.0"
 edition = "2021"
 description = "Supabase sync sink for agent-session-sqlite-persist-core side-effects"

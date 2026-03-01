@@ -1,6 +1,6 @@
-//! # Levi: Supabase Message Sync Worker
+//! # MessageSyncWorker: Supabase Message Sync Worker
 //!
-//! Levi is the daemon's message synchronization engine responsible for reliably
+//! MessageSyncWorker is the daemon's message synchronization engine responsible for reliably
 //! syncing encrypted messages to Supabase with batching, retries, and exponential
 //! backoff.
 //!
@@ -8,7 +8,7 @@
 //!
 //! The crate provides two main services:
 //!
-//! - **[`Levi`]**: The core message sync worker that batches messages, encrypts
+//! - **[`MessageSyncWorker`]**: The core message sync worker that batches messages, encrypts
 //!   them with session-specific keys, and syncs to Supabase with retry handling.
 //!
 //! - **[`SessionSyncService`]**: Handles syncing coding sessions, repositories,
@@ -18,7 +18,7 @@
 //!
 //! ```text
 //! ┌─────────────────┐     ┌─────────────┐     ┌──────────────┐
-//! │  Message Queue  │────▶│    Levi     │────▶│   Supabase   │
+//! │  Message Queue  │────▶│    MessageSyncWorker     │────▶│   Supabase   │
 //! │  (MPSC Channel) │     │  (Batcher)  │     │   (Cloud)    │
 //! └─────────────────┘     └──────┬──────┘     └──────────────┘
 //!                                │
@@ -49,17 +49,17 @@
 //! ## Example
 //!
 //! ```ignore
-//! use levi::{Levi, LeviConfig};
+//! use message_sync_retriable_worker::{MessageSyncWorker, MessageSyncWorkerConfig};
 //!
-//! let config = LeviConfig::default();
-//! let levi = Levi::new(config, api_url, anon_key, armin, db_key);
-//! levi.start();
+//! let config = MessageSyncWorkerConfig::default();
+//! let worker = MessageSyncWorker::new(config, api_url, anon_key, armin, db_key);
+//! worker.start();
 //!
 //! // Set authentication context
-//! levi.set_context(SyncContext { access_token }).await;
+//! worker.set_context(SyncContext { access_token }).await;
 //!
 //! // Messages are automatically batched and synced via cursor-based tracking
-//! levi.enqueue(MessageSyncRequest { ... });
+//! worker.enqueue(MessageSyncRequest { ... });
 //! ```
 
 mod session_sync;
@@ -75,7 +75,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, Duration};
-use toshinori::{MessageSyncRequest, MessageSyncer, MessageUpsert, SupabaseClient, SyncContext};
+use session_sync_sink::{MessageSyncRequest, MessageSyncer, MessageUpsert, SupabaseClient, SyncContext};
 use tracing::{debug, error, warn};
 
 /// Base64 encoding engine for ciphertext and nonces.
@@ -94,10 +94,10 @@ impl<T: SessionWriter + SessionReader> ArminAccess for T {}
 
 /// Thread-safe handle for accessing Armin session storage.
 ///
-/// Used throughout Levi to read session secrets and mark message sync status.
+/// Used throughout MessageSyncWorker to read session secrets and mark message sync status.
 pub type ArminHandle = Arc<dyn ArminAccess + Send + Sync>;
 
-/// Configuration for Levi batching and retry behavior.
+/// Configuration for MessageSyncWorker batching and retry behavior.
 ///
 /// Controls how messages are batched for network efficiency and how
 /// failed messages are retried with exponential backoff.
@@ -119,7 +119,7 @@ pub type ArminHandle = Arc<dyn ArminAccess + Send + Sync>;
 /// - 4th retry: 16s
 /// - ... up to 300s max
 #[derive(Debug, Clone)]
-pub struct LeviConfig {
+pub struct MessageSyncWorkerConfig {
     /// Maximum number of messages to include in a single batch.
     pub batch_size: usize,
     /// How long to wait before flushing an incomplete batch.
@@ -129,12 +129,12 @@ pub struct LeviConfig {
     /// Maximum duration for backoff (caps exponential growth).
     pub backoff_max: Duration,
     /// Maximum number of retries before permanently abandoning a session's sync.
-    /// Prevents Levi from endlessly retrying sessions with permanent failures
+    /// Prevents MessageSyncWorker from endlessly retrying sessions with permanent failures
     /// (e.g., secrets encrypted with a stale device key).
     pub max_retries: i32,
 }
 
-impl Default for LeviConfig {
+impl Default for MessageSyncWorkerConfig {
     fn default() -> Self {
         Self {
             batch_size: 50,
@@ -146,7 +146,7 @@ impl Default for LeviConfig {
     }
 }
 
-/// Levi message sync worker.
+/// MessageSyncWorker message sync worker.
 ///
 /// The main message synchronization engine that:
 /// - Receives messages via MPSC channel
@@ -158,20 +158,20 @@ impl Default for LeviConfig {
 ///
 /// # Lifecycle
 ///
-/// 1. Create with [`Levi::new()`]
-/// 2. Call [`Levi::start()`] to spawn the background worker
-/// 3. Set authentication context with [`Levi::set_context()`]
+/// 1. Create with [`MessageSyncWorker::new()`]
+/// 2. Call [`MessageSyncWorker::start()`] to spawn the background worker
+/// 3. Set authentication context with [`MessageSyncWorker::set_context()`]
 /// 4. Enqueue messages via [`MessageSyncer::enqueue()`] trait
 ///
 /// # Thread Safety
 ///
-/// Levi is designed for concurrent access:
+/// MessageSyncWorker is designed for concurrent access:
 /// - Message sender (`mpsc::Sender`) is cloneable
 /// - Context is protected by `RwLock`
 /// - Caches are protected by `Mutex`
-pub struct Levi {
+pub struct MessageSyncWorker {
     /// Configuration for batching and retry behavior.
-    config: LeviConfig,
+    config: MessageSyncWorkerConfig,
     /// Supabase HTTP client for API calls.
     client: SupabaseClient,
     /// Handle to local session storage (Armin).
@@ -188,8 +188,8 @@ pub struct Levi {
     db_encryption_key: Arc<Mutex<Option<[u8; 32]>>>,
 }
 
-impl Levi {
-    /// Creates a new Levi message sync worker.
+impl MessageSyncWorker {
+    /// Creates a new MessageSyncWorker message sync worker.
     ///
     /// # Arguments
     ///
@@ -201,9 +201,9 @@ impl Levi {
     ///
     /// # Returns
     ///
-    /// A new `Levi` instance ready to be started with [`start()`](Self::start).
+    /// A new `MessageSyncWorker` instance ready to be started with [`start()`](Self::start).
     pub fn new(
-        config: LeviConfig,
+        config: MessageSyncWorkerConfig,
         api_url: impl Into<String>,
         anon_key: impl Into<String>,
         armin: ArminHandle,
@@ -240,7 +240,7 @@ impl Levi {
             .lock()
             .expect("lock poisoned")
             .take()
-            .expect("Levi already started");
+            .expect("MessageSyncWorker already started");
 
         let config = self.config.clone();
         let client = self.client.clone();
@@ -283,7 +283,7 @@ impl Levi {
                     {
                         Ok(sessions) => sessions,
                         Err(e) => {
-                            warn!(error = %e, "Levi failed to query pending sessions");
+                            warn!(error = %e, "MessageSyncWorker failed to query pending sessions");
                             continue;
                         }
                     };
@@ -328,7 +328,7 @@ impl Levi {
                                 session_id = %session_id_for_log,
                                 retry_count = retry_count,
                                 error = %err,
-                                "Levi session batch failed"
+                                "MessageSyncWorker session batch failed"
                             );
                         }
                     }
@@ -359,11 +359,11 @@ impl Levi {
     }
 }
 
-impl MessageSyncer for Levi {
+impl MessageSyncer for MessageSyncWorker {
     /// Enqueues a message for synchronization.
     ///
-    /// This notifies Levi that messages are available to sync. The actual
-    /// sync is cursor-based - Levi will query SQLite for all messages
+    /// This notifies MessageSyncWorker that messages are available to sync. The actual
+    /// sync is cursor-based - MessageSyncWorker will query SQLite for all messages
     /// beyond the last synced sequence number.
     ///
     /// # Arguments
@@ -371,7 +371,7 @@ impl MessageSyncer for Levi {
     /// * `request` - The message sync request (used as a notification trigger)
     fn enqueue(&self, request: MessageSyncRequest) {
         if let Err(err) = self.sender.try_send(request) {
-            debug!(error = %err, "Levi enqueue failed");
+            debug!(error = %err, "MessageSyncWorker enqueue failed");
         }
     }
 }
@@ -419,7 +419,7 @@ async fn send_session_batch(
         guard.clone()
     };
     let Some(ctx) = ctx else {
-        debug!("Levi: skipping batch (no context)");
+        debug!("MessageSyncWorker: skipping batch (no context)");
         return Ok(());
     };
 
@@ -638,7 +638,7 @@ fn is_session_due(
     last_attempt_at: Option<DateTime<Utc>>,
     retry_count: i32,
     now: DateTime<Utc>,
-    config: &LeviConfig,
+    config: &MessageSyncWorkerConfig,
 ) -> bool {
     let Some(last_attempt) = last_attempt_at else {
         return true;
@@ -675,7 +675,7 @@ fn is_session_due(
 /// # Returns
 ///
 /// Duration to wait before the next retry attempt.
-fn compute_backoff(retry_count: i32, config: &LeviConfig) -> chrono::Duration {
+fn compute_backoff(retry_count: i32, config: &MessageSyncWorkerConfig) -> chrono::Duration {
     if retry_count <= 0 {
         return chrono::Duration::zero();
     }
@@ -722,10 +722,10 @@ mod tests {
 
     #[test]
     fn compute_backoff_caps_and_grows() {
-        let config = LeviConfig {
+        let config = MessageSyncWorkerConfig {
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(10),
-            ..LeviConfig::default()
+            ..MessageSyncWorkerConfig::default()
         };
 
         assert_eq!(compute_backoff(0, &config), chrono::Duration::zero());
@@ -738,10 +738,10 @@ mod tests {
 
     #[test]
     fn is_session_due_respects_backoff() {
-        let config = LeviConfig {
+        let config = MessageSyncWorkerConfig {
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(10),
-            ..LeviConfig::default()
+            ..MessageSyncWorkerConfig::default()
         };
 
         let now = Utc::now();
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn compute_backoff_zero_for_non_positive_retries() {
-        let config = LeviConfig::default();
+        let config = MessageSyncWorkerConfig::default();
         assert_eq!(compute_backoff(0, &config), chrono::Duration::zero());
         assert_eq!(compute_backoff(-1, &config), chrono::Duration::zero());
         assert_eq!(compute_backoff(-100, &config), chrono::Duration::zero());
@@ -794,10 +794,10 @@ mod tests {
 
     #[test]
     fn compute_backoff_large_retry_count_saturates() {
-        let config = LeviConfig {
+        let config = MessageSyncWorkerConfig {
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(300),
-            ..LeviConfig::default()
+            ..MessageSyncWorkerConfig::default()
         };
 
         // Very large retry count should cap at max, not overflow
@@ -813,7 +813,7 @@ mod tests {
 
     #[test]
     fn is_session_due_zero_retry_always_due() {
-        let config = LeviConfig::default();
+        let config = MessageSyncWorkerConfig::default();
         let now = Utc::now();
 
         // With retry_count 0, backoff is zero — so it's always due even if last attempt was now
@@ -822,10 +822,10 @@ mod tests {
 
     #[test]
     fn is_session_due_exactly_at_boundary() {
-        let config = LeviConfig {
+        let config = MessageSyncWorkerConfig {
             backoff_base: Duration::from_secs(2),
             backoff_max: Duration::from_secs(300),
-            ..LeviConfig::default()
+            ..MessageSyncWorkerConfig::default()
         };
 
         let now = Utc::now();
@@ -1103,7 +1103,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Levi struct tests
+    // MessageSyncWorker struct tests
     // ========================================================================
 
     #[tokio::test]
@@ -1112,8 +1112,8 @@ mod tests {
         let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
         let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
 
-        let levi = Levi::new(
-            LeviConfig::default(),
+        let worker = MessageSyncWorker::new(
+            MessageSyncWorkerConfig::default(),
             "http://localhost:54321",
             "test-key",
             armin,
@@ -1122,12 +1122,12 @@ mod tests {
 
         // Initially no context
         {
-            let guard = levi.context.read().await;
+            let guard = worker.context.read().await;
             assert!(guard.is_none());
         }
 
         // Set context
-        levi.set_context(SyncContext {
+        worker.set_context(SyncContext {
             access_token: "token-123".to_string(),
             user_id: "user-1".to_string(),
             device_id: "device-1".to_string(),
@@ -1135,16 +1135,16 @@ mod tests {
         .await;
 
         {
-            let guard = levi.context.read().await;
+            let guard = worker.context.read().await;
             assert!(guard.is_some());
             assert_eq!(guard.as_ref().unwrap().access_token, "token-123");
         }
 
         // Clear context
-        levi.clear_context().await;
+        worker.clear_context().await;
 
         {
-            let guard = levi.context.read().await;
+            let guard = worker.context.read().await;
             assert!(guard.is_none());
         }
     }
@@ -1155,8 +1155,8 @@ mod tests {
         let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
         let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
 
-        let levi = Levi::new(
-            LeviConfig::default(),
+        let worker = MessageSyncWorker::new(
+            MessageSyncWorkerConfig::default(),
             "http://localhost:54321",
             "test-key",
             armin,
@@ -1164,7 +1164,7 @@ mod tests {
         );
 
         // Enqueue a message — should not panic
-        levi.enqueue(MessageSyncRequest {
+        worker.enqueue(MessageSyncRequest {
             session_id: "session-1".to_string(),
             message_id: "msg-1".to_string(),
             sequence_number: 1,
@@ -1172,7 +1172,7 @@ mod tests {
         });
 
         // Verify it landed in the channel by taking the receiver and checking
-        let mut receiver = levi.receiver.lock().unwrap().take().unwrap();
+        let mut receiver = worker.receiver.lock().unwrap().take().unwrap();
         let msg = receiver.try_recv().unwrap();
         assert_eq!(msg.session_id, "session-1");
         assert_eq!(msg.sequence_number, 1);
@@ -1184,20 +1184,20 @@ mod tests {
         let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
         let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
 
-        let levi = Levi::new(
-            LeviConfig::default(),
+        let worker = MessageSyncWorker::new(
+            MessageSyncWorkerConfig::default(),
             "http://localhost:54321",
             "test-key",
             armin,
             db_key,
         );
 
-        assert!(levi.secret_cache.lock().unwrap().is_empty());
+        assert!(worker.secret_cache.lock().unwrap().is_empty());
     }
 
     #[test]
     fn levi_config_default_values() {
-        let config = LeviConfig::default();
+        let config = MessageSyncWorkerConfig::default();
         assert_eq!(config.batch_size, 50);
         assert_eq!(config.flush_interval, Duration::from_millis(500));
         assert_eq!(config.backoff_base, Duration::from_secs(2));

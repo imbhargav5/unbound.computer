@@ -1,4 +1,4 @@
-//! Toshinori: Supabase sync sink for Armin side-effects.
+//! Session sync sink: Supabase sync sink for Armin side-effects.
 //!
 //! This crate provides a `SideEffectSink` implementation that syncs Armin's
 //! committed facts to Supabase in real-time.
@@ -6,7 +6,7 @@
 //! # Architecture
 //!
 //! ```text
-//! Armin (SQLite commit) → SideEffect → Toshinori → Supabase REST API
+//! Armin (SQLite commit) → SideEffect → Session sync sink → Supabase REST API
 //! ```
 //!
 //! # Design Principles
@@ -25,8 +25,8 @@ pub use ably_sync::{
     AblyArminAccess, AblyArminHandle, AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig,
 };
 pub use client::{MessageUpsert, SupabaseClient};
-pub use error::{ToshinoriError, ToshinoriResult};
+pub use error::{SessionSyncError, SessionSyncResult};
 pub use sink::{
     MessageSyncRequest, MessageSyncer, RuntimeStatusSyncRequest, RuntimeStatusSyncer,
-    SessionMetadata, SessionMetadataProvider, SyncContext, ToshinoriSink,
+    SessionMetadata, SessionMetadataProvider, SyncContext, SessionSyncSink,
 };

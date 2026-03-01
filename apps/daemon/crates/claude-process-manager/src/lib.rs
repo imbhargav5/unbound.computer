@@ -1,6 +1,6 @@
-//! Deku: Claude CLI process manager.
+//! Claude process manager: Claude CLI process manager.
 //!
-//! Deku manages the lifecycle of Claude CLI processes, handling:
+//! Claude process manager manages the lifecycle of Claude CLI processes, handling:
 //! - Process spawning with proper configuration
 //! - Stdout streaming and JSON event parsing
 //! - Process control (stop signals)
@@ -11,7 +11,7 @@
 //! ┌─────────────────────────────────────────────────────────────────┐
 //! │                           Daemon                                 │
 //! │                                                                  │
-//! │  IPC Handler ──► Deku::spawn() ──► ClaudeProcess                │
+//! │  IPC Handler ──► Claude process manager::spawn() ──► ClaudeProcess                │
 //! │                        │                  │                      │
 //! │                        │                  │ stdout               │
 //! │                        │                  ▼                      │
@@ -26,7 +26,7 @@
 //! # Usage
 //!
 //! ```ignore
-//! use deku::{ClaudeProcess, ClaudeConfig, ClaudeEvent};
+//! use claude_process_manager::{ClaudeProcess, ClaudeConfig, ClaudeEvent};
 //!
 //! // Create configuration
 //! let config = ClaudeConfig {
@@ -64,7 +64,7 @@ mod process;
 mod stream;
 
 pub use config::{ClaudeConfig, PermissionMode, DEFAULT_ALLOWED_TOOLS};
-pub use error::{DekuError, DekuResult};
+pub use error::{ClaudeProcessError, ClaudeProcessResult};
 pub use event::ClaudeEvent;
 pub use process::ClaudeProcess;
 pub use stream::ClaudeEventStream;

@@ -4,8 +4,8 @@ use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_events;
 use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use deku::{ClaudeConfig, ClaudeProcess, PermissionMode};
-use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
+use claude_process_manager::{ClaudeConfig, ClaudeProcess, PermissionMode};
+use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 use tracing::{info, warn};
 
 /// Register Claude handlers.
@@ -69,7 +69,7 @@ pub async fn claude_send_core(
         }
     }
 
-    // Build Claude configuration using Deku
+    // Build Claude configuration using claude-process-manager
     let mut config = ClaudeConfig::new(&content, &working_dir);
     if let Some(permission_mode) = permission_mode {
         config = config.with_permission_mode(permission_mode);
@@ -81,7 +81,7 @@ pub async fn claude_send_core(
         info!("Starting new Claude session");
     }
 
-    // Spawn the Claude process using Deku
+    // Spawn the Claude process using claude-process-manager
     let mut process = match ClaudeProcess::spawn(config).await {
         Ok(p) => {
             info!(pid = ?p.pid(), "Claude process spawned");

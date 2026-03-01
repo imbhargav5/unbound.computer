@@ -1,9 +1,9 @@
-//! Supabase REST API client for Toshinori.
+//! Supabase REST API client for Session sync sink.
 //!
 //! Provides a typed HTTP client for interacting with Supabase PostgREST API
 //! to sync Armin's local state with the cloud database.
 
-use crate::error::{ToshinoriError, ToshinoriResult};
+use crate::error::{SessionSyncError, SessionSyncResult};
 use agent_session_sqlite_persist_core::RuntimeStatusEnvelope;
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
@@ -87,7 +87,7 @@ impl SupabaseClient {
         user_id: &str,
         device_id: &str,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = self.rest_url("repositories");
 
         let body = serde_json::json!({
@@ -113,7 +113,7 @@ impl SupabaseClient {
         &self,
         repository_id: &str,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = format!("{}?id=eq.{}", self.rest_url("repositories"), repository_id);
 
         debug!(repository_id, "Deleting repository from Supabase");
@@ -142,7 +142,7 @@ impl SupabaseClient {
         is_worktree: bool,
         worktree_path: Option<&str>,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = self.rest_url("agent_coding_sessions");
 
         // Set current timestamp for heartbeat tracking
@@ -191,7 +191,7 @@ impl SupabaseClient {
         session_id: &str,
         status: &str,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = format!(
             "{}?id=eq.{}",
             self.rest_url("agent_coding_sessions"),
@@ -223,7 +223,7 @@ impl SupabaseClient {
         &self,
         session_id: &str,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = format!(
             "{}?id=eq.{}",
             self.rest_url("agent_coding_sessions"),
@@ -249,7 +249,7 @@ impl SupabaseClient {
         content_nonce: Option<&str>,
         sequence_number: i64,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let message = MessageUpsert {
             session_id: session_id.to_string(),
             sequence_number,
@@ -269,7 +269,7 @@ impl SupabaseClient {
         &self,
         messages: &[MessageUpsert],
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = format!(
             "{}?on_conflict=session_id,sequence_number",
             self.rest_url("agent_coding_session_messages")
@@ -297,7 +297,7 @@ impl SupabaseClient {
         session_id: &str,
         runtime_status: &RuntimeStatusEnvelope,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let url = format!(
             "{}?id=eq.{}",
             self.rest_url("agent_coding_sessions"),
@@ -337,7 +337,7 @@ impl SupabaseClient {
         url: &str,
         body: &T,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let response = self
             .http_client
             .post(url)
@@ -361,7 +361,7 @@ impl SupabaseClient {
         url: &str,
         body: &T,
         access_token: &str,
-    ) -> ToshinoriResult<()> {
+    ) -> SessionSyncResult<()> {
         let response = self
             .http_client
             .patch(url)
@@ -379,7 +379,7 @@ impl SupabaseClient {
     ///
     /// Uses lenient error handling - logs failures but returns Ok to support
     /// idempotent deletes where the resource may already be gone.
-    async fn delete(&self, url: &str, access_token: &str) -> ToshinoriResult<()> {
+    async fn delete(&self, url: &str, access_token: &str) -> SessionSyncResult<()> {
         let response = self
             .http_client
             .delete(url)
@@ -399,17 +399,17 @@ impl SupabaseClient {
         Ok(())
     }
 
-    /// Validates HTTP response and converts errors to ToshinoriError.
+    /// Validates HTTP response and converts errors to SessionSyncError.
     ///
     /// Reads the response body for error details and logs failures before
     /// returning a structured error with status code and message.
-    async fn check_response(&self, response: reqwest::Response) -> ToshinoriResult<()> {
+    async fn check_response(&self, response: reqwest::Response) -> SessionSyncResult<()> {
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
             error!(status, body_summary = %body_summary, "Supabase request failed");
-            return Err(ToshinoriError::Supabase {
+            return Err(SessionSyncError::Supabase {
                 status,
                 message: format!("upstream error ({body_summary})"),
             });

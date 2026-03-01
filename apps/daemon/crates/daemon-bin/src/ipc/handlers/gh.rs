@@ -6,7 +6,7 @@ use gh_cli_ops::{
     PrChecksInput, PrCreateInput, PrListInput, PrMergeInput, PrViewInput,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use sakura_working_dir_resolution::{
+use workspace_resolver::{
     resolve_repository_path, resolve_working_dir_from_str, ResolveError,
 };
 use serde::de::DeserializeOwned;
@@ -321,7 +321,7 @@ mod tests {
     use agent_session_sqlite_persist_core::ArminError;
     use gh_cli_ops::PrListInput;
     use daemon_ipc::error_codes;
-    use sakura_working_dir_resolution::ResolveError;
+    use workspace_resolver::ResolveError;
 
     #[test]
     fn parse_input_rejects_invalid_shape() {

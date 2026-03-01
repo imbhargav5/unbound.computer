@@ -1,10 +1,10 @@
-//! Error types for Deku.
+//! Error types for ClaudeProcess.
 
 use thiserror::Error;
 
-/// Deku error type.
+/// ClaudeProcess error type.
 #[derive(Debug, Error)]
-pub enum DekuError {
+pub enum ClaudeProcessError {
     /// Failed to spawn the Claude process.
     #[error("Failed to spawn Claude process: {0}")]
     SpawnFailed(#[from] std::io::Error),
@@ -26,5 +26,5 @@ pub enum DekuError {
     Config(String),
 }
 
-/// Result type for Deku operations.
-pub type DekuResult<T> = Result<T, DekuError>;
+/// Result type for ClaudeProcess operations.
+pub type ClaudeProcessResult<T> = Result<T, ClaudeProcessError>;

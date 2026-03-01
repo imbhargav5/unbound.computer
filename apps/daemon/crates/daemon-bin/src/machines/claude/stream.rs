@@ -1,10 +1,10 @@
-//! Claude event handling - bridges Deku events to Armin and IPC.
+//! Claude event handling - bridges Claude process events to Armin and IPC.
 
 use crate::app::DaemonState;
 use agent_session_sqlite_persist_core::{CodingSessionStatus, NewMessage, SessionId, SessionWriter};
 use claude_debug_logs::ClaudeDebugLogs;
 use daemon_ipc::{Event, EventType};
-use deku::{ClaudeEvent, ClaudeEventStream};
+use claude_process_manager::{ClaudeEvent, ClaudeEventStream};
 use std::sync::{
     atomic::{AtomicI64, Ordering},
     OnceLock,
@@ -15,9 +15,9 @@ use tracing::{debug, error, info, warn};
 static STREAM_SEQUENCE: AtomicI64 = AtomicI64::new(0);
 static CLAUDE_DEBUG_LOGS: OnceLock<ClaudeDebugLogs> = OnceLock::new();
 
-/// Handle Claude events from a Deku event stream.
+/// Handle Claude events from a claude-process-manager event stream.
 ///
-/// This handler bridges Deku's Claude events to Armin and IPC:
+/// This handler bridges claude-process-manager's Claude events to Armin and IPC:
 /// 1. Stores raw JSON as messages via Armin
 /// 2. Updates Claude session ID when received
 /// 3. Broadcasts events to IPC subscribers

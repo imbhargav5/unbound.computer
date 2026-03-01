@@ -1,4 +1,4 @@
-//! Toshinori SideEffectSink implementation.
+//! Session sync SideEffectSink implementation.
 //!
 //! This module provides the main `SideEffectSink` that syncs Armin's
 //! side-effects to Supabase and dispatches hot-path message sync notifications.
@@ -79,7 +79,7 @@ pub struct MessageSyncRequest {
 
 /// Trait for async message sync processing.
 ///
-/// Implementors (e.g., Levi/Ably workers) handle encryption and delivery
+/// Implementors (e.g., MessageSyncWorker/Ably workers) handle encryption and delivery
 /// with their own batching/retry strategies.
 pub trait MessageSyncer: Send + Sync {
     /// Enqueues a message for async sync.
@@ -107,16 +107,16 @@ pub trait RuntimeStatusSyncer: Send + Sync {
     fn enqueue(&self, request: RuntimeStatusSyncRequest);
 }
 
-/// Toshinori: A SideEffectSink that syncs to Supabase.
+/// Session sync: A SideEffectSink that syncs to Supabase.
 ///
-/// When Armin commits facts to SQLite, Toshinori asynchronously syncs
+/// When Armin commits facts to SQLite, Session sync asynchronously syncs
 /// those changes to Supabase for cross-device visibility.
 ///
 /// # Thread Safety
 ///
-/// Toshinori is thread-safe and can be shared across tasks. The sync
+/// Session sync is thread-safe and can be shared across tasks. The sync
 /// context can be updated at runtime (e.g., after token refresh).
-pub struct ToshinoriSink {
+pub struct SessionSyncSink {
     /// Supabase API client.
     client: SupabaseClient,
     /// Sync context (token, user_id, device_id).
@@ -137,8 +137,8 @@ pub struct ToshinoriSink {
     runtime: tokio::runtime::Handle,
 }
 
-impl ToshinoriSink {
-    /// Create a new Toshinori sink.
+impl SessionSyncSink {
+    /// Create a new Session sync sink.
     ///
     /// # Arguments
     /// * `api_url` - Supabase API URL
@@ -173,7 +173,7 @@ impl ToshinoriSink {
     pub async fn set_context(&self, context: SyncContext) {
         let mut ctx = self.context.write().await;
         *ctx = Some(context);
-        info!("Toshinori sync context set");
+        info!("Session sync sync context set");
     }
 
     /// Removes the sync context, disabling Supabase sync.
@@ -183,7 +183,7 @@ impl ToshinoriSink {
     pub async fn clear_context(&self) {
         let mut ctx = self.context.write().await;
         *ctx = None;
-        info!("Toshinori sync context cleared");
+        info!("Session sync sync context cleared");
     }
 
     /// Registers a provider for session metadata lookups.
@@ -205,7 +205,7 @@ impl ToshinoriSink {
 
     /// Registers a message syncer for handling MessageAppended side-effects.
     ///
-    /// The syncer (e.g., Levi) handles encryption, batching, and upload
+    /// The syncer (e.g., MessageSyncWorker) handles encryption, batching, and upload
     /// of messages to Supabase asynchronously.
     pub async fn set_message_syncer(&self, syncer: Arc<dyn MessageSyncer>) {
         let mut guard = self.message_syncer.write().await;
@@ -258,12 +258,12 @@ impl ToshinoriSink {
                 let sender = self.runtime_status_sender.clone();
                 self.runtime.spawn(async move {
                     if let Err(err) = sender.send(request).await {
-                        warn!(error = %err, "Toshinori runtime-status enqueue failed (channel closed)");
+                        warn!(error = %err, "Session sync runtime-status enqueue failed (channel closed)");
                     }
                 });
             }
             Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                warn!("Toshinori runtime-status worker channel is closed");
+                warn!("Session sync runtime-status worker channel is closed");
             }
         }
     }
@@ -275,7 +275,7 @@ impl ToshinoriSink {
             .expect("lock poisoned")
             .take()
         else {
-            panic!("Toshinori runtime-status worker already started");
+            panic!("Session sync runtime-status worker already started");
         };
 
         let client = self.client.clone();
@@ -300,7 +300,7 @@ impl ToshinoriSink {
                                 );
                             }
                             None => {
-                                debug!("Toshinori runtime-status worker stopped (channel closed)");
+                                debug!("Session sync runtime-status worker stopped (channel closed)");
                                 break;
                             }
                         }
@@ -317,7 +317,7 @@ impl ToshinoriSink {
                         let Some(ctx) = ctx else {
                             debug!(
                                 queued = pending.len(),
-                                "Toshinori runtime-status worker dropped queued updates (no context)"
+                                "Session sync runtime-status worker dropped queued updates (no context)"
                             );
                             pending.clear();
                             continue;
@@ -374,7 +374,7 @@ impl ToshinoriSink {
                                         status = request.runtime_status.coding_session.status.as_str(),
                                         updated_at_ms = request.runtime_status.updated_at_ms,
                                         error = %err,
-                                        "Toshinori runtime-status Supabase sync failed"
+                                        "Session sync runtime-status Supabase sync failed"
                                     );
                                     coalesce_runtime_status_request(
                                         &mut pending,
@@ -422,7 +422,7 @@ impl ToshinoriSink {
                 match guard.as_ref() {
                     Some(ctx) => ctx.clone(),
                     None => {
-                        debug!(?effect, "Toshinori: skipping sync (no context)");
+                        debug!(?effect, "Session sync: skipping sync (no context)");
                         return;
                     }
                 }
@@ -560,7 +560,7 @@ impl ToshinoriSink {
                         debug!(
                             session_id = session_id.as_str(),
                             message_id = message_id.as_str(),
-                            "Toshinori: MessageAppended (no message syncers)"
+                            "Session sync: MessageAppended (no message syncers)"
                         );
                         Ok(())
                     }
@@ -571,7 +571,7 @@ impl ToshinoriSink {
 
             // Log errors but don't fail
             if let Err(e) = result {
-                error!(?effect, error = %e, "Toshinori: failed to sync side-effect");
+                error!(?effect, error = %e, "Session sync: failed to sync side-effect");
             }
         });
     }
@@ -599,24 +599,24 @@ fn coalesce_runtime_status_request(
     }
 }
 
-impl std::fmt::Debug for ToshinoriSink {
+impl std::fmt::Debug for SessionSyncSink {
     /// Provides minimal debug output without exposing internal state.
     ///
     /// Uses finish_non_exhaustive to indicate internal fields are omitted
     /// for security (credentials) and brevity.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ToshinoriSink").finish_non_exhaustive()
+        f.debug_struct("SessionSyncSink").finish_non_exhaustive()
     }
 }
 
-impl SideEffectSink for ToshinoriSink {
+impl SideEffectSink for SessionSyncSink {
     /// Receives a side-effect from Armin and queues it for async sync.
     ///
     /// Logs the effect for debugging and delegates to handle_effect() which
     /// spawns an async task. This method returns immediately without waiting
     /// for the sync to complete (fire-and-forget).
     fn emit(&self, effect: SideEffect) {
-        debug!(?effect, "Toshinori: received side-effect");
+        debug!(?effect, "Session sync: received side-effect");
         self.handle_effect(effect);
     }
 }
@@ -726,7 +726,7 @@ mod tests {
     #[tokio::test]
     async fn test_sink_without_context() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         // Should not be enabled without context
         assert!(!sink.is_enabled().await);
@@ -740,7 +740,7 @@ mod tests {
     #[tokio::test]
     async fn test_context_management() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         assert!(!sink.is_enabled().await);
 
@@ -761,7 +761,7 @@ mod tests {
     #[tokio::test]
     async fn context_can_be_replaced() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token-1".to_string(),
@@ -788,7 +788,7 @@ mod tests {
     #[tokio::test]
     async fn metadata_provider_set_and_clear() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         let provider = Arc::new(MockMetadataProvider::new());
         sink.set_metadata_provider(provider).await;
@@ -813,7 +813,7 @@ mod tests {
     #[tokio::test]
     async fn message_syncer_set_and_clear() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         let syncer = Arc::new(RecordingMessageSyncer::new());
         sink.set_message_syncer(syncer).await;
@@ -833,7 +833,7 @@ mod tests {
     #[tokio::test]
     async fn realtime_syncer_set_and_clear() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         let syncer = Arc::new(RecordingMessageSyncer::new());
         sink.set_realtime_message_syncer(syncer).await;
@@ -853,7 +853,7 @@ mod tests {
     #[tokio::test]
     async fn runtime_status_syncer_set_and_clear() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         let syncer = Arc::new(RecordingRuntimeStatusSyncer::new());
         sink.set_realtime_runtime_status_syncer(syncer).await;
@@ -877,7 +877,7 @@ mod tests {
     #[tokio::test]
     async fn message_appended_dispatches_to_message_syncer() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -910,7 +910,7 @@ mod tests {
     #[tokio::test]
     async fn message_appended_dispatches_to_both_syncers() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -941,7 +941,7 @@ mod tests {
     #[tokio::test]
     async fn message_appended_without_syncers_does_not_panic() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -964,7 +964,7 @@ mod tests {
     #[tokio::test]
     async fn message_appended_without_context_skips_dispatch() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
         // No context set
 
         let syncer = Arc::new(RecordingMessageSyncer::new());
@@ -1007,7 +1007,7 @@ mod tests {
     #[tokio::test]
     async fn runtime_status_updated_dispatches_to_realtime_syncer() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
             user_id: "user-1".to_string(),
@@ -1038,7 +1038,7 @@ mod tests {
     #[tokio::test]
     async fn runtime_status_worker_coalesces_and_drops_stale_updates() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
             user_id: "user-1".to_string(),
@@ -1081,7 +1081,7 @@ mod tests {
     #[tokio::test]
     async fn emit_all_side_effect_variants_without_context() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         // Emit every variant — none should panic
         sink.emit(SideEffect::RepositoryCreated {
@@ -1128,7 +1128,7 @@ mod tests {
     #[tokio::test]
     async fn emit_session_created_without_metadata_provider() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -1148,7 +1148,7 @@ mod tests {
     #[tokio::test]
     async fn emit_session_updated_without_metadata_provider() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -1167,7 +1167,7 @@ mod tests {
     #[tokio::test]
     async fn emit_session_created_with_provider_but_missing_metadata() {
         let runtime = tokio::runtime::Handle::current();
-        let sink = ToshinoriSink::new("https://test.supabase.co", "test-key", runtime);
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
 
         sink.set_context(SyncContext {
             access_token: "token".to_string(),
@@ -1192,15 +1192,15 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn toshinori_sink_debug_is_opaque() {
+    fn session_sync_sink_debug_is_opaque() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let sink = ToshinoriSink::new(
+        let sink = SessionSyncSink::new(
             "https://test.supabase.co",
             "secret-key",
             runtime.handle().clone(),
         );
         let debug = format!("{:?}", sink);
-        assert!(debug.contains("ToshinoriSink"));
+        assert!(debug.contains("SessionSyncSink"));
         assert!(!debug.contains("secret-key"));
     }
 

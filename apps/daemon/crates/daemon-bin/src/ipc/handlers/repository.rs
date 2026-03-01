@@ -8,7 +8,7 @@ use crate::utils::repository_config::{
 use agent_session_sqlite_persist_core::{NewRepository, RepositoryId, SessionReader, SessionWriter};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use safe_file_ops::{FileRevision, SafeFileOpsError};
-use sakura_working_dir_resolution::{resolve_working_dir_from_str, ResolveError};
+use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 use std::path::Path;
 use tokio::task;
 use safe_repo_dir_lister::{ListOptions, SafeRepoDirListerError};

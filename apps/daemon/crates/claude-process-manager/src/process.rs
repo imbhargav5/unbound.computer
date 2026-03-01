@@ -1,7 +1,7 @@
 //! Claude CLI process management.
 
 use crate::config::ClaudeConfig;
-use crate::error::DekuResult;
+use crate::error::ClaudeProcessResult;
 use crate::stream::ClaudeEventStream;
 use std::process::Stdio;
 use tokio::process::Command;
@@ -29,7 +29,7 @@ impl ClaudeProcess {
     ///
     /// A `ClaudeProcess` handle that can be used to control the process
     /// and receive events.
-    pub async fn spawn(config: ClaudeConfig) -> DekuResult<Self> {
+    pub async fn spawn(config: ClaudeConfig) -> ClaudeProcessResult<Self> {
         let command = config.build_command();
 
         info!(

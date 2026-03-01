@@ -20,12 +20,12 @@ runtime-capability-detector = { workspace = true }
 gh-cli-ops = { workspace = true }
 auth-engine = { workspace = true }
 daemon-ipc = { workspace = true }
-toshinori = { workspace = true }
-levi = { workspace = true }
-deku = { workspace = true }
+session-sync-sink = { workspace = true }
+message-sync-retriable-worker = { workspace = true }
+claude-process-manager = { workspace = true }
 safe-repo-dir-lister = { workspace = true }
 safe-file-ops = { workspace = true }
-sakura-working-dir-resolution = { workspace = true }
+workspace-resolver = { workspace = true }
 rusqlite = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
