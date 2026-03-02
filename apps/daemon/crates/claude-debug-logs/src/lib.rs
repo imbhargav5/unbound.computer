@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 const ENV_ENABLED: &str = "UNBOUND_CLAUDE_DEBUG_LOGS_ENABLED";
 const ENV_DIR: &str = "UNBOUND_CLAUDE_DEBUG_LOGS_DIR";
-const OBS_MODE_ENV: &str = "UNBOUND_OBS_MODE";
+const ENVIRONMENT_ENV: &str = "UNBOUND_ENV";
 
 const EVENT_CODE: &str = "daemon.claude.raw";
 const OBS_PREFIX: &str = "claude.raw";
@@ -119,7 +119,7 @@ fn read_enabled_from_env() -> bool {
     }
 
     !matches!(
-        std::env::var(OBS_MODE_ENV)
+        std::env::var(ENVIRONMENT_ENV)
             .ok()
             .map(|value| value.trim().to_ascii_lowercase())
             .as_deref(),

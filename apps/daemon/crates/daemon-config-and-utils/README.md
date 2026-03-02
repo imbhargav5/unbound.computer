@@ -8,15 +8,14 @@ Provides foundational components that other crates depend on, avoiding circular 
 
 ## Key Features
 
-- **Configuration**: App config and relay settings
+- **Configuration**: app config and runtime settings
 - **Web app URL**: compile-time override for daemon web calls (`UNBOUND_WEB_APP_URL`)
 - **Paths**: XDG-compliant directory management
-- **Logging**: Unified tracing/logging setup
+- **Logging + tracing**: unified `tracing` and OpenTelemetry setup
 - **Presence DO heartbeat**: compile-time envs for presence ingest
 - **Conversation crypto**: shared ChaCha20-Poly1305 helpers for message payloads
 - **Hybrid crypto**: X25519 + ChaCha20-Poly1305 encryption
-- **Git operations**: Status, diff, log, branch management
-- **Observability**: runtime log policy + PostHog/Sentry configuration
+- **Git operations**: status, diff, log, branch management
 
 ## Conversation Crypto Utility
 
@@ -46,16 +45,20 @@ Contract:
 
 ## Observability Configuration
 
-Environment-driven config used by the daemon and other Rust services:
+Environment-driven config used by daemon Rust services:
 
-- `UNBOUND_OBS_MODE`: `dev` or `prod` (affects remote export payloads)
-- `UNBOUND_POSTHOG_API_KEY`: enable PostHog export
-- `UNBOUND_POSTHOG_HOST`: override PostHog ingest host
-- `UNBOUND_SENTRY_DSN`: enable Sentry export
-- `UNBOUND_OBS_DEBUG_SAMPLE_RATE`: debug/trace sampling rate
-- `UNBOUND_OBS_INFO_SAMPLE_RATE`: info sampling rate
-- `UNBOUND_OBS_WARN_SAMPLE_RATE`: warn sampling rate
-- `UNBOUND_OBS_ERROR_SAMPLE_RATE`: error sampling rate
+- `UNBOUND_ENV`: `dev` or `prod`
+- `UNBOUND_LOG_LEVEL`: `trace|debug|info|warn|error`
+- `UNBOUND_LOG_FORMAT`: `pretty|json`
+- `UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP traces endpoint
+- `UNBOUND_OTEL_HEADERS`: OTLP headers (`k=v,k2=v2`)
+- `UNBOUND_OTEL_SAMPLER`: `always_on|parentbased_traceidratio`
+- `UNBOUND_OTEL_TRACES_SAMPLER_ARG`: ratio for ratio-based sampling
+
+Notes:
+
+- In `dev`, logs are verbose and include local file output to `~/.unbound/logs/dev.jsonl`.
+- In `prod`, logs are lightweight JSON and traces are sampled by configured sampler settings.
 
 ## Presence DO Configuration
 

@@ -292,7 +292,19 @@ class AppState {
     func checkDependencies() async {
         dependencyStatus = .checking
         do {
-            let result = try await daemonClient.checkDependencies()
+            let result = try await withThrowingTaskGroup(of: DaemonDependencyStatus.self) { group in
+                group.addTask {
+                    try await self.daemonClient.checkDependencies()
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(8))
+                    throw DaemonError.requestTimeout
+                }
+
+                let firstResult = try await group.next()!
+                group.cancelAll()
+                return firstResult
+            }
             isGhInstalled = result.gh.installed
             if result.claude.installed {
                 dependencyStatus = .satisfied

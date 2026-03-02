@@ -1,94 +1,54 @@
 # observability
 
-Centralized tracing setup for Unbound services.
+Centralized tracing and logging setup for Unbound Rust services.
 
-This crate configures structured JSON logging and ensures every service emits consistent, queryable events without needing to manage sinks directly.
+## What it does
 
-## Design Goals
-
-- Services are **log producers**, not log consumers.
-- One config entrypoint for all services.
-- Dev mode writes to a shared JSONL file for multi-process streaming.
-
-## Remote Export
-
-The dev subscriber can optionally fan out logs to remote sinks:
-
-- **PostHog** (events for dashboards)
-- **Sentry** (error and warning envelopes)
-
-Remote export is configured through `LogConfig` and gated by the runtime
-`ObservabilityMode` policy.
-
-## Export Policy Modes
-
-- `DevVerbose` - includes payloads after basic secret redaction.
-- `ProdMetadataOnly` - exports metadata only (no raw payloads).
-
-## Dev Mode Output
-
-By default logs are written to:
-
-```
-~/.unbound/logs/dev.jsonl
-```
-
-You can tail it with:
-
-```bash
-tail -f ~/.unbound/logs/dev.jsonl | jq
-```
-
-### How to Read Logs in Development Mode
-
-For Claude debug session logs, you can stream a dated session file with:
-
-```bash
-tail -n 500 -F ~/.unbound/logs/claude-debug-logs/2026-02-19_a83286a7-2f17-4cda-a547-b92c27516a32.jsonl
-```
+- Initializes `tracing` subscribers for structured logs.
+- Exports traces via OpenTelemetry OTLP when configured.
+- Applies environment-oriented logging defaults:
+  - `DevVerbose`: detailed local logs (file + optional stderr)
+  - `ProdLight`: lightweight JSON logs to stderr
 
 ## Usage
 
 ```rust
 fn main() {
-    observability::init("daemon");
+    observability::init_with_config(observability::LogConfig {
+        service_name: "daemon".into(),
+        default_level: "debug".into(),
+        mode: observability::ObservabilityMode::DevVerbose,
+        log_format: observability::LogFormat::Pretty,
+        otlp: Some(observability::OtlpConfig {
+            endpoint: "http://localhost:4318/v1/traces".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
     tracing::info!("ready");
 }
 ```
 
-Advanced configuration:
+## Dev log file
 
-```rust
-observability::init_with_config(observability::LogConfig {
-    service_name: "daemon".into(),
-    default_level: "debug".into(),
-    also_stderr: true,
-    mode: observability::ObservabilityMode::DevVerbose,
-    ..Default::default()
-});
+By default in `DevVerbose`, logs are written to:
+
+```text
+~/.unbound/logs/dev.jsonl
 ```
 
-## Key Types
+## Main types
 
-- `LogConfig` - service name, level, mode, sinks, sampling
-- `ObservabilityMode` - runtime export policy
-- `PosthogConfig` - PostHog API key + batching settings
-- `SentryConfig` - Sentry DSN
-- `SamplingConfig` - per-level sampling rates
-- `init` - zero-config setup
-- `init_with_config` - fully configurable setup
+- `LogConfig`: logging + tracing configuration
+- `ObservabilityMode`: `DevVerbose` or `ProdLight`
+- `LogFormat`: `Pretty` or `Json`
+- `OtlpConfig`: endpoint, headers, and sampler settings
+- `OtlpSampler`: `AlwaysOn` or `ParentBasedTraceIdRatio`
 
-## Module Layout
+## OTLP envs used by daemon wiring
 
-```
-src/
-├── lib.rs       # public API
-├── dev.rs       # JSONL file sink
-└── json_layer.rs# tracing layer for structured output
-```
-
-## Development
-
-```bash
-cargo test -p observability
-```
+- `UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT`
+- `UNBOUND_OTEL_HEADERS`
+- `UNBOUND_OTEL_SAMPLER`
+- `UNBOUND_OTEL_TRACES_SAMPLER_ARG`

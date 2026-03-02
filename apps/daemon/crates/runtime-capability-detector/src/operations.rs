@@ -10,7 +10,10 @@ use crate::types::{
 };
 use chrono::{SecondsFormat, Utc};
 use std::path::Path;
+use std::time::Duration;
 use tracing::debug;
+
+const DEPENDENCY_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Check whether a single dependency is installed.
 ///
@@ -19,10 +22,17 @@ use tracing::debug;
 pub async fn check_dependency(name: &str) -> Result<DependencyInfo, RuntimeCapabilityDetectorError> {
     debug!("Checking dependency: {}", name);
 
-    let output = tokio::process::Command::new(login_shell())
-        .args(["-l", "-c", &format!("which {}", name)])
-        .output()
-        .await?;
+    let output = match run_login_shell_with_timeout(&format!("which {}", name), DEPENDENCY_CHECK_TIMEOUT).await {
+        Ok(output) => output,
+        Err(error) => {
+            debug!("Dependency '{}' check failed: {}", name, error);
+            return Ok(DependencyInfo {
+                name: name.to_string(),
+                installed: false,
+                path: None,
+            });
+        }
+    };
 
     let installed = output.status.success();
     let path = if installed {
@@ -193,6 +203,20 @@ async fn run_login_shell(command: &str) -> Result<std::process::Output, RuntimeC
         .args(["-l", "-c", command])
         .output()
         .await?)
+}
+
+async fn run_login_shell_with_timeout(
+    command: &str,
+    timeout: Duration,
+) -> Result<std::process::Output, RuntimeCapabilityDetectorError> {
+    match tokio::time::timeout(timeout, run_login_shell(command)).await {
+        Ok(result) => result,
+        Err(_) => Err(RuntimeCapabilityDetectorError::CheckFailed(format!(
+            "command timed out after {}s: {}",
+            timeout.as_secs(),
+            command
+        ))),
+    }
 }
 
 fn login_shell() -> &'static str {

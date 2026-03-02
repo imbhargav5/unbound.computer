@@ -1,261 +1,332 @@
-//! # Observability
-//!
-//! Centralized observability layer for the Unbound monorepo.
-//!
-//! ## Design Philosophy
-//!
-//! Services are **log producers**, not log consumers or streamers. They call
-//! `observability::init()` once at startup and use standard `tracing` macros
-//! throughout their code. They have zero knowledge of:
-//!
-//! - Where logs go (file, stdout, network)
-//! - Who consumes logs (CLI tools, dashboards, aggregators)
-//! - How logs are streamed (pull via tail, push via network)
-//!
-//! ## Dev Mode
-//!
-//! All services write structured JSONL to a single central file:
-//! `~/.unbound/logs/dev.jsonl`
-//!
-//! This enables:
-//! - `tail -f ~/.unbound/logs/dev.jsonl` for raw streaming
-//! - `tail -f ~/.unbound/logs/dev.jsonl | jq` for pretty JSON
-//! - `lnav ~/.unbound/logs/dev.jsonl` for interactive exploration
-//!
-//! Multi-process safety is achieved through append-only writes with
-//! per-line flush semantics.
-//!
-//! ## Usage
-//!
-//! ```rust,ignore
-//! // In your service's main.rs
-//! fn main() {
-//!     observability::init("daemon");
-//!
-//!     tracing::info!("service started");
-//!     // ... rest of your code
-//! }
-//! ```
-//!
-//! Or with configuration:
-//!
-//! ```rust,ignore
-//! fn main() {
-//!     observability::init_with_config(observability::LogConfig {
-//!         service_name: "daemon".into(),
-//!         default_level: "debug".into(),
-//!         also_stderr: true,
-//!         ..Default::default()
-//!     });
-//! }
-//! ```
-
-#[cfg(feature = "dev")]
 mod dev;
 
-mod json_layer;
-mod remote;
-
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
-/// Runtime export policy mode.
+use dev::{default_log_path, WriterFactory};
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::KeyValue;
+use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::{trace, Resource};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, EnvFilter};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObservabilityMode {
-    /// Development mode: include verbose payloads after basic secret redaction.
     #[default]
     DevVerbose,
-    /// Production mode: export metadata only (no raw payloads).
-    ProdMetadataOnly,
+    ProdLight,
 }
 
-/// PostHog sink configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogFormat {
+    #[default]
+    Pretty,
+    Json,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OtlpSampler {
+    AlwaysOn,
+    ParentBasedTraceIdRatio,
+}
+
+impl Default for OtlpSampler {
+    fn default() -> Self {
+        Self::AlwaysOn
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct PosthogConfig {
-    /// Project API key.
-    pub api_key: String,
-    /// PostHog ingest host, e.g. https://us.i.posthog.com.
-    pub host: String,
-    /// Max events per batch flush.
-    pub batch_size: usize,
-    /// Internal queue capacity.
-    pub queue_capacity: usize,
-    /// Flush interval in milliseconds.
-    pub flush_interval_ms: u64,
+pub struct OtlpConfig {
+    pub endpoint: String,
+    pub headers: HashMap<String, String>,
+    pub sampler: OtlpSampler,
+    pub sampler_arg: f64,
 }
 
-/// Sentry sink configuration.
-#[derive(Debug, Clone)]
-pub struct SentryConfig {
-    /// Sentry DSN.
-    pub dsn: String,
-}
-
-/// Per-level sampling configuration for remote export.
-#[derive(Debug, Clone)]
-pub struct SamplingConfig {
-    /// DEBUG and TRACE sample rate.
-    pub debug_rate: f64,
-    /// INFO and NOTICE sample rate.
-    pub info_rate: f64,
-    /// WARN sample rate.
-    pub warn_rate: f64,
-    /// ERROR sample rate.
-    pub error_rate: f64,
-}
-
-impl Default for SamplingConfig {
+impl Default for OtlpConfig {
     fn default() -> Self {
         Self {
-            debug_rate: 0.0,
-            info_rate: 0.1,
-            warn_rate: 1.0,
-            error_rate: 1.0,
+            endpoint: "http://localhost:4318/v1/traces".to_string(),
+            headers: HashMap::new(),
+            sampler: OtlpSampler::AlwaysOn,
+            sampler_arg: 1.0,
         }
     }
 }
 
-/// Configuration for the logging system.
 #[derive(Debug, Clone)]
 pub struct LogConfig {
-    /// Name of the service (e.g., "daemon", "cli", "worker").
-    /// Included in every log line for filtering.
     pub service_name: String,
-
-    /// Default log level filter (e.g., "debug", "info", "warn").
-    /// Can be overridden by `RUST_LOG` environment variable.
     pub default_level: String,
-
-    /// Optional custom log file path.
-    /// Defaults to `~/.unbound/logs/dev.jsonl` in dev mode.
     pub log_path: Option<PathBuf>,
-
-    /// Also emit logs to stderr for immediate feedback.
-    /// Defaults to false in dev mode.
     pub also_stderr: bool,
-
-    /// Runtime observability mode.
     pub mode: ObservabilityMode,
-
-    /// Logical environment name written to remote payloads.
+    pub log_format: LogFormat,
     pub environment: String,
-
-    /// Optional PostHog sink configuration.
-    pub posthog: Option<PosthogConfig>,
-
-    /// Optional Sentry sink configuration.
-    pub sentry: Option<SentryConfig>,
-
-    /// Remote export sampling policy.
-    pub sampling: SamplingConfig,
+    pub otlp: Option<OtlpConfig>,
 }
+
+static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            service_name: "unknown".into(),
-            default_level: "info".into(),
+            service_name: "unknown".to_string(),
+            default_level: "info".to_string(),
             log_path: None,
-            also_stderr: false,
+            also_stderr: true,
             mode: ObservabilityMode::DevVerbose,
-            environment: "development".into(),
-            posthog: None,
-            sentry: None,
-            sampling: SamplingConfig::default(),
+            log_format: LogFormat::Pretty,
+            environment: "development".to_string(),
+            otlp: None,
         }
     }
 }
 
-/// Initialize the observability layer with default settings.
-///
-/// This is the zero-config entry point. Services call this once at startup:
-///
-/// ```rust,ignore
-/// fn main() {
-///     observability::init("my-service");
-///     tracing::info!("ready");
-/// }
-/// ```
-///
-/// # Panics
-///
-/// Panics if the log file cannot be created or opened.
 pub fn init(service_name: &str) {
     init_with_config(LogConfig {
-        service_name: service_name.into(),
+        service_name: service_name.to_string(),
         ..Default::default()
     });
 }
 
-/// Initialize the observability layer with custom configuration.
-///
-/// Use this when you need to customize logging behavior:
-///
-/// ```rust,ignore
-/// observability::init_with_config(observability::LogConfig {
-///     service_name: "daemon".into(),
-///     default_level: "debug".into(),
-///     also_stderr: true,
-///     ..Default::default()
-/// });
-/// ```
 pub fn init_with_config(config: LogConfig) {
-    // Set service name as a default span field
-    // This ensures every log line includes the service name
-    let config = inject_service_context(config);
+    let tracer = match config.otlp.as_ref() {
+        Some(otlp) => init_otel_tracer(&config, otlp),
+        None => None,
+    };
 
-    #[cfg(feature = "dev")]
-    {
-        dev::init_dev_subscriber(&config);
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.default_level));
+
+    match config.mode {
+        ObservabilityMode::DevVerbose => init_dev_subscriber(config, env_filter, tracer),
+        ObservabilityMode::ProdLight => init_prod_subscriber(config, env_filter, tracer),
     }
+}
 
-    #[cfg(not(feature = "dev"))]
-    {
-        use tracing_subscriber::util::SubscriberInitExt;
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.default_level)),
-            )
+fn init_dev_subscriber(
+    config: LogConfig,
+    env_filter: EnvFilter,
+    tracer: Option<opentelemetry_sdk::trace::Tracer>,
+) {
+    let log_path = config.log_path.clone().unwrap_or_else(default_log_path);
+    let writer_factory = WriterFactory::new(&log_path)
+        .unwrap_or_else(|e| panic!("failed to initialize log writer at {:?}: {}", log_path, e));
+
+    let make_file_json_layer = || {
+        fmt::layer()
+            .json()
             .with_target(true)
-            .compact()
-            .init();
+            .with_file(true)
+            .with_line_number(true)
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_writer(writer_factory.clone())
+    };
+
+    match (tracer, config.also_stderr, config.log_format) {
+        (Some(tracer), true, LogFormat::Pretty) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_file_json_layer())
+                .with(
+                    fmt::layer()
+                        .pretty()
+                        .with_target(true)
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_writer(std::io::stderr),
+                )
+                .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                .try_init();
+        }
+        (Some(tracer), true, LogFormat::Json) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_file_json_layer())
+                .with(
+                    fmt::layer()
+                        .json()
+                        .with_target(true)
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_current_span(true)
+                        .with_span_list(true)
+                        .with_writer(std::io::stderr),
+                )
+                .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                .try_init();
+        }
+        (Some(tracer), false, _) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_file_json_layer())
+                .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                .try_init();
+        }
+        (None, true, LogFormat::Pretty) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_file_json_layer())
+                .with(
+                    fmt::layer()
+                        .pretty()
+                        .with_target(true)
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_writer(std::io::stderr),
+                )
+                .try_init();
+        }
+        (None, true, LogFormat::Json) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_file_json_layer())
+                .with(
+                    fmt::layer()
+                        .json()
+                        .with_target(true)
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_current_span(true)
+                        .with_span_list(true)
+                        .with_writer(std::io::stderr),
+                )
+                .try_init();
+        }
+        (None, false, _) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter)
+                .with(make_file_json_layer())
+                .try_init();
+        }
+    }
+
+    tracing::info!(
+        log_path = %log_path.display(),
+        mode = "dev_verbose",
+        "observability initialized"
+    );
+}
+
+fn init_prod_subscriber(
+    _config: LogConfig,
+    env_filter: EnvFilter,
+    tracer: Option<opentelemetry_sdk::trace::Tracer>,
+) {
+    let make_prod_layer = || {
+        fmt::layer()
+            .json()
+            .with_target(false)
+            .with_file(false)
+            .with_line_number(false)
+            .with_current_span(false)
+            .with_span_list(false)
+            .with_writer(std::io::stderr)
+    };
+
+    match tracer {
+        Some(tracer) => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter.clone())
+                .with(make_prod_layer())
+                .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                .try_init();
+        }
+        None => {
+            let _ = tracing_subscriber::registry()
+                .with(env_filter)
+                .with(make_prod_layer())
+                .try_init();
+        }
+    }
+
+    tracing::info!(mode = "prod_light", "observability initialized");
+}
+
+fn init_otel_tracer(config: &LogConfig, otlp: &OtlpConfig) -> Option<opentelemetry_sdk::trace::Tracer> {
+    let sampler = match otlp.sampler {
+        OtlpSampler::AlwaysOn => trace::Sampler::AlwaysOn,
+        OtlpSampler::ParentBasedTraceIdRatio => {
+            trace::Sampler::ParentBased(Box::new(trace::Sampler::TraceIdRatioBased(
+                otlp.sampler_arg.clamp(0.0, 1.0),
+            )))
+        }
+    };
+
+    let resource = Resource::builder()
+        .with_attributes(vec![
+            KeyValue::new("service.name", config.service_name.clone()),
+            KeyValue::new("deployment.environment", config.environment.clone()),
+            KeyValue::new("service.namespace", "unbound"),
+            KeyValue::new("telemetry.sdk.language", "rust"),
+        ])
+        .build();
+
+    let mut exporter_builder = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_protocol(Protocol::HttpBinary)
+        .with_endpoint(otlp.endpoint.clone());
+
+    if !otlp.headers.is_empty() {
+        exporter_builder = exporter_builder.with_headers(otlp.headers.clone());
+    }
+
+    let exporter = match exporter_builder.build() {
+        Ok(exporter) => exporter,
+        Err(err) => {
+            eprintln!("failed to build OTLP exporter: {err}");
+            return None;
+        }
+    };
+
+    let provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_sampler(sampler)
+        .with_resource(resource)
+        .build();
+
+    let _ = TRACER_PROVIDER.set(provider.clone());
+    global::set_tracer_provider(provider.clone());
+
+    Some(provider.tracer(config.service_name.clone()))
+}
+
+pub fn shutdown() {
+    if let Some(provider) = TRACER_PROVIDER.get() {
+        let _ = provider.force_flush();
+        let _ = provider.shutdown();
     }
 }
 
-/// Inject service-level context that will appear in all log lines.
-fn inject_service_context(config: LogConfig) -> LogConfig {
-    // The service name and PID are injected via spans in the dev module
-    config
-}
-
-/// Re-export tracing macros for convenience.
-/// Services can use `observability::info!()` or `tracing::info!()`.
-pub use tracing::{debug, error, info, instrument, trace, warn};
-
-/// Re-export the span macro for structured context.
-pub use tracing::span;
-
-/// Re-export Level for advanced filtering.
-pub use tracing::Level;
+pub use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_default_config() {
+    fn default_config_is_dev_verbose() {
         let config = LogConfig::default();
         assert_eq!(config.service_name, "unknown");
         assert_eq!(config.default_level, "info");
-        assert!(config.log_path.is_none());
-        assert!(!config.also_stderr);
         assert_eq!(config.mode, ObservabilityMode::DevVerbose);
-        assert_eq!(config.environment, "development");
-        assert!(config.posthog.is_none());
-        assert!(config.sentry.is_none());
-        assert_eq!(config.sampling.debug_rate, 0.0);
-        assert_eq!(config.sampling.info_rate, 0.1);
-        assert_eq!(config.sampling.warn_rate, 1.0);
-        assert_eq!(config.sampling.error_rate, 1.0);
+        assert_eq!(config.log_format, LogFormat::Pretty);
+        assert!(config.otlp.is_none());
+    }
+
+    #[test]
+    fn default_otlp_config_is_safe_for_local_dev() {
+        let cfg = OtlpConfig::default();
+        assert_eq!(cfg.endpoint, "http://localhost:4318/v1/traces");
+        assert_eq!(cfg.sampler, OtlpSampler::AlwaysOn);
+        assert_eq!(cfg.sampler_arg, 1.0);
     }
 }

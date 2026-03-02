@@ -13,7 +13,7 @@ mod utils;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use daemon_config_and_utils::{init_logging, Config, Paths};
+use daemon_config_and_utils::{init_logging, shutdown, Config, Paths};
 
 /// Unbound daemon command-line interface.
 #[derive(Parser)]
@@ -76,6 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             app::check_status(&paths).await?;
         }
     }
+
+    shutdown();
 
     Ok(())
 }

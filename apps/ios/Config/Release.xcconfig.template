@@ -1,0 +1,38 @@
+// Release.xcconfig.template
+// Production configuration for iOS release builds.
+//
+// Copy this file to Release.xcconfig and customize as needed.
+// Release.xcconfig is gitignored and will not be committed.
+//
+// Usage:
+//   1. Copy: cp Release.xcconfig.template Release.xcconfig
+//   2. Edit Release.xcconfig with your production values
+//   3. Build with Release configuration (Product > Archive)
+
+// ================================
+// App Identity (Production)
+// ================================
+
+PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-ios
+
+// ================================
+// Production URLs
+// ================================
+
+API_URL = https://unbound.computer
+SUPABASE_URL = https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY = your-production-publishable-key
+
+// ================================
+// Observability (optional)
+// ================================
+
+// POSTHOG_API_KEY = your-posthog-key
+// SENTRY_DSN = your-sentry-dsn
+
+// ================================
+// Versioning (injected by release pipeline)
+// ================================
+
+MARKETING_VERSION = $(RELEASE_VERSION)
+CURRENT_PROJECT_VERSION = $(RELEASE_BUILD_NUMBER)

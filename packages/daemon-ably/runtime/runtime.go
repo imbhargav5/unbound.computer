@@ -536,7 +536,7 @@ func (m *Manager) publishPresence(ctx context.Context, status string) error {
 			return m.publishPresenceOverride(ctx, payload)
 		}
 		if m.presenceClient == nil {
-			return fmt.Errorf("presence DO client is not configured")
+			return nil
 		}
 		return m.presenceClient.Publish(ctx, payload)
 	}

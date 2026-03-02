@@ -17,7 +17,7 @@ pub use conversation_crypto::{
 };
 pub use error::{CoreError, CoreResult};
 pub use hybrid_crypto::{decrypt_for_device, encrypt_for_device, generate_keypair};
-pub use logging::init_logging;
+pub use logging::{init_logging, shutdown};
 pub use paths::Paths;
 
 // Re-export git operations from git-ops for backward compatibility

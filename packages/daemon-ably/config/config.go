@@ -161,9 +161,6 @@ func (c *Config) Validate() error {
 	if c.PresenceEvent == "" {
 		return fmt.Errorf("presence event is required")
 	}
-	if c.PresenceDOHeartbeatURL == "" {
-		return fmt.Errorf("%s environment variable is required", EnvPresenceDOHeartbeat)
-	}
 	if c.HeartbeatInterval <= 0 {
 		return fmt.Errorf("heartbeat interval must be positive")
 	}

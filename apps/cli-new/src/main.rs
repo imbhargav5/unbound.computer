@@ -395,7 +395,10 @@ async fn main() {
     };
 
     if let Err(e) = result {
+        observability::shutdown();
         eprintln!("Error: {}", e);
         std::process::exit(1);
     }
+
+    observability::shutdown();
 }

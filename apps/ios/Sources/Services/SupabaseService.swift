@@ -15,7 +15,13 @@ final class SupabaseService {
     init() {
         self.client = SupabaseClient(
             supabaseURL: URL(string: Config.supabaseURL)!,
-            supabaseKey: Config.supabaseAnonKey
+            supabaseKey: Config.supabaseAnonKey,
+            options: SupabaseClientOptions(
+                auth: .init(
+                    // Opt-in to new session behavior per https://github.com/supabase/supabase-swift/pull/822
+                    emitLocalSessionAsInitialSession: true
+                )
+            )
         )
     }
 

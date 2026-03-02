@@ -41,7 +41,13 @@ final class SessionRuntimeStatusService {
             let session = try await daemonClient.getSupabaseAuthSession()
             let client = SupabaseClient(
                 supabaseURL: Config.supabaseURL,
-                supabaseKey: Config.supabasePublishableKey
+                supabaseKey: Config.supabasePublishableKey,
+                options: SupabaseClientOptions(
+                    auth: .init(
+                        // Opt-in to new session behavior per https://github.com/supabase/supabase-swift/pull/822
+                        emitLocalSessionAsInitialSession: true
+                    )
+                )
             )
             supabaseClient = client
             await client.realtimeV2.setAuth(session.accessToken)

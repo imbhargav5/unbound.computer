@@ -299,4 +299,17 @@ fn infer_repo_root(exe_parent: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|path| path.join("packages").join("daemon-ably").exists())
         .map(Path::to_path_buf)
+        .or_else(|| {
+            std::env::current_dir().ok().and_then(|cwd| {
+                cwd.ancestors()
+                    .find(|path| path.join("packages").join("daemon-ably").exists())
+                    .map(Path::to_path_buf)
+            })
+        })
+        .or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .find(|path| path.join("packages").join("daemon-ably").exists())
+                .map(Path::to_path_buf)
+        })
 }
