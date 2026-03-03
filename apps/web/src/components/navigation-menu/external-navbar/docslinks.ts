@@ -24,7 +24,10 @@ export const navigation = [
     title: "Internals: Daemon",
     links: [
       { title: "Daemon Bin", href: "/docs/internals/daemon/daemon-bin" },
-      { title: "Remote Command Handler", href: "/docs/internals/daemon/remote-command-handler" },
+      {
+        title: "Remote Command Handler",
+        href: "/docs/internals/daemon/remote-command-handler",
+      },
       {
         title: "Daemon Config And Utils",
         href: "/docs/internals/daemon/daemon-config-and-utils",

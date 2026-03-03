@@ -342,11 +342,15 @@ struct PulseModifier: ViewModifier {
                 value: animating
             )
             .onAppear {
-                animating = true
+                Task { @MainActor in
+                    animating = true
+                }
             }
             .onChange(of: isActive) { _, newValue in
-                if !newValue {
-                    animating = false
+                Task { @MainActor in
+                    if !newValue {
+                        animating = false
+                    }
                 }
             }
     }
@@ -410,7 +414,9 @@ struct TypingDotsIndicator: View {
             }
         }
         .onAppear {
-            startAnimation()
+            Task { @MainActor in
+                startAnimation()
+            }
         }
     }
 

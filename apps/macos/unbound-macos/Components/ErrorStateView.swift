@@ -79,7 +79,9 @@ struct ErrorStateView: View {
         .padding(Spacing.xl)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                hasAppeared = true
+                Task { @MainActor in
+                    hasAppeared = true
+                }
             }
         }
     }

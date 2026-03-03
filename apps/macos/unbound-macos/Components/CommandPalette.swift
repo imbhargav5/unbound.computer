@@ -138,11 +138,15 @@ struct CommandPalette: View {
                 .stroke(colors.border, lineWidth: BorderWidth.default)
         )
         .onAppear {
-            isSearchFocused = true
-            selectedIndex = 0
+            Task { @MainActor in
+                isSearchFocused = true
+                selectedIndex = 0
+            }
         }
         .onChange(of: searchText) { _, _ in
-            selectedIndex = 0
+            Task { @MainActor in
+                selectedIndex = 0
+            }
         }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)

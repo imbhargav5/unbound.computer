@@ -130,7 +130,9 @@ struct RemoveRepositoryDialog: View {
         )
         .elevation(Elevation.lg)
         .onAppear {
-            isConfirmationFocused = true
+            Task { @MainActor in
+                isConfirmationFocused = true
+            }
         }
     }
 }

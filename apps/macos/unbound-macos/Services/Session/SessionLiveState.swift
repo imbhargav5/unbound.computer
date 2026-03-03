@@ -222,6 +222,11 @@ class SessionLiveState {
             return
         }
 
+        // Yield to allow the view update cycle to complete before modifying state.
+        // This prevents "Modifying state during view update" warnings when activate()
+        // is called from a SwiftUI .task modifier.
+        await Task.yield()
+
         subscriptionState = .connecting
 
         // Load messages first

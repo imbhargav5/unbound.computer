@@ -75,7 +75,9 @@ struct RepositoriesEmptyState: View {
         .padding(.horizontal, Spacing.lg)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                hasAppeared = true
+                Task { @MainActor in
+                    hasAppeared = true
+                }
             }
         }
     }
@@ -216,7 +218,9 @@ struct WorkspaceEmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                hasAppeared = true
+                Task { @MainActor in
+                    hasAppeared = true
+                }
             }
         }
     }

@@ -355,10 +355,12 @@ private struct ParallelAgentRowView: View {
             )
         }
         .onAppear {
-            guard !didInitialize else { return }
-            didInitialize = true
-            if defaultExpanded {
-                onToggle()
+            Task { @MainActor in
+                guard !didInitialize else { return }
+                didInitialize = true
+                if defaultExpanded {
+                    onToggle()
+                }
             }
         }
     }

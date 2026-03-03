@@ -109,8 +109,10 @@ struct PlanModeCardView: View {
         .padding(16)
         .background(Color(hex: "0F0F0F"))
         .onAppear {
-            if !canCollapse {
-                isExpanded = true
+            Task { @MainActor in
+                if !canCollapse {
+                    isExpanded = true
+                }
             }
         }
     }

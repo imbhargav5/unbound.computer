@@ -26,18 +26,6 @@ struct ChatPanel: View {
     @Binding var isPlanMode: Bool
     @Bindable var editorState: EditorState
 
-    // Footer panel state
-    @State private var isFooterExpanded: Bool = false
-    @State private var footerHeight: CGFloat = 0
-    @State private var footerDragStartHeight: CGFloat = 0
-    @State private var isAtBottom: Bool = true
-    @State private var seenMessageIds: Set<UUID> = []
-    @State private var animateMessageIds: Set<UUID> = []
-    @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
-    @State private var terminalTabs: [TerminalTab] = []
-    @State private var activeTerminalTabId: UUID?
-    @State private var terminalTabSequence: Int = 0
-
     private static let streamingMessageRowID = UUID(uuidString: "b4a4f0e9-1a89-4c21-9f3d-8bd83e3d7b9a")!
     private static let streamingTextContentID = UUID(uuidString: "8ee4f4a5-9d46-43f2-8b1e-7f0cc4a533fa")!
 
@@ -50,12 +38,6 @@ struct ChatPanel: View {
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
-    }
-
-    private struct TerminalTab: Identifiable, Equatable {
-        let id: UUID
-        var title: String
-        var workingDirectory: String
     }
 
     /// Whether an editor tab is currently selected (vs. the session/chat tab)
@@ -77,14 +59,6 @@ struct ChatPanel: View {
     private var canSaveSelectedFile: Bool {
         guard let selectedFileTab else { return false }
         return editorState.canSave(tabId: selectedFileTab.id)
-    }
-
-    private enum FooterConstants {
-        static let barHeight: CGFloat = TerminalFooterTabTokens.barHeight
-        static let handleHeight: CGFloat = 12
-        static let minExpandedHeight: CGFloat = 160
-        static let defaultExpandedRatio: CGFloat = 0.4
-        static let maxExpandedRatio: CGFloat = 0.8
     }
 
     /// The live state for the current session (nil if no session selected)
@@ -218,28 +192,6 @@ struct ChatPanel: View {
         !activeSubAgents.isEmpty || !activeTools.isEmpty || !toolHistory.isEmpty
     }
 
-    /// Coalesced scroll identity - combines factors that should trigger auto-scroll
-    /// Using a single hash prevents multiple scroll operations per update
-    private var scrollIdentity: Int {
-        var hasher = Hasher()
-        hasher.combine(messages.count)
-        hasher.combine(toolHistory.count)
-        hasher.combine(activeSubAgents.count)
-        hasher.combine(activeSubAgents.last?.id)
-        hasher.combine(activeSubAgents.last?.childTools.count)
-        hasher.combine(activeSubAgents.last?.childTools.last?.id)
-        hasher.combine(activeTools.last?.id)
-        hasher.combine(streamingAssistantMessage?.textContent.count ?? 0)
-        if let last = messages.last {
-            hasher.combine(last.content.count)
-            // Include text length for smooth streaming scroll
-            if case .text(let textContent) = last.content.last {
-                hasher.combine(textContent.text.count)
-            }
-        }
-        return hasher.finalize()
-    }
-
     /// Loading state from live state
     private var isLoadingMessages: Bool {
         liveState?.isLoadingMessages ?? false
@@ -255,11 +207,6 @@ struct ChatPanel: View {
         let errorMessage = liveState.codingSessionErrorMessage
         if status == .idle && errorMessage == nil { return nil }
         return (status: status, errorMessage: errorMessage)
-    }
-
-    private var activeTerminalTab: TerminalTab? {
-        guard let activeTerminalTabId else { return nil }
-        return terminalTabs.first(where: { $0.id == activeTerminalTabId })
     }
 
     private var latestCompletionSummary: SessionCompletionSummary? {
@@ -304,9 +251,13 @@ struct ChatPanel: View {
                     editorColumn
                 } else {
                     chatColumn
-                        .padding(.bottom, FooterConstants.barHeight)
+                        .padding(.bottom, TerminalFooterTabTokens.barHeight)
 
-                    footerPanel(availableHeight: geometry.size.height)
+                    TerminalFooterPanel(
+                        workspacePath: workspacePath,
+                        availableHeight: geometry.size.height
+                    )
+                    .id(session?.id)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -315,22 +266,6 @@ struct ChatPanel: View {
             if let state = liveState {
                 await state.activate()
             }
-        }
-        .onChange(of: session?.id) { _, _ in
-            seenMessageIds.removeAll()
-            animateMessageIds.removeAll()
-            renderInterval = nil
-            isAtBottom = true
-            terminalTabs.removeAll()
-            activeTerminalTabId = nil
-            terminalTabSequence = 0
-            ensureTerminalTabState()
-        }
-        .onChange(of: workspacePath) { _, _ in
-            ensureTerminalTabState()
-        }
-        .onAppear {
-            ensureTerminalTabState()
         }
         .alert(
             liveState?.errorAlertTitle ?? "Error",
@@ -473,10 +408,8 @@ struct ChatPanel: View {
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
-            // Tabbed header
             tabbedHeader
 
-            // Chat content
             VStack(spacing: 0) {
                 if let session = session {
                     if isLoadingMessages {
@@ -485,13 +418,10 @@ struct ChatPanel: View {
                     } else if messages.isEmpty && !hasActiveToolState && streamingAssistantMessage == nil {
                         switch workspacePathResult {
                         case .noRepository:
-                            // No workspace selected
                             NoWorkspaceSelectedView()
                         case .pathNotFound(let path):
-                            // Path doesn't exist on disk
                             WorkspacePathNotFoundView(path: path)
                         case .valid, .noSession:
-                            // Welcome view for empty chat
                             WelcomeChatView(
                                 repoPath: repository?.name
                                     ?? appState.repositories.first(where: { $0.id == session.repositoryId })?.name
@@ -501,120 +431,16 @@ struct ChatPanel: View {
                         }
                         Spacer()
                     } else {
-                        // Messages list with interleaved tool history
-                        ScrollViewReader { proxy in
-                            let toolHistoryByIndex = Dictionary(grouping: toolHistory, by: \.afterMessageIndex)
-                            let animateIdsInOrder = messages.filter { animateMessageIds.contains($0.id) }.map(\.id)
-                            let animateIndexById = Dictionary(uniqueKeysWithValues: animateIdsInOrder.enumerated().map { ($0.element, $0.offset) })
-
-                            ScrollView {
-                                LazyVStack(spacing: 0) {
-                                    sessionTimelineHeaderCard
-
-                                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                                        let shouldAnimate = animateMessageIds.contains(message.id) && isAtBottom
-                                        let animationIndex = shouldAnimate ? (animateIndexById[message.id] ?? 0) : 0
-                                        let isLastMessage = index == messages.count - 1
-
-                                        ChatMessageRow(
-                                            message: message,
-                                            animationIndex: animationIndex,
-                                            shouldAnimate: shouldAnimate,
-                                            onQuestionSubmit: handleQuestionSubmit,
-                                            onRowAppear: isLastMessage ? {
-                                                if let activeInterval = renderInterval {
-                                                    ChatPerformanceSignposts.endInterval(activeInterval, "lastRowAppear")
-                                                    renderInterval = nil
-                                                }
-                                                ChatPerformanceSignposts.event("chat.lastRowAppear", "id=\(message.id.uuidString)")
-                                            } : nil
-                                        )
-                                        .equatable()
-                                        .id(message.id)
-
-                                        // Render tool history entries that belong after this message
-                                        ForEach(toolHistoryByIndex[index] ?? []) { entry in
-                                            ToolHistoryEntryView(entry: entry)
-                                        }
-                                    }
-
-                                    if let streamingAssistantMessage {
-                                        ChatMessageRow(
-                                            message: streamingAssistantMessage,
-                                            animationIndex: 0,
-                                            shouldAnimate: false,
-                                            onQuestionSubmit: handleQuestionSubmit,
-                                            onRowAppear: nil
-                                        )
-                                        .equatable()
-                                        .id(streamingAssistantMessage.id)
-                                    }
-
-                                    // Render active sub-agents in grouped parallel-agents surface
-                                    if !activeSubAgents.isEmpty {
-                                        ParallelAgentsView(activeSubAgents: activeSubAgents)
-                                        .padding(.horizontal, Spacing.lg)
-                                        .padding(.vertical, Spacing.sm)
-                                    }
-
-                                    // Render active standalone tools (if any)
-                                    if !activeTools.isEmpty {
-                                        StandaloneToolCallsView(activeTools: activeTools)
-                                            .padding(.horizontal, Spacing.lg)
-                                            .padding(.vertical, Spacing.sm)
-                                    }
-
-                                    // Invisible scroll anchor at bottom for reliable scrolling
-                                    Color.clear
-                                        .frame(height: 1)
-                                        .id("bottomAnchor")
-                                        .onAppear {
-                                            isAtBottom = true
-                                            if let activeInterval = renderInterval {
-                                                ChatPerformanceSignposts.endInterval(activeInterval, "bottomAnchorVisible")
-                                                renderInterval = nil
-                                            }
-                                        }
-                                        .onDisappear {
-                                            isAtBottom = false
-                                        }
-                                }
-                            }
-                            .onChange(of: scrollIdentity) { _, _ in
-                                if let activeInterval = renderInterval {
-                                    ChatPerformanceSignposts.endInterval(activeInterval, "superseded")
-                                }
-                                if isAtBottom {
-                                    renderInterval = ChatPerformanceSignposts.beginInterval(
-                                        "chat.render",
-                                        "messages=\(messages.count) tools=\(toolHistory.count)"
-                                    )
-                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                } else {
-                                    renderInterval = nil
-                                }
-                            }
-                            .onChange(of: messages.map(\.id)) { _, newIds in
-                                let currentIds = Set(newIds)
-
-                                if seenMessageIds.isEmpty {
-                                    seenMessageIds = currentIds
-                                    return
-                                }
-
-                                let inserted = currentIds.subtracting(seenMessageIds)
-                                guard !inserted.isEmpty else { return }
-
-                                seenMessageIds.formUnion(inserted)
-
-                                if isAtBottom {
-                                    animateMessageIds.formUnion(inserted)
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                                        animateMessageIds.subtract(inserted)
-                                    }
-                                }
-                            }
-                        }
+                        ChatScrollView(
+                            messages: messages,
+                            toolHistory: toolHistory,
+                            activeSubAgents: activeSubAgents,
+                            activeTools: activeTools,
+                            streamingAssistantMessage: streamingAssistantMessage,
+                            onQuestionSubmit: handleQuestionSubmit,
+                            header: { sessionTimelineHeaderCard }
+                        )
+                        .id(session.id)
                     }
 
                     if let runtimeStatusSummary {
@@ -641,7 +467,6 @@ struct ChatPanel: View {
                         .padding(.top, Spacing.xs)
                     }
 
-                    // Input field at bottom
                     ChatInputField(
                         text: $chatInput,
                         selectedModel: $selectedModel,
@@ -655,7 +480,6 @@ struct ChatPanel: View {
                     .padding(Spacing.compact)
                     .disabled(workspacePath == nil || !canSendMessages)
                 } else {
-                    // No session selected
                     ContentUnavailableView(
                         "No Chat Selected",
                         systemImage: "message",
@@ -704,322 +528,6 @@ struct ChatPanel: View {
         )
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
-    }
-
-    // MARK: - Footer Panel
-
-    private func footerPanel(availableHeight: CGFloat) -> some View {
-        let expandedHeight = clampedFooterHeight(
-            footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight,
-            availableHeight: availableHeight
-        )
-        let panelHeight = isFooterExpanded ? expandedHeight : FooterConstants.barHeight
-
-        return VStack(spacing: 0) {
-            footerTabBar(availableHeight: availableHeight)
-
-            if isFooterExpanded {
-                ShadcnDivider()
-                footerHandle(availableHeight: availableHeight)
-                ShadcnDivider()
-
-                footerContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-        }
-        .frame(width: .infinity, height: panelHeight, alignment: .top)
-        .clipped()
-        .background(colors.card)
-        .overlay(alignment: .top) {
-            ShadcnDivider()
-        }
-        .onChange(of: availableHeight) { _, newHeight in
-            guard isFooterExpanded else { return }
-            footerHeight = clampedFooterHeight(
-                footerHeight == 0 ? defaultFooterHeight(newHeight) : footerHeight,
-                availableHeight: newHeight
-            )
-        }
-    }
-
-    private func footerTabBar(availableHeight: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            if terminalTabs.isEmpty {
-                Text("Terminal")
-                    .font(
-                        GeistFont.sans(
-                            size: TerminalFooterTabTokens.tabFontSize,
-                            weight: TerminalFooterTabTokens.tabFontWeight
-                        )
-                    )
-                    .tracking(TerminalFooterTabTokens.tabLetterSpacing)
-                    .foregroundStyle(colors.sidebarMeta)
-                    .padding(.horizontal, TerminalFooterTabTokens.tabPaddingX)
-                    .frame(height: FooterConstants.barHeight)
-            } else {
-                ForEach(terminalTabs) { tab in
-                    HStack(spacing: TerminalFooterTabTokens.tabContentSpacing) {
-                        Button {
-                            selectTerminalTab(tab.id)
-                            if !isFooterExpanded {
-                                expandFooter(availableHeight: availableHeight)
-                            }
-                        } label: {
-                            Text(tab.title)
-                                .lineLimit(1)
-                                .font(
-                                    GeistFont.sans(
-                                        size: TerminalFooterTabTokens.tabFontSize,
-                                        weight: TerminalFooterTabTokens.tabFontWeight
-                                    )
-                                )
-                                .tracking(TerminalFooterTabTokens.tabLetterSpacing)
-                                .foregroundStyle(
-                                    activeTerminalTabId == tab.id ? colors.foreground : colors.sidebarMeta
-                                )
-                                .padding(.horizontal, TerminalFooterTabTokens.tabPaddingX)
-                                .frame(height: FooterConstants.barHeight)
-                                .background(activeTerminalTabId == tab.id ? colors.secondary : Color.clear)
-                                .clipShape(
-                                    RoundedRectangle(
-                                        cornerRadius: TerminalFooterTabTokens.tabCornerRadius,
-                                        style: .continuous
-                                    )
-                                )
-                        }
-                        .buttonStyle(.plain)
-
-                        if terminalTabs.count > 1 {
-                            Button {
-                                closeTerminalTab(tab.id)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: TerminalFooterTabTokens.closeIconSize, weight: .medium))
-                                    .foregroundStyle(colors.sidebarMeta)
-                                    .frame(
-                                        width: TerminalFooterTabTokens.closeButtonSize,
-                                        height: TerminalFooterTabTokens.closeButtonSize
-                                    )
-                                    .background(colors.muted)
-                                    .clipShape(
-                                        RoundedRectangle(
-                                            cornerRadius: TerminalFooterTabTokens.closeButtonCornerRadius,
-                                            style: .continuous
-                                        )
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.trailing, TerminalFooterTabTokens.controlPaddingX)
-                        }
-                    }
-                    .overlay(alignment: .trailing) {
-                        Rectangle()
-                            .fill(colors.border)
-                            .frame(width: TerminalFooterTabTokens.tabBorderWidth)
-                    }
-                }
-
-                Button {
-                    addTerminalTab()
-                    if !isFooterExpanded {
-                        expandFooter(availableHeight: availableHeight)
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: TerminalFooterTabTokens.addIconSize, weight: .semibold))
-                        .foregroundStyle(colors.sidebarMeta)
-                        .frame(
-                            width: TerminalFooterTabTokens.addButtonSize,
-                            height: TerminalFooterTabTokens.addButtonSize
-                        )
-                        .background(colors.secondary)
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: TerminalFooterTabTokens.closeButtonCornerRadius,
-                                style: .continuous
-                            )
-                        )
-                        .padding(.horizontal, TerminalFooterTabTokens.controlPaddingX)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer()
-
-            Button {
-                toggleFooterExpansion(availableHeight: availableHeight)
-            } label: {
-                Image(systemName: isFooterExpanded ? "chevron.down" : "chevron.up")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(colors.sidebarMeta)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, TerminalFooterTabTokens.controlPaddingX)
-        }
-        .padding(.horizontal, TerminalFooterTabTokens.barPaddingX)
-        .frame(height: FooterConstants.barHeight)
-        .background(colors.muted)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(colors.borderSecondary)
-                .frame(height: BorderWidth.`default`)
-        }
-    }
-
-    private func footerHandle(availableHeight: CGFloat) -> some View {
-        Capsule()
-            .fill(colors.mutedForeground.opacity(0.4))
-            .frame(width: 32, height: 4)
-            .frame(maxWidth: .infinity, maxHeight: FooterConstants.handleHeight)
-            .contentShape(Rectangle())
-            .gesture(resizeGesture(availableHeight: availableHeight))
-    }
-
-    private var footerContent: some View {
-        terminalFooterContent
-    }
-
-    private var terminalFooterContent: some View {
-        Group {
-            if terminalTabs.isEmpty {
-                Text("No workspace selected")
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(Spacing.md)
-            } else {
-                ZStack {
-                    ForEach(terminalTabs) { tab in
-                        TerminalContainer(tabId: tab.id, workingDirectory: tab.workingDirectory)
-                            .opacity(activeTerminalTabId == tab.id ? 1 : 0)
-                            .allowsHitTesting(activeTerminalTabId == tab.id)
-                    }
-                }
-            }
-        }
-    }
-
-    private func toggleFooterExpansion(availableHeight: CGFloat) {
-        if isFooterExpanded {
-            collapseFooter()
-        } else {
-            expandFooter(availableHeight: availableHeight)
-        }
-    }
-
-    private func expandFooter(availableHeight: CGFloat) {
-        let targetHeight = footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight
-        withAnimation(.easeOut(duration: 0.15)) {
-            isFooterExpanded = true
-            footerHeight = clampedFooterHeight(targetHeight, availableHeight: availableHeight)
-        }
-    }
-
-    private func collapseFooter() {
-        withAnimation(.easeOut(duration: 0.15)) {
-            isFooterExpanded = false
-        }
-    }
-
-    private func defaultFooterHeight(_ availableHeight: CGFloat) -> CGFloat {
-        max(FooterConstants.minExpandedHeight, availableHeight * FooterConstants.defaultExpandedRatio)
-    }
-
-    private func maxFooterHeight(_ availableHeight: CGFloat) -> CGFloat {
-        max(FooterConstants.minExpandedHeight, availableHeight * FooterConstants.maxExpandedRatio)
-    }
-
-    private func clampedFooterHeight(_ proposed: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        min(max(proposed, FooterConstants.minExpandedHeight), maxFooterHeight(availableHeight))
-    }
-
-    private func resizeGesture(availableHeight: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                guard isFooterExpanded else { return }
-
-                if footerDragStartHeight == 0 {
-                    footerDragStartHeight = footerHeight == 0 ? defaultFooterHeight(availableHeight) : footerHeight
-                }
-
-                let proposedHeight = footerDragStartHeight - value.translation.height
-                footerHeight = clampedFooterHeight(proposedHeight, availableHeight: availableHeight)
-            }
-            .onEnded { _ in
-                footerDragStartHeight = 0
-            }
-    }
-
-    private func ensureTerminalTabState() {
-        guard let path = workspacePath else {
-            terminalTabs.removeAll()
-            activeTerminalTabId = nil
-            return
-        }
-
-        if terminalTabs.isEmpty {
-            let initialTab = makeTerminalTab(workingDirectory: path)
-            terminalTabs = [initialTab]
-            activeTerminalTabId = initialTab.id
-            return
-        }
-
-        terminalTabs = terminalTabs.map { tab in
-            var updatedTab = tab
-            if updatedTab.workingDirectory.isEmpty {
-                updatedTab.workingDirectory = path
-            }
-            return updatedTab
-        }
-
-        if activeTerminalTab == nil, let firstTab = terminalTabs.first {
-            activeTerminalTabId = firstTab.id
-        }
-    }
-
-    private func makeTerminalTab(workingDirectory: String) -> TerminalTab {
-        terminalTabSequence += 1
-        return TerminalTab(
-            id: UUID(),
-            title: "Terminal \(terminalTabSequence)",
-            workingDirectory: workingDirectory
-        )
-    }
-
-    private func addTerminalTab() {
-        guard let path = workspacePath else { return }
-        let newTab = makeTerminalTab(workingDirectory: path)
-        terminalTabs.append(newTab)
-        activeTerminalTabId = newTab.id
-    }
-
-    private func selectTerminalTab(_ tabId: UUID) {
-        guard terminalTabs.contains(where: { $0.id == tabId }) else { return }
-        activeTerminalTabId = tabId
-    }
-
-    private func closeTerminalTab(_ tabId: UUID) {
-        guard let closingIndex = terminalTabs.firstIndex(where: { $0.id == tabId }) else { return }
-        let wasActive = activeTerminalTabId == tabId
-
-        terminalTabs.remove(at: closingIndex)
-
-        if terminalTabs.isEmpty {
-            guard let path = workspacePath else {
-                activeTerminalTabId = nil
-                return
-            }
-            let replacementTab = makeTerminalTab(workingDirectory: path)
-            terminalTabs = [replacementTab]
-            activeTerminalTabId = replacementTab.id
-            return
-        }
-
-        guard wasActive else { return }
-        let fallbackIndex = min(closingIndex, terminalTabs.count - 1)
-        activeTerminalTabId = terminalTabs[fallbackIndex].id
     }
 
     // MARK: - Tab Actions
@@ -1538,32 +1046,6 @@ struct CenterPanelTab: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Chat Message Row (Equatable Wrapper)
-
-private struct ChatMessageRow: View, Equatable {
-    let message: ChatMessage
-    let animationIndex: Int
-    let shouldAnimate: Bool
-    let onQuestionSubmit: ((AskUserQuestion) -> Void)?
-    let onRowAppear: (() -> Void)?
-
-    static func == (lhs: ChatMessageRow, rhs: ChatMessageRow) -> Bool {
-        lhs.message == rhs.message &&
-        lhs.animationIndex == rhs.animationIndex &&
-        lhs.shouldAnimate == rhs.shouldAnimate
-    }
-
-    var body: some View {
-        ChatMessageView(
-            message: message,
-            animationIndex: animationIndex,
-            onQuestionSubmit: onQuestionSubmit,
-            shouldAnimate: shouldAnimate,
-            onRowAppear: onRowAppear
-        )
     }
 }
 

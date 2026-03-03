@@ -76,14 +76,14 @@ struct RepositorySettingsView: View {
         .task {
             await loadInitialData()
         }
-        .onChange(of: sessionsPath) { _, _ in markChanged() }
-        .onChange(of: selectedBranch) { _, _ in markChanged() }
-        .onChange(of: selectedRemote) { _, _ in markChanged() }
-        .onChange(of: worktreeRootDir) { _, _ in markChanged() }
-        .onChange(of: preCreateCommand) { _, _ in markChanged() }
-        .onChange(of: preCreateTimeoutSeconds) { _, _ in markChanged() }
-        .onChange(of: postCreateCommand) { _, _ in markChanged() }
-        .onChange(of: postCreateTimeoutSeconds) { _, _ in markChanged() }
+        .onChange(of: sessionsPath) { _, _ in deferredMarkChanged() }
+        .onChange(of: selectedBranch) { _, _ in deferredMarkChanged() }
+        .onChange(of: selectedRemote) { _, _ in deferredMarkChanged() }
+        .onChange(of: worktreeRootDir) { _, _ in deferredMarkChanged() }
+        .onChange(of: preCreateCommand) { _, _ in deferredMarkChanged() }
+        .onChange(of: preCreateTimeoutSeconds) { _, _ in deferredMarkChanged() }
+        .onChange(of: postCreateCommand) { _, _ in deferredMarkChanged() }
+        .onChange(of: postCreateTimeoutSeconds) { _, _ in deferredMarkChanged() }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
@@ -572,6 +572,12 @@ struct RepositorySettingsView: View {
             return
         }
         hasChanges = true
+    }
+
+    private func deferredMarkChanged() {
+        Task { @MainActor in
+            markChanged()
+        }
     }
 
     private func apply(repositorySettings: RepositorySettings) {

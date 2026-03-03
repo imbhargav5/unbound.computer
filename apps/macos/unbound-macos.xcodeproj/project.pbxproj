@@ -35,7 +35,7 @@
 		8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "unbound-macosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AABB00012F80A00000000001 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Config/Debug.xcconfig; sourceTree = "<group>"; };
 		AABB00012F80A00000000002 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Config/Release.xcconfig; sourceTree = "<group>"; };
-		CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "unbound-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDD3C1542EFFB85C00CDEC43 /* Unbound Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Unbound Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,7 +111,7 @@
 		CDD3C1552EFFB85C00CDEC43 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */,
+				CDD3C1542EFFB85C00CDEC43 /* Unbound Dev.app */,
 				8772E1E472F1C7416E57DCF0 /* unbound-macosTests.xctest */,
 			);
 			name = Products;
@@ -150,7 +150,7 @@
 				CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */,
 			);
 			productName = "unbound-macos";
-			productReference = CDD3C1542EFFB85C00CDEC43 /* unbound-macos.app */;
+			productReference = CDD3C1542EFFB85C00CDEC43 /* Unbound Dev.app */;
 			productType = "com.apple.product-type.application";
 		};
 		E1BE1886348460F6E6A9BAEE /* unbound-macosTests */ = {
@@ -469,13 +469,13 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_NAME = "Unbound Dev";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "unbound-macos/unbound-macos-Bridging-Header.h";
-				PRODUCT_NAME = "Unbound Dev";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};

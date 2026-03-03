@@ -37,7 +37,9 @@ struct WorkspaceIcon: View {
                     .frame(width: size, height: size)
                     .rotationEffect(.degrees(rotation))
                     .onAppear {
-                        startRotation()
+                        Task { @MainActor in
+                            startRotation()
+                        }
                     }
             } else {
                 GridShape()
@@ -153,16 +155,20 @@ struct MorphingWorkspaceIcon: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                 morphProgress = newValue ? 1.0 : 0.0
             }
-            if newValue {
-                startRotation()
-            } else {
-                rotation = 0
+            Task { @MainActor in
+                if newValue {
+                    startRotation()
+                } else {
+                    rotation = 0
+                }
             }
         }
         .onAppear {
-            morphProgress = isActive ? 1.0 : 0.0
-            if isActive {
-                startRotation()
+            Task { @MainActor in
+                morphProgress = isActive ? 1.0 : 0.0
+                if isActive {
+                    startRotation()
+                }
             }
         }
     }

@@ -89,7 +89,9 @@ struct TerminalView: View {
         }
         .background(colors.card)
         .onAppear {
-            isInputFocused = true
+            Task { @MainActor in
+                isInputFocused = true
+            }
         }
     }
 

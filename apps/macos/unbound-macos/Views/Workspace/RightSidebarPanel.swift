@@ -63,11 +63,11 @@ struct RightSidebarPanel: View {
             }
         }
         .onAppear {
-            gitViewModel.setDaemonClient(appState.daemonClient)
-            if selectedTab == .spec {
-                selectedTab = .changes
-            }
-            Task {
+            Task { @MainActor in
+                gitViewModel.setDaemonClient(appState.daemonClient)
+                if selectedTab == .spec {
+                    selectedTab = .changes
+                }
                 await gitViewModel.setRepository(path: workingDirectory)
                 if selectedTab == .files {
                     await fileTreeViewModel?.loadRoot()

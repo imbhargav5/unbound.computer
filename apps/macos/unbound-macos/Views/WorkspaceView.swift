@@ -242,9 +242,11 @@ struct WorkspaceView: View {
             initializeFileTreeViewModelIfNeeded()
         }
         .onChange(of: selectedSession?.id) { _, newSessionId in
-            fileTreeViewModel?.setSessionId(newSessionId)
-            if selectedSidebarTab == .files {
-                Task { await fileTreeViewModel?.loadRoot() }
+            Task { @MainActor in
+                fileTreeViewModel?.setSessionId(newSessionId)
+                if selectedSidebarTab == .files {
+                    await fileTreeViewModel?.loadRoot()
+                }
             }
         }
     }
