@@ -480,14 +480,14 @@ struct ChatInputField: View {
         .animation(.easeInOut(duration: Duration.fast), value: isPlanMode)
         .animation(.easeInOut(duration: Duration.fast), value: isPlanDropdownOpen)
         .onChange(of: isCompact) { _, compact in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 if compact {
                     isPlanDropdownOpen = false
                 }
             }
         }
         .onAppear {
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 isFocused = true
             }
         }
@@ -784,22 +784,16 @@ struct ChatMessageView: View {
                 messageRow
                     .slideIn(isVisible: hasAppeared, from: .bottom, delay: staggerDelay)
                     .onAppear {
-                        Task { @MainActor in
-                            onRowAppear?()
-                        }
+                        DispatchQueue.main.async { onRowAppear?() }
                         // Small delay to ensure the view is ready
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            Task { @MainActor in
-                                hasAppeared = true
-                            }
+                            hasAppeared = true
                         }
                     }
             } else {
                 messageRow
                     .onAppear {
-                        Task { @MainActor in
-                            onRowAppear?()
-                        }
+                        DispatchQueue.main.async { onRowAppear?() }
                     }
             }
         }

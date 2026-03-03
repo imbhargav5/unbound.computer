@@ -60,14 +60,15 @@ struct TerminalFooterPanel: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .frame(width: .infinity, height: panelHeight, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(height: panelHeight, alignment: .top)
         .clipped()
         .background(colors.card)
         .overlay(alignment: .top) {
             ShadcnDivider()
         }
         .onChange(of: availableHeight) { _, newHeight in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 guard isFooterExpanded else { return }
                 footerHeight = clampedFooterHeight(
                     footerHeight == 0 ? defaultFooterHeight(newHeight) : footerHeight,
@@ -76,12 +77,12 @@ struct TerminalFooterPanel: View {
             }
         }
         .onChange(of: workspacePath) { _, _ in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 ensureFooterTerminalTabState()
             }
         }
         .onAppear {
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 ensureFooterTerminalTabState()
             }
         }

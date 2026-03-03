@@ -114,7 +114,7 @@ struct ChatScrollView<Header: View>: View {
                         .frame(height: 1)
                         .id("bottomAnchor")
                         .onAppear {
-                            Task { @MainActor in
+                            DispatchQueue.main.async {
                                 isAtBottom = true
                                 if let activeInterval = renderInterval {
                                     ChatPerformanceSignposts.endInterval(activeInterval, "bottomAnchorVisible")
@@ -123,14 +123,14 @@ struct ChatScrollView<Header: View>: View {
                             }
                         }
                         .onDisappear {
-                            Task { @MainActor in
+                            DispatchQueue.main.async {
                                 isAtBottom = false
                             }
                         }
                 }
             }
             .onChange(of: scrollIdentity) { _, _ in
-                Task { @MainActor in
+                DispatchQueue.main.async {
                     if let activeInterval = renderInterval {
                         ChatPerformanceSignposts.endInterval(activeInterval, "superseded")
                     }
@@ -146,7 +146,7 @@ struct ChatScrollView<Header: View>: View {
                 }
             }
             .onChange(of: messages.map(\.id)) { _, newIds in
-                Task { @MainActor in
+                DispatchQueue.main.async {
                     let currentIds = Set(newIds)
 
                     if seenMessageIds.isEmpty {
@@ -162,9 +162,7 @@ struct ChatScrollView<Header: View>: View {
                     if isAtBottom {
                         animateMessageIds.formUnion(inserted)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            Task { @MainActor in
-                                self.animateMessageIds.subtract(inserted)
-                            }
+                            animateMessageIds.subtract(inserted)
                         }
                     }
                 }

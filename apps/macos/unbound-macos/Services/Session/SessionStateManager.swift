@@ -13,7 +13,6 @@ import Logging
 
 private let logger = Logger(label: "app.session")
 
-@Observable
 class SessionStateManager {
 
     // MARK: - State Registry

@@ -64,7 +64,9 @@ struct ChatPanel: View {
     /// The live state for the current session (nil if no session selected)
     private var liveState: SessionLiveState? {
         guard let session else { return nil }
-        return appState.sessionStateManager.state(for: session.id)
+        // Read-only access in body; creation happens in .task to avoid mutating
+        // observable state during a view update cycle.
+        return appState.sessionStateManager.stateIfExists(for: session.id)
     }
 
     /// Workspace path validation result
@@ -263,9 +265,10 @@ struct ChatPanel: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task(id: session?.id) {
-            if let state = liveState {
-                await state.activate()
-            }
+            guard let session else { return }
+            await Task.yield()
+            let state = appState.sessionStateManager.state(for: session.id)
+            await state.activate()
         }
         .alert(
             liveState?.errorAlertTitle ?? "Error",
