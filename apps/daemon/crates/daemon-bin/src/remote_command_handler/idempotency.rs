@@ -1,4 +1,4 @@
-use crate::itachi::contracts::SessionSecretResponsePayload;
+use crate::remote_command_handler::contracts::SessionSecretResponsePayload;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -94,8 +94,8 @@ impl IdempotencyStore {
 #[cfg(test)]
 mod tests {
     use super::{BeginResult, IdempotencyStore};
-    use crate::itachi::contracts::SessionSecretResponsePayload;
-    use crate::itachi::errors::ResponseErrorCode;
+    use crate::remote_command_handler::contracts::SessionSecretResponsePayload;
+    use crate::remote_command_handler::errors::ResponseErrorCode;
     use std::time::{Duration, Instant};
 
     fn make_payload(request_id: &str) -> SessionSecretResponsePayload {

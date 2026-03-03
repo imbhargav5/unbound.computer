@@ -5,7 +5,7 @@ mod app;
 mod armin_adapter;
 mod auth;
 mod ipc;
-mod itachi;
+mod remote_command_handler;
 mod machines;
 mod types;
 mod utils;

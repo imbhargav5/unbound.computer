@@ -1,14 +1,10 @@
----
-title: "Itachi"
----
+# Remote Command Handler
 
-# Itachi
-
-**Inbound remote-command decision brain.** Itachi validates and routes remote commands received from other devices via Ably, delegating transport concerns to Nagato (ingress) and Falco (egress).
+**Inbound remote-command decision brain.** The remote command handler validates and routes remote commands received from other devices via Ably, delegating transport concerns to Nagato (ingress) and Falco (egress).
 
 ## Overview
 
-Itachi uses a **pure functional core** architecture. The handler emits deterministic `Effect` values instead of performing I/O directly. The runtime then evaluates those effects asynchronously, spawning tasks, publishing responses, and logging.
+The remote command handler uses a **pure functional core** architecture. The handler emits deterministic `Effect` values instead of performing I/O directly. The runtime then evaluates those effects asynchronously, spawning tasks, publishing responses, and logging.
 
 This separation makes the validation and routing logic fully unit-testable without mocking sockets, databases, or network calls.
 
@@ -24,7 +20,7 @@ This separation makes the validation and routing logic fully unit-testable witho
 │                          │                               │
 │                          ▼                               │
 │  ┌────────────────────────────────────────────────────┐  │
-│  │  Itachi                                            │  │
+│  │  Remote Command Handler                            │  │
 │  │                                                    │  │
 │  │  handler.rs ─► parse + validate ─► Vec<Effect>     │  │
 │  │                                                    │  │
@@ -76,6 +72,18 @@ The router (`handle_remote_command`) tries to parse the payload as a generic `Re
   - `branch_name` (string, legacy alias for `worktree_branch`)
 
 Main-directory creation should pass `is_worktree=false`. Worktree creation should pass `is_worktree=true` and may include `base_branch` / `worktree_branch`.
+
+### `claude.send.v1` Params
+
+`params` supports the same contract as daemon IPC `claude.send`:
+
+- Required:
+  - `session_id` (string UUID)
+  - `content` (string)
+- Optional:
+  - `working_directory` (string path)
+  - `model` (string)
+  - `permission_mode` (string, currently only `"plan"` is accepted)
 
 ### `session.create.v1` Error Semantics
 
@@ -144,7 +152,7 @@ The idempotency key is `{request_id}:{requester_device_id}:{target_device_id}`.
 
 When a device requests a session secret:
 
-1. Itachi validates the request and checks idempotency
+1. The remote command handler validates the request and checks idempotency
 2. Fetches the requester's public key from Supabase
 3. Decrypts the session secret from the local database
 4. Encrypts the secret for the requester using X25519-HKDF-SHA256-ChaCha20Poly1305
@@ -152,7 +160,7 @@ When a device requests a session secret:
 
 ## Falco Wire Protocol
 
-Itachi publishes responses to Falco over a Unix socket using a binary framing protocol:
+The remote command handler publishes responses to Falco over a Unix socket using a binary framing protocol:
 
 **Side-effect frame (outbound):**
 ```
@@ -181,7 +189,7 @@ Publishes retry up to 3 times with exponential backoff (200ms base).
 ## Module Structure
 
 ```
-itachi/
+remote_command_handler/
 ├── mod.rs            # Module exports
 ├── handler.rs        # Pure command validation and routing
 ├── runtime.rs        # Async effect evaluation and Falco I/O
@@ -195,7 +203,7 @@ itachi/
 ## Testing
 
 ```bash
-cargo test -p daemon-bin -- itachi
+cargo test -p daemon-bin -- remote_command_handler
 ```
 
 Tests cover:

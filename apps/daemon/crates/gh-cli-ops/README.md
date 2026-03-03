@@ -27,7 +27,7 @@ GH CLI Ops does **not** replace Git Ops. It complements it for GitHub PR lifecyc
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                                 daemon-bin                               │
 │                                                                           │
-│ IPC handler / Itachi runtime                                              │
+│ IPC handler / Remote command handler runtime                              │
 │       │                                                                   │
 │       ▼                                                                   │
 │    gh_cli_ops::operations::*                                                 │
@@ -126,9 +126,9 @@ src/
 
 `daemon-bin/src/ipc/handlers/gh.rs` invokes GH CLI Ops operations and maps errors into IPC responses.
 
-### Itachi Remote Commands
+### Remote Command Handler
 
-`daemon-bin/src/itachi/runtime.rs` routes `gh.pr.*.v1` remote commands to shared GH core functions backed by GH CLI Ops.
+`daemon-bin/src/remote_command_handler/runtime.rs` routes `gh.pr.*.v1` remote commands to shared GH core functions backed by GH CLI Ops.
 
 ## Testing Strategy
 

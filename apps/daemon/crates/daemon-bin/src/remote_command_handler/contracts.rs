@@ -1,4 +1,4 @@
-use crate::itachi::errors::{DecisionReasonCode, ResponseErrorCode};
+use crate::remote_command_handler::errors::{DecisionReasonCode, ResponseErrorCode};
 use serde::{Deserialize, Serialize};
 
 pub const UM_SECRET_REQUEST_TYPE: &str = "um.secret.request.v1";

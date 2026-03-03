@@ -2,7 +2,7 @@
   "title": "Daemon",
   "pages": [
     "daemon-bin",
-    "itachi",
+    "remote-command-handler",
     "daemon-config-and-utils",
     "daemon-ipc",
     "daemon-auth",

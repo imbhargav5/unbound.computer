@@ -1,6 +1,6 @@
-//! Itachi: inbound remote-command decision brain.
+//! Remote command handler: inbound remote-command decision brain.
 //!
-//! Itachi owns remote command validation/routing and delegates transport
+//! This module owns remote command validation/routing and delegates transport
 //! concerns to Nagato (ingress/ack publish) and Falco (egress publish).
 
 pub mod channels;

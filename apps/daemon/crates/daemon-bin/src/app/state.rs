@@ -3,7 +3,7 @@
 use crate::ably::AblyTokenBrokerCacheHandle;
 use crate::app::sidecar_logs::SidecarLogTask;
 use crate::armin_adapter::DaemonArmin;
-use crate::itachi::idempotency::IdempotencyStore;
+use crate::remote_command_handler::idempotency::IdempotencyStore;
 use crate::utils::SessionSecretCache;
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
@@ -94,8 +94,8 @@ pub struct DaemonState {
     pub daemon_ably_process: Arc<Mutex<Option<Child>>>,
     /// Background stdout/stderr reader tasks for sidecar processes.
     pub sidecar_log_tasks: Arc<Mutex<HashMap<String, Vec<SidecarLogTask>>>>,
-    /// Itachi in-memory idempotency store for UM remote commands.
-    pub itachi_idempotency: Arc<Mutex<IdempotencyStore>>,
+    /// Remote command handler in-memory idempotency store for UM remote commands.
+    pub remote_command_idempotency: Arc<Mutex<IdempotencyStore>>,
     /// Shutdown signal sender for Nagato socket listener.
     pub nagato_shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     /// Join handle for Nagato socket listener task.
@@ -118,6 +118,6 @@ pub struct DaemonState {
     pub armin: Arc<DaemonArmin>,
     /// Rope-backed secure file reader/writer service.
     pub safe_file_ops: Arc<SafeFileOps>,
-    /// Local cached billing usage status used by itachi quota gate.
+    /// Local cached billing usage status used by remote command handler quota gate.
     pub billing_quota_cache: Arc<Mutex<BillingQuotaCacheState>>,
 }

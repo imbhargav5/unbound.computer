@@ -13,8 +13,8 @@ use crate::app::sidecar_supervisor::spawn_sidecar_supervisor;
 use crate::app::DaemonState;
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
-use crate::itachi::idempotency::IdempotencyStore;
-use crate::itachi::runtime::spawn_billing_quota_refresh_loop;
+use crate::remote_command_handler::idempotency::IdempotencyStore;
+use crate::remote_command_handler::runtime::spawn_billing_quota_refresh_loop;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use agent_session_sqlite_persist_core::{SessionId, SessionReader};
 use daemon_config_and_utils::{Config, Paths};
@@ -525,7 +525,7 @@ pub async fn run_daemon(
         nagato_process: Arc::new(Mutex::new(None)),
         daemon_ably_process: Arc::new(Mutex::new(initial_daemon_ably_process)),
         sidecar_log_tasks: Arc::new(Mutex::new(initial_sidecar_log_tasks)),
-        itachi_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
+        remote_command_idempotency: Arc::new(Mutex::new(IdempotencyStore::default())),
         nagato_shutdown_tx: Arc::new(Mutex::new(None)),
         nagato_server_task: Arc::new(Mutex::new(None)),
         sidecar_supervisor_shutdown_tx: Arc::new(Mutex::new(None)),

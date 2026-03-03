@@ -1,11 +1,11 @@
 //! Nagato socket listener.
 //!
 //! Receives Nagato command frames on `~/.unbound/nagato.sock`, delegates
-//! command decisions to Itachi, and responds with daemon decision frames.
+//! command decisions to the remote command handler, and responds with daemon decision frames.
 
 use crate::app::DaemonState;
-use crate::itachi::ports::DecisionKind;
-use crate::itachi::runtime::handle_remote_command_payload;
+use crate::remote_command_handler::ports::DecisionKind;
+use crate::remote_command_handler::runtime::handle_remote_command_payload;
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};

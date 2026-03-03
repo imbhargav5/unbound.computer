@@ -1,8 +1,8 @@
-use crate::itachi::contracts::{
+use crate::remote_command_handler::contracts::{
     DecisionResultPayload, RemoteCommandEnvelope, UmSecretRequestCommand, UM_SECRET_REQUEST_TYPE,
 };
-use crate::itachi::errors::DecisionReasonCode;
-use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
+use crate::remote_command_handler::errors::DecisionReasonCode;
+use crate::remote_command_handler::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
 use uuid::Uuid;
 
 /// Supported generic remote command types.
@@ -261,8 +261,8 @@ fn reject(
 #[cfg(test)]
 mod tests {
     use super::{handle_remote_command, handle_um_secret_request};
-    use crate::itachi::errors::DecisionReasonCode;
-    use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps};
+    use crate::remote_command_handler::errors::DecisionReasonCode;
+    use crate::remote_command_handler::ports::{DecisionKind, Effect, HandlerDeps};
     use serde_json::json;
 
     fn deps() -> HandlerDeps {
@@ -291,7 +291,7 @@ mod tests {
                 assert_eq!(*decision, DecisionKind::AckMessage);
                 assert_eq!(
                     payload.status,
-                    crate::itachi::contracts::DecisionStatus::Accepted
+                    crate::remote_command_handler::contracts::DecisionStatus::Accepted
                 );
             }
             _ => panic!("first effect must be ReturnDecision"),

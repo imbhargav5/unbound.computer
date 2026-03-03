@@ -1,14 +1,14 @@
 use crate::app::{BillingQuotaSnapshot, DaemonState};
-use crate::itachi::channels::build_session_secrets_channel;
-use crate::itachi::contracts::{
+use crate::remote_command_handler::channels::build_session_secrets_channel;
+use crate::remote_command_handler::contracts::{
     DecisionResultPayload, RemoteCommandEnvelope, RemoteCommandResponse,
     SessionSecretResponsePayload, UmSecretRequestCommand, REMOTE_COMMAND_RESPONSE_EVENT,
     SESSION_SECRET_RESPONSE_EVENT,
 };
-use crate::itachi::errors::ResponseErrorCode;
-use crate::itachi::handler::handle_remote_command;
-use crate::itachi::idempotency::BeginResult;
-use crate::itachi::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
+use crate::remote_command_handler::errors::ResponseErrorCode;
+use crate::remote_command_handler::handler::handle_remote_command;
+use crate::remote_command_handler::idempotency::BeginResult;
+use crate::remote_command_handler::ports::{DecisionKind, Effect, HandlerDeps, LogLevel};
 use agent_session_sqlite_persist_core::{SessionReader, SessionWriter};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -93,8 +93,8 @@ async fn evaluate_effects(state: DaemonState, effects: Vec<Effect>) -> DecisionO
     let mut outcome = DecisionOutcome::from_payload(
         DecisionKind::DoNotAck,
         &DecisionResultPayload::rejected(
-            crate::itachi::errors::DecisionReasonCode::InternalError,
-            "itachi did not produce a decision payload",
+            crate::remote_command_handler::errors::DecisionReasonCode::InternalError,
+            "remote command handler did not produce a decision payload",
             None,
             None,
         ),
@@ -132,7 +132,7 @@ async fn evaluate_effects(state: DaemonState, effects: Vec<Effect>) -> DecisionO
                 });
             }
             Effect::RecordMetric { name } => {
-                debug!(metric = name, "itachi metric");
+                debug!(metric = name, "remote command handler metric");
             }
             Effect::Log { level, message } => match level {
                 LogLevel::Debug => debug!("{message}"),
@@ -151,7 +151,7 @@ async fn process_um_secret_request(state: DaemonState, request: UmSecretRequestC
     let now = Instant::now();
 
     let begin_result = {
-        let mut store = state.itachi_idempotency.lock().unwrap();
+        let mut store = state.remote_command_idempotency.lock().unwrap();
         store.begin(&key, now)
     };
 
@@ -201,7 +201,7 @@ async fn process_um_secret_request(state: DaemonState, request: UmSecretRequestC
     }
 
     {
-        let mut store = state.itachi_idempotency.lock().unwrap();
+        let mut store = state.remote_command_idempotency.lock().unwrap();
         store.complete(&key, response, Instant::now());
     }
 }
@@ -1020,7 +1020,7 @@ mod tests {
         FALCO_TYPE_PUBLISH_ACK,
     };
     use crate::app::BillingQuotaSnapshot;
-    use crate::itachi::contracts::UmSecretRequestCommand;
+    use crate::remote_command_handler::contracts::UmSecretRequestCommand;
     use uuid::Uuid;
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::itachi::contracts::{
+use crate::remote_command_handler::contracts::{
     DecisionResultPayload, RemoteCommandEnvelope, RemoteCommandResponse, UmSecretRequestCommand,
 };
 

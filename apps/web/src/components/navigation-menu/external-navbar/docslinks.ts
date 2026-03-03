@@ -24,7 +24,7 @@ export const navigation = [
     title: "Internals: Daemon",
     links: [
       { title: "Daemon Bin", href: "/docs/internals/daemon/daemon-bin" },
-      { title: "Itachi", href: "/docs/internals/daemon/itachi" },
+      { title: "Remote Command Handler", href: "/docs/internals/daemon/remote-command-handler" },
       {
         title: "Daemon Config And Utils",
         href: "/docs/internals/daemon/daemon-config-and-utils",
@@ -39,14 +39,23 @@ export const navigation = [
         title: "Daemon Storage",
         href: "/docs/internals/daemon/daemon-storage",
       },
-      { title: "Agent Session Sqlite Persist Core", href: "/docs/internals/daemon/agent-session-sqlite-persist-core" },
+      {
+        title: "Agent Session Sqlite Persist Core",
+        href: "/docs/internals/daemon/agent-session-sqlite-persist-core",
+      },
       { title: "Deku", href: "/docs/internals/daemon/deku" },
       { title: "Git Ops", href: "/docs/internals/daemon/git-ops" },
       { title: "GH CLI Ops", href: "/docs/internals/daemon/gh-cli-ops" },
       { title: "Levi", href: "/docs/internals/daemon/levi" },
       { title: "Toshinori", href: "/docs/internals/daemon/toshinori" },
-      { title: "Session Title Generator", href: "/docs/internals/daemon/session-title-generator" },
-      { title: "Safe Repo Dir Lister", href: "/docs/internals/daemon/safe-repo-dir-lister" },
+      {
+        title: "Session Title Generator",
+        href: "/docs/internals/daemon/session-title-generator",
+      },
+      {
+        title: "Safe Repo Dir Lister",
+        href: "/docs/internals/daemon/safe-repo-dir-lister",
+      },
       { title: "Auth Engine", href: "/docs/internals/daemon/auth-engine" },
       { title: "SafeFileOps", href: "/docs/internals/daemon/safe-file-ops" },
       {
@@ -73,7 +82,10 @@ export const navigation = [
         title: "Historia Lifecycle",
         href: "/docs/internals/daemon/historia-lifecycle",
       },
-      { title: "Runtime Capability Detector", href: "/docs/internals/daemon/runtime-capability-detector" },
+      {
+        title: "Runtime Capability Detector",
+        href: "/docs/internals/daemon/runtime-capability-detector",
+      },
     ],
   },
   {
