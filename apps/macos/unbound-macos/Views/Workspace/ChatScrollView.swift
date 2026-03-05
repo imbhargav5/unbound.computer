@@ -20,6 +20,10 @@ struct ChatSnapshotScrollView<Header: View>: View {
     @State private var seenRowIDs: Set<UUID> = []
     @State private var animateRowIDs: Set<UUID> = []
     @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
+    /// Guards against calling scrollTo during initial load.
+    /// defaultScrollAnchor(.bottom) handles initial positioning natively
+    /// without forcing a full layout pass on all LazyVStack rows.
+    @State private var isInitialRender: Bool = true
 
     private var scrollIdentity: Int {
         snapshot.scrollIdentity
@@ -110,8 +114,20 @@ struct ChatSnapshotScrollView<Header: View>: View {
                         }
                 }
             }
+            .defaultScrollAnchor(.bottom)
             .onChange(of: scrollIdentity) { _, _ in
                 DispatchQueue.main.async {
+                    // During initial render, defaultScrollAnchor(.bottom) handles
+                    // positioning without forcing a full LazyVStack layout pass.
+                    // Once we've seen the first non-empty snapshot render, allow
+                    // incremental scrollTo (which is cheap since rows are cached).
+                    guard !isInitialRender else {
+                        if !snapshot.rows.isEmpty {
+                            isInitialRender = false
+                        }
+                        return
+                    }
+
                     if let activeInterval = renderInterval {
                         ChatPerformanceSignposts.endInterval(activeInterval, "superseded")
                     }
