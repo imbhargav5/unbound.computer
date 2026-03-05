@@ -38,3 +38,9 @@ target/
 # Xcode local configuration
 *.xcconfig
 !*.xcconfig.template
+
+# Xcode build artifacts
+build/
+*.xcbuilddata
+xcuserdata/
+DerivedData/

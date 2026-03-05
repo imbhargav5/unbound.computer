@@ -218,5 +218,54 @@ Closes: #<issue-number>"
 ---
 
 Generated: 2026-01-20
-Swift Version: 6.2.1
-Test Status: ✅ PASSING
+
+---
+
+## 2026-03-03 Session Detail Scroll Performance (Aggressive Pass - Iteration 2)
+
+### Scope
+- macOS session detail timeline rendering path (`ChatScrollView`, `ChatComponents`, `ChatInlineRenderer`, `MarkdownTextView`, `PlanModeCardView`).
+
+### Implemented (Iteration 2)
+- Precomputed per-row render keys in `ChatScrollView` and passed them into `ChatMessageRow` to avoid repeated equality-time content hashing.
+- Removed redundant row `.id(...)` modifiers inside `ForEach` to reduce row lifecycle churn/rebuild pressure.
+- Removed per-row `chat.row.render` signpost event emission from `ChatMessageView` body to reduce debug-build scroll overhead.
+- Added cached text normalization/protocol-artifact filtering in `TextContentView` via `SessionTextRenderCache` (`ParseMode.textDisplay`).
+- Added fast table-parser guard in `TextContentView` to skip table segmentation for non-table text.
+- Added cached plan parsing in `TextContentView` via `SessionTextRenderCache` (`ParseMode.planParse`).
+- Reduced parser overhead by reusing compiled numbered-list and plan-regex instances.
+
+### Verification
+- Build command:
+  - `xcodebuild -project apps/macos/unbound-macos.xcodeproj -scheme unbound-macos -configuration Debug -destination "platform=macOS" build`
+  - Result: `BUILD SUCCEEDED` (with existing project warnings unrelated to this change).
+- Test command:
+  - `xcodebuild test -project apps/macos/unbound-macos.xcodeproj -scheme unbound-macos -destination "platform=macOS" -derivedDataPath /tmp/unbound-macos-codex-test`
+  - Result: blocked by existing test host configuration issue:
+    - `Could not find test host for unbound-macosTests: TEST_HOST evaluates to ".../unbound-macos.app/Contents/MacOS/unbound-macos"`
+
+### Perf Numbers
+- Baseline/after signpost captures for this iteration: pending local Instruments run against `session-detail-max-messages.json`.
+
+---
+
+## 2026-03-03 Session Detail Snapshot Engine (Renderer-Independent Pass)
+
+### Implemented
+- Added `ChatTimelineSnapshotEngine` actor and `ChatTimelineSnapshot*` model surface.
+- Added incremental row/text/tool artifact reuse keyed by message/tool fingerprints.
+- Hardened fingerprinting to include payload signatures (not just counts), preventing stale row reuse on same-length content updates.
+- Added `SessionLiveState.timelineSnapshot` + publish pipeline (`chat.snapshot.publish`) and revision tracking.
+- Added snapshot-based scroll rendering path (`ChatSnapshotScrollView`) with row `renderKey` equality.
+- Added snapshot-driven `ChatMessageView`, `MessageContentView`, and `TextContentView` support.
+- Added runtime kill switch: `LocalSettings.chatSnapshotEngineEnabled` (default `true`).
+- Added new tests: `ChatTimelineSnapshotEngineTests` (including same-length text and active-tool output change coverage).
+
+### Verification
+- Build:
+  - `xcodebuild -project apps/macos/unbound-macos.xcodeproj -scheme unbound-macos -configuration Debug -destination "platform=macOS" build`
+  - Result: `BUILD SUCCEEDED`
+- Tests:
+  - Command attempted with targeted suite (`ChatTimelineSnapshotEngineTests`, preview/parser tests)
+  - Result blocked by existing project test host config issue:
+    - `Could not find test host for unbound-macosTests: TEST_HOST evaluates to ".../unbound-macos.app/Contents/MacOS/unbound-macos"`

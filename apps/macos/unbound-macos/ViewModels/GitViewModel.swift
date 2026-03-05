@@ -76,6 +76,35 @@ class GitViewModel {
     /// Remote branches
     private(set) var remoteBranches: [GitBranch] = []
 
+    /// Currently checked-out local branch metadata.
+    var currentLocalBranch: GitBranch? {
+        if let currentBranch {
+            return localBranches.first { $0.name == currentBranch }
+        }
+        return localBranches.first { $0.isCurrent }
+    }
+
+    /// Whether repository has any uncommitted file changes.
+    var hasUncommittedChanges: Bool {
+        !isClean
+    }
+
+    /// Whether the current local branch has commits that are not pushed upstream.
+    var hasUnpushedCommits: Bool {
+        guard let branch = currentLocalBranch, branch.upstream != nil else { return false }
+        return branch.ahead > 0
+    }
+
+    /// Ahead count for currently checked-out branch.
+    var aheadCount: UInt32 {
+        currentLocalBranch?.ahead ?? 0
+    }
+
+    /// Behind count for currently checked-out branch.
+    var behindCount: UInt32 {
+        currentLocalBranch?.behind ?? 0
+    }
+
     /// Selected branch for viewing history
     var selectedBranch: String?
 

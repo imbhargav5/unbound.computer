@@ -22,7 +22,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::unix::OwnedWriteHalf;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{broadcast, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Instrument};
 
 /// Handler function type for IPC methods.
 pub type HandlerFn =
@@ -344,10 +344,12 @@ async fn handle_connection(
         }
 
         // Normal request/response handling
+        let method_name = format!("{:?}", method);
         let response = {
+            let span = tracing::info_span!("ipc.handle", method = %method_name, request_id = %request_id);
             let handlers = handlers.read().await;
             if let Some(handler) = handlers.get(&method) {
-                handler(request).await
+                handler(request).instrument(span).await
             } else {
                 Response::error(
                     &request_id,

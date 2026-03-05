@@ -495,6 +495,7 @@ async fn ensure_daemon_ably_started_locked(
 
         match start_daemon_ably_sidecar(
             state.paths.as_ref(),
+            state.config.as_ref(),
             user_id,
             device_id,
             &state.ably_broker_falco_token,

@@ -26,9 +26,17 @@ struct RightSidebarPanel: View {
     // Working directory
     let workingDirectory: String?
 
-    // Commit dropdown
+    // Header action state
     @State private var isCommitDropdownOpen = false
+    @State private var isPushDropdownOpen = false
     @State private var hoveredDropdownItem: String?
+    @State private var isDispatchingAgentAction = false
+
+    private enum HeaderPrimaryActionMode: Equatable {
+        case commit
+        case push
+        case disabledCommit
+    }
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -40,6 +48,33 @@ struct RightSidebarPanel: View {
 
     private var bottomTabs: [RightSidebarTab] {
         [.changes, .files, .commits]
+    }
+
+    private var selectedSessionLiveState: SessionLiveState? {
+        guard let session = appState.selectedSession else { return nil }
+        return appState.sessionStateManager.stateIfExists(for: session.id)
+    }
+
+    private var isSelectedSessionStreaming: Bool {
+        selectedSessionLiveState?.codingSessionStatus.isStreaming ?? false
+    }
+
+    private var canDispatchGitAgentAction: Bool {
+        guard appState.selectedSession != nil else { return false }
+        guard let workingDirectory, !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return !isDispatchingAgentAction && !gitViewModel.isPerformingAction && !isSelectedSessionStreaming
+    }
+
+    private var headerPrimaryActionMode: HeaderPrimaryActionMode {
+        if gitViewModel.hasUncommittedChanges {
+            return .commit
+        }
+        if gitViewModel.hasUnpushedCommits {
+            return .push
+        }
+        return .disabledCommit
     }
 
     var body: some View {
@@ -56,6 +91,14 @@ struct RightSidebarPanel: View {
             if newTab == .files {
                 Task { await fileTreeViewModel?.loadRoot() }
             }
+        }
+        .onChange(of: headerPrimaryActionMode) { _, _ in
+            isCommitDropdownOpen = false
+            isPushDropdownOpen = false
+        }
+        .onChange(of: isSelectedSessionStreaming) { wasStreaming, isStreaming in
+            guard wasStreaming && !isStreaming else { return }
+            Task { await gitViewModel.refreshAll() }
         }
         .onChange(of: workingDirectory) { _, newPath in
             Task {
@@ -84,7 +127,7 @@ struct RightSidebarPanel: View {
 
             Spacer()
 
-            commitSplitButton
+            headerActionControl
         }
         .padding(.horizontal, Spacing.lg)
         .frame(height: 48)
@@ -121,63 +164,131 @@ struct RightSidebarPanel: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Commit Split Button
-
-    private var isCommitDisabled: Bool {
-        gitViewModel.stagedFiles.isEmpty || gitViewModel.isPerformingAction
-    }
+    // MARK: - Header Actions
 
     private var isGHAuthenticated: Bool {
         guard let auth = gitViewModel.ghAuthStatus else { return false }
         return auth.authenticatedHostCount > 0
     }
 
-    private var commitSplitButton: some View {
+    private var isCommitDisabled: Bool {
+        !gitViewModel.hasUncommittedChanges || !canDispatchGitAgentAction
+    }
+
+    private var isPushDisabled: Bool {
+        !gitViewModel.hasUnpushedCommits || !canDispatchGitAgentAction
+    }
+
+    @ViewBuilder
+    private var headerActionControl: some View {
+        switch headerPrimaryActionMode {
+        case .commit:
+            commitSplitButton(disabled: isCommitDisabled)
+        case .push:
+            pushSplitButton(disabled: isPushDisabled)
+        case .disabledCommit:
+            commitSplitButton(disabled: true)
+        }
+    }
+
+    private func commitSplitButton(disabled: Bool) -> some View {
         let enabledBg = Color(hex: "22C55E")
         let disabledBg = Color(hex: "1F3D2A")
 
         return HStack(spacing: 0) {
-            // Left: Commit button
             Button {
-                Task { await gitViewModel.commit() }
+                dispatchGitAgentAction(.commit)
             } label: {
                 Text("Commit")
                     .font(GeistFont.sans(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isCommitDisabled ? 0.5 : 1))
+                    .foregroundStyle(.white.opacity(disabled ? 0.5 : 1))
                     .padding(.vertical, 6)
                     .padding(.horizontal, 12)
             }
             .buttonStyle(.plain)
-            .disabled(isCommitDisabled)
+            .disabled(disabled)
 
-            // Divider between buttons
             Rectangle()
                 .fill(Color(hex: "2ECC71"))
                 .frame(width: 1)
                 .padding(.vertical, 6)
-                .opacity(isCommitDisabled ? 0.5 : 1)
+                .opacity(disabled ? 0.5 : 1)
 
-            // Right: Chevron dropdown trigger
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
+                    isPushDropdownOpen = false
                     isCommitDropdownOpen.toggle()
                 }
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isCommitDisabled ? 0.5 : 1))
+                    .foregroundStyle(.white.opacity(disabled ? 0.5 : 1))
                     .rotationEffect(.degrees(isCommitDropdownOpen ? 180 : 0))
                     .padding(.vertical, 6)
                     .padding(.horizontal, 8)
             }
             .buttonStyle(.plain)
-            .disabled(isCommitDisabled)
+            .disabled(disabled)
             .popover(isPresented: $isCommitDropdownOpen, arrowEdge: .bottom) {
                 commitDropdownMenu
             }
         }
         .frame(height: 32)
-        .background(isCommitDisabled ? disabledBg.opacity(0.6) : enabledBg)
+        .background(disabled ? disabledBg.opacity(0.6) : enabledBg)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 6,
+                bottomLeadingRadius: 6,
+                bottomTrailingRadius: 6,
+                topTrailingRadius: 6
+            )
+        )
+    }
+
+    private func pushSplitButton(disabled: Bool) -> some View {
+        let enabledBg = Color(hex: "22C55E")
+        let disabledBg = Color(hex: "1F3D2A")
+
+        return HStack(spacing: 0) {
+            Button {
+                dispatchGitAgentAction(.push)
+            } label: {
+                Text("Push")
+                    .font(GeistFont.sans(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(disabled ? 0.5 : 1))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
+
+            Rectangle()
+                .fill(Color(hex: "2ECC71"))
+                .frame(width: 1)
+                .padding(.vertical, 6)
+                .opacity(disabled ? 0.5 : 1)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isCommitDropdownOpen = false
+                    isPushDropdownOpen.toggle()
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(disabled ? 0.5 : 1))
+                    .rotationEffect(.degrees(isPushDropdownOpen ? 180 : 0))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
+            .popover(isPresented: $isPushDropdownOpen, arrowEdge: .bottom) {
+                pushDropdownMenu
+            }
+        }
+        .frame(height: 32)
+        .background(disabled ? disabledBg.opacity(0.6) : enabledBg)
         .clipShape(
             UnevenRoundedRectangle(
                 topLeadingRadius: 6,
@@ -193,39 +304,68 @@ struct RightSidebarPanel: View {
             commitDropdownItem(
                 icon: "arrow.up",
                 label: "Commit + Push",
-                id: "push",
-                disabled: false
+                id: "commit-push",
+                disabled: isCommitDisabled
             ) {
                 isCommitDropdownOpen = false
-                Task { await gitViewModel.commitAndPush() }
+                dispatchGitAgentAction(.commitAndPush)
             }
 
             commitDropdownItem(
                 icon: "arrow.triangle.2.circlepath",
-                label: "Commit + Sync",
-                id: "sync",
-                disabled: false
+                label: "Commit + Rebase & Push",
+                id: "commit-rebase-push",
+                disabled: isCommitDisabled
             ) {
                 isCommitDropdownOpen = false
-                Task { await gitViewModel.commitAndPush() }
+                dispatchGitAgentAction(.commitRebaseAndPush)
             }
 
             commitDropdownItem(
                 icon: "arrow.triangle.pull",
-                label: "Commit + Pull Request",
-                id: "pr",
-                disabled: !isGHAuthenticated
+                label: "Commit + Create Pull Request",
+                id: "commit-pr",
+                disabled: isCommitDisabled || !isGHAuthenticated
             ) {
                 isCommitDropdownOpen = false
-                Task {
-                    await gitViewModel.commitAndPush()
-                    guard gitViewModel.lastError == nil else { return }
-                    selectedTab = .pullRequests
-                }
+                dispatchGitAgentAction(.commitAndCreatePullRequest)
             }
         }
         .padding(.vertical, 4)
-        .frame(width: 200)
+        .frame(width: 240)
+        .background(Color(hex: "1A1A1A"))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color(hex: "2A2A2A"), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 12, y: 4)
+    }
+
+    private var pushDropdownMenu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            commitDropdownItem(
+                icon: "arrow.triangle.2.circlepath",
+                label: "Rebase & Push",
+                id: "rebase-push",
+                disabled: isPushDisabled
+            ) {
+                isPushDropdownOpen = false
+                dispatchGitAgentAction(.rebaseAndPush)
+            }
+
+            commitDropdownItem(
+                icon: "arrow.triangle.pull",
+                label: "Create Pull Request",
+                id: "push-pr",
+                disabled: isPushDisabled || !isGHAuthenticated
+            ) {
+                isPushDropdownOpen = false
+                dispatchGitAgentAction(.createPullRequest)
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(width: 220)
         .background(Color(hex: "1A1A1A"))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
@@ -266,6 +406,48 @@ struct RightSidebarPanel: View {
         .disabled(disabled)
         .onHover { isHovered in
             hoveredDropdownItem = isHovered ? id : nil
+        }
+    }
+
+    private func dispatchGitAgentAction(_ action: GitSidebarAgentAction) {
+        guard !isDispatchingAgentAction else { return }
+        guard let session = appState.selectedSession else {
+            gitViewModel.lastError = "Select a coding session before running Git actions."
+            return
+        }
+        guard let workspacePath = workingDirectory,
+              !workspacePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            gitViewModel.lastError = "Open a repository workspace before running Git actions."
+            return
+        }
+        guard canDispatchGitAgentAction else {
+            gitViewModel.lastError = "Git actions are unavailable while the session agent is busy."
+            return
+        }
+
+        let liveState = appState.sessionStateManager.state(for: session.id)
+        let prompt = GitAgentPromptFactory.prompt(for: action)
+
+        isDispatchingAgentAction = true
+        gitViewModel.lastError = nil
+
+        Task { @MainActor in
+            await liveState.sendMessage(
+                prompt,
+                session: session,
+                workspacePath: workspacePath,
+                modelIdentifier: nil,
+                isPlanMode: false
+            )
+
+            if liveState.showErrorAlert {
+                let message = liveState.errorAlertMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !message.isEmpty {
+                    gitViewModel.lastError = message
+                }
+            }
+
+            isDispatchingAgentAction = false
         }
     }
 

@@ -9,8 +9,9 @@ use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::{trace, Resource};
+use opentelemetry_sdk::{runtime, trace, Resource};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -52,7 +53,7 @@ pub struct OtlpConfig {
 impl Default for OtlpConfig {
     fn default() -> Self {
         Self {
-            endpoint: "http://localhost:4318/v1/traces".to_string(),
+            endpoint: "http://localhost:4318".to_string(),
             headers: HashMap::new(),
             sampler: OtlpSampler::AlwaysOn,
             sampler_arg: 1.0,
@@ -97,9 +98,23 @@ pub fn init(service_name: &str) {
 }
 
 pub fn init_with_config(config: LogConfig) {
+    let has_otlp = config.otlp.is_some();
     let tracer = match config.otlp.as_ref() {
-        Some(otlp) => init_otel_tracer(&config, otlp),
-        None => None,
+        Some(otlp) => {
+            let t = init_otel_tracer(&config, otlp);
+            if t.is_some() {
+                eprintln!("[observability] OTLP tracer initialized, endpoint={}", otlp.endpoint);
+            } else {
+                eprintln!("[observability] OTLP tracer FAILED to initialize");
+            }
+            t
+        }
+        None => {
+            if has_otlp {
+                eprintln!("[observability] OTLP config present but tracer returned None");
+            }
+            None
+        }
     };
 
     let env_filter =
@@ -270,10 +285,20 @@ fn init_otel_tracer(config: &LogConfig, otlp: &OtlpConfig) -> Option<opentelemet
         ])
         .build();
 
+    // The async batch processor doesn't auto-append /v1/traces,
+    // so ensure the endpoint includes the signal path.
+    let endpoint = if otlp.endpoint.ends_with("/v1/traces") {
+        otlp.endpoint.clone()
+    } else {
+        format!("{}/v1/traces", otlp.endpoint.trim_end_matches('/'))
+    };
+
+    let http_client = reqwest::Client::new();
     let mut exporter_builder = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
+        .with_http_client(http_client)
         .with_protocol(Protocol::HttpBinary)
-        .with_endpoint(otlp.endpoint.clone());
+        .with_endpoint(endpoint);
 
     if !otlp.headers.is_empty() {
         exporter_builder = exporter_builder.with_headers(otlp.headers.clone());
@@ -287,8 +312,10 @@ fn init_otel_tracer(config: &LogConfig, otlp: &OtlpConfig) -> Option<opentelemet
         }
     };
 
+    let batch_processor = BatchSpanProcessor::builder(exporter, runtime::Tokio).build();
+
     let provider = SdkTracerProvider::builder()
-        .with_batch_exporter(exporter)
+        .with_span_processor(batch_processor)
         .with_sampler(sampler)
         .with_resource(resource)
         .build();
@@ -325,7 +352,7 @@ mod tests {
     #[test]
     fn default_otlp_config_is_safe_for_local_dev() {
         let cfg = OtlpConfig::default();
-        assert_eq!(cfg.endpoint, "http://localhost:4318/v1/traces");
+        assert_eq!(cfg.endpoint, "http://localhost:4318");
         assert_eq!(cfg.sampler, OtlpSampler::AlwaysOn);
         assert_eq!(cfg.sampler_arg, 1.0);
     }

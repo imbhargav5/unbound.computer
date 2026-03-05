@@ -30,6 +30,27 @@ struct ToolHistoryEntryView: View {
     }
 }
 
+struct ToolHistoryEntrySnapshotView: View {
+    let snapshot: ToolHistoryEntrySnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            if let subAgent = snapshot.subAgent {
+                ParallelAgentsView(activities: [subAgent.activity], defaultExpanded: false)
+            }
+
+            if !snapshot.tools.isEmpty {
+                StandaloneToolCallsView(
+                    renderSnapshots: snapshot.tools,
+                    initiallyExpanded: false
+                )
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+    }
+}
+
 private extension ActiveSubAgent {
     var asHistoricalActivity: SubAgentActivity {
         SubAgentActivity(

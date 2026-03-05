@@ -160,6 +160,7 @@ pub async fn run_daemon(
         supabase_client.clone(),
         secrets_arc.clone(),
         config.supabase_url.clone(),
+        config.web_app_url.clone(),
     ));
 
     // Validate existing session on startup
@@ -197,9 +198,13 @@ pub async fn run_daemon(
         .map(|sync| sync.user_id.clone());
 
     let mut ably_broker_runtime = Some(
-        start_ably_token_broker(paths.ably_auth_socket_file(), auth_runtime.clone())
-            .await
-            .map_err(|err| format!("Failed to start Ably token broker: {}", err))?,
+        start_ably_token_broker(
+            paths.ably_auth_socket_file(),
+            auth_runtime.clone(),
+            config.web_app_url.clone(),
+        )
+        .await
+        .map_err(|err| format!("Failed to start Ably token broker: {}", err))?,
     );
     let ably_broker_nagato_token = ably_broker_runtime
         .as_ref()
@@ -322,6 +327,7 @@ pub async fn run_daemon(
                 }
                 match start_daemon_ably_sidecar(
                     &paths,
+                    &config,
                     user_id,
                     device_id,
                     &ably_broker_falco_token,

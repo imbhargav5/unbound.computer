@@ -1873,6 +1873,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",
+ "reqwest",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",

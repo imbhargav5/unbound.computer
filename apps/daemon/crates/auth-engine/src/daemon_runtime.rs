@@ -5,7 +5,6 @@
 
 use crate::{AuthError, AuthResult, AuthSnapshot, SessionManager, SupabaseClient};
 use base64::Engine;
-use daemon_config_and_utils::compile_time_web_app_url;
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
 use serde::Deserialize;
 use serde_json::Value;
@@ -79,9 +78,8 @@ impl DaemonAuthRuntime {
         supabase_client: Arc<SupabaseClient>,
         secrets: Arc<Mutex<SecretsManager>>,
         supabase_url: impl Into<String>,
+        web_app_url: impl Into<String>,
     ) -> Self {
-        let web_app_url = compile_time_web_app_url();
-
         let session_manager = Arc::new(session_manager);
         session_manager.start_hybrid_clock_reconciliation();
 
@@ -90,7 +88,7 @@ impl DaemonAuthRuntime {
             supabase_client,
             secrets,
             http_client: reqwest::Client::new(),
-            web_app_url,
+            web_app_url: web_app_url.into(),
             supabase_url: supabase_url.into(),
         }
     }

@@ -88,6 +88,67 @@ enum DaemonLauncher {
         }
     }
 
+    // MARK: - .env Loading
+
+    /// Load a `.env.local` file into the environment dictionary.
+    /// Searches next to the daemon binary, then walks up to find `apps/daemon/.env.local`.
+    private static func loadDotEnv(into environment: inout [String: String], daemonPath: String) {
+        let candidates = dotEnvCandidates(daemonPath: daemonPath)
+
+        for candidate in candidates {
+            guard FileManager.default.fileExists(atPath: candidate),
+                  let contents = try? String(contentsOfFile: candidate, encoding: .utf8) else {
+                continue
+            }
+
+            logger.info("Loading env from \(candidate)")
+            var count = 0
+            for line in contents.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+
+                guard let equalsIndex = trimmed.firstIndex(of: "=") else { continue }
+                let key = String(trimmed[trimmed.startIndex..<equalsIndex])
+                    .trimmingCharacters(in: .whitespaces)
+                let value = String(trimmed[trimmed.index(after: equalsIndex)...])
+                    .trimmingCharacters(in: .whitespaces)
+
+                guard !key.isEmpty else { continue }
+                // Don't override values already set in the process environment
+                if environment[key] == nil {
+                    environment[key] = value
+                    count += 1
+                }
+            }
+            logger.info("Loaded \(count) env vars from .env.local")
+            return
+        }
+
+        logger.debug("No .env.local found for daemon")
+    }
+
+    /// Resolve the repo root using this Swift source file's compile-time path,
+    /// then return `apps/daemon/.env.local` within the repo.
+    private static func dotEnvCandidates(daemonPath: String, sourceFile: String = #file) -> [String] {
+        var candidates: [String] = []
+
+        // Primary: derive repo root from this source file's compile-time path.
+        // This file is at <repo>/apps/macos/unbound-macos/Services/Daemon/DaemonLauncher.swift
+        // so repo root is 5 directories up.
+        var dir = (sourceFile as NSString).deletingLastPathComponent
+        for _ in 0..<5 {
+            dir = (dir as NSString).deletingLastPathComponent
+        }
+        let repoCandidate = (dir as NSString).appendingPathComponent("apps/daemon/.env.local")
+        candidates.append(repoCandidate)
+
+        // Fallback: next to the daemon binary
+        let binaryDir = (daemonPath as NSString).deletingLastPathComponent
+        candidates.append((binaryDir as NSString).appendingPathComponent(".env.local"))
+
+        return candidates
+    }
+
     // MARK: - CLI Symlink
 
     /// Install a symlink to the bundled daemon binary so it's accessible from the terminal.
@@ -145,10 +206,18 @@ enum DaemonLauncher {
 
     /// Ensure the daemon is running, starting it if necessary.
     static func ensureDaemonRunning() async throws {
-        // Check if already running (quick socket file check)
-        if DaemonClient.shared.isDaemonRunning() {
-            logger.info("Daemon socket exists, assuming running")
+        // Verify the daemon is actually responsive, not just that the socket file exists.
+        // A stale socket file can remain after the process is killed.
+        if await DaemonClient.shared.isDaemonAlive() {
+            logger.info("Daemon is alive and responsive")
             return
+        }
+
+        // Clean up stale socket if it exists but nothing is listening
+        let socketPath = DaemonClient.defaultSocketPath
+        if FileManager.default.fileExists(atPath: socketPath) {
+            logger.info("Removing stale daemon socket")
+            try? FileManager.default.removeItem(atPath: socketPath)
         }
 
         logger.info("Daemon not running, attempting to start")
@@ -173,7 +242,22 @@ enum DaemonLauncher {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["start", "--base-dir", Config.daemonBaseDir]
-        var environment = ProcessInfo.processInfo.environment
+
+        // Start from a clean slate — only pass what the daemon needs.
+        // ProcessInfo.processInfo.environment can contain stale or empty values
+        // that prevent loadDotEnv from setting keys (it skips non-nil entries).
+        var environment: [String: String] = [:]
+
+        #if DEBUG
+        // Load .env.local first so all dev config (OTEL, Groq, etc.) is available.
+        loadDotEnv(into: &environment, daemonPath: path)
+        #endif
+
+        // Authoritative config from the macOS app — always overrides .env.local.
+        environment["SUPABASE_URL"] = Config.supabaseURL.absoluteString
+        environment["SUPABASE_PUBLISHABLE_KEY"] = Config.supabasePublishableKey
+        environment["UNBOUND_WEB_APP_URL"] = Config.apiURL.absoluteString
+
         if let heartbeatURL = Config.presenceDOHeartbeatURL {
             environment["UNBOUND_PRESENCE_DO_HEARTBEAT_URL"] = heartbeatURL
         }
@@ -181,6 +265,15 @@ enum DaemonLauncher {
             environment["UNBOUND_PRESENCE_DO_TOKEN"] = token
         }
         environment["UNBOUND_PRESENCE_DO_TTL_MS"] = String(Config.presenceDOTTLMS)
+
+        // Carry over PATH so the daemon can find system tools.
+        if let systemPath = ProcessInfo.processInfo.environment["PATH"] {
+            environment["PATH"] = systemPath
+        }
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            environment["HOME"] = home
+        }
+
         process.environment = environment
 
         // Detach from parent

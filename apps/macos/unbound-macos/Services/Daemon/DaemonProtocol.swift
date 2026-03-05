@@ -924,6 +924,35 @@ struct DaemonMessage: Codable, Identifiable {
         case isStreaming = "is_streaming"
     }
 
+    init(id: String, sessionId: String, content: String?, sequenceNumber: Int, timestamp: String?, isStreaming: Bool?) {
+        self.id = id
+        self.sessionId = sessionId
+        self.content = content
+        self.sequenceNumber = sequenceNumber
+        self.timestamp = timestamp
+        self.isStreaming = isStreaming
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        sequenceNumber = try container.decode(Int.self, forKey: .sequenceNumber)
+        timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
+        isStreaming = try container.decodeIfPresent(Bool.self, forKey: .isStreaming)
+
+        // Content can arrive as a JSON string (legacy) or JSON object (raw format).
+        // Downstream expects a JSON string, so re-serialize objects.
+        if let str = try? container.decodeIfPresent(String.self, forKey: .content) {
+            content = str
+        } else if let obj = try? container.decodeIfPresent(AnyCodableValue.self, forKey: .content) {
+            let data = try JSONSerialization.data(withJSONObject: obj.value, options: [])
+            content = String(data: data, encoding: .utf8)
+        } else {
+            content = nil
+        }
+    }
+
     /// Parse the timestamp string into a Date.
     var date: Date? {
         guard let timestamp else { return nil }

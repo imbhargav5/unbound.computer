@@ -12,19 +12,22 @@ import Foundation
 /// Utility for parsing tool input JSON strings into typed values
 struct ToolInputParser {
     let input: String?
+    private let parsedDictionary: [String: Any]?
 
     init(_ input: String?) {
         self.input = input
+        if let input,
+           let data = input.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            self.parsedDictionary = json
+        } else {
+            self.parsedDictionary = nil
+        }
     }
 
     /// Parse input as JSON dictionary
     var dictionary: [String: Any]? {
-        guard let input = input,
-              let data = input.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return json
+        parsedDictionary
     }
 
     /// Get string value for key
@@ -125,9 +128,25 @@ struct ToolInputParser {
 /// Utility for parsing tool output strings
 struct ToolOutputParser {
     let output: String?
+    private let cachedLineCount: Int
+    private let cachedHasVisibleContent: Bool
 
     init(_ output: String?) {
         self.output = output
+        guard let output else {
+            self.cachedLineCount = 0
+            self.cachedHasVisibleContent = false
+            return
+        }
+
+        self.cachedLineCount = output.isEmpty ? 0 : output.reduce(into: 1) { count, character in
+            if character == "\n" {
+                count += 1
+            }
+        }
+        self.cachedHasVisibleContent = output.unicodeScalars.contains { scalar in
+            !CharacterSet.whitespacesAndNewlines.contains(scalar)
+        }
     }
 
     /// Output as lines
@@ -140,6 +159,14 @@ struct ToolOutputParser {
         output?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    var lineCount: Int {
+        cachedLineCount
+    }
+
+    var hasVisibleContent: Bool {
+        cachedHasVisibleContent
+    }
+
     /// Check if output indicates success (no error markers)
     var isSuccess: Bool {
         guard let output = output else { return true }
@@ -149,12 +176,29 @@ struct ToolOutputParser {
 
     /// Output truncated to max lines
     func truncated(maxLines: Int = 50) -> String {
-        let allLines = lines
-        if allLines.count <= maxLines {
-            return output ?? ""
+        guard let output else { return "" }
+        guard maxLines > 0 else { return "" }
+        if lineCount <= maxLines {
+            return output
         }
-        let shown = allLines.prefix(maxLines).joined(separator: "\n")
-        let remaining = allLines.count - maxLines
+
+        var newlineCount = 0
+        var cutoffIndex = output.endIndex
+        var index = output.startIndex
+
+        while index < output.endIndex {
+            if output[index] == "\n" {
+                newlineCount += 1
+                if newlineCount >= maxLines {
+                    cutoffIndex = index
+                    break
+                }
+            }
+            index = output.index(after: index)
+        }
+
+        let shown = String(output[..<cutoffIndex])
+        let remaining = max(0, lineCount - maxLines)
         return "\(shown)\n... (\(remaining) more lines)"
     }
 }

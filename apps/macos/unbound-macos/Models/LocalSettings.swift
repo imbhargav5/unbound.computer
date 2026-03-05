@@ -118,7 +118,6 @@ class LocalSettings {
         let storedZenModeEnabled = UserDefaults.standard.object(forKey: Keys.isZenModeEnabled) as? Bool ?? false
         let storedLastLeftSidebarVisible = UserDefaults.standard.object(forKey: Keys.lastLeftSidebarVisible) as? Bool ?? storedLeftSidebarVisible
         let storedLastRightSidebarVisible = UserDefaults.standard.object(forKey: Keys.lastRightSidebarVisible) as? Bool ?? storedRightSidebarVisible
-
         self.leftSidebarVisible = storedLeftSidebarVisible
         self.rightSidebarVisible = storedRightSidebarVisible
         self.isZenModeEnabled = storedZenModeEnabled

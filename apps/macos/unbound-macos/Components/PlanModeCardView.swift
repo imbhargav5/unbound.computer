@@ -16,6 +16,14 @@ enum PlanModeMessageParser {
         let bodyMarkdown: String
     }
 
+    private static let planHeadingRegex = try? NSRegularExpression(
+        pattern: #"(?m)^#{1,4}\s+.*plan.*$"#,
+        options: [.caseInsensitive]
+    )
+    private static let numberedStepRegex = try? NSRegularExpression(pattern: #"(?m)^\s*\d+\.\s+\S+"#)
+    private static let sectionHeadingRegex = try? NSRegularExpression(pattern: #"(?m)^#{2,6}\s+\S+"#)
+    private static let headingRegex = try? NSRegularExpression(pattern: #"^#{1,6}\s+(.+)$"#)
+
     static func parse(_ rawText: String) -> ParsedPlan? {
         let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, looksLikePlanContent(trimmed) else {
@@ -48,25 +56,17 @@ enum PlanModeMessageParser {
 
     private static func looksLikePlanContent(_ text: String) -> Bool {
         let lower = text.lowercased()
-        let hasPlanHeading = text.range(
-            of: #"(?m)^#{1,4}\s+.*plan.*$"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
+        let fullRange = NSRange(text.startIndex..., in: text)
+        let hasPlanHeading = planHeadingRegex?.firstMatch(in: text, range: fullRange) != nil
         let hasImplementationSection = lower.contains("implementation plan")
-        let hasNumberedSteps = text.range(
-            of: #"(?m)^\s*\d+\.\s+\S+"#,
-            options: .regularExpression
-        ) != nil
-        let hasSectionHeading = text.range(
-            of: #"(?m)^#{2,6}\s+\S+"#,
-            options: .regularExpression
-        ) != nil
+        let hasNumberedSteps = numberedStepRegex?.firstMatch(in: text, range: fullRange) != nil
+        let hasSectionHeading = sectionHeadingRegex?.firstMatch(in: text, range: fullRange) != nil
 
         return (hasPlanHeading || hasImplementationSection) && hasSectionHeading && hasNumberedSteps
     }
 
     private static func headingText(from line: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: #"^#{1,6}\s+(.+)$"#),
+        guard let regex = headingRegex,
               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
               let range = Range(match.range(at: 1), in: line) else {
             return nil
@@ -195,8 +195,15 @@ struct PlanModeCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             TextContentView(
-                textContent: TextContent(text: parsedPlan.bodyMarkdown),
-                isAssistantMessage: false
+                renderSnapshot: TextRenderSnapshot(
+                    id: UUID(),
+                    rawText: parsedPlan.bodyMarkdown,
+                    displayText: parsedPlan.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines),
+                    isAssistantMessage: false,
+                    mode: .markdown,
+                    parsedPlan: nil,
+                    tableAwareSegments: []
+                )
             )
             .foregroundStyle(Color(hex: "B3B3B3"))
         }

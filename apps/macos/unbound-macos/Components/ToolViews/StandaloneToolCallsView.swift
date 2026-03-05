@@ -11,6 +11,7 @@ import SwiftUI
 private enum StandaloneToolCallsPayload {
     case active([ActiveTool])
     case historical([ToolUse])
+    case renderSnapshots([ToolRenderSnapshot])
 }
 
 struct StandaloneToolCallsView: View {
@@ -23,6 +24,11 @@ struct StandaloneToolCallsView: View {
 
     init(historyTools: [ToolUse], initiallyExpanded: Bool = true) {
         self.payload = .historical(historyTools)
+        _ = initiallyExpanded
+    }
+
+    init(renderSnapshots: [ToolRenderSnapshot], initiallyExpanded: Bool = true) {
+        self.payload = .renderSnapshots(renderSnapshots)
         _ = initiallyExpanded
     }
 
@@ -52,13 +58,22 @@ struct StandaloneToolCallsView: View {
             }
         case .historical(let tools):
             return tools
+        case .renderSnapshots(let snapshots):
+            return snapshots.map(\.toolUse)
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(toolUses) { tool in
-                ToolViewRouter(toolUse: tool)
+            switch payload {
+            case .renderSnapshots(let snapshots):
+                ForEach(snapshots) { snapshot in
+                    ToolUseView(toolUse: snapshot.toolUse, renderSnapshot: snapshot)
+                }
+            default:
+                ForEach(toolUses) { tool in
+                    ToolViewRouter(toolUse: tool)
+                }
             }
         }
     }

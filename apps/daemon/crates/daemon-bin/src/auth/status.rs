@@ -3,6 +3,7 @@
 use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use auth_engine::AuthSnapshot;
+use tracing::{info_span, Instrument};
 
 fn auth_status_payload(snapshot: &AuthSnapshot) -> serde_json::Value {
     // Keep compatibility aliases (`logged_in`, `authenticated`) pinned to
@@ -26,7 +27,12 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::AuthStatus, move |req| {
             let state = state.clone();
             async move {
-                match state.auth_runtime.status().await {
+                let result = state
+                    .auth_runtime
+                    .status()
+                    .instrument(info_span!("auth.check_status"))
+                    .await;
+                match result {
                     Ok(snapshot) => Response::success(&req.id, auth_status_payload(&snapshot)),
                     Err(error) => {
                         Response::error(&req.id, error_codes::INTERNAL_ERROR, &error.to_string())

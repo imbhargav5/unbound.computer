@@ -17,7 +17,7 @@ private enum MarkdownBlock: Identifiable {
     case bulletList(items: [ListItem])
     case numberedList(items: [ListItem])
     case codeBlock(language: String?, code: String)
-    case horizontalRule
+    case horizontalRule(id: String)
     case blockquote(text: String)
 
     var id: String {
@@ -34,8 +34,8 @@ private enum MarkdownBlock: Identifiable {
             return "ol-\(items.map { "\($0.marker ?? "")\($0.text)" }.joined().hashValue)"
         case .codeBlock(let lang, let code):
             return "code-\(lang ?? "")-\(code.hashValue)"
-        case .horizontalRule:
-            return "hr-\(UUID().uuidString)"
+        case .horizontalRule(let id):
+            return id
         case .blockquote(let text):
             return "bq-\(text.hashValue)"
         }
@@ -43,12 +43,13 @@ private enum MarkdownBlock: Identifiable {
 }
 
 private struct ListItem: Identifiable {
-    let id = UUID()
+    let id: String
     let text: String
     let indent: Int
     let marker: String?
 
-    init(text: String, indent: Int, marker: String? = nil) {
+    init(id: String, text: String, indent: Int, marker: String? = nil) {
+        self.id = id
         self.text = text
         self.indent = indent
         self.marker = marker
@@ -58,6 +59,8 @@ private struct ListItem: Identifiable {
 // MARK: - Markdown Parser
 
 private enum MarkdownBlockParser {
+    private static let numberedListRegex = try? NSRegularExpression(pattern: #"^(\d+[\.\)])\s+(.+)$"#)
+
     static func parse(_ text: String) -> [MarkdownBlock] {
         let lines = text.components(separatedBy: "\n")
         var blocks: [MarkdownBlock] = []
@@ -95,7 +98,7 @@ private enum MarkdownBlockParser {
             }
         }
 
-        for line in lines {
+        for (lineIndex, line) in lines.enumerated() {
             // Handle code blocks
             if line.hasPrefix("```") {
                 if inCodeBlock {
@@ -139,7 +142,7 @@ private enum MarkdownBlockParser {
             if isHorizontalRule(trimmed) {
                 flushParagraph()
                 flushList()
-                blocks.append(.horizontalRule)
+                blocks.append(.horizontalRule(id: "hr-\(lineIndex)"))
                 continue
             }
 
@@ -153,7 +156,7 @@ private enum MarkdownBlockParser {
             }
 
             // Bullet list
-            if let bulletItem = parseBulletListItem(line) {
+            if let bulletItem = parseBulletListItem(line, lineIndex: lineIndex) {
                 flushParagraph()
                 if currentListType != .bullet {
                     flushList()
@@ -164,7 +167,7 @@ private enum MarkdownBlockParser {
             }
 
             // Numbered list
-            if let numberedItem = parseNumberedListItem(line) {
+            if let numberedItem = parseNumberedListItem(line, lineIndex: lineIndex) {
                 flushParagraph()
                 if currentListType != .numbered {
                     flushList()
@@ -212,7 +215,7 @@ private enum MarkdownBlockParser {
                (trimmed.allSatisfy { $0 == "_" } && trimmed.count >= 3)
     }
 
-    private static func parseBulletListItem(_ line: String) -> ListItem? {
+    private static func parseBulletListItem(_ line: String, lineIndex: Int) -> ListItem? {
         // Count leading spaces for indent
         var indent = 0
         var index = line.startIndex
@@ -233,10 +236,15 @@ private enum MarkdownBlockParser {
         guard remaining[afterMarker] == " " else { return nil }
 
         let text = String(remaining[remaining.index(afterMarker, offsetBy: 1)...]).trimmingCharacters(in: .whitespaces)
-        return ListItem(text: text, indent: indent, marker: nil)
+        return ListItem(
+            id: "ul-\(lineIndex)-\(indent)-\(text.hashValue)",
+            text: text,
+            indent: indent,
+            marker: nil
+        )
     }
 
-    private static func parseNumberedListItem(_ line: String) -> ListItem? {
+    private static func parseNumberedListItem(_ line: String, lineIndex: Int) -> ListItem? {
         // Count leading spaces for indent
         var indent = 0
         var index = line.startIndex
@@ -250,7 +258,7 @@ private enum MarkdownBlockParser {
 
         // Match pattern: number+delimiter followed by whitespace and text.
         // We keep the source marker intact (e.g. "3." or "7)").
-        guard let regex = try? NSRegularExpression(pattern: #"^(\d+[\.\)])\s+(.+)$"#),
+        guard let regex = numberedListRegex,
               let match = regex.firstMatch(in: remaining, range: NSRange(remaining.startIndex..., in: remaining)),
               let markerRange = Range(match.range(at: 1), in: remaining),
               let textRange = Range(match.range(at: 2), in: remaining) else {
@@ -259,7 +267,12 @@ private enum MarkdownBlockParser {
 
         let marker = String(remaining[markerRange])
         let text = String(remaining[textRange]).trimmingCharacters(in: .whitespaces)
-        return ListItem(text: text, indent: indent, marker: marker)
+        return ListItem(
+            id: "ol-\(lineIndex)-\(indent)-\(marker.hashValue)-\(text.hashValue)",
+            text: text,
+            indent: indent,
+            marker: marker
+        )
     }
 
     private static func promoteListHeadings(in blocks: [MarkdownBlock]) -> [MarkdownBlock] {
@@ -440,7 +453,19 @@ struct MarkdownTextView: View {
     }
 
     private var blocks: [MarkdownBlock] {
-        MarkdownBlockParser.parse(text)
+        let key = SessionTextRenderCache.makeKey(mode: .markdownBlocks, text: text)
+        return SessionTextRenderCache.shared.value(
+            for: key,
+            estimatedCost: max(256, text.utf8.count)
+        ) {
+            let interval = ChatPerformanceSignposts.beginInterval(
+                "chat.markdown.parse",
+                "chars=\(text.count)"
+            )
+            let parsed = MarkdownBlockParser.parse(text)
+            ChatPerformanceSignposts.endInterval(interval, "blocks=\(parsed.count)")
+            return parsed
+        }
     }
 
     var body: some View {

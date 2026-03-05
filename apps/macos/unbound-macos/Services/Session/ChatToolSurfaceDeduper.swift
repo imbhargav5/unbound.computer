@@ -5,6 +5,12 @@ struct ChatToolSurfaceDeduper {
         let visibleToolHistory: [ToolHistoryEntry]
         let visibleActiveSubAgents: [ActiveSubAgent]
         let visibleActiveTools: [ActiveTool]
+
+        static let empty = DisplayState(
+            visibleToolHistory: [],
+            visibleActiveSubAgents: [],
+            visibleActiveTools: []
+        )
     }
 
     static func dedupe(

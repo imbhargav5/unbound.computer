@@ -6,110 +6,87 @@
 //  Recreated when session changes via .id(sessionId).
 //
 
+import Logging
 import SwiftUI
 
-struct ChatScrollView<Header: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
+private let logger = Logger(label: "app.ui.chat")
 
-    let messages: [ChatMessage]
-    let toolHistory: [ToolHistoryEntry]
-    let activeSubAgents: [ActiveSubAgent]
-    let activeTools: [ActiveTool]
-    let streamingAssistantMessage: ChatMessage?
+struct ChatSnapshotScrollView<Header: View>: View {
+    let snapshot: ChatTimelineSnapshot
     let onQuestionSubmit: (AskUserQuestion) -> Void
     @ViewBuilder let header: () -> Header
 
-    // Local state - automatically reset when view is recreated via .id()
     @State private var isAtBottom: Bool = true
-    @State private var seenMessageIds: Set<UUID> = []
-    @State private var animateMessageIds: Set<UUID> = []
+    @State private var seenRowIDs: Set<UUID> = []
+    @State private var animateRowIDs: Set<UUID> = []
     @State private var renderInterval: ChatPerformanceSignposts.IntervalToken?
 
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    /// Coalesced scroll identity - combines factors that should trigger auto-scroll
     private var scrollIdentity: Int {
-        var hasher = Hasher()
-        hasher.combine(messages.count)
-        hasher.combine(toolHistory.count)
-        hasher.combine(activeSubAgents.count)
-        hasher.combine(activeSubAgents.last?.id)
-        hasher.combine(activeSubAgents.last?.childTools.count)
-        hasher.combine(activeSubAgents.last?.childTools.last?.id)
-        hasher.combine(activeTools.last?.id)
-        hasher.combine(streamingAssistantMessage?.textContent.count ?? 0)
-        if let last = messages.last {
-            hasher.combine(last.content.count)
-            if case .text(let textContent) = last.content.last {
-                hasher.combine(textContent.text.count)
-            }
-        }
-        return hasher.finalize()
+        snapshot.scrollIdentity
     }
 
     var body: some View {
         ScrollViewReader { proxy in
-            let toolHistoryByIndex = Dictionary(grouping: toolHistory, by: \.afterMessageIndex)
-            let animateIdsInOrder = messages.filter { animateMessageIds.contains($0.id) }.map(\.id)
+            let toolHistorySnapshotsByIndex = snapshot.toolHistorySnapshotsByIndex
+            let animateIdsInOrder = snapshot.rows.filter { animateRowIDs.contains($0.id) }.map(\.id)
             let animateIndexById = Dictionary(uniqueKeysWithValues: animateIdsInOrder.enumerated().map { ($0.element, $0.offset) })
 
             ScrollView {
                 LazyVStack(spacing: 0) {
                     header()
 
-                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        let shouldAnimate = animateMessageIds.contains(message.id) && isAtBottom
-                        let animationIndex = shouldAnimate ? (animateIndexById[message.id] ?? 0) : 0
-                        let isLastMessage = index == messages.count - 1
+                    ForEach(Array(snapshot.rows.enumerated()), id: \.element.id) { index, rowSnapshot in
+                        let shouldAnimate = animateRowIDs.contains(rowSnapshot.id) && isAtBottom
+                        let animationIndex = shouldAnimate ? (animateIndexById[rowSnapshot.id] ?? 0) : 0
+                        let isLastRow = index == snapshot.rows.count - 1
 
-                        ChatMessageRow(
-                            message: message,
+                        ChatMessageSnapshotRow(
+                            rowSnapshot: rowSnapshot,
                             animationIndex: animationIndex,
                             shouldAnimate: shouldAnimate,
                             onQuestionSubmit: onQuestionSubmit,
-                            onRowAppear: isLastMessage ? {
+                            onRowAppear: isLastRow ? {
                                 if let activeInterval = renderInterval {
-                                    ChatPerformanceSignposts.endInterval(activeInterval, "lastRowAppear")
+                                    ChatPerformanceSignposts.endInterval(activeInterval, "lastSnapshotRowAppear")
                                     renderInterval = nil
                                 }
-                                ChatPerformanceSignposts.event("chat.lastRowAppear", "id=\(message.id.uuidString)")
+                                ChatPerformanceSignposts.event("chat.lastRowAppear", "id=\(rowSnapshot.id.uuidString)")
+                                if snapshot.publishedAt > 0 {
+                                    let renderDuration = CFAbsoluteTimeGetCurrent() - snapshot.publishedAt
+                                    logger.info("chatRender lastRow: duration=\(String(format: "%.3f", renderDuration))s rows=\(snapshot.rows.count)")
+                                }
                             } : nil
                         )
                         .equatable()
-                        .id(message.id)
 
-                        ForEach(toolHistoryByIndex[index] ?? []) { entry in
-                            ToolHistoryEntryView(entry: entry)
+                        ForEach(toolHistorySnapshotsByIndex[index] ?? []) { entrySnapshot in
+                            ToolHistoryEntrySnapshotView(snapshot: entrySnapshot)
                         }
                     }
 
-                    if let streamingAssistantMessage {
-                        ChatMessageRow(
-                            message: streamingAssistantMessage,
+                    if let streamingRow = snapshot.streamingRow {
+                        ChatMessageSnapshotRow(
+                            rowSnapshot: streamingRow,
                             animationIndex: 0,
                             shouldAnimate: false,
                             onQuestionSubmit: onQuestionSubmit,
                             onRowAppear: nil
                         )
                         .equatable()
-                        .id(streamingAssistantMessage.id)
                     }
 
-                    if !activeSubAgents.isEmpty {
-                        ParallelAgentsView(activeSubAgents: activeSubAgents)
+                    if !snapshot.activeSubAgents.isEmpty {
+                        ParallelAgentsView(activeSubAgents: snapshot.activeSubAgents)
                             .padding(.horizontal, Spacing.lg)
                             .padding(.vertical, Spacing.sm)
                     }
 
-                    if !activeTools.isEmpty {
-                        StandaloneToolCallsView(activeTools: activeTools)
+                    if !snapshot.activeToolRenderSnapshots.isEmpty {
+                        StandaloneToolCallsView(renderSnapshots: snapshot.activeToolRenderSnapshots)
                             .padding(.horizontal, Spacing.lg)
                             .padding(.vertical, Spacing.sm)
                     }
 
-                    // Invisible scroll anchor at bottom
                     Color.clear
                         .frame(height: 1)
                         .id("bottomAnchor")
@@ -119,6 +96,10 @@ struct ChatScrollView<Header: View>: View {
                                 if let activeInterval = renderInterval {
                                     ChatPerformanceSignposts.endInterval(activeInterval, "bottomAnchorVisible")
                                     renderInterval = nil
+                                }
+                                if snapshot.publishedAt > 0 {
+                                    let renderDuration = CFAbsoluteTimeGetCurrent() - snapshot.publishedAt
+                                    logger.info("chatRender: duration=\(String(format: "%.3f", renderDuration))s rows=\(snapshot.rows.count)")
                                 }
                             }
                         }
@@ -134,10 +115,11 @@ struct ChatScrollView<Header: View>: View {
                     if let activeInterval = renderInterval {
                         ChatPerformanceSignposts.endInterval(activeInterval, "superseded")
                     }
+
                     if isAtBottom {
                         renderInterval = ChatPerformanceSignposts.beginInterval(
                             "chat.render",
-                            "messages=\(messages.count) tools=\(toolHistory.count)"
+                            "snapshotRows=\(snapshot.rows.count) history=\(snapshot.toolHistory.count)"
                         )
                         proxy.scrollTo("bottomAnchor", anchor: .bottom)
                     } else {
@@ -145,24 +127,22 @@ struct ChatScrollView<Header: View>: View {
                     }
                 }
             }
-            .onChange(of: messages.map(\.id)) { _, newIds in
+            .onChange(of: snapshot.rowIDs) { _, newIDs in
                 DispatchQueue.main.async {
-                    let currentIds = Set(newIds)
-
-                    if seenMessageIds.isEmpty {
-                        seenMessageIds = currentIds
+                    let currentIDs = Set(newIDs)
+                    if seenRowIDs.isEmpty {
+                        seenRowIDs = currentIDs
                         return
                     }
 
-                    let inserted = currentIds.subtracting(seenMessageIds)
+                    let inserted = currentIDs.subtracting(seenRowIDs)
                     guard !inserted.isEmpty else { return }
-
-                    seenMessageIds.formUnion(inserted)
+                    seenRowIDs.formUnion(inserted)
 
                     if isAtBottom {
-                        animateMessageIds.formUnion(inserted)
+                        animateRowIDs.formUnion(inserted)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            animateMessageIds.subtract(inserted)
+                            animateRowIDs.subtract(inserted)
                         }
                     }
                 }
@@ -171,24 +151,22 @@ struct ChatScrollView<Header: View>: View {
     }
 }
 
-// MARK: - Chat Message Row (Equatable Wrapper)
-
-struct ChatMessageRow: View, Equatable {
-    let message: ChatMessage
+struct ChatMessageSnapshotRow: View, Equatable {
+    let rowSnapshot: ChatMessageRowSnapshot
     let animationIndex: Int
     let shouldAnimate: Bool
     let onQuestionSubmit: ((AskUserQuestion) -> Void)?
     let onRowAppear: (() -> Void)?
 
-    static func == (lhs: ChatMessageRow, rhs: ChatMessageRow) -> Bool {
-        lhs.message == rhs.message &&
+    static func == (lhs: ChatMessageSnapshotRow, rhs: ChatMessageSnapshotRow) -> Bool {
+        lhs.rowSnapshot.renderKey == rhs.rowSnapshot.renderKey &&
         lhs.animationIndex == rhs.animationIndex &&
         lhs.shouldAnimate == rhs.shouldAnimate
     }
 
     var body: some View {
         ChatMessageView(
-            message: message,
+            rowSnapshot: rowSnapshot,
             animationIndex: animationIndex,
             onQuestionSubmit: onQuestionSubmit,
             shouldAnimate: shouldAnimate,

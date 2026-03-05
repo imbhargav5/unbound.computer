@@ -3,6 +3,12 @@
     "supabase-local": {
       "type": "http",
       "url": "http://localhost:54321/mcp"
+    },
+    "blender": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["blender-mcp"],
+      "env": {}
     }
   }
 }

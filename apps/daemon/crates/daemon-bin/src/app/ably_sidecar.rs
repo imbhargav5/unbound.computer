@@ -1,9 +1,7 @@
 //! daemon-ably sidecar process management utilities.
 
 use crate::app::falco_sidecar::terminate_child;
-use daemon_config_and_utils::{
-    Paths, PRESENCE_DO_HEARTBEAT_URL, PRESENCE_DO_TOKEN, PRESENCE_DO_TTL_MS,
-};
+use daemon_config_and_utils::{Config, Paths};
 use std::io::ErrorKind;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -33,6 +31,7 @@ pub fn daemon_ably_binary_candidates() -> Vec<PathBuf> {
 /// Spawns daemon-ably using known candidate binary locations.
 pub fn spawn_daemon_ably_process(
     paths: &Paths,
+    config: &Config,
     user_id: &str,
     device_id: &str,
     falco_broker_token: &str,
@@ -75,13 +74,13 @@ pub fn spawn_daemon_ably_process(
             .env(ENV_ABLY_BROKER_TOKEN_NAGATO, nagato_broker_token)
             .env(ENV_ABLY_SOCKET, &socket_path);
 
-        if let Some(url) = PRESENCE_DO_HEARTBEAT_URL {
+        if let Some(url) = &config.presence_do_heartbeat_url {
             command.env("UNBOUND_PRESENCE_DO_HEARTBEAT_URL", url);
         }
-        if let Some(token) = PRESENCE_DO_TOKEN {
+        if let Some(token) = &config.presence_do_token {
             command.env("UNBOUND_PRESENCE_DO_TOKEN", token);
         }
-        if let Some(ttl) = PRESENCE_DO_TTL_MS {
+        if let Some(ttl) = &config.presence_do_ttl_ms {
             command.env("UNBOUND_PRESENCE_DO_TTL_MS", ttl);
         }
 
@@ -208,6 +207,7 @@ fn read_startup_stderr(child: &mut Child) -> String {
 /// Spawns daemon-ably and waits for its socket to become available.
 pub async fn start_daemon_ably_sidecar(
     paths: &Paths,
+    config: &Config,
     user_id: &str,
     device_id: &str,
     falco_broker_token: &str,
@@ -218,6 +218,7 @@ pub async fn start_daemon_ably_sidecar(
 ) -> Result<Child, String> {
     let mut child = spawn_daemon_ably_process(
         paths,
+        config,
         user_id,
         device_id,
         falco_broker_token,

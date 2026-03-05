@@ -582,76 +582,13 @@ struct ModelSelector: View {
 
 // MARK: - Chat Message View
 
-enum ChatMessageRenderBlock: Identifiable {
-    case content(MessageContent)
-    case standaloneTools([ToolUse])
-    case parallelAgents([SubAgentActivity])
-
-    var id: String {
-        switch self {
-        case .content(let content):
-            return "content:\(content.id.uuidString)"
-        case .standaloneTools(let tools):
-            let identity = tools.map { $0.toolUseId ?? $0.id.uuidString }.joined(separator: "|")
-            return "tools:\(identity)"
-        case .parallelAgents(let activities):
-            let identity = activities.map(\.parentToolUseId).joined(separator: "|")
-            return "parallel:\(identity)"
-        }
-    }
-}
-
-enum ChatMessageRenderPlanner {
-    static func renderBlocks(from displayContent: [MessageContent], isUser: Bool) -> [ChatMessageRenderBlock] {
-        var blocks: [ChatMessageRenderBlock] = []
-        var pendingStandaloneTools: [ToolUse] = []
-        var pendingSubAgents: [SubAgentActivity] = []
-
-        func flushPendingTools() {
-            guard !pendingStandaloneTools.isEmpty else { return }
-            blocks.append(.standaloneTools(pendingStandaloneTools))
-            pendingStandaloneTools.removeAll(keepingCapacity: true)
-        }
-
-        func flushPendingSubAgents() {
-            guard !pendingSubAgents.isEmpty else { return }
-            blocks.append(.parallelAgents(pendingSubAgents))
-            pendingSubAgents.removeAll(keepingCapacity: true)
-        }
-
-        for content in displayContent {
-            if !isUser, case .fileChange = content {
-                continue
-            }
-
-            if case .toolUse(let toolUse) = content {
-                flushPendingSubAgents()
-                pendingStandaloneTools.append(toolUse)
-                continue
-            }
-
-            if case .subAgentActivity(let activity) = content {
-                flushPendingTools()
-                pendingSubAgents.append(activity)
-                continue
-            }
-
-            flushPendingTools()
-            flushPendingSubAgents()
-            blocks.append(.content(content))
-        }
-
-        flushPendingTools()
-        flushPendingSubAgents()
-        return blocks
-    }
-}
+// MARK: - Chat Message View
 
 struct ChatMessageView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let message: ChatMessage
-    var animationIndex: Int = 0  // For stagger animation
+    let rowSnapshot: ChatMessageRowSnapshot
+    var animationIndex: Int = 0
     var onQuestionSubmit: ((AskUserQuestion) -> Void)?
     var shouldAnimate: Bool = false
     var onRowAppear: (() -> Void)?
@@ -662,56 +599,20 @@ struct ChatMessageView: View {
         ThemeColors(colorScheme)
     }
 
-    /// Stagger delay based on index
     private var staggerDelay: Double {
         Double(animationIndex) * Duration.staggerInterval
     }
 
-    /// Get deduplicated content for display - tools with the same toolUseId show only the latest state.
-    /// This preserves stream order in storage/relay while preventing duplicate tool UI.
-    private var displayContent: [MessageContent] {
-        var seenToolUseIds: Set<String> = []
-        var result: [MessageContent] = []
-
-        // Process in reverse to find the latest state of each tool first
-        for content in message.content.reversed() {
-            if case .toolUse(let toolUse) = content,
-               let toolUseId = toolUse.toolUseId {
-                // Only include the first occurrence (which is the latest due to reverse)
-                if seenToolUseIds.contains(toolUseId) {
-                    continue
-                }
-                seenToolUseIds.insert(toolUseId)
-            } else if case .subAgentActivity(let subAgent) = content {
-                // Track sub-agent's parent tool ID
-                if seenToolUseIds.contains(subAgent.parentToolUseId) {
-                    continue
-                }
-                seenToolUseIds.insert(subAgent.parentToolUseId)
-            }
-            result.append(content)
-        }
-
-        // Reverse back to original order
-        let finalResult = Array(result.reversed())
-        return finalResult
-    }
-
     private var fileChanges: [FileChange] {
-        displayContent.compactMap { content in
-            if case .fileChange(let fileChange) = content {
-                return fileChange
-            }
-            return nil
-        }
-    }
-
-    private var renderBlocks: [ChatMessageRenderBlock] {
-        ChatMessageRenderPlanner.renderBlocks(from: displayContent, isUser: isUser)
+        rowSnapshot.fileChangeSummary.files
     }
 
     private var isUser: Bool {
-        message.role == .user
+        rowSnapshot.role == .user
+    }
+
+    private var isStreaming: Bool {
+        rowSnapshot.isStreaming
     }
 
     private var messageRow: some View {
@@ -720,27 +621,24 @@ struct ChatMessageView: View {
                 Spacer(minLength: 60)
             }
 
-            // Content
             VStack(alignment: isUser ? .trailing : .leading, spacing: Spacing.md) {
-                // Streaming indicator for assistant
-                if !isUser && message.isStreaming {
+                if !isUser && isStreaming {
                     TypingDotsIndicator()
                 }
 
-                // Render content blocks (deduplicated and grouped for display)
-                ForEach(renderBlocks) { block in
+                ForEach(rowSnapshot.blocks) { block in
                     switch block {
                     case .content(let content):
                         MessageContentView(
-                            content: content,
+                            snapshotContent: content,
                             onQuestionSubmit: onQuestionSubmit,
                             isAssistantMessage: !isUser
                         )
                     case .standaloneTools(let tools):
-                        StandaloneToolCallsView(historyTools: tools)
+                        StandaloneToolCallsView(renderSnapshots: tools)
                     case .parallelAgents(let activities):
                         ParallelAgentsView(
-                            activities: activities,
+                            activities: activities.map(\.activity),
                             outerPadding: EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 16)
                         )
                     }
@@ -785,7 +683,6 @@ struct ChatMessageView: View {
                     .slideIn(isVisible: hasAppeared, from: .bottom, delay: staggerDelay)
                     .onAppear {
                         DispatchQueue.main.async { onRowAppear?() }
-                        // Small delay to ensure the view is ready
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             hasAppeared = true
                         }
@@ -803,24 +700,14 @@ struct ChatMessageView: View {
 // MARK: - Message Content View
 
 struct MessageContentView: View {
-    let content: MessageContent
+    let snapshotContent: MessageContentSnapshot
     var onQuestionSubmit: ((AskUserQuestion) -> Void)?
-    var isAssistantMessage: Bool
-
-    init(
-        content: MessageContent,
-        onQuestionSubmit: ((AskUserQuestion) -> Void)? = nil,
-        isAssistantMessage: Bool = false
-    ) {
-        self.content = content
-        self.onQuestionSubmit = onQuestionSubmit
-        self.isAssistantMessage = isAssistantMessage
-    }
+    var isAssistantMessage: Bool = false
 
     var body: some View {
-        switch content {
-        case .text(let textContent):
-            TextContentView(textContent: textContent, isAssistantMessage: isAssistantMessage)
+        switch snapshotContent {
+        case .text(let textSnapshot):
+            TextContentView(renderSnapshot: textSnapshot)
 
         case .codeBlock(let codeBlock):
             CodeBlockView(codeBlock: codeBlock)
@@ -836,17 +723,16 @@ struct MessageContentView: View {
         case .fileChange(let fileChange):
             FileChangeView(fileChange: fileChange)
 
-        case .toolUse(let toolUse):
-            ToolViewRouter(toolUse: toolUse)
+        case .toolUse(let tool):
+            ToolViewRouter(toolUse: tool.toolUse)
 
         case .subAgentActivity(let activity):
-            ParallelAgentsView(activities: [activity])
+            ParallelAgentsView(activities: [activity.activity])
 
         case .error(let error):
             ErrorContentView(error: error)
 
         case .eventPayload:
-            // Event payloads are internal relay events, not displayed in UI
             EmptyView()
         }
     }
@@ -901,70 +787,10 @@ enum SessionMarkdownTableTextLayout {
 struct TextContentView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let textContent: TextContent
-    var isAssistantMessage: Bool = false
+    let renderSnapshot: TextRenderSnapshot
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
-    }
-
-    /// Protocol payload types that should never be surfaced as text rows.
-    private static let protocolTypes: Set<String> = ["user", "system", "assistant", "result", "tool_result"]
-
-    private var displayText: String {
-        let trimmed = textContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-        return isProtocolArtifact(trimmed) ? "" : trimmed
-    }
-
-    private func isProtocolArtifact(_ text: String) -> Bool {
-        guard text.hasPrefix("{"), text.hasSuffix("}"),
-              let data = text.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = (json["type"] as? String)?.lowercased() else {
-            return false
-        }
-
-        return Self.protocolTypes.contains(type)
-    }
-
-    private var segments: [TextContentSegment] {
-        MarkdownTableParser.parseContent(displayText)
-    }
-
-    private var containsTableSegments: Bool {
-        segments.contains { segment in
-            if case .table = segment {
-                return true
-            }
-            return false
-        }
-    }
-
-    private var parsedPlan: PlanModeMessageParser.ParsedPlan? {
-        guard isAssistantMessage else { return nil }
-        return PlanModeMessageParser.parse(displayText)
-    }
-
-    private var tableAwareSegments: [TableAwareSegment] {
-        segments.map { segment in
-            switch segment {
-            case .table:
-                return TableAwareSegment(segment: segment, kind: .table, headingText: nil)
-            case .text(let text):
-                if let heading = SessionMarkdownTableTextLayout.headingText(from: text) {
-                    return TableAwareSegment(segment: segment, kind: .heading, headingText: heading)
-                }
-
-                return TableAwareSegment(segment: segment, kind: .text, headingText: nil)
-            }
-        }
-    }
-
-    private struct TableAwareSegment {
-        let segment: TextContentSegment
-        let kind: SessionMarkdownTableTextLayout.SegmentKind
-        let headingText: String?
     }
 
     @MainActor
@@ -973,42 +799,63 @@ struct TextContentView: View {
     }
 
     var body: some View {
-        if displayText.isEmpty {
+        snapshotBody(renderSnapshot)
+    }
+
+    @ViewBuilder
+    private func snapshotBody(_ snapshot: TextRenderSnapshot) -> some View {
+        switch snapshot.mode {
+        case .hiddenProtocolArtifact:
             EmptyView()
-        } else if let parsedPlan {
-            PlanModeCardView(rawText: displayText, parsedPlan: parsedPlan)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else if containsTableSegments {
-            tableAwareContent
-        } else {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                ForEach(segments) { segment in
-                    switch segment {
-                    case .text(let text):
-                        MarkdownTextView(text: text)
-                            .foregroundStyle(colors.textMuted)
-                    case .table(let table):
-                        MarkdownTableView(table: table)
-                    }
-                }
+
+        case .planCard:
+            if let parsedPlan = snapshot.parsedPlan {
+                PlanModeCardView(rawText: snapshot.displayText, parsedPlan: parsedPlan)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                MarkdownTextView(text: snapshot.displayText)
+                    .foregroundStyle(colors.textMuted)
             }
+
+        case .tableAware:
+            snapshotTableAwareContent(snapshot.tableAwareSegments)
+
+        case .markdown:
+            MarkdownTextView(text: snapshot.displayText)
+                .foregroundStyle(colors.textMuted)
         }
     }
 
-    private var tableAwareContent: some View {
-        let kinds = tableAwareSegments.map(\.kind)
+    private func snapshotTableAwareContent(_ segments: [TableAwareTextSegmentSnapshot]) -> some View {
+        let kinds = segments.map(\.kind)
 
         return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(tableAwareSegments.enumerated()), id: \.offset) { index, item in
-                tableAwareSegmentView(item)
-                    .padding(.top, SessionMarkdownTableTextLayout.topPadding(for: kinds, at: index))
+            ForEach(Array(segments.enumerated()), id: \.element.id) { index, item in
+                snapshotTableAwareSegmentView(item)
+                    .padding(.top, snapshotTopPadding(for: kinds, at: index))
             }
         }
         .padding(Spacing.lg)
     }
 
+    private func snapshotTopPadding(for kinds: [TableAwareTextSegmentSnapshot.Kind], at index: Int) -> CGFloat {
+        guard index > 0 else { return 0 }
+        let previous = kinds[index - 1]
+        let current = kinds[index]
+
+        if previous == .table && current == .heading {
+            return MarkdownTableStyleTokens.sectionToSectionGap
+        }
+
+        if previous == .heading && current == .table {
+            return MarkdownTableStyleTokens.sectionHeadingGap
+        }
+
+        return MarkdownTableStyleTokens.sectionHeadingGap
+    }
+
     @ViewBuilder
-    private func tableAwareSegmentView(_ item: TableAwareSegment) -> some View {
+    private func snapshotTableAwareSegmentView(_ item: TableAwareTextSegmentSnapshot) -> some View {
         switch item.kind {
         case .heading:
             ChatInlineText(
@@ -1029,17 +876,18 @@ struct TextContentView: View {
             )
 
         case .table:
-            if case .table(let table) = item.segment {
-                MarkdownTableView(table: table)
+            if let table = item.table {
+                MarkdownTableView(table: table.materialize())
             }
 
         case .text:
-            if case .text(let text) = item.segment {
+            if let text = item.text {
                 MarkdownTextView(text: text)
                     .foregroundStyle(colors.textMuted)
             }
         }
     }
+
 }
 
 // MARK: - Error Content View

@@ -13,7 +13,7 @@ use std::process::Stdio;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
-use tracing::{debug, warn};
+use tracing::{debug, info_span, warn};
 
 const MAX_HOOK_STDERR_CHARS: usize = 1200;
 
@@ -341,33 +341,39 @@ async fn register_session_list(server: &IpcServer, state: DaemonState) {
                 };
 
                 let repository_id = RepositoryId::from_string(&repo_id);
-                let sessions = match armin.list_sessions(&repository_id) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        return Response::error(
-                            &req.id,
-                            error_codes::INTERNAL_ERROR,
-                            &format!("Failed to list sessions: {}", e),
-                        );
+                let sessions = {
+                    let _span = info_span!("armin.list_sessions").entered();
+                    match armin.list_sessions(&repository_id) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to list sessions: {}", e),
+                            );
+                        }
                     }
                 };
 
-                let session_data: Vec<serde_json::Value> = sessions
-                    .iter()
-                    .map(|s| {
-                        serde_json::json!({
-                            "id": s.id.as_str(),
-                            "repository_id": s.repository_id.as_str(),
-                            "title": s.title,
-                            "claude_session_id": s.claude_session_id,
-                            "status": s.status.as_str(),
-                            "is_worktree": s.is_worktree,
-                            "worktree_path": s.worktree_path,
-                            "created_at": s.created_at.to_rfc3339(),
-                            "last_accessed_at": s.last_accessed_at.to_rfc3339(),
+                let session_data: Vec<serde_json::Value> = {
+                    let _span = info_span!("serialize_sessions", count = sessions.len()).entered();
+                    sessions
+                        .iter()
+                        .map(|s| {
+                            serde_json::json!({
+                                "id": s.id.as_str(),
+                                "repository_id": s.repository_id.as_str(),
+                                "title": s.title,
+                                "claude_session_id": s.claude_session_id,
+                                "status": s.status.as_str(),
+                                "is_worktree": s.is_worktree,
+                                "worktree_path": s.worktree_path,
+                                "created_at": s.created_at.to_rfc3339(),
+                                "last_accessed_at": s.last_accessed_at.to_rfc3339(),
+                            })
                         })
-                    })
-                    .collect();
+                        .collect()
+                };
                 Response::success(&req.id, serde_json::json!({ "sessions": session_data }))
             }
         })
@@ -738,6 +744,7 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                 };
 
                 let session_id = SessionId::from_string(&id);
+                let _span = info_span!("armin.get_session").entered();
                 match armin.get_session(&session_id) {
                     Ok(Some(s)) => Response::success(
                         &req.id,

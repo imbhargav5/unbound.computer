@@ -8,16 +8,31 @@
 import SwiftUI
 
 struct ToolUseView: View {
+    private static let oversizedPolicy = OversizedTextPolicy.aggressive
+
     let toolUse: ToolUse
+    private let renderSnapshot: ToolRenderSnapshot?
+    private let parser: ToolInputParser
+    private let outputParser: ToolOutputParser
     @State private var isExpanded: Bool
+    @State private var showFullDetails: Bool
 
     init(toolUse: ToolUse, initiallyExpanded: Bool = false) {
         self.toolUse = toolUse
+        self.renderSnapshot = nil
+        self.parser = ToolInputParser(toolUse.input)
+        self.outputParser = ToolOutputParser(toolUse.output)
         _isExpanded = State(initialValue: initiallyExpanded)
+        _showFullDetails = State(initialValue: false)
     }
 
-    private var parser: ToolInputParser {
-        ToolInputParser(toolUse.input)
+    init(toolUse: ToolUse, renderSnapshot: ToolRenderSnapshot, initiallyExpanded: Bool = false) {
+        self.toolUse = toolUse
+        self.renderSnapshot = renderSnapshot
+        self.parser = ToolInputParser(toolUse.input)
+        self.outputParser = ToolOutputParser(toolUse.output)
+        _isExpanded = State(initialValue: initiallyExpanded)
+        _showFullDetails = State(initialValue: false)
     }
 
     private var actionText: String {
@@ -25,7 +40,11 @@ struct ToolUseView: View {
     }
 
     private var subtitle: String? {
-        parser.filePath
+        if let subtitle = renderSnapshot?.subtitle {
+            return subtitle
+        }
+
+        return parser.filePath
             ?? parser.pattern
             ?? parser.commandDescription
             ?? parser.command
@@ -33,18 +52,33 @@ struct ToolUseView: View {
             ?? parser.url
     }
 
-    private var detailsText: String? {
-        if let output = toolUse.output?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty {
-            return output
+    private var hasInputDetails: Bool {
+        guard let input = toolUse.input else { return false }
+        return input.unicodeScalars.contains { scalar in
+            !CharacterSet.whitespacesAndNewlines.contains(scalar)
         }
-        if let input = toolUse.input?.trimmingCharacters(in: .whitespacesAndNewlines), !input.isEmpty {
+    }
+
+    private var expandedDetailsText: String? {
+        if outputParser.hasVisibleContent, let output = toolUse.output {
+            guard Self.oversizedPolicy.needsToolDetailTruncation(output) else {
+                return output
+            }
+            return showFullDetails ? output : Self.oversizedPolicy.collapsedToolPreview(for: output)
+        }
+        if hasInputDetails, let input = toolUse.input?.trimmingCharacters(in: .whitespacesAndNewlines) {
             return input
         }
         return nil
     }
 
     private var hasDetails: Bool {
-        detailsText != nil
+        outputParser.hasVisibleContent || hasInputDetails
+    }
+
+    private var showsExpandDetailsButton: Bool {
+        guard outputParser.hasVisibleContent, let output = toolUse.output else { return false }
+        return Self.oversizedPolicy.needsToolDetailTruncation(output)
     }
 
     private var toolIcon: String {
@@ -68,8 +102,19 @@ struct ToolUseView: View {
     }
 
     private var detailLineCount: Int {
-        guard let detailsText else { return 0 }
-        return max(1, detailsText.components(separatedBy: .newlines).count)
+        if let renderSnapshot {
+            return renderSnapshot.detailLineCount
+        }
+
+        if outputParser.hasVisibleContent {
+            return outputParser.lineCount
+        }
+        guard let detailsText = expandedDetailsText, !detailsText.isEmpty else { return 0 }
+        return detailsText.reduce(into: 1) { count, character in
+            if character == "\n" {
+                count += 1
+            }
+        }
     }
 
     private var headerIconColor: Color {
@@ -148,7 +193,7 @@ struct ToolUseView: View {
             }
             .buttonStyle(.plain)
 
-            if isExpanded, let detailsText {
+            if isExpanded, let detailsText = expandedDetailsText {
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     ScrollView {
                         Text(detailsText)
@@ -161,6 +206,17 @@ struct ToolUseView: View {
                     .frame(maxHeight: 180)
 
                     HStack {
+                        if showsExpandDetailsButton {
+                            Button(showFullDetails ? "Show less" : "Show full output") {
+                                withAnimation(.easeInOut(duration: Duration.fast)) {
+                                    showFullDetails.toggle()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .font(Typography.micro)
+                            .foregroundStyle(Color(hex: "8A8A8A"))
+                        }
+
                         Spacer()
                         Text("\(detailLineCount) line\(detailLineCount == 1 ? "" : "s")")
                             .font(Typography.micro)
@@ -183,6 +239,14 @@ struct ToolUseView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(Color(hex: "2A2A2A"), lineWidth: BorderWidth.default)
         )
+        .onChange(of: isExpanded) { _, expanded in
+            if !expanded {
+                showFullDetails = false
+            }
+        }
+        .onChange(of: toolUse.id) { _, _ in
+            showFullDetails = false
+        }
     }
 }
 

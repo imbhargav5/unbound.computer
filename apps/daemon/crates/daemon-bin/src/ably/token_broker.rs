@@ -1,7 +1,6 @@
 //! Local Ably token broker for sidecars.
 
 use chrono::Utc;
-use daemon_config_and_utils::compile_time_web_app_url;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -104,6 +103,7 @@ struct BrokerState {
 pub async fn start_ably_token_broker(
     socket_path: PathBuf,
     auth_runtime: Arc<DaemonAuthRuntime>,
+    web_app_url: String,
 ) -> Result<AblyTokenBrokerRuntime, String> {
     if socket_path.exists() {
         std::fs::remove_file(&socket_path).map_err(|err| {
@@ -134,7 +134,6 @@ pub async fn start_ably_token_broker(
 
     let falco_token = Uuid::new_v4().to_string();
     let nagato_token = Uuid::new_v4().to_string();
-    let web_app_url = resolve_web_app_url();
     let cache = Arc::new(RwLock::new(HashMap::new()));
 
     let state = Arc::new(BrokerState {
@@ -426,10 +425,6 @@ impl BrokerTokenResponse {
             error: Some(error),
         }
     }
-}
-
-fn resolve_web_app_url() -> String {
-    compile_time_web_app_url()
 }
 
 fn normalize_device_id(raw_device_id: &str) -> Result<String, String> {

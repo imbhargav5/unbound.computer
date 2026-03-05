@@ -233,20 +233,31 @@ extension DaemonClient {
             params["offset"] = offset
         }
 
+        let ipcStart = CFAbsoluteTimeGetCurrent()
         let response = try await call(method: .messageList, params: params)
+        let ipcDuration = CFAbsoluteTimeGetCurrent() - ipcStart
 
         guard let result = response.resultAsDict(),
               let messagesData = result["messages"] as? [[String: Any]] else {
+            logger.info("listMessages: ipc=\(String(format: "%.3f", ipcDuration))s → 0 messages")
             return []
         }
 
+        let decodeStart = CFAbsoluteTimeGetCurrent()
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        return messagesData.compactMap { dict in
+        let decoded = messagesData.compactMap { dict -> DaemonMessage? in
             guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
             return try? decoder.decode(DaemonMessage.self, from: data)
         }
+        let decodeDuration = CFAbsoluteTimeGetCurrent() - decodeStart
+
+        let ipcMs = String(format: "%.3f", ipcDuration)
+        let decodeMs = String(format: "%.3f", decodeDuration)
+        logger.info("listMessages: ipc=\(ipcMs)s decode=\(decodeMs)s (\(messagesData.count) raw → \(decoded.count) decoded)")
+
+        return decoded
     }
 
     /// Send a message (adds to session without triggering Claude).

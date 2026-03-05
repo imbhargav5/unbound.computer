@@ -11,8 +11,15 @@ enum ClaudeTimelineChatMessageMapper {
     private static let toolEnvelopeBlockTypes: Set<String> = ["tool_result", "tool_use"]
 
     static func mapEntries(_ entries: [ClaudeConversationTimelineEntry]) -> [ChatMessage] {
+        mapEntriesWithFingerprint(entries).messages
+    }
+
+    static func mapEntriesWithFingerprint(
+        _ entries: [ClaudeConversationTimelineEntry]
+    ) -> (messages: [ChatMessage], fingerprint: Int) {
+        let fingerprint = entriesFingerprint(entries)
         let mappedMessages: [ChatMessage] = entries.compactMap { entry -> ChatMessage? in
-            let content = mapBlocks(entry.blocks)
+            let content = mapBlocks(entry.blocks, entryID: entry.id)
             guard !content.isEmpty else { return nil }
 
             let role: MessageRole
@@ -42,40 +49,58 @@ enum ClaudeTimelineChatMessageMapper {
         // Re-associate child tool calls with their Task parent across message boundaries.
         // This keeps the UI reactive when tool events arrive out of order.
         let grouped = ChatMessageGrouper.groupSubAgentTools(messages: mappedMessages)
-        return mergeTodoListUpdates(messages: grouped)
+        return (
+            messages: mergeTodoListUpdates(messages: grouped),
+            fingerprint: fingerprint
+        )
     }
 
-    private static func mapBlocks(_ blocks: [ClaudeConversationBlock]) -> [MessageContent] {
+    private static func mapBlocks(
+        _ blocks: [ClaudeConversationBlock],
+        entryID: String
+    ) -> [MessageContent] {
         var mapped: [MessageContent] = []
 
-        for block in blocks {
+        for (blockIndex, block) in blocks.enumerated() {
             switch block {
             case .text(let text):
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
-                    mapped.append(.text(TextContent(text: trimmed)))
+                    mapped.append(.text(TextContent(
+                        id: stableUUID(for: "\(entryID):text:\(blockIndex):\(trimmed.hashValue)"),
+                        text: trimmed
+                    )))
                 }
 
             case .toolCall(let tool):
-                if let todoList = makeTodoList(from: tool) {
+                if let todoList = makeTodoList(from: tool, entryID: entryID, blockIndex: blockIndex) {
                     mapped.append(.todoList(todoList))
                 } else {
-                    mapped.append(.toolUse(makeToolUse(from: tool)))
+                    mapped.append(.toolUse(makeToolUse(from: tool, entryID: entryID, blockIndex: blockIndex)))
                 }
 
             case .subAgent(let subAgent):
-                mapped.append(.subAgentActivity(makeSubAgent(from: subAgent)))
+                mapped.append(.subAgentActivity(makeSubAgent(from: subAgent, entryID: entryID, blockIndex: blockIndex)))
 
             case .result(let result):
                 if result.isError, let message = result.text {
-                    mapped.append(.error(ErrorContent(message: message)))
+                    mapped.append(.error(ErrorContent(
+                        id: stableUUID(for: "\(entryID):resultError:\(blockIndex):\(message.hashValue)"),
+                        message: message
+                    )))
                 }
 
             case .error(let message):
-                mapped.append(.error(ErrorContent(message: message)))
+                mapped.append(.error(ErrorContent(
+                    id: stableUUID(for: "\(entryID):error:\(blockIndex):\(message.hashValue)"),
+                    message: message
+                )))
 
             case .compactBoundary:
-                mapped.append(.text(TextContent(text: "Compact boundary")))
+                mapped.append(.text(TextContent(
+                    id: stableUUID(for: "\(entryID):compact:\(blockIndex)"),
+                    text: "Compact boundary"
+                )))
 
             case .unknown:
                 continue
@@ -85,7 +110,11 @@ enum ClaudeTimelineChatMessageMapper {
         return mapped
     }
 
-    private static func makeTodoList(from tool: ClaudeToolCallBlock) -> TodoList? {
+    private static func makeTodoList(
+        from tool: ClaudeToolCallBlock,
+        entryID: String,
+        blockIndex: Int
+    ) -> TodoList? {
         guard tool.name == "TodoWrite",
               let input = tool.input,
               let data = input.data(using: .utf8),
@@ -99,7 +128,7 @@ enum ClaudeTimelineChatMessageMapper {
             return nil
         }
 
-        let items = todosValue.compactMap { todo -> TodoItem? in
+        let items = todosValue.enumerated().compactMap { itemIndex, todo -> TodoItem? in
             guard let content = todo["content"] as? String else { return nil }
             let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
@@ -115,19 +144,30 @@ enum ClaudeTimelineChatMessageMapper {
                 status = .pending
             }
 
-            return TodoItem(content: trimmed, status: status)
+            return TodoItem(
+                id: stableUUID(for: "\(entryID):todo:\(blockIndex):\(itemIndex):\(trimmed.hashValue)"),
+                content: trimmed,
+                status: status
+            )
         }
 
         guard !items.isEmpty else { return nil }
         return TodoList(
+            id: stableUUID(for: "\(entryID):todoList:\(blockIndex):\(tool.toolUseId ?? "none")"),
             items: items,
             sourceToolUseId: tool.toolUseId,
             parentToolUseId: tool.parentToolUseId
         )
     }
 
-    private static func makeToolUse(from tool: ClaudeToolCallBlock) -> ToolUse {
-        ToolUse(
+    private static func makeToolUse(
+        from tool: ClaudeToolCallBlock,
+        entryID: String,
+        blockIndex: Int
+    ) -> ToolUse {
+        let identity = tool.toolUseId ?? "\(entryID):tool:\(blockIndex):\(tool.name)"
+        return ToolUse(
+            id: stableUUID(for: "toolUse:\(identity)"),
             toolUseId: tool.toolUseId,
             parentToolUseId: tool.parentToolUseId,
             toolName: tool.name,
@@ -137,9 +177,20 @@ enum ClaudeTimelineChatMessageMapper {
         )
     }
 
-    private static func makeSubAgent(from subAgent: ClaudeSubAgentBlock) -> SubAgentActivity {
-        let tools = subAgent.tools.map { makeToolUse(from: $0) }
+    private static func makeSubAgent(
+        from subAgent: ClaudeSubAgentBlock,
+        entryID: String,
+        blockIndex: Int
+    ) -> SubAgentActivity {
+        let tools = subAgent.tools.enumerated().map { toolIndex, tool in
+            makeToolUse(
+                from: tool,
+                entryID: entryID,
+                blockIndex: (blockIndex * 1_000) + toolIndex
+            )
+        }
         return SubAgentActivity(
+            id: stableUUID(for: "subAgent:\(subAgent.parentToolUseId)"),
             parentToolUseId: subAgent.parentToolUseId,
             subagentType: subAgent.subagentType,
             description: subAgent.description,
@@ -158,6 +209,21 @@ enum ClaudeTimelineChatMessageMapper {
         case .failed:
             return .failed
         }
+    }
+
+    private static func entriesFingerprint(_ entries: [ClaudeConversationTimelineEntry]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(entries.count)
+
+        for entry in entries {
+            hasher.combine(entry.id)
+            hasher.combine(entry.sequence ?? 0)
+            hasher.combine(String(describing: entry.role))
+            hasher.combine(entry.blocks.count)
+            hasher.combine(entry.createdAt?.timeIntervalSince1970.bitPattern ?? 0)
+        }
+
+        return hasher.finalize()
     }
 
     private static func stableUUID(for value: String) -> UUID {

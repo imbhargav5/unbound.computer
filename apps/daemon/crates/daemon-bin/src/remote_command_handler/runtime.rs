@@ -12,7 +12,7 @@ use crate::remote_command_handler::ports::{DecisionKind, Effect, HandlerDeps, Lo
 use agent_session_sqlite_persist_core::{SessionReader, SessionWriter};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use daemon_config_and_utils::{compile_time_web_app_url, encrypt_for_device};
+use daemon_config_and_utils::encrypt_for_device;
 use std::path::Path;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -387,7 +387,7 @@ async fn fetch_usage_status_snapshot(
 
     let endpoint = format!(
         "{}/api/v1/mobile/billing/usage-status?deviceId={}",
-        resolve_web_app_url(),
+        state.config.web_app_url,
         urlencoding::encode(&sync_context.device_id)
     );
 
@@ -445,7 +445,7 @@ async fn emit_usage_event(state: &DaemonState, request_id: &str) -> Result<(), S
 
     let endpoint = format!(
         "{}/api/v1/mobile/billing/usage-events",
-        resolve_web_app_url()
+        state.config.web_app_url
     );
     let response = reqwest::Client::new()
         .post(endpoint)
@@ -472,10 +472,6 @@ async fn emit_usage_event(state: &DaemonState, request_id: &str) -> Result<(), S
     }
 
     Ok(())
-}
-
-fn resolve_web_app_url() -> String {
-    compile_time_web_app_url()
 }
 
 /// Dispatch a remote command to the appropriate handler function.

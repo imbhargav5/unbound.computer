@@ -36,6 +36,39 @@ struct ActiveTool: Identifiable {
     var output: String?  // Live output for streaming display (e.g., Bash)
 }
 
+extension ActiveTool {
+    func asToolUse(parentToolUseId: String? = nil) -> ToolUse {
+        let key: String
+        switch name {
+        case "Read", "Write", "Edit": key = "file_path"
+        case "Bash": key = "command"
+        case "Glob", "Grep": key = "pattern"
+        case "WebSearch": key = "query"
+        case "WebFetch": key = "url"
+        default: key = "description"
+        }
+
+        let input: String?
+        if let inputPreview, !inputPreview.isEmpty {
+            let payload: [String: String] = [key: inputPreview]
+            input = (try? JSONSerialization.data(withJSONObject: payload))
+                .flatMap { String(data: $0, encoding: .utf8) }
+                ?? inputPreview
+        } else {
+            input = nil
+        }
+
+        return ToolUse(
+            toolUseId: id,
+            parentToolUseId: parentToolUseId,
+            toolName: name,
+            input: input,
+            output: output,
+            status: status
+        )
+    }
+}
+
 /// A sub-agent (Task tool) that is running with child tools.
 struct ActiveSubAgent: Identifiable {
     let id: String  // tool_use_id
@@ -133,6 +166,8 @@ struct SessionCompletionSummary: Equatable {
 
 @Observable
 class SessionLiveState {
+    private static let streamingMessageRowID = UUID(uuidString: "b4a4f0e9-1a89-4c21-9f3d-8bd83e3d7b9a")!
+    private static let streamingTextContentID = UUID(uuidString: "8ee4f4a5-9d46-43f2-8b1e-7f0cc4a533fa")!
 
     // MARK: - Identity
 
@@ -142,6 +177,7 @@ class SessionLiveState {
 
     private let daemonClient: DaemonClient
     private let claudeState: ClaudeCodingSessionState
+    private let timelineSnapshotEngine = ChatTimelineSnapshotEngine()
 
     // MARK: - Subscription State
 
@@ -150,6 +186,9 @@ class SessionLiveState {
     // MARK: - Message State
 
     private(set) var messages: [ChatMessage] = []
+    @ObservationIgnored private(set) var messageRenderFingerprint: Int = 0
+    private(set) var timelineSnapshot: ChatTimelineSnapshot = .empty
+    private(set) var timelineSnapshotRevision: Int = 0
     private(set) var latestCompletionSummary: SessionCompletionSummary?
     private(set) var isLoadingMessages = false
 
@@ -190,12 +229,21 @@ class SessionLiveState {
     private(set) var errorAlertTitle: String = ""
     private(set) var errorAlertMessage: String = ""
 
-    // MARK: - Private
+    // MARK: - Private (non-observed internal tracking)
 
-    private var subscriptionTask: Task<Void, Never>?
-    private var fetchDebounceTask: Task<Void, Never>?
-    private var pendingSubAgentTools: [String: [ActiveTool]] = [:]
-    private var latestRuntimeStatusMs: Int64 = 0
+    @ObservationIgnored private var subscriptionTask: Task<Void, Never>?
+    @ObservationIgnored private var fetchDebounceTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingSubAgentTools: [String: [ActiveTool]] = [:]
+    @ObservationIgnored private var latestRuntimeStatusMs: Int64 = 0
+    @ObservationIgnored private var snapshotBuildGeneration: Int = 0
+    @ObservationIgnored private var snapshotRebuildTask: Task<Void, Never>?
+    @ObservationIgnored private var snapshotRebuildPending: Bool = false
+
+    // Incremental rebuild tracking
+    @ObservationIgnored private var lastBuildMessageCount: Int = 0
+    @ObservationIgnored private var lastBuildToolHistoryCount: Int = 0
+    @ObservationIgnored private var lastBuildActiveToolCount: Int = 0
+    @ObservationIgnored private var lastBuildActiveSubAgentCount: Int = 0
 
     // MARK: - Initialization
 
@@ -226,25 +274,32 @@ class SessionLiveState {
         // This prevents "Modifying state during view update" warnings when activate()
         // is called from a SwiftUI .task modifier.
         await Task.yield()
+        let yieldDuration = CFAbsoluteTimeGetCurrent() - activateStart
+        logger.debug("activate() yield took \(String(format: "%.3f", yieldDuration))s for session \(sessionId)")
 
         subscriptionState = .connecting
 
-        // Load messages first
+        // Load messages first (must complete before subscribe so we have history)
         let loadStart = CFAbsoluteTimeGetCurrent()
         await loadMessages()
         let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
-        logger.info("loadMessages took \(String(format: "%.3f", loadDuration))s")
+        logger.info("activate() loadMessages: \(String(format: "%.3f", loadDuration))s for session \(sessionId)")
 
-        // Check initial Claude status
-        await checkClaudeStatus()
-
-        // Subscribe for real-time updates via IPC streaming
+        // Check Claude status and subscribe in parallel — they are independent
+        let statusStart = CFAbsoluteTimeGetCurrent()
         let streamingClient = SessionStreamingClient(
             sessionId: sessionId.uuidString.lowercased()
         )
 
         do {
-            let eventStream = try await streamingClient.subscribe()
+            async let statusCheck: Void = checkClaudeStatus()
+            async let eventStream = streamingClient.subscribe()
+
+            let stream = try await eventStream
+            await statusCheck
+            let parallelDuration = CFAbsoluteTimeGetCurrent() - statusStart
+            logger.info("activate() status+subscribe: \(String(format: "%.3f", parallelDuration))s for session \(sessionId)")
+
             subscriptionState = .subscribed
             let localSessionId = sessionId
 
@@ -254,7 +309,7 @@ class SessionLiveState {
             // Start event handling task
             subscriptionTask = Task { [weak self, localSessionId] in
                 logger.debug("Event loop started for session \(localSessionId)")
-                for await event in eventStream {
+                for await event in stream {
                     await MainActor.run {
                         self?.handleDaemonEvent(event)
                     }
@@ -325,13 +380,9 @@ class SessionLiveState {
                 sessionId: sessionId.uuidString.lowercased()
             )
             let fetchDuration = CFAbsoluteTimeGetCurrent() - fetchStart
-            logger.info("daemon fetch took \(String(format: "%.3f", fetchDuration))s for \(daemonMessages.count) messages")
+            logger.info("loadMessages ipc: \(String(format: "%.3f", fetchDuration))s (\(daemonMessages.count) messages)")
 
-            let parseSignpost = ChatPerformanceSignposts.beginInterval(
-                "chat.loadMessages.parse",
-                "incoming=\(daemonMessages.count)"
-            )
-            let parseStart = CFAbsoluteTimeGetCurrent()
+            let rowStart = CFAbsoluteTimeGetCurrent()
             let rows = daemonMessages.compactMap { message -> RawSessionRow? in
                 guard let content = message.content else { return nil }
                 return RawSessionRow(
@@ -342,14 +393,28 @@ class SessionLiveState {
                     payload: content
                 )
             }
+            let rowDuration = CFAbsoluteTimeGetCurrent() - rowStart
+
+            let replaceStart = CFAbsoluteTimeGetCurrent()
             claudeState.replace(rows: rows)
+            let replaceDuration = CFAbsoluteTimeGetCurrent() - replaceStart
+
+            let mapStart = CFAbsoluteTimeGetCurrent()
             refreshMessagesFromClaudeState()
-            let parseDuration = CFAbsoluteTimeGetCurrent() - parseStart
-            logger.info("parse took \(String(format: "%.3f", parseDuration))s for \(messages.count) parsed messages")
-            ChatPerformanceSignposts.endInterval(parseSignpost, "parsed=\(messages.count)")
+            let mapDuration = CFAbsoluteTimeGetCurrent() - mapStart
+
+            let totalDuration = CFAbsoluteTimeGetCurrent() - fetchStart
+            let ipcMs = String(format: "%.3f", fetchDuration)
+            let rowMs = String(format: "%.3f", rowDuration)
+            let replaceMs = String(format: "%.3f", replaceDuration)
+            let mapMs = String(format: "%.3f", mapDuration)
+            let totalMs = String(format: "%.3f", totalDuration)
+            logger.info("loadMessages: ipc=\(ipcMs)s rows=\(rowMs)s replace=\(replaceMs)s map=\(mapMs)s total=\(totalMs)s (\(daemonMessages.count)→\(rows.count)→\(messages.count))")
         } catch {
             logger.error("Failed to load messages: \(error)")
             messages = []
+            messageRenderFingerprint = 0
+            scheduleTimelineSnapshotRebuild(reason: "loadMessagesError")
         }
     }
 
@@ -477,6 +542,7 @@ class SessionLiveState {
         toolHistory.removeAll()
         streamingContent = nil
         pendingPrompt = nil
+        scheduleTimelineSnapshotRebuild(reason: "clearToolState")
     }
 
     // MARK: - Private: Message Fetching
@@ -522,11 +588,14 @@ class SessionLiveState {
     // MARK: - Private: Event Handling
 
     private func handleDaemonEvent(_ event: DaemonEvent) {
+        var shouldRebuildSnapshot = false
+
         switch event.type {
         case .streamingChunk, .claudeStreaming:
             if let content: String = event.dataValue(for: "content") ?? event.dataValue(for: "chunk") {
                 logger.debug("Received streaming chunk (\(content.count) chars) for session \(sessionId)")
                 mergeStreamingContent(with: content)
+                shouldRebuildSnapshot = true
             }
 
         case .message:
@@ -560,6 +629,7 @@ class SessionLiveState {
                     logger.warning("Failed to serialize claude event data for session \(sessionId): \(error.localizedDescription)")
                 }
             }
+            shouldRebuildSnapshot = true
 
         case .statusChange:
             if let runtimeStatus = event.runtimeStatusEnvelope {
@@ -567,6 +637,7 @@ class SessionLiveState {
                     "Received runtime status change: \(runtimeStatus.codingSession.status.rawValue) for session \(sessionId)"
                 )
                 applyRuntimeStatus(runtimeStatus, source: "status_change")
+                shouldRebuildSnapshot = true
             }
 
         case .terminalOutput, .terminalFinished:
@@ -575,6 +646,7 @@ class SessionLiveState {
         case .initialState:
             logger.info("Received initial state for session \(sessionId)")
             debouncedFetchMessages()
+            shouldRebuildSnapshot = true
 
         case .ping:
             break
@@ -582,6 +654,10 @@ class SessionLiveState {
         case .authStateChanged, .sessionCreated, .sessionDeleted:
             // Global events, not relevant for per-session state
             break
+        }
+
+        if shouldRebuildSnapshot {
+            scheduleTimelineSnapshotRebuild(reason: "daemonEvent:\(event.type)")
         }
     }
 
@@ -939,8 +1015,137 @@ class SessionLiveState {
     }
 
     private func refreshMessagesFromClaudeState() {
-        messages = ClaudeTimelineChatMessageMapper.mapEntries(claudeState.timeline)
+        let mapperStart = CFAbsoluteTimeGetCurrent()
+        let mapped = ClaudeTimelineChatMessageMapper.mapEntriesWithFingerprint(claudeState.timeline)
+        let mapperDuration = CFAbsoluteTimeGetCurrent() - mapperStart
+
+        let shouldPublishMessages = mapped.fingerprint != messageRenderFingerprint ||
+            mapped.messages.count != messages.count ||
+            mapped.messages.last?.id != messages.last?.id
+
+        if shouldPublishMessages {
+            messages = mapped.messages
+            messageRenderFingerprint = mapped.fingerprint
+        }
+
+        logger.info("refreshMessages: mapper=\(String(format: "%.3f", mapperDuration))s entries=\(claudeState.timeline.count) messages=\(mapped.messages.count) updated=\(shouldPublishMessages)")
+
         latestCompletionSummary = SessionCompletionSummary.latest(from: claudeState.timeline)
+        scheduleTimelineSnapshotRebuild(reason: "refreshMessages")
+    }
+
+    private func scheduleTimelineSnapshotRebuild(reason: String) {
+        snapshotBuildGeneration += 1
+        snapshotRebuildPending = true
+
+        guard snapshotRebuildTask == nil else { return }
+
+        let capturedReason = reason
+        snapshotRebuildTask = Task { [weak self] in
+            // Coalesce window: wait 50ms so rapid events batch into one rebuild
+            try? await Task.sleep(nanoseconds: 50_000_000)
+
+            guard let self else { return }
+            await MainActor.run { self.snapshotRebuildPending = false }
+
+            let (input, generation, isStreamingOnly, existingSnapshot) = await MainActor.run {
+                let streamingOnly = self.messages.count == self.lastBuildMessageCount
+                    && self.toolHistory.count == self.lastBuildToolHistoryCount
+                    && self.activeTools.count == self.lastBuildActiveToolCount
+                    && self.activeSubAgents.count == self.lastBuildActiveSubAgentCount
+                    && self.timelineSnapshotRevision != 0
+
+                return (
+                    ChatTimelineSnapshotEngine.Input(
+                        messages: self.messages,
+                        toolHistory: self.toolHistory,
+                        activeSubAgents: self.activeSubAgents,
+                        activeTools: self.activeTools,
+                        streamingAssistantMessage: self.makeStreamingAssistantMessageForSnapshot()
+                    ),
+                    self.snapshotBuildGeneration,
+                    streamingOnly,
+                    self.timelineSnapshot
+                )
+            }
+
+            let buildStart = CFAbsoluteTimeGetCurrent()
+            let snapshot: ChatTimelineSnapshot
+            if isStreamingOnly {
+                ChatPerformanceSignposts.event("chat.snapshot.streamingFastPath", "reason=\(capturedReason)")
+                snapshot = await self.timelineSnapshotEngine.updateStreamingRow(
+                    streamingMessage: input.streamingAssistantMessage,
+                    existing: existingSnapshot
+                )
+            } else {
+                snapshot = await self.timelineSnapshotEngine.build(input)
+            }
+            let buildDuration = CFAbsoluteTimeGetCurrent() - buildStart
+            logger.info("snapshotBuild: duration=\(String(format: "%.3f", buildDuration))s rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly) reason=\(capturedReason)")
+
+            await MainActor.run {
+                self.snapshotRebuildTask = nil
+
+                guard generation == self.snapshotBuildGeneration else {
+                    if self.snapshotRebuildPending {
+                        self.scheduleTimelineSnapshotRebuild(reason: "coalesced")
+                    }
+                    return
+                }
+
+                guard snapshot.revision != self.timelineSnapshotRevision else { return }
+
+                // Update tracking state for incremental detection
+                self.lastBuildMessageCount = input.messages.count
+                self.lastBuildToolHistoryCount = input.toolHistory.count
+                self.lastBuildActiveToolCount = input.activeTools.count
+                self.lastBuildActiveSubAgentCount = input.activeSubAgents.count
+
+                self.timelineSnapshot = snapshot
+                self.timelineSnapshotRevision = snapshot.revision
+                ChatPerformanceSignposts.event(
+                    "chat.snapshot.publish",
+                    "reason=\(reason) rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly)"
+                )
+            }
+        }
+    }
+
+    private func makeStreamingAssistantMessageForSnapshot() -> ChatMessage? {
+        guard claudeRunning || codingSessionStatus == .waiting,
+              let rawStreamingText = streamingContent else {
+            return nil
+        }
+
+        var visibleText = rawStreamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !visibleText.isEmpty else { return nil }
+
+        if let latestAssistantText = messages.last(where: { $0.role == .assistant })?
+            .textContent
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !latestAssistantText.isEmpty {
+            if visibleText == latestAssistantText || latestAssistantText.hasSuffix(visibleText) {
+                return nil
+            }
+
+            if visibleText.hasPrefix(latestAssistantText) {
+                let start = visibleText.index(visibleText.startIndex, offsetBy: latestAssistantText.count)
+                visibleText = String(visibleText[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !visibleText.isEmpty else { return nil }
+            }
+        }
+
+        let nextSequence = (messages.last?.sequenceNumber ?? 0) + 1
+        let timestamp = messages.last?.timestamp ?? Date(timeIntervalSince1970: 0)
+
+        return ChatMessage(
+            id: Self.streamingMessageRowID,
+            role: .assistant,
+            content: [.text(TextContent(id: Self.streamingTextContentID, text: visibleText))],
+            timestamp: timestamp,
+            isStreaming: true,
+            sequenceNumber: nextSequence
+        )
     }
 
     private func handleUserEvent(_ json: [String: Any]) {
@@ -1060,6 +1265,7 @@ class SessionLiveState {
 
         activeTools.removeAll()
         activeSubAgents.removeAll()
+        scheduleTimelineSnapshotRebuild(reason: "moveToolsToHistory")
     }
 
     private func upsert(_ tool: ActiveTool, in tools: inout [ActiveTool]) {
@@ -1109,6 +1315,7 @@ class SessionLiveState {
         runtimeStatus: RuntimeStatusEnvelope? = nil
     ) {
         self.messages = messages
+        self.messageRenderFingerprint = messages.hashValue
         self.claudeRunning = claudeRunning
         self.subscriptionState = .subscribed
         self.activeTools = activeTools
@@ -1117,6 +1324,7 @@ class SessionLiveState {
         self.streamingContent = streamingContent
         self.pendingPrompt = pendingPrompt
         self.runtimeStatus = runtimeStatus
+        scheduleTimelineSnapshotRebuild(reason: "preview")
     }
     #endif
 }
