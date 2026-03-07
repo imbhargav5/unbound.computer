@@ -11,9 +11,65 @@ import Logging
 
 private let logger = Logger(label: "app.config")
 
-enum ObservabilityMode {
+enum ObservabilityMode: Equatable {
     case devVerbose
     case prodMetadataOnly
+
+    nonisolated var identifier: String {
+        switch self {
+        case .devVerbose:
+            return "dev_verbose"
+        case .prodMetadataOnly:
+            return "prod_metadata_only"
+        }
+    }
+}
+
+enum ConfigValueSource: String, Equatable {
+    case env
+    case plist
+    case unset
+}
+
+struct ResolvedConfigValue: Equatable {
+    let value: String?
+    let source: ConfigValueSource
+}
+
+struct ResolvedObservabilityStatus: Equatable {
+    let otlpEnabled: Bool
+    let endpointSource: ConfigValueSource
+    let otlpBaseURL: URL?
+    let otlpLogsURL: URL?
+    let headersPresent: Bool
+    let headerCount: Int
+    let mode: ObservabilityMode
+    let environment: String
+    let infoSampleRate: Double
+    let debugSampleRate: Double
+
+    nonisolated var metadata: Logger.Metadata {
+        var metadata: Logger.Metadata = [
+            "otlp_enabled": .stringConvertible(otlpEnabled),
+            "otlp_endpoint_source": .string(endpointSource.rawValue),
+            "otlp_headers_present": .stringConvertible(headersPresent),
+            "otlp_header_count": .stringConvertible(headerCount),
+            "observability_mode": .string(mode.identifier),
+            "observability_environment": .string(environment),
+            "observability_info_sample_rate": .stringConvertible(infoSampleRate),
+            "observability_debug_sample_rate": .stringConvertible(debugSampleRate)
+        ]
+
+        if let otlpBaseURL {
+            metadata["otlp_base_url"] = .string(otlpBaseURL.absoluteString)
+        }
+
+        if let otlpLogsURL {
+            metadata["otlp_logs_url"] = .string(otlpLogsURL.absoluteString)
+        }
+
+        return metadata
+    }
 }
 
 enum Config {
@@ -135,49 +191,36 @@ enum Config {
     // MARK: - Observability
 
     static var observabilityMode: ObservabilityMode {
-        if let raw = ProcessInfo.processInfo.environment["UNBOUND_OBS_MODE"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        {
-            if raw == "prod" || raw == "production" {
-                return .prodMetadataOnly
-            }
-            if raw == "dev" || raw == "development" {
-                return .devVerbose
-            }
-        }
-        return isDebug ? .devVerbose : .prodMetadataOnly
+        resolveObservabilityMode(
+            environment: ProcessInfo.processInfo.environment,
+            isDebug: isDebug
+        )
     }
 
     static var otlpEndpoint: URL? {
-        guard let raw = readOptionalConfigValue(
-            env: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
-            plist: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"
-        ), let url = URL(string: raw) else {
-            return nil
-        }
-        return url
+        resolveOTLPEndpoint(
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:]
+        )
     }
 
     static var otlpHeaders: [String: String] {
-        guard let raw = readOptionalConfigValue(
-            env: "UNBOUND_OTEL_HEADERS",
-            plist: "UNBOUND_OTEL_HEADERS"
-        ) else {
-            return [:]
-        }
-        var headers: [String: String] = [:]
-        for pair in raw.split(separator: ",") {
-            let parts = pair.split(separator: "=", maxSplits: 1)
-            if parts.count == 2 {
-                let key = parts[0].trimmingCharacters(in: .whitespaces)
-                let value = parts[1].trimmingCharacters(in: .whitespaces)
-                if !key.isEmpty && !value.isEmpty {
-                    headers[key] = value
-                }
-            }
-        }
-        return headers
+        parseOTLPHeaders(
+            raw: resolveConfigValue(
+                env: "UNBOUND_OTEL_HEADERS",
+                plist: "UNBOUND_OTEL_HEADERS",
+                environment: ProcessInfo.processInfo.environment,
+                infoDictionary: Bundle.main.infoDictionary ?? [:]
+            ).value
+        )
+    }
+
+    static var resolvedObservabilityStatus: ResolvedObservabilityStatus {
+        resolvedObservabilityStatus(
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
+            isDebug: isDebug
+        )
     }
 
     // MARK: - Presence DO
@@ -210,30 +253,27 @@ enum Config {
     }
 
     static var observabilityInfoSampleRate: Double {
-        if let raw = readOptionalConfigValue(env: "UNBOUND_OBS_INFO_SAMPLE_RATE", plist: "UNBOUND_OBS_INFO_SAMPLE_RATE"),
-           let value = Double(raw)
-        {
-            return min(max(value, 0.0), 1.0)
-        }
-        return isDebug ? 1.0 : 0.1
+        resolveSampleRate(
+            env: "UNBOUND_OBS_INFO_SAMPLE_RATE",
+            plist: "UNBOUND_OBS_INFO_SAMPLE_RATE",
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
+            defaultValue: isDebug ? 1.0 : 0.1
+        )
     }
 
     static var observabilityDebugSampleRate: Double {
-        if let raw = readOptionalConfigValue(env: "UNBOUND_OBS_DEBUG_SAMPLE_RATE", plist: "UNBOUND_OBS_DEBUG_SAMPLE_RATE"),
-           let value = Double(raw)
-        {
-            return min(max(value, 0.0), 1.0)
-        }
-        return isDebug ? 1.0 : 0.0
+        resolveSampleRate(
+            env: "UNBOUND_OBS_DEBUG_SAMPLE_RATE",
+            plist: "UNBOUND_OBS_DEBUG_SAMPLE_RATE",
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
+            defaultValue: isDebug ? 1.0 : 0.0
+        )
     }
 
     static var observabilityEnvironment: String {
-        switch observabilityMode {
-        case .devVerbose:
-            return "development"
-        case .prodMetadataOnly:
-            return "production"
-        }
+        observabilityEnvironmentName(for: observabilityMode)
     }
 
     /// Log current configuration (debug only)
@@ -247,24 +287,181 @@ enum Config {
         logger.debug("  - Socket Path: \(socketPath)")
         logger.debug("  - Debug Mode: \(isDebug)")
         logger.debug("  - Observability Mode: \(observabilityMode)")
+        logger.debug("  - OTLP Enabled: \(resolvedObservabilityStatus.otlpEnabled)")
+        logger.debug("  - OTLP Endpoint Source: \(resolvedObservabilityStatus.endpointSource.rawValue)")
+        logger.debug("  - OTLP Logs URL: \(resolvedObservabilityStatus.otlpLogsURL?.absoluteString ?? "unset")")
         #endif
     }
 
     private static func readOptionalConfigValue(env: String, plist: String) -> String? {
-        if let value = ProcessInfo.processInfo.environment[env]?
+        resolveConfigValue(
+            env: env,
+            plist: plist,
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:]
+        ).value
+    }
+
+    nonisolated static func resolvedObservabilityStatus(
+        environment: [String: String],
+        infoDictionary: [String: Any],
+        isDebug: Bool
+    ) -> ResolvedObservabilityStatus {
+        let endpoint = resolveConfigValue(
+            env: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
+            plist: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
+            environment: environment,
+            infoDictionary: infoDictionary
+        )
+        let otlpBaseURL = endpoint.value.flatMap { URL(string: $0) }
+        let otlpLogsURL = otlpBaseURL.flatMap(normalizedOTLPLogsURL(from:))
+        let headers = parseOTLPHeaders(
+            raw: resolveConfigValue(
+                env: "UNBOUND_OTEL_HEADERS",
+                plist: "UNBOUND_OTEL_HEADERS",
+                environment: environment,
+                infoDictionary: infoDictionary
+            ).value
+        )
+        let mode = resolveObservabilityMode(environment: environment, isDebug: isDebug)
+
+        return ResolvedObservabilityStatus(
+            otlpEnabled: otlpBaseURL != nil,
+            endpointSource: endpoint.source,
+            otlpBaseURL: otlpBaseURL,
+            otlpLogsURL: otlpLogsURL,
+            headersPresent: !headers.isEmpty,
+            headerCount: headers.count,
+            mode: mode,
+            environment: observabilityEnvironmentName(for: mode),
+            infoSampleRate: resolveSampleRate(
+                env: "UNBOUND_OBS_INFO_SAMPLE_RATE",
+                plist: "UNBOUND_OBS_INFO_SAMPLE_RATE",
+                environment: environment,
+                infoDictionary: infoDictionary,
+                defaultValue: isDebug ? 1.0 : 0.1
+            ),
+            debugSampleRate: resolveSampleRate(
+                env: "UNBOUND_OBS_DEBUG_SAMPLE_RATE",
+                plist: "UNBOUND_OBS_DEBUG_SAMPLE_RATE",
+                environment: environment,
+                infoDictionary: infoDictionary,
+                defaultValue: isDebug ? 1.0 : 0.0
+            )
+        )
+    }
+
+    nonisolated static func normalizedOTLPLogsURL(from endpoint: URL) -> URL? {
+        let base = endpoint.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if base.hasSuffix("/v1/logs") {
+            return endpoint
+        }
+        return URL(string: "\(base)/v1/logs")
+    }
+
+    nonisolated private static func resolveOTLPEndpoint(
+        environment: [String: String],
+        infoDictionary: [String: Any]
+    ) -> URL? {
+        guard let raw = resolveConfigValue(
+            env: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
+            plist: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
+            environment: environment,
+            infoDictionary: infoDictionary
+        ).value else {
+            return nil
+        }
+
+        return URL(string: raw)
+    }
+
+    nonisolated private static func resolveObservabilityMode(
+        environment: [String: String],
+        isDebug: Bool
+    ) -> ObservabilityMode {
+        if let raw = environment["UNBOUND_OBS_MODE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        {
+            if raw == "prod" || raw == "production" {
+                return .prodMetadataOnly
+            }
+            if raw == "dev" || raw == "development" {
+                return .devVerbose
+            }
+        }
+        return isDebug ? .devVerbose : .prodMetadataOnly
+    }
+
+    nonisolated private static func observabilityEnvironmentName(for mode: ObservabilityMode) -> String {
+        switch mode {
+        case .devVerbose:
+            return "development"
+        case .prodMetadataOnly:
+            return "production"
+        }
+    }
+
+    nonisolated private static func resolveSampleRate(
+        env: String,
+        plist: String,
+        environment: [String: String],
+        infoDictionary: [String: Any],
+        defaultValue: Double
+    ) -> Double {
+        guard let raw = resolveConfigValue(
+            env: env,
+            plist: plist,
+            environment: environment,
+            infoDictionary: infoDictionary
+        ).value,
+              let value = Double(raw)
+        else {
+            return defaultValue
+        }
+
+        return min(max(value, 0.0), 1.0)
+    }
+
+    nonisolated private static func parseOTLPHeaders(raw: String?) -> [String: String] {
+        guard let raw else {
+            return [:]
+        }
+
+        var headers: [String: String] = [:]
+        for pair in raw.split(separator: ",") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                let key = parts[0].trimmingCharacters(in: .whitespaces)
+                let value = parts[1].trimmingCharacters(in: .whitespaces)
+                if !key.isEmpty && !value.isEmpty {
+                    headers[key] = value
+                }
+            }
+        }
+        return headers
+    }
+
+    nonisolated private static func resolveConfigValue(
+        env: String,
+        plist: String,
+        environment: [String: String],
+        infoDictionary: [String: Any]
+    ) -> ResolvedConfigValue {
+        if let value = environment[env]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !value.isEmpty
         {
-            return value
+            return ResolvedConfigValue(value: value, source: .env)
         }
 
-        if let value = Bundle.main.object(forInfoDictionaryKey: plist) as? String {
+        if let value = infoDictionary[plist] as? String {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
-                return trimmed
+                return ResolvedConfigValue(value: trimmed, source: .plist)
             }
         }
 
-        return nil
+        return ResolvedConfigValue(value: nil, source: .unset)
     }
 }

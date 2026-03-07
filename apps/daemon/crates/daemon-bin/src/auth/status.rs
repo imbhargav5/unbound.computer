@@ -1,8 +1,8 @@
 //! Authentication status handler.
 
 use crate::app::DaemonState;
-use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use auth_engine::AuthSnapshot;
+use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use tracing::{info_span, Instrument};
 
 fn auth_status_payload(snapshot: &AuthSnapshot) -> serde_json::Value {

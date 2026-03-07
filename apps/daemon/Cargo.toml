@@ -72,6 +72,8 @@ clap = { version = "4.5", features = ["derive", "env"] }
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.29"
+opentelemetry = "0.28"
 observability = { path = "../../packages/observability" }
 
 # Utilities

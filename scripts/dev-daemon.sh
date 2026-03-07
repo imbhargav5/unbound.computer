@@ -11,7 +11,18 @@ DAEMON_DIR="$ROOT/apps/daemon"
 BASE_DIR="$HOME/.unbound-dev"
 SOCKET="$BASE_DIR/daemon.sock"
 PID_FILE="$BASE_DIR/daemon.pid"
+STARTUP_STATUS_FILE="$BASE_DIR/startup-status.json"
 ENV_FILE="$DAEMON_DIR/.env.local"
+
+print_startup_status() {
+  local elapsed_s="$1"
+  if [ -f "$STARTUP_STATUS_FILE" ]; then
+    echo "last startup status after ${elapsed_s}s:"
+    sed 's/^/  /' "$STARTUP_STATUS_FILE"
+  else
+    echo "last startup status after ${elapsed_s}s: (not available)"
+  fi
+}
 
 # ── Build daemon ──────────────────────────────────────────────
 echo "Building daemon..."
@@ -37,7 +48,7 @@ if [ -f "$PID_FILE" ]; then
     kill -9 "$PID" 2>/dev/null || true
   fi
 fi
-rm -f "$SOCKET" "$PID_FILE"
+rm -f "$SOCKET" "$PID_FILE" "$STARTUP_STATUS_FILE"
 
 # ── Load env vars ─────────────────────────────────────────────
 if [ -f "$ENV_FILE" ]; then
@@ -54,6 +65,7 @@ mkdir -p "$BASE_DIR"
 if [[ "${1:-}" == "--app" ]]; then
   # Background the daemon, wait for socket, then launch the app
   echo "Starting dev daemon in background (base-dir: $BASE_DIR)..."
+  START_TS=$(date +%s)
   RUST_LOG="${RUST_LOG:-debug}" "$DAEMON_BIN" start --base-dir "$BASE_DIR" --foreground &
   DAEMON_PID=$!
 
@@ -65,24 +77,47 @@ if [[ "${1:-}" == "--app" ]]; then
       break
     fi
     if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+      ELAPSED=$(( $(date +%s) - START_TS ))
       echo "error: daemon process exited during startup"
+      print_startup_status "$ELAPSED"
       exit 1
     fi
     sleep 0.25
   done
 
   if [ ! -S "$SOCKET" ]; then
+    ELAPSED=$(( $(date +%s) - START_TS ))
     echo "error: daemon did not start within 60s"
+    print_startup_status "$ELAPSED"
     kill "$DAEMON_PID" 2>/dev/null || true
     exit 1
   fi
 
   echo "Building and running macOS app..."
   cd "$ROOT/apps/macos"
+  XCODE_BUILD_ARGS=()
+  if [ -n "${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
+    echo "Embedding OTLP endpoint into macOS app build for Signoz logs..."
+    XCODE_BUILD_ARGS+=(
+      "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT=${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT}"
+      "INFOPLIST_KEY_UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT=${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT}"
+    )
+  else
+    echo "warning: UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT is not set; macOS app OTLP logs will stay local."
+  fi
+
+  if [ -n "${UNBOUND_OTEL_HEADERS:-}" ]; then
+    XCODE_BUILD_ARGS+=(
+      "UNBOUND_OTEL_HEADERS=${UNBOUND_OTEL_HEADERS}"
+      "INFOPLIST_KEY_UNBOUND_OTEL_HEADERS=${UNBOUND_OTEL_HEADERS}"
+    )
+  fi
+
   xcodebuild \
     -project unbound-macos.xcodeproj \
     -scheme unbound-macos \
     -configuration Debug \
+    "${XCODE_BUILD_ARGS[@]}" \
     build 2>&1 | tail -5
 
   # Find and launch the built app
@@ -90,17 +125,21 @@ if [[ "${1:-}" == "--app" ]]; then
     -project unbound-macos.xcodeproj \
     -scheme unbound-macos \
     -configuration Debug \
-    -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $3}')
+    -showBuildSettings 2>/dev/null | awk -F ' = ' '/ BUILT_PRODUCTS_DIR = / { print $2; exit }')
 
-  if [ -d "$BUILD_DIR/Unbound.app" ]; then
-    echo "Launching Unbound.app..."
-    open "$BUILD_DIR/Unbound.app"
-  elif [ -d "$BUILD_DIR/unbound-macos.app" ]; then
-    echo "Launching unbound-macos.app..."
-    open "$BUILD_DIR/unbound-macos.app"
+  APP_PATH=""
+  if [ -n "$BUILD_DIR" ]; then
+    APP_PATH=$(find "$BUILD_DIR" -maxdepth 1 -type d -name "*.app" | head -n 1)
+  fi
+
+  if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+    echo "Launching $(basename "$APP_PATH")..."
+    open "$APP_PATH"
   else
-    echo "warning: could not find built .app in $BUILD_DIR"
-    ls "$BUILD_DIR"/*.app 2>/dev/null || echo "  (none)"
+    echo "warning: could not find built .app in ${BUILD_DIR:-<unknown build dir>}"
+    if [ -n "$BUILD_DIR" ]; then
+      ls "$BUILD_DIR"/*.app 2>/dev/null || echo "  (none)"
+    fi
   fi
 
   echo "Daemon running in background (PID $DAEMON_PID). Kill with: kill $DAEMON_PID"

@@ -709,7 +709,9 @@ fn load_session_secret_plaintext(state: &DaemonState, session_id: &str) -> Resul
 
     let armin_result = state
         .armin
-        .get_session_secret(&agent_session_sqlite_persist_core::SessionId::from_string(session_id))
+        .get_session_secret(&agent_session_sqlite_persist_core::SessionId::from_string(
+            session_id,
+        ))
         .map_err(|err| format!("failed to get session secret: {err}"));
 
     let mut terminal_error = "session secret not found".to_string();

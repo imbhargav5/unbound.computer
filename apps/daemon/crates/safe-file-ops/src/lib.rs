@@ -380,10 +380,15 @@ impl RopeCache {
     }
 }
 
-fn resolve_existing_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, SafeFileOpsError> {
+fn resolve_existing_file_path(
+    root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, SafeFileOpsError> {
     validate_relative_path(relative_path)?;
 
-    let root_canon = root.canonicalize().map_err(|_| SafeFileOpsError::InvalidRoot)?;
+    let root_canon = root
+        .canonicalize()
+        .map_err(|_| SafeFileOpsError::InvalidRoot)?;
     let target = root_canon.join(relative_path);
     let target_canon = target.canonicalize().map_err(map_io_not_found)?;
 
@@ -399,10 +404,15 @@ fn resolve_existing_file_path(root: &Path, relative_path: &str) -> Result<PathBu
     Ok(target_canon)
 }
 
-fn resolve_writable_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, SafeFileOpsError> {
+fn resolve_writable_file_path(
+    root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, SafeFileOpsError> {
     validate_relative_path(relative_path)?;
 
-    let root_canon = root.canonicalize().map_err(|_| SafeFileOpsError::InvalidRoot)?;
+    let root_canon = root
+        .canonicalize()
+        .map_err(|_| SafeFileOpsError::InvalidRoot)?;
     let target = root_canon.join(relative_path);
 
     if target.exists() {
@@ -419,7 +429,9 @@ fn resolve_writable_file_path(root: &Path, relative_path: &str) -> Result<PathBu
         return Ok(target_canon);
     }
 
-    let parent = target.parent().ok_or(SafeFileOpsError::InvalidRelativePath)?;
+    let parent = target
+        .parent()
+        .ok_or(SafeFileOpsError::InvalidRelativePath)?;
     let parent_canon = parent.canonicalize().map_err(map_io_not_found)?;
     if !parent_canon.starts_with(&root_canon) {
         return Err(SafeFileOpsError::PathTraversal);

@@ -126,6 +126,11 @@ enum DaemonEventType: String, Codable {
 
 // MARK: - Request
 
+struct DaemonTraceContext: Codable, Equatable {
+    let traceparent: String
+    let tracestate: String?
+}
+
 /// IPC request message.
 struct DaemonRequest: Codable {
     /// Request ID for correlation.
@@ -134,11 +139,19 @@ struct DaemonRequest: Codable {
     let method: DaemonMethod
     /// Method parameters (optional).
     let params: [String: AnyCodableValue]?
+    /// Optional distributed trace context propagated to the daemon.
+    let context: DaemonTraceContext?
 
-    init(method: DaemonMethod, params: [String: Any]? = nil) {
-        self.id = UUID().uuidString
+    init(
+        id: String = UUID().uuidString,
+        method: DaemonMethod,
+        params: [String: Any]? = nil,
+        context: DaemonTraceContext? = nil
+    ) {
+        self.id = id
         self.method = method
         self.params = params?.mapValues { AnyCodableValue($0) }
+        self.context = context
     }
 
     /// Serialize to JSON string with newline (NDJSON format).
@@ -204,20 +217,30 @@ struct DaemonEvent: Codable {
     let data: [String: AnyCodableValue]
     /// Sequence number for ordering/resumption.
     let sequence: Int64
+    /// Optional distributed trace context propagated from the daemon.
+    let context: DaemonTraceContext?
 
     enum CodingKeys: String, CodingKey {
         case type
         case sessionId = "session_id"
         case data
         case sequence
+        case context
     }
 
     /// Create a new DaemonEvent (used by shared memory consumer).
-    init(type: DaemonEventType, sessionId: String, data: [String: AnyCodableValue], sequence: Int64) {
+    init(
+        type: DaemonEventType,
+        sessionId: String,
+        data: [String: AnyCodableValue],
+        sequence: Int64,
+        context: DaemonTraceContext? = nil
+    ) {
         self.type = type
         self.sessionId = sessionId
         self.data = data
         self.sequence = sequence
+        self.context = context
     }
 
     /// Get data value for key.

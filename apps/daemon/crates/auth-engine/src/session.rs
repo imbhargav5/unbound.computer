@@ -120,7 +120,7 @@ impl SessionManager {
         supabase_url: &str,
         supabase_publishable_key: &str,
     ) -> Self {
-        let manager = Self {
+        Self {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
@@ -130,9 +130,7 @@ impl SessionManager {
             state_callback: Mutex::new(None),
             clock_worker_started: AtomicBool::new(false),
             clock_reconcile_notify: Notify::new(),
-        };
-        let _ = manager.bootstrap_pending_validation_state();
-        manager
+        }
     }
 
     /// Create a new session manager with custom refresh configuration.
@@ -142,7 +140,7 @@ impl SessionManager {
         supabase_publishable_key: &str,
         refresh_config: RefreshConfig,
     ) -> Self {
-        let manager = Self {
+        Self {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
@@ -152,9 +150,7 @@ impl SessionManager {
             state_callback: Mutex::new(None),
             clock_worker_started: AtomicBool::new(false),
             clock_reconcile_notify: Notify::new(),
-        };
-        let _ = manager.bootstrap_pending_validation_state();
-        manager
+        }
     }
 
     /// Set a callback to be notified of auth state changes.

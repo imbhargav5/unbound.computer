@@ -2,11 +2,12 @@
 
 use crate::app::DaemonState;
 use crate::machines::terminal::handle_terminal_process;
+use crate::observability::spawn_in_current_span;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::sync::broadcast;
+use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 
 /// Register terminal handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -104,7 +105,7 @@ async fn register_terminal_run(server: &IpcServer, state: DaemonState) {
                 // Spawn task to handle output
                 let state_for_task = state.clone();
                 let session_id_for_task = session_id.clone();
-                tokio::spawn(async move {
+                spawn_in_current_span(async move {
                     handle_terminal_process(child, session_id_for_task, state_for_task, stop_tx)
                         .await;
                 });

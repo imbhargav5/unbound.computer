@@ -2,11 +2,12 @@
 //!
 //! This module bridges Armin's side-effects to the daemon's IPC subscription system.
 
+use crate::observability::{current_trace_context, spawn_in_current_span};
 use agent_session_sqlite_persist_core::{Armin, SideEffect, SideEffectSink};
 use daemon_ipc::{Event, EventType, SubscriptionManager};
+use session_sync_sink::SessionSyncSink;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-use session_sync_sink::SessionSyncSink;
 use tracing::{debug, info};
 
 /// A side-effect sink that bridges Armin events to daemon subscriptions.
@@ -27,7 +28,10 @@ pub struct DaemonCompositeSink {
 }
 
 impl DaemonCompositeSink {
-    pub fn new(subscriptions: SubscriptionManager, sync_sink: Option<Arc<SessionSyncSink>>) -> Self {
+    pub fn new(
+        subscriptions: SubscriptionManager,
+        sync_sink: Option<Arc<SessionSyncSink>>,
+    ) -> Self {
         Self {
             daemon_sink: DaemonSideEffectSink::new(subscriptions),
             sync_sink,
@@ -68,6 +72,7 @@ impl std::fmt::Debug for DaemonSideEffectSink {
 
 impl SideEffectSink for DaemonSideEffectSink {
     fn emit(&self, effect: SideEffect) {
+        let trace_context = current_trace_context();
         match effect {
             SideEffect::RepositoryCreated { repository_id } => {
                 debug!(repository_id = %repository_id, "Armin repository created");
@@ -82,34 +87,46 @@ impl SideEffectSink for DaemonSideEffectSink {
             SideEffect::SessionCreated { session_id } => {
                 debug!(session_id = %session_id, "Armin session created");
                 let seq = self.next_sequence();
-                self.subscriptions.broadcast_global(Event::new(
+                let mut event = Event::new(
                     EventType::SessionCreated,
                     session_id.as_str(),
                     serde_json::json!({ "session_id": session_id.as_str() }),
                     seq,
-                ));
+                );
+                if let Some(trace_context) = trace_context.clone() {
+                    event = event.with_context(trace_context);
+                }
+                self.subscriptions.broadcast_global(event);
             }
 
             SideEffect::SessionClosed { session_id } => {
                 debug!(session_id = %session_id, "Armin session closed");
                 let seq = self.next_sequence();
-                self.subscriptions.broadcast_global(Event::new(
+                let mut event = Event::new(
                     EventType::SessionDeleted,
                     session_id.as_str(),
                     serde_json::json!({ "session_id": session_id.as_str() }),
                     seq,
-                ));
+                );
+                if let Some(trace_context) = trace_context.clone() {
+                    event = event.with_context(trace_context);
+                }
+                self.subscriptions.broadcast_global(event);
             }
 
             SideEffect::SessionDeleted { session_id } => {
                 debug!(session_id = %session_id, "Armin session deleted");
                 let seq = self.next_sequence();
-                self.subscriptions.broadcast_global(Event::new(
+                let mut event = Event::new(
                     EventType::SessionDeleted,
                     session_id.as_str(),
                     serde_json::json!({ "session_id": session_id.as_str() }),
                     seq,
-                ));
+                );
+                if let Some(trace_context) = trace_context.clone() {
+                    event = event.with_context(trace_context);
+                }
+                self.subscriptions.broadcast_global(event);
             }
 
             SideEffect::SessionUpdated { session_id } => {
@@ -130,7 +147,7 @@ impl SideEffectSink for DaemonSideEffectSink {
                 );
                 // Broadcast to session subscribers so clients get notified
                 let seq = self.next_sequence();
-                let event = Event::new(
+                let mut event = Event::new(
                     EventType::Message,
                     session_id.as_str(),
                     serde_json::json!({
@@ -139,10 +156,13 @@ impl SideEffectSink for DaemonSideEffectSink {
                     }),
                     seq,
                 );
+                if let Some(trace_context) = trace_context.clone() {
+                    event = event.with_context(trace_context);
+                }
                 let subscriptions = self.subscriptions.clone();
                 let session_id_str = session_id.as_str().to_string();
                 // Spawn async task since broadcast_or_create is async
-                tokio::spawn(async move {
+                spawn_in_current_span(async move {
                     subscriptions
                         .broadcast_or_create(&session_id_str, event)
                         .await;
@@ -160,7 +180,7 @@ impl SideEffectSink for DaemonSideEffectSink {
                 );
                 // Broadcast status change so clients know when Claude starts/stops
                 let seq = self.next_sequence();
-                let event = Event::new(
+                let mut event = Event::new(
                     EventType::StatusChange,
                     session_id.as_str(),
                     serde_json::json!({
@@ -171,9 +191,12 @@ impl SideEffectSink for DaemonSideEffectSink {
                     }),
                     seq,
                 );
+                if let Some(trace_context) = trace_context.clone() {
+                    event = event.with_context(trace_context);
+                }
                 let subscriptions = self.subscriptions.clone();
                 let session_id_str = session_id.as_str().to_string();
-                tokio::spawn(async move {
+                spawn_in_current_span(async move {
                     subscriptions
                         .broadcast_or_create(&session_id_str, event)
                         .await;

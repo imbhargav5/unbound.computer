@@ -177,7 +177,9 @@ pub fn store_session_secret<A: SessionWriter>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_session_sqlite_persist_core::{Armin, NewRepository, NullSink, SessionReader, SessionWriter};
+    use agent_session_sqlite_persist_core::{
+        Armin, NewRepository, NullSink, SessionReader, SessionWriter,
+    };
 
     fn make_armin() -> Armin<NullSink> {
         Armin::in_memory(NullSink).unwrap()

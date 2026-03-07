@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		5A9648B9B2E168F13ADB91B4 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BEC16D518A64A1A32B1C155 /* XCTest.framework */; };
+		AB0100012F90000000000001 /* OpenTelemetryApi in Frameworks */ = {isa = PBXBuildFile; productRef = AB0100202F90000000000001 /* OpenTelemetryApi */; };
+		AB0100022F90000000000001 /* OpenTelemetrySdk in Frameworks */ = {isa = PBXBuildFile; productRef = AB0100212F90000000000001 /* OpenTelemetrySdk */; };
+		AB0100032F90000000000001 /* OpenTelemetryProtocolExporterHTTP in Frameworks */ = {isa = PBXBuildFile; productRef = AB0100222F90000000000001 /* OpenTelemetryProtocolExporterHTTP */; };
 		CD79B3BB2F03F0FA00B37FB3 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */; };
 		CD79B3BC2F03F0FA00B37FB4 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BD2F03F0FA00B37FB5 /* Logging */; };
 		CD79B3C22F03F10A00B37FB3 /* ClaudeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */; };
@@ -56,6 +59,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AB0100032F90000000000001 /* OpenTelemetryProtocolExporterHTTP in Frameworks */,
+				AB0100022F90000000000001 /* OpenTelemetrySdk in Frameworks */,
+				AB0100012F90000000000001 /* OpenTelemetryApi in Frameworks */,
 				CDD0B52D2F07B6A8002D09F7 /* Storage in Frameworks */,
 				CDD0B5292F07B6A8002D09F7 /* PostgREST in Frameworks */,
 				CDD0B5272F07B6A8002D09F7 /* Functions in Frameworks */,
@@ -138,6 +144,9 @@
 			);
 			name = "unbound-macos";
 			packageProductDependencies = (
+				AB0100202F90000000000001 /* OpenTelemetryApi */,
+				AB0100212F90000000000001 /* OpenTelemetrySdk */,
+				AB0100222F90000000000001 /* OpenTelemetryProtocolExporterHTTP */,
 				CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */,
 				CDD0B5242F07B6A8002D09F7 /* Auth */,
 				CDD0B5262F07B6A8002D09F7 /* Functions */,
@@ -203,6 +212,8 @@
 			mainGroup = CDD3C14B2EFFB85C00CDEC43;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				AB0100102F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */,
+				AB0100112F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */,
 				CD79B3B92F03F0FA00B37FB3 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */,
@@ -255,7 +266,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Build the Rust daemon for the current architecture\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\n\nDAEMON_SRC=\"${PROJECT_DIR}/../daemon\"\nDAEMON_BIN_NAME=\"unbound-daemon\"\n\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  CARGO_FLAGS=\"--release\"\n  CARGO_PROFILE=\"release\"\nelse\n  CARGO_FLAGS=\"\"\n  CARGO_PROFILE=\"debug\"\nfi\n\n# Source .env.local for compile-time env vars (Supabase, presence DO, etc.).\n# This is the single source of truth for dev builds.\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n  ENV_FILE=\"${DAEMON_SRC}/.env.local\"\n  if [ -f \"$ENV_FILE\" ]; then\n    set -a; source \"$ENV_FILE\"; set +a\n  else\n    echo \"warning: ${ENV_FILE} not found — daemon will use placeholder defaults\"\n  fi\nfi\n\n# ARCHS contains target architecture(s), take the first one\n# CURRENT_ARCH is not available in Run Script phases\nARCH=\"${ARCHS%% *}\"\n\ncase \"$ARCH\" in\n  arm64) RUST_TARGET=\"aarch64-apple-darwin\" ;;\n  x86_64) RUST_TARGET=\"x86_64-apple-darwin\" ;;\n  *) echo \"error: Unsupported architecture: $ARCH\"; exit 1 ;;\nesac\n\ncd \"$DAEMON_SRC\"\ncargo build -p daemon-bin $CARGO_FLAGS --target \"$RUST_TARGET\"\n\n# Copy binary into app bundle's MacOS directory\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${EXECUTABLE_FOLDER_PATH}\"\nmkdir -p \"$DEST_DIR\"\ncp \"${DAEMON_SRC}/target/${RUST_TARGET}/${CARGO_PROFILE}/${DAEMON_BIN_NAME}\" \"${DEST_DIR}/${DAEMON_BIN_NAME}\"\n\n# In debug builds, always restart the dev daemon with the freshly-built binary.\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n  BASE_DIR=\"$HOME/.unbound-dev\"\n  SOCKET=\"${BASE_DIR}/daemon.sock\"\n  BUILT_BIN=\"${DAEMON_SRC}/target/${RUST_TARGET}/${CARGO_PROFILE}/${DAEMON_BIN_NAME}\"\n\n  # Stop any existing daemon\n  if [ -S \"$SOCKET\" ]; then\n    echo \"note: Stopping existing dev daemon\"\n    PID=$(cat \"${BASE_DIR}/daemon.pid\" 2>/dev/null)\n    if [ -n \"$PID\" ]; then\n      kill \"$PID\" 2>/dev/null || true\n      # Wait for process to exit (up to 3s)\n      for i in $(seq 1 12); do\n        kill -0 \"$PID\" 2>/dev/null || break\n        sleep 0.25\n      done\n      # Force kill if still alive\n      kill -9 \"$PID\" 2>/dev/null || true\n    fi\n    rm -f \"$SOCKET\" \"${BASE_DIR}/daemon.pid\"\n  fi\n\n  # Start the freshly-built daemon\n  echo \"note: Starting dev daemon on ${SOCKET}\"\n  \"$BUILT_BIN\" start --base-dir \"$BASE_DIR\" &\n  # Wait up to 10s for socket to appear\n  for i in $(seq 1 40); do\n    [ -S \"$SOCKET\" ] && break\n    sleep 0.25\n  done\n  if [ -S \"$SOCKET\" ]; then\n    echo \"note: Dev daemon ready\"\n  else\n    echo \"warning: Dev daemon did not start within 10s\"\n  fi\nfi\n";
+			shellScript = "# Build and bundle the Rust daemon for release builds.\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\n\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n  echo \"note: Skipping bundled daemon build for Debug; use scripts/dev-daemon.sh for local daemon startup\"\n  exit 0\nfi\n\nDAEMON_SRC=\"${PROJECT_DIR}/../daemon\"\nDAEMON_BIN_NAME=\"unbound-daemon\"\nCARGO_FLAGS=\"--release\"\nCARGO_PROFILE=\"release\"\n\n# ARCHS contains target architecture(s), take the first one\n# CURRENT_ARCH is not available in Run Script phases\nARCH=\"${ARCHS%% *}\"\n\ncase \"$ARCH\" in\n  arm64) RUST_TARGET=\"aarch64-apple-darwin\" ;;\n  x86_64) RUST_TARGET=\"x86_64-apple-darwin\" ;;\n  *) echo \"error: Unsupported architecture: $ARCH\"; exit 1 ;;\nesac\n\ncd \"$DAEMON_SRC\"\ncargo build -p daemon-bin $CARGO_FLAGS --target \"$RUST_TARGET\"\n\n# Copy binary into app bundle's MacOS directory\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${EXECUTABLE_FOLDER_PATH}\"\nmkdir -p \"$DEST_DIR\"\ncp \"${DAEMON_SRC}/target/${RUST_TARGET}/${CARGO_PROFILE}/${DAEMON_BIN_NAME}\" \"${DEST_DIR}/${DAEMON_BIN_NAME}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -554,6 +565,22 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		AB0100102F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-telemetry/opentelemetry-swift-core.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
+		AB0100112F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-telemetry/opentelemetry-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
 		CD79B3B92F03F0FA00B37FB3 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
@@ -589,6 +616,21 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		AB0100202F90000000000001 /* OpenTelemetryApi */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB0100102F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = OpenTelemetryApi;
+		};
+		AB0100212F90000000000001 /* OpenTelemetrySdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB0100102F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = OpenTelemetrySdk;
+		};
+		AB0100222F90000000000001 /* OpenTelemetryProtocolExporterHTTP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB0100112F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = OpenTelemetryProtocolExporterHTTP;
+		};
 		CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CD79B3B92F03F0FA00B37FB3 /* XCRemoteSwiftPackageReference "SwiftTerm" */;

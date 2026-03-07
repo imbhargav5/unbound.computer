@@ -1,6 +1,7 @@
 //! Terminal process output streaming and event handling.
 
 use crate::app::DaemonState;
+use crate::observability::spawn_in_current_span;
 use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionWriter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
@@ -43,7 +44,7 @@ pub async fn handle_terminal_process(
     let armin_for_stderr = state.armin.clone();
     let session_id_for_stderr = armin_session_id.clone();
     let stderr_task = if let Some(stderr) = stderr {
-        Some(tokio::spawn(async move {
+        Some(spawn_in_current_span(async move {
             let mut stderr_reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = stderr_reader.next_line().await {
                 // Store stderr output as message

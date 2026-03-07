@@ -5,6 +5,16 @@
 
 use serde::{Deserialize, Serialize};
 
+/// W3C trace propagation fields passed across IPC boundaries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraceContext {
+    /// W3C traceparent header value.
+    pub traceparent: String,
+    /// Optional W3C tracestate header value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
+}
+
 /// IPC method types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -148,6 +158,9 @@ pub struct Event {
     pub data: serde_json::Value,
     /// Sequence number for ordering/resumption.
     pub sequence: i64,
+    /// Optional trace context for continuing the originating trace on the client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<TraceContext>,
 }
 
 /// Types of events that can be pushed to subscribers.
@@ -191,7 +204,14 @@ impl Event {
             session_id: session_id.to_string(),
             data,
             sequence,
+            context: None,
         }
+    }
+
+    /// Attach trace context to this event.
+    pub fn with_context(mut self, context: TraceContext) -> Self {
+        self.context = Some(context);
+        self
     }
 
     /// Serialize to JSON string.
@@ -215,6 +235,9 @@ pub struct Request {
     /// Method parameters (optional).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub params: Option<serde_json::Value>,
+    /// Optional distributed trace context propagated from the caller.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<TraceContext>,
 }
 
 impl Request {
@@ -224,6 +247,7 @@ impl Request {
             id: uuid::Uuid::new_v4().to_string(),
             method,
             params: None,
+            context: None,
         }
     }
 
@@ -233,6 +257,7 @@ impl Request {
             id: uuid::Uuid::new_v4().to_string(),
             method,
             params: Some(params),
+            context: None,
         }
     }
 
@@ -242,7 +267,14 @@ impl Request {
             id: id.to_string(),
             method,
             params: None,
+            context: None,
         }
+    }
+
+    /// Attach trace context to this request.
+    pub fn with_context(mut self, context: TraceContext) -> Self {
+        self.context = Some(context);
+        self
     }
 
     /// Serialize to JSON string.
@@ -597,12 +629,17 @@ mod tests {
         let request = Request::with_params(
             Method::SessionCreate,
             serde_json::json!({"title": "my session"}),
-        );
+        )
+        .with_context(TraceContext {
+            traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+            tracestate: Some("vendor=opaque".to_string()),
+        });
         let json = request.to_json().unwrap();
         let parsed = Request::from_json(&json).unwrap();
         assert_eq!(request.id, parsed.id);
         assert_eq!(request.method, parsed.method);
         assert_eq!(request.params, parsed.params);
+        assert_eq!(request.context, parsed.context);
     }
 
     #[test]
@@ -610,6 +647,7 @@ mod tests {
         let request = Request::new(Method::Health);
         let json = request.to_json().unwrap();
         assert!(!json.contains("params"));
+        assert!(!json.contains("context"));
     }
 
     #[test]
@@ -648,6 +686,19 @@ mod tests {
         let r = Request::from_json(json).unwrap();
         assert_eq!(r.method, Method::SessionCreate);
         assert_eq!(r.params.unwrap()["title"], "test");
+    }
+
+    #[test]
+    fn request_deserialization_accepts_trace_context() {
+        let json = r#"{"id":"abc","method":"health","context":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01","tracestate":"vendor=opaque"}}"#;
+        let r = Request::from_json(json).unwrap();
+        assert_eq!(
+            r.context,
+            Some(TraceContext {
+                traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+                tracestate: Some("vendor=opaque".to_string()),
+            })
+        );
     }
 
     // =========================================================================
@@ -778,12 +829,17 @@ mod tests {
             "sess-abc",
             serde_json::json!({"raw": "data"}),
             100,
-        );
+        )
+        .with_context(TraceContext {
+            traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+            tracestate: None,
+        });
         let json = e.to_json().unwrap();
         let parsed = Event::from_json(&json).unwrap();
         assert_eq!(parsed.event_type, EventType::ClaudeEvent);
         assert_eq!(parsed.session_id, "sess-abc");
         assert_eq!(parsed.sequence, 100);
+        assert_eq!(parsed.context, e.context);
     }
 
     #[test]
@@ -845,6 +901,7 @@ mod tests {
         let json = e.to_json().unwrap();
         assert!(json.contains("\"type\":\"ping\""));
         assert!(!json.contains("\"event_type\""));
+        assert!(!json.contains("\"context\""));
     }
 
     #[test]
@@ -874,6 +931,19 @@ mod tests {
         let json = e.to_json().unwrap();
         let parsed = Event::from_json(&json).unwrap();
         assert_eq!(parsed.data, data);
+    }
+
+    #[test]
+    fn event_deserialization_accepts_trace_context() {
+        let json = r#"{"type":"message","session_id":"s1","data":{},"sequence":7,"context":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}}"#;
+        let event = Event::from_json(json).unwrap();
+        assert_eq!(
+            event.context,
+            Some(TraceContext {
+                traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+                tracestate: None,
+            })
+        );
     }
 
     // =========================================================================

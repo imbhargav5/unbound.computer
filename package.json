@@ -26,6 +26,7 @@
     "daemon:status": "./apps/daemon/target/release/unbound-daemon status",
     "daemon:dev": "./scripts/dev-daemon.sh",
     "daemon:dev:app": "./scripts/dev-daemon.sh --app",
+    "daemon:dev:app:stop": "./scripts/dev-daemon-stop.sh",
     "cli:build": "cd apps/cli-new && cargo build --release",
     "cli": "./apps/cli-new/target/release/unbound-cli"
   },

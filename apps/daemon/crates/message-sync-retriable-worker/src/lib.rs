@@ -66,16 +66,20 @@ mod session_sync;
 
 pub use session_sync::{SessionSyncService, SyncError, SyncResult};
 
-use agent_session_sqlite_persist_core::{SessionId, SessionPendingSync, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{
+    SessionId, SessionPendingSync, SessionReader, SessionWriter,
+};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use daemon_config_and_utils::encrypt_conversation_message;
 use daemon_storage::SecretsManager;
+use session_sync_sink::{
+    MessageSyncRequest, MessageSyncer, MessageUpsert, SupabaseClient, SyncContext,
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, Duration};
-use session_sync_sink::{MessageSyncRequest, MessageSyncer, MessageUpsert, SupabaseClient, SyncContext};
 use tracing::{debug, error, warn};
 
 /// Base64 encoding engine for ciphertext and nonces.
@@ -692,7 +696,9 @@ fn compute_backoff(retry_count: i32, config: &MessageSyncWorkerConfig) -> chrono
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_session_sqlite_persist_core::{Armin, NewMessage, NewSessionSecret, PendingSyncMessage, RecordingSink};
+    use agent_session_sqlite_persist_core::{
+        Armin, NewMessage, NewSessionSecret, PendingSyncMessage, RecordingSink,
+    };
     use daemon_database::{encrypt_content, generate_nonce};
 
     fn setup_armin_with_secret() -> (ArminHandle, SessionId, Arc<Mutex<Option<[u8; 32]>>>) {
@@ -1000,7 +1006,10 @@ mod tests {
                 .into_iter()
                 .map(|(content, seq)| PendingSyncMessage {
                     session_id: session_id.clone(),
-                    message_id: agent_session_sqlite_persist_core::MessageId::from_string(format!("msg-{}", seq)),
+                    message_id: agent_session_sqlite_persist_core::MessageId::from_string(format!(
+                        "msg-{}",
+                        seq
+                    )),
                     sequence_number: seq,
                     content: content.to_string(),
                 })
@@ -1127,12 +1136,13 @@ mod tests {
         }
 
         // Set context
-        worker.set_context(SyncContext {
-            access_token: "token-123".to_string(),
-            user_id: "user-1".to_string(),
-            device_id: "device-1".to_string(),
-        })
-        .await;
+        worker
+            .set_context(SyncContext {
+                access_token: "token-123".to_string(),
+                user_id: "user-1".to_string(),
+                device_id: "device-1".to_string(),
+            })
+            .await;
 
         {
             let guard = worker.context.read().await;

@@ -47,13 +47,13 @@
 //! service.sync_new_session(session_id, repository_id, session_secret).await?;
 //! ```
 
+use auth_engine::{CodingSessionSecretRecord, SupabaseClient};
 use base64::Engine;
 use daemon_database::{queries, AgentCodingSession, AsyncDatabase, Repository};
 use daemon_storage::SecretsManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
-use auth_engine::{CodingSessionSecretRecord, SupabaseClient};
 
 /// Base64 encoding engine for keys and encrypted data.
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;

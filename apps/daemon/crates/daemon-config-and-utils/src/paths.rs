@@ -80,6 +80,11 @@ impl Paths {
         self.base_dir.join("daemon.pid")
     }
 
+    /// Get the startup status file path (~/.unbound/startup-status.json).
+    pub fn startup_status_file(&self) -> PathBuf {
+        self.base_dir.join("startup-status.json")
+    }
+
     /// Get the Falco socket path (~/.unbound/falco.sock).
     pub fn falco_socket_file(&self) -> PathBuf {
         self.base_dir.join(FALCO_SOCKET_NAME)
@@ -149,6 +154,10 @@ mod tests {
         assert_eq!(paths.database_file(), base.join("unbound.sqlite"));
         assert_eq!(paths.socket_file(), base.join("daemon.sock"));
         assert_eq!(paths.pid_file(), base.join("daemon.pid"));
+        assert_eq!(
+            paths.startup_status_file(),
+            base.join("startup-status.json")
+        );
         assert_eq!(paths.falco_socket_file(), base.join("falco.sock"));
         assert_eq!(paths.nagato_socket_file(), base.join("nagato.sock"));
         assert_eq!(paths.ably_socket_file(), base.join("ably.sock"));

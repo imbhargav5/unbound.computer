@@ -1,24 +1,24 @@
 //! Daemon state definition.
 
-use crate::ably::AblyTokenBrokerCacheHandle;
+use crate::ably::{AblyTokenBrokerCacheHandle, AblyTokenBrokerRuntime};
 use crate::app::sidecar_logs::SidecarLogTask;
 use crate::armin_adapter::DaemonArmin;
 use crate::remote_command_handler::idempotency::IdempotencyStore;
 use crate::utils::SessionSecretCache;
+use auth_engine::{DaemonAuthRuntime, SupabaseClient};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::SubscriptionManager;
 use daemon_storage::SecretsManager;
-use safe_file_ops::SafeFileOps;
 use message_sync_retriable_worker::MessageSyncWorker;
 use message_sync_retriable_worker::SessionSyncService;
+use safe_file_ops::SafeFileOps;
+use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, SessionSyncSink};
 use std::collections::HashMap;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::task::JoinHandle as TokioJoinHandle;
-use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, SessionSyncSink};
-use auth_engine::{DaemonAuthRuntime, SupabaseClient};
 
 /// Cached billing usage-status snapshot for relaxed local quota enforcement.
 #[derive(Debug, Clone)]
@@ -42,6 +42,15 @@ pub struct BillingQuotaSnapshot {
 pub struct BillingQuotaCacheState {
     pub snapshot: Option<BillingQuotaSnapshot>,
     pub refresh_in_flight: bool,
+}
+
+/// Mutable Ably broker runtime state that can be installed after socket readiness.
+#[derive(Default)]
+pub struct ManagedAblyBrokerState {
+    pub falco_token: String,
+    pub nagato_token: String,
+    pub cache_handle: Option<AblyTokenBrokerCacheHandle>,
+    pub runtime: Option<AblyTokenBrokerRuntime>,
 }
 
 /// Shared daemon state (thread-safe).
@@ -106,12 +115,8 @@ pub struct DaemonState {
     pub sidecar_supervisor_task: Arc<Mutex<Option<TokioJoinHandle<()>>>>,
     /// Serializes sidecar start/stop/restart transitions across login and supervisor flows.
     pub sidecar_lifecycle_lock: Arc<TokioMutex<()>>,
-    /// Token used by Nagato sidecar when requesting Ably token details.
-    pub ably_broker_nagato_token: String,
-    /// Token used by Falco sidecar when requesting Ably token details.
-    pub ably_broker_falco_token: String,
-    /// Handle for clearing broker token cache on auth transitions (e.g. logout).
-    pub ably_broker_cache: AblyTokenBrokerCacheHandle,
+    /// Lazily installed Ably token broker runtime and sidecar credentials.
+    pub ably_broker: Arc<TokioMutex<ManagedAblyBrokerState>>,
     /// Armin session engine for fast in-memory message reads.
     /// Provides snapshot, delta, and live subscription views.
     /// Uses UUID-based session IDs directly - no mapping needed.

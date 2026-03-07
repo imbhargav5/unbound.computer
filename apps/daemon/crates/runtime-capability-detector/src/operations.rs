@@ -19,20 +19,25 @@ const DEPENDENCY_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 ///
 /// Runs `/bin/zsh -l -c "which <name>"` to resolve the dependency path
 /// through the user's login shell (picking up PATH from .zprofile/.zshrc).
-pub async fn check_dependency(name: &str) -> Result<DependencyInfo, RuntimeCapabilityDetectorError> {
+pub async fn check_dependency(
+    name: &str,
+) -> Result<DependencyInfo, RuntimeCapabilityDetectorError> {
     debug!("Checking dependency: {}", name);
 
-    let output = match run_login_shell_with_timeout(&format!("which {}", name), DEPENDENCY_CHECK_TIMEOUT).await {
-        Ok(output) => output,
-        Err(error) => {
-            debug!("Dependency '{}' check failed: {}", name, error);
-            return Ok(DependencyInfo {
-                name: name.to_string(),
-                installed: false,
-                path: None,
-            });
-        }
-    };
+    let output =
+        match run_login_shell_with_timeout(&format!("which {}", name), DEPENDENCY_CHECK_TIMEOUT)
+            .await
+        {
+            Ok(output) => output,
+            Err(error) => {
+                debug!("Dependency '{}' check failed: {}", name, error);
+                return Ok(DependencyInfo {
+                    name: name.to_string(),
+                    installed: false,
+                    path: None,
+                });
+            }
+        };
 
     let installed = output.status.success();
     let path = if installed {
@@ -126,7 +131,9 @@ async fn read_claude_models() -> Option<Vec<String>> {
 }
 
 async fn try_claude_models_json() -> Option<Vec<String>> {
-    let output = run_login_shell_with_timeout("claude models --json", DEPENDENCY_CHECK_TIMEOUT).await.ok()?;
+    let output = run_login_shell_with_timeout("claude models --json", DEPENDENCY_CHECK_TIMEOUT)
+        .await
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -166,7 +173,9 @@ async fn try_claude_models_json() -> Option<Vec<String>> {
 }
 
 async fn try_claude_models_text() -> Option<Vec<String>> {
-    let output = run_login_shell_with_timeout("claude models", DEPENDENCY_CHECK_TIMEOUT).await.ok()?;
+    let output = run_login_shell_with_timeout("claude models", DEPENDENCY_CHECK_TIMEOUT)
+        .await
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -198,7 +207,9 @@ async fn try_claude_models_text() -> Option<Vec<String>> {
     normalize_models(models)
 }
 
-async fn run_login_shell(command: &str) -> Result<std::process::Output, RuntimeCapabilityDetectorError> {
+async fn run_login_shell(
+    command: &str,
+) -> Result<std::process::Output, RuntimeCapabilityDetectorError> {
     Ok(tokio::process::Command::new(login_shell())
         .args(["-l", "-c", command])
         .output()

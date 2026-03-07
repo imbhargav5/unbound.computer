@@ -7,10 +7,18 @@
 //  Uses non-blocking initialization to show UI immediately.
 //
 
+import AppKit
 import SwiftUI
 import Logging
 
 private let logger = Logger(label: "app.main")
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        TracingService.shutdown()
+        _ = LoggingService.flush()
+    }
+}
 
 private enum AppRuntime {
     static var isPreview: Bool {
@@ -45,6 +53,7 @@ enum InitializationState: Equatable {
 
 @main
 struct unbound_macosApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var initializationState: InitializationState = .loading(message: "Starting...", progress: 0)
     @State private var appState: AppState?
 

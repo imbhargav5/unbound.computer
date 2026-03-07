@@ -1,4 +1,5 @@
 mod dev;
+mod otel_logs;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -6,12 +7,16 @@ use std::sync::OnceLock;
 
 use dev::{default_log_path, WriterFactory};
 use opentelemetry::global;
+use opentelemetry::logs::LoggerProvider as _;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
+use opentelemetry_otlp::LogExporter;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::{runtime, trace, Resource};
+use otel_logs::OtlpLogLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -74,6 +79,7 @@ pub struct LogConfig {
 }
 
 static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
+static LOGGER_PROVIDER: OnceLock<SdkLoggerProvider> = OnceLock::new();
 
 impl Default for LogConfig {
     fn default() -> Self {
@@ -103,7 +109,10 @@ pub fn init_with_config(config: LogConfig) {
         Some(otlp) => {
             let t = init_otel_tracer(&config, otlp);
             if t.is_some() {
-                eprintln!("[observability] OTLP tracer initialized, endpoint={}", otlp.endpoint);
+                eprintln!(
+                    "[observability] OTLP tracer initialized, endpoint={}",
+                    otlp.endpoint
+                );
             } else {
                 eprintln!("[observability] OTLP tracer FAILED to initialize");
             }
@@ -116,13 +125,32 @@ pub fn init_with_config(config: LogConfig) {
             None
         }
     };
+    let otel_log_layer = match config.otlp.as_ref() {
+        Some(otlp) => {
+            let layer = init_otel_log_layer(&config, otlp);
+            if layer.is_some() {
+                eprintln!(
+                    "[observability] OTLP log exporter initialized, endpoint={}",
+                    otlp.endpoint
+                );
+            } else {
+                eprintln!("[observability] OTLP log exporter FAILED to initialize");
+            }
+            layer
+        }
+        None => None,
+    };
 
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.default_level));
 
     match config.mode {
-        ObservabilityMode::DevVerbose => init_dev_subscriber(config, env_filter, tracer),
-        ObservabilityMode::ProdLight => init_prod_subscriber(config, env_filter, tracer),
+        ObservabilityMode::DevVerbose => {
+            init_dev_subscriber(config, env_filter, tracer, otel_log_layer)
+        }
+        ObservabilityMode::ProdLight => {
+            init_prod_subscriber(config, env_filter, tracer, otel_log_layer)
+        }
     }
 }
 
@@ -130,10 +158,18 @@ fn init_dev_subscriber(
     config: LogConfig,
     env_filter: EnvFilter,
     tracer: Option<opentelemetry_sdk::trace::Tracer>,
+    otel_log_layer: Option<OtlpLogLayer>,
 ) {
     let log_path = config.log_path.clone().unwrap_or_else(default_log_path);
     let writer_factory = WriterFactory::new(&log_path)
         .unwrap_or_else(|e| panic!("failed to initialize log writer at {:?}: {}", log_path, e));
+    let otlp_traces_enabled = tracer.is_some();
+    let otlp_logs_enabled = otel_log_layer.is_some();
+    let otlp_endpoint = config
+        .otlp
+        .as_ref()
+        .map(|otlp| otlp.endpoint.as_str())
+        .unwrap_or("");
 
     let make_file_json_layer = || {
         fmt::layer()
@@ -159,6 +195,7 @@ fn init_dev_subscriber(
                         .with_line_number(true)
                         .with_writer(std::io::stderr),
                 )
+                .with(otel_log_layer.clone())
                 .with(tracing_opentelemetry::layer().with_tracer(tracer))
                 .try_init();
         }
@@ -176,6 +213,7 @@ fn init_dev_subscriber(
                         .with_span_list(true)
                         .with_writer(std::io::stderr),
                 )
+                .with(otel_log_layer.clone())
                 .with(tracing_opentelemetry::layer().with_tracer(tracer))
                 .try_init();
         }
@@ -183,6 +221,7 @@ fn init_dev_subscriber(
             let _ = tracing_subscriber::registry()
                 .with(env_filter.clone())
                 .with(make_file_json_layer())
+                .with(otel_log_layer.clone())
                 .with(tracing_opentelemetry::layer().with_tracer(tracer))
                 .try_init();
         }
@@ -198,6 +237,7 @@ fn init_dev_subscriber(
                         .with_line_number(true)
                         .with_writer(std::io::stderr),
                 )
+                .with(otel_log_layer.clone())
                 .try_init();
         }
         (None, true, LogFormat::Json) => {
@@ -214,12 +254,14 @@ fn init_dev_subscriber(
                         .with_span_list(true)
                         .with_writer(std::io::stderr),
                 )
+                .with(otel_log_layer.clone())
                 .try_init();
         }
         (None, false, _) => {
             let _ = tracing_subscriber::registry()
                 .with(env_filter)
                 .with(make_file_json_layer())
+                .with(otel_log_layer)
                 .try_init();
         }
     }
@@ -227,15 +269,26 @@ fn init_dev_subscriber(
     tracing::info!(
         log_path = %log_path.display(),
         mode = "dev_verbose",
+        otlp_traces_enabled,
+        otlp_logs_enabled,
+        otlp_endpoint,
         "observability initialized"
     );
 }
 
 fn init_prod_subscriber(
-    _config: LogConfig,
+    config: LogConfig,
     env_filter: EnvFilter,
     tracer: Option<opentelemetry_sdk::trace::Tracer>,
+    otel_log_layer: Option<OtlpLogLayer>,
 ) {
+    let otlp_traces_enabled = tracer.is_some();
+    let otlp_logs_enabled = otel_log_layer.is_some();
+    let otlp_endpoint = config
+        .otlp
+        .as_ref()
+        .map(|otlp| otlp.endpoint.as_str())
+        .unwrap_or("");
     let make_prod_layer = || {
         fmt::layer()
             .json()
@@ -252,6 +305,7 @@ fn init_prod_subscriber(
             let _ = tracing_subscriber::registry()
                 .with(env_filter.clone())
                 .with(make_prod_layer())
+                .with(otel_log_layer)
                 .with(tracing_opentelemetry::layer().with_tracer(tracer))
                 .try_init();
         }
@@ -259,39 +313,33 @@ fn init_prod_subscriber(
             let _ = tracing_subscriber::registry()
                 .with(env_filter)
                 .with(make_prod_layer())
+                .with(otel_log_layer)
                 .try_init();
         }
     }
 
-    tracing::info!(mode = "prod_light", "observability initialized");
+    tracing::info!(
+        mode = "prod_light",
+        otlp_traces_enabled,
+        otlp_logs_enabled,
+        otlp_endpoint,
+        "observability initialized"
+    );
 }
 
-fn init_otel_tracer(config: &LogConfig, otlp: &OtlpConfig) -> Option<opentelemetry_sdk::trace::Tracer> {
+fn init_otel_tracer(
+    config: &LogConfig,
+    otlp: &OtlpConfig,
+) -> Option<opentelemetry_sdk::trace::Tracer> {
     let sampler = match otlp.sampler {
         OtlpSampler::AlwaysOn => trace::Sampler::AlwaysOn,
-        OtlpSampler::ParentBasedTraceIdRatio => {
-            trace::Sampler::ParentBased(Box::new(trace::Sampler::TraceIdRatioBased(
-                otlp.sampler_arg.clamp(0.0, 1.0),
-            )))
-        }
+        OtlpSampler::ParentBasedTraceIdRatio => trace::Sampler::ParentBased(Box::new(
+            trace::Sampler::TraceIdRatioBased(otlp.sampler_arg.clamp(0.0, 1.0)),
+        )),
     };
 
-    let resource = Resource::builder()
-        .with_attributes(vec![
-            KeyValue::new("service.name", config.service_name.clone()),
-            KeyValue::new("deployment.environment", config.environment.clone()),
-            KeyValue::new("service.namespace", "unbound"),
-            KeyValue::new("telemetry.sdk.language", "rust"),
-        ])
-        .build();
-
-    // The async batch processor doesn't auto-append /v1/traces,
-    // so ensure the endpoint includes the signal path.
-    let endpoint = if otlp.endpoint.ends_with("/v1/traces") {
-        otlp.endpoint.clone()
-    } else {
-        format!("{}/v1/traces", otlp.endpoint.trim_end_matches('/'))
-    };
+    let resource = build_resource(config);
+    let endpoint = otlp_signal_endpoint(&otlp.endpoint, "traces");
 
     let http_client = reqwest::Client::new();
     let mut exporter_builder = opentelemetry_otlp::SpanExporter::builder()
@@ -326,7 +374,69 @@ fn init_otel_tracer(config: &LogConfig, otlp: &OtlpConfig) -> Option<opentelemet
     Some(provider.tracer(config.service_name.clone()))
 }
 
+fn init_otel_log_layer(config: &LogConfig, otlp: &OtlpConfig) -> Option<OtlpLogLayer> {
+    let resource = build_resource(config);
+    let endpoint = otlp_signal_endpoint(&otlp.endpoint, "logs");
+
+    let http_client = reqwest::Client::new();
+    let mut exporter_builder = LogExporter::builder()
+        .with_http()
+        .with_http_client(http_client)
+        .with_protocol(Protocol::HttpBinary)
+        .with_endpoint(endpoint);
+
+    if !otlp.headers.is_empty() {
+        exporter_builder = exporter_builder.with_headers(otlp.headers.clone());
+    }
+
+    let exporter = match exporter_builder.build() {
+        Ok(exporter) => exporter,
+        Err(err) => {
+            eprintln!("failed to build OTLP log exporter: {err}");
+            return None;
+        }
+    };
+
+    let provider = SdkLoggerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(resource)
+        .build();
+
+    let _ = LOGGER_PROVIDER.set(provider.clone());
+
+    Some(OtlpLogLayer::new(
+        provider.logger(config.service_name.clone()),
+    ))
+}
+
+fn build_resource(config: &LogConfig) -> Resource {
+    Resource::builder()
+        .with_attributes(vec![
+            KeyValue::new("service.name", config.service_name.clone()),
+            KeyValue::new("deployment.environment", config.environment.clone()),
+            KeyValue::new("service.namespace", "unbound"),
+            KeyValue::new("telemetry.sdk.language", "rust"),
+        ])
+        .build()
+}
+
+fn otlp_signal_endpoint(endpoint: &str, signal: &str) -> String {
+    let trimmed = endpoint.trim_end_matches('/');
+    for known_signal in ["traces", "logs", "metrics"] {
+        let suffix = format!("/v1/{known_signal}");
+        if let Some(base) = trimmed.strip_suffix(&suffix) {
+            return format!("{base}/v1/{signal}");
+        }
+    }
+
+    format!("{trimmed}/v1/{signal}")
+}
+
 pub fn shutdown() {
+    if let Some(provider) = LOGGER_PROVIDER.get() {
+        let _ = provider.force_flush();
+        let _ = provider.shutdown();
+    }
     if let Some(provider) = TRACER_PROVIDER.get() {
         let _ = provider.force_flush();
         let _ = provider.shutdown();
@@ -355,5 +465,21 @@ mod tests {
         assert_eq!(cfg.endpoint, "http://localhost:4318");
         assert_eq!(cfg.sampler, OtlpSampler::AlwaysOn);
         assert_eq!(cfg.sampler_arg, 1.0);
+    }
+
+    #[test]
+    fn signal_endpoint_rewrites_existing_signal_paths() {
+        assert_eq!(
+            otlp_signal_endpoint("http://localhost:4318/v1/traces", "logs"),
+            "http://localhost:4318/v1/logs"
+        );
+        assert_eq!(
+            otlp_signal_endpoint("http://localhost:4318/v1/logs", "traces"),
+            "http://localhost:4318/v1/traces"
+        );
+        assert_eq!(
+            otlp_signal_endpoint("http://localhost:4318", "logs"),
+            "http://localhost:4318/v1/logs"
+        );
     }
 }

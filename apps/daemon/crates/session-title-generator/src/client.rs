@@ -70,7 +70,8 @@ impl GroqClient {
     /// # Errors
     /// Returns `SessionTitleGeneratorError::MissingApiKey` if the environment variable is not set.
     pub fn from_env() -> SessionTitleGeneratorResult<Self> {
-        let api_key = std::env::var("GROQ_API_KEY").map_err(|_| SessionTitleGeneratorError::MissingApiKey)?;
+        let api_key =
+            std::env::var("GROQ_API_KEY").map_err(|_| SessionTitleGeneratorError::MissingApiKey)?;
         Ok(Self::new(api_key))
     }
 
@@ -84,7 +85,10 @@ impl GroqClient {
     ///
     /// # Returns
     /// A short title (typically 3-8 words) describing the session topic.
-    pub async fn generate_session_title(&self, first_message: &str) -> SessionTitleGeneratorResult<String> {
+    pub async fn generate_session_title(
+        &self,
+        first_message: &str,
+    ) -> SessionTitleGeneratorResult<String> {
         let system_prompt = include_str!("system_prompt.txt");
 
         let request = ChatCompletionRequest {
@@ -131,7 +135,9 @@ impl GroqClient {
             .choices
             .first()
             .map(|c| c.message.content.trim().to_string())
-            .ok_or_else(|| SessionTitleGeneratorError::InvalidResponse("No choices in response".to_string()))?;
+            .ok_or_else(|| {
+                SessionTitleGeneratorError::InvalidResponse("No choices in response".to_string())
+            })?;
 
         tracing::info!(title = %title, "Generated session title");
 
@@ -174,7 +180,10 @@ mod tests {
 
         let result = GroqClient::from_env();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SessionTitleGeneratorError::MissingApiKey));
+        assert!(matches!(
+            result.unwrap_err(),
+            SessionTitleGeneratorError::MissingApiKey
+        ));
 
         // Restore the original value if it existed
         if let Some(key) = original {

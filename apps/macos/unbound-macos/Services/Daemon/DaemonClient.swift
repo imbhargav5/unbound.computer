@@ -10,6 +10,7 @@
 import Foundation
 import Logging
 import Network
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.daemon")
 
@@ -253,35 +254,73 @@ final class DaemonClient {
             try await connect()
         }
 
-        let request = DaemonRequest(method: method, params: params)
-        let jsonLine = try request.toJsonLine()
+        let sessionId = params?["session_id"] as? String
+        let requestId = UUID().uuidString
 
-        logger.debug("Sending request: \(method.rawValue) id=\(request.id)")
+        let response = try await TracingService.withClientSpan(
+            method: method.rawValue,
+            requestId: requestId,
+            sessionId: sessionId
+        ) { requestSpan, requestContext in
+            let request = DaemonRequest(
+                id: requestId,
+                method: method,
+                params: params,
+                context: requestContext
+            )
+            let jsonLine = try request.toJsonLine()
+            let requestMetadata = TracingService.metadata(
+                requestId: request.id,
+                sessionId: sessionId,
+                span: requestSpan
+            )
 
-        // Register pending request
-        let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DaemonResponse, Error>) in
-            requestLock.lock()
-            pendingRequests[request.id] = continuation
-            requestLock.unlock()
+            logger.debug("Sending request \(method.rawValue)", metadata: requestMetadata)
 
-            // Send the request
-            guard let data = jsonLine.data(using: .utf8) else {
+            // Register pending request
+            let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DaemonResponse, Error>) in
                 requestLock.lock()
-                pendingRequests.removeValue(forKey: request.id)
+                pendingRequests[request.id] = continuation
                 requestLock.unlock()
-                continuation.resume(throwing: DaemonError.encodingFailed)
-                return
+
+                // Send the request
+                guard let data = jsonLine.data(using: .utf8) else {
+                    requestLock.lock()
+                    pendingRequests.removeValue(forKey: request.id)
+                    requestLock.unlock()
+                    continuation.resume(throwing: DaemonError.encodingFailed)
+                    return
+                }
+
+                connection?.send(content: data, completion: .contentProcessed { [weak self] error in
+                    if let error {
+                        logger.error("Send failed: \(error)", metadata: requestMetadata)
+                        self?.requestLock.lock()
+                        self?.pendingRequests.removeValue(forKey: request.id)
+                        self?.requestLock.unlock()
+                        continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
+                    }
+                })
             }
 
-            connection?.send(content: data, completion: .contentProcessed { [weak self] error in
-                if let error {
-                    logger.error("Send failed: \(error)")
-                    self?.requestLock.lock()
-                    self?.pendingRequests.removeValue(forKey: request.id)
-                    self?.requestLock.unlock()
-                    continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
+            return TracingService.withChildSpan(
+                name: "ipc.response.receive",
+                requestId: request.id,
+                sessionId: sessionId
+            ) { receiveSpan in
+                let metadata = TracingService.metadata(
+                    requestId: request.id,
+                    sessionId: sessionId,
+                    span: receiveSpan
+                )
+                logger.debug("Received response \(method.rawValue)", metadata: metadata)
+
+                if let error = response.error {
+                    receiveSpan.status = .error(description: error.message)
                 }
-            })
+
+                return response
+            }
         }
 
         // Check for errors
@@ -387,13 +426,19 @@ final class DaemonClient {
         requestLock.lock()
         if let continuation = pendingRequests.removeValue(forKey: response.id) {
             requestLock.unlock()
-            logger.debug("Received response for request \(response.id)")
+            logger.debug(
+                "Received response for request \(response.id)",
+                metadata: ["request_id": .string(response.id)]
+            )
             continuation.resume(returning: response)
             return
         }
         requestLock.unlock()
 
-        logger.warning("Unmatched response id=\(id): \(line.prefix(100))")
+        logger.warning(
+            "Unmatched response id=\(id): \(line.prefix(100))",
+            metadata: ["request_id": .string(id)]
+        )
     }
 
     // MARK: - Reconnection

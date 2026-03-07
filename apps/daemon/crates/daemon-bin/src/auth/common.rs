@@ -1,5 +1,6 @@
 //! Shared auth side effects for daemon state updates.
 
+use crate::ably::start_ably_token_broker;
 use crate::app::ably_sidecar::{ensure_daemon_ably_socket_connectable, start_daemon_ably_sidecar};
 use crate::app::falco_sidecar::{ensure_socket_connectable, start_falco_sidecar, terminate_child};
 use crate::app::nagato_sidecar::start_nagato_sidecar;
@@ -8,13 +9,13 @@ use crate::app::sidecar_logs::{
 };
 use crate::app::DaemonState;
 use agent_session_sqlite_persist_core::{CodingSessionStatus, SessionId, SessionWriter};
+use auth_engine::AuthLoginResult;
+use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use session_sync_sink::{AblyRealtimeSyncer, AblyRuntimeStatusSyncer, AblySyncConfig, SyncContext};
 use tracing::{debug, info, warn};
-use auth_engine::AuthLoginResult;
 
 const DAEMON_PRESENCE_EVENT: &str = "daemon.presence.v1";
 
@@ -142,6 +143,11 @@ pub async fn reconcile_sidecars_with_auth(state: &DaemonState) -> bool {
 async fn ensure_sidecars_for_session(state: &DaemonState, user_id: &str, device_id: &str) -> bool {
     let _lifecycle_guard = state.sidecar_lifecycle_lock.lock().await;
 
+    let broker_ready = ensure_ably_broker_started_locked(state).await;
+    if !broker_ready {
+        return false;
+    }
+
     let daemon_ably_ready = ensure_daemon_ably_started_locked(state, user_id, device_id).await;
     if !daemon_ably_ready {
         return false;
@@ -150,6 +156,41 @@ async fn ensure_sidecars_for_session(state: &DaemonState, user_id: &str, device_
     let nagato_ready = ensure_nagato_ingress_started_locked(state, device_id).await;
     let realtime_ready = ensure_realtime_sync_started_locked(state, device_id).await;
     nagato_ready && realtime_ready
+}
+
+async fn ensure_ably_broker_started_locked(state: &DaemonState) -> bool {
+    {
+        let broker = state.ably_broker.lock().await;
+        if broker.runtime.is_some()
+            && broker.cache_handle.is_some()
+            && !broker.falco_token.is_empty()
+            && !broker.nagato_token.is_empty()
+        {
+            return true;
+        }
+    }
+
+    match start_ably_token_broker(
+        state.paths.ably_auth_socket_file(),
+        state.auth_runtime.clone(),
+        state.config.web_app_url.clone(),
+    )
+    .await
+    {
+        Ok(runtime) => {
+            let mut broker = state.ably_broker.lock().await;
+            broker.falco_token = runtime.falco_token.clone();
+            broker.nagato_token = runtime.nagato_token.clone();
+            broker.cache_handle = Some(runtime.cache_handle.clone());
+            broker.runtime = Some(runtime);
+            info!("Started local Ably token broker");
+            true
+        }
+        Err(err) => {
+            warn!(error = %err, "Failed to start local Ably token broker");
+            false
+        }
+    }
 }
 
 async fn ensure_realtime_sync_started_locked(state: &DaemonState, device_id: &str) -> bool {
@@ -399,7 +440,16 @@ async fn ensure_daemon_ably_started_locked(
     user_id: &str,
     device_id: &str,
 ) -> bool {
-    if state.ably_broker_falco_token.is_empty() || state.ably_broker_nagato_token.is_empty() {
+    let (falco_broker_token, nagato_broker_token, broker_cache_handle) = {
+        let broker = state.ably_broker.lock().await;
+        (
+            broker.falco_token.clone(),
+            broker.nagato_token.clone(),
+            broker.cache_handle.clone(),
+        )
+    };
+
+    if falco_broker_token.is_empty() || nagato_broker_token.is_empty() {
         warn!("Ably broker tokens missing; daemon-ably sidecar remains disabled");
         return false;
     }
@@ -471,8 +521,10 @@ async fn ensure_daemon_ably_started_locked(
     }
 
     if should_start {
-        state.ably_broker_cache.clear().await;
-        debug!("Cleared Ably broker token cache before daemon-ably restart");
+        if let Some(cache_handle) = broker_cache_handle {
+            cache_handle.clear().await;
+            debug!("Cleared Ably broker token cache before daemon-ably restart");
+        }
         info!(
             runtime = "sidecar",
             component = "sidecar.daemon-ably",
@@ -498,8 +550,8 @@ async fn ensure_daemon_ably_started_locked(
             state.config.as_ref(),
             user_id,
             device_id,
-            &state.ably_broker_falco_token,
-            &state.ably_broker_nagato_token,
+            &falco_broker_token,
+            &nagato_broker_token,
             &state.config.log_level,
             Duration::from_secs(5),
             "supervisor",
@@ -594,8 +646,14 @@ async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: b
     }
 
     if clear_broker_cache {
-        state.ably_broker_cache.clear().await;
-        info!("Stopped Ably sidecars and cleared broker cache after logout");
+        let cache_handle = {
+            let broker = state.ably_broker.lock().await;
+            broker.cache_handle.clone()
+        };
+        if let Some(cache_handle) = cache_handle {
+            cache_handle.clear().await;
+            info!("Stopped Ably sidecars and cleared broker cache after logout");
+        }
     }
 }
 

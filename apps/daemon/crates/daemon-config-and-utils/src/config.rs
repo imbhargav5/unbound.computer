@@ -347,7 +347,10 @@ mod tests {
         assert!(config.otel_headers.is_none());
         assert_eq!(config.otel_sampler, DEFAULT_OTEL_SAMPLER);
         assert_eq!(config.otel_sampler_arg, DEFAULT_OTEL_SAMPLER_ARG);
-        assert_eq!(config.web_app_url, normalize_web_app_url(DEFAULT_WEB_APP_URL));
+        assert_eq!(
+            config.web_app_url,
+            normalize_web_app_url(DEFAULT_WEB_APP_URL)
+        );
     }
 
     #[test]
@@ -435,8 +438,14 @@ mod tests {
 
     #[test]
     fn test_normalize_web_app_url() {
-        assert_eq!(normalize_web_app_url("https://example.com/"), "https://example.com");
-        assert_eq!(normalize_web_app_url("  https://example.com  "), "https://example.com");
+        assert_eq!(
+            normalize_web_app_url("https://example.com/"),
+            "https://example.com"
+        );
+        assert_eq!(
+            normalize_web_app_url("  https://example.com  "),
+            "https://example.com"
+        );
         assert_eq!(normalize_web_app_url(""), "http://localhost:3000");
         assert_eq!(normalize_web_app_url("  "), "http://localhost:3000");
     }

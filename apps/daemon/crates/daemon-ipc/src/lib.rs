@@ -9,5 +9,7 @@ mod error;
 mod server;
 
 pub use error::{IpcError, IpcResult};
-pub use ipc_protocol_types::{error_codes, Event, EventType, Method, Request, Response};
+pub use ipc_protocol_types::{
+    error_codes, Event, EventType, Method, Request, Response, TraceContext,
+};
 pub use server::{IpcClient, IpcServer, StreamingSubscription, SubscriptionManager};

@@ -5,8 +5,9 @@ mod app;
 mod armin_adapter;
 mod auth;
 mod ipc;
-mod remote_command_handler;
 mod machines;
+mod observability;
+mod remote_command_handler;
 mod types;
 mod utils;
 
@@ -51,14 +52,15 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    init_logging(&cli.log_level);
-
-    // Load configuration
     let paths = match cli.base_dir {
         Some(base) => Paths::with_base_dir(base),
         None => Paths::new()?,
     };
+
+    // Initialize logging before any async startup work so early failures are captured.
+    init_logging(&cli.log_level, Some(paths.logs_dir().join("dev.jsonl")));
+
+    // Load configuration
     let config = Config::load(&paths)?;
 
     match cli.command {

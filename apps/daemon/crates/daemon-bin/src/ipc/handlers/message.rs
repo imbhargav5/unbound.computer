@@ -38,10 +38,10 @@ async fn register_message_list(server: &IpcServer, state: DaemonState) {
                     let _span = info_span!("armin.snapshot").entered();
                     armin.snapshot()
                 };
-                let snapshot_msgs: &[agent_session_sqlite_persist_core::Message] =
-                    snapshot.session(&armin_session_id)
-                        .map(|s| s.messages())
-                        .unwrap_or(&[]);
+                let snapshot_msgs: &[agent_session_sqlite_persist_core::Message] = snapshot
+                    .session(&armin_session_id)
+                    .map(|s| s.messages())
+                    .unwrap_or(&[]);
 
                 // Build JSON directly into a pre-sized buffer.
                 // Delta messages are accessed by reference via closure (zero-copy).
@@ -49,8 +49,11 @@ async fn register_message_list(server: &IpcServer, state: DaemonState) {
                     let _span = info_span!("build_json").entered();
                     let session_id_json = serde_json::to_string(&session_id).unwrap();
                     let total = snapshot_msgs.len() + delta_msgs.len();
-                    let content_size: usize = snapshot_msgs.iter().chain(delta_msgs.iter())
-                        .map(|m| m.content.len()).sum();
+                    let content_size: usize = snapshot_msgs
+                        .iter()
+                        .chain(delta_msgs.iter())
+                        .map(|m| m.content.len())
+                        .sum();
 
                     tracing::debug!(message_count = total, "message.list complete");
 
@@ -62,7 +65,9 @@ async fn register_message_list(server: &IpcServer, state: DaemonState) {
 
                     let mut first = true;
                     for m in snapshot_msgs.iter().chain(delta_msgs.iter()) {
-                        if !first { buf.push(','); }
+                        if !first {
+                            buf.push(',');
+                        }
                         first = false;
                         buf.push_str(r#"{"id":""#);
                         buf.push_str(m.id.as_str());
@@ -71,7 +76,8 @@ async fn register_message_list(server: &IpcServer, state: DaemonState) {
                         buf.push_str(r#","content":"#);
                         // Content from Claude events is valid JSON — embed verbatim.
                         // Content from message.send is plain text — JSON-string-encode it.
-                        if serde_json::from_str::<&serde_json::value::RawValue>(&m.content).is_ok() {
+                        if serde_json::from_str::<&serde_json::value::RawValue>(&m.content).is_ok()
+                        {
                             buf.push_str(&m.content);
                         } else {
                             buf.push_str(&serde_json::to_string(&m.content).unwrap());

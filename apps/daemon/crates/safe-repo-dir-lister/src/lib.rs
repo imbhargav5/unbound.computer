@@ -95,7 +95,9 @@ pub fn list_dir(
     }
 
     // Canonicalize root to resolve symlinks and get an absolute path
-    let root_canon = root.canonicalize().map_err(|_| SafeRepoDirListerError::InvalidRoot)?;
+    let root_canon = root
+        .canonicalize()
+        .map_err(|_| SafeRepoDirListerError::InvalidRoot)?;
 
     // Build the target path by joining root with the relative path
     let target_path = if relative_path.is_empty() {

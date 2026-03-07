@@ -1,5 +1,6 @@
 //! Local Ably token broker for sidecars.
 
+use auth_engine::DaemonAuthRuntime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -14,7 +15,6 @@ use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
-use auth_engine::DaemonAuthRuntime;
 
 const CACHE_REFRESH_MARGIN_MS: i64 = 120_000;
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -325,7 +325,7 @@ impl BrokerState {
         let endpoint = format!("{}/api/v1/mobile/ably/token", self.web_app_url);
         let response = self
             .http_client
-            .post(endpoint)
+            .post(&endpoint)
             .bearer_auth(access_token)
             .json(&json!({
                 "deviceId": device_id,
@@ -333,16 +333,12 @@ impl BrokerState {
             }))
             .send()
             .await
-            .map_err(|err| format!("failed to request Ably token from web API: {}", err))?;
+            .map_err(|err| format_ably_token_transport_error(&endpoint, &err))?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!(
-                "Ably token API returned HTTP {}: {}",
-                status.as_u16(),
-                body
-            ));
+            return Err(format_ably_token_http_error(&endpoint, status, &body));
         }
 
         let payload: Value = response
@@ -458,10 +454,59 @@ fn is_cache_valid(expires_ms: Option<i64>, now_ms: i64) -> bool {
     }
 }
 
+fn format_ably_token_transport_error(endpoint: &str, error: &reqwest::Error) -> String {
+    let mut message = format!(
+        "failed to request Ably token from web API at {}: {}",
+        endpoint, error
+    );
+
+    if error.is_connect() && is_loopback_url(endpoint) {
+        message.push_str(
+            " (the broker is targeting a local web app; ensure apps/web is running on this URL or update API_URL/UNBOUND_WEB_APP_URL)",
+        );
+    }
+
+    message
+}
+
+fn format_ably_token_http_error(endpoint: &str, status: reqwest::StatusCode, body: &str) -> String {
+    let trimmed_body = body.trim();
+    let mut message = format!(
+        "Ably token API at {} returned HTTP {}",
+        endpoint,
+        status.as_u16()
+    );
+
+    if !trimmed_body.is_empty() {
+        message.push_str(": ");
+        message.push_str(trimmed_body);
+    }
+
+    if status == reqwest::StatusCode::NOT_FOUND && trimmed_body.contains("Cannot POST") {
+        message.push_str(
+            " (the configured web app URL is likely pointing at a server that does not expose this route; check API_URL/UNBOUND_WEB_APP_URL and ensure the target web app matches this repo)",
+        );
+    }
+
+    message
+}
+
+fn is_loopback_url(endpoint: &str) -> bool {
+    endpoint.starts_with("http://localhost:")
+        || endpoint.starts_with("https://localhost:")
+        || endpoint.starts_with("http://127.0.0.1:")
+        || endpoint.starts_with("https://127.0.0.1:")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_cache_valid, normalize_device_id, normalize_user_id, token_client_id_matches};
+    use super::{
+        format_ably_token_http_error, format_ably_token_transport_error, is_cache_valid,
+        normalize_device_id, normalize_user_id, token_client_id_matches,
+    };
+    use reqwest::StatusCode;
     use serde_json::json;
+    use std::time::Duration;
 
     #[test]
     fn normalize_device_id_lowercases_uuid() {
@@ -500,5 +545,42 @@ mod tests {
         assert!(token_client_id_matches(&matching, expected));
         assert!(!token_client_id_matches(&mismatched, expected));
         assert!(!token_client_id_matches(&missing, expected));
+    }
+
+    #[test]
+    fn http_404_error_mentions_endpoint_and_config_hint() {
+        let message = format_ably_token_http_error(
+            "http://localhost:3000/api/v1/mobile/ably/token",
+            StatusCode::NOT_FOUND,
+            "Cannot POST /api/v1/mobile/ably/token",
+        );
+
+        assert!(message.contains("http://localhost:3000/api/v1/mobile/ably/token"));
+        assert!(message.contains("HTTP 404"));
+        assert!(message.contains("API_URL/UNBOUND_WEB_APP_URL"));
+    }
+
+    #[test]
+    fn transport_error_mentions_endpoint() {
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        let error = runtime.block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_millis(50))
+                .build()
+                .expect("client");
+            client
+                .post("http://127.0.0.1:9/api/v1/mobile/ably/token")
+                .send()
+                .await
+                .expect_err("must fail")
+        });
+
+        let message = format_ably_token_transport_error(
+            "http://127.0.0.1:9/api/v1/mobile/ably/token",
+            &error,
+        );
+
+        assert!(message.contains("http://127.0.0.1:9/api/v1/mobile/ably/token"));
+        assert!(message.contains("API_URL/UNBOUND_WEB_APP_URL"));
     }
 }

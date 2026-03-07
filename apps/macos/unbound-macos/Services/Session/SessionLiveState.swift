@@ -588,76 +588,109 @@ class SessionLiveState {
     // MARK: - Private: Event Handling
 
     private func handleDaemonEvent(_ event: DaemonEvent) {
-        var shouldRebuildSnapshot = false
+        TracingService.withRemoteReceiveSpan(
+            name: "ipc.event.receive",
+            eventType: event.type.rawValue,
+            sessionId: event.sessionId,
+            remoteContext: event.context
+        ) { receiveSpan in
+            let receiveMetadata = TracingService.metadata(
+                sessionId: event.sessionId,
+                span: receiveSpan
+            )
+            var shouldRebuildSnapshot = false
 
-        switch event.type {
-        case .streamingChunk, .claudeStreaming:
-            if let content: String = event.dataValue(for: "content") ?? event.dataValue(for: "chunk") {
-                logger.debug("Received streaming chunk (\(content.count) chars) for session \(sessionId)")
-                mergeStreamingContent(with: content)
-                shouldRebuildSnapshot = true
-            }
-
-        case .message:
-            logger.info("Received message event for session \(sessionId)")
-            debouncedFetchMessages()
-
-        case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
-            // Claude events contain raw JSON that needs to be parsed
-            if let raw = event.rawClaudeEvent {
-                handleClaudeEvent(raw, sequence: event.sequence)
-            } else {
-                // For new event types, the data IS the parsed JSON already
-                // Convert AnyCodableValue map to plain values for serialization
-                var plainData: [String: Any] = [:]
-                for (key, value) in event.data {
-                    plainData[key] = value.value
+            switch event.type {
+            case .streamingChunk, .claudeStreaming:
+                if let content: String = event.dataValue(for: "content") ?? event.dataValue(for: "chunk") {
+                    logger.debug(
+                        "Received streaming chunk (\(content.count) chars) for session \(sessionId)",
+                        metadata: receiveMetadata
+                    )
+                    mergeStreamingContent(with: content)
+                    shouldRebuildSnapshot = true
                 }
 
-                // Check if this is an empty event or ping
-                if plainData.isEmpty {
-                    logger.debug("Received empty claude event data for session \(sessionId), type=\(event.type)")
-                    return
-                }
+            case .message:
+                logger.info("Received message event for session \(sessionId)", metadata: receiveMetadata)
+                debouncedFetchMessages()
 
-                do {
-                    let jsonData = try JSONSerialization.data(withJSONObject: plainData)
-                    if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        handleClaudeEvent(jsonString, sequence: event.sequence)
+            case .claudeEvent, .claudeSystem, .claudeAssistant, .claudeUser, .claudeResult:
+                // Claude events contain raw JSON that needs to be parsed
+                if let raw = event.rawClaudeEvent {
+                    handleClaudeEvent(raw, sequence: event.sequence)
+                } else {
+                    // For new event types, the data IS the parsed JSON already
+                    // Convert AnyCodableValue map to plain values for serialization
+                    var plainData: [String: Any] = [:]
+                    for (key, value) in event.data {
+                        plainData[key] = value.value
                     }
-                } catch {
-                    logger.warning("Failed to serialize claude event data for session \(sessionId): \(error.localizedDescription)")
+
+                    // Check if this is an empty event or ping
+                    if plainData.isEmpty {
+                        logger.debug(
+                            "Received empty claude event data for session \(sessionId), type=\(event.type)",
+                            metadata: receiveMetadata
+                        )
+                        return
+                    }
+
+                    do {
+                        let jsonData = try JSONSerialization.data(withJSONObject: plainData)
+                        if let jsonString = String(data: jsonData, encoding: .utf8) {
+                            handleClaudeEvent(jsonString, sequence: event.sequence)
+                        }
+                    } catch {
+                        logger.warning(
+                            "Failed to serialize claude event data for session \(sessionId): \(error.localizedDescription)",
+                            metadata: receiveMetadata
+                        )
+                    }
+                }
+                shouldRebuildSnapshot = true
+
+            case .statusChange:
+                if let runtimeStatus = event.runtimeStatusEnvelope {
+                    logger.info(
+                        "Received runtime status change: \(runtimeStatus.codingSession.status.rawValue) for session \(sessionId)",
+                        metadata: receiveMetadata
+                    )
+                    applyRuntimeStatus(runtimeStatus, source: "status_change")
+                    shouldRebuildSnapshot = true
+                }
+
+            case .terminalOutput, .terminalFinished:
+                logger.debug("Received terminal event for session \(sessionId)", metadata: receiveMetadata)
+
+            case .initialState:
+                logger.info("Received initial state for session \(sessionId)", metadata: receiveMetadata)
+                debouncedFetchMessages()
+                shouldRebuildSnapshot = true
+
+            case .ping:
+                break
+
+            case .authStateChanged, .sessionCreated, .sessionDeleted:
+                // Global events, not relevant for per-session state
+                break
+            }
+
+            if shouldRebuildSnapshot {
+                TracingService.withChildSpan(
+                    name: "ipc.event.render",
+                    sessionId: event.sessionId
+                ) { renderSpan in
+                    scheduleTimelineSnapshotRebuild(reason: "daemonEvent:\(event.type)")
+                    logger.debug(
+                        "Queued timeline rebuild for \(event.type.rawValue)",
+                        metadata: TracingService.metadata(
+                            sessionId: event.sessionId,
+                            span: renderSpan
+                        )
+                    )
                 }
             }
-            shouldRebuildSnapshot = true
-
-        case .statusChange:
-            if let runtimeStatus = event.runtimeStatusEnvelope {
-                logger.info(
-                    "Received runtime status change: \(runtimeStatus.codingSession.status.rawValue) for session \(sessionId)"
-                )
-                applyRuntimeStatus(runtimeStatus, source: "status_change")
-                shouldRebuildSnapshot = true
-            }
-
-        case .terminalOutput, .terminalFinished:
-            logger.debug("Received terminal event for session \(sessionId)")
-
-        case .initialState:
-            logger.info("Received initial state for session \(sessionId)")
-            debouncedFetchMessages()
-            shouldRebuildSnapshot = true
-
-        case .ping:
-            break
-
-        case .authStateChanged, .sessionCreated, .sessionDeleted:
-            // Global events, not relevant for per-session state
-            break
-        }
-
-        if shouldRebuildSnapshot {
-            scheduleTimelineSnapshotRebuild(reason: "daemonEvent:\(event.type)")
         }
     }
 

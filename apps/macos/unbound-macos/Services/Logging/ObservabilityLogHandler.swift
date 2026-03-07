@@ -25,6 +25,16 @@ private let observabilityProdAllowedFields: Set<String> = [
     "user_id_hash",
     "trace_id",
     "span_id",
+    "otlp_enabled",
+    "otlp_endpoint_source",
+    "otlp_base_url",
+    "otlp_logs_url",
+    "otlp_headers_present",
+    "otlp_header_count",
+    "observability_mode",
+    "observability_environment",
+    "observability_info_sample_rate",
+    "observability_debug_sample_rate",
     "app_version",
     "build_version",
     "os_version",
@@ -32,14 +42,15 @@ private let observabilityProdAllowedFields: Set<String> = [
 ]
 
 enum ObservabilityService {
+    private static let observabilityStatus = Config.resolvedObservabilityStatus
     private static let runtimeConfig: ObservabilityRuntimeConfig = {
         ObservabilityRuntimeConfig(
             runtime: "macos",
             service: "macos",
-            environment: Config.observabilityEnvironment,
-            mode: Config.observabilityMode,
-            infoSampleRate: Config.observabilityInfoSampleRate,
-            debugSampleRate: Config.observabilityDebugSampleRate,
+            environment: observabilityStatus.environment,
+            mode: observabilityStatus.mode,
+            infoSampleRate: observabilityStatus.infoSampleRate,
+            debugSampleRate: observabilityStatus.debugSampleRate,
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             buildVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             osVersion: "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
@@ -48,7 +59,7 @@ enum ObservabilityService {
 
     private static let payloadBuilder = ObservabilityPayloadBuilder(config: runtimeConfig)
     private static let otlpSink = ObservabilityOTLPSink(
-        endpoint: Config.otlpEndpoint,
+        endpoint: observabilityStatus.otlpBaseURL,
         headers: Config.otlpHeaders,
         config: runtimeConfig
     )
@@ -62,6 +73,10 @@ enum ObservabilityService {
             payloadBuilder: payloadBuilder,
             sink: otlpSink
         )
+    }
+
+    static func flush(timeout: TimeInterval) -> Bool {
+        otlpSink?.flush(timeout: timeout) ?? true
     }
 }
 
@@ -333,9 +348,15 @@ final class ObservabilityOTLPSink {
     private let headers: [String: String]
     private let resourceAttributes: [[String: Any]]
     private let session: URLSession
+    private let diagnosticHandler: (String) -> Void
+    private let currentDate: () -> Date
+    private let diagnosticMinimumInterval: TimeInterval
     private let queue = DispatchQueue(label: "com.unbound.macos.observability.otlp", qos: .utility)
     private var buffer: [OTLPLogRecord] = []
     private var flushTimer: DispatchSourceTimer?
+    private var inFlightFlushes: [UUID: DispatchGroup] = [:]
+    private var lastDiagnosticSignature: String?
+    private var lastDiagnosticAt: Date?
 
     private static let maxBatchSize = 100
     private static let flushIntervalSeconds: Double = 5.0
@@ -343,25 +364,23 @@ final class ObservabilityOTLPSink {
     init?(
         endpoint: URL?,
         headers: [String: String],
-        config: ObservabilityRuntimeConfig
+        config: ObservabilityRuntimeConfig,
+        session: URLSession? = nil,
+        diagnosticHandler: ((String) -> Void)? = nil,
+        currentDate: @escaping () -> Date = Date.init,
+        diagnosticMinimumInterval: TimeInterval = 30.0
     ) {
         guard let endpoint else { return nil }
+        guard let logsURL = Config.normalizedOTLPLogsURL(from: endpoint) else { return nil }
 
-        let base = endpoint.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if base.hasSuffix("/v1/logs") {
-            self.endpoint = endpoint
-        } else {
-            guard let logsURL = URL(string: "\(base)/v1/logs") else { return nil }
-            self.endpoint = logsURL
-        }
+        self.endpoint = logsURL
 
         self.headers = headers
         self.resourceAttributes = Self.buildResourceAttributes(config: config)
-
-        let urlConfig = URLSessionConfiguration.ephemeral
-        urlConfig.timeoutIntervalForRequest = 10
-        urlConfig.timeoutIntervalForResource = 15
-        self.session = URLSession(configuration: urlConfig)
+        self.session = session ?? Self.makeDefaultSession()
+        self.diagnosticHandler = diagnosticHandler ?? Self.defaultDiagnosticHandler
+        self.currentDate = currentDate
+        self.diagnosticMinimumInterval = diagnosticMinimumInterval
 
         startFlushTimer()
     }
@@ -371,15 +390,27 @@ final class ObservabilityOTLPSink {
             guard let self else { return }
             self.buffer.append(record)
             if self.buffer.count >= Self.maxBatchSize {
-                self.performFlush()
+                self.performFlushLocked()
             }
         }
     }
 
-    func flush() {
-        queue.async { [weak self] in
-            self?.performFlush()
+    @discardableResult
+    func flush(timeout: TimeInterval = 2.0) -> Bool {
+        let waitGroup = DispatchGroup()
+
+        queue.sync {
+            performFlushLocked()
+
+            for group in inFlightFlushes.values {
+                waitGroup.enter()
+                group.notify(queue: queue) {
+                    waitGroup.leave()
+                }
+            }
         }
+
+        return waitGroup.wait(timeout: .now() + timeout) == .success
     }
 
     private func startFlushTimer() {
@@ -389,13 +420,13 @@ final class ObservabilityOTLPSink {
             repeating: Self.flushIntervalSeconds
         )
         timer.setEventHandler { [weak self] in
-            self?.performFlush()
+            self?.performFlushLocked()
         }
         timer.resume()
         flushTimer = timer
     }
 
-    private func performFlush() {
+    private func performFlushLocked() {
         guard !buffer.isEmpty else { return }
         let records = buffer
         buffer = []
@@ -421,7 +452,13 @@ final class ObservabilityOTLPSink {
             ]]
         ]
 
-        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            emitDiagnosticIfNeeded(
+                signature: "serialization|\(endpoint.absoluteString)",
+                message: "OTLP log export failed for \(endpoint.absoluteString): could not serialize payload."
+            )
+            return
+        }
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -431,7 +468,27 @@ final class ObservabilityOTLPSink {
         }
         request.httpBody = data
 
-        session.dataTask(with: request).resume()
+        let flushID = UUID()
+        let completionGroup = DispatchGroup()
+        completionGroup.enter()
+        inFlightFlushes[flushID] = completionGroup
+
+        session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else {
+                completionGroup.leave()
+                return
+            }
+
+            self.queue.async {
+                self.handleFlushResult(
+                    data: data,
+                    response: response,
+                    error: error
+                )
+                self.inFlightFlushes.removeValue(forKey: flushID)
+                completionGroup.leave()
+            }
+        }.resume()
     }
 
     private func buildLogRecordJSON(_ record: OTLPLogRecord) -> [String: Any] {
@@ -460,6 +517,83 @@ final class ObservabilityOTLPSink {
             ["key": "build.version", "value": ["stringValue": config.buildVersion]],
             ["key": "os.version", "value": ["stringValue": config.osVersion]]
         ]
+    }
+
+    private static func makeDefaultSession() -> URLSession {
+        let urlConfig = URLSessionConfiguration.ephemeral
+        urlConfig.timeoutIntervalForRequest = 10
+        urlConfig.timeoutIntervalForResource = 15
+        return URLSession(configuration: urlConfig)
+    }
+
+    nonisolated private static func defaultDiagnosticHandler(_ message: String) {
+        let line = "[observability] \(message)\n"
+        if let data = line.data(using: .utf8) {
+            FileHandle.standardError.write(data)
+        }
+    }
+
+    private func handleFlushResult(
+        data: Data?,
+        response: URLResponse?,
+        error: Error?
+    ) {
+        if let error {
+            emitDiagnosticIfNeeded(
+                signature: "transport|\(endpoint.absoluteString)|\(error.localizedDescription)",
+                message: "OTLP log export failed for \(endpoint.absoluteString): \(error.localizedDescription)"
+            )
+            return
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            emitDiagnosticIfNeeded(
+                signature: "response|\(endpoint.absoluteString)|missing_http_response",
+                message: "OTLP log export failed for \(endpoint.absoluteString): collector response was not HTTP."
+            )
+            return
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let responseSummary = Self.summarizeResponseBody(data)
+            var message = "OTLP log export failed for \(endpoint.absoluteString): HTTP \(httpResponse.statusCode)"
+            if !responseSummary.isEmpty {
+                message += " response=\(responseSummary)"
+            }
+            emitDiagnosticIfNeeded(
+                signature: "http|\(endpoint.absoluteString)|\(httpResponse.statusCode)|\(responseSummary)",
+                message: message
+            )
+            return
+        }
+    }
+
+    private func emitDiagnosticIfNeeded(signature: String, message: String) {
+        let now = currentDate()
+        if let lastDiagnosticSignature,
+           lastDiagnosticSignature == signature,
+           let lastDiagnosticAt,
+           now.timeIntervalSince(lastDiagnosticAt) < diagnosticMinimumInterval
+        {
+            return
+        }
+
+        self.lastDiagnosticSignature = signature
+        self.lastDiagnosticAt = now
+        diagnosticHandler(message)
+    }
+
+    private static func summarizeResponseBody(_ data: Data?) -> String {
+        guard let data, !data.isEmpty else {
+            return ""
+        }
+
+        let prefix = data.prefix(200)
+        let raw = String(data: prefix, encoding: .utf8) ?? "<non-utf8>"
+        return raw
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

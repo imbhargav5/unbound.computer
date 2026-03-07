@@ -9,6 +9,7 @@
 import Foundation
 import Logging
 import Network
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.session.stream")
 
@@ -49,101 +50,138 @@ final class SessionStreamingClient: Sendable {
     /// Returns an AsyncStream of events. The connection stays open and events
     /// are pushed as they occur. Close by calling `disconnect()` or dropping the stream.
     func subscribe() async throws -> AsyncStream<DaemonEvent> {
-        logger.info("Subscribing to session \(sessionId) via IPC streaming")
+        logger.info(
+            "Subscribing to session \(sessionId) via IPC streaming",
+            metadata: ["session_id": .string(sessionId)]
+        )
 
-        // Create connection to Unix socket
-        let endpoint = NWEndpoint.unix(path: socketPath)
-        let parameters = NWParameters()
-        parameters.defaultProtocolStack.transportProtocol = NWProtocolTCP.Options()
+        let requestId = UUID().uuidString
+        return try await TracingService.withClientSpan(
+            method: DaemonMethod.sessionSubscribe.rawValue,
+            requestId: requestId,
+            sessionId: sessionId
+        ) { requestSpan, requestContext in
+            // Create connection to Unix socket
+            let endpoint = NWEndpoint.unix(path: socketPath)
+            let parameters = NWParameters()
+            parameters.defaultProtocolStack.transportProtocol = NWProtocolTCP.Options()
 
-        let conn = NWConnection(to: endpoint, using: parameters)
-        self.connection = conn
-
-        // Wait for connection with proper handling of ALL states
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            // Track whether we've already resumed to prevent multiple resumptions
-            var hasResumed = false
-
-            conn.stateUpdateHandler = { [weak self] state in
-                guard !hasResumed else { return }
-
-                switch state {
-                case .ready:
-                    hasResumed = true
-                    logger.info("Connected to daemon for session \(self?.sessionId ?? "?")")
-                    continuation.resume()
-
-                case .failed(let error):
-                    hasResumed = true
-                    logger.error("Connection failed: \(error)")
-                    continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
-
-                case .cancelled:
-                    hasResumed = true
-                    logger.info("Connection cancelled")
-                    continuation.resume(throwing: DaemonError.disconnected)
-
-                case .waiting(let error):
-                    // Connection is waiting - daemon socket exists but nothing listening
-                    hasResumed = true
-                    logger.warning("Connection waiting (daemon not responding): \(error)")
-                    continuation.resume(throwing: DaemonError.connectionFailed("Daemon not responding: \(error)"))
-
-                case .preparing:
-                    logger.debug("Connection preparing for session \(self?.sessionId ?? "?")")
-
-                case .setup:
-                    logger.debug("Connection setup for session \(self?.sessionId ?? "?")")
-
-                @unknown default:
-                    break
-                }
-            }
-            conn.start(queue: queue)
-        }
-
-        // Send subscribe request
-        let request = DaemonRequest(method: .sessionSubscribe, params: ["session_id": sessionId])
-        let requestData = try request.toJsonLine().data(using: .utf8)!
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            conn.send(content: requestData, completion: .contentProcessed { error in
-                if let error {
-                    continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
-                } else {
-                    continuation.resume()
-                }
-            })
-        }
-
-        // Read subscription response
-        let responseData = try await readLine()
-        guard let responseString = String(data: responseData, encoding: .utf8),
-              let response = try? JSONDecoder().decode(DaemonResponse.self, from: responseData) else {
-            throw DaemonError.decodingFailed("Invalid subscribe response")
-        }
-
-        guard response.isSuccess else {
-            throw DaemonError.serverError(
-                code: response.error?.code ?? -1,
-                message: response.error?.message ?? "Subscribe failed"
+            let conn = NWConnection(to: endpoint, using: parameters)
+            self.connection = conn
+            let requestMetadata = TracingService.metadata(
+                requestId: requestId,
+                sessionId: sessionId,
+                span: requestSpan
             )
-        }
 
-        logger.info("Subscribed to session \(sessionId)")
+            // Wait for connection with proper handling of ALL states
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                // Track whether we've already resumed to prevent multiple resumptions
+                var hasResumed = false
 
-        // Create event stream
-        let stream = AsyncStream<DaemonEvent> { continuation in
-            self.eventContinuation = continuation
-            continuation.onTermination = { @Sendable _ in
-                self.disconnect()
+                conn.stateUpdateHandler = { [weak self] state in
+                    guard !hasResumed else { return }
+
+                    switch state {
+                    case .ready:
+                        hasResumed = true
+                        logger.info("Connected to daemon for session \(self?.sessionId ?? "?")", metadata: requestMetadata)
+                        continuation.resume()
+
+                    case .failed(let error):
+                        hasResumed = true
+                        logger.error("Connection failed: \(error)", metadata: requestMetadata)
+                        continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
+
+                    case .cancelled:
+                        hasResumed = true
+                        logger.info("Connection cancelled", metadata: requestMetadata)
+                        continuation.resume(throwing: DaemonError.disconnected)
+
+                    case .waiting(let error):
+                        // Connection is waiting - daemon socket exists but nothing listening
+                        hasResumed = true
+                        logger.warning("Connection waiting (daemon not responding): \(error)", metadata: requestMetadata)
+                        continuation.resume(throwing: DaemonError.connectionFailed("Daemon not responding: \(error)"))
+
+                    case .preparing:
+                        logger.debug("Connection preparing for session \(self?.sessionId ?? "?")", metadata: requestMetadata)
+
+                    case .setup:
+                        logger.debug("Connection setup for session \(self?.sessionId ?? "?")", metadata: requestMetadata)
+
+                    @unknown default:
+                        break
+                    }
+                }
+                conn.start(queue: queue)
             }
+
+            // Send subscribe request
+            let request = DaemonRequest(
+                id: requestId,
+                method: .sessionSubscribe,
+                params: ["session_id": sessionId],
+                context: requestContext
+            )
+            let requestData = try request.toJsonLine().data(using: .utf8)!
+
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                conn.send(content: requestData, completion: .contentProcessed { error in
+                    if let error {
+                        logger.error("Subscribe send failed: \(error)", metadata: requestMetadata)
+                        continuation.resume(throwing: DaemonError.connectionFailed(error.localizedDescription))
+                    } else {
+                        continuation.resume()
+                    }
+                })
+            }
+
+            // Read subscription response
+            let responseData = try await readLine()
+            guard let _ = String(data: responseData, encoding: .utf8),
+                  let response = try? JSONDecoder().decode(DaemonResponse.self, from: responseData) else {
+                throw DaemonError.decodingFailed("Invalid subscribe response")
+            }
+
+            TracingService.withChildSpan(
+                name: "ipc.response.receive",
+                requestId: requestId,
+                sessionId: sessionId
+            ) { receiveSpan in
+                logger.info(
+                    "Subscribed to session \(sessionId)",
+                    metadata: TracingService.metadata(
+                        requestId: requestId,
+                        sessionId: sessionId,
+                        span: receiveSpan
+                    )
+                )
+                if let error = response.error {
+                    receiveSpan.status = .error(description: error.message)
+                }
+            }
+
+            guard response.isSuccess else {
+                throw DaemonError.serverError(
+                    code: response.error?.code ?? -1,
+                    message: response.error?.message ?? "Subscribe failed"
+                )
+            }
+
+            // Create event stream
+            let stream = AsyncStream<DaemonEvent> { continuation in
+                self.eventContinuation = continuation
+                continuation.onTermination = { @Sendable _ in
+                    self.disconnect()
+                }
+            }
+
+            // Start receiving events
+            startReceiving()
+
+            return stream
         }
-
-        // Start receiving events
-        startReceiving()
-
-        return stream
     }
 
     /// Disconnect and stop receiving events.
@@ -254,6 +292,7 @@ final class SessionStreamingClient: Sendable {
                 let session_id: String
                 let data: [String: AnyCodableValue]
                 let sequence: Int64
+                let context: DaemonTraceContext?
             }
 
             let raw = try JSONDecoder().decode(RawEvent.self, from: data)
@@ -263,7 +302,8 @@ final class SessionStreamingClient: Sendable {
                 type: eventType,
                 sessionId: raw.session_id,
                 data: raw.data,
-                sequence: raw.sequence
+                sequence: raw.sequence,
+                context: raw.context
             )
         } catch {
             logger.warning("Failed to parse event: \(error), json: \(json.prefix(100))")

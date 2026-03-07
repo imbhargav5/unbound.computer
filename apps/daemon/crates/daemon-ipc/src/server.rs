@@ -12,7 +12,9 @@
 //! 3. Block reading events (NDJSON lines)
 //! 4. Send `session.unsubscribe` or close connection to stop
 
-use crate::{error_codes, Event, IpcError, IpcResult, Method, Request, Response};
+use crate::{error_codes, Event, IpcError, IpcResult, Method, Request, Response, TraceContext};
+use opentelemetry::global;
+use opentelemetry::propagation::Extractor;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
@@ -23,6 +25,7 @@ use tokio::net::unix::OwnedWriteHalf;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Handler function type for IPC methods.
 pub type HandlerFn =
@@ -106,6 +109,47 @@ impl Default for SubscriptionManager {
     fn default() -> Self {
         Self::new()
     }
+}
+
+struct TraceContextExtractor<'a> {
+    trace_context: Option<&'a TraceContext>,
+}
+
+impl Extractor for TraceContextExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        let trace_context = self.trace_context?;
+        match key {
+            "traceparent" => Some(trace_context.traceparent.as_str()),
+            "tracestate" => trace_context.tracestate.as_deref(),
+            _ => None,
+        }
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        match self.trace_context {
+            Some(trace_context) if trace_context.tracestate.is_some() => {
+                vec!["traceparent", "tracestate"]
+            }
+            Some(_) => vec!["traceparent"],
+            None => Vec::new(),
+        }
+    }
+}
+
+fn request_span(request: &Request, method_name: &str) -> tracing::Span {
+    let span = tracing::info_span!(
+        "ipc.handle",
+        method = %method_name,
+        request_id = %request.id
+    );
+
+    let parent_context = global::get_text_map_propagator(|propagator| {
+        propagator.extract(&TraceContextExtractor {
+            trace_context: request.context.as_ref(),
+        })
+    });
+    span.set_parent(parent_context);
+    span
 }
 
 /// IPC server that listens on a Unix domain socket.
@@ -271,60 +315,77 @@ async fn handle_connection(
         let request_id = request.id.clone();
         let method = request.method.clone();
 
+        let method_name = format!("{:?}", method);
+        let request_span = request_span(&request, &method_name);
+
         // Handle streaming subscription
         if method == Method::SessionSubscribe {
-            let session_id = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("session_id"))
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            async {
+                let session_id = request
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("session_id"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
 
-            let session_id = match session_id {
-                Some(id) => id,
-                None => {
-                    let response = Response::error(
-                        &request_id,
-                        error_codes::INVALID_PARAMS,
-                        "session_id is required",
-                    );
-                    let response_json = response.to_json()?;
+                let session_id = match session_id {
+                    Some(id) => id,
+                    None => {
+                        let response = Response::error(
+                            &request_id,
+                            error_codes::INVALID_PARAMS,
+                            "session_id is required",
+                        );
+                        let response_json = response.to_json()?;
+                        writer.write_all(response_json.as_bytes()).await?;
+                        writer.write_all(b"\n").await?;
+                        writer.flush().await?;
+                        return IpcResult::Ok(());
+                    }
+                };
+
+                // Send success response first
+                let response = Response::success(
+                    &request_id,
+                    serde_json::json!({
+                        "subscribed": true,
+                        "session_id": session_id,
+                    }),
+                );
+                let response_json = response.to_json()?;
+                async {
                     writer.write_all(response_json.as_bytes()).await?;
                     writer.write_all(b"\n").await?;
                     writer.flush().await?;
-                    continue;
+                    IpcResult::Ok(())
                 }
-            };
+                .instrument(tracing::debug_span!(
+                    "ipc.response.write",
+                    method = %method_name,
+                    request_id = %request_id
+                ))
+                .await?;
 
-            // Send success response first
-            let response = Response::success(
-                &request_id,
-                serde_json::json!({
-                    "subscribed": true,
-                    "session_id": session_id,
-                }),
-            );
-            let response_json = response.to_json()?;
-            writer.write_all(response_json.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-            writer.flush().await?;
-
-            // Send initial state if handler is registered
-            if let Some(handler) = initial_state_fn.read().await.as_ref() {
-                if let Some((events, _last_seq)) = handler(session_id.clone()).await {
-                    for event in events {
-                        if let Ok(event_json) = event.to_json() {
-                            let _ = writer.write_all(event_json.as_bytes()).await;
-                            let _ = writer.write_all(b"\n").await;
+                // Send initial state if handler is registered
+                if let Some(handler) = initial_state_fn.read().await.as_ref() {
+                    if let Some((events, _last_seq)) = handler(session_id.clone()).await {
+                        for event in events {
+                            if let Ok(event_json) = event.to_json() {
+                                let _ = writer.write_all(event_json.as_bytes()).await;
+                                let _ = writer.write_all(b"\n").await;
+                            }
                         }
+                        let _ = writer.flush().await;
                     }
-                    let _ = writer.flush().await;
                 }
-            }
 
-            // Enter streaming mode - this consumes the connection
-            info!(session_id = %session_id, "Client subscribed, entering streaming mode");
-            handle_streaming_subscription(reader, writer, &subscriptions, &session_id).await?;
+                // Enter streaming mode - this consumes the connection
+                info!(session_id = %session_id, "Client subscribed, entering streaming mode");
+                handle_streaming_subscription(reader, writer, &subscriptions, &session_id).await?;
+                Ok(())
+            }
+            .instrument(request_span.clone())
+            .await?;
             return Ok(());
         }
 
@@ -337,20 +398,23 @@ async fn handle_connection(
                 }),
             );
             let response_json = response.to_json()?;
-            writer.write_all(response_json.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-            writer.flush().await?;
+            async {
+                writer.write_all(response_json.as_bytes()).await?;
+                writer.write_all(b"\n").await?;
+                writer.flush().await?;
+                IpcResult::Ok(())
+            }
+            .instrument(request_span)
+            .await?;
             continue;
         }
 
         // Normal request/response handling
-        let method_name = format!("{:?}", method);
         let handler_start = std::time::Instant::now();
         let response = {
-            let span = tracing::info_span!("ipc.handle", method = %method_name, request_id = %request_id);
             let handlers = handlers.read().await;
             if let Some(handler) = handlers.get(&method) {
-                handler(request).instrument(span).await
+                handler(request).instrument(request_span.clone()).await
             } else {
                 Response::error(
                     &request_id,
@@ -366,9 +430,18 @@ async fn handle_connection(
         let serialize_ms = serialize_start.elapsed().as_millis();
 
         let write_start = std::time::Instant::now();
-        writer.write_all(response_json.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
+        async {
+            writer.write_all(response_json.as_bytes()).await?;
+            writer.write_all(b"\n").await?;
+            writer.flush().await?;
+            IpcResult::Ok(())
+        }
+        .instrument(tracing::debug_span!(
+            "ipc.response.write",
+            method = %method_name,
+            request_id = %request_id
+        ))
+        .await?;
         let write_ms = write_start.elapsed().as_millis();
 
         info!(

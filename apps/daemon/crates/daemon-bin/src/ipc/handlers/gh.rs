@@ -1,16 +1,14 @@
 //! GitHub CLI handlers.
 
 use crate::app::DaemonState;
+use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use gh_cli_ops::{
     auth_status, pr_checks, pr_create, pr_list, pr_merge, pr_view, AuthStatusInput, GhCliOpsError,
     PrChecksInput, PrCreateInput, PrListInput, PrMergeInput, PrViewInput,
 };
-use daemon_ipc::{error_codes, IpcServer, Method, Response};
-use workspace_resolver::{
-    resolve_repository_path, resolve_working_dir_from_str, ResolveError,
-};
 use serde::de::DeserializeOwned;
 use std::path::Path;
+use workspace_resolver::{resolve_repository_path, resolve_working_dir_from_str, ResolveError};
 
 #[derive(Debug, Clone)]
 pub struct GhCoreError {
@@ -319,8 +317,8 @@ fn map_rpc_code(machine_code: &str) -> i32 {
 mod tests {
     use super::{map_resolve_error, map_rpc_code, parse_input, GhCoreError};
     use agent_session_sqlite_persist_core::ArminError;
-    use gh_cli_ops::PrListInput;
     use daemon_ipc::error_codes;
+    use gh_cli_ops::PrListInput;
     use workspace_resolver::ResolveError;
 
     #[test]

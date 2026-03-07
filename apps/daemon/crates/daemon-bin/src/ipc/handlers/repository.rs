@@ -5,13 +5,15 @@ use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, update_repository_config,
     RepositoryConfig, RepositoryConfigUpdate,
 };
-use agent_session_sqlite_persist_core::{NewRepository, RepositoryId, SessionReader, SessionWriter};
+use agent_session_sqlite_persist_core::{
+    NewRepository, RepositoryId, SessionReader, SessionWriter,
+};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use safe_file_ops::{FileRevision, SafeFileOpsError};
-use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
+use safe_repo_dir_lister::{ListOptions, SafeRepoDirListerError};
 use std::path::Path;
 use tokio::task;
-use safe_repo_dir_lister::{ListOptions, SafeRepoDirListerError};
+use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
 
 /// Register repository handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -485,8 +487,11 @@ async fn register_repository_list_files(server: &IpcServer, state: DaemonState) 
                     ..Default::default()
                 };
 
-                let entries = match safe_repo_dir_lister::list_dir(Path::new(&root_path), relative_path, options)
-                {
+                let entries = match safe_repo_dir_lister::list_dir(
+                    Path::new(&root_path),
+                    relative_path,
+                    options,
+                ) {
                     Ok(entries) => entries,
                     Err(err) => {
                         let (code, message) = map_safe_repo_dir_lister_error(err);
@@ -1099,7 +1104,9 @@ fn map_safe_file_ops_error(id: &str, err: SafeFileOpsError) -> Response {
         | SafeFileOpsError::NotAFile
         | SafeFileOpsError::InvalidUtf8
         | SafeFileOpsError::MissingExpectedRevision
-        | SafeFileOpsError::InvalidRange => Response::error(id, error_codes::INVALID_PARAMS, &message),
+        | SafeFileOpsError::InvalidRange => {
+            Response::error(id, error_codes::INVALID_PARAMS, &message)
+        }
         SafeFileOpsError::RevisionConflict { current_revision } => Response::error_with_data(
             id,
             error_codes::CONFLICT,

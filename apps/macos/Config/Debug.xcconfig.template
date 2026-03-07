@@ -55,10 +55,14 @@ SUPABASE_PUBLISHABLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Optional OTLP headers (comma-separated key=value pairs)
 // UNBOUND_OTEL_HEADERS = Authorization=Bearer token,X-Custom=value
 
+// Embed OTLP values into the generated Info.plist when you prefer build-config injection
+INFOPLIST_KEY_UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = $(UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT)
+INFOPLIST_KEY_UNBOUND_OTEL_HEADERS = $(UNBOUND_OTEL_HEADERS)
+
 // ================================
 // Notes
 // ================================
 // - These values override the defaults in Config.swift when DEBUG is defined
 // - The app reads these from ProcessInfo.processInfo.environment
-// - For Xcode to use these, add them to Scheme > Run > Arguments > Environment Variables
-//   with $(RELAY_URL), $(API_URL), etc.
+// - For Xcode to use these at runtime, add them to Scheme > Run > Arguments > Environment Variables
+//   with $(RELAY_URL), $(API_URL), $(UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT), etc.

@@ -6,11 +6,11 @@
 use crate::{AuthError, AuthResult, AuthSnapshot, SessionManager, SupabaseClient};
 use base64::Engine;
 use daemon_storage::{SecretsManager, SupabaseSessionMeta};
+use runtime_capability_detector::collect_capabilities;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use runtime_capability_detector::collect_capabilities;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -244,6 +244,10 @@ impl DaemonAuthRuntime {
 
     /// Build sync context when fully authenticated and device identity is ready.
     pub fn current_sync_context(&self) -> AuthResult<Option<AuthSyncContext>> {
+        if !self.session_manager.fsm_state().is_authenticated() {
+            return Ok(None);
+        }
+
         let (meta, access_token, device_id) = {
             let secrets = self.secrets.lock().unwrap();
 
@@ -426,4 +430,89 @@ fn project_ref_from_supabase_url(supabase_url: &str) -> String {
         .next()
         .unwrap_or("default")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AuthState;
+    use chrono::{Duration as ChronoDuration, Utc};
+    use daemon_storage::{SecretsManager, SecureStorage, StorageResult};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    struct MemoryStorage {
+        data: Arc<Mutex<HashMap<String, String>>>,
+    }
+
+    impl MemoryStorage {
+        fn new(data: Arc<Mutex<HashMap<String, String>>>) -> Self {
+            Self { data }
+        }
+    }
+
+    impl SecureStorage for MemoryStorage {
+        fn set(&self, key: &str, value: &str) -> StorageResult<()> {
+            self.data
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+
+        fn get(&self, key: &str) -> StorageResult<Option<String>> {
+            Ok(self.data.lock().unwrap().get(key).cloned())
+        }
+
+        fn delete(&self, key: &str) -> StorageResult<bool> {
+            Ok(self.data.lock().unwrap().remove(key).is_some())
+        }
+    }
+
+    fn build_runtime(shared: Arc<Mutex<HashMap<String, String>>>) -> Arc<DaemonAuthRuntime> {
+        let session_manager = SessionManager::new(
+            SecretsManager::new(Box::new(MemoryStorage::new(shared.clone()))),
+            "https://test.supabase.co",
+            "test-publishable-key",
+        );
+        let secrets = Arc::new(Mutex::new(SecretsManager::new(Box::new(
+            MemoryStorage::new(shared),
+        ))));
+
+        Arc::new(DaemonAuthRuntime::new(
+            session_manager,
+            Arc::new(SupabaseClient::new(
+                "https://test.supabase.co",
+                "test-publishable-key",
+            )),
+            secrets,
+            "https://test.supabase.co",
+            "https://app.test",
+        ))
+    }
+
+    #[tokio::test]
+    async fn current_sync_context_is_none_during_pending_validation() {
+        let shared = Arc::new(Mutex::new(HashMap::new()));
+        let runtime = build_runtime(shared.clone());
+
+        {
+            let secrets = runtime.secrets.lock().unwrap();
+            let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
+            secrets
+                .set_supabase_session(
+                    "test-access-token",
+                    "test-refresh-token",
+                    "user-123",
+                    Some("user@example.com"),
+                    &expires_at,
+                )
+                .unwrap();
+            secrets.set_device_id("device-123").unwrap();
+        }
+
+        let snapshot = runtime.status().await.unwrap();
+        assert_eq!(snapshot.state, AuthState::PendingValidation);
+        assert!(runtime.current_sync_context().unwrap().is_none());
+    }
 }

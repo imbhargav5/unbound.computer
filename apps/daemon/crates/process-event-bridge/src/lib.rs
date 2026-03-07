@@ -3,7 +3,9 @@
 //! Owns the process registry (tracking running processes by session ID)
 //! and the event bridge (converting process events to Armin messages).
 
-use agent_session_sqlite_persist_core::{AgentStatus, ArminError, NewMessage, SessionId, SessionWriter};
+use agent_session_sqlite_persist_core::{
+    AgentStatus, ArminError, NewMessage, SessionId, SessionWriter,
+};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use thiserror::Error;
@@ -334,8 +336,12 @@ mod tests {
     // claude_bridge tests using Armin in-memory
     // =========================================================================
 
-    fn make_armin() -> agent_session_sqlite_persist_core::Armin<agent_session_sqlite_persist_core::NullSink> {
-        agent_session_sqlite_persist_core::Armin::in_memory(agent_session_sqlite_persist_core::NullSink).unwrap()
+    fn make_armin(
+    ) -> agent_session_sqlite_persist_core::Armin<agent_session_sqlite_persist_core::NullSink> {
+        agent_session_sqlite_persist_core::Armin::in_memory(
+            agent_session_sqlite_persist_core::NullSink,
+        )
+        .unwrap()
     }
 
     #[test]

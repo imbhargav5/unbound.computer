@@ -1,5 +1,7 @@
 //! Logging and tracing initialization for the daemon.
 
+use std::path::PathBuf;
+
 pub use observability::{
     init_with_config, LogConfig, LogFormat, ObservabilityMode, OtlpConfig, OtlpSampler,
 };
@@ -7,7 +9,7 @@ pub use observability::{
 const DEFAULT_DEV_TRACE_RATIO: f64 = 1.0;
 const DEFAULT_PROD_TRACE_RATIO: f64 = 0.05;
 
-pub fn init_logging(level: &str) {
+pub fn init_logging(level: &str, log_path: Option<PathBuf>) {
     let mode = parse_mode_from_env();
     let default_sampler = match mode {
         ObservabilityMode::DevVerbose => OtlpSampler::AlwaysOn,
@@ -41,6 +43,7 @@ pub fn init_logging(level: &str) {
     init_with_config(LogConfig {
         service_name: "daemon".into(),
         default_level: level.into(),
+        log_path,
         also_stderr: true,
         mode,
         log_format,
@@ -96,7 +99,10 @@ fn parse_sampler_from_env() -> Option<OtlpSampler> {
 fn parse_headers_from_env() -> std::collections::HashMap<String, String> {
     let mut headers = std::collections::HashMap::new();
 
-    let Some(raw) = std::env::var("UNBOUND_OTEL_HEADERS").ok().and_then(non_empty) else {
+    let Some(raw) = std::env::var("UNBOUND_OTEL_HEADERS")
+        .ok()
+        .and_then(non_empty)
+    else {
         return headers;
     };
 

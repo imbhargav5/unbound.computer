@@ -28,5 +28,5 @@ pub use client::{MessageUpsert, SupabaseClient};
 pub use error::{SessionSyncError, SessionSyncResult};
 pub use sink::{
     MessageSyncRequest, MessageSyncer, RuntimeStatusSyncRequest, RuntimeStatusSyncer,
-    SessionMetadata, SessionMetadataProvider, SyncContext, SessionSyncSink,
+    SessionMetadata, SessionMetadataProvider, SessionSyncSink, SyncContext,
 };

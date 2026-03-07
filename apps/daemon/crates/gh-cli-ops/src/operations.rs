@@ -175,7 +175,10 @@ pub async fn pr_view(
     Ok(map_pull_request(parsed))
 }
 
-pub async fn pr_list(working_dir: &Path, input: PrListInput) -> Result<PrListResult, GhCliOpsError> {
+pub async fn pr_list(
+    working_dir: &Path,
+    input: PrListInput,
+) -> Result<PrListResult, GhCliOpsError> {
     let runner = GhCommandRunner::new();
 
     let limit = if input.limit == 0 { 20 } else { input.limit };

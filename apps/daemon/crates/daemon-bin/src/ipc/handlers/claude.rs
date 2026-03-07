@@ -2,11 +2,12 @@
 
 use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_events;
+use crate::observability::spawn_in_current_span;
 use agent_session_sqlite_persist_core::{NewMessage, SessionId, SessionReader, SessionWriter};
-use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use claude_process_manager::{ClaudeConfig, ClaudeProcess, PermissionMode};
+use daemon_ipc::{error_codes, IpcServer, Method, Response};
+use tracing::{info, warn, Instrument};
 use workspace_resolver::{resolve_working_dir_from_str, ResolveError};
-use tracing::{info, warn};
 
 /// Register Claude handlers.
 pub async fn register(server: &IpcServer, state: DaemonState) {
@@ -51,6 +52,12 @@ pub async fn claude_send_core(
     // Store the user message via Armin
     {
         let armin_session_id = SessionId::from_string(&session_id);
+        let _guard = tracing::info_span!(
+            "armin.append",
+            session_id = %session_id,
+            message_kind = "user_input"
+        )
+        .entered();
         match state.armin.append(
             &armin_session_id,
             NewMessage {
@@ -82,7 +89,14 @@ pub async fn claude_send_core(
     }
 
     // Spawn the Claude process using claude-process-manager
-    let mut process = match ClaudeProcess::spawn(config).await {
+    let mut process = match async { ClaudeProcess::spawn(config).await }
+        .instrument(tracing::info_span!(
+            "claude.process.spawn",
+            session_id = %session_id,
+            working_dir = %working_dir
+        ))
+        .await
+    {
         Ok(p) => {
             info!(pid = ?p.pid(), "Claude process spawned");
             p
@@ -114,7 +128,7 @@ pub async fn claude_send_core(
     let state_for_task = state.clone();
     let session_id_for_task = session_id.clone();
 
-    tokio::spawn(async move {
+    spawn_in_current_span(async move {
         handle_claude_events(stream, session_id_for_task, state_for_task).await;
     });
 

@@ -5,7 +5,7 @@ Centralized tracing and logging setup for Unbound Rust services.
 ## What it does
 
 - Initializes `tracing` subscribers for structured logs.
-- Exports traces via OpenTelemetry OTLP when configured.
+- Exports traces and log events via OpenTelemetry OTLP when configured.
 - Applies environment-oriented logging defaults:
   - `DevVerbose`: detailed local logs (file + optional stderr)
   - `ProdLight`: lightweight JSON logs to stderr
@@ -36,6 +36,12 @@ By default in `DevVerbose`, logs are written to:
 
 ```text
 ~/.unbound/logs/dev.jsonl
+```
+
+Callers can override `LogConfig.log_path`. The daemon now writes its dev log file under the active runtime base dir, for example:
+
+```text
+~/.unbound-dev/logs/dev.jsonl
 ```
 
 ## Main types

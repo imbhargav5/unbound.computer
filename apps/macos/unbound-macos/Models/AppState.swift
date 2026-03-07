@@ -100,6 +100,7 @@ class AppState {
     private(set) var authState: DaemonAuthState?
     private(set) var currentUserId: String?
     private(set) var currentUserEmail: String?
+    private var authValidationRefreshTask: Task<Void, Never>?
 
     var isAuthValidationPending: Bool {
         hasStoredSession && !isAuthenticated && (authState?.isValidationInFlight ?? false)
@@ -195,6 +196,8 @@ class AppState {
     /// Disconnect from daemon.
     func disconnectFromDaemon() {
         logger.info("Disconnecting from daemon")
+        authValidationRefreshTask?.cancel()
+        authValidationRefreshTask = nil
         sessionStateManager.deactivateAll()
         sessionRuntimeStatusService.stop()
         daemonClient.disconnect()
@@ -212,6 +215,10 @@ class AppState {
 
     /// Refresh authentication status from daemon.
     func refreshAuthStatus() async {
+        await refreshAuthStatus(startValidationMonitor: true)
+    }
+
+    private func refreshAuthStatus(startValidationMonitor: Bool) async {
         do {
             let status = try await daemonClient.getAuthStatus()
             isAuthenticated = status.effectiveSessionValid
@@ -232,6 +239,44 @@ class AppState {
         }
 
         await updateRuntimeStatusSubscription()
+
+        if startValidationMonitor {
+            scheduleAuthValidationRefreshIfNeeded()
+        }
+    }
+
+    private func scheduleAuthValidationRefreshIfNeeded() {
+        guard isAuthValidationPending else {
+            authValidationRefreshTask?.cancel()
+            authValidationRefreshTask = nil
+            return
+        }
+
+        guard authValidationRefreshTask == nil else { return }
+
+        authValidationRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.authValidationRefreshTask = nil }
+
+            let deadline = Date().addingTimeInterval(45)
+            while !Task.isCancelled, Date() < deadline {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+
+                await self.refreshAuthStatus(startValidationMonitor: false)
+                guard !self.isAuthValidationPending else { continue }
+
+                if self.isAuthenticated {
+                    await self.checkDependencies()
+                    if self.dependenciesSatisfied {
+                        await self.loadDataAsync()
+                    }
+                }
+                return
+            }
+
+            logger.warning("Timed out waiting for deferred auth validation to settle")
+        }
     }
 
     /// Login via daemon with email and password.

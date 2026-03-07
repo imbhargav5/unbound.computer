@@ -1,10 +1,13 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
+use crate::observability::spawn_in_current_span;
 use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
 };
-use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter};
+use agent_session_sqlite_persist_core::{
+    NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter,
+};
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
 use git_ops::{create_worktree_with_options, remove_worktree};
@@ -190,7 +193,7 @@ async fn run_setup_hook(
     })?;
 
     let stderr_handle = child.stderr.take().map(|mut stderr| {
-        tokio::spawn(async move {
+        spawn_in_current_span(async move {
             let mut buf = Vec::new();
             let _ = stderr.read_to_end(&mut buf).await;
             buf

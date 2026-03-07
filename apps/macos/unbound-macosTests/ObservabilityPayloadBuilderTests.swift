@@ -6,6 +6,87 @@ import XCTest
 @testable import unbound_macos
 
 final class ObservabilityPayloadBuilderTests: XCTestCase {
+    func testResolvedObservabilityStatusUsesEnvEndpointAndDerivesLogsURL() {
+        let status = Config.resolvedObservabilityStatus(
+            environment: [
+                "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                "UNBOUND_OTEL_HEADERS": "Authorization=Bearer token,X-Test=value",
+                "UNBOUND_OBS_MODE": "development"
+            ],
+            infoDictionary: [:],
+            isDebug: true
+        )
+
+        XCTAssertTrue(status.otlpEnabled)
+        XCTAssertEqual(status.endpointSource, .env)
+        XCTAssertEqual(status.otlpBaseURL?.absoluteString, "http://localhost:4318")
+        XCTAssertEqual(status.otlpLogsURL?.absoluteString, "http://localhost:4318/v1/logs")
+        XCTAssertTrue(status.headersPresent)
+        XCTAssertEqual(status.headerCount, 2)
+        XCTAssertEqual(status.mode, .devVerbose)
+        XCTAssertEqual(status.environment, "development")
+    }
+
+    func testResolvedObservabilityStatusFallsBackToInfoPlist() {
+        let status = Config.resolvedObservabilityStatus(
+            environment: [:],
+            infoDictionary: [
+                "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.com/v1/logs"
+            ],
+            isDebug: false
+        )
+
+        XCTAssertTrue(status.otlpEnabled)
+        XCTAssertEqual(status.endpointSource, .plist)
+        XCTAssertEqual(status.otlpBaseURL?.absoluteString, "https://otel.example.com/v1/logs")
+        XCTAssertEqual(status.otlpLogsURL?.absoluteString, "https://otel.example.com/v1/logs")
+        XCTAssertEqual(status.mode, .prodMetadataOnly)
+        XCTAssertEqual(status.environment, "production")
+    }
+
+    func testResolvedObservabilityStatusDisablesOTLPWhenUnset() {
+        let status = Config.resolvedObservabilityStatus(
+            environment: [:],
+            infoDictionary: [:],
+            isDebug: false
+        )
+
+        XCTAssertFalse(status.otlpEnabled)
+        XCTAssertEqual(status.endpointSource, .unset)
+        XCTAssertNil(status.otlpBaseURL)
+        XCTAssertNil(status.otlpLogsURL)
+        XCTAssertFalse(status.headersPresent)
+        XCTAssertEqual(status.headerCount, 0)
+        XCTAssertEqual(status.infoSampleRate, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(status.debugSampleRate, 0.0, accuracy: 0.0001)
+    }
+
+    func testObservabilityStartupEventIncludesStableMetadata() {
+        let status = ResolvedObservabilityStatus(
+            otlpEnabled: false,
+            endpointSource: .unset,
+            otlpBaseURL: nil,
+            otlpLogsURL: nil,
+            headersPresent: false,
+            headerCount: 0,
+            mode: .devVerbose,
+            environment: "development",
+            infoSampleRate: 1.0,
+            debugSampleRate: 1.0
+        )
+
+        let event = LoggingService.makeObservabilityStartupEvent(status: status)
+
+        XCTAssertEqual(event.level, .warning)
+        XCTAssertEqual(event.metadata["component"]?.description, "observability")
+        XCTAssertEqual(event.metadata["event_code"]?.description, "macos.observability.startup")
+        XCTAssertEqual(event.metadata["otlp_enabled"]?.description, "false")
+        XCTAssertEqual(event.metadata["otlp_endpoint_source"]?.description, "unset")
+        XCTAssertEqual(event.metadata["observability_mode"]?.description, "dev_verbose")
+        XCTAssertEqual(event.metadata["observability_environment"]?.description, "development")
+        XCTAssertTrue(event.message.contains("UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"))
+    }
+
     func testProdModeStripsRawMessageAndFields() {
         let builder = makeBuilder(mode: .prodMetadataOnly)
         let metadata: Logger.Metadata = [

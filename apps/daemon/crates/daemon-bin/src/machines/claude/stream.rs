@@ -1,10 +1,13 @@
 //! Claude event handling - bridges Claude process events to Armin and IPC.
 
 use crate::app::DaemonState;
-use agent_session_sqlite_persist_core::{CodingSessionStatus, NewMessage, SessionId, SessionWriter};
+use crate::observability::{current_trace_context, spawn_in_current_span};
+use agent_session_sqlite_persist_core::{
+    CodingSessionStatus, NewMessage, SessionId, SessionWriter,
+};
 use claude_debug_logs::ClaudeDebugLogs;
-use daemon_ipc::{Event, EventType};
 use claude_process_manager::{ClaudeEvent, ClaudeEventStream};
+use daemon_ipc::{Event, EventType};
 use std::sync::{
     atomic::{AtomicI64, Ordering},
     OnceLock,
@@ -59,15 +62,7 @@ pub async fn handle_claude_events(
             } => {
                 event_count += 1;
 
-                // Store raw JSON via Armin
-                if let Err(e) = state.armin.append(
-                    &armin_session_id,
-                    NewMessage {
-                        content: raw.clone(),
-                    },
-                ) {
-                    warn!(error = %e, "Failed to store Claude JSON event");
-                }
+                append_claude_message(&state, &armin_session_id, raw, "claude_json");
 
                 // Broadcast to streaming subscribers
                 broadcast_event(&state, &session_id, raw);
@@ -103,15 +98,7 @@ pub async fn handle_claude_events(
             } => {
                 event_count += 1;
 
-                // Store raw JSON via Armin
-                if let Err(e) = state.armin.append(
-                    &armin_session_id,
-                    NewMessage {
-                        content: raw.clone(),
-                    },
-                ) {
-                    warn!(error = %e, "Failed to store Claude system event");
-                }
+                append_claude_message(&state, &armin_session_id, raw, "claude_system");
 
                 // Update claude_session_id via Armin
                 if let Err(e) = state
@@ -144,15 +131,7 @@ pub async fn handle_claude_events(
             ClaudeEvent::Result { is_error, raw } => {
                 event_count += 1;
 
-                // Store raw JSON via Armin
-                if let Err(e) = state.armin.append(
-                    &armin_session_id,
-                    NewMessage {
-                        content: raw.clone(),
-                    },
-                ) {
-                    warn!(error = %e, "Failed to store Claude result event");
-                }
+                append_claude_message(&state, &armin_session_id, raw, "claude_result");
 
                 // Broadcast to streaming subscribers
                 broadcast_event(&state, &session_id, raw);
@@ -297,15 +276,18 @@ fn broadcast_event(state: &DaemonState, session_id: &str, raw_json: &str) {
         }
     }
 
-    let event = Event::new(
+    let mut event = Event::new(
         EventType::ClaudeEvent,
         session_id,
         serde_json::json!({ "raw_json": raw_json }),
         seq,
     );
+    if let Some(trace_context) = current_trace_context() {
+        event = event.with_context(trace_context);
+    }
     let subscriptions = state.subscriptions.clone();
     let session_id_for_broadcast = session_id.to_string();
-    tokio::spawn(async move {
+    spawn_in_current_span(async move {
         subscriptions
             .broadcast_or_create(&session_id_for_broadcast, event)
             .await;
@@ -325,6 +307,13 @@ fn write_runtime_status_if_changed(
     last_status: &mut Option<CodingSessionStatus>,
     last_error_message: &mut Option<String>,
 ) {
+    let _guard = tracing::debug_span!(
+        "armin.runtime_status",
+        session_id = %session_id,
+        status = status.as_str(),
+        reason
+    )
+    .entered();
     if *last_status == Some(status) && *last_error_message == error_message {
         return;
     }
@@ -361,6 +350,29 @@ fn write_runtime_status_if_changed(
                 "Failed to write runtime status"
             );
         }
+    }
+}
+
+fn append_claude_message(
+    state: &DaemonState,
+    session_id: &SessionId,
+    raw: &str,
+    event_kind: &'static str,
+) {
+    let _guard = tracing::info_span!(
+        "armin.append",
+        session_id = %session_id,
+        message_kind = event_kind
+    )
+    .entered();
+
+    if let Err(e) = state.armin.append(
+        session_id,
+        NewMessage {
+            content: raw.to_string(),
+        },
+    ) {
+        warn!(error = %e, message_kind = event_kind, "Failed to store Claude event");
     }
 }
 
