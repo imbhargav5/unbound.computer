@@ -349,7 +349,7 @@ final class DaemonClient {
 
     private func receiveData() async throws -> Data? {
         try await withCheckedThrowingContinuation { continuation in
-            connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
+            connection?.receive(minimumIncompleteLength: 1, maximumLength: 1_048_576) { data, _, isComplete, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if isComplete {
@@ -362,20 +362,38 @@ final class DaemonClient {
     }
 
     private func processLine(_ line: String) {
-        // Parse as response and match to pending request
-        if let data = line.data(using: .utf8),
-           let response = try? JSONDecoder().decode(DaemonResponse.self, from: data) {
-            requestLock.lock()
-            if let continuation = pendingRequests.removeValue(forKey: response.id) {
-                requestLock.unlock()
-                logger.debug("Received response for request \(response.id)")
-                continuation.resume(returning: response)
-                return
-            }
-            requestLock.unlock()
+        // Use JSONSerialization (C-based) instead of JSONDecoder + AnyCodableValue
+        // to avoid the expensive recursive try/catch type-detection dance on large payloads.
+        guard let data = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = json["id"] as? String else {
+            logger.warning("Unknown message format: \(line.prefix(100))")
+            return
         }
 
-        logger.warning("Unknown message format: \(line.prefix(100))")
+        let result: AnyCodableValue? = json["result"].map { AnyCodableValue($0) }
+
+        var errorInfo: DaemonErrorInfo? = nil
+        if let errorDict = json["error"] as? [String: Any] {
+            errorInfo = DaemonErrorInfo(
+                code: errorDict["code"] as? Int ?? -1,
+                message: errorDict["message"] as? String ?? "Unknown error",
+                data: (errorDict["data"]).map { AnyCodableValue($0) }
+            )
+        }
+
+        let response = DaemonResponse(id: id, result: result, error: errorInfo)
+
+        requestLock.lock()
+        if let continuation = pendingRequests.removeValue(forKey: response.id) {
+            requestLock.unlock()
+            logger.debug("Received response for request \(response.id)")
+            continuation.resume(returning: response)
+            return
+        }
+        requestLock.unlock()
+
+        logger.warning("Unmatched response id=\(id): \(line.prefix(100))")
     }
 
     // MARK: - Reconnection

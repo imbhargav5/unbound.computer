@@ -213,6 +213,14 @@ enum DaemonLauncher {
             return
         }
 
+        #if DEBUG
+        // In debug builds, expect the daemon to be started manually (e.g. cargo run).
+        // Wait for it instead of trying to find and launch a binary.
+        logger.info("DEBUG: Waiting for externally-managed daemon...")
+        try await waitForDaemon(timeout: 30.0)
+        return
+        #endif
+
         // Clean up stale socket if it exists but nothing is listening
         let socketPath = DaemonClient.defaultSocketPath
         if FileManager.default.fileExists(atPath: socketPath) {

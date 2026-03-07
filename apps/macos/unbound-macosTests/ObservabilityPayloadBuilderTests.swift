@@ -16,21 +16,25 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
             "user_id": "user-456"
         ]
 
-        let event = builder.build(
+        let record = builder.build(
             level: .error,
             label: "app.auth",
             message: "token refresh failed",
             metadata: metadata
         )
 
-        XCTAssertNil(event.posthogProperties["message"])
-        XCTAssertNil(event.posthogProperties["fields"])
-        XCTAssertNil(event.posthogProperties["access_token"])
-        XCTAssertNotNil(event.posthogProperties["message_hash"])
-        XCTAssertNotNil(event.posthogProperties["device_id_hash"])
-        XCTAssertNotNil(event.posthogProperties["user_id_hash"])
-        XCTAssertEqual(event.sentryLevel, "error")
-        XCTAssertEqual(event.sentryMessage, "macos.app.auth")
+        // Body should be event_code in prod mode, not raw message
+        XCTAssertEqual(record.body, "macos.app.auth")
+        // Sensitive fields should not appear in attributes
+        XCTAssertNil(record.attributes["access_token"])
+        // message_hash should be present
+        XCTAssertNotNil(record.attributes["message_hash"])
+        // device_id and user_id should be hashed
+        XCTAssertNotNil(record.attributes["device_id_hash"])
+        XCTAssertNotNil(record.attributes["user_id_hash"])
+        // Severity should map correctly
+        XCTAssertEqual(record.severityNumber, 17)
+        XCTAssertEqual(record.severityText, "ERROR")
     }
 
     func testDevModeRedactsSensitiveMetadataValues() {
@@ -41,17 +45,16 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
             "safe_key": "safe-value"
         ]
 
-        let event = builder.build(
+        let record = builder.build(
             level: .info,
             label: "app.sync",
             message: "sync complete",
             metadata: metadata
         )
 
-        let fields = event.posthogProperties["fields"] as? [String: Any]
-        XCTAssertEqual(fields?["access_token"] as? String, "[REDACTED]")
-        XCTAssertEqual(fields?["authorization"] as? String, "[REDACTED]")
-        XCTAssertEqual(fields?["safe_key"] as? String, "safe-value")
+        XCTAssertEqual(record.attributes["fields.access_token"], "[REDACTED]")
+        XCTAssertEqual(record.attributes["fields.authorization"], "[REDACTED]")
+        XCTAssertEqual(record.attributes["fields.safe_key"], "safe-value")
     }
 
     func testSamplingIsDeterministicForEquivalentInput() {
@@ -94,21 +97,19 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
             "user_id_hash": "sha256:user_prehashed"
         ]
 
-        let event = builder.build(
+        let record = builder.build(
             level: .error,
             label: "app.sync",
             message: "sync failed",
             metadata: metadata
         )
 
-        XCTAssertEqual(event.posthogProperties["request_id"] as? String, "req_alias")
-        XCTAssertEqual(event.posthogProperties["session_id"] as? String, "session_alias")
-        XCTAssertEqual(event.posthogProperties["trace_id"] as? String, "trace_alias")
-        XCTAssertEqual(event.posthogProperties["span_id"] as? String, "span_alias")
-        XCTAssertEqual(event.posthogProperties["device_id_hash"] as? String, sha256("device_raw"))
-        XCTAssertEqual(event.posthogProperties["user_id_hash"] as? String, "sha256:user_prehashed")
-        XCTAssertEqual(event.sentryTags["trace_id"], "trace_alias")
-        XCTAssertEqual(event.sentryTags["span_id"], "span_alias")
+        XCTAssertEqual(record.attributes["request_id"], "req_alias")
+        XCTAssertEqual(record.attributes["session_id"], "session_alias")
+        XCTAssertEqual(record.attributes["device_id_hash"], sha256("device_raw"))
+        XCTAssertEqual(record.attributes["user_id_hash"], "sha256:user_prehashed")
+        XCTAssertEqual(record.traceId, "trace_alias")
+        XCTAssertEqual(record.spanId, "span_alias")
     }
 
     private func makeBuilder(mode: ObservabilityMode) -> ObservabilityPayloadBuilder {

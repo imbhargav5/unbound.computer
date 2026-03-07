@@ -132,6 +132,12 @@ impl<S: SideEffectSink> Armin<S> {
         &self.sink
     }
 
+    /// Execute a closure with read access to a session's delta messages.
+    /// The closure receives `&[Message]` without cloning.
+    pub fn with_delta_messages<R>(&self, session: &SessionId, f: impl FnOnce(&[Message]) -> R) -> R {
+        self.delta.with_messages(session, f)
+    }
+
     /// Refreshes the snapshot from current state.
     ///
     /// This rebuilds the snapshot from SQLite and clears all deltas.

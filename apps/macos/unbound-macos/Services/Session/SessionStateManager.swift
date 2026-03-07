@@ -10,9 +10,11 @@
 
 import Foundation
 import Logging
+import Observation
 
 private let logger = Logger(label: "app.session")
 
+@Observable
 class SessionStateManager {
 
     // MARK: - State Registry

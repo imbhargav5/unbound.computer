@@ -31,63 +31,60 @@ async fn register_message_list(server: &IpcServer, state: DaemonState) {
                     );
                 };
 
-                let session_id_clone = session_id.clone();
                 let armin_session_id = SessionId::from_string(&session_id);
 
-                // Get messages from Armin (snapshot + delta)
+                // Get snapshot messages (borrowed from the snapshot view)
                 let snapshot = {
                     let _span = info_span!("armin.snapshot").entered();
                     armin.snapshot()
                 };
-                let delta = {
-                    let _span = info_span!("armin.delta").entered();
-                    armin.delta(&armin_session_id)
-                };
+                let snapshot_msgs: &[agent_session_sqlite_persist_core::Message] =
+                    snapshot.session(&armin_session_id)
+                        .map(|s| s.messages())
+                        .unwrap_or(&[]);
 
-                // Combine snapshot and delta messages, embedding content as raw JSON
-                let messages = {
-                    let _span = info_span!("build_json_values").entered();
-                    let mut messages = Vec::new();
+                // Build JSON directly into a pre-sized buffer.
+                // Delta messages are accessed by reference via closure (zero-copy).
+                let raw_json = armin.with_delta_messages(&armin_session_id, |delta_msgs| {
+                    let _span = info_span!("build_json").entered();
+                    let session_id_json = serde_json::to_string(&session_id).unwrap();
+                    let total = snapshot_msgs.len() + delta_msgs.len();
+                    let content_size: usize = snapshot_msgs.iter().chain(delta_msgs.iter())
+                        .map(|m| m.content.len()).sum();
 
-                    if let Some(session) = snapshot.session(&armin_session_id) {
-                        for m in session.messages() {
-                            let content_value = serde_json::from_str::<serde_json::Value>(&m.content)
-                                .unwrap_or_else(|_| serde_json::Value::String(m.content.clone()));
-                            messages.push(serde_json::json!({
-                                "id": m.id.as_str(),
-                                "session_id": session_id_clone,
-                                "content": content_value,
-                                "sequence_number": m.sequence_number,
-                            }));
+                    tracing::debug!(message_count = total, "message.list complete");
+
+                    // Pre-allocate: content + ~120 bytes overhead per message + envelope
+                    let mut buf = String::with_capacity(content_size + total * 120 + 100);
+                    buf.push_str(r#"{"session_id":"#);
+                    buf.push_str(&session_id_json);
+                    buf.push_str(r#","messages":["#);
+
+                    let mut first = true;
+                    for m in snapshot_msgs.iter().chain(delta_msgs.iter()) {
+                        if !first { buf.push(','); }
+                        first = false;
+                        buf.push_str(r#"{"id":""#);
+                        buf.push_str(m.id.as_str());
+                        buf.push_str(r#"","session_id":"#);
+                        buf.push_str(&session_id_json);
+                        buf.push_str(r#","content":"#);
+                        // Content from Claude events is valid JSON — embed verbatim.
+                        // Content from message.send is plain text — JSON-string-encode it.
+                        if serde_json::from_str::<&serde_json::value::RawValue>(&m.content).is_ok() {
+                            buf.push_str(&m.content);
+                        } else {
+                            buf.push_str(&serde_json::to_string(&m.content).unwrap());
                         }
+                        buf.push_str(r#","sequence_number":"#);
+                        buf.push_str(&m.sequence_number.to_string());
+                        buf.push('}');
                     }
+                    buf.push_str("]}");
+                    buf
+                });
 
-                    for m in delta.messages() {
-                        let content_value = serde_json::from_str::<serde_json::Value>(&m.content)
-                            .unwrap_or_else(|_| serde_json::Value::String(m.content.clone()));
-                        messages.push(serde_json::json!({
-                            "id": m.id.as_str(),
-                            "session_id": session_id_clone,
-                            "content": content_value,
-                            "sequence_number": m.sequence_number,
-                        }));
-                    }
-                    messages
-                };
-
-                tracing::debug!(message_count = messages.len(), "message.list complete");
-
-                let response = {
-                    let _span = info_span!("build_response").entered();
-                    Response::success(
-                        &req.id,
-                        serde_json::json!({
-                            "session_id": session_id_clone,
-                            "messages": messages,
-                        }),
-                    )
-                };
-                response
+                Response::success_raw(&req.id, raw_json)
             }
         })
         .await;

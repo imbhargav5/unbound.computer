@@ -244,12 +244,38 @@ extension DaemonClient {
         }
 
         let decodeStart = CFAbsoluteTimeGetCurrent()
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
 
+        // Construct DaemonMessage directly from Foundation dicts (already parsed
+        // by JSONSerialization in processLine) — avoids re-serializing each dict
+        // back to Data and re-decoding through JSONDecoder + AnyCodableValue.
         let decoded = messagesData.compactMap { dict -> DaemonMessage? in
-            guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
-            return try? decoder.decode(DaemonMessage.self, from: data)
+            guard let id = dict["id"] as? String,
+                  let sessionId = dict["session_id"] as? String,
+                  let sequenceNumber = dict["sequence_number"] as? Int else { return nil }
+
+            let content: String?
+            if let str = dict["content"] as? String {
+                content = str
+            } else if let obj = dict["content"] {
+                // Content arrived as a JSON object — re-serialize to string
+                // for downstream consumers that expect a JSON string.
+                if let data = try? JSONSerialization.data(withJSONObject: obj, options: []) {
+                    content = String(data: data, encoding: .utf8)
+                } else {
+                    content = nil
+                }
+            } else {
+                content = nil
+            }
+
+            return DaemonMessage(
+                id: id,
+                sessionId: sessionId,
+                content: content,
+                sequenceNumber: sequenceNumber,
+                timestamp: dict["timestamp"] as? String,
+                isStreaming: dict["is_streaming"] as? Bool
+            )
         }
         let decodeDuration = CFAbsoluteTimeGetCurrent() - decodeStart
 

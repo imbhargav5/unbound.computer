@@ -106,6 +106,14 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
+    fn build_http_client() -> Client {
+        Client::builder()
+            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(5))
+            .build()
+            .expect("failed to build HTTP client")
+    }
+
     /// Create a new session manager.
     pub fn new(
         secrets: SecretsManager,
@@ -116,7 +124,7 @@ impl SessionManager {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
-            http_client: Client::new(),
+            http_client: Self::build_http_client(),
             fsm: Mutex::new(AuthMachine::new()),
             refresh_config: RefreshConfig::default(),
             state_callback: Mutex::new(None),
@@ -138,7 +146,7 @@ impl SessionManager {
             secrets,
             supabase_url: supabase_url.to_string(),
             supabase_publishable_key: supabase_publishable_key.to_string(),
-            http_client: Client::new(),
+            http_client: Self::build_http_client(),
             fsm: Mutex::new(AuthMachine::new()),
             refresh_config,
             state_callback: Mutex::new(None),

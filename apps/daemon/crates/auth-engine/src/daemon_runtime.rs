@@ -87,7 +87,11 @@ impl DaemonAuthRuntime {
             session_manager,
             supabase_client,
             secrets,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .connect_timeout(Duration::from_secs(5))
+                .build()
+                .expect("failed to build HTTP client"),
             web_app_url: web_app_url.into(),
             supabase_url: supabase_url.into(),
         }

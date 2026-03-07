@@ -174,6 +174,17 @@ impl DeltaStore {
         }
     }
 
+    /// Execute a closure with read access to a session's delta messages.
+    /// The closure receives `&[Message]` without cloning.
+    pub fn with_messages<R>(&self, session: &SessionId, f: impl FnOnce(&[Message]) -> R) -> R {
+        let deltas = self.deltas.read().expect("lock poisoned");
+        let messages = deltas
+            .get(session)
+            .map(|d| d.messages.as_slice())
+            .unwrap_or(&[]);
+        f(messages)
+    }
+
     /// Completely removes a session from delta tracking.
     ///
     /// Deletes all delta state for the session including the cursor and message

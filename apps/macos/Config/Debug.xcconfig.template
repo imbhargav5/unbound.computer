@@ -46,6 +46,16 @@ SUPABASE_PUBLISHABLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // SUPABASE_PUBLISHABLE_KEY = your-staging-publishable-key
 
 // ================================
+// Observability (OTLP)
+// ================================
+
+// OpenTelemetry OTLP endpoint (same env var as the daemon)
+// UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = http://localhost:4318
+
+// Optional OTLP headers (comma-separated key=value pairs)
+// UNBOUND_OTEL_HEADERS = Authorization=Bearer token,X-Custom=value
+
+// ================================
 // Notes
 // ================================
 // - These values override the defaults in Config.swift when DEBUG is defined

@@ -24,6 +24,8 @@
     "daemon:foreground:trace": "RUST_LOG=trace ./apps/daemon/target/release/unbound-daemon start --foreground",
     "daemon:stop": "./apps/daemon/target/release/unbound-daemon stop",
     "daemon:status": "./apps/daemon/target/release/unbound-daemon status",
+    "daemon:dev": "./scripts/dev-daemon.sh",
+    "daemon:dev:app": "./scripts/dev-daemon.sh --app",
     "cli:build": "cd apps/cli-new && cargo build --release",
     "cli": "./apps/cli-new/target/release/unbound-cli"
   },

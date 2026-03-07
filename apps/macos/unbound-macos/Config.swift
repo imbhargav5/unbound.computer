@@ -149,21 +149,35 @@ enum Config {
         return isDebug ? .devVerbose : .prodMetadataOnly
     }
 
-    static var posthogAPIKey: String? {
-        readOptionalConfigValue(env: "POSTHOG_API_KEY", plist: "POSTHOG_API_KEY")
-    }
-
-    static var posthogHost: URL {
-        if let raw = readOptionalConfigValue(env: "POSTHOG_HOST", plist: "POSTHOG_HOST"),
-           let url = URL(string: raw)
-        {
-            return url
+    static var otlpEndpoint: URL? {
+        guard let raw = readOptionalConfigValue(
+            env: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT",
+            plist: "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"
+        ), let url = URL(string: raw) else {
+            return nil
         }
-        return URL(string: "https://us.i.posthog.com")!
+        return url
     }
 
-    static var sentryDSN: String? {
-        readOptionalConfigValue(env: "SENTRY_DSN", plist: "SENTRY_DSN")
+    static var otlpHeaders: [String: String] {
+        guard let raw = readOptionalConfigValue(
+            env: "UNBOUND_OTEL_HEADERS",
+            plist: "UNBOUND_OTEL_HEADERS"
+        ) else {
+            return [:]
+        }
+        var headers: [String: String] = [:]
+        for pair in raw.split(separator: ",") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                let key = parts[0].trimmingCharacters(in: .whitespaces)
+                let value = parts[1].trimmingCharacters(in: .whitespaces)
+                if !key.isEmpty && !value.isEmpty {
+                    headers[key] = value
+                }
+            }
+        }
+        return headers
     }
 
     // MARK: - Presence DO

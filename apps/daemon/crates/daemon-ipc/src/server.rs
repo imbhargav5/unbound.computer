@@ -345,6 +345,7 @@ async fn handle_connection(
 
         // Normal request/response handling
         let method_name = format!("{:?}", method);
+        let handler_start = std::time::Instant::now();
         let response = {
             let span = tracing::info_span!("ipc.handle", method = %method_name, request_id = %request_id);
             let handlers = handlers.read().await;
@@ -358,13 +359,26 @@ async fn handle_connection(
                 )
             }
         };
+        let handler_ms = handler_start.elapsed().as_millis();
 
+        let serialize_start = std::time::Instant::now();
         let response_json = response.to_json()?;
-        debug!(response = %response_json, "Sending response");
+        let serialize_ms = serialize_start.elapsed().as_millis();
 
+        let write_start = std::time::Instant::now();
         writer.write_all(response_json.as_bytes()).await?;
         writer.write_all(b"\n").await?;
         writer.flush().await?;
+        let write_ms = write_start.elapsed().as_millis();
+
+        info!(
+            method = %method_name,
+            response_len = response_json.len(),
+            handler_ms = handler_ms,
+            serialize_ms = serialize_ms,
+            write_ms = write_ms,
+            "ipc.response"
+        );
     }
 
     Ok(())

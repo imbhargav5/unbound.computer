@@ -35,6 +35,9 @@ target/
 .build/
 .unbound-worktrees/
 
+# Local dev tools
+tools/
+
 # Xcode local configuration
 *.xcconfig
 !*.xcconfig.template

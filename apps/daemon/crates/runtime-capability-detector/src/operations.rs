@@ -126,7 +126,7 @@ async fn read_claude_models() -> Option<Vec<String>> {
 }
 
 async fn try_claude_models_json() -> Option<Vec<String>> {
-    let output = run_login_shell("claude models --json").await.ok()?;
+    let output = run_login_shell_with_timeout("claude models --json", DEPENDENCY_CHECK_TIMEOUT).await.ok()?;
     if !output.status.success() {
         return None;
     }
@@ -166,7 +166,7 @@ async fn try_claude_models_json() -> Option<Vec<String>> {
 }
 
 async fn try_claude_models_text() -> Option<Vec<String>> {
-    let output = run_login_shell("claude models").await.ok()?;
+    let output = run_login_shell_with_timeout("claude models", DEPENDENCY_CHECK_TIMEOUT).await.ok()?;
     if !output.status.success() {
         return None;
     }

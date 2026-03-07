@@ -31,19 +31,6 @@ private let observabilityProdAllowedFields: Set<String> = [
     "component"
 ]
 
-private let sentryTagKeys: [String] = [
-    "runtime",
-    "service",
-    "component",
-    "event_code",
-    "request_id",
-    "session_id",
-    "device_id_hash",
-    "user_id_hash",
-    "trace_id",
-    "span_id"
-]
-
 enum ObservabilityService {
     private static let runtimeConfig: ObservabilityRuntimeConfig = {
         ObservabilityRuntimeConfig(
@@ -60,21 +47,20 @@ enum ObservabilityService {
     }()
 
     private static let payloadBuilder = ObservabilityPayloadBuilder(config: runtimeConfig)
-    private static let remoteSink = ObservabilityRemoteSink(
-        runtimeConfig: runtimeConfig,
-        posthogAPIKey: Config.posthogAPIKey,
-        posthogHost: Config.posthogHost,
-        sentryDSN: Config.sentryDSN
+    private static let otlpSink = ObservabilityOTLPSink(
+        endpoint: Config.otlpEndpoint,
+        headers: Config.otlpHeaders,
+        config: runtimeConfig
     )
 
     static func makeHandler(label: String) -> ObservabilityLogHandler? {
-        guard let remoteSink else {
+        guard let otlpSink else {
             return nil
         }
         return ObservabilityLogHandler(
             label: label,
             payloadBuilder: payloadBuilder,
-            remoteSink: remoteSink
+            sink: otlpSink
         )
     }
 }
@@ -85,16 +71,16 @@ struct ObservabilityLogHandler: LogHandler {
     var metadata: Logger.Metadata = [:]
 
     private let payloadBuilder: ObservabilityPayloadBuilder
-    private let remoteSink: ObservabilityRemoteSink
+    private let sink: ObservabilityOTLPSink
 
     init(
         label: String,
         payloadBuilder: ObservabilityPayloadBuilder,
-        remoteSink: ObservabilityRemoteSink
+        sink: ObservabilityOTLPSink
     ) {
         self.label = label
         self.payloadBuilder = payloadBuilder
-        self.remoteSink = remoteSink
+        self.sink = sink
     }
 
     subscript(metadataKey key: String) -> Logger.Metadata.Value? {
@@ -127,14 +113,25 @@ struct ObservabilityLogHandler: LogHandler {
             }
         }
 
-        let event = payloadBuilder.build(
+        let record = payloadBuilder.build(
             level: level,
             label: label,
             message: rawMessage,
             metadata: mergedMetadata
         )
-        remoteSink.export(event)
+        sink.export(record)
     }
+}
+
+struct OTLPLogRecord {
+    let timeUnixNano: UInt64
+    let severityNumber: Int
+    let severityText: String
+    let body: String
+    let scopeName: String
+    let attributes: [String: String]
+    let traceId: String?
+    let spanId: String?
 }
 
 struct ObservabilityRuntimeConfig {
@@ -149,15 +146,6 @@ struct ObservabilityRuntimeConfig {
     let osVersion: String
 }
 
-struct ObservabilityEvent {
-    let timestamp: String
-    let distinctId: String
-    let posthogProperties: [String: Any]
-    let sentryLevel: String?
-    let sentryMessage: String?
-    let sentryTags: [String: String]
-}
-
 private struct CorrelationFields {
     let requestId: String?
     let sessionId: String?
@@ -168,12 +156,6 @@ private struct CorrelationFields {
 }
 
 struct ObservabilityPayloadBuilder {
-    private static let timestampFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
     private let config: ObservabilityRuntimeConfig
 
     init(config: ObservabilityRuntimeConfig) {
@@ -213,20 +195,20 @@ struct ObservabilityPayloadBuilder {
         label: String,
         message: String,
         metadata: Logger.Metadata
-    ) -> ObservabilityEvent {
-        let timestamp = Self.timestampFormatter.string(from: Date())
+    ) -> OTLPLogRecord {
+        let now = Date()
+        let timeUnixNano = UInt64(now.timeIntervalSince1970 * 1_000_000_000)
         let metadataObject = convertMetadataToObject(metadata)
         let eventCode = eventCode(from: metadataObject, label: label)
         let component = component(from: metadataObject, label: label)
-        let levelValue = uppercaseLevel(level)
+        let severityText = otlpSeverityText(level)
+        let severityNumber = otlpSeverityNumber(level)
         let messageHash = sha256Prefixed(message)
 
-        var properties: [String: Any] = [
-            "timestamp": timestamp,
+        var attributes: [String: String] = [
             "runtime": config.runtime,
             "service": config.service,
             "component": component,
-            "level": levelValue,
             "event_code": eventCode,
             "environment": config.environment,
             "app_version": config.appVersion,
@@ -235,48 +217,54 @@ struct ObservabilityPayloadBuilder {
             "message_hash": messageHash
         ]
 
+        let body: String
+
         switch config.mode {
         case .devVerbose:
-            properties["target"] = label
-            properties["pid"] = ProcessInfo.processInfo.processIdentifier
-            properties["message"] = sanitizeString(message)
+            attributes["target"] = label
+            attributes["pid"] = String(ProcessInfo.processInfo.processIdentifier)
+            body = sanitizeString(message)
             let sanitizedFields = sanitizeObject(metadataObject)
-            if !sanitizedFields.isEmpty {
-                properties["fields"] = sanitizedFields
+            for (key, value) in sanitizedFields {
+                if let stringValue = stringifyValue(value) {
+                    attributes["fields.\(key)"] = stringValue
+                }
             }
         case .prodMetadataOnly:
+            body = eventCode
             for key in observabilityProdAllowedFields {
                 if let rawValue = metadataObject[key],
-                   let sanitized = sanitizeValue(key: key, value: rawValue)
+                   let sanitized = sanitizeValue(key: key, value: rawValue),
+                   let stringValue = stringifyValue(sanitized)
                 {
-                    properties[key] = sanitized
+                    attributes[key] = stringValue
                 }
             }
         }
 
         let correlation = extractCorrelationFields(from: metadataObject)
-        applyCorrelationFields(correlation, to: &properties)
-
-        let distinctId = readString(properties["device_id_hash"]) ??
-            readString(properties["user_id_hash"]) ??
-            "\(config.runtime)-\(ProcessInfo.processInfo.processIdentifier)"
-
-        let sentryLevel = sentryLevel(from: level)
-        let sentryMessage: String? = sentryLevel == nil ? nil : eventCode
-        var sentryTags: [String: String] = [:]
-        for key in sentryTagKeys {
-            if let value = readString(properties[key]) {
-                sentryTags[key] = value
-            }
+        if let requestId = correlation.requestId {
+            attributes["request_id"] = requestId
+        }
+        if let sessionId = correlation.sessionId {
+            attributes["session_id"] = sessionId
+        }
+        if let deviceIdHash = correlation.deviceIdHash {
+            attributes["device_id_hash"] = deviceIdHash
+        }
+        if let userIdHash = correlation.userIdHash {
+            attributes["user_id_hash"] = userIdHash
         }
 
-        return ObservabilityEvent(
-            timestamp: timestamp,
-            distinctId: distinctId,
-            posthogProperties: properties,
-            sentryLevel: sentryLevel,
-            sentryMessage: sentryMessage,
-            sentryTags: sentryTags
+        return OTLPLogRecord(
+            timeUnixNano: timeUnixNano,
+            severityNumber: severityNumber,
+            severityText: severityText,
+            body: body,
+            scopeName: label,
+            attributes: attributes,
+            traceId: correlation.traceId,
+            spanId: correlation.spanId
         )
     }
 
@@ -338,175 +326,165 @@ struct ObservabilityPayloadBuilder {
     }
 }
 
-final class ObservabilityRemoteSink {
-    private let runtimeConfig: ObservabilityRuntimeConfig
-    private let posthogAPIKey: String?
-    private let posthogHost: URL?
-    private let sentryDSN: ParsedSentryDSN?
+// MARK: - OTLP Sink
+
+final class ObservabilityOTLPSink {
+    private let endpoint: URL
+    private let headers: [String: String]
+    private let resourceAttributes: [[String: Any]]
     private let session: URLSession
-    private let queue = DispatchQueue(label: "com.unbound.macos.observability.export", qos: .utility)
+    private let queue = DispatchQueue(label: "com.unbound.macos.observability.otlp", qos: .utility)
+    private var buffer: [OTLPLogRecord] = []
+    private var flushTimer: DispatchSourceTimer?
+
+    private static let maxBatchSize = 100
+    private static let flushIntervalSeconds: Double = 5.0
 
     init?(
-        runtimeConfig: ObservabilityRuntimeConfig,
-        posthogAPIKey: String?,
-        posthogHost: URL?,
-        sentryDSN: String?
+        endpoint: URL?,
+        headers: [String: String],
+        config: ObservabilityRuntimeConfig
     ) {
-        let normalizedPosthogKey = posthogAPIKey?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedSentryDSN = sentryDSN?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let endpoint else { return nil }
 
-        guard (normalizedPosthogKey?.isEmpty == false) || (normalizedSentryDSN?.isEmpty == false) else {
-            return nil
-        }
-
-        self.runtimeConfig = runtimeConfig
-        self.posthogAPIKey = normalizedPosthogKey?.isEmpty == false ? normalizedPosthogKey : nil
-        self.posthogHost = posthogHost
-        if let normalizedSentryDSN {
-            self.sentryDSN = ParsedSentryDSN(rawValue: normalizedSentryDSN)
+        let base = endpoint.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if base.hasSuffix("/v1/logs") {
+            self.endpoint = endpoint
         } else {
-            self.sentryDSN = nil
+            guard let logsURL = URL(string: "\(base)/v1/logs") else { return nil }
+            self.endpoint = logsURL
         }
 
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 5
-        configuration.timeoutIntervalForResource = 10
-        self.session = URLSession(configuration: configuration)
+        self.headers = headers
+        self.resourceAttributes = Self.buildResourceAttributes(config: config)
+
+        let urlConfig = URLSessionConfiguration.ephemeral
+        urlConfig.timeoutIntervalForRequest = 10
+        urlConfig.timeoutIntervalForResource = 15
+        self.session = URLSession(configuration: urlConfig)
+
+        startFlushTimer()
     }
 
-    func export(_ event: ObservabilityEvent) {
-        queue.async { [runtimeConfig, posthogAPIKey, posthogHost, sentryDSN, session] in
-            if let posthogAPIKey, let posthogHost {
-                Self.sendToPosthog(
-                    event: event,
-                    apiKey: posthogAPIKey,
-                    host: posthogHost,
-                    session: session
-                )
-            }
-
-            if let sentryDSN, let sentryLevel = event.sentryLevel {
-                Self.sendToSentry(
-                    event: event,
-                    runtimeConfig: runtimeConfig,
-                    sentryLevel: sentryLevel,
-                    sentryDSN: sentryDSN,
-                    session: session
-                )
+    func export(_ record: OTLPLogRecord) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.buffer.append(record)
+            if self.buffer.count >= Self.maxBatchSize {
+                self.performFlush()
             }
         }
     }
 
-    private static func sendToPosthog(
-        event: ObservabilityEvent,
-        apiKey: String,
-        host: URL,
-        session: URLSession
-    ) {
-        let endpoint = host.appendingPathComponent("batch/")
-        let batchEvent: [String: Any] = [
-            "event": "app_log",
-            "distinct_id": event.distinctId,
-            "properties": event.posthogProperties,
-            "timestamp": event.timestamp
-        ]
+    func flush() {
+        queue.async { [weak self] in
+            self?.performFlush()
+        }
+    }
+
+    private func startFlushTimer() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(
+            deadline: .now() + Self.flushIntervalSeconds,
+            repeating: Self.flushIntervalSeconds
+        )
+        timer.setEventHandler { [weak self] in
+            self?.performFlush()
+        }
+        timer.resume()
+        flushTimer = timer
+    }
+
+    private func performFlush() {
+        guard !buffer.isEmpty else { return }
+        let records = buffer
+        buffer = []
+
+        // Group log records by scope for a compact payload
+        var scopeGroups: [String: [[String: Any]]] = [:]
+        for record in records {
+            let logRecordJSON = buildLogRecordJSON(record)
+            scopeGroups[record.scopeName, default: []].append(logRecordJSON)
+        }
+
+        let scopeLogs: [[String: Any]] = scopeGroups.map { scopeName, logRecords in
+            [
+                "scope": ["name": scopeName],
+                "logRecords": logRecords
+            ]
+        }
+
         let payload: [String: Any] = [
-            "api_key": apiKey,
-            "batch": [batchEvent],
-            "sent_at": event.timestamp
+            "resourceLogs": [[
+                "resource": ["attributes": resourceAttributes],
+                "scopeLogs": scopeLogs
+            ]]
         ]
 
-        guard JSONSerialization.isValidJSONObject(payload),
-              let payloadData = try? JSONSerialization.data(withJSONObject: payload) else {
-            return
-        }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = payloadData
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        request.httpBody = data
 
         session.dataTask(with: request).resume()
     }
 
-    private static func sendToSentry(
-        event: ObservabilityEvent,
-        runtimeConfig: ObservabilityRuntimeConfig,
-        sentryLevel: String,
-        sentryDSN: ParsedSentryDSN,
-        session: URLSession
-    ) {
-        var payload: [String: Any] = [
-            "event_id": UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
-            "timestamp": event.timestamp,
-            "platform": "cocoa",
-            "logger": "app_log",
-            "level": sentryLevel,
-            "message": event.sentryMessage ?? "observability.remote.error",
-            "tags": event.sentryTags,
-            "environment": runtimeConfig.environment
+    private func buildLogRecordJSON(_ record: OTLPLogRecord) -> [String: Any] {
+        let attributes: [[String: Any]] = record.attributes.map { key, value in
+            ["key": key, "value": ["stringValue": value]]
+        }
+
+        return [
+            "timeUnixNano": String(record.timeUnixNano),
+            "severityNumber": record.severityNumber,
+            "severityText": record.severityText,
+            "body": ["stringValue": record.body],
+            "attributes": attributes,
+            "traceId": record.traceId ?? "",
+            "spanId": record.spanId ?? ""
         ]
+    }
 
-        if runtimeConfig.appVersion != "unknown" || runtimeConfig.buildVersion != "unknown" {
-            payload["release"] = "\(runtimeConfig.appVersion)+\(runtimeConfig.buildVersion)"
-        }
-
-        guard JSONSerialization.isValidJSONObject(payload),
-              let payloadData = try? JSONSerialization.data(withJSONObject: payload) else {
-            return
-        }
-
-        var request = URLRequest(url: sentryDSN.endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(sentryDSN.authHeader, forHTTPHeaderField: "X-Sentry-Auth")
-        request.httpBody = payloadData
-
-        session.dataTask(with: request).resume()
+    private static func buildResourceAttributes(config: ObservabilityRuntimeConfig) -> [[String: Any]] {
+        [
+            ["key": "service.name", "value": ["stringValue": config.service]],
+            ["key": "service.namespace", "value": ["stringValue": "unbound"]],
+            ["key": "deployment.environment", "value": ["stringValue": config.environment]],
+            ["key": "telemetry.sdk.language", "value": ["stringValue": "swift"]],
+            ["key": "app.version", "value": ["stringValue": config.appVersion]],
+            ["key": "build.version", "value": ["stringValue": config.buildVersion]],
+            ["key": "os.version", "value": ["stringValue": config.osVersion]]
+        ]
     }
 }
 
-private struct ParsedSentryDSN {
-    let endpoint: URL
-    let authHeader: String
+// MARK: - OTLP Severity Mapping
 
-    init?(rawValue: String) {
-        guard let dsnURL = URL(string: rawValue),
-              let scheme = dsnURL.scheme,
-              let host = dsnURL.host,
-              let key = dsnURL.user,
-              !key.isEmpty else {
-            return nil
-        }
-
-        let pathParts = dsnURL.path.split(separator: "/")
-        guard let projectID = pathParts.last, !projectID.isEmpty else {
-            return nil
-        }
-        let prefix = pathParts.dropLast().joined(separator: "/")
-
-        var components = URLComponents()
-        components.scheme = scheme
-        components.host = host
-        components.port = dsnURL.port
-        if prefix.isEmpty {
-            components.path = "/api/\(projectID)/store/"
-        } else {
-            components.path = "/\(prefix)/api/\(projectID)/store/"
-        }
-
-        guard let endpoint = components.url else {
-            return nil
-        }
-
-        self.endpoint = endpoint
-        self.authHeader = "Sentry sentry_version=7, sentry_client=unbound-macos-observability/1.0, sentry_key=\(key)"
+private func otlpSeverityNumber(_ level: Logger.Level) -> Int {
+    switch level {
+    case .trace:
+        return 1
+    case .debug:
+        return 5
+    case .info:
+        return 9
+    case .notice:
+        return 10
+    case .warning:
+        return 13
+    case .error:
+        return 17
+    case .critical:
+        return 21
     }
 }
 
-private func uppercaseLevel(_ level: Logger.Level) -> String {
+private func otlpSeverityText(_ level: Logger.Level) -> String {
     switch level {
     case .trace:
         return "TRACE"
@@ -525,18 +503,7 @@ private func uppercaseLevel(_ level: Logger.Level) -> String {
     }
 }
 
-private func sentryLevel(from level: Logger.Level) -> String? {
-    switch level {
-    case .warning:
-        return "warning"
-    case .error:
-        return "error"
-    case .critical:
-        return "fatal"
-    default:
-        return nil
-    }
-}
+// MARK: - Sanitization Helpers
 
 private func sanitizeObject(_ object: [String: Any]) -> [String: Any] {
     var sanitized: [String: Any] = [:]
@@ -620,6 +587,8 @@ private func isLongBase64(_ value: String) -> Bool {
     }
 }
 
+// MARK: - Correlation Helpers
+
 private func readFirstString(in object: [String: Any], keys: [String]) -> String? {
     for key in keys {
         if let value = readString(object[key]) {
@@ -670,26 +639,7 @@ private func extractCorrelationFields(from metadata: [String: Any]) -> Correlati
     )
 }
 
-private func applyCorrelationFields(_ fields: CorrelationFields, to properties: inout [String: Any]) {
-    if let requestId = fields.requestId {
-        properties["request_id"] = requestId
-    }
-    if let sessionId = fields.sessionId {
-        properties["session_id"] = sessionId
-    }
-    if let deviceIdHash = fields.deviceIdHash {
-        properties["device_id_hash"] = deviceIdHash
-    }
-    if let userIdHash = fields.userIdHash {
-        properties["user_id_hash"] = userIdHash
-    }
-    if let traceId = fields.traceId {
-        properties["trace_id"] = traceId
-    }
-    if let spanId = fields.spanId {
-        properties["span_id"] = spanId
-    }
-}
+// MARK: - Value Helpers
 
 private func readString(_ value: Any?) -> String? {
     switch value {
@@ -700,6 +650,18 @@ private func readString(_ value: Any?) -> String? {
     default:
         return nil
     }
+}
+
+private func stringifyValue(_ value: Any) -> String? {
+    if let s = value as? String { return s }
+    if let n = value as? NSNumber { return n.stringValue }
+    if JSONSerialization.isValidJSONObject([value]),
+       let data = try? JSONSerialization.data(withJSONObject: value),
+       let s = String(data: data, encoding: .utf8)
+    {
+        return s
+    }
+    return nil
 }
 
 private func sha256Prefixed(_ rawValue: String) -> String {

@@ -267,6 +267,11 @@ pub struct Response {
     /// Error information (if failed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorInfo>,
+    /// Pre-serialized JSON for the result field. When set, `to_json()` embeds
+    /// this directly instead of serializing `result`, avoiding double-serialization
+    /// of large payloads.
+    #[serde(skip)]
+    raw_result: Option<String>,
 }
 
 /// Error information in a response.
@@ -288,6 +293,18 @@ impl Response {
             id: id.to_string(),
             result: Some(result),
             error: None,
+            raw_result: None,
+        }
+    }
+
+    /// Create a successful response with a pre-serialized JSON result.
+    /// `to_json()` will embed this verbatim, skipping serde serialization.
+    pub fn success_raw(id: &str, raw_json: String) -> Self {
+        Self {
+            id: id.to_string(),
+            result: None,
+            error: None,
+            raw_result: Some(raw_json),
         }
     }
 
@@ -301,6 +318,7 @@ impl Response {
                 message: message.to_string(),
                 data: None,
             }),
+            raw_result: None,
         }
     }
 
@@ -314,12 +332,26 @@ impl Response {
                 message: message.to_string(),
                 data: Some(data),
             }),
+            raw_result: None,
         }
     }
 
     /// Serialize to JSON string.
+    /// When `raw_result` is set, builds the JSON envelope manually to avoid
+    /// re-serializing an already-serialized payload.
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
+        if let Some(raw) = &self.raw_result {
+            let escaped_id = serde_json::to_string(&self.id)?;
+            let mut out = String::with_capacity(raw.len() + escaped_id.len() + 30);
+            out.push_str(r#"{"id":"#);
+            out.push_str(&escaped_id);
+            out.push_str(r#","result":"#);
+            out.push_str(raw);
+            out.push('}');
+            Ok(out)
+        } else {
+            serde_json::to_string(self)
+        }
     }
 
     /// Deserialize from JSON string.
