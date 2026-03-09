@@ -31,6 +31,7 @@ struct WorkspacesSidebar: View {
     var onAddRepository: () -> Void
     var onCreateSessionForRepository: (Repository, SessionLocationType) -> Void
     var onRequestRemoveRepository: (Repository) -> Void
+    var onCreateTerminalTab: (Session) -> Void = { _ in }
 
     @State private var showKeyboardShortcuts = false
 
@@ -154,6 +155,7 @@ struct WorkspacesSidebar: View {
                                 onRequestRemoveRepository: { repository in
                                     onRequestRemoveRepository(repository)
                                 },
+                                onCreateTerminalTab: onCreateTerminalTab,
                                 onArchiveSession: archiveSession,
                                 onRenameSession: renameSession,
                                 onDeleteSession: deleteSession
@@ -204,6 +206,7 @@ struct RepositoryGroup: View {
     var onSelectSession: (Session) -> Void
     var onCreateSession: (Repository, SessionLocationType) -> Void
     var onRequestRemoveRepository: ((Repository) -> Void)?
+    var onCreateTerminalTab: ((Session) -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
@@ -318,6 +321,7 @@ struct RepositoryGroup: View {
                             selectedSessionId: selectedSessionId,
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .mainDirectory) },
+                            onCreateTerminalTab: onCreateTerminalTab,
                             onArchiveSession: onArchiveSession,
                             onRenameSession: onRenameSession,
                             onDeleteSession: onDeleteSession
@@ -332,6 +336,7 @@ struct RepositoryGroup: View {
                             selectedSessionId: selectedSessionId,
                             onSelectSession: onSelectSession,
                             onCreateSession: { onCreateSession(repository, .worktree) },
+                            onCreateTerminalTab: onCreateTerminalTab,
                             onArchiveSession: onArchiveSession,
                             onRenameSession: onRenameSession,
                             onDeleteSession: onDeleteSession
@@ -358,6 +363,7 @@ struct MainDirectorySection: View {
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
     var onCreateSession: (() -> Void)?
+    var onCreateTerminalTab: ((Session) -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
@@ -408,6 +414,7 @@ struct MainDirectorySection: View {
                         session: session,
                         isSelected: selectedSessionId == session.id,
                         onSelect: { onSelectSession(session) },
+                        onCreateTerminalTab: onCreateTerminalTab != nil ? { onCreateTerminalTab?(session) } : nil,
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
                         onRename: onRenameSession != nil ? { newTitle in
                             onRenameSession?(session, newTitle)
@@ -435,6 +442,7 @@ struct WorktreeSection: View {
     let selectedSessionId: UUID?
     var onSelectSession: (Session) -> Void
     var onCreateSession: (() -> Void)?
+    var onCreateTerminalTab: ((Session) -> Void)?
     var onArchiveSession: ((Session) -> Void)?
     var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
@@ -486,6 +494,7 @@ struct WorktreeSection: View {
                         session: session,
                         isSelected: selectedSessionId == session.id,
                         onSelect: { onSelectSession(session) },
+                        onCreateTerminalTab: onCreateTerminalTab != nil ? { onCreateTerminalTab?(session) } : nil,
                         onArchive: onArchiveSession != nil ? { onArchiveSession?(session) } : nil,
                         onRename: onRenameSession != nil ? { newTitle in
                             onRenameSession?(session, newTitle)
@@ -512,6 +521,7 @@ struct SessionRow: View {
     let session: Session
     let isSelected: Bool
     var onSelect: () -> Void
+    var onCreateTerminalTab: (() -> Void)?
     var onArchive: (() -> Void)?
     var onRename: ((String) -> Void)?
     var onDelete: (() -> Void)?
@@ -583,6 +593,16 @@ struct SessionRow: View {
                     showRenameDialog = true
                 } label: {
                     Label("Rename...", systemImage: "pencil")
+                }
+
+                Divider()
+            }
+
+            if onCreateTerminalTab != nil {
+                Button {
+                    onCreateTerminalTab?()
+                } label: {
+                    Label("New Terminal Tab", systemImage: "terminal")
                 }
 
                 Divider()

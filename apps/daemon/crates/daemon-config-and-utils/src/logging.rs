@@ -57,6 +57,10 @@ pub fn shutdown() {
     observability::shutdown();
 }
 
+pub fn force_flush() {
+    observability::force_flush();
+}
+
 fn parse_mode_from_env() -> ObservabilityMode {
     let value = std::env::var("UNBOUND_ENV")
         .ok()

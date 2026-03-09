@@ -3,6 +3,7 @@ mod otel_logs;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use dev::{default_log_path, WriterFactory};
@@ -12,9 +13,9 @@ use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::LogExporter;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::logs::log_processor_with_async_runtime::BatchLogProcessor as AsyncBatchLogProcessor;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
-use opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor;
-use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
 use opentelemetry_sdk::{runtime, trace, Resource};
 use otel_logs::OtlpLogLayer;
 use tracing_subscriber::layer::SubscriberExt;
@@ -80,6 +81,9 @@ pub struct LogConfig {
 
 static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
 static LOGGER_PROVIDER: OnceLock<SdkLoggerProvider> = OnceLock::new();
+static OBSERVABILITY_INITIALIZED: AtomicBool = AtomicBool::new(false);
+static OBSERVABILITY_DUPLICATE_INIT_WARNED: AtomicBool = AtomicBool::new(false);
+static OBSERVABILITY_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 impl Default for LogConfig {
     fn default() -> Self {
@@ -104,6 +108,16 @@ pub fn init(service_name: &str) {
 }
 
 pub fn init_with_config(config: LogConfig) {
+    if OBSERVABILITY_INITIALIZED.swap(true, Ordering::SeqCst) {
+        if !OBSERVABILITY_DUPLICATE_INIT_WARNED.swap(true, Ordering::SeqCst) {
+            eprintln!(
+                "[observability] init_with_config called more than once; reusing existing providers and subscriber"
+            );
+        }
+        return;
+    }
+    OBSERVABILITY_SHUTDOWN.store(false, Ordering::SeqCst);
+
     let has_otlp = config.otlp.is_some();
     let tracer = match config.otlp.as_ref() {
         Some(otlp) => {
@@ -141,8 +155,7 @@ pub fn init_with_config(config: LogConfig) {
         None => None,
     };
 
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.default_level));
+    let env_filter = build_env_filter(&config.default_level);
 
     match config.mode {
         ObservabilityMode::DevVerbose => {
@@ -150,6 +163,40 @@ pub fn init_with_config(config: LogConfig) {
         }
         ObservabilityMode::ProdLight => {
             init_prod_subscriber(config, env_filter, tracer, otel_log_layer)
+        }
+    }
+}
+
+fn build_env_filter(default_level: &str) -> EnvFilter {
+    EnvFilter::new(resolve_env_filter_directive(default_level))
+}
+
+fn resolve_env_filter_directive(default_level: &str) -> String {
+    if let Some(directive) = parse_env_filter_var("UNBOUND_RUST_LOG") {
+        return directive;
+    }
+
+    if let Some(directive) = parse_env_filter_var("RUST_LOG") {
+        return directive;
+    }
+
+    default_level.to_string()
+}
+
+fn parse_env_filter_var(name: &str) -> Option<String> {
+    let raw = std::env::var(name).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    match EnvFilter::try_new(trimmed) {
+        Ok(_) => Some(trimmed.to_string()),
+        Err(err) => {
+            eprintln!(
+                "[observability] ignoring invalid {name} value {trimmed:?}: {err}"
+            );
+            None
         }
     }
 }
@@ -341,7 +388,12 @@ fn init_otel_tracer(
     let resource = build_resource(config);
     let endpoint = otlp_signal_endpoint(&otlp.endpoint, "traces");
 
-    let http_client = reqwest::Client::new();
+    // The stable BatchSpanProcessor exports on its own background thread.
+    // The SDK documents reqwest-blocking-client as the supported HTTP transport
+    // for this processor; async reqwest requires the async-runtime variant.
+    let http_client = std::thread::spawn(reqwest::blocking::Client::new)
+        .join()
+        .unwrap_or_else(|_| reqwest::blocking::Client::new());
     let mut exporter_builder = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
         .with_http_client(http_client)
@@ -360,7 +412,7 @@ fn init_otel_tracer(
         }
     };
 
-    let batch_processor = BatchSpanProcessor::builder(exporter, runtime::Tokio).build();
+    let batch_processor = BatchSpanProcessor::builder(exporter).build();
 
     let provider = SdkTracerProvider::builder()
         .with_span_processor(batch_processor)
@@ -397,8 +449,10 @@ fn init_otel_log_layer(config: &LogConfig, otlp: &OtlpConfig) -> Option<OtlpLogL
         }
     };
 
+    let batch_processor = AsyncBatchLogProcessor::builder(exporter, runtime::Tokio).build();
+
     let provider = SdkLoggerProvider::builder()
-        .with_batch_exporter(exporter)
+        .with_log_processor(batch_processor)
         .with_resource(resource)
         .build();
 
@@ -433,13 +487,42 @@ fn otlp_signal_endpoint(endpoint: &str, signal: &str) -> String {
 }
 
 pub fn shutdown() {
+    if !OBSERVABILITY_INITIALIZED.load(Ordering::SeqCst)
+        || OBSERVABILITY_SHUTDOWN.swap(true, Ordering::SeqCst)
+    {
+        return;
+    }
+
+    force_flush();
+
     if let Some(provider) = LOGGER_PROVIDER.get() {
-        let _ = provider.force_flush();
-        let _ = provider.shutdown();
+        if let Err(err) = provider.shutdown() {
+            eprintln!("[observability] logger provider shutdown failed: {err}");
+        }
     }
     if let Some(provider) = TRACER_PROVIDER.get() {
-        let _ = provider.force_flush();
-        let _ = provider.shutdown();
+        if let Err(err) = provider.shutdown() {
+            eprintln!("[observability] tracer provider shutdown failed: {err}");
+        }
+    }
+}
+
+pub fn force_flush() {
+    if !OBSERVABILITY_INITIALIZED.load(Ordering::SeqCst)
+        || OBSERVABILITY_SHUTDOWN.load(Ordering::SeqCst)
+    {
+        return;
+    }
+
+    if let Some(provider) = LOGGER_PROVIDER.get() {
+        if let Err(err) = provider.force_flush() {
+            eprintln!("[observability] logger provider force_flush failed: {err}");
+        }
+    }
+    if let Some(provider) = TRACER_PROVIDER.get() {
+        if let Err(err) = provider.force_flush() {
+            eprintln!("[observability] tracer provider force_flush failed: {err}");
+        }
     }
 }
 
@@ -481,5 +564,33 @@ mod tests {
             otlp_signal_endpoint("http://localhost:4318", "logs"),
             "http://localhost:4318/v1/logs"
         );
+    }
+
+    #[test]
+    fn unbound_rust_log_takes_precedence_over_rust_log() {
+        std::env::set_var("RUST_LOG", "warn");
+        std::env::set_var("UNBOUND_RUST_LOG", "debug");
+
+        assert_eq!(resolve_env_filter_directive("info"), "debug");
+
+        std::env::remove_var("UNBOUND_RUST_LOG");
+        std::env::remove_var("RUST_LOG");
+    }
+
+    #[test]
+    fn lifecycle_operations_are_idempotent() {
+        init_with_config(LogConfig {
+            service_name: "observability-test".to_string(),
+            ..Default::default()
+        });
+        init_with_config(LogConfig {
+            service_name: "observability-test".to_string(),
+            ..Default::default()
+        });
+
+        force_flush();
+        force_flush();
+        shutdown();
+        shutdown();
     }
 }

@@ -4,6 +4,7 @@ use crate::ably::{AblyTokenBrokerCacheHandle, AblyTokenBrokerRuntime};
 use crate::app::sidecar_logs::SidecarLogTask;
 use crate::armin_adapter::DaemonArmin;
 use crate::remote_command_handler::idempotency::IdempotencyStore;
+use crate::remote_command_handler::runtime::BillingQuotaRefreshRuntime;
 use crate::utils::SessionSecretCache;
 use auth_engine::{DaemonAuthRuntime, SupabaseClient};
 use daemon_config_and_utils::{Config, Paths};
@@ -125,4 +126,6 @@ pub struct DaemonState {
     pub safe_file_ops: Arc<SafeFileOps>,
     /// Local cached billing usage status used by remote command handler quota gate.
     pub billing_quota_cache: Arc<Mutex<BillingQuotaCacheState>>,
+    /// Lifecycle handle for the periodic billing quota refresh loop.
+    pub billing_quota_refresh_runtime: Arc<Mutex<Option<BillingQuotaRefreshRuntime>>>,
 }

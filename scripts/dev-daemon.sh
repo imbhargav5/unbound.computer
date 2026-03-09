@@ -59,6 +59,9 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
+DAEMON_LOG_FILTER="${UNBOUND_DAEMON_RUST_LOG:-${UNBOUND_LOG_LEVEL:-debug}}"
+echo "Using daemon log filter: $DAEMON_LOG_FILTER"
+
 # ── Start daemon ──────────────────────────────────────────────
 mkdir -p "$BASE_DIR"
 
@@ -66,7 +69,7 @@ if [[ "${1:-}" == "--app" ]]; then
   # Background the daemon, wait for socket, then launch the app
   echo "Starting dev daemon in background (base-dir: $BASE_DIR)..."
   START_TS=$(date +%s)
-  RUST_LOG="${RUST_LOG:-debug}" "$DAEMON_BIN" start --base-dir "$BASE_DIR" --foreground &
+  UNBOUND_RUST_LOG="$DAEMON_LOG_FILTER" "$DAEMON_BIN" start --base-dir "$BASE_DIR" --foreground &
   DAEMON_PID=$!
 
   # Wait for socket (daemon init includes auth/network calls that can be slow)
@@ -147,5 +150,5 @@ else
   # Run daemon in foreground — user sees logs directly, Ctrl+C stops it
   echo "Starting dev daemon in foreground (base-dir: $BASE_DIR)..."
   echo "Press Ctrl+C to stop."
-  exec env RUST_LOG="${RUST_LOG:-debug}" "$DAEMON_BIN" start --base-dir "$BASE_DIR" --foreground
+  exec env UNBOUND_RUST_LOG="$DAEMON_LOG_FILTER" "$DAEMON_BIN" start --base-dir "$BASE_DIR" --foreground
 fi

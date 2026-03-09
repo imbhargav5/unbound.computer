@@ -27,6 +27,7 @@ struct WorkspaceView: View {
     @State private var gitViewModel = GitViewModel()
     @State private var selectedSidebarTab: RightSidebarTab = .changes
     @State private var editorState = EditorState()
+    @State private var workspaceTabState = WorkspaceTabState()
 
     // State
     @State private var isAddingRepository = false
@@ -34,6 +35,11 @@ struct WorkspaceView: View {
     @State private var repositoryPendingRemoval: Repository?
     @State private var isRemovingRepository = false
     @State private var removeRepoError: String?
+    @State private var pendingCloseTabId: UUID?
+    @State private var showUnsavedCloseDialog = false
+    @State private var conflictTabId: UUID?
+    @State private var conflictRevision: DaemonFileRevision?
+    @State private var showConflictDialog = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -58,22 +64,16 @@ struct WorkspaceView: View {
 
     /// Get the working directory path for the selected session
     private var workingDirectoryPath: String? {
-        guard let session = selectedSession else { return nil }
-
-        // If session is a worktree, use its worktree path
-        if session.isWorktree, let worktreePath = session.worktreePath {
-            return worktreePath
-        }
-
-        // Otherwise use the repository path
-        return selectedRepository?.path
+        resolvedWorkingDirectoryPath(for: selectedSession)
     }
 
-    /// Space needed for traffic lights (close, minimize, zoom)
-    private let trafficLightWidth: CGFloat = 78
+    private var chromeHeight: CGFloat {
+        appState.localSettings.isZenModeEnabled ? 28 : LayoutMetrics.compactToolbarHeight
+    }
 
-    /// Titlebar height (matches macOS traffic light area)
-    private let titlebarHeight: CGFloat = 28
+    private var shouldRenderCenterPanel: Bool {
+        selectedSession != nil || !editorState.tabs.isEmpty || !workspaceTabState.terminalTabs.isEmpty
+    }
 
     /// Commands available in the command palette
     private var commandPaletteCommands: [CommandItem] {
@@ -128,6 +128,9 @@ struct WorkspaceView: View {
                                 },
                                 onRequestRemoveRepository: { repository in
                                     requestRemoveRepository(repository)
+                                },
+                                onCreateTerminalTab: { session in
+                                    createTerminalTab(for: session)
                                 }
                             )
                             .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
@@ -135,7 +138,7 @@ struct WorkspaceView: View {
 
                         // Center - Chat Panel
                         ZStack {
-                            if selectedSession != nil {
+                            if shouldRenderCenterPanel {
                                 ChatPanel(
                                     session: selectedSession,
                                     repository: selectedRepository,
@@ -143,7 +146,8 @@ struct WorkspaceView: View {
                                     selectedModel: $selectedModel,
                                     selectedThinkMode: $selectedThinkMode,
                                     isPlanMode: $isPlanMode,
-                                    editorState: editorState
+                                    editorState: editorState,
+                                    workspaceTabState: workspaceTabState
                                 )
                             } else {
                                 WorkspaceEmptyState(
@@ -162,19 +166,33 @@ struct WorkspaceView: View {
                                 gitViewModel: gitViewModel,
                                 editorState: editorState,
                                 selectedTab: $selectedSidebarTab,
-                                workingDirectory: workingDirectoryPath
+                                workingDirectory: workingDirectoryPath,
+                                onOpenEditorTab: { tabId in
+                                    workspaceTabState.selectEditor(tabId)
+                                }
                             )
                             .frame(minWidth: 280, idealWidth: 400, maxWidth: 600)
                         }
                     }
                 }
-                .padding(.top, titlebarHeight)
+                .padding(.top, chromeHeight)
 
                 // Top navbar or transparent titlebar (zen mode)
                 if appState.localSettings.isZenModeEnabled {
                     WindowToolbar(content: { Color.clear }, height: 28)
                 } else {
-                    TopNavbar(onOpenSettings: { appState.showSettings = true })
+                    TopNavbar(
+                        session: selectedSession,
+                        editorState: editorState,
+                        workspaceTabState: workspaceTabState,
+                        onRequestCloseEditorTab: { tabId in
+                            requestCloseEditorTab(tabId)
+                        },
+                        onRequestCloseTerminalTab: { tabId in
+                            workspaceTabState.closeTerminalTab(tabId, editorTabIds: editorState.tabs.map(\.id))
+                        },
+                        onOpenSettings: { appState.showSettings = true }
+                    )
                 }
             }
 
@@ -182,7 +200,7 @@ struct WorkspaceView: View {
                 Badge("Zen Mode", variant: .outline)
                     .help("Zen Mode — ⌘K Z")
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, titlebarHeight + Spacing.sm)
+                    .padding(.top, chromeHeight + Spacing.sm)
                     .padding(.trailing, Spacing.lg)
             }
 
@@ -208,6 +226,54 @@ struct WorkspaceView: View {
                 )
             }
         }
+        .confirmationDialog(
+            "Unsaved changes",
+            isPresented: $showUnsavedCloseDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Save") {
+                Task { await saveAndClosePendingTab() }
+            }
+            Button("Discard", role: .destructive) {
+                if let tabId = pendingCloseTabId {
+                    closeEditorTab(id: tabId)
+                }
+                pendingCloseTabId = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingCloseTabId = nil
+            }
+        } message: {
+            Text("Save changes before closing this tab?")
+        }
+        .confirmationDialog(
+            "File changed on disk",
+            isPresented: $showConflictDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Reload") {
+                guard let tabId = conflictTabId else { return }
+                Task {
+                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
+                    clearConflictState()
+                }
+            }
+            Button("Overwrite") {
+                guard let tabId = conflictTabId else { return }
+                Task {
+                    await overwriteAfterConflict(tabId: tabId)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                clearConflictState()
+            }
+        } message: {
+            if let revision = conflictRevision {
+                Text("Current revision token: \(revision.token)")
+            } else {
+                Text("The file was modified externally. Reload or overwrite your local edits.")
+            }
+        }
         .background(colors.background)
         .background(WindowTitlebarConfigurator())
         .ignoresSafeArea(.container, edges: .top)
@@ -219,6 +285,14 @@ struct WorkspaceView: View {
                 withAnimation(.easeOut(duration: Duration.fast)) {
                     appState.showCommandPalette.toggle()
                 }
+            }
+        )
+        .background(
+            KeyboardShortcutHandler(
+                key: "`",
+                modifiers: .control
+            ) {
+                createTerminalTabForSelectedSession()
             }
         )
         .background(
@@ -241,13 +315,20 @@ struct WorkspaceView: View {
             // Initialize FileTreeViewModel
             initializeFileTreeViewModelIfNeeded()
         }
+        .task {
+            syncWorkspaceTabState()
+        }
         .onChange(of: selectedSession?.id) { _, newSessionId in
             Task { @MainActor in
                 fileTreeViewModel?.setSessionId(newSessionId)
                 if selectedSidebarTab == .files {
                     await fileTreeViewModel?.loadRoot()
                 }
+                syncWorkspaceTabState()
             }
+        }
+        .onChange(of: workingDirectoryPath) { _, _ in
+            syncWorkspaceTabState()
         }
     }
 
@@ -334,6 +415,111 @@ struct WorkspaceView: View {
             }
             isAddingRepository = false
         }
+    }
+
+    private func syncWorkspaceTabState() {
+        workspaceTabState.resetForSession(
+            selectedSession?.id,
+            workspacePath: workingDirectoryPath
+        )
+    }
+
+    private func resolvedWorkingDirectoryPath(for session: Session?) -> String? {
+        guard let session else { return nil }
+
+        if session.isWorktree, let worktreePath = session.worktreePath {
+            return FileManager.default.fileExists(atPath: worktreePath) ? worktreePath : nil
+        }
+
+        guard let repositoryPath = appState.repositories.first(where: { $0.id == session.repositoryId })?.path else {
+            return nil
+        }
+
+        return FileManager.default.fileExists(atPath: repositoryPath) ? repositoryPath : nil
+    }
+
+    private func createTerminalTab(for session: Session) {
+        appState.selectSession(session.id)
+        _ = workspaceTabState.createTerminalTab(
+            for: session.id,
+            workspacePath: resolvedWorkingDirectoryPath(for: session)
+        )
+    }
+
+    private func createTerminalTabForSelectedSession() {
+        guard let session = selectedSession else { return }
+        _ = workspaceTabState.createTerminalTab(
+            for: session.id,
+            workspacePath: workingDirectoryPath
+        )
+    }
+
+    private func requestCloseEditorTab(_ tabId: UUID) {
+        if editorState.isDirty(tabId: tabId) {
+            pendingCloseTabId = tabId
+            showUnsavedCloseDialog = true
+            return
+        }
+
+        closeEditorTab(id: tabId)
+    }
+
+    private func closeEditorTab(id tabId: UUID) {
+        editorState.closeTab(id: tabId)
+        workspaceTabState.closeEditorTab(tabId, remainingEditorTabIds: editorState.tabs.map(\.id))
+    }
+
+    private func saveAndClosePendingTab() async {
+        guard let tabId = pendingCloseTabId else { return }
+        await performSave(
+            tabId: tabId,
+            forceOverwrite: false,
+            closeOnSuccess: true
+        )
+    }
+
+    private func overwriteAfterConflict(tabId: UUID) async {
+        let shouldCloseAfterSave = pendingCloseTabId == tabId
+        await performSave(
+            tabId: tabId,
+            forceOverwrite: true,
+            closeOnSuccess: shouldCloseAfterSave
+        )
+        clearConflictState()
+    }
+
+    private func performSave(
+        tabId: UUID,
+        forceOverwrite: Bool,
+        closeOnSuccess: Bool
+    ) async {
+        do {
+            let outcome = try await editorState.saveFile(
+                tabId: tabId,
+                daemonClient: appState.daemonClient,
+                forceOverwrite: forceOverwrite
+            )
+            switch outcome {
+            case .saved, .noChanges:
+                if closeOnSuccess {
+                    closeEditorTab(id: tabId)
+                }
+                pendingCloseTabId = nil
+            case .conflict(let currentRevision):
+                conflictTabId = tabId
+                conflictRevision = currentRevision
+                showConflictDialog = true
+            }
+        } catch {
+            logger.warning("Save failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func clearConflictState() {
+        conflictTabId = nil
+        conflictRevision = nil
+        showConflictDialog = false
+        pendingCloseTabId = nil
     }
 }
 

@@ -25,26 +25,18 @@ struct ChatPanel: View {
     @Binding var selectedThinkMode: ThinkMode
     @Binding var isPlanMode: Bool
     @Bindable var editorState: EditorState
-
-    // Editor tab close/save dialog state
-    @State private var pendingCloseTabId: UUID?
-    @State private var showUnsavedCloseDialog: Bool = false
+    @Bindable var workspaceTabState: WorkspaceTabState
     @State private var conflictTabId: UUID?
     @State private var conflictRevision: DaemonFileRevision?
-    @State private var showConflictDialog: Bool = false
+    @State private var showConflictDialog = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
-    /// Whether an editor tab is currently selected (vs. the session/chat tab)
-    private var isEditorTabActive: Bool {
-        editorState.selectedTabId != nil && !editorState.tabs.isEmpty
-    }
-
     /// Currently selected editor tab
     private var selectedEditorTab: EditorTab? {
-        guard let id = editorState.selectedTabId else { return nil }
+        guard case .editor(let id) = workspaceTabState.selection else { return nil }
         return editorState.tabs.first { $0.id == id }
     }
 
@@ -53,9 +45,9 @@ struct ChatPanel: View {
         return tab
     }
 
-    private var canSaveSelectedFile: Bool {
-        guard let selectedFileTab else { return false }
-        return editorState.canSave(tabId: selectedFileTab.id)
+    private var activeTerminalTabId: UUID? {
+        guard case .terminal(let tabId) = workspaceTabState.selection else { return nil }
+        return tabId
     }
 
     /// The live state for the current session (nil if no session selected)
@@ -106,11 +98,6 @@ struct ChatPanel: View {
 
     private var timelineSnapshot: ChatTimelineSnapshot {
         liveState?.timelineSnapshot ?? .empty
-    }
-
-    /// Whether there's any active tool state to display
-    private var hasActiveToolState: Bool {
-        timelineSnapshot.hasActiveToolState
     }
 
     private var renderedMessageCount: Int {
@@ -174,23 +161,17 @@ struct ChatPanel: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                if isEditorTabActive {
-                    editorColumn
-                } else {
-                    chatColumn
-                        .padding(.bottom, TerminalFooterTabTokens.barHeight)
-
-                    TerminalFooterPanel(
-                        workspacePath: workspacePath,
-                        availableHeight: geometry.size.height
-                    )
-                    .id(session?.id)
-                }
+        Group {
+            switch workspaceTabState.selection {
+            case .conversation:
+                chatColumn
+            case .editor:
+                editorColumn
+            case .terminal:
+                terminalColumn
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: session?.id) {
             guard let session else { return }
             await Task.yield()
@@ -206,26 +187,6 @@ struct ChatPanel: View {
             }
         } message: {
             Text(liveState?.errorAlertMessage ?? "An unknown error occurred")
-        }
-        .confirmationDialog(
-            "Unsaved changes",
-            isPresented: $showUnsavedCloseDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Save") {
-                Task { await saveAndClosePendingTab() }
-            }
-            Button("Discard", role: .destructive) {
-                if let tabId = pendingCloseTabId {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingCloseTabId = nil
-            }
-        } message: {
-            Text("Save changes before closing this tab?")
         }
         .confirmationDialog(
             "File changed on disk",
@@ -257,63 +218,20 @@ struct ChatPanel: View {
         }
     }
 
-    // MARK: - Tabbed Header
-
-    private var tabbedHeader: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    // Session tab (non-closable)
-                    CenterPanelTab(
-                        label: session?.displayTitle ?? "New conversation",
-                        isSelected: !isEditorTabActive,
-                        isClosable: false,
-                        showsTrailingDivider: !editorState.tabs.isEmpty,
-                        onSelect: { editorState.selectedTabId = nil },
-                        onClose: {}
-                    )
-
-                    // Editor file/diff tabs (closable)
-                    ForEach(Array(editorState.tabs.enumerated()), id: \.element.id) { index, tab in
-                        CenterPanelTab(
-                            label: tab.filename,
-                            badge: tab.kind == .diff ? "Diff" : nil,
-                            isSelected: editorState.selectedTabId == tab.id,
-                            isClosable: true,
-                            showsTrailingDivider: index < editorState.tabs.count - 1,
-                            onSelect: { editorState.selectTab(id: tab.id) },
-                            onClose: { requestCloseTab(tab.id) }
-                        )
-                    }
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .frame(height: ChatHeaderTokens.headerHeight)
-        .background(colors.card)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(colors.border)
-                .frame(height: ChatHeaderTokens.bottomBorderWidth)
-        }
-    }
-
     // MARK: - Editor Column
 
     private var editorColumn: some View {
-        VStack(spacing: 0) {
-            tabbedHeader
-            editorContent
-        }
+        editorContent
         .frame(minWidth: 300)
         .background(colors.editorBackground)
         .background {
-            Button("Save") {
-                Task { await saveActiveFile() }
+            if selectedFileTab != nil {
+                Button("Save") {
+                    Task { await saveActiveFile() }
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .hidden()
             }
-            .keyboardShortcut("s", modifiers: .command)
-            .hidden()
         }
     }
 
@@ -338,8 +256,6 @@ struct ChatPanel: View {
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
-            tabbedHeader
-
             VStack(spacing: 0) {
                 if let session = session {
                     if isLoadingMessages {
@@ -418,6 +334,26 @@ struct ChatPanel: View {
         .frame(minWidth: 300)
     }
 
+    private var terminalColumn: some View {
+        ZStack {
+            ForEach(workspaceTabState.terminalTabs) { tab in
+                TerminalContainer(tabId: tab.id, workingDirectory: tab.workingDirectory)
+                    .opacity(activeTerminalTabId == tab.id ? 1 : 0)
+                    .allowsHitTesting(activeTerminalTabId == tab.id)
+            }
+
+            if workspaceTabState.terminalTabs.isEmpty {
+                ContentUnavailableView(
+                    "No Terminal Tabs",
+                    systemImage: "terminal",
+                    description: Text("Use Control + ` or right-click a session to create one.")
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.chatBackground)
+    }
+
     private var sessionTimelineHeaderCard: some View {
         HStack(alignment: .center, spacing: Spacing.md) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -456,49 +392,19 @@ struct ChatPanel: View {
         .padding(.vertical, Spacing.md)
     }
 
-    // MARK: - Tab Actions
-
-    private func requestCloseTab(_ tabId: UUID) {
-        if editorState.isDirty(tabId: tabId) {
-            pendingCloseTabId = tabId
-            showUnsavedCloseDialog = true
-            return
-        }
-        editorState.closeTab(id: tabId)
-    }
-
     private func saveActiveFile() async {
         guard let tab = selectedFileTab else { return }
-        await performSave(
-            tabId: tab.id,
-            forceOverwrite: false,
-            closeOnSuccess: false
-        )
-    }
-
-    private func saveAndClosePendingTab() async {
-        guard let tabId = pendingCloseTabId else { return }
-        await performSave(
-            tabId: tabId,
-            forceOverwrite: false,
-            closeOnSuccess: true
-        )
+        await performSave(tabId: tab.id, forceOverwrite: false)
     }
 
     private func overwriteAfterConflict(tabId: UUID) async {
-        let shouldCloseAfterSave = pendingCloseTabId == tabId
-        await performSave(
-            tabId: tabId,
-            forceOverwrite: true,
-            closeOnSuccess: shouldCloseAfterSave
-        )
+        await performSave(tabId: tabId, forceOverwrite: true)
         clearConflictState()
     }
 
     private func performSave(
         tabId: UUID,
-        forceOverwrite: Bool,
-        closeOnSuccess: Bool
+        forceOverwrite: Bool
     ) async {
         do {
             let outcome = try await editorState.saveFile(
@@ -508,15 +414,9 @@ struct ChatPanel: View {
             )
             switch outcome {
             case .saved:
-                if closeOnSuccess {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
+                break
             case .noChanges:
-                if closeOnSuccess {
-                    editorState.closeTab(id: tabId)
-                }
-                pendingCloseTabId = nil
+                break
             case .conflict(let currentRevision):
                 conflictTabId = tabId
                 conflictRevision = currentRevision
@@ -531,7 +431,6 @@ struct ChatPanel: View {
         conflictTabId = nil
         conflictRevision = nil
         showConflictDialog = false
-        pendingCloseTabId = nil
     }
 
     // MARK: - Chat Actions
@@ -905,79 +804,36 @@ struct DiffEditorView: View {
     }
 }
 
-// MARK: - Center Panel Tab
-
-struct CenterPanelTab: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    let label: String
-    var badge: String? = nil
-    let isSelected: Bool
-    let isClosable: Bool
-    var showsTrailingDivider: Bool = false
-    var onSelect: () -> Void
-    var onClose: () -> Void
-
-    @State private var isCloseHovered: Bool = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: ChatHeaderTokens.tabContentSpacing) {
-                Text(label)
-                    .font(GeistFont.sans(size: ChatHeaderTokens.tabFontSize, weight: ChatHeaderTokens.tabFontWeight))
-                    .foregroundStyle(isSelected ? colors.sidebarText : colors.sidebarMeta)
-                    .lineLimit(1)
-
-                if let badge {
-                    Text(badge)
-                        .font(GeistFont.sans(size: ChatHeaderTokens.badgeFontSize, weight: ChatHeaderTokens.badgeFontWeight))
-                        .foregroundStyle(colors.accentAmber)
-                        .padding(.horizontal, ChatHeaderTokens.badgeHorizontalPadding)
-                        .padding(.vertical, ChatHeaderTokens.badgeVerticalPadding)
-                        .background(colors.accentAmberMuted)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ChatHeaderTokens.badgeCornerRadius)
-                                .stroke(colors.accentAmberBorder, lineWidth: BorderWidth.default)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: ChatHeaderTokens.badgeCornerRadius))
-                }
-
-                if isClosable {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: ChatHeaderTokens.closeIconSize, weight: .regular))
-                            .foregroundStyle(isCloseHovered ? colors.sidebarText : colors.sidebarMeta)
-                            .frame(width: ChatHeaderTokens.closeIconFrameSize, height: ChatHeaderTokens.closeIconFrameSize)
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        isCloseHovered = hovering
-                    }
-                }
-            }
-            .padding(.horizontal, ChatHeaderTokens.tabHorizontalPadding)
-            .frame(height: ChatHeaderTokens.headerHeight)
-            .background(isSelected ? colors.surface1 : colors.card)
-            .overlay(alignment: .trailing) {
-                if showsTrailingDivider {
-                    Rectangle()
-                        .fill(colors.border)
-                        .frame(width: ChatHeaderTokens.tabSeparatorWidth)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 #if DEBUG
 
+private func makePreviewWorkspaceTabState(
+    editorState: EditorState,
+    selection: WorkspaceTabSelection = .conversation,
+    terminalCount: Int = 0
+) -> WorkspaceTabState {
+    let state = WorkspaceTabState()
+    state.resetForSession(PreviewData.sessionId1, workspacePath: PreviewData.repositories.first?.path)
+    for _ in 0..<terminalCount {
+        _ = state.createTerminalTab(for: PreviewData.sessionId1, workspacePath: PreviewData.repositories.first?.path)
+    }
+
+    switch selection {
+    case .conversation:
+        state.selectConversation()
+    case .terminal:
+        if let firstTerminal = state.terminalTabs.first {
+            state.selectTerminal(firstTerminal.id)
+        }
+    case .editor(let tabId):
+        editorState.selectTab(id: tabId)
+        state.selectEditor(tabId)
+    }
+
+    return state
+}
+
 #Preview("With Messages") {
+    let editorState = EditorState()
     ChatPanel(
         session: PreviewData.allSessions.first,
         repository: PreviewData.repositories.first,
@@ -985,15 +841,15 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview())
     .frame(width: 900, height: 600)
 }
 
-#Preview("Header Match - Session Selected (FAEi4)") {
+#Preview("Conversation Selected") {
     let editorState = EditorState.preview()
-    editorState.selectedTabId = nil
 
     return ChatPanel(
         session: PreviewData.allSessions.first,
@@ -1002,18 +858,17 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: editorState
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview())
     .preferredColorScheme(.dark)
     .frame(width: 900, height: 600)
 }
 
-#Preview("Header Match - Diff Selected (d391K)") {
+#Preview("Diff Selected") {
     let editorState = EditorState.preview()
-    if let diffTab = editorState.tabs.first(where: { $0.kind == .diff }) {
-        editorState.selectedTabId = diffTab.id
-    }
+    let diffTabId = editorState.tabs.first(where: { $0.kind == .diff })?.id ?? UUID()
 
     return ChatPanel(
         session: PreviewData.allSessions.first,
@@ -1022,7 +877,33 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: editorState
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(
+            editorState: editorState,
+            selection: .editor(diffTabId)
+        )
+    )
+    .environment(AppState.preview())
+    .preferredColorScheme(.dark)
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Terminal Selected") {
+    let editorState = EditorState.preview()
+
+    return ChatPanel(
+        session: PreviewData.allSessions.first,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(
+            editorState: editorState,
+            selection: .terminal(UUID()),
+            terminalCount: 2
+        )
     )
     .environment(AppState.preview())
     .preferredColorScheme(.dark)
@@ -1030,6 +911,7 @@ struct CenterPanelTab: View {
 }
 
 #Preview("With Messages (Light)") {
+    let editorState = EditorState()
     ChatPanel(
         session: PreviewData.allSessions.first,
         repository: PreviewData.repositories.first,
@@ -1037,7 +919,8 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview())
     .preferredColorScheme(.light)
@@ -1045,6 +928,7 @@ struct CenterPanelTab: View {
 }
 
 #Preview("With Messages (Dark)") {
+    let editorState = EditorState()
     ChatPanel(
         session: PreviewData.allSessions.first,
         repository: PreviewData.repositories.first,
@@ -1052,7 +936,8 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview())
     .preferredColorScheme(.dark)
@@ -1060,6 +945,7 @@ struct CenterPanelTab: View {
 }
 
 #Preview("Claude Active") {
+    let editorState = EditorState()
     ChatPanel(
         session: PreviewData.allSessions.first,
         repository: PreviewData.repositories.first,
@@ -1067,7 +953,8 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.sonnet),
         selectedThinkMode: .constant(.think),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview(claudeRunning: true))
     .frame(width: 900, height: 600)
@@ -1080,6 +967,7 @@ struct CenterPanelTab: View {
         sessionId: PreviewData.sessionId1.uuidString,
         updatedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
     )
+    let editorState = EditorState()
 
     return ChatPanel(
         session: PreviewData.allSessions.first,
@@ -1088,7 +976,8 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.sonnet),
         selectedThinkMode: .constant(.think),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview(runtimeStatus: runtimeStatus))
     .frame(width: 900, height: 600)
@@ -1101,6 +990,7 @@ struct CenterPanelTab: View {
         sessionId: PreviewData.sessionId1.uuidString,
         updatedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
     )
+    let editorState = EditorState()
 
     return ChatPanel(
         session: PreviewData.allSessions.first,
@@ -1109,13 +999,15 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.sonnet),
         selectedThinkMode: .constant(.think),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState.preview(runtimeStatus: runtimeStatus))
     .frame(width: 900, height: 600)
 }
 
 #Preview("Empty") {
+    let editorState = EditorState()
     ChatPanel(
         session: FakeData.sessions.first,
         repository: nil,
@@ -1123,7 +1015,8 @@ struct CenterPanelTab: View {
         selectedModel: .constant(.opus),
         selectedThinkMode: .constant(.none),
         isPlanMode: .constant(false),
-        editorState: EditorState()
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(editorState: editorState)
     )
     .environment(AppState())
     .frame(width: 900, height: 600)

@@ -1872,8 +1872,10 @@ dependencies = [
 name = "observability"
 version = "0.0.18"
 dependencies = [
+ "async-trait",
  "dirs",
  "opentelemetry",
+ "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",

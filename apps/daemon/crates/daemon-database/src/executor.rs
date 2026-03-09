@@ -30,9 +30,11 @@
 //! ```
 
 use crate::{migrations, DatabaseError, DatabaseResult};
+use daemon_config_and_utils::hash_identifier;
 use std::path::Path;
+use std::time::Instant;
 use tokio_rusqlite::Connection;
-use tracing::{debug, info};
+use tracing::{debug, error, info, Instrument};
 
 /// Convert a tokio_rusqlite::Error to DatabaseError.
 fn from_tokio_rusqlite(e: tokio_rusqlite::Error) -> DatabaseError {
@@ -57,6 +59,16 @@ pub struct AsyncDatabase {
 }
 
 impl AsyncDatabase {
+    fn operation_span(&self, operation: &'static str) -> tracing::Span {
+        let path_hash = hash_identifier(&self.path);
+        tracing::info_span!(
+            "db.sqlite.call",
+            db_system = "sqlite",
+            db_operation = operation,
+            db_path_hash = %path_hash
+        )
+    }
+
     /// Open a database at the given path.
     ///
     /// This will:
@@ -154,24 +166,58 @@ impl AsyncDatabase {
         F: FnOnce(&rusqlite::Connection) -> DatabaseResult<T> + Send + 'static,
         T: Send + 'static,
     {
+        self.call_with_operation("anonymous", f).await
+    }
+
+    pub async fn call_with_operation<F, T>(
+        &self,
+        operation: &'static str,
+        f: F,
+    ) -> DatabaseResult<T>
+    where
+        F: FnOnce(&rusqlite::Connection) -> DatabaseResult<T> + Send + 'static,
+        T: Send + 'static,
+    {
         // Strategy: Wrap our DatabaseResult<T> inside the tokio_rusqlite Ok variant.
         // tokio_rusqlite::Error implements From<rusqlite::Error>, so we use that.
         //
         // Inner type: Result<DatabaseResult<T>, tokio_rusqlite::Error>
         // After await: Result<DatabaseResult<T>, tokio_rusqlite::Error>
         // After flatten: DatabaseResult<T>
-        let outer_result = self
-            .conn
-            .call(move |conn| {
-                let inner_result = f(conn);
-                // Return Ok with our DatabaseResult wrapped inside
-                Ok(inner_result)
-            })
-            .await;
+        let span = self.operation_span(operation);
+        let start = Instant::now();
+        let outer_result = async move {
+            self.conn
+                .call(move |conn| {
+                    let inner_result = f(conn);
+                    // Return Ok with our DatabaseResult wrapped inside
+                    Ok(inner_result)
+                })
+                .await
+        }
+        .instrument(span)
+        .await;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
 
         match outer_result {
-            Ok(inner) => inner,
-            Err(e) => Err(from_tokio_rusqlite(e)),
+            Ok(inner) => {
+                debug!(
+                    db_operation = operation,
+                    db_duration_ms = duration_ms,
+                    "SQLite operation completed"
+                );
+                inner
+            }
+            Err(e) => {
+                error!(
+                    db_operation = operation,
+                    db_duration_ms = duration_ms,
+                    error = %e,
+                    "SQLite operation failed"
+                );
+                Err(from_tokio_rusqlite(e))
+            }
         }
     }
 
@@ -183,11 +229,44 @@ impl AsyncDatabase {
         F: FnOnce(&rusqlite::Connection) -> rusqlite::Result<T> + Send + 'static,
         T: Send + 'static,
     {
-        // Use ? to convert rusqlite::Error to tokio_rusqlite::Error
-        self.conn
-            .call(move |conn| Ok(f(conn)?))
-            .await
-            .map_err(from_tokio_rusqlite)
+        self.call_sqlite_with_operation("anonymous", f).await
+    }
+
+    pub async fn call_sqlite_with_operation<F, T>(
+        &self,
+        operation: &'static str,
+        f: F,
+    ) -> DatabaseResult<T>
+    where
+        F: FnOnce(&rusqlite::Connection) -> rusqlite::Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let span = self.operation_span(operation);
+        let start = Instant::now();
+        let result = async move { self.conn.call(move |conn| Ok(f(conn)?)).await }
+            .instrument(span)
+            .await;
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(value) => {
+                debug!(
+                    db_operation = operation,
+                    db_duration_ms = duration_ms,
+                    "SQLite operation completed"
+                );
+                Ok(value)
+            }
+            Err(err) => {
+                error!(
+                    db_operation = operation,
+                    db_duration_ms = duration_ms,
+                    error = %err,
+                    "SQLite operation failed"
+                );
+                Err(from_tokio_rusqlite(err))
+            }
+        }
     }
 
     /// Get the database file path.
@@ -197,7 +276,7 @@ impl AsyncDatabase {
 
     /// Check if the database is healthy by executing a simple query.
     pub async fn health_check(&self) -> DatabaseResult<()> {
-        self.call_sqlite(|conn| conn.execute_batch("SELECT 1"))
+        self.call_sqlite_with_operation("health_check", |conn| conn.execute_batch("SELECT 1"))
             .await?;
         debug!("Database health check passed");
         Ok(())

@@ -58,3 +58,8 @@ Callers can override `LogConfig.log_path`. The daemon now writes its dev log fil
 - `UNBOUND_OTEL_HEADERS`
 - `UNBOUND_OTEL_SAMPLER`
 - `UNBOUND_OTEL_TRACES_SAMPLER_ARG`
+
+## SigNoz operating model
+
+For the shared telemetry schema, saved investigations, alert/SLO guidance, and
+local smoke workflow, see [SIGNOZ_OPERATING_MODEL.md](/Users/bhargavponnapalli/Code/rocketry-repos/unbound.computer/packages/observability/SIGNOZ_OPERATING_MODEL.md).

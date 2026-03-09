@@ -6,13 +6,14 @@ use crate::app::sidecar_logs::reap_all_sidecar_log_tasks;
 use crate::app::sidecar_supervisor::spawn_sidecar_supervisor;
 use crate::app::{DaemonState, ManagedAblyBrokerState, StartupStatusWriter};
 use crate::armin_adapter::create_daemon_armin;
-use crate::auth::common::reconcile_sidecars_with_auth;
+use crate::auth::common::{reconcile_sidecars_with_auth, shutdown_hot_path_syncers};
 use crate::ipc::register_handlers;
 use crate::remote_command_handler::idempotency::IdempotencyStore;
-use crate::remote_command_handler::runtime::spawn_billing_quota_refresh_loop;
+use crate::remote_command_handler::runtime::start_billing_quota_refresh_loop;
 use crate::utils::{load_session_secrets_from_supabase, SessionSecretCache};
 use agent_session_sqlite_persist_core::{SessionId, SessionReader};
 use auth_engine::{DaemonAuthRuntime, SessionManager, SupabaseClient};
+use daemon_config_and_utils::{force_flush, shutdown};
 use daemon_config_and_utils::{Config, Paths};
 use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
@@ -228,6 +229,7 @@ pub async fn run_daemon(
         armin,
         safe_file_ops,
         billing_quota_cache: Arc::new(Mutex::new(Default::default())),
+        billing_quota_refresh_runtime: Arc::new(Mutex::new(None)),
     };
 
     register_handlers(&ipc_server, state.clone()).await;
@@ -238,14 +240,17 @@ pub async fn run_daemon(
     if let Err(error) =
         wait_for_ipc_socket_ready(&socket_path, &mut ipc_task, &startup_status).await
     {
+        cleanup_runtime_workers(&state).await;
         startup_status.update("critical_bootstrap_failed", &error.to_string());
-        let _ = std::fs::remove_file(paths.pid_file());
-        let _ = std::fs::remove_file(paths.socket_file());
+        remove_runtime_files(&paths);
+        force_flush();
+        shutdown();
         return Err(error);
     }
     startup_status.update("socket_ready", "Daemon IPC socket is listening");
 
-    spawn_billing_quota_refresh_loop(state.clone());
+    let billing_quota_refresh_runtime = start_billing_quota_refresh_loop(state.clone());
+    *state.billing_quota_refresh_runtime.lock().unwrap() = Some(billing_quota_refresh_runtime);
 
     {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
@@ -265,8 +270,8 @@ pub async fn run_daemon(
     let runtime_state = state.clone();
 
     let server_result = match ipc_task.await {
-        Ok(result) => result,
-        Err(err) => return Err(format!("IPC server task join failed: {err}").into()),
+        Ok(result) => result.map_err(|err| -> Box<dyn std::error::Error> { err.into() }),
+        Err(err) => Err(format!("IPC server task join failed: {err}").into()),
     };
 
     post_listen_task.abort();
@@ -298,6 +303,24 @@ pub async fn run_daemon(
 
     shutdown_ably_broker(&runtime_state).await;
 
+    runtime_state.sync_sink.clear_message_syncer().await;
+    runtime_state.sync_sink.clear_metadata_provider().await;
+    runtime_state.sync_sink.clear_context().await;
+    runtime_state.message_sync.clear_context().await;
+    runtime_state.message_sync.shutdown().await;
+
+    let billing_quota_refresh_runtime = runtime_state
+        .billing_quota_refresh_runtime
+        .lock()
+        .unwrap()
+        .take();
+    if let Some(runtime) = billing_quota_refresh_runtime {
+        runtime.shutdown().await;
+    }
+
+    shutdown_hot_path_syncers(&runtime_state).await;
+    runtime_state.sync_sink.shutdown().await;
+
     if let Some(mut child) = runtime_state.nagato_process.lock().unwrap().take() {
         terminate_child(&mut child, "nagato");
     }
@@ -310,17 +333,14 @@ pub async fn run_daemon(
     }
     reap_all_sidecar_log_tasks(&runtime_state);
 
-    let _ = std::fs::remove_file(paths.pid_file());
-    let _ = std::fs::remove_file(paths.socket_file());
-    for sidecar_socket in paths.sidecar_socket_files() {
-        let _ = std::fs::remove_file(sidecar_socket);
-    }
-    let _ = std::fs::remove_file(paths.ably_auth_socket_file());
-
     startup_status.update("stopped", "Daemon shutdown complete");
     info!("Daemon stopped");
+    force_flush();
+    shutdown();
 
-    server_result.map_err(|e| e.into())
+    remove_runtime_files(&paths);
+
+    server_result
 }
 
 async fn enforce_singleton_and_cleanup(paths: &Paths) -> Result<(), Box<dyn std::error::Error>> {
@@ -542,4 +562,22 @@ async fn shutdown_ably_broker(state: &DaemonState) {
             warn!(error = %err, "Ably broker task join failed");
         }
     }
+}
+
+async fn cleanup_runtime_workers(state: &DaemonState) {
+    state.sync_sink.clear_message_syncer().await;
+    state.sync_sink.clear_metadata_provider().await;
+    state.sync_sink.clear_context().await;
+    state.message_sync.clear_context().await;
+    state.message_sync.shutdown().await;
+    state.sync_sink.shutdown().await;
+}
+
+fn remove_runtime_files(paths: &Paths) {
+    let _ = std::fs::remove_file(paths.pid_file());
+    let _ = std::fs::remove_file(paths.socket_file());
+    for sidecar_socket in paths.sidecar_socket_files() {
+        let _ = std::fs::remove_file(sidecar_socket);
+    }
+    let _ = std::fs::remove_file(paths.ably_auth_socket_file());
 }

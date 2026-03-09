@@ -42,8 +42,15 @@ pub async fn claude_send_core(
 
     info!(session_id = %session_id, content_len = content.len(), "claude.send params");
 
-    let resolved_workspace =
-        resolve_working_dir_from_str(&*state.armin, &session_id).map_err(map_resolve_error)?;
+    let resolved_workspace = async {
+        resolve_working_dir_from_str(&*state.armin, &session_id).map_err(map_resolve_error)
+    }
+    .instrument(tracing::info_span!(
+        "workspace.resolve",
+        session_id = %session_id,
+        feature = "claude.send"
+    ))
+    .await?;
     let working_dir = resolved_workspace.working_dir;
     let claude_session_id = resolved_workspace.session.claude_session_id;
 
@@ -55,7 +62,8 @@ pub async fn claude_send_core(
         let _guard = tracing::info_span!(
             "armin.append",
             session_id = %session_id,
-            message_kind = "user_input"
+            message_kind = "user_input",
+            feature = "claude.send"
         )
         .entered();
         match state.armin.append(
@@ -66,12 +74,16 @@ pub async fn claude_send_core(
         ) {
             Ok(message) => {
                 info!(
+                    feature = "claude.send",
                     seq = message.sequence_number,
                     "Stored user message via Armin"
                 );
             }
             Err(e) => {
-                warn!("Failed to store user message: {}", e);
+                warn!(
+                    feature = "claude.send",
+                    "Failed to store user message: {}", e
+                );
             }
         }
     }
@@ -93,7 +105,8 @@ pub async fn claude_send_core(
         .instrument(tracing::info_span!(
             "claude.process.spawn",
             session_id = %session_id,
-            working_dir = %working_dir
+            working_dir = %working_dir,
+            feature = "claude.send"
         ))
         .await
     {
@@ -132,7 +145,12 @@ pub async fn claude_send_core(
         handle_claude_events(stream, session_id_for_task, state_for_task).await;
     });
 
-    info!(session_id = %session_id, "claude.send completed - process running in background");
+    info!(
+        session_id = %session_id,
+        feature = "claude.send",
+        result = "started",
+        "claude.send completed - process running in background"
+    );
 
     Ok(serde_json::json!({
         "status": "started",

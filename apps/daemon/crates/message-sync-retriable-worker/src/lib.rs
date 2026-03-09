@@ -78,7 +78,8 @@ use session_sync_sink::{
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, warn};
 
@@ -190,6 +191,13 @@ pub struct MessageSyncWorker {
     secret_cache: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     /// Database encryption key for decrypting session secrets.
     db_encryption_key: Arc<Mutex<Option<[u8; 32]>>>,
+    /// Runtime state for the background worker loop.
+    runtime: Mutex<Option<MessageSyncWorkerRuntime>>,
+}
+
+struct MessageSyncWorkerRuntime {
+    shutdown_tx: oneshot::Sender<()>,
+    task: JoinHandle<()>,
 }
 
 impl MessageSyncWorker {
@@ -223,6 +231,7 @@ impl MessageSyncWorker {
             receiver: Mutex::new(Some(receiver)),
             secret_cache: Arc::new(Mutex::new(HashMap::new())),
             db_encryption_key,
+            runtime: Mutex::new(None),
         }
     }
 
@@ -239,12 +248,18 @@ impl MessageSyncWorker {
     ///
     /// Panics if called more than once (worker can only be started once).
     pub fn start(&self) {
+        let mut runtime = self.runtime.lock().expect("lock poisoned");
+        if runtime.is_some() {
+            panic!("MessageSyncWorker already started");
+        }
+
         let mut receiver = self
             .receiver
             .lock()
             .expect("lock poisoned")
             .take()
             .expect("MessageSyncWorker already started");
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
         let config = self.config.clone();
         let client = self.client.clone();
@@ -253,7 +268,7 @@ impl MessageSyncWorker {
         let secret_cache = self.secret_cache.clone();
         let db_encryption_key = self.db_encryption_key.clone();
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             // Track sessions that have pending messages from channel notifications
             let mut pending_session_ids: HashSet<String> = HashSet::new();
             let mut ticker = interval(config.flush_interval);
@@ -262,6 +277,10 @@ impl MessageSyncWorker {
                 let mut flush_now = false;
 
                 tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        debug!("MessageSyncWorker shutdown requested");
+                        break;
+                    }
                     maybe_msg = receiver.recv() => {
                         match maybe_msg {
                             Some(msg) => {
@@ -339,6 +358,8 @@ impl MessageSyncWorker {
                 }
             }
         });
+
+        *runtime = Some(MessageSyncWorkerRuntime { shutdown_tx, task });
     }
 
     /// Sets the authentication context for Supabase API calls.
@@ -360,6 +381,19 @@ impl MessageSyncWorker {
     pub async fn clear_context(&self) {
         let mut guard = self.context.write().await;
         *guard = None;
+    }
+
+    /// Stops the background worker loop and waits for it to exit.
+    pub async fn shutdown(&self) {
+        let runtime = self.runtime.lock().expect("lock poisoned").take();
+        let Some(runtime) = runtime else {
+            return;
+        };
+
+        let _ = runtime.shutdown_tx.send(());
+        if let Err(err) = runtime.task.await {
+            warn!(error = %err, "MessageSyncWorker task join failed");
+        }
     }
 }
 
@@ -1157,6 +1191,46 @@ mod tests {
             let guard = worker.context.read().await;
             assert!(guard.is_none());
         }
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "MessageSyncWorker already started")]
+    async fn levi_start_panics_when_called_twice() {
+        let sink = RecordingSink::new();
+        let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
+        let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
+
+        let worker = MessageSyncWorker::new(
+            MessageSyncWorkerConfig::default(),
+            "http://localhost:54321",
+            "test-key",
+            armin,
+            db_key,
+        );
+
+        worker.start();
+        worker.start();
+    }
+
+    #[tokio::test]
+    async fn levi_shutdown_is_idempotent() {
+        let sink = RecordingSink::new();
+        let armin: ArminHandle = Arc::new(Armin::in_memory(sink).unwrap());
+        let db_key = Arc::new(Mutex::new(Some([0u8; 32])));
+
+        let worker = MessageSyncWorker::new(
+            MessageSyncWorkerConfig::default(),
+            "http://localhost:54321",
+            "test-key",
+            armin,
+            db_key,
+        );
+
+        worker.start();
+        worker.shutdown().await;
+        worker.shutdown().await;
+
+        assert!(worker.runtime.lock().unwrap().is_none());
     }
 
     #[test]

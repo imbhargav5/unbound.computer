@@ -26,22 +26,25 @@ class EditorState {
         self.selectedTabId = tabs.first?.id
     }
 
-    func openFileTab(relativePath: String, fullPath: String, sessionId: UUID?) {
+    @discardableResult
+    func openFileTab(relativePath: String, fullPath: String, sessionId: UUID?) -> UUID {
         if let existing = tabs.first(where: { $0.kind == .file && $0.path == relativePath }) {
             selectedTabId = existing.id
-            return
+            return existing.id
         }
 
         let tab = EditorTab(kind: .file, path: relativePath, fullPath: fullPath, sessionId: sessionId)
         tabs.append(tab)
         documentsByTabId[tab.id] = EditorDocumentState()
         selectedTabId = tab.id
+        return tab.id
     }
 
-    func openDiffTab(relativePath: String) {
+    @discardableResult
+    func openDiffTab(relativePath: String) -> UUID {
         if let existing = tabs.first(where: { $0.kind == .diff && $0.path == relativePath }) {
             selectedTabId = existing.id
-            return
+            return existing.id
         }
 
         let tab = EditorTab(kind: .diff, path: relativePath)
@@ -51,6 +54,8 @@ class EditorState {
         if diffStates[relativePath] == nil {
             diffStates[relativePath] = DiffLoadState()
         }
+
+        return tab.id
     }
 
     func closeTab(id: UUID) {

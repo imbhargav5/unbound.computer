@@ -60,26 +60,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging before any async startup work so early failures are captured.
     init_logging(&cli.log_level, Some(paths.logs_dir().join("dev.jsonl")));
 
-    // Load configuration
-    let config = Config::load(&paths)?;
+    let mut main_owns_shutdown = true;
 
-    match cli.command {
+    let result = match cli.command {
         Some(Commands::Start { foreground }) => {
-            app::run_daemon(config, paths, foreground).await?;
+            main_owns_shutdown = false;
+            let config = Config::load(&paths)?;
+            app::run_daemon(config, paths.clone(), foreground).await
         }
         None => {
             // Default to start in foreground if no command given
-            app::run_daemon(config, paths, true).await?;
+            main_owns_shutdown = false;
+            let config = Config::load(&paths)?;
+            app::run_daemon(config, paths.clone(), true).await
         }
-        Some(Commands::Stop) => {
-            app::stop_daemon(&paths).await?;
-        }
-        Some(Commands::Status) => {
-            app::check_status(&paths).await?;
-        }
+        Some(Commands::Stop) => app::stop_daemon(&paths).await,
+        Some(Commands::Status) => app::check_status(&paths).await,
+    };
+
+    if main_owns_shutdown || result.is_err() {
+        shutdown();
     }
 
-    shutdown();
-
-    Ok(())
+    result
 }

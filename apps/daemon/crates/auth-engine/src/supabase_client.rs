@@ -5,15 +5,10 @@
 //! - Insert and fetch encrypted session secrets
 
 use crate::error::{AuthError, AuthResult};
+use daemon_config_and_utils::{hash_identifier, summarize_response_body, url_host};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
-fn summarize_response_body(body: &str) -> String {
-    let mut hasher = DefaultHasher::new();
-    body.hash(&mut hasher);
-    format!("len={},digest={:016x}", body.len(), hasher.finish())
-}
+use std::time::Instant;
+use tracing::Instrument;
 
 /// Supabase REST API client for device and session secret operations.
 #[derive(Clone)]
@@ -63,6 +58,36 @@ struct InsertSecretRequest {
 }
 
 impl SupabaseClient {
+    fn request_span(
+        &self,
+        operation: &'static str,
+        table: &'static str,
+        method: &'static str,
+    ) -> tracing::Span {
+        let http_host = url_host(&self.api_url).unwrap_or_else(|| "unknown".to_string());
+        tracing::info_span!(
+            "supabase.request",
+            operation = operation,
+            table = table,
+            http_method = method,
+            http_host = %http_host,
+            peer_service = "supabase"
+        )
+    }
+
+    async fn send_request(
+        &self,
+        operation: &'static str,
+        table: &'static str,
+        method: &'static str,
+        request: reqwest::RequestBuilder,
+    ) -> AuthResult<(reqwest::Response, u64)> {
+        let span = self.request_span(operation, table, method);
+        let start = Instant::now();
+        let response = async { request.send().await }.instrument(span).await?;
+        Ok((response, start.elapsed().as_millis() as u64))
+    }
+
     /// Create a new Supabase client.
     ///
     /// # Arguments
@@ -101,23 +126,39 @@ impl SupabaseClient {
             user_id,
             exclude_device_id
         );
+        let user_id_hash = hash_identifier(user_id);
 
-        tracing::debug!("Fetching devices from Supabase: {}", url);
+        tracing::debug!(
+            user_id_hash = %user_id_hash,
+            table = "devices",
+            "Fetching devices from Supabase"
+        );
 
-        let response = self
-            .http_client
-            .get(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Accept", "application/json")
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.devices.fetch_user_devices",
+                "devices",
+                "GET",
+                self.http_client
+                    .get(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Accept", "application/json"),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch devices");
+            tracing::error!(
+                user_id_hash = %user_id_hash,
+                table = "devices",
+                http_duration_ms = http_duration_ms,
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to fetch devices"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to fetch devices: {} ({})",
                 status, body_summary
@@ -145,20 +186,31 @@ impl SupabaseClient {
 
         tracing::debug!("Fetching device {} from Supabase", device_id);
 
-        let response = self
-            .http_client
-            .get(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Accept", "application/json")
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.devices.fetch_by_id",
+                "devices",
+                "GET",
+                self.http_client
+                    .get(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Accept", "application/json"),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch device by id");
+            tracing::error!(
+                device_id_hash = %hash_identifier(device_id),
+                table = "devices",
+                http_duration_ms = http_duration_ms,
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to fetch device by id"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to fetch device by id: {} ({})",
                 status, body_summary
@@ -214,24 +266,43 @@ impl SupabaseClient {
             }
         }
 
-        tracing::debug!("Upserting device {} in Supabase", device_id);
+        let user_id_hash = hash_identifier(user_id);
+        let device_id_hash = hash_identifier(device_id);
+        tracing::debug!(
+            user_id_hash = %user_id_hash,
+            device_id_hash = %device_id_hash,
+            table = "devices",
+            "Upserting device in Supabase"
+        );
 
-        let response = self
-            .http_client
-            .post(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "resolution=merge-duplicates")
-            .json(&body)
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.devices.upsert",
+                "devices",
+                "POST",
+                self.http_client
+                    .post(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "resolution=merge-duplicates")
+                    .json(&body),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status, body_summary = %body_summary, "Failed to upsert device");
+            tracing::error!(
+                user_id_hash = %user_id_hash,
+                device_id_hash = %device_id_hash,
+                table = "devices",
+                http_duration_ms = http_duration_ms,
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to upsert device"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to upsert device: {} ({})",
                 status, body_summary
@@ -259,15 +330,19 @@ impl SupabaseClient {
 
         tracing::debug!("Updating device {} capabilities in Supabase", device_id);
 
-        let response = self
-            .http_client
-            .patch(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "return=minimal")
-            .json(&body)
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.devices.capabilities.patch",
+                "devices",
+                "PATCH",
+                self.http_client
+                    .patch(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "return=minimal")
+                    .json(&body),
+            )
             .await?;
 
         if !response.status().is_success() {
@@ -275,6 +350,9 @@ impl SupabaseClient {
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
             tracing::error!(
+                device_id_hash = %hash_identifier(device_id),
+                table = "devices",
+                http_duration_ms = http_duration_ms,
                 status = %status,
                 body_summary = %body_summary,
                 "Failed to update device capabilities"
@@ -332,24 +410,34 @@ impl SupabaseClient {
             body["worktree_branch"] = serde_json::json!(branch);
         }
 
-        tracing::debug!("Upserting repository {} to Supabase", id);
-
-        let response = self
-            .http_client
-            .post(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "resolution=merge-duplicates")
-            .json(&body)
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.repository.upsert",
+                "repositories",
+                "POST",
+                self.http_client
+                    .post(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "resolution=merge-duplicates")
+                    .json(&body),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status, body_summary = %body_summary, "Failed to upsert repository");
+            tracing::error!(
+                user_id_hash = %hash_identifier(user_id),
+                device_id_hash = %hash_identifier(device_id),
+                table = "repositories",
+                http_duration_ms = http_duration_ms,
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to upsert repository"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to upsert repository: {} ({})",
                 status, body_summary
@@ -404,24 +492,34 @@ impl SupabaseClient {
             body["worktree_path"] = serde_json::json!(path);
         }
 
-        tracing::debug!("Upserting coding session {} to Supabase", id);
-
-        let response = self
-            .http_client
-            .post(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "resolution=merge-duplicates")
-            .json(&body)
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.session.upsert",
+                "agent_coding_sessions",
+                "POST",
+                self.http_client
+                    .post(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "resolution=merge-duplicates")
+                    .json(&body),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status_code = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status_code, body_summary = %body_summary, "Failed to upsert coding session");
+            tracing::error!(
+                user_id_hash = %hash_identifier(user_id),
+                device_id_hash = %hash_identifier(device_id),
+                table = "agent_coding_sessions",
+                http_duration_ms = http_duration_ms,
+                status = %status_code,
+                body_summary = %body_summary,
+                "Failed to upsert coding session"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to upsert coding session: {} ({})",
                 status_code, body_summary
@@ -466,15 +564,19 @@ impl SupabaseClient {
 
         tracing::debug!("Inserting {} session secrets to Supabase", body.len());
 
-        let response = self
-            .http_client
-            .post(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "resolution=merge-duplicates")
-            .json(&body)
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.session_secrets.insert",
+                "agent_coding_session_secrets",
+                "POST",
+                self.http_client
+                    .post(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Content-Type", "application/json")
+                    .header("Prefer", "resolution=merge-duplicates")
+                    .json(&body),
+            )
             .await?;
 
         if !response.status().is_success() {
@@ -482,6 +584,8 @@ impl SupabaseClient {
             let body_text = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body_text);
             tracing::error!(
+                table = "agent_coding_session_secrets",
+                http_duration_ms = http_duration_ms,
                 status = %status,
                 body_summary = %body_summary,
                 "Failed to insert session secrets"
@@ -517,20 +621,31 @@ impl SupabaseClient {
 
         tracing::debug!("Fetching session secrets for device {}", device_id);
 
-        let response = self
-            .http_client
-            .get(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Accept", "application/json")
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.session_secrets.fetch_for_device",
+                "agent_coding_session_secrets",
+                "GET",
+                self.http_client
+                    .get(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Accept", "application/json"),
+            )
             .await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            tracing::error!(status = %status, body_summary = %body_summary, "Failed to fetch session secrets");
+            tracing::error!(
+                device_id_hash = %hash_identifier(device_id),
+                table = "agent_coding_session_secrets",
+                http_duration_ms = http_duration_ms,
+                status = %status,
+                body_summary = %body_summary,
+                "Failed to fetch session secrets"
+            );
             return Err(AuthError::OAuth(format!(
                 "Failed to fetch session secrets: {} ({})",
                 status, body_summary
@@ -560,12 +675,16 @@ impl SupabaseClient {
 
         tracing::debug!("Deleting session secrets for session {}", session_id);
 
-        let response = self
-            .http_client
-            .delete(&url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .send()
+        let (response, http_duration_ms) = self
+            .send_request(
+                "auth.session_secrets.delete",
+                "agent_coding_session_secrets",
+                "DELETE",
+                self.http_client
+                    .delete(&url)
+                    .header("apikey", &self.anon_key)
+                    .header("Authorization", format!("Bearer {}", access_token)),
+            )
             .await?;
 
         if !response.status().is_success() {
@@ -573,6 +692,9 @@ impl SupabaseClient {
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
             tracing::warn!(
+                session_id_hash = %hash_identifier(session_id),
+                table = "agent_coding_session_secrets",
+                http_duration_ms = http_duration_ms,
                 status = %status,
                 body_summary = %body_summary,
                 "Failed to delete session secrets"

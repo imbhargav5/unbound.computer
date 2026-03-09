@@ -25,6 +25,7 @@ struct RightSidebarPanel: View {
 
     // Working directory
     let workingDirectory: String?
+    var onOpenEditorTab: ((UUID) -> Void)? = nil
 
     // Header action state
     @State private var isCommitDropdownOpen = false
@@ -568,7 +569,8 @@ struct RightSidebarPanel: View {
 
     private func selectFile(_ file: GitStatusFile) {
         gitViewModel.selectFile(file.path)
-        editorState.openDiffTab(relativePath: file.path)
+        let tabId = editorState.openDiffTab(relativePath: file.path)
+        onOpenEditorTab?(tabId)
         Task {
             await loadDiffForFile(file.path)
         }
@@ -578,11 +580,12 @@ struct RightSidebarPanel: View {
         guard !file.isDirectory else { return }
         fileTreeViewModel?.selectFile(file.path)
         if let fullPath = resolveFullPath(for: file) {
-            editorState.openFileTab(
+            let tabId = editorState.openFileTab(
                 relativePath: file.path,
                 fullPath: fullPath,
                 sessionId: appState.selectedSessionId
             )
+            onOpenEditorTab?(tabId)
         }
     }
 

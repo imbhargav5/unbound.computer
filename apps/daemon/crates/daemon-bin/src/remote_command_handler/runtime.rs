@@ -17,6 +17,8 @@ use std::path::Path;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
+use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep, Duration};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -56,6 +58,11 @@ pub struct DecisionOutcome {
     pub result_json: Vec<u8>,
 }
 
+pub struct BillingQuotaRefreshRuntime {
+    shutdown_tx: Option<oneshot::Sender<()>>,
+    task: JoinHandle<()>,
+}
+
 impl DecisionOutcome {
     fn from_payload(decision: DecisionKind, payload: &DecisionResultPayload) -> Self {
         let result_json = serde_json::to_vec(payload).unwrap_or_else(|err| {
@@ -79,14 +86,38 @@ pub async fn handle_remote_command_payload(state: DaemonState, payload: &[u8]) -
     evaluate_effects(state, effects).await
 }
 
-pub fn spawn_billing_quota_refresh_loop(state: DaemonState) {
-    tokio::spawn(async move {
+impl BillingQuotaRefreshRuntime {
+    pub async fn shutdown(mut self) {
+        if let Some(shutdown_tx) = self.shutdown_tx.take() {
+            let _ = shutdown_tx.send(());
+        }
+        if let Err(err) = self.task.await {
+            warn!(error = %err, "Billing quota refresh loop join failed");
+        }
+    }
+}
+
+pub fn start_billing_quota_refresh_loop(state: DaemonState) -> BillingQuotaRefreshRuntime {
+    let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+    let task = tokio::spawn(async move {
         let mut ticker = interval(Duration::from_secs(BILLING_USAGE_REFRESH_INTERVAL_SECS));
         loop {
-            ticker.tick().await;
-            refresh_billing_usage_cache(&state, "periodic").await;
+            tokio::select! {
+                _ = &mut shutdown_rx => {
+                    debug!("Billing quota refresh loop shutdown requested");
+                    break;
+                }
+                _ = ticker.tick() => {
+                    refresh_billing_usage_cache(&state, "periodic").await;
+                }
+            }
         }
     });
+
+    BillingQuotaRefreshRuntime {
+        shutdown_tx: Some(shutdown_tx),
+        task,
+    }
 }
 
 async fn evaluate_effects(state: DaemonState, effects: Vec<Effect>) -> DecisionOutcome {

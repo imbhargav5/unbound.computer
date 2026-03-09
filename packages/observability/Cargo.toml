@@ -11,12 +11,14 @@ repository = "https://github.com/unbound-computer/unbound"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 tracing-opentelemetry = "0.29"
+async-trait = "0.1"
 opentelemetry = "0.28"
-opentelemetry_sdk = { version = "0.28", features = ["rt-tokio", "experimental_trace_batch_span_processor_with_async_runtime"] }
+opentelemetry-http = { version = "0.28", features = ["reqwest"] }
+opentelemetry_sdk = { version = "0.28", features = ["rt-tokio", "experimental_trace_batch_span_processor_with_async_runtime", "experimental_logs_batch_log_processor_with_async_runtime"] }
 opentelemetry-otlp = { version = "0.28", features = ["http-proto", "reqwest-client", "reqwest-rustls"] }
 
 # HTTP client for OTLP exporter
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
 
 # Platform utilities
 dirs = "6.0"
@@ -24,3 +26,4 @@ parking_lot = "0.12"
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

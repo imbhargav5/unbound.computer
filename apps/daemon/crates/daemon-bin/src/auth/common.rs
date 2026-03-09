@@ -607,24 +607,35 @@ async fn stop_managed_sidecars(state: &DaemonState, clear_broker_cache: bool) {
     stop_managed_sidecars_locked(state, clear_broker_cache).await;
 }
 
-async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: bool) {
+pub(crate) async fn shutdown_hot_path_syncers(state: &DaemonState) {
+    let _lifecycle_guard = state.sidecar_lifecycle_lock.lock().await;
+    shutdown_hot_path_syncers_locked(state).await;
+}
+
+async fn shutdown_hot_path_syncers_locked(state: &DaemonState) {
     let realtime_message_syncer = {
         let mut guard = state.realtime_message_sync.write().await;
         guard.take()
     };
+    state.sync_sink.clear_realtime_message_syncer().await;
     if let Some(syncer) = realtime_message_syncer {
         syncer.clear_context().await;
+        syncer.shutdown().await;
     }
-    state.sync_sink.clear_realtime_message_syncer().await;
 
     let realtime_runtime_status_syncer = {
         let mut guard = state.realtime_runtime_status_sync.write().await;
         guard.take()
     };
+    state.sync_sink.clear_realtime_runtime_status_syncer().await;
     if let Some(syncer) = realtime_runtime_status_syncer {
         syncer.clear_context().await;
+        syncer.shutdown().await;
     }
-    state.sync_sink.clear_realtime_runtime_status_syncer().await;
+}
+
+async fn stop_managed_sidecars_locked(state: &DaemonState, clear_broker_cache: bool) {
+    shutdown_hot_path_syncers_locked(state).await;
 
     if let Some(mut child) = state.nagato_process.lock().unwrap().take() {
         terminate_child(&mut child, "nagato");

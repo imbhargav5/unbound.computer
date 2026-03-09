@@ -22,6 +22,7 @@ struct SessionDetailView: View {
     private let repository: Repository
     private let previewAppState: AppState
     private let previewEditorState: EditorState
+    private let previewWorkspaceTabState: WorkspaceTabState
 
     init(session: Session, messages: [ChatMessage], sourceMessageCount: Int) {
         self.session = session
@@ -32,6 +33,7 @@ struct SessionDetailView: View {
         self.repository = context.repository
         self.previewAppState = context.appState
         self.previewEditorState = context.editorState
+        self.previewWorkspaceTabState = context.workspaceTabState
     }
 
     var body: some View {
@@ -42,7 +44,8 @@ struct SessionDetailView: View {
             selectedModel: $selectedModel,
             selectedThinkMode: $selectedThinkMode,
             isPlanMode: $isPlanMode,
-            editorState: previewEditorState
+            editorState: previewEditorState,
+            workspaceTabState: previewWorkspaceTabState
         )
         .environment(previewAppState)
         .overlay(alignment: .topLeading) {
@@ -61,6 +64,7 @@ private struct SessionDetailPreviewContext {
     let repository: Repository
     let appState: AppState
     let editorState: EditorState
+    let workspaceTabState: WorkspaceTabState
 
     static func make(session: Session, messages: [ChatMessage]) -> SessionDetailPreviewContext {
         let repository = resolveRepository(for: session)
@@ -78,10 +82,13 @@ private struct SessionDetailPreviewContext {
         appState.sessionStateManager.registerForPreview(sessionId: session.id, state: liveState)
 
         let editorState = EditorState.preview()
+        let workspaceTabState = WorkspaceTabState()
+        workspaceTabState.resetForSession(session.id, workspacePath: repository.path)
         return SessionDetailPreviewContext(
             repository: repository,
             appState: appState,
-            editorState: editorState
+            editorState: editorState,
+            workspaceTabState: workspaceTabState
         )
     }
 

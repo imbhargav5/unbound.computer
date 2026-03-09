@@ -15,6 +15,7 @@
 use crate::{error_codes, Event, IpcError, IpcResult, Method, Request, Response, TraceContext};
 use opentelemetry::global;
 use opentelemetry::propagation::Extractor;
+use opentelemetry::trace::TraceContextExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
@@ -150,6 +151,36 @@ fn request_span(request: &Request, method_name: &str) -> tracing::Span {
     });
     span.set_parent(parent_context);
     span
+}
+
+fn current_trace_context() -> Option<TraceContext> {
+    let span_context = tracing::Span::current()
+        .context()
+        .span()
+        .span_context()
+        .clone();
+    if !span_context.is_valid() {
+        return None;
+    }
+
+    let traceparent = format!(
+        "00-{}-{}-{:02x}",
+        span_context.trace_id(),
+        span_context.span_id(),
+        span_context.trace_flags().to_u8()
+    );
+
+    let tracestate_header = span_context.trace_state().header();
+    let tracestate = if tracestate_header.is_empty() {
+        None
+    } else {
+        Some(tracestate_header)
+    };
+
+    Some(TraceContext {
+        traceparent,
+        tracestate,
+    })
 }
 
 /// IPC server that listens on a Unix domain socket.
@@ -563,30 +594,45 @@ impl IpcClient {
     }
 
     /// Send a request and wait for response.
-    pub async fn call(&self, request: Request) -> IpcResult<Response> {
-        let stream = UnixStream::connect(&self.socket_path)
-            .await
-            .map_err(|e| IpcError::Socket(format!("Failed to connect: {}", e)))?;
-
-        let (reader, mut writer) = stream.into_split();
-        let mut reader = BufReader::new(reader);
-
-        // Send request
-        let request_json = request.to_json()?;
-        writer.write_all(request_json.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
-
-        // Read response
-        let mut line = String::new();
-        reader.read_line(&mut line).await?;
-
-        if line.is_empty() {
-            return Err(IpcError::ConnectionClosed);
+    pub async fn call(&self, mut request: Request) -> IpcResult<Response> {
+        if request.context.is_none() {
+            request.context = current_trace_context();
         }
+        let request_id = request.id.clone();
+        let method_name = format!("{:?}", request.method);
+        let request_span = tracing::info_span!(
+            "ipc.client.call",
+            method = %method_name,
+            request_id = %request_id
+        );
 
-        let response = Response::from_json(line.trim())?;
-        Ok(response)
+        async move {
+            let stream = UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| IpcError::Socket(format!("Failed to connect: {}", e)))?;
+
+            let (reader, mut writer) = stream.into_split();
+            let mut reader = BufReader::new(reader);
+
+            // Send request
+            let request_json = request.to_json()?;
+            writer.write_all(request_json.as_bytes()).await?;
+            writer.write_all(b"\n").await?;
+            writer.flush().await?;
+
+            // Read response
+            let mut line = String::new();
+            reader.read_line(&mut line).await?;
+
+            if line.is_empty() {
+                return Err(IpcError::ConnectionClosed);
+            }
+
+            let response = Response::from_json(line.trim())?;
+            Ok(response)
+        }
+        .instrument(request_span)
+        .await
     }
 
     /// Send a method call with no parameters.

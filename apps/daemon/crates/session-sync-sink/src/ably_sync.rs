@@ -16,7 +16,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, Duration};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -97,6 +98,12 @@ pub struct AblyRealtimeSyncer {
     secret_cache: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     db_encryption_key: Arc<Mutex<Option<[u8; 32]>>>,
     falco_socket_path: PathBuf,
+    runtime: Mutex<Option<AblyRealtimeSyncerRuntime>>,
+}
+
+struct AblyRealtimeSyncerRuntime {
+    shutdown_tx: oneshot::Sender<()>,
+    task: JoinHandle<()>,
 }
 
 impl AblyRealtimeSyncer {
@@ -117,6 +124,7 @@ impl AblyRealtimeSyncer {
             secret_cache: Arc::new(Mutex::new(HashMap::new())),
             db_encryption_key,
             falco_socket_path: falco_socket_path.into(),
+            runtime: Mutex::new(None),
         }
     }
 
@@ -124,12 +132,18 @@ impl AblyRealtimeSyncer {
     ///
     /// Panics if called more than once.
     pub fn start(&self) {
+        let mut runtime = self.runtime.lock().expect("lock poisoned");
+        if runtime.is_some() {
+            panic!("AblyRealtimeSyncer already started");
+        }
+
         let mut receiver = self
             .receiver
             .lock()
             .expect("lock poisoned")
             .take()
             .expect("AblyRealtimeSyncer already started");
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
         let config = self.config.clone();
         let armin = self.armin.clone();
@@ -138,12 +152,16 @@ impl AblyRealtimeSyncer {
         let db_encryption_key = self.db_encryption_key.clone();
         let falco_socket_path = self.falco_socket_path.clone();
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             let mut ticker = interval(config.flush_interval);
             let mut falco_stream: Option<UnixStream> = None;
 
             loop {
                 tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        debug!("AblyRealtimeSyncer shutdown requested");
+                        break;
+                    }
                     maybe_msg = receiver.recv() => {
                         match maybe_msg {
                             Some(msg) => {
@@ -185,6 +203,8 @@ impl AblyRealtimeSyncer {
                 }
             }
         });
+
+        *runtime = Some(AblyRealtimeSyncerRuntime { shutdown_tx, task });
     }
 
     /// Sets the auth/device context used for outbound payload metadata.
@@ -197,6 +217,19 @@ impl AblyRealtimeSyncer {
     pub async fn clear_context(&self) {
         let mut guard = self.context.write().await;
         *guard = None;
+    }
+
+    /// Stops the background publish loop and waits for it to exit.
+    pub async fn shutdown(&self) {
+        let runtime = self.runtime.lock().expect("lock poisoned").take();
+        let Some(runtime) = runtime else {
+            return;
+        };
+
+        let _ = runtime.shutdown_tx.send(());
+        if let Err(err) = runtime.task.await {
+            warn!(error = %err, "AblyRealtimeSyncer task join failed");
+        }
     }
 }
 
@@ -215,6 +248,12 @@ pub struct AblyRuntimeStatusSyncer {
     sender: mpsc::Sender<RuntimeStatusSyncRequest>,
     receiver: Mutex<Option<mpsc::Receiver<RuntimeStatusSyncRequest>>>,
     falco_socket_path: PathBuf,
+    runtime: Mutex<Option<AblyRuntimeStatusSyncerRuntime>>,
+}
+
+struct AblyRuntimeStatusSyncerRuntime {
+    shutdown_tx: oneshot::Sender<()>,
+    task: JoinHandle<()>,
 }
 
 impl AblyRuntimeStatusSyncer {
@@ -226,6 +265,7 @@ impl AblyRuntimeStatusSyncer {
             sender,
             receiver: Mutex::new(Some(receiver)),
             falco_socket_path: falco_socket_path.into(),
+            runtime: Mutex::new(None),
         }
     }
 
@@ -233,32 +273,51 @@ impl AblyRuntimeStatusSyncer {
     ///
     /// Panics if called more than once.
     pub fn start(&self) {
+        let mut runtime = self.runtime.lock().expect("lock poisoned");
+        if runtime.is_some() {
+            panic!("AblyRuntimeStatusSyncer already started");
+        }
+
         let mut receiver = self
             .receiver
             .lock()
             .expect("lock poisoned")
             .take()
             .expect("AblyRuntimeStatusSyncer already started");
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
         let context = self.context.clone();
         let falco_socket_path = self.falco_socket_path.clone();
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             let mut falco_stream: Option<UnixStream> = None;
 
-            while let Some(request) = receiver.recv().await {
-                if let Err(err) = send_runtime_status_update(
-                    &context,
-                    &falco_socket_path,
-                    &mut falco_stream,
-                    request,
-                )
-                .await
-                {
-                    warn!(error = %err, "Ably runtime-status publish failed");
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        debug!("AblyRuntimeStatusSyncer shutdown requested");
+                        break;
+                    }
+                    maybe_request = receiver.recv() => {
+                        let Some(request) = maybe_request else {
+                            break;
+                        };
+                        if let Err(err) = send_runtime_status_update(
+                            &context,
+                            &falco_socket_path,
+                            &mut falco_stream,
+                            request,
+                        )
+                        .await
+                        {
+                            warn!(error = %err, "Ably runtime-status publish failed");
+                        }
+                    }
                 }
             }
         });
+
+        *runtime = Some(AblyRuntimeStatusSyncerRuntime { shutdown_tx, task });
     }
 
     /// Sets the auth/device context used to gate status publishes.
@@ -271,6 +330,19 @@ impl AblyRuntimeStatusSyncer {
     pub async fn clear_context(&self) {
         let mut guard = self.context.write().await;
         *guard = None;
+    }
+
+    /// Stops the background publish loop and waits for it to exit.
+    pub async fn shutdown(&self) {
+        let runtime = self.runtime.lock().expect("lock poisoned").take();
+        let Some(runtime) = runtime else {
+            return;
+        };
+
+        let _ = runtime.shutdown_tx.send(());
+        if let Err(err) = runtime.task.await {
+            warn!(error = %err, "AblyRuntimeStatusSyncer task join failed");
+        }
     }
 }
 
@@ -1188,5 +1260,63 @@ mod tests {
         // Verify #[serde(rename = "type")] works
         assert!(json.get("type").is_some());
         assert!(json.get("effect_type").is_none());
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "AblyRealtimeSyncer already started")]
+    async fn realtime_syncer_start_panics_when_called_twice() {
+        use agent_session_sqlite_persist_core::{Armin, RecordingSink};
+        use std::sync::{Arc, Mutex};
+
+        let armin: AblyArminHandle = Arc::new(Armin::in_memory(RecordingSink::new()).unwrap());
+        let syncer = AblyRealtimeSyncer::new(
+            AblySyncConfig::default(),
+            armin,
+            Arc::new(Mutex::new(Some([0u8; 32]))),
+            "/tmp/test-falco.sock",
+        );
+
+        syncer.start();
+        syncer.start();
+    }
+
+    #[tokio::test]
+    async fn realtime_syncer_shutdown_is_idempotent() {
+        use agent_session_sqlite_persist_core::{Armin, RecordingSink};
+        use std::sync::{Arc, Mutex};
+
+        let armin: AblyArminHandle = Arc::new(Armin::in_memory(RecordingSink::new()).unwrap());
+        let syncer = AblyRealtimeSyncer::new(
+            AblySyncConfig::default(),
+            armin,
+            Arc::new(Mutex::new(Some([0u8; 32]))),
+            "/tmp/test-falco.sock",
+        );
+
+        syncer.start();
+        syncer.shutdown().await;
+        syncer.shutdown().await;
+
+        assert!(syncer.runtime.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "AblyRuntimeStatusSyncer already started")]
+    async fn runtime_status_syncer_start_panics_when_called_twice() {
+        let syncer = AblyRuntimeStatusSyncer::new("/tmp/test-falco.sock");
+
+        syncer.start();
+        syncer.start();
+    }
+
+    #[tokio::test]
+    async fn runtime_status_syncer_shutdown_is_idempotent() {
+        let syncer = AblyRuntimeStatusSyncer::new("/tmp/test-falco.sock");
+
+        syncer.start();
+        syncer.shutdown().await;
+        syncer.shutdown().await;
+
+        assert!(syncer.runtime.lock().unwrap().is_none());
     }
 }

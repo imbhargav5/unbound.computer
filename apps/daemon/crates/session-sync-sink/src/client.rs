@@ -5,16 +5,10 @@
 
 use crate::error::{SessionSyncError, SessionSyncResult};
 use agent_session_sqlite_persist_core::RuntimeStatusEnvelope;
+use daemon_config_and_utils::{hash_identifier, summarize_response_body, url_host};
 use serde::Serialize;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use tracing::{debug, error, warn};
-
-fn summarize_response_body(body: &str) -> String {
-    let mut hasher = DefaultHasher::new();
-    body.hash(&mut hasher);
-    format!("len={},digest={:016x}", body.len(), hasher.finish())
-}
+use std::time::Instant;
+use tracing::{debug, error, warn, Instrument};
 
 fn runtime_status_updated_at(updated_at_ms: i64) -> String {
     chrono::DateTime::<chrono::Utc>::from_timestamp_millis(updated_at_ms)
@@ -56,6 +50,23 @@ pub struct SupabaseClient {
 }
 
 impl SupabaseClient {
+    fn request_span(
+        &self,
+        operation: &'static str,
+        table: &'static str,
+        method: &'static str,
+    ) -> tracing::Span {
+        let http_host = url_host(&self.api_url).unwrap_or_else(|| "unknown".to_string());
+        tracing::info_span!(
+            "supabase.request",
+            operation = operation,
+            table = table,
+            http_method = method,
+            http_host = %http_host,
+            peer_service = "supabase"
+        )
+    }
+
     /// Create a new Supabase client.
     ///
     /// # Arguments
@@ -99,7 +110,14 @@ impl SupabaseClient {
 
         debug!(repository_id, "Syncing repository to Supabase");
 
-        self.upsert(&url, &body, access_token).await?;
+        self.upsert(
+            "sync.repository.upsert",
+            "repositories",
+            &url,
+            &body,
+            access_token,
+        )
+        .await?;
 
         debug!(repository_id, "Repository synced to Supabase");
         Ok(())
@@ -118,7 +136,8 @@ impl SupabaseClient {
 
         debug!(repository_id, "Deleting repository from Supabase");
 
-        self.delete(&url, access_token).await?;
+        self.delete("sync.repository.delete", "repositories", &url, access_token)
+            .await?;
 
         debug!(repository_id, "Repository deleted from Supabase");
         Ok(())
@@ -174,8 +193,22 @@ impl SupabaseClient {
         }
 
         debug!(session_id, status, "Syncing session to Supabase");
+        let user_id_hash = hash_identifier(user_id);
+        debug!(
+            session_id,
+            user_id_hash = %user_id_hash,
+            repository_id,
+            "Session sync business context attached"
+        );
 
-        self.upsert(&url, &body, access_token).await?;
+        self.upsert(
+            "sync.session.upsert",
+            "agent_coding_sessions",
+            &url,
+            &body,
+            access_token,
+        )
+        .await?;
 
         debug!(session_id, "Session synced to Supabase");
         Ok(())
@@ -209,7 +242,14 @@ impl SupabaseClient {
 
         debug!(session_id, status, "Updating session status in Supabase");
 
-        self.patch(&url, &body, access_token).await?;
+        self.patch(
+            "sync.session.status.patch",
+            "agent_coding_sessions",
+            &url,
+            &body,
+            access_token,
+        )
+        .await?;
 
         debug!(session_id, "Session status updated in Supabase");
         Ok(())
@@ -232,7 +272,13 @@ impl SupabaseClient {
 
         debug!(session_id, "Deleting session from Supabase");
 
-        self.delete(&url, access_token).await?;
+        self.delete(
+            "sync.session.delete",
+            "agent_coding_sessions",
+            &url,
+            access_token,
+        )
+        .await?;
 
         debug!(session_id, "Session deleted from Supabase");
         Ok(())
@@ -282,7 +328,14 @@ impl SupabaseClient {
 
         debug!(count = messages.len(), "Syncing message batch to Supabase");
 
-        self.upsert(&url, messages, access_token).await?;
+        self.upsert(
+            "sync.message.batch_upsert",
+            "agent_coding_session_messages",
+            &url,
+            messages,
+            access_token,
+        )
+        .await?;
 
         debug!(count = messages.len(), "Message batch synced to Supabase");
         Ok(())
@@ -318,7 +371,14 @@ impl SupabaseClient {
             "Updating runtime status envelope in Supabase"
         );
 
-        self.patch(&url, &body, access_token).await?;
+        self.patch(
+            "sync.runtime_status.patch",
+            "agent_coding_sessions",
+            &url,
+            &body,
+            access_token,
+        )
+        .await?;
 
         debug!(session_id, "Runtime status envelope updated in Supabase");
         Ok(())
@@ -334,22 +394,29 @@ impl SupabaseClient {
     /// and upsert behavior. Returns an error if the response indicates failure.
     async fn upsert<T: Serialize + ?Sized>(
         &self,
+        operation: &'static str,
+        table: &'static str,
         url: &str,
         body: &T,
         access_token: &str,
     ) -> SessionSyncResult<()> {
-        let response = self
-            .http_client
-            .post(url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .header("Prefer", "resolution=merge-duplicates")
-            .json(body)
-            .send()
-            .await?;
+        let span = self.request_span(operation, table, "POST");
+        let start = Instant::now();
+        let response = async {
+            self.http_client
+                .post(url)
+                .header("apikey", &self.anon_key)
+                .header("Authorization", format!("Bearer {}", access_token))
+                .header("Content-Type", "application/json")
+                .header("Prefer", "resolution=merge-duplicates")
+                .json(body)
+                .send()
+                .await
+        }
+        .instrument(span)
+        .await?;
 
-        self.check_response(response).await
+        self.check_response(operation, table, response, start).await
     }
 
     /// Performs a PATCH request to update existing records.
@@ -358,42 +425,74 @@ impl SupabaseClient {
     /// Returns an error if the response indicates failure.
     async fn patch<T: Serialize>(
         &self,
+        operation: &'static str,
+        table: &'static str,
         url: &str,
         body: &T,
         access_token: &str,
     ) -> SessionSyncResult<()> {
-        let response = self
-            .http_client
-            .patch(url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Content-Type", "application/json")
-            .json(body)
-            .send()
-            .await?;
+        let span = self.request_span(operation, table, "PATCH");
+        let start = Instant::now();
+        let response = async {
+            self.http_client
+                .patch(url)
+                .header("apikey", &self.anon_key)
+                .header("Authorization", format!("Bearer {}", access_token))
+                .header("Content-Type", "application/json")
+                .json(body)
+                .send()
+                .await
+        }
+        .instrument(span)
+        .await?;
 
-        self.check_response(response).await
+        self.check_response(operation, table, response, start).await
     }
 
     /// Performs a DELETE request to remove matching records.
     ///
     /// Uses lenient error handling - logs failures but returns Ok to support
     /// idempotent deletes where the resource may already be gone.
-    async fn delete(&self, url: &str, access_token: &str) -> SessionSyncResult<()> {
-        let response = self
-            .http_client
-            .delete(url)
-            .header("apikey", &self.anon_key)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .send()
-            .await?;
+    async fn delete(
+        &self,
+        operation: &'static str,
+        table: &'static str,
+        url: &str,
+        access_token: &str,
+    ) -> SessionSyncResult<()> {
+        let span = self.request_span(operation, table, "DELETE");
+        let start = Instant::now();
+        let response = async {
+            self.http_client
+                .delete(url)
+                .header("apikey", &self.anon_key)
+                .header("Authorization", format!("Bearer {}", access_token))
+                .send()
+                .await
+        }
+        .instrument(span)
+        .await?;
 
         // Log but don't fail on delete errors for idempotency
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            warn!(status = %status, body_summary = %body_summary, "Delete request failed");
+            warn!(
+                operation = operation,
+                table = table,
+                http_duration_ms = start.elapsed().as_millis() as u64,
+                status = %status,
+                body_summary = %body_summary,
+                "Delete request failed"
+            );
+        } else {
+            debug!(
+                operation = operation,
+                table = table,
+                http_duration_ms = start.elapsed().as_millis() as u64,
+                "Supabase delete request succeeded"
+            );
         }
 
         Ok(())
@@ -403,17 +502,37 @@ impl SupabaseClient {
     ///
     /// Reads the response body for error details and logs failures before
     /// returning a structured error with status code and message.
-    async fn check_response(&self, response: reqwest::Response) -> SessionSyncResult<()> {
+    async fn check_response(
+        &self,
+        operation: &'static str,
+        table: &'static str,
+        response: reqwest::Response,
+        start: Instant,
+    ) -> SessionSyncResult<()> {
+        let http_duration_ms = start.elapsed().as_millis() as u64;
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
             let body_summary = summarize_response_body(&body);
-            error!(status, body_summary = %body_summary, "Supabase request failed");
+            error!(
+                operation = operation,
+                table = table,
+                http_duration_ms = http_duration_ms,
+                status,
+                body_summary = %body_summary,
+                "Supabase request failed"
+            );
             return Err(SessionSyncError::Supabase {
                 status,
                 message: format!("upstream error ({body_summary})"),
             });
         }
+        debug!(
+            operation = operation,
+            table = table,
+            http_duration_ms = http_duration_ms,
+            "Supabase request succeeded"
+        );
         Ok(())
     }
 }

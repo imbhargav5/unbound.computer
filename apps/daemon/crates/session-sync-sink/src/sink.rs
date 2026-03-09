@@ -5,11 +5,14 @@
 
 use crate::client::SupabaseClient;
 use agent_session_sqlite_persist_core::{RuntimeStatusEnvelope, SideEffect, SideEffectSink};
+use daemon_config_and_utils::hash_identifier;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, RwLock};
+use std::time::Instant;
+use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, Duration};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Instrument};
 
 /// Buffer size for queued runtime status updates.
 const RUNTIME_STATUS_QUEUE_CAPACITY: usize = 256;
@@ -99,6 +102,8 @@ pub struct RuntimeStatusSyncRequest {
     pub session_id: String,
     /// Canonical runtime status envelope payload.
     pub runtime_status: RuntimeStatusEnvelope,
+    /// When this request entered the local queue.
+    pub queued_at: Instant,
 }
 
 /// Trait for async runtime status fanout processing.
@@ -133,8 +138,15 @@ pub struct SessionSyncSink {
     runtime_status_sender: mpsc::Sender<RuntimeStatusSyncRequest>,
     /// Runtime-status queue receiver, consumed exactly once by worker startup.
     runtime_status_receiver: Mutex<Option<mpsc::Receiver<RuntimeStatusSyncRequest>>>,
+    /// Runtime state for the coalescing runtime-status worker.
+    runtime_status_worker: Mutex<Option<RuntimeStatusWorkerRuntime>>,
     /// Tokio runtime handle for spawning async tasks.
     runtime: tokio::runtime::Handle,
+}
+
+struct RuntimeStatusWorkerRuntime {
+    shutdown_tx: oneshot::Sender<()>,
+    task: JoinHandle<()>,
 }
 
 impl SessionSyncSink {
@@ -160,6 +172,7 @@ impl SessionSyncSink {
             realtime_runtime_status_syncer: Arc::new(RwLock::new(None)),
             runtime_status_sender,
             runtime_status_receiver: Mutex::new(Some(runtime_status_receiver)),
+            runtime_status_worker: Mutex::new(None),
             runtime: runtime.clone(),
         };
         sink.start_runtime_status_worker();
@@ -171,9 +184,15 @@ impl SessionSyncSink {
     /// Must be called after user authentication before side-effects will be
     /// synced. Until this is called, side-effects are logged but not sent.
     pub async fn set_context(&self, context: SyncContext) {
+        let user_id_hash = hash_identifier(&context.user_id);
+        let device_id_hash = hash_identifier(&context.device_id);
         let mut ctx = self.context.write().await;
         *ctx = Some(context);
-        info!("Session sync sync context set");
+        info!(
+            user_id_hash = %user_id_hash,
+            device_id_hash = %device_id_hash,
+            "Session sync sync context set"
+        );
     }
 
     /// Removes the sync context, disabling Supabase sync.
@@ -269,6 +288,11 @@ impl SessionSyncSink {
     }
 
     fn start_runtime_status_worker(&self) {
+        let mut worker = self.runtime_status_worker.lock().expect("lock poisoned");
+        if worker.is_some() {
+            panic!("Session sync runtime-status worker already started");
+        }
+
         let Some(mut receiver) = self
             .runtime_status_receiver
             .lock()
@@ -277,12 +301,13 @@ impl SessionSyncSink {
         else {
             panic!("Session sync runtime-status worker already started");
         };
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
         let client = self.client.clone();
         let context = self.context.clone();
         let realtime_runtime_status_syncer = self.realtime_runtime_status_syncer.clone();
 
-        self.runtime.spawn(async move {
+        let task = self.runtime.spawn(async move {
             let mut ticker = interval(RUNTIME_STATUS_FLUSH_INTERVAL);
             let mut pending: HashMap<String, RuntimeStatusSyncRequest> = HashMap::new();
             let mut last_synced_by_session: HashMap<String, i64> = HashMap::new();
@@ -290,6 +315,10 @@ impl SessionSyncSink {
 
             loop {
                 tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        debug!("Session sync runtime-status worker shutdown requested");
+                        break;
+                    }
                     maybe_request = receiver.recv() => {
                         match maybe_request {
                             Some(request) => {
@@ -330,6 +359,15 @@ impl SessionSyncSink {
 
                         let batch = std::mem::take(&mut pending);
                         for request in batch.into_values() {
+                            let queue_delay_ms = request.queued_at.elapsed().as_millis() as u64;
+                            let request_span = tracing::info_span!(
+                                "sync.runtime_status.process",
+                                session_id = %request.session_id,
+                                status = request.runtime_status.coding_session.status.as_str(),
+                                queue_delay_ms = queue_delay_ms,
+                                updated_at_ms = request.runtime_status.updated_at_ms
+                            );
+                            async {
                             if let Some(last_synced) = last_synced_by_session.get(&request.session_id)
                             {
                                 if request.runtime_status.updated_at_ms < *last_synced {
@@ -339,7 +377,7 @@ impl SessionSyncSink {
                                         last_synced_updated_at_ms = *last_synced,
                                         "Skipping stale runtime status update"
                                     );
-                                    continue;
+                                    return;
                                 }
                             }
 
@@ -348,6 +386,11 @@ impl SessionSyncSink {
                                 let hot_path_ms =
                                     last_hot_path_by_session.get(&request.session_id).copied();
                                 if hot_path_ms.map_or(true, |last_ms| incoming_ms > last_ms) {
+                                    debug!(
+                                        session_id = %request.session_id,
+                                        queue_delay_ms = queue_delay_ms,
+                                        "Dispatching runtime status to realtime syncer"
+                                    );
                                     syncer.enqueue(request.clone());
                                     last_hot_path_by_session
                                         .insert(request.session_id.clone(), incoming_ms);
@@ -363,6 +406,11 @@ impl SessionSyncSink {
                                 .await
                             {
                                 Ok(()) => {
+                                    debug!(
+                                        session_id = %request.session_id,
+                                        queue_delay_ms = queue_delay_ms,
+                                        "Runtime status synced to Supabase"
+                                    );
                                     last_synced_by_session.insert(
                                         request.session_id.clone(),
                                         request.runtime_status.updated_at_ms,
@@ -374,6 +422,7 @@ impl SessionSyncSink {
                                         status = request.runtime_status.coding_session.status.as_str(),
                                         updated_at_ms = request.runtime_status.updated_at_ms,
                                         error = %err,
+                                        queue_delay_ms = queue_delay_ms,
                                         "Session sync runtime-status Supabase sync failed"
                                     );
                                     coalesce_runtime_status_request(
@@ -383,11 +432,33 @@ impl SessionSyncSink {
                                     );
                                 }
                             }
+                            }
+                            .instrument(request_span)
+                            .await;
                         }
                     }
                 }
             }
         });
+
+        *worker = Some(RuntimeStatusWorkerRuntime { shutdown_tx, task });
+    }
+
+    /// Stops the runtime-status worker and waits for it to exit.
+    pub async fn shutdown(&self) {
+        let worker = self
+            .runtime_status_worker
+            .lock()
+            .expect("lock poisoned")
+            .take();
+        let Some(worker) = worker else {
+            return;
+        };
+
+        let _ = worker.shutdown_tx.send(());
+        if let Err(err) = worker.task.await {
+            warn!(error = %err, "Session sync runtime-status worker join failed");
+        }
     }
 
     /// Spawns an async task to process a side-effect.
@@ -404,6 +475,7 @@ impl SessionSyncSink {
             self.enqueue_runtime_status_update(RuntimeStatusSyncRequest {
                 session_id: session_id.as_str().to_string(),
                 runtime_status,
+                queued_at: Instant::now(),
             });
             return;
         }
@@ -427,6 +499,13 @@ impl SessionSyncSink {
                     }
                 }
             };
+            let user_id_hash = hash_identifier(&ctx.user_id);
+            let device_id_hash = hash_identifier(&ctx.device_id);
+            debug!(
+                user_id_hash = %user_id_hash,
+                device_id_hash = %device_id_hash,
+                "Session sync handling side effect with authenticated context"
+            );
 
             // Dispatch to appropriate handler based on effect type
             let result = match &effect {
@@ -779,6 +858,17 @@ mod tests {
         })
         .await;
         assert!(sink.is_enabled().await);
+    }
+
+    #[tokio::test]
+    async fn runtime_status_worker_shutdown_is_idempotent() {
+        let runtime = tokio::runtime::Handle::current();
+        let sink = SessionSyncSink::new("https://test.supabase.co", "test-key", runtime);
+
+        sink.shutdown().await;
+        sink.shutdown().await;
+
+        assert!(sink.runtime_status_worker.lock().unwrap().is_none());
     }
 
     // =========================================================================
