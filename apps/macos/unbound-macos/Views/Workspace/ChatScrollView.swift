@@ -14,6 +14,8 @@ private let logger = Logger(label: "app.ui.chat")
 struct ChatSnapshotScrollView<Header: View>: View {
     let snapshot: ChatTimelineSnapshot
     let onQuestionSubmit: (AskUserQuestion) -> Void
+    let onInitialRenderComplete: (() -> Void)?
+    let onLatestContentVisible: (() -> Void)?
     @ViewBuilder let header: () -> Header
 
     @State private var isAtBottom: Bool = true
@@ -59,6 +61,7 @@ struct ChatSnapshotScrollView<Header: View>: View {
                                     let renderDuration = CFAbsoluteTimeGetCurrent() - snapshot.publishedAt
                                     logger.info("chatRender lastRow: duration=\(String(format: "%.3f", renderDuration))s rows=\(snapshot.rows.count)")
                                 }
+                                onLatestContentVisible?()
                             } : nil
                         )
                         .equatable()
@@ -106,6 +109,8 @@ struct ChatSnapshotScrollView<Header: View>: View {
                                     let renderDuration = CFAbsoluteTimeGetCurrent() - snapshot.publishedAt
                                     logger.info("chatRender: duration=\(String(format: "%.3f", renderDuration))s rows=\(snapshot.rows.count)")
                                 }
+                                onInitialRenderComplete?()
+                                onLatestContentVisible?()
                             }
                         }
                         .onDisappear {

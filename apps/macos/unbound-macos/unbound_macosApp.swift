@@ -126,9 +126,13 @@ struct unbound_macosApp: App {
                     // If this is an auth callback, refresh auth status
                     if url.scheme == Config.oauthRedirectScheme && url.host == "auth" {
                         Task {
-                            await appState?.refreshAuthStatus()
-                            if appState?.isAuthenticated == true {
-                                await appState?.loadDataAsync()
+                            await TracingService.withUserIntentRoot(
+                                name: "auth.complete_social"
+                            ) { _ in
+                                await appState?.refreshAuthStatus()
+                                if appState?.isAuthenticated == true {
+                                    await appState?.loadDataAsync()
+                                }
                             }
                         }
                     }

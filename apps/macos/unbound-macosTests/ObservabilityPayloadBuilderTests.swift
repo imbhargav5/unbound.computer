@@ -11,7 +11,7 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
             environment: [
                 "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
                 "UNBOUND_OTEL_HEADERS": "Authorization=Bearer token,X-Test=value",
-                "UNBOUND_OBS_MODE": "development"
+                "UNBOUND_ENV": "development"
             ],
             infoDictionary: [:],
             isDebug: true
@@ -25,13 +25,17 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(status.headerCount, 2)
         XCTAssertEqual(status.mode, .devVerbose)
         XCTAssertEqual(status.environment, "development")
+        XCTAssertEqual(status.traceSampler, "always_on")
+        XCTAssertEqual(status.traceSamplerSource, .unset)
+        XCTAssertNil(status.traceSamplerArg)
     }
 
     func testResolvedObservabilityStatusFallsBackToInfoPlist() {
         let status = Config.resolvedObservabilityStatus(
             environment: [:],
             infoDictionary: [
-                "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.com/v1/logs"
+                "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.com/v1/logs",
+                "UNBOUND_ENV": "production"
             ],
             isDebug: false
         )
@@ -42,6 +46,9 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(status.otlpLogsURL?.absoluteString, "https://otel.example.com/v1/logs")
         XCTAssertEqual(status.mode, .prodMetadataOnly)
         XCTAssertEqual(status.environment, "production")
+        XCTAssertEqual(status.traceSampler, "parentbased_traceidratio")
+        XCTAssertEqual(status.traceSamplerSource, .unset)
+        XCTAssertEqual(status.traceSamplerArg, 0.05, accuracy: 0.0001)
     }
 
     func testResolvedObservabilityStatusDisablesOTLPWhenUnset() {
@@ -57,8 +64,27 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
         XCTAssertNil(status.otlpLogsURL)
         XCTAssertFalse(status.headersPresent)
         XCTAssertEqual(status.headerCount, 0)
+        XCTAssertEqual(status.traceSampler, "parentbased_traceidratio")
+        XCTAssertEqual(status.traceSamplerSource, .unset)
+        XCTAssertEqual(status.traceSamplerArg, 0.05, accuracy: 0.0001)
         XCTAssertEqual(status.infoSampleRate, 0.1, accuracy: 0.0001)
         XCTAssertEqual(status.debugSampleRate, 0.0, accuracy: 0.0001)
+    }
+
+    func testResolvedObservabilityStatusUsesDaemonStyleSamplerEnv() {
+        let status = Config.resolvedObservabilityStatus(
+            environment: [
+                "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                "UNBOUND_OTEL_SAMPLER": "parentbased_traceidratio",
+                "UNBOUND_OTEL_TRACES_SAMPLER_ARG": "0.25"
+            ],
+            infoDictionary: [:],
+            isDebug: true
+        )
+
+        XCTAssertEqual(status.traceSampler, "parentbased_traceidratio")
+        XCTAssertEqual(status.traceSamplerSource, .env)
+        XCTAssertEqual(status.traceSamplerArg, 0.25, accuracy: 0.0001)
     }
 
     func testObservabilityStartupEventIncludesStableMetadata() {
@@ -71,6 +97,9 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
             headerCount: 0,
             mode: .devVerbose,
             environment: "development",
+            traceSampler: "always_on",
+            traceSamplerSource: .unset,
+            traceSamplerArg: nil,
             infoSampleRate: 1.0,
             debugSampleRate: 1.0
         )
@@ -84,6 +113,8 @@ final class ObservabilityPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(event.metadata["otlp_endpoint_source"]?.description, "unset")
         XCTAssertEqual(event.metadata["observability_mode"]?.description, "dev_verbose")
         XCTAssertEqual(event.metadata["observability_environment"]?.description, "development")
+        XCTAssertEqual(event.metadata["otlp_trace_sampler"]?.description, "always_on")
+        XCTAssertEqual(event.metadata["otlp_trace_sampler_source"]?.description, "unset")
         XCTAssertTrue(event.message.contains("UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"))
     }
 

@@ -14,6 +14,18 @@ PID_FILE="$BASE_DIR/daemon.pid"
 STARTUP_STATUS_FILE="$BASE_DIR/startup-status.json"
 ENV_FILE="$DAEMON_DIR/.env.local"
 
+append_xcode_build_arg_if_set() {
+  local key="$1"
+  local value="${!key:-}"
+
+  if [ -n "$value" ]; then
+    XCODE_BUILD_ARGS+=(
+      "${key}=${value}"
+      "INFOPLIST_KEY_${key}=${value}"
+    )
+  fi
+}
+
 print_startup_status() {
   local elapsed_s="$1"
   if [ -f "$STARTUP_STATUS_FILE" ]; then
@@ -101,20 +113,18 @@ if [[ "${1:-}" == "--app" ]]; then
   XCODE_BUILD_ARGS=()
   if [ -n "${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
     echo "Embedding OTLP endpoint into macOS app build for Signoz logs..."
-    XCODE_BUILD_ARGS+=(
-      "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT=${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT}"
-      "INFOPLIST_KEY_UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT=${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT}"
-    )
+    append_xcode_build_arg_if_set "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"
   else
     echo "warning: UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT is not set; macOS app OTLP logs will stay local."
   fi
 
-  if [ -n "${UNBOUND_OTEL_HEADERS:-}" ]; then
-    XCODE_BUILD_ARGS+=(
-      "UNBOUND_OTEL_HEADERS=${UNBOUND_OTEL_HEADERS}"
-      "INFOPLIST_KEY_UNBOUND_OTEL_HEADERS=${UNBOUND_OTEL_HEADERS}"
-    )
-  fi
+  append_xcode_build_arg_if_set "UNBOUND_OTEL_HEADERS"
+  append_xcode_build_arg_if_set "UNBOUND_OTEL_SAMPLER"
+  append_xcode_build_arg_if_set "UNBOUND_OTEL_TRACES_SAMPLER_ARG"
+  append_xcode_build_arg_if_set "UNBOUND_OBS_MODE"
+  append_xcode_build_arg_if_set "UNBOUND_OBS_INFO_SAMPLE_RATE"
+  append_xcode_build_arg_if_set "UNBOUND_OBS_DEBUG_SAMPLE_RATE"
+  append_xcode_build_arg_if_set "UNBOUND_ENV"
 
   xcodebuild \
     -project unbound-macos.xcodeproj \

@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import OpenTelemetryApi
 
 // MARK: - File Tree ViewModel
 
@@ -62,6 +63,17 @@ class FileTreeViewModel {
     private var allFilesByPath: [String: FileItem] = [:]
     private var changesByPath: [String: FileItem] = [:]
 
+    private func tracingAttributes(relativePath: String = "") -> [String: AttributeValue] {
+        var attributes: [String: AttributeValue] = [:]
+        if let sessionId {
+            attributes["session.id"] = .string(sessionId.uuidString.lowercased())
+        }
+        if let pathHash = TracingService.hashIdentifier(relativePath), !relativePath.isEmpty {
+            attributes["repository.relative_path_hash"] = .string(pathHash)
+        }
+        return attributes
+    }
+
     // MARK: - Initialization
 
     init(daemonClient: DaemonClient = .shared) {
@@ -86,14 +98,19 @@ class FileTreeViewModel {
         defer { isLoading = false }
 
         do {
-            let entries = try await daemonClient.listRepositoryFiles(
-                sessionId: sessionId.uuidString.lowercased(),
-                relativePath: ""
-            )
-            let items = entries.map { makeFileItem(from: $0) }
-            allFilesTree = items
-            allFilesByPath = buildIndex(from: items)
-            isRootLoaded = true
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "repository.list_files",
+                attributes: tracingAttributes()
+            ) { _ in
+                let entries = try await daemonClient.listRepositoryFiles(
+                    sessionId: sessionId.uuidString.lowercased(),
+                    relativePath: ""
+                )
+                let items = entries.map { makeFileItem(from: $0) }
+                allFilesTree = items
+                allFilesByPath = buildIndex(from: items)
+                isRootLoaded = true
+            }
         } catch {
             allFilesTree = []
             allFilesByPath = [:]
@@ -109,23 +126,28 @@ class FileTreeViewModel {
         }
 
         do {
-            let entries = try await daemonClient.listRepositoryFiles(
-                sessionId: sessionId.uuidString.lowercased(),
-                relativePath: path
-            )
-            let children = entries.map { makeFileItem(from: $0) }
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "repository.list_files",
+                attributes: tracingAttributes(relativePath: path)
+            ) { _ in
+                let entries = try await daemonClient.listRepositoryFiles(
+                    sessionId: sessionId.uuidString.lowercased(),
+                    relativePath: path
+                )
+                let children = entries.map { makeFileItem(from: $0) }
 
-            var didUpdate = false
-            updateItem(&allFilesTree, path: path) { item in
-                item.children = children
-                item.childrenLoaded = true
-                item.hasChildrenHint = !children.isEmpty
-            } didUpdate: {
-                didUpdate = true
-            }
+                var didUpdate = false
+                updateItem(&allFilesTree, path: path) { item in
+                    item.children = children
+                    item.childrenLoaded = true
+                    item.hasChildrenHint = !children.isEmpty
+                } didUpdate: {
+                    didUpdate = true
+                }
 
-            if didUpdate {
-                allFilesByPath = buildIndex(from: allFilesTree)
+                if didUpdate {
+                    allFilesByPath = buildIndex(from: allFilesTree)
+                }
             }
         } catch {
             // Keep previous state on error

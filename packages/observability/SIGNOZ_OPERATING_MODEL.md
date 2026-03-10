@@ -52,6 +52,62 @@ and telemetry quality checks.
 
 ## 2. Canonical Root Operations
 
+- Root policy: one root span per bounded user-visible intent.
+- Nested technical steps become child spans under that root.
+- Detached background work keeps independent daemon-owned roots.
+
+### macOS user-intent roots
+
+- `session.open`
+- `session.create`
+- `session.rename`
+- `session.delete`
+- `message.send`
+- `claude.stop`
+- `repository.add`
+- `repository.remove`
+- `repository.settings.update`
+- `repository.list_files`
+- `repository.read_file`
+- `repository.write_file`
+- `repository.replace_file_range`
+- `git.status`
+- `git.diff_file`
+- `git.log`
+- `git.branches`
+- `git.stage`
+- `git.unstage`
+- `git.discard`
+- `git.commit`
+- `git.push`
+- `gh.auth_status`
+- `gh.pr_create`
+- `gh.pr_view`
+- `gh.pr_list`
+- `gh.pr_checks`
+- `gh.pr_merge`
+- `terminal.run`
+- `terminal.stop`
+- `system.check_dependencies`
+- `auth.login.start`
+- `auth.complete_social`
+- `auth.logout`
+- `billing.usage_status`
+
+### detached daemon roots
+
+- `daemon.startup`
+- `auth.refresh_background`
+- `billing.refresh_background`
+- `sync.reconcile_startup`
+- `sync.message_batch`
+- `sync.session_metadata`
+- `sidecar.ensure_healthy`
+- `sidecar.start`
+- `sidecar.restart`
+- `ably.publish.batch`
+- `ably.runtime_status.publish`
+
 - `daemon.health`
 - `daemon.auth.status`
 - `daemon.auth.login`
@@ -84,6 +140,9 @@ Current high-priority async pipelines:
 ### Trace views
 
 - End-to-end app/daemon: `service.name IN ("macos", "daemon")`
+- Session open waterfall: `name = "session.open"` with columns `service.name`, `name`, `duration_nano`, `session.id`, `attempt_id`
+- First-feedback send path: `name = "message.send"` with columns `service.name`, `name`, `duration_nano`, `session.id`, `attempt_id`
+- Repository add compound flow: `name = "repository.add"` with columns `service.name`, `name`, `duration_nano`, `workspace.id`, `attempt_id`
 - Slow Claude send: `name = "daemon.claude.send"` sorted by duration
 - Daemon errors by method: `service.name = "daemon" AND hasError = true`
 - Sync bottlenecks: `operation LIKE "sync.%"`
@@ -92,8 +151,42 @@ Current high-priority async pipelines:
 
 - Daemon live logs: `service.name = "daemon"`
 - Cross-runtime session view: `session.id EXISTS AND service.name IN ("macos","daemon")`
+- Session open logs: `operation = "session.open"` with `trace_id`, `attempt_id`, `session_id`
+- Message send logs: `operation = "message.send"` with `trace_id`, `attempt_id`, `session_id`
 - Sidecar failures: `event_code LIKE "daemon.sidecar.%"`
 - Runtime-status retries: `operation = "sync.runtime_status.patch"`
+
+### Session open trace shape
+
+Expected bounded startup tree for a populated session:
+
+- `session.open`
+  - `session.select`
+  - `session.activate`
+    - `session.activate.yield`
+    - `session.activate.load_messages`
+      - `session.load_messages.ipc`
+        - `daemon.message.list`
+          - daemon `ipc.handle`
+          - daemon `armin.snapshot`
+          - daemon `build_json`
+          - daemon `ipc.response.write`
+      - `session.load_messages.rows_decode`
+      - `session.load_messages.state_replace`
+      - `session.load_messages.refresh_messages`
+      - `session.snapshot.build_wait`
+      - `session.snapshot.build`
+      - `session.snapshot.publish`
+    - `session.activate.status_subscribe`
+      - `daemon.claude.status`
+      - `daemon.session.subscribe`
+        - daemon `ipc.subscribe.setup`
+  - `session.activate.visible_wait`
+
+Expected end condition:
+
+- startup settled after `load_messages` + initial `claude.status` + subscribe setup
+- visible-ready after initial render or empty-state visibility
 
 ## 5. Dashboards
 

@@ -135,13 +135,17 @@ struct AddWorkspaceSheet: View {
 
         Task {
             do {
-                // Create session for the repository via daemon
-                let session = try await appState.createSession(
-                    repositoryId: repository.id,
-                    title: "New conversation"
-                )
+                let session = try await TracingService.withUserIntentRoot(
+                    name: "session.create",
+                    source: .createSession
+                ) { _ in
+                    try await appState.createSession(
+                        repositoryId: repository.id,
+                        title: "New conversation"
+                    )
+                }
                 await MainActor.run {
-                    appState.selectSession(session.id)
+                    appState.selectSession(session.id, source: .createSession)
                     dismiss()
                 }
             } catch {

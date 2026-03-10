@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OpenTelemetryApi
 
 @MainActor
 @Observable
@@ -157,29 +158,39 @@ class EditorState {
         documentsByTabId[tabId] = state
 
         do {
-            let response = try await daemonClient.readRepositoryFile(
-                sessionId: sessionId,
-                relativePath: tab.path,
-                maxBytes: 4 * 1024 * 1024
-            )
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "repository.read_file",
+                attributes: [
+                    "session.id": .string(sessionId),
+                    "repository.relative_path_hash": .string(
+                        TracingService.hashIdentifier(tab.path) ?? ""
+                    )
+                ]
+            ) { _ in
+                let response = try await daemonClient.readRepositoryFile(
+                    sessionId: sessionId,
+                    relativePath: tab.path,
+                    maxBytes: 4 * 1024 * 1024
+                )
 
-            var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
-            let fallbackReadOnlyReason: String? = response.isTruncated
-                ? "File is too large for full editable load and is open read-only."
-                : nil
-            let readOnlyReason = response.readOnlyReason ?? fallbackReadOnlyReason
+                var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
+                let fallbackReadOnlyReason: String? = response.isTruncated
+                    ? "File is too large for full editable load and is open read-only."
+                    : nil
+                let readOnlyReason = response.readOnlyReason ?? fallbackReadOnlyReason
 
-            nextState.content = response.content
-            nextState.baseContent = response.content
-            nextState.revision = response.revision
-            nextState.isDirty = false
-            nextState.isLoading = false
-            nextState.isSaving = false
-            nextState.errorMessage = nil
-            nextState.isReadOnly = readOnlyReason != nil
-            nextState.readOnlyReason = readOnlyReason
-            nextState.hasLoaded = true
-            documentsByTabId[tabId] = nextState
+                nextState.content = response.content
+                nextState.baseContent = response.content
+                nextState.revision = response.revision
+                nextState.isDirty = false
+                nextState.isLoading = false
+                nextState.isSaving = false
+                nextState.errorMessage = nil
+                nextState.isReadOnly = readOnlyReason != nil
+                nextState.readOnlyReason = readOnlyReason
+                nextState.hasLoaded = true
+                documentsByTabId[tabId] = nextState
+            }
         } catch {
             var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
             nextState.isLoading = false
@@ -219,36 +230,55 @@ class EditorState {
         let savePlan = buildSavePlan(baseContent: state.baseContent, content: state.content)
 
         do {
-            let writeResult: DaemonWriteResult
-            switch savePlan {
-            case .replaceRange(let startLine, let endLineExclusive, let replacement):
-                writeResult = try await daemonClient.replaceRepositoryFileRange(
-                    sessionId: sessionId,
-                    relativePath: tab.path,
-                    startLine: startLine,
-                    endLineExclusive: endLineExclusive,
-                    replacement: replacement,
-                    expectedRevision: state.revision,
-                    force: forceOverwrite
-                )
+            let operationName = switch savePlan {
+            case .replaceRange:
+                "repository.replace_file_range"
             case .writeFull:
-                writeResult = try await daemonClient.writeRepositoryFile(
-                    sessionId: sessionId,
-                    relativePath: tab.path,
-                    content: state.content,
-                    expectedRevision: state.revision,
-                    force: forceOverwrite
-                )
+                "repository.write_file"
             }
 
-            var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
-            nextState.isSaving = false
-            nextState.errorMessage = nil
-            nextState.revision = writeResult.revision
-            nextState.baseContent = nextState.content
-            nextState.isDirty = false
-            documentsByTabId[tabId] = nextState
-            return .saved
+            let outcome = try await TracingService.withUserIntentRootIfNeeded(
+                name: operationName,
+                attributes: [
+                    "session.id": .string(sessionId),
+                    "repository.relative_path_hash": .string(
+                        TracingService.hashIdentifier(tab.path) ?? ""
+                    )
+                ]
+            ) { _ in
+                let writeResult: DaemonWriteResult
+                switch savePlan {
+                case .replaceRange(let startLine, let endLineExclusive, let replacement):
+                    writeResult = try await daemonClient.replaceRepositoryFileRange(
+                        sessionId: sessionId,
+                        relativePath: tab.path,
+                        startLine: startLine,
+                        endLineExclusive: endLineExclusive,
+                        replacement: replacement,
+                        expectedRevision: state.revision,
+                        force: forceOverwrite
+                    )
+                case .writeFull:
+                    writeResult = try await daemonClient.writeRepositoryFile(
+                        sessionId: sessionId,
+                        relativePath: tab.path,
+                        content: state.content,
+                        expectedRevision: state.revision,
+                        force: forceOverwrite
+                    )
+                }
+
+                var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
+                nextState.isSaving = false
+                nextState.errorMessage = nil
+                nextState.revision = writeResult.revision
+                nextState.baseContent = nextState.content
+                nextState.isDirty = false
+                documentsByTabId[tabId] = nextState
+                return SaveOutcome.saved
+            }
+
+            return outcome
         } catch let daemonError as DaemonError {
             var nextState = documentsByTabId[tabId] ?? EditorDocumentState()
             nextState.isSaving = false

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OpenTelemetryApi
 
 // MARK: - Terminal Line
 
@@ -85,60 +86,65 @@ class TerminalState {
             return
         }
 
-        // Add to history
-        commandHistory.append(trimmedCommand)
-        historyIndex = commandHistory.count
-
-        // Add command line to output
-        lines.append(TerminalLine(
-            type: .command(directory: currentDirectoryName),
-            content: trimmedCommand
-        ))
-
-        // Handle built-in commands
-        if trimmedCommand == "clear" {
-            lines.removeAll()
-            return
-        }
-
-        if trimmedCommand.hasPrefix("cd ") {
-            let path = String(trimmedCommand.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-            changeDirectory(path)
-            return
-        }
-
-        if trimmedCommand == "cd" {
-            changeDirectory("~")
-            return
-        }
-
-        // Execute command with streaming
-        isRunning = true
-
-        let (stream, processId) = shellService.executeStreaming(
-            trimmedCommand,
-            workingDirectory: currentDirectory
-        )
-        currentProcessId = processId
-
         do {
-            for try await chunk in stream {
-                // Split by newlines and add each line
-                let outputLines = chunk.components(separatedBy: "\n")
-                for (index, line) in outputLines.enumerated() {
-                    // Skip empty last line from split
-                    if index == outputLines.count - 1 && line.isEmpty {
-                        continue
-                    }
-                    if !line.isEmpty {
-                        lines.append(TerminalLine(type: .output, content: line))
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "terminal.run",
+                attributes: [
+                    "terminal.working_directory_hash": .string(TracingService.hashIdentifier(currentDirectory) ?? ""),
+                    "terminal.command_hash": .string(TracingService.hashIdentifier(trimmedCommand) ?? "")
+                ]
+            ) { _ in
+                commandHistory.append(trimmedCommand)
+                historyIndex = commandHistory.count
+
+                lines.append(TerminalLine(
+                    type: .command(directory: currentDirectoryName),
+                    content: trimmedCommand
+                ))
+
+                if trimmedCommand == "clear" {
+                    lines.removeAll()
+                    return
+                }
+
+                if trimmedCommand.hasPrefix("cd ") {
+                    let path = String(trimmedCommand.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    changeDirectory(path)
+                    return
+                }
+
+                if trimmedCommand == "cd" {
+                    changeDirectory("~")
+                    return
+                }
+
+                isRunning = true
+
+                let (stream, processId) = shellService.executeStreaming(
+                    trimmedCommand,
+                    workingDirectory: currentDirectory
+                )
+                currentProcessId = processId
+                defer {
+                    isRunning = false
+                    currentProcessId = nil
+                }
+
+                for try await chunk in stream {
+                    let outputLines = chunk.components(separatedBy: "\n")
+                    for (index, line) in outputLines.enumerated() {
+                        if index == outputLines.count - 1 && line.isEmpty {
+                            continue
+                        }
+                        if !line.isEmpty {
+                            lines.append(TerminalLine(type: .output, content: line))
+                        }
                     }
                 }
             }
         } catch let error as ProcessError {
             switch error {
             case .executionFailed(let message, _):
-                // Don't show error for non-zero exit codes if we already have output
                 if !message.contains("exit code") {
                     lines.append(TerminalLine(type: .error, content: message))
                 }
@@ -149,16 +155,23 @@ class TerminalState {
             lines.append(TerminalLine(type: .error, content: error.localizedDescription))
         }
 
-        isRunning = false
-        currentProcessId = nil
     }
 
     func cancelCurrentProcess() {
         guard let processId = currentProcessId, let shellService = shellService else { return }
-        shellService.terminate(processId: processId)
-        isRunning = false
-        currentProcessId = nil
-        lines.append(TerminalLine(type: .system, content: "^C"))
+        Task { @MainActor in
+            await TracingService.withUserIntentRootIfNeeded(
+                name: "terminal.stop",
+                attributes: [
+                    "terminal.working_directory_hash": .string(TracingService.hashIdentifier(currentDirectory) ?? "")
+                ]
+            ) { _ in
+                shellService.terminate(processId: processId)
+                isRunning = false
+                currentProcessId = nil
+                lines.append(TerminalLine(type: .system, content: "^C"))
+            }
+        }
     }
 
     func getPreviousCommand() -> String? {

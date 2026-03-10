@@ -9,6 +9,7 @@
 
 import SwiftUI
 import Logging
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.state")
 
@@ -281,13 +282,18 @@ class AppState {
 
     /// Login via daemon with email and password.
     func loginWithPassword(email: String, password: String) async throws {
-        try await daemonClient.loginWithPassword(email: email, password: password)
-        await refreshAuthStatus()
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "auth.login.start",
+            attributes: userIntentAttributes()
+        ) { _ in
+            try await daemonClient.loginWithPassword(email: email, password: password)
+            await refreshAuthStatus()
 
-        if isAuthenticated {
-            await checkDependencies()
-            if dependenciesSatisfied {
-                await loadDataAsync()
+            if isAuthenticated {
+                await checkDependencies()
+                if dependenciesSatisfied {
+                    await loadDataAsync()
+                }
             }
         }
     }
@@ -297,29 +303,41 @@ class AppState {
     ///   - provider: OAuth provider ("github", "google") or "magic_link" for passwordless.
     ///   - email: Email address (required for magic_link, optional for OAuth).
     func loginWithProvider(_ provider: String, email: String? = nil) async throws {
-        try await daemonClient.loginWithProvider(provider, email: email)
-        await refreshAuthStatus()
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "auth.login.start",
+            attributes: userIntentAttributes(
+                extra: ["auth.provider": .string(provider)]
+            )
+        ) { _ in
+            try await daemonClient.loginWithProvider(provider, email: email)
+            await refreshAuthStatus()
 
-        if isAuthenticated {
-            await checkDependencies()
-            if dependenciesSatisfied {
-                await loadDataAsync()
+            if isAuthenticated {
+                await checkDependencies()
+                if dependenciesSatisfied {
+                    await loadDataAsync()
+                }
             }
         }
     }
 
     /// Logout via daemon.
     func logout() async throws {
-        try await daemonClient.logout()
-        isAuthenticated = false
-        hasStoredSession = false
-        authState = .notLoggedIn
-        currentUserId = nil
-        currentUserEmail = nil
-        dependencyStatus = .unchecked
-        isGhInstalled = nil
-        sessionRuntimeStatusService.stop()
-        clearCachedData()
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "auth.logout",
+            attributes: userIntentAttributes()
+        ) { _ in
+            try await daemonClient.logout()
+            isAuthenticated = false
+            hasStoredSession = false
+            authState = .notLoggedIn
+            currentUserId = nil
+            currentUserEmail = nil
+            dependencyStatus = .unchecked
+            isGhInstalled = nil
+            sessionRuntimeStatusService.stop()
+            clearCachedData()
+        }
     }
 
     private func updateRuntimeStatusSubscription() async {
@@ -335,33 +353,37 @@ class AppState {
 
     /// Check system dependencies via the daemon.
     func checkDependencies() async {
-        dependencyStatus = .checking
-        do {
-            let result = try await withThrowingTaskGroup(of: DaemonDependencyStatus.self) { group in
-                group.addTask {
-                    try await self.daemonClient.checkDependencies()
-                }
-                group.addTask {
-                    try await Task.sleep(for: .seconds(8))
-                    throw DaemonError.requestTimeout
-                }
+        await TracingService.withUserIntentRootIfNeeded(
+            name: "system.check_dependencies",
+            attributes: userIntentAttributes()
+        ) { _ in
+            dependencyStatus = .checking
+            do {
+                let result = try await withThrowingTaskGroup(of: DaemonDependencyStatus.self) { group in
+                    group.addTask {
+                        try await self.daemonClient.checkDependencies()
+                    }
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(8))
+                        throw DaemonError.requestTimeout
+                    }
 
-                let firstResult = try await group.next()!
-                group.cancelAll()
-                return firstResult
-            }
-            isGhInstalled = result.gh.installed
-            if result.claude.installed {
-                dependencyStatus = .satisfied
-                logger.info("Dependency check passed: claude=\(result.claude.path ?? "?"), gh=\(result.gh.installed)")
-            } else {
+                    let firstResult = try await group.next()!
+                    group.cancelAll()
+                    return firstResult
+                }
+                isGhInstalled = result.gh.installed
+                if result.claude.installed {
+                    dependencyStatus = .satisfied
+                    logger.info("Dependency check passed: claude=\(result.claude.path ?? "?"), gh=\(result.gh.installed)")
+                } else {
+                    dependencyStatus = .claudeMissing
+                    logger.warning("Claude Code CLI not found")
+                }
+            } catch {
+                logger.error("Dependency check failed: \(error)")
                 dependencyStatus = .claudeMissing
-                logger.warning("Claude Code CLI not found")
             }
-        } catch {
-            logger.error("Dependency check failed: \(error)")
-            // On error, assume missing so user can retry
-            dependencyStatus = .claudeMissing
         }
     }
 
@@ -442,28 +464,67 @@ class AppState {
         selectedRepositoryId = nil
     }
 
+    private var currentUserIdHash: String? {
+        TracingService.hashIdentifier(currentUserId)
+    }
+
+    private func userIntentAttributes(
+        sessionId: UUID? = nil,
+        repositoryId: UUID? = nil,
+        extra: [String: AttributeValue] = [:]
+    ) -> [String: AttributeValue] {
+        var attributes = extra
+
+        if let sessionId {
+            attributes["session.id"] = .string(sessionId.uuidString.lowercased())
+        }
+        if let repositoryId {
+            let value = repositoryId.uuidString.lowercased()
+            attributes["repository.id"] = .string(value)
+            attributes["workspace.id"] = .string(value)
+        }
+        if let currentUserIdHash {
+            attributes["user.id_hash"] = .string(currentUserIdHash)
+        }
+
+        return attributes
+    }
+
     // MARK: - Repository Management
 
     /// Add a repository.
     func addRepository(path: String) async throws -> Repository {
-        let name = URL(fileURLWithPath: path).lastPathComponent
-        let daemonRepo = try await daemonClient.addRepository(name: name, path: path)
-        guard let repo = daemonRepo.toRepository() else {
-            throw DaemonError.decodingFailed("Invalid repository data")
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "repository.add",
+            attributes: userIntentAttributes(
+                extra: ["repository.path_hash": .string(TracingService.hashIdentifier(path) ?? "")]
+            )
+        ) { scope in
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            let daemonRepo = try await daemonClient.addRepository(name: name, path: path)
+            guard let repo = daemonRepo.toRepository() else {
+                throw DaemonError.decodingFailed("Invalid repository data")
+            }
+            repositories.append(repo)
+            scope?.setAttributes(userIntentAttributes(repositoryId: repo.id))
+            return repo
         }
-        repositories.append(repo)
-        return repo
     }
 
     /// Remove a repository.
     func removeRepository(_ repositoryId: UUID) async throws {
-        try await daemonClient.removeRepository(repositoryId: repositoryId.uuidString)
-        repositories.removeAll { $0.id == repositoryId }
-        sessions.removeValue(forKey: repositoryId)
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "repository.remove",
+            attributes: userIntentAttributes(repositoryId: repositoryId)
+        ) { _ in
+            try await daemonClient.removeRepository(repositoryId: repositoryId.uuidString)
+            repositories.removeAll { $0.id == repositoryId }
+            sessions.removeValue(forKey: repositoryId)
 
-        if selectedRepositoryId == repositoryId {
-            selectedRepositoryId = nil
-            selectedSessionId = nil
+            if selectedRepositoryId == repositoryId {
+                selectedRepositoryId = nil
+                selectedSessionId = nil
+            }
         }
     }
 
@@ -492,23 +553,28 @@ class AppState {
         postCreateCommand: String?,
         postCreateTimeoutSeconds: Int
     ) async throws -> RepositorySettings {
-        let daemonSettings = try await daemonClient.updateRepositorySettings(
-            repositoryId: repositoryId.uuidString,
-            sessionsPath: sessionsPath,
-            defaultBranch: defaultBranch,
-            defaultRemote: defaultRemote,
-            worktreeRootDir: worktreeRootDir,
-            worktreeDefaultBaseBranch: worktreeDefaultBaseBranch,
-            preCreateCommand: preCreateCommand,
-            preCreateTimeoutSeconds: preCreateTimeoutSeconds,
-            postCreateCommand: postCreateCommand,
-            postCreateTimeoutSeconds: postCreateTimeoutSeconds
-        )
-        guard let settings = daemonSettings.toRepositorySettings() else {
-            throw DaemonError.decodingFailed("Invalid repository settings data")
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "repository.settings.update",
+            attributes: userIntentAttributes(repositoryId: repositoryId)
+        ) { _ in
+            let daemonSettings = try await daemonClient.updateRepositorySettings(
+                repositoryId: repositoryId.uuidString,
+                sessionsPath: sessionsPath,
+                defaultBranch: defaultBranch,
+                defaultRemote: defaultRemote,
+                worktreeRootDir: worktreeRootDir,
+                worktreeDefaultBaseBranch: worktreeDefaultBaseBranch,
+                preCreateCommand: preCreateCommand,
+                preCreateTimeoutSeconds: preCreateTimeoutSeconds,
+                postCreateCommand: postCreateCommand,
+                postCreateTimeoutSeconds: postCreateTimeoutSeconds
+            )
+            guard let settings = daemonSettings.toRepositorySettings() else {
+                throw DaemonError.decodingFailed("Invalid repository settings data")
+            }
+            mergeRepository(settings.repository)
+            return settings
         }
-        mergeRepository(settings.repository)
-        return settings
     }
 
     // MARK: - Session Management
@@ -523,74 +589,87 @@ class AppState {
         title: String? = nil,
         locationType: SessionLocationType = .mainDirectory
     ) async throws -> Session {
-        let isWorktree = locationType == .worktree
-        let repositoryDefaults = repositories.first(where: { $0.id == repositoryId })
-        let daemonSession = try await daemonClient.createSession(
-            repositoryId: repositoryId.uuidString,
-            title: title,
-            isWorktree: isWorktree,
-            baseBranch: isWorktree ? repositoryDefaults?.defaultBranch : nil
-        )
-        guard let session = daemonSession.toSession() else {
-            throw DaemonError.decodingFailed("Invalid session data")
-        }
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "session.create",
+            attributes: userIntentAttributes(repositoryId: repositoryId)
+        ) { scope in
+            let isWorktree = locationType == .worktree
+            let repositoryDefaults = repositories.first(where: { $0.id == repositoryId })
+            let daemonSession = try await daemonClient.createSession(
+                repositoryId: repositoryId.uuidString,
+                title: title,
+                isWorktree: isWorktree,
+                baseBranch: isWorktree ? repositoryDefaults?.defaultBranch : nil
+            )
+            guard let session = daemonSession.toSession() else {
+                throw DaemonError.decodingFailed("Invalid session data")
+            }
 
-        // Add to cache
-        if sessions[repositoryId] != nil {
-            sessions[repositoryId]?.append(session)
-        } else {
-            sessions[repositoryId] = [session]
-        }
+            if sessions[repositoryId] != nil {
+                sessions[repositoryId]?.append(session)
+            } else {
+                sessions[repositoryId] = [session]
+            }
 
-        return session
+            scope?.setAttributes(userIntentAttributes(sessionId: session.id, repositoryId: repositoryId))
+            return session
+        }
     }
 
     /// Delete a session.
     func deleteSession(_ sessionId: UUID, repositoryId: UUID) async throws {
-        try await daemonClient.deleteSession(sessionId: sessionId.uuidString)
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "session.delete",
+            attributes: userIntentAttributes(sessionId: sessionId, repositoryId: repositoryId)
+        ) { _ in
+            try await daemonClient.deleteSession(sessionId: sessionId.uuidString)
 
-        // Remove live state
-        sessionStateManager.remove(sessionId: sessionId)
+            sessionStateManager.remove(sessionId: sessionId)
+            sessions[repositoryId]?.removeAll { $0.id == sessionId }
 
-        // Remove from cache
-        sessions[repositoryId]?.removeAll { $0.id == sessionId }
-
-        if selectedSessionId == sessionId {
-            selectedSessionId = nil
+            if selectedSessionId == sessionId {
+                selectedSessionId = nil
+            }
         }
     }
 
     /// Rename a session.
     func renameSession(_ sessionId: UUID, repositoryId: UUID, title: String) async throws -> Session {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedTitle.isEmpty {
-            throw DaemonError.serverError(
-                code: DaemonErrorCode.invalidParams,
-                message: "title must not be empty"
+        try await TracingService.withUserIntentRootIfNeeded(
+            name: "session.rename",
+            attributes: userIntentAttributes(sessionId: sessionId, repositoryId: repositoryId)
+        ) { scope in
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedTitle.isEmpty {
+                throw DaemonError.serverError(
+                    code: DaemonErrorCode.invalidParams,
+                    message: "title must not be empty"
+                )
+            }
+
+            if let existing = session(id: sessionId), existing.title == trimmedTitle {
+                scope?.setAttribute("result", value: .string("no_changes"))
+                return existing
+            }
+
+            let daemonSession = try await daemonClient.updateSessionTitle(
+                sessionId: sessionId.uuidString,
+                title: trimmedTitle
             )
-        }
+            guard let session = daemonSession.toSession() else {
+                throw DaemonError.decodingFailed("Invalid session data")
+            }
 
-        if let existing = session(id: sessionId), existing.title == trimmedTitle {
-            return existing
-        }
+            if let index = sessions[repositoryId]?.firstIndex(where: { $0.id == sessionId }) {
+                sessions[repositoryId]?[index] = session
+            } else if sessions[repositoryId] != nil {
+                sessions[repositoryId]?.append(session)
+            } else {
+                sessions[repositoryId] = [session]
+            }
 
-        let daemonSession = try await daemonClient.updateSessionTitle(
-            sessionId: sessionId.uuidString,
-            title: trimmedTitle
-        )
-        guard let session = daemonSession.toSession() else {
-            throw DaemonError.decodingFailed("Invalid session data")
+            return session
         }
-
-        if let index = sessions[repositoryId]?.firstIndex(where: { $0.id == sessionId }) {
-            sessions[repositoryId]?[index] = session
-        } else if sessions[repositoryId] != nil {
-            sessions[repositoryId]?.append(session)
-        } else {
-            sessions[repositoryId] = [session]
-        }
-
-        return session
     }
 
     /// Get a session by ID (from cache).
@@ -614,16 +693,33 @@ class AppState {
     // MARK: - Selection
 
     /// Select a session and its repository.
-    func selectSession(_ sessionId: UUID?) {
-        selectedSessionId = sessionId
+    func selectSession(_ sessionId: UUID?, source: UserIntentSource = .unknown) {
+        guard let sessionId else {
+            selectedSessionId = nil
+            return
+        }
 
-        // Find and select the repository containing this session
-        if let sessionId {
-            for (repoId, repoSessions) in sessions {
-                if repoSessions.contains(where: { $0.id == sessionId }) {
-                    selectedRepositoryId = repoId
-                    break
-                }
+        let repositoryId = sessions.first(where: { _, repoSessions in
+            repoSessions.contains(where: { $0.id == sessionId })
+        })?.key
+
+        let sessionOpenScope = sessionStateManager.beginSessionOpen(
+            sessionId: sessionId,
+            repositoryId: repositoryId,
+            source: source,
+            userIdHash: currentUserIdHash,
+            workspaceId: repositoryId?.uuidString.lowercased()
+        )
+
+        TracingService.withChildSpan(
+            name: "session.select",
+            sessionId: sessionId.uuidString.lowercased(),
+            parentScope: sessionOpenScope,
+            attributes: userIntentAttributes(sessionId: sessionId, repositoryId: repositoryId)
+        ) { _ in
+            selectedSessionId = sessionId
+            if let repositoryId {
+                selectedRepositoryId = repositoryId
             }
         }
     }

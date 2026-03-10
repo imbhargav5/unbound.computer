@@ -375,40 +375,50 @@ async fn handle_connection(
                     }
                 };
 
-                // Send success response first
-                let response = Response::success(
-                    &request_id,
-                    serde_json::json!({
-                        "subscribed": true,
-                        "session_id": session_id,
-                    }),
-                );
-                let response_json = response.to_json()?;
                 async {
-                    writer.write_all(response_json.as_bytes()).await?;
-                    writer.write_all(b"\n").await?;
-                    writer.flush().await?;
+                    // Send success response first
+                    let response = Response::success(
+                        &request_id,
+                        serde_json::json!({
+                            "subscribed": true,
+                            "session_id": session_id,
+                        }),
+                    );
+                    let response_json = response.to_json()?;
+                    async {
+                        writer.write_all(response_json.as_bytes()).await?;
+                        writer.write_all(b"\n").await?;
+                        writer.flush().await?;
+                        IpcResult::Ok(())
+                    }
+                    .instrument(tracing::debug_span!(
+                        "ipc.response.write",
+                        method = %method_name,
+                        request_id = %request_id
+                    ))
+                    .await?;
+
+                    // Send initial state if handler is registered
+                    if let Some(handler) = initial_state_fn.read().await.as_ref() {
+                        if let Some((events, _last_seq)) = handler(session_id.clone()).await {
+                            for event in events {
+                                if let Ok(event_json) = event.to_json() {
+                                    let _ = writer.write_all(event_json.as_bytes()).await;
+                                    let _ = writer.write_all(b"\n").await;
+                                }
+                            }
+                            let _ = writer.flush().await;
+                        }
+                    }
                     IpcResult::Ok(())
                 }
-                .instrument(tracing::debug_span!(
-                    "ipc.response.write",
+                .instrument(tracing::info_span!(
+                    "ipc.subscribe.setup",
                     method = %method_name,
-                    request_id = %request_id
+                    request_id = %request_id,
+                    session_id = %session_id
                 ))
                 .await?;
-
-                // Send initial state if handler is registered
-                if let Some(handler) = initial_state_fn.read().await.as_ref() {
-                    if let Some((events, _last_seq)) = handler(session_id.clone()).await {
-                        for event in events {
-                            if let Ok(event_json) = event.to_json() {
-                                let _ = writer.write_all(event_json.as_bytes()).await;
-                                let _ = writer.write_all(b"\n").await;
-                            }
-                        }
-                        let _ = writer.flush().await;
-                    }
-                }
 
                 // Enter streaming mode - this consumes the connection
                 info!(session_id = %session_id, "Client subscribed, entering streaming mode");

@@ -149,7 +149,7 @@ struct WorkspacesSidebar: View {
                                 locations: group.locations,
                                 selectedSessionId: appState.selectedSessionId,
                                 onSelectSession: { session in
-                                    appState.selectSession(session.id)
+                                    appState.selectSession(session.id, source: .sidebar)
                                 },
                                 onCreateSession: onCreateSessionForRepository,
                                 onRequestRemoveRepository: { repository in
@@ -555,8 +555,11 @@ struct SessionRow: View {
                             .controlSize(.mini)
                             .tint(isSelected ? colors.primary : colors.gray525)
                     } else {
-                        Image(systemName: "message.fill")
-                            .font(.system(size: 12))
+                        Image("bot")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 12, height: 12)
                             .foregroundStyle(isSelected ? colors.primary : colors.gray525)
                     }
                 }

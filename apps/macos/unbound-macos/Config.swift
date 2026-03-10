@@ -25,6 +25,29 @@ enum ObservabilityMode: Equatable {
     }
 }
 
+enum OTLPSamplerOverride: Equatable {
+    case alwaysOn
+    case parentBasedTraceIdRatio(Double)
+
+    nonisolated var identifier: String {
+        switch self {
+        case .alwaysOn:
+            return "always_on"
+        case .parentBasedTraceIdRatio:
+            return "parentbased_traceidratio"
+        }
+    }
+
+    nonisolated var ratio: Double? {
+        switch self {
+        case .alwaysOn:
+            return nil
+        case let .parentBasedTraceIdRatio(value):
+            return value
+        }
+    }
+}
+
 enum ConfigValueSource: String, Equatable {
     case env
     case plist
@@ -45,6 +68,9 @@ struct ResolvedObservabilityStatus: Equatable {
     let headerCount: Int
     let mode: ObservabilityMode
     let environment: String
+    let traceSampler: String
+    let traceSamplerSource: ConfigValueSource
+    let traceSamplerArg: Double?
     let infoSampleRate: Double
     let debugSampleRate: Double
 
@@ -56,6 +82,8 @@ struct ResolvedObservabilityStatus: Equatable {
             "otlp_header_count": .stringConvertible(headerCount),
             "observability_mode": .string(mode.identifier),
             "observability_environment": .string(environment),
+            "otlp_trace_sampler": .string(traceSampler),
+            "otlp_trace_sampler_source": .string(traceSamplerSource.rawValue),
             "observability_info_sample_rate": .stringConvertible(infoSampleRate),
             "observability_debug_sample_rate": .stringConvertible(debugSampleRate)
         ]
@@ -67,6 +95,9 @@ struct ResolvedObservabilityStatus: Equatable {
         if let otlpLogsURL {
             metadata["otlp_logs_url"] = .string(otlpLogsURL.absoluteString)
         }
+        if let traceSamplerArg {
+            metadata["otlp_trace_sampler_arg"] = .stringConvertible(traceSamplerArg)
+        }
 
         return metadata
     }
@@ -76,6 +107,8 @@ enum Config {
     private static let defaultLocalAPIURL = URL(string: "http://localhost:3000")!
     private static let defaultProdAPIURL = URL(string: "https://unbound.computer")!
     private static let defaultPresenceDOTTLMS = 12_000
+    private static let defaultDevTraceRatio = 1.0
+    private static let defaultProdTraceRatio = 0.05
 
     // MARK: - API
 
@@ -193,6 +226,7 @@ enum Config {
     static var observabilityMode: ObservabilityMode {
         resolveObservabilityMode(
             environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
             isDebug: isDebug
         )
     }
@@ -221,6 +255,14 @@ enum Config {
             infoDictionary: Bundle.main.infoDictionary ?? [:],
             isDebug: isDebug
         )
+    }
+
+    static var otlpSamplerOverride: OTLPSamplerOverride? {
+        resolveEffectiveTraceSampler(
+            environment: ProcessInfo.processInfo.environment,
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
+            isDebug: isDebug
+        ).override
     }
 
     // MARK: - Presence DO
@@ -323,7 +365,16 @@ enum Config {
                 infoDictionary: infoDictionary
             ).value
         )
-        let mode = resolveObservabilityMode(environment: environment, isDebug: isDebug)
+        let mode = resolveObservabilityMode(
+            environment: environment,
+            infoDictionary: infoDictionary,
+            isDebug: isDebug
+        )
+        let effectiveTraceSampler = resolveEffectiveTraceSampler(
+            environment: environment,
+            infoDictionary: infoDictionary,
+            isDebug: isDebug
+        )
 
         return ResolvedObservabilityStatus(
             otlpEnabled: otlpBaseURL != nil,
@@ -334,6 +385,9 @@ enum Config {
             headerCount: headers.count,
             mode: mode,
             environment: observabilityEnvironmentName(for: mode),
+            traceSampler: effectiveTraceSampler.name,
+            traceSamplerSource: effectiveTraceSampler.source,
+            traceSamplerArg: effectiveTraceSampler.arg,
             infoSampleRate: resolveSampleRate(
                 env: "UNBOUND_OBS_INFO_SAMPLE_RATE",
                 plist: "UNBOUND_OBS_INFO_SAMPLE_RATE",
@@ -377,12 +431,15 @@ enum Config {
 
     nonisolated private static func resolveObservabilityMode(
         environment: [String: String],
+        infoDictionary: [String: Any],
         isDebug: Bool
     ) -> ObservabilityMode {
-        if let raw = environment["UNBOUND_OBS_MODE"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        {
+        if let raw = resolveConfigValue(
+            env: "UNBOUND_OBS_MODE",
+            plist: "UNBOUND_OBS_MODE",
+            environment: environment,
+            infoDictionary: infoDictionary
+        ).value?.lowercased() {
             if raw == "prod" || raw == "production" {
                 return .prodMetadataOnly
             }
@@ -390,6 +447,21 @@ enum Config {
                 return .devVerbose
             }
         }
+
+        if let raw = resolveConfigValue(
+            env: "UNBOUND_ENV",
+            plist: "UNBOUND_ENV",
+            environment: environment,
+            infoDictionary: infoDictionary
+        ).value?.lowercased() {
+            if raw == "prod" || raw == "production" {
+                return .prodMetadataOnly
+            }
+            if raw == "dev" || raw == "development" {
+                return .devVerbose
+            }
+        }
+
         return isDebug ? .devVerbose : .prodMetadataOnly
     }
 
@@ -421,6 +493,66 @@ enum Config {
         }
 
         return min(max(value, 0.0), 1.0)
+    }
+
+    nonisolated private static func resolveEffectiveTraceSampler(
+        environment: [String: String],
+        infoDictionary: [String: Any],
+        isDebug: Bool
+    ) -> (override: OTLPSamplerOverride?, name: String, source: ConfigValueSource, arg: Double?) {
+        let mode = resolveObservabilityMode(
+            environment: environment,
+            infoDictionary: infoDictionary,
+            isDebug: isDebug
+        )
+        let defaultRatio = switch mode {
+        case .devVerbose:
+            defaultDevTraceRatio
+        case .prodMetadataOnly:
+            defaultProdTraceRatio
+        }
+
+        let samplerValue = resolveConfigValue(
+            env: "UNBOUND_OTEL_SAMPLER",
+            plist: "UNBOUND_OTEL_SAMPLER",
+            environment: environment,
+            infoDictionary: infoDictionary
+        )
+        let samplerArg = resolveSampleRate(
+            env: "UNBOUND_OTEL_TRACES_SAMPLER_ARG",
+            plist: "UNBOUND_OTEL_TRACES_SAMPLER_ARG",
+            environment: environment,
+            infoDictionary: infoDictionary,
+            defaultValue: defaultRatio
+        )
+
+        guard let rawSampler = samplerValue.value?.lowercased() else {
+            switch mode {
+            case .devVerbose:
+                return (nil, "always_on", .unset, nil)
+            case .prodMetadataOnly:
+                return (nil, "parentbased_traceidratio", .unset, defaultRatio)
+            }
+        }
+
+        switch rawSampler {
+        case "always_on":
+            return (.alwaysOn, "always_on", samplerValue.source, nil)
+        case "parentbased_traceidratio":
+            return (
+                .parentBasedTraceIdRatio(samplerArg),
+                "parentbased_traceidratio",
+                samplerValue.source,
+                samplerArg
+            )
+        default:
+            switch mode {
+            case .devVerbose:
+                return (nil, "always_on", .unset, nil)
+            case .prodMetadataOnly:
+                return (nil, "parentbased_traceidratio", .unset, defaultRatio)
+            }
+        }
     }
 
     nonisolated private static func parseOTLPHeaders(raw: String?) -> [String: String] {

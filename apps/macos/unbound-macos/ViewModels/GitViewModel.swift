@@ -8,6 +8,7 @@
 
 import Foundation
 import Logging
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.ui.git")
 
@@ -163,6 +164,17 @@ class GitViewModel {
         self.daemonClient = daemonClient
     }
 
+    private func traceAttributes(path: String? = nil) -> [String: AttributeValue] {
+        var attributes: [String: AttributeValue] = [:]
+        let resolvedPath = path ?? repositoryPath
+        if let resolvedPath {
+            attributes["repository.path_hash"] = .string(
+                TracingService.hashIdentifier(resolvedPath) ?? ""
+            )
+        }
+        return attributes
+    }
+
     func setDaemonClient(_ client: DaemonClient) {
         self.daemonClient = client
     }
@@ -222,10 +234,15 @@ class GitViewModel {
         defer { isLoadingStatus = false }
 
         do {
-            status = try await client.getGitStatusV2(path: path)
-            currentBranch = status?.branch
-            lastError = nil
-            logger.debug("Refreshed git status: \(status?.files.count ?? 0) changed files")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.status",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                status = try await client.getGitStatusV2(path: path)
+                currentBranch = status?.branch
+                lastError = nil
+                logger.debug("Refreshed git status: \(status?.files.count ?? 0) changed files")
+            }
         } catch {
             logger.warning("Failed to get git status: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -241,9 +258,14 @@ class GitViewModel {
         defer { isPerformingAction = false }
 
         do {
-            try await client.stageFiles(path: repoPath, files: paths)
-            await refreshStatus()
-            logger.info("Staged \(paths.count) files")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.stage",
+                attributes: traceAttributes(path: repoPath)
+            ) { _ in
+                try await client.stageFiles(path: repoPath, files: paths)
+                await refreshStatus()
+                logger.info("Staged \(paths.count) files")
+            }
         } catch {
             logger.error("Failed to stage files: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -265,9 +287,14 @@ class GitViewModel {
         defer { isPerformingAction = false }
 
         do {
-            try await client.unstageFiles(path: repoPath, files: paths)
-            await refreshStatus()
-            logger.info("Unstaged \(paths.count) files")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.unstage",
+                attributes: traceAttributes(path: repoPath)
+            ) { _ in
+                try await client.unstageFiles(path: repoPath, files: paths)
+                await refreshStatus()
+                logger.info("Unstaged \(paths.count) files")
+            }
         } catch {
             logger.error("Failed to unstage files: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -289,9 +316,14 @@ class GitViewModel {
         defer { isPerformingAction = false }
 
         do {
-            try await client.discardChanges(path: repoPath, files: paths)
-            await refreshStatus()
-            logger.info("Discarded changes in \(paths.count) files")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.discard",
+                attributes: traceAttributes(path: repoPath)
+            ) { _ in
+                try await client.discardChanges(path: repoPath, files: paths)
+                await refreshStatus()
+                logger.info("Discarded changes in \(paths.count) files")
+            }
         } catch {
             logger.error("Failed to discard changes: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -310,11 +342,16 @@ class GitViewModel {
         defer { isPerformingAction = false }
 
         do {
-            let result = try await client.gitCommit(path: repoPath, message: message)
-            commitMessage = ""
-            lastError = nil
-            await refreshAll()
-            logger.info("Created commit: \(result.shortOid) \(result.summary)")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.commit",
+                attributes: traceAttributes(path: repoPath)
+            ) { _ in
+                let result = try await client.gitCommit(path: repoPath, message: message)
+                commitMessage = ""
+                lastError = nil
+                await refreshAll()
+                logger.info("Created commit: \(result.shortOid) \(result.summary)")
+            }
         } catch {
             logger.error("Failed to commit: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -329,10 +366,15 @@ class GitViewModel {
         defer { isPerformingAction = false }
 
         do {
-            let result = try await client.gitPush(path: repoPath)
-            lastError = nil
-            await refreshAll()
-            logger.info("Pushed \(result.branch) to \(result.remote)")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.push",
+                attributes: traceAttributes(path: repoPath)
+            ) { _ in
+                let result = try await client.gitPush(path: repoPath)
+                lastError = nil
+                await refreshAll()
+                logger.info("Pushed \(result.branch) to \(result.remote)")
+            }
         } catch {
             logger.error("Failed to push: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -356,16 +398,21 @@ class GitViewModel {
         defer { isLoadingCommits = false }
 
         do {
-            let result = try await client.getGitLog(
-                path: path,
-                limit: limit,
-                branch: selectedBranch
-            )
-            commits = result.commits
-            hasMoreCommits = result.hasMore
-            commitGraph = computeCommitGraph(commits)
-            lastError = nil
-            logger.debug("Loaded \(commits.count) commits")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.log",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let result = try await client.getGitLog(
+                    path: path,
+                    limit: limit,
+                    branch: selectedBranch
+                )
+                commits = result.commits
+                hasMoreCommits = result.hasMore
+                commitGraph = computeCommitGraph(commits)
+                lastError = nil
+                logger.debug("Loaded \(commits.count) commits")
+            }
         } catch {
             logger.warning("Failed to get commit history: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -381,16 +428,21 @@ class GitViewModel {
         defer { isLoadingCommits = false }
 
         do {
-            let result = try await client.getGitLog(
-                path: path,
-                limit: 50,
-                offset: commits.count,
-                branch: selectedBranch
-            )
-            commits.append(contentsOf: result.commits)
-            hasMoreCommits = result.hasMore
-            commitGraph = computeCommitGraph(commits)
-            logger.debug("Loaded \(result.commits.count) more commits, total: \(commits.count)")
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.log",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let result = try await client.getGitLog(
+                    path: path,
+                    limit: 50,
+                    offset: commits.count,
+                    branch: selectedBranch
+                )
+                commits.append(contentsOf: result.commits)
+                hasMoreCommits = result.hasMore
+                commitGraph = computeCommitGraph(commits)
+                logger.debug("Loaded \(result.commits.count) more commits, total: \(commits.count)")
+            }
         } catch {
             logger.warning("Failed to load more commits: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -407,14 +459,19 @@ class GitViewModel {
         defer { isLoadingBranches = false }
 
         do {
-            let result = try await client.getGitBranches(path: path)
-            localBranches = result.local
-            remoteBranches = result.remote
-            if currentBranch == nil {
-                currentBranch = result.current
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.branches",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let result = try await client.getGitBranches(path: path)
+                localBranches = result.local
+                remoteBranches = result.remote
+                if currentBranch == nil {
+                    currentBranch = result.current
+                }
+                lastError = nil
+                logger.debug("Loaded \(localBranches.count) local, \(remoteBranches.count) remote branches")
             }
-            lastError = nil
-            logger.debug("Loaded \(localBranches.count) local, \(remoteBranches.count) remote branches")
         } catch {
             logger.warning("Failed to get branches: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -435,8 +492,13 @@ class GitViewModel {
         guard let client = daemonClient else { return }
 
         do {
-            ghAuthStatus = try await client.ghAuthStatus()
-            lastError = nil
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.auth_status",
+                attributes: traceAttributes()
+            ) { _ in
+                ghAuthStatus = try await client.ghAuthStatus()
+                lastError = nil
+            }
         } catch {
             logger.warning("Failed to refresh gh auth status: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -451,22 +513,27 @@ class GitViewModel {
         defer { isLoadingPullRequests = false }
 
         do {
-            let result = try await client.ghListPRs(path: path, state: state, limit: 20)
-            pullRequests = result.pullRequests
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.pr_list",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let result = try await client.ghListPRs(path: path, state: state, limit: 20)
+                pullRequests = result.pullRequests
 
-            if let selected = selectedPullRequest,
-               let refreshedSelected = pullRequests.first(where: { $0.number == selected.number }) {
-                selectedPullRequest = refreshedSelected
-            } else {
-                selectedPullRequest = pullRequests.first
-            }
+                if let selected = selectedPullRequest,
+                   let refreshedSelected = pullRequests.first(where: { $0.number == selected.number }) {
+                    selectedPullRequest = refreshedSelected
+                } else {
+                    selectedPullRequest = pullRequests.first
+                }
 
-            lastError = nil
+                lastError = nil
 
-            if selectedPullRequest != nil {
-                await refreshSelectedPullRequestChecks()
-            } else {
-                selectedPullRequestChecks = nil
+                if selectedPullRequest != nil {
+                    await refreshSelectedPullRequestChecks()
+                } else {
+                    selectedPullRequestChecks = nil
+                }
             }
         } catch {
             logger.warning("Failed to refresh pull requests: \(error.localizedDescription)")
@@ -486,9 +553,14 @@ class GitViewModel {
         guard let selected = selectedPullRequest else { return }
 
         do {
-            let refreshed = try await client.ghViewPR(path: path, selector: "\(selected.number)")
-            selectedPullRequest = refreshed
-            lastError = nil
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.pr_view",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let refreshed = try await client.ghViewPR(path: path, selector: "\(selected.number)")
+                selectedPullRequest = refreshed
+                lastError = nil
+            }
         } catch {
             logger.warning("Failed to refresh selected pull request: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -504,11 +576,16 @@ class GitViewModel {
         defer { isLoadingPullRequestChecks = false }
 
         do {
-            selectedPullRequestChecks = try await client.ghPRChecks(
-                path: path,
-                selector: "\(selected.number)"
-            )
-            lastError = nil
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.pr_checks",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                selectedPullRequestChecks = try await client.ghPRChecks(
+                    path: path,
+                    selector: "\(selected.number)"
+                )
+                lastError = nil
+            }
         } catch {
             logger.warning("Failed to refresh pull request checks: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -532,21 +609,26 @@ class GitViewModel {
         }
 
         do {
-            let body = prBody.trimmingCharacters(in: .whitespacesAndNewlines)
-            let result = try await client.ghCreatePR(
-                path: path,
-                title: title,
-                body: body.isEmpty ? nil : body,
-                reviewers: reviewers,
-                labels: labels
-            )
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.pr_create",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                let body = prBody.trimmingCharacters(in: .whitespacesAndNewlines)
+                let result = try await client.ghCreatePR(
+                    path: path,
+                    title: title,
+                    body: body.isEmpty ? nil : body,
+                    reviewers: reviewers,
+                    labels: labels
+                )
 
-            selectedPullRequest = result.pullRequest
-            prTitle = ""
-            prBody = ""
-            lastError = nil
+                selectedPullRequest = result.pullRequest
+                prTitle = ""
+                prBody = ""
+                lastError = nil
 
-            await refreshPullRequests()
+                await refreshPullRequests()
+            }
         } catch {
             logger.error("Failed to create pull request: \(error.localizedDescription)")
             lastError = error.localizedDescription
@@ -566,17 +648,22 @@ class GitViewModel {
         }
 
         do {
-            _ = try await client.ghMergePR(
-                path: path,
-                selector: "\(selected.number)",
-                mergeMethod: prMergeMethod,
-                deleteBranch: deleteBranch
-            )
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "gh.pr_merge",
+                attributes: traceAttributes(path: path)
+            ) { _ in
+                _ = try await client.ghMergePR(
+                    path: path,
+                    selector: "\(selected.number)",
+                    mergeMethod: prMergeMethod,
+                    deleteBranch: deleteBranch
+                )
 
-            lastError = nil
-            await refreshPullRequests()
-            await refreshSelectedPullRequest()
-            await refreshSelectedPullRequestChecks()
+                lastError = nil
+                await refreshPullRequests()
+                await refreshSelectedPullRequest()
+                await refreshSelectedPullRequestChecks()
+            }
         } catch {
             logger.error("Failed to merge pull request: \(error.localizedDescription)")
             lastError = error.localizedDescription

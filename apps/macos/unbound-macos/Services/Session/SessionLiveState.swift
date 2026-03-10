@@ -13,6 +13,7 @@
 import ClaudeConversationTimeline
 import Foundation
 import Logging
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.ui.chat")
 
@@ -244,6 +245,15 @@ class SessionLiveState {
     @ObservationIgnored private var lastBuildToolHistoryCount: Int = 0
     @ObservationIgnored private var lastBuildActiveToolCount: Int = 0
     @ObservationIgnored private var lastBuildActiveSubAgentCount: Int = 0
+    @ObservationIgnored private var sessionOpenScope: TracingService.Scope?
+    @ObservationIgnored private var sessionOpenStartupSettled = false
+    @ObservationIgnored private var sessionOpenVisibleReady = false
+    @ObservationIgnored private var sessionOpenVisibleWaitScope: TracingService.Scope?
+    @ObservationIgnored private var sessionOpenLoadMessagesScope: TracingService.Scope?
+    @ObservationIgnored private var sessionOpenSnapshotWaitScope: TracingService.Scope?
+    @ObservationIgnored private var sessionOpenSnapshotBuildScope: TracingService.Scope?
+    @ObservationIgnored private var messageSendScope: TracingService.Scope?
+    @ObservationIgnored private var messageSendAwaitScope: TracingService.Scope?
 
     // MARK: - Initialization
 
@@ -259,74 +269,376 @@ class SessionLiveState {
         fetchDebounceTask?.cancel()
     }
 
+    func beginSessionOpen(scope: TracingService.Scope) {
+        cancelSessionOpen(resultDetail: "superseded")
+
+        sessionOpenScope = scope
+        sessionOpenStartupSettled = false
+        sessionOpenVisibleReady = false
+        sessionOpenVisibleWaitScope = nil
+        sessionOpenLoadMessagesScope = nil
+        sessionOpenSnapshotWaitScope = nil
+        sessionOpenSnapshotBuildScope = nil
+
+        logger.info(
+            "Session open trace started for session \(sessionId)",
+            metadata: TracingService.metadata(
+                sessionId: sessionId.uuidString.lowercased(),
+                scope: scope
+            )
+        )
+    }
+
+    func cancelSessionOpen(resultDetail: String) {
+        guard let scope = sessionOpenScope else { return }
+
+        if let visibleWaitScope = sessionOpenVisibleWaitScope {
+            TracingService.cancelScope(
+                visibleWaitScope,
+                attributes: ["result.detail": .string(resultDetail)]
+            )
+        }
+        if let snapshotWaitScope = sessionOpenSnapshotWaitScope {
+            TracingService.cancelScope(
+                snapshotWaitScope,
+                attributes: ["result.detail": .string(resultDetail)]
+            )
+        }
+        if let snapshotBuildScope = sessionOpenSnapshotBuildScope {
+            TracingService.cancelScope(
+                snapshotBuildScope,
+                attributes: ["result.detail": .string(resultDetail)]
+            )
+        }
+
+        TracingService.cancelScope(
+            scope,
+            attributes: ["result.detail": .string(resultDetail)]
+        )
+        resetSessionOpenTracking()
+    }
+
+    func markSessionOpenVisibleReady(reason: String, isEmptyState: Bool = false) {
+        guard let scope = sessionOpenScope else { return }
+        guard !sessionOpenVisibleReady else { return }
+
+        sessionOpenVisibleReady = true
+        scope.setAttributes([
+            "visible.reason": .string(reason),
+            "visible.state": .string(isEmptyState ? "empty" : "content")
+        ])
+
+        if let visibleWaitScope = sessionOpenVisibleWaitScope {
+            TracingService.endScope(
+                visibleWaitScope,
+                attributes: [
+                    "visible.reason": .string(reason),
+                    "visible.state": .string(isEmptyState ? "empty" : "content")
+                ]
+            )
+            sessionOpenVisibleWaitScope = nil
+        }
+
+        tryFinishSessionOpen()
+    }
+
+    private func markSessionOpenStartupSettled() {
+        guard let scope = sessionOpenScope else { return }
+        guard !sessionOpenStartupSettled else { return }
+
+        sessionOpenStartupSettled = true
+        scope.setAttribute("startup.settled", value: .bool(true))
+
+        if !sessionOpenVisibleReady && sessionOpenVisibleWaitScope == nil {
+            sessionOpenVisibleWaitScope = TracingService.startChildScope(
+                name: "session.activate.visible_wait",
+                parentScope: scope,
+                sessionId: sessionId.uuidString.lowercased()
+            )
+        }
+
+        tryFinishSessionOpen()
+    }
+
+    private func tryFinishSessionOpen() {
+        guard let scope = sessionOpenScope else { return }
+        guard sessionOpenStartupSettled, sessionOpenVisibleReady else { return }
+
+        let result = timelineSnapshot.isEmpty ? "empty" : "success"
+        TracingService.endScope(
+            scope,
+            result: result,
+            attributes: [
+                "timeline.row_count": .int(timelineSnapshot.rows.count),
+                "message.count": .int(messages.count)
+            ]
+        )
+        resetSessionOpenTracking()
+    }
+
+    private func finishSessionOpenError(_ error: Error, detail: String) {
+        guard let scope = sessionOpenScope else { return }
+
+        if let visibleWaitScope = sessionOpenVisibleWaitScope {
+            TracingService.cancelScope(
+                visibleWaitScope,
+                attributes: ["result.detail": .string(detail)]
+            )
+        }
+        if let snapshotWaitScope = sessionOpenSnapshotWaitScope {
+            TracingService.cancelScope(
+                snapshotWaitScope,
+                attributes: ["result.detail": .string(detail)]
+            )
+        }
+        if let snapshotBuildScope = sessionOpenSnapshotBuildScope {
+            TracingService.cancelScope(
+                snapshotBuildScope,
+                attributes: ["result.detail": .string(detail)]
+            )
+        }
+
+        TracingService.endScope(
+            scope,
+            result: "error",
+            attributes: ["result.detail": .string(detail)],
+            error: error
+        )
+        resetSessionOpenTracking()
+    }
+
+    private func resetSessionOpenTracking() {
+        sessionOpenScope = nil
+        sessionOpenStartupSettled = false
+        sessionOpenVisibleReady = false
+        sessionOpenVisibleWaitScope = nil
+        sessionOpenLoadMessagesScope = nil
+        sessionOpenSnapshotWaitScope = nil
+        sessionOpenSnapshotBuildScope = nil
+    }
+
+    private func beginMessageSendTrace() -> TracingService.Scope {
+        if let existing = messageSendScope {
+            if let awaitScope = messageSendAwaitScope {
+                TracingService.cancelScope(
+                    awaitScope,
+                    attributes: ["result.detail": .string("superseded")]
+                )
+            }
+            TracingService.cancelScope(
+                existing,
+                attributes: ["result.detail": .string("superseded")]
+            )
+        }
+
+        let scope = TracingService.startUserIntentScope(
+            name: "message.send",
+            source: .unknown,
+            parentScope: TracingService.currentIntentScope,
+            attributes: [
+                "session.id": .string(sessionId.uuidString.lowercased())
+            ]
+        )
+        messageSendScope = scope
+        messageSendAwaitScope = nil
+        return scope
+    }
+
+    private func finishMessageSendVisibleFeedback(reason: String) {
+        guard let scope = messageSendScope else { return }
+
+        if let awaitScope = messageSendAwaitScope {
+            TracingService.endScope(
+                awaitScope,
+                attributes: ["feedback.reason": .string(reason)]
+            )
+            messageSendAwaitScope = nil
+        }
+
+        TracingService.withChildSpan(
+            name: "message.send.visible_feedback",
+            sessionId: sessionId.uuidString.lowercased(),
+            parentScope: scope,
+            attributes: ["feedback.reason": .string(reason)]
+        ) { _ in }
+
+        TracingService.endScope(
+            scope,
+            attributes: ["feedback.reason": .string(reason)]
+        )
+        messageSendScope = nil
+    }
+
+    func markMessageSendVisibleFeedback(reason: String) {
+        finishMessageSendVisibleFeedback(reason: reason)
+    }
+
+    private func finishMessageSendError(_ error: Error, detail: String) {
+        guard let scope = messageSendScope else { return }
+
+        if let awaitScope = messageSendAwaitScope {
+            TracingService.cancelScope(
+                awaitScope,
+                attributes: ["result.detail": .string(detail)]
+            )
+            messageSendAwaitScope = nil
+        }
+
+        TracingService.endScope(
+            scope,
+            result: "error",
+            attributes: ["result.detail": .string(detail)],
+            error: error
+        )
+        messageSendScope = nil
+    }
+
     // MARK: - Lifecycle
 
     /// Activate this session: load messages and subscribe for real-time updates.
     /// Idempotent - returns immediately if already subscribed.
     func activate() async {
         let activateStart = CFAbsoluteTimeGetCurrent()
+        let localSessionId = sessionId.uuidString.lowercased()
+        let openScope = sessionOpenScope
 
         guard subscriptionState != .subscribed, subscriptionState != .connecting else {
+            markSessionOpenStartupSettled()
             return
         }
 
-        // Yield to allow the view update cycle to complete before modifying state.
-        // This prevents "Modifying state during view update" warnings when activate()
-        // is called from a SwiftUI .task modifier.
-        await Task.yield()
-        let yieldDuration = CFAbsoluteTimeGetCurrent() - activateStart
-        logger.debug("activate() yield took \(String(format: "%.3f", yieldDuration))s for session \(sessionId)")
-
-        subscriptionState = .connecting
-
-        // Load messages first (must complete before subscribe so we have history)
-        let loadStart = CFAbsoluteTimeGetCurrent()
-        await loadMessages()
-        let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
-        logger.info("activate() loadMessages: \(String(format: "%.3f", loadDuration))s for session \(sessionId)")
-
-        // Check Claude status and subscribe in parallel — they are independent
-        let statusStart = CFAbsoluteTimeGetCurrent()
-        let streamingClient = SessionStreamingClient(
-            sessionId: sessionId.uuidString.lowercased()
-        )
-
-        do {
-            async let statusCheck: Void = checkClaudeStatus()
-            async let eventStream = streamingClient.subscribe()
-
-            let stream = try await eventStream
-            await statusCheck
-            let parallelDuration = CFAbsoluteTimeGetCurrent() - statusStart
-            logger.info("activate() status+subscribe: \(String(format: "%.3f", parallelDuration))s for session \(sessionId)")
-
-            subscriptionState = .subscribed
-            let localSessionId = sessionId
-
-            let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
-            logger.info("activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)")
-
-            // Start event handling task
-            subscriptionTask = Task { [weak self, localSessionId] in
-                logger.debug("Event loop started for session \(localSessionId)")
-                for await event in stream {
-                    await MainActor.run {
-                        self?.handleDaemonEvent(event)
-                    }
+        let runActivate = { [self] in
+            await TracingService.withChildSpanAsync(
+                name: "session.activate",
+                sessionId: localSessionId,
+                parentScope: openScope
+            ) { _ in
+                await TracingService.withChildSpanAsync(
+                    name: "session.activate.yield",
+                    sessionId: localSessionId,
+                    parentScope: openScope
+                ) { _ in
+                    await Task.yield()
                 }
+                let yieldDuration = CFAbsoluteTimeGetCurrent() - activateStart
+                logger.debug(
+                    "activate() yield took \(String(format: "%.3f", yieldDuration))s for session \(sessionId)",
+                    metadata: TracingService.metadata(
+                        sessionId: localSessionId,
+                        scope: openScope
+                    )
+                )
 
-                // Stream ended
-                logger.info("Event stream ended for session \(localSessionId)")
-                await MainActor.run {
-                    if self?.subscriptionState == .subscribed {
-                        self?.subscriptionState = .disconnected
-                        logger.warning("Session \(localSessionId) disconnected (stream ended)")
+                subscriptionState = .connecting
+
+                let loadStart = CFAbsoluteTimeGetCurrent()
+                if let openScope {
+                    let loadScope = TracingService.startChildScope(
+                        name: "session.activate.load_messages",
+                        parentScope: openScope,
+                        sessionId: localSessionId
+                    )
+                    sessionOpenLoadMessagesScope = loadScope
+                    await TracingService.withActivatedScope(loadScope) {
+                        await loadMessages()
                     }
+                    TracingService.endScope(
+                        loadScope,
+                        attributes: ["message.count": .int(messages.count)]
+                    )
+                    sessionOpenLoadMessagesScope = nil
+                } else {
+                    await loadMessages()
+                }
+                let loadDuration = CFAbsoluteTimeGetCurrent() - loadStart
+                logger.info(
+                    "activate() loadMessages: \(String(format: "%.3f", loadDuration))s for session \(sessionId)",
+                    metadata: TracingService.metadata(
+                        sessionId: localSessionId,
+                        scope: openScope
+                    )
+                )
+
+                let statusStart = CFAbsoluteTimeGetCurrent()
+                let streamingClient = SessionStreamingClient(sessionId: localSessionId)
+
+                do {
+                    let loadScope = openScope.map {
+                        TracingService.startChildScope(
+                            name: "session.activate.status_subscribe",
+                            parentScope: $0,
+                            sessionId: localSessionId
+                        )
+                    }
+
+                    let stream: AsyncStream<DaemonEvent>
+                    if let loadScope {
+                        stream = try await TracingService.withActivatedScope(loadScope) {
+                            async let statusCheck: Void = checkClaudeStatus()
+                            async let eventStream = streamingClient.subscribe()
+                            let stream = try await eventStream
+                            await statusCheck
+                            return stream
+                        }
+                        TracingService.endScope(loadScope)
+                    } else {
+                        async let statusCheck: Void = checkClaudeStatus()
+                        async let eventStream = streamingClient.subscribe()
+                        stream = try await eventStream
+                        await statusCheck
+                    }
+
+                    let parallelDuration = CFAbsoluteTimeGetCurrent() - statusStart
+                    logger.info(
+                        "activate() status+subscribe: \(String(format: "%.3f", parallelDuration))s for session \(sessionId)",
+                        metadata: TracingService.metadata(
+                            sessionId: localSessionId,
+                            scope: openScope
+                        )
+                    )
+
+                    subscriptionState = .subscribed
+                    markSessionOpenStartupSettled()
+
+                    let totalDuration = CFAbsoluteTimeGetCurrent() - activateStart
+                    logger.info(
+                        "activate() total: \(String(format: "%.3f", totalDuration))s for session \(sessionId)",
+                        metadata: TracingService.metadata(
+                            sessionId: localSessionId,
+                            scope: openScope
+                        )
+                    )
+
+                    subscriptionTask = Task { [weak self, localSessionId] in
+                        logger.debug("Event loop started for session \(localSessionId)")
+                        for await event in stream {
+                            await MainActor.run {
+                                self?.handleDaemonEvent(event)
+                            }
+                        }
+
+                        logger.info("Event stream ended for session \(localSessionId)")
+                        await MainActor.run {
+                            if self?.subscriptionState == .subscribed {
+                                self?.subscriptionState = .disconnected
+                                logger.warning("Session \(localSessionId) disconnected (stream ended)")
+                            }
+                        }
+                    }
+                } catch {
+                    logger.error("Failed to subscribe: \(error)")
+                    subscriptionState = .disconnected
+                    finishSessionOpenError(error, detail: "subscribe_failed")
                 }
             }
-        } catch {
-            logger.error("Failed to subscribe: \(error)")
-            subscriptionState = .disconnected
+        }
+
+        if let openScope {
+            await TracingService.withActivatedScope(openScope) {
+                await runActivate()
+            }
+        } else {
+            await runActivate()
         }
     }
 
@@ -376,32 +688,70 @@ class SessionLiveState {
 
         do {
             let fetchStart = CFAbsoluteTimeGetCurrent()
-            let daemonMessages = try await daemonClient.listMessages(
-                sessionId: sessionId.uuidString.lowercased()
-            )
+            let daemonMessages = try await TracingService.withChildSpanAsync(
+                name: "session.load_messages.ipc",
+                sessionId: sessionId.uuidString.lowercased(),
+                parentScope: sessionOpenLoadMessagesScope
+            ) { _ in
+                try await daemonClient.listMessages(
+                    sessionId: sessionId.uuidString.lowercased()
+                )
+            }
             let fetchDuration = CFAbsoluteTimeGetCurrent() - fetchStart
-            logger.info("loadMessages ipc: \(String(format: "%.3f", fetchDuration))s (\(daemonMessages.count) messages)")
+            logger.info(
+                "loadMessages ipc: \(String(format: "%.3f", fetchDuration))s (\(daemonMessages.count) messages)",
+                metadata: TracingService.metadata(
+                    sessionId: sessionId.uuidString.lowercased(),
+                    scope: sessionOpenScope
+                )
+            )
 
             let rowStart = CFAbsoluteTimeGetCurrent()
-            let rows = daemonMessages.compactMap { message -> RawSessionRow? in
-                guard let content = message.content else { return nil }
-                return RawSessionRow(
-                    id: message.id,
-                    sequenceNumber: message.sequenceNumber,
-                    createdAt: message.date,
-                    updatedAt: nil,
-                    payload: content
-                )
+            let rows = TracingService.withChildSpan(
+                name: "session.load_messages.rows_decode",
+                sessionId: sessionId.uuidString.lowercased(),
+                parentScope: sessionOpenLoadMessagesScope
+            ) { _ in
+                daemonMessages.compactMap { message -> RawSessionRow? in
+                    guard let content = message.content else { return nil }
+                    return RawSessionRow(
+                        id: message.id,
+                        sequenceNumber: message.sequenceNumber,
+                        createdAt: message.date,
+                        updatedAt: nil,
+                        payload: content
+                    )
+                }
             }
             let rowDuration = CFAbsoluteTimeGetCurrent() - rowStart
 
             let replaceStart = CFAbsoluteTimeGetCurrent()
-            claudeState.replace(rows: rows)
+            TracingService.withChildSpan(
+                name: "session.load_messages.state_replace",
+                sessionId: sessionId.uuidString.lowercased(),
+                parentScope: sessionOpenLoadMessagesScope
+            ) { _ in
+                claudeState.replace(rows: rows)
+            }
             let replaceDuration = CFAbsoluteTimeGetCurrent() - replaceStart
 
             let mapStart = CFAbsoluteTimeGetCurrent()
-            refreshMessagesFromClaudeState()
+            TracingService.withChildSpan(
+                name: "session.load_messages.refresh_messages",
+                sessionId: sessionId.uuidString.lowercased(),
+                parentScope: sessionOpenLoadMessagesScope
+            ) { _ in
+                refreshMessagesFromClaudeState()
+            }
             let mapDuration = CFAbsoluteTimeGetCurrent() - mapStart
+
+            if let loadScope = sessionOpenLoadMessagesScope, sessionOpenSnapshotWaitScope == nil {
+                sessionOpenSnapshotWaitScope = TracingService.startChildScope(
+                    name: "session.snapshot.build_wait",
+                    parentScope: loadScope,
+                    sessionId: sessionId.uuidString.lowercased()
+                )
+            }
 
             let totalDuration = CFAbsoluteTimeGetCurrent() - fetchStart
             let ipcMs = String(format: "%.3f", fetchDuration)
@@ -415,6 +765,7 @@ class SessionLiveState {
             messages = []
             messageRenderFingerprint = 0
             scheduleTimelineSnapshotRebuild(reason: "loadMessagesError")
+            finishSessionOpenError(error, detail: "load_messages_failed")
         }
     }
 
@@ -427,33 +778,72 @@ class SessionLiveState {
         modelIdentifier: String?,
         isPlanMode: Bool
     ) async {
-        logger.info("sendMessage called for session \(session.id)")
-
-        let messageText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !messageText.isEmpty else { return }
-
-        // Mark Claude as running (status updates come via subscription events)
-        claudeRunning = true
+        let traceScope = beginMessageSendTrace()
+        let localSessionId = session.id.uuidString.lowercased()
+        logger.info(
+            "sendMessage called for session \(session.id)",
+            metadata: TracingService.metadata(
+                sessionId: localSessionId,
+                scope: traceScope
+            )
+        )
 
         do {
-            try await daemonClient.sendToClaude(
-                sessionId: session.id.uuidString.lowercased(),
-                content: messageText,
-                workingDirectory: workspacePath,
-                modelIdentifier: modelIdentifier,
-                permissionMode: isPlanMode ? "plan" : nil
+            try await TracingService.withActivatedScope(traceScope) {
+                let messageText = try await TracingService.withChildSpanAsync(
+                    name: "message.send.validate",
+                    sessionId: localSessionId,
+                    parentScope: traceScope
+                ) { _ in
+                    let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !value.isEmpty else {
+                        throw DaemonError.serverError(
+                            code: DaemonErrorCode.invalidParams,
+                            message: "message must not be empty"
+                        )
+                    }
+                    return value
+                }
+
+                claudeRunning = true
+
+                try await TracingService.withChildSpanAsync(
+                    name: "message.send.rpc",
+                    sessionId: localSessionId,
+                    parentScope: traceScope
+                ) { _ in
+                    try await daemonClient.sendToClaude(
+                        sessionId: localSessionId,
+                        content: messageText,
+                        workingDirectory: workspacePath,
+                        modelIdentifier: modelIdentifier,
+                        permissionMode: isPlanMode ? "plan" : nil
+                    )
+                }
+
+                logger.info(
+                    "Message sent to Claude via daemon",
+                    metadata: TracingService.metadata(
+                        sessionId: localSessionId,
+                        scope: traceScope
+                    )
+                )
+
+                await fetchMessages()
+            }
+
+            messageSendAwaitScope = TracingService.startChildScope(
+                name: "message.send.await_initial_feedback",
+                parentScope: traceScope,
+                sessionId: localSessionId
             )
-
-            logger.info("Message sent to Claude via daemon")
-
-            // Fetch updated messages
-            await fetchMessages()
         } catch {
             logger.error("Failed to send message: \(error)")
             claudeRunning = false
             showErrorAlert = true
             errorAlertTitle = "Failed to send message"
             errorAlertMessage = error.localizedDescription
+            finishMessageSendError(error, detail: "send_failed")
         }
     }
 
@@ -462,44 +852,47 @@ class SessionLiveState {
     func cancelStream() {
         Task {
             do {
-                try await daemonClient.stopClaude(
-                    sessionId: sessionId.uuidString.lowercased()
-                )
-                claudeRunning = false
-                streamingContent = nil
+                try await TracingService.withUserIntentRootIfNeeded(
+                    name: "claude.stop",
+                    attributes: ["session.id": .string(sessionId.uuidString.lowercased())]
+                ) { _ in
+                    try await daemonClient.stopClaude(
+                        sessionId: sessionId.uuidString.lowercased()
+                    )
+                    claudeRunning = false
+                    streamingContent = nil
 
-                // Mark active tools as failed
-                for i in activeTools.indices {
-                    if activeTools[i].status == .running {
-                        activeTools[i].status = .failed
-                    }
-                }
-                for i in activeSubAgents.indices {
-                    for j in activeSubAgents[i].childTools.indices {
-                        if activeSubAgents[i].childTools[j].status == .running {
-                            activeSubAgents[i].childTools[j].status = .failed
+                    for i in activeTools.indices {
+                        if activeTools[i].status == .running {
+                            activeTools[i].status = .failed
                         }
                     }
-                    if activeSubAgents[i].status == .running {
-                        activeSubAgents[i].status = .failed
-                    }
-                }
-
-                // Mark pending sub-agent tools as failed and flush to standalone tools
-                if !pendingSubAgentTools.isEmpty {
-                    for (_, tools) in pendingSubAgentTools {
-                        var failedTools = tools
-                        for index in failedTools.indices {
-                            if failedTools[index].status == .running {
-                                failedTools[index].status = .failed
+                    for i in activeSubAgents.indices {
+                        for j in activeSubAgents[i].childTools.indices {
+                            if activeSubAgents[i].childTools[j].status == .running {
+                                activeSubAgents[i].childTools[j].status = .failed
                             }
                         }
-                        mergeTools(failedTools, into: &activeTools)
+                        if activeSubAgents[i].status == .running {
+                            activeSubAgents[i].status = .failed
+                        }
                     }
-                    pendingSubAgentTools.removeAll()
-                }
 
-                moveToolsToHistory()
+                    if !pendingSubAgentTools.isEmpty {
+                        for (_, tools) in pendingSubAgentTools {
+                            var failedTools = tools
+                            for index in failedTools.indices {
+                                if failedTools[index].status == .running {
+                                    failedTools[index].status = .failed
+                                }
+                            }
+                            mergeTools(failedTools, into: &activeTools)
+                        }
+                        pendingSubAgentTools.removeAll()
+                    }
+
+                    moveToolsToHistory()
+                }
             } catch {
                 logger.error("Failed to cancel stream: \(error)")
             }
@@ -1103,8 +1496,46 @@ class SessionLiveState {
             }
 
             let buildStart = CFAbsoluteTimeGetCurrent()
+            let buildScope = await MainActor.run { () -> TracingService.Scope? in
+                if let waitScope = self.sessionOpenSnapshotWaitScope {
+                    TracingService.endScope(
+                        waitScope,
+                        attributes: ["snapshot.reason": .string(capturedReason)]
+                    )
+                    self.sessionOpenSnapshotWaitScope = nil
+                }
+
+                guard self.sessionOpenSnapshotBuildScope == nil else {
+                    return self.sessionOpenSnapshotBuildScope
+                }
+
+                guard let parentScope = self.sessionOpenLoadMessagesScope ?? self.sessionOpenScope else {
+                    return nil
+                }
+
+                let scope = TracingService.startChildScope(
+                    name: "session.snapshot.build",
+                    parentScope: parentScope,
+                    sessionId: self.sessionId.uuidString.lowercased(),
+                    attributes: ["snapshot.reason": .string(capturedReason)]
+                )
+                self.sessionOpenSnapshotBuildScope = scope
+                return scope
+            }
+
             let snapshot: ChatTimelineSnapshot
-            if isStreamingOnly {
+            if let buildScope {
+                snapshot = await TracingService.withActivatedScope(buildScope) {
+                    if isStreamingOnly {
+                        ChatPerformanceSignposts.event("chat.snapshot.streamingFastPath", "reason=\(capturedReason)")
+                        return await self.timelineSnapshotEngine.updateStreamingRow(
+                            streamingMessage: input.streamingAssistantMessage,
+                            existing: existingSnapshot
+                        )
+                    }
+                    return await self.timelineSnapshotEngine.build(input)
+                }
+            } else if isStreamingOnly {
                 ChatPerformanceSignposts.event("chat.snapshot.streamingFastPath", "reason=\(capturedReason)")
                 snapshot = await self.timelineSnapshotEngine.updateStreamingRow(
                     streamingMessage: input.streamingAssistantMessage,
@@ -1117,6 +1548,17 @@ class SessionLiveState {
             logger.info("snapshotBuild: duration=\(String(format: "%.3f", buildDuration))s rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly) reason=\(capturedReason)")
 
             await MainActor.run {
+                if let buildScope = self.sessionOpenSnapshotBuildScope {
+                    TracingService.endScope(
+                        buildScope,
+                        attributes: [
+                            "snapshot.row_count": .int(snapshot.rows.count),
+                            "snapshot.reason": .string(capturedReason)
+                        ]
+                    )
+                    self.sessionOpenSnapshotBuildScope = nil
+                }
+
                 self.snapshotRebuildTask = nil
 
                 guard generation == self.snapshotBuildGeneration else {
@@ -1134,12 +1576,31 @@ class SessionLiveState {
                 self.lastBuildActiveToolCount = input.activeTools.count
                 self.lastBuildActiveSubAgentCount = input.activeSubAgents.count
 
-                self.timelineSnapshot = snapshot
-                self.timelineSnapshotRevision = snapshot.revision
-                ChatPerformanceSignposts.event(
-                    "chat.snapshot.publish",
-                    "reason=\(reason) rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly)"
-                )
+                if let publishParentScope = self.sessionOpenLoadMessagesScope ?? self.sessionOpenScope {
+                    TracingService.withChildSpan(
+                        name: "session.snapshot.publish",
+                        sessionId: self.sessionId.uuidString.lowercased(),
+                        parentScope: publishParentScope,
+                        attributes: [
+                            "snapshot.row_count": .int(snapshot.rows.count),
+                            "snapshot.reason": .string(capturedReason)
+                        ]
+                    ) { _ in
+                        self.timelineSnapshot = snapshot
+                        self.timelineSnapshotRevision = snapshot.revision
+                        ChatPerformanceSignposts.event(
+                            "chat.snapshot.publish",
+                            "reason=\(capturedReason) rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly)"
+                        )
+                    }
+                } else {
+                    self.timelineSnapshot = snapshot
+                    self.timelineSnapshotRevision = snapshot.revision
+                    ChatPerformanceSignposts.event(
+                        "chat.snapshot.publish",
+                        "reason=\(capturedReason) rows=\(snapshot.rows.count) streamingOnly=\(isStreamingOnly)"
+                    )
+                }
             }
         }
     }

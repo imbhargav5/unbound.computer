@@ -274,12 +274,22 @@ struct ChatPanel: View {
                                     ?? "repository",
                                 tip: FakeData.tipMessage
                             )
+                            .onAppear {
+                                liveState?.markSessionOpenVisibleReady(reason: "empty_state", isEmptyState: true)
+                                liveState?.markMessageSendVisibleFeedback(reason: "empty_state")
+                            }
                         }
                         Spacer()
                     } else {
                         ChatSnapshotScrollView(
                             snapshot: timelineSnapshot,
                             onQuestionSubmit: handleQuestionSubmit,
+                            onInitialRenderComplete: {
+                                liveState?.markSessionOpenVisibleReady(reason: "initial_render")
+                            },
+                            onLatestContentVisible: {
+                                liveState?.markMessageSendVisibleFeedback(reason: "chat_content_visible")
+                            },
                             header: { sessionTimelineHeaderCard }
                         )
                         .id(session.id)
@@ -307,6 +317,12 @@ struct ChatPanel: View {
                         }
                         .padding(.horizontal, Spacing.compact)
                         .padding(.top, Spacing.xs)
+                        .onAppear {
+                            liveState?.markMessageSendVisibleFeedback(reason: "runtime_status_visible")
+                        }
+                        .onChange(of: runtimeStatusSummary.status.rawValue) { _, _ in
+                            liveState?.markMessageSendVisibleFeedback(reason: "runtime_status_visible")
+                        }
                     }
 
                     ChatInputField(

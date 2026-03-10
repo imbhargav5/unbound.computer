@@ -9,6 +9,7 @@
 import AppKit
 import Logging
 import SwiftUI
+import OpenTelemetryApi
 
 private let logger = Logger(label: "app.ui")
 
@@ -343,19 +344,28 @@ struct WorkspaceView: View {
     /// Auto-select first session if none is selected
     private func autoSelectFirstSessionIfNeeded() async {
         if appState.selectedSessionId == nil, let first = sessions.first {
-            appState.selectSession(first.id)
+            appState.selectSession(first.id, source: .autoSelectFirst)
         }
     }
 
     private func createSession(for repository: Repository, locationType: SessionLocationType) {
         Task {
             do {
-                let session = try await appState.createSession(
-                    repositoryId: repository.id,
-                    title: "New conversation",
-                    locationType: locationType
-                )
-                appState.selectSession(session.id)
+                try await TracingService.withUserIntentRoot(
+                    name: "session.create",
+                    source: .createSession,
+                    attributes: [
+                        "repository.id": .string(repository.id.uuidString.lowercased()),
+                        "workspace.id": .string(repository.id.uuidString.lowercased())
+                    ]
+                ) { _ in
+                    let session = try await appState.createSession(
+                        repositoryId: repository.id,
+                        title: "New conversation",
+                        locationType: locationType
+                    )
+                    appState.selectSession(session.id, source: .createSession)
+                }
             } catch {
                 logger.error("Failed to create session: \(error)")
             }
@@ -402,13 +412,17 @@ struct WorkspaceView: View {
 
                 let response = await panel.begin()
                 if response == .OK, let url = panel.url {
-                    let repository = try await appState.addRepository(path: url.path)
-                    // Auto-create a session for the new repository
-                    let session = try await appState.createSession(
-                        repositoryId: repository.id,
-                        title: "New conversation"
-                    )
-                    appState.selectSession(session.id)
+                    try await TracingService.withUserIntentRoot(
+                        name: "repository.add",
+                        source: .addRepository
+                    ) { _ in
+                        let repository = try await appState.addRepository(path: url.path)
+                        let session = try await appState.createSession(
+                            repositoryId: repository.id,
+                            title: "New conversation"
+                        )
+                        appState.selectSession(session.id, source: .addRepository)
+                    }
                 }
             } catch {
                 logger.error("Failed to add repository: \(error)")
@@ -439,7 +453,7 @@ struct WorkspaceView: View {
     }
 
     private func createTerminalTab(for session: Session) {
-        appState.selectSession(session.id)
+        appState.selectSession(session.id, source: .createTerminalTab)
         _ = workspaceTabState.createTerminalTab(
             for: session.id,
             workspacePath: resolvedWorkingDirectoryPath(for: session)

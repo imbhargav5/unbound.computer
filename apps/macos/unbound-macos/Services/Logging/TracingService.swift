@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Logging
 import OpenTelemetryApi
@@ -22,7 +23,91 @@ private struct DictionaryTraceContextGetter: Getter {
     }
 }
 
+enum UserIntentSource: String, Sendable {
+    case sidebar
+    case autoSelectFirst = "auto_select_first"
+    case createSession = "create_session"
+    case addRepository = "add_repository"
+    case createTerminalTab = "create_terminal_tab"
+    case toolbar
+    case keyboardShortcut = "keyboard_shortcut"
+    case unknown
+}
+
 enum TracingService {
+    final class Scope: @unchecked Sendable {
+        fileprivate let span: Span
+        let operation: String
+        let attemptId: String
+        let source: String?
+        let startedAt: CFAbsoluteTime
+
+        private let lock = NSLock()
+        private var ended = false
+
+        fileprivate init(
+            span: Span,
+            operation: String,
+            attemptId: String,
+            source: String?
+        ) {
+            self.span = span
+            self.operation = operation
+            self.attemptId = attemptId
+            self.source = source
+            self.startedAt = CFAbsoluteTimeGetCurrent()
+        }
+
+        var context: SpanContext {
+            span.context
+        }
+
+        func setAttribute(_ key: String, value: AttributeValue) {
+            lock.lock()
+            defer { lock.unlock() }
+
+            guard !ended else { return }
+            span.setAttribute(key: key, value: value)
+        }
+
+        func setAttributes(_ attributes: [String: AttributeValue]) {
+            lock.lock()
+            defer { lock.unlock() }
+
+            guard !ended else { return }
+            for (key, value) in attributes {
+                span.setAttribute(key: key, value: value)
+            }
+        }
+
+        fileprivate func end(
+            result: String? = nil,
+            attributes: [String: AttributeValue] = [:],
+            error: Error? = nil
+        ) {
+            lock.lock()
+            defer { lock.unlock() }
+
+            guard !ended else { return }
+            ended = true
+
+            if let result {
+                span.setAttribute(key: "result", value: .string(result))
+            }
+            for (key, value) in attributes {
+                span.setAttribute(key: key, value: value)
+            }
+            if let error {
+                TracingService.record(error: error, on: span)
+            }
+            span.end()
+        }
+    }
+
+    private enum IntentScopeContext {
+        @TaskLocal static var current: Scope?
+    }
+
     private static let tracerName = "com.unbound.macos.ipc"
     private static let tracerVersion = Bundle.main.object(
         forInfoDictionaryKey: "CFBundleShortVersionString"
@@ -31,6 +116,10 @@ enum TracingService {
     private static let lock = NSLock()
     private static var didBootstrap = false
     private static var tracerProvider: TracerProviderSdk?
+
+    static var currentIntentScope: Scope? {
+        IntentScopeContext.current
+    }
 
     static func bootstrap() {
         lock.lock()
@@ -93,18 +182,179 @@ enum TracingService {
         provider?.shutdown()
     }
 
+    static func hashIdentifier(_ rawValue: String?) -> String? {
+        guard let rawValue, !rawValue.isEmpty else {
+            return nil
+        }
+
+        if rawValue.lowercased().hasPrefix("sha256:") {
+            return rawValue.lowercased()
+        }
+
+        let digest = SHA256.hash(data: Data(rawValue.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:\(hex)"
+    }
+
+    static func withUserIntentRoot<T>(
+        name: String,
+        source: UserIntentSource = .unknown,
+        attributes: [String: AttributeValue] = [:],
+        operation: (Scope) async throws -> T
+    ) async rethrows -> T {
+        let scope = startUserIntentScope(
+            name: name,
+            source: source,
+            parentScope: nil,
+            attributes: attributes
+        )
+
+        do {
+            let result = try await withActivatedScope(scope) {
+                try await operation(scope)
+            }
+            endScope(scope)
+            return result
+        } catch {
+            endScope(scope, result: "error", error: error)
+            throw error
+        }
+    }
+
+    static func withUserIntentRootIfNeeded<T>(
+        name: String,
+        source: UserIntentSource = .unknown,
+        attributes: [String: AttributeValue] = [:],
+        operation: (Scope?) async throws -> T
+    ) async rethrows -> T {
+        if let currentIntentScope {
+            return try await operation(currentIntentScope)
+        }
+
+        return try await withUserIntentRoot(
+            name: name,
+            source: source,
+            attributes: attributes
+        ) { scope in
+            try await operation(scope)
+        }
+    }
+
+    static func startUserIntentScope(
+        name: String,
+        source: UserIntentSource = .unknown,
+        parentScope: Scope? = nil,
+        attributes: [String: AttributeValue] = [:]
+    ) -> Scope {
+        let attemptId = UUID().uuidString.lowercased()
+        var resolvedAttributes = attributes
+        resolvedAttributes["operation"] = .string(name)
+        resolvedAttributes["attempt_id"] = .string(attemptId)
+        resolvedAttributes["result"] = .string("in_progress")
+        resolvedAttributes["selection.source"] = .string(source.rawValue)
+
+        let span = startSpan(
+            name: name,
+            kind: .internal,
+            parent: parentScope?.context,
+            makeRoot: parentScope == nil,
+            attributes: resolvedAttributes
+        )
+        return Scope(
+            span: span,
+            operation: name,
+            attemptId: attemptId,
+            source: source.rawValue
+        )
+    }
+
+    static func startChildScope(
+        name: String,
+        parentScope: Scope,
+        kind: SpanKind = .internal,
+        requestId: String? = nil,
+        sessionId: String? = nil,
+        attributes: [String: AttributeValue] = [:]
+    ) -> Scope {
+        var resolvedAttributes = attributes
+        resolvedAttributes["attempt_id"] = .string(parentScope.attemptId)
+        resolvedAttributes["root.operation"] = .string(parentScope.operation)
+        if let requestId {
+            resolvedAttributes["ipc.request_id"] = .string(requestId)
+        }
+        if let sessionId {
+            resolvedAttributes["ipc.session_id"] = .string(sessionId)
+        }
+
+        let span = startSpan(
+            name: name,
+            kind: kind,
+            parent: parentScope.context,
+            makeRoot: false,
+            attributes: resolvedAttributes
+        )
+        return Scope(
+            span: span,
+            operation: parentScope.operation,
+            attemptId: parentScope.attemptId,
+            source: parentScope.source
+        )
+    }
+
+    static func withActivatedScope<T>(
+        _ scope: Scope,
+        operation: () async throws -> T
+    ) async rethrows -> T {
+        try await IntentScopeContext.$current.withValue(scope) {
+            try await OpenTelemetry.instance.contextProvider.withActiveSpan(scope.span) {
+                try await operation()
+            }
+        }
+    }
+
+    static func endScope(
+        _ scope: Scope,
+        result: String = "success",
+        attributes: [String: AttributeValue] = [:],
+        error: Error? = nil
+    ) {
+        var resolvedAttributes = attributes
+        let durationMs = Int((CFAbsoluteTimeGetCurrent() - scope.startedAt) * 1_000)
+        resolvedAttributes["duration.ms"] = .int(durationMs)
+        scope.end(result: result, attributes: resolvedAttributes, error: error)
+    }
+
+    static func cancelScope(
+        _ scope: Scope,
+        attributes: [String: AttributeValue] = [:]
+    ) {
+        endScope(scope, result: "cancelled", attributes: attributes)
+    }
+
     static func withClientSpan<T>(
         method: String,
         requestId: String,
         sessionId: String?,
+        parentScope: Scope? = nil,
+        attributes: [String: AttributeValue] = [:],
         operation: (Span, DaemonTraceContext?) async throws -> T
     ) async throws -> T {
+        let resolvedParentScope = parentScope ?? currentIntentScope
+        var resolvedAttributes = requestAttributes(method: method, requestId: requestId, sessionId: sessionId)
+        for (key, value) in attributes {
+            resolvedAttributes[key] = value
+        }
+        if let resolvedParentScope {
+            resolvedAttributes["attempt_id"] = .string(resolvedParentScope.attemptId)
+            resolvedAttributes["root.operation"] = .string(resolvedParentScope.operation)
+        }
+
         let span = startSpan(
             name: "daemon.\(method)",
             kind: .client,
-            parent: nil,
-            makeRoot: true,
-            attributes: requestAttributes(method: method, requestId: requestId, sessionId: sessionId)
+            parent: resolvedParentScope?.context,
+            makeRoot: resolvedParentScope == nil && activeSpanContext() == nil,
+            attributes: resolvedAttributes
         )
         defer {
             span.end()
@@ -153,9 +403,11 @@ enum TracingService {
         kind: SpanKind = .internal,
         requestId: String? = nil,
         sessionId: String? = nil,
+        parentScope: Scope? = nil,
         attributes: [String: AttributeValue] = [:],
         operation: (Span) throws -> T
     ) rethrows -> T {
+        let resolvedParentScope = parentScope ?? currentIntentScope
         var resolvedAttributes = attributes
         if let requestId {
             resolvedAttributes["ipc.request_id"] = .string(requestId)
@@ -163,12 +415,16 @@ enum TracingService {
         if let sessionId {
             resolvedAttributes["ipc.session_id"] = .string(sessionId)
         }
+        if let resolvedParentScope {
+            resolvedAttributes["attempt_id"] = .string(resolvedParentScope.attemptId)
+            resolvedAttributes["root.operation"] = .string(resolvedParentScope.operation)
+        }
 
         let span = startSpan(
             name: name,
             kind: kind,
-            parent: nil,
-            makeRoot: false,
+            parent: resolvedParentScope?.context,
+            makeRoot: resolvedParentScope == nil && activeSpanContext() == nil,
             attributes: resolvedAttributes
         )
         defer {
@@ -180,20 +436,66 @@ enum TracingService {
         }
     }
 
-    static func metadata(
+    static func withChildSpanAsync<T>(
+        name: String,
+        kind: SpanKind = .internal,
         requestId: String? = nil,
         sessionId: String? = nil,
-        span: Span? = nil
-    ) -> Logging.Logger.Metadata {
-        metadata(requestId: requestId, sessionId: sessionId, spanContext: span?.context)
+        parentScope: Scope? = nil,
+        attributes: [String: AttributeValue] = [:],
+        operation: (Span) async throws -> T
+    ) async rethrows -> T {
+        let resolvedParentScope = parentScope ?? currentIntentScope
+        var resolvedAttributes = attributes
+        if let requestId {
+            resolvedAttributes["ipc.request_id"] = .string(requestId)
+        }
+        if let sessionId {
+            resolvedAttributes["ipc.session_id"] = .string(sessionId)
+        }
+        if let resolvedParentScope {
+            resolvedAttributes["attempt_id"] = .string(resolvedParentScope.attemptId)
+            resolvedAttributes["root.operation"] = .string(resolvedParentScope.operation)
+        }
+
+        let span = startSpan(
+            name: name,
+            kind: kind,
+            parent: resolvedParentScope?.context,
+            makeRoot: resolvedParentScope == nil && activeSpanContext() == nil,
+            attributes: resolvedAttributes
+        )
+        defer {
+            span.end()
+        }
+
+        return try await OpenTelemetry.instance.contextProvider.withActiveSpan(span) {
+            try await operation(span)
+        }
     }
 
     static func metadata(
         requestId: String? = nil,
         sessionId: String? = nil,
+        scope: Scope? = nil,
+        span: Span? = nil
+    ) -> Logging.Logger.Metadata {
+        metadata(
+            requestId: requestId,
+            sessionId: sessionId,
+            scope: scope,
+            spanContext: span?.context
+        )
+    }
+
+    static func metadata(
+        requestId: String? = nil,
+        sessionId: String? = nil,
+        scope: Scope? = nil,
         spanContext: SpanContext?
     ) -> Logging.Logger.Metadata {
         var metadata: Logging.Logger.Metadata = [:]
+        let resolvedScope = scope ?? currentIntentScope
 
         if let requestId {
             metadata["request_id"] = .string(requestId)
@@ -201,9 +503,17 @@ enum TracingService {
         if let sessionId {
             metadata["session_id"] = .string(sessionId)
         }
-        if let spanContext, spanContext.isValid {
-            metadata["trace_id"] = .string(spanContext.traceId.hexString)
-            metadata["span_id"] = .string(spanContext.spanId.hexString)
+        if let resolvedScope {
+            metadata["attempt_id"] = .string(resolvedScope.attemptId)
+            metadata["operation"] = .string(resolvedScope.operation)
+            if let source = resolvedScope.source {
+                metadata["selection_source"] = .string(source)
+            }
+        }
+        let resolvedSpanContext = spanContext ?? resolvedScope?.context
+        if let resolvedSpanContext, resolvedSpanContext.isValid {
+            metadata["trace_id"] = .string(resolvedSpanContext.traceId.hexString)
+            metadata["span_id"] = .string(resolvedSpanContext.spanId.hexString)
         }
 
         return metadata
@@ -283,6 +593,15 @@ enum TracingService {
         return builder.startSpan()
     }
 
+    private static func activeSpanContext() -> SpanContext? {
+        guard let activeSpan = OpenTelemetry.instance.contextProvider.activeSpan else {
+            return nil
+        }
+
+        let spanContext = activeSpan.context
+        return spanContext.isValid ? spanContext : nil
+    }
+
     private static func requestAttributes(
         method: String,
         requestId: String,
@@ -315,6 +634,15 @@ enum TracingService {
     }
 
     private static func sampler() -> Sampler {
+        if let override = Config.otlpSamplerOverride {
+            switch override {
+            case .alwaysOn:
+                return Samplers.alwaysOn
+            case let .parentBasedTraceIdRatio(ratio):
+                return Samplers.parentBased(root: Samplers.traceIdRatio(ratio: ratio))
+            }
+        }
+
         let status = Config.resolvedObservabilityStatus
         switch status.mode {
         case .devVerbose:

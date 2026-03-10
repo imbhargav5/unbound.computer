@@ -7,6 +7,7 @@
 //
 
 import Logging
+import OpenTelemetryApi
 import SwiftUI
 
 private let logger = Logger(label: "app.ui.sidebar")
@@ -604,11 +605,19 @@ struct RightSidebarPanel: View {
         defer { editorState.setDiffLoading(for: path, isLoading: false) }
 
         do {
-            let diffContent = try await appState.daemonClient.getGitDiff(path: workDir, filePath: path)
-            if !diffContent.isEmpty {
-                editorState.setDiff(for: path, diff: FileDiff.parse(from: diffContent, filePath: path))
-            } else {
-                editorState.setDiff(for: path, diff: nil)
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "git.diff_file",
+                attributes: [
+                    "repository.path_hash": .string(TracingService.hashIdentifier(workDir) ?? ""),
+                    "repository.relative_path_hash": .string(TracingService.hashIdentifier(path) ?? "")
+                ]
+            ) { _ in
+                let diffContent = try await appState.daemonClient.getGitDiff(path: workDir, filePath: path)
+                if !diffContent.isEmpty {
+                    editorState.setDiff(for: path, diff: FileDiff.parse(from: diffContent, filePath: path))
+                } else {
+                    editorState.setDiff(for: path, diff: nil)
+                }
             }
         } catch {
             logger.warning("Failed to load diff: \(error.localizedDescription)")

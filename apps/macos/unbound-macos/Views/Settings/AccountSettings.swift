@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import OpenTelemetryApi
 
 private enum BillingUsagePanelState: Equatable {
     case loading
@@ -326,11 +327,16 @@ struct AccountSettings: View {
         }
 
         do {
-            let response = try await appState.daemonClient.getBillingUsageStatus()
-            if response.available {
-                billingUsageState = .loaded(response)
-            } else {
-                billingUsageState = .unavailable
+            try await TracingService.withUserIntentRootIfNeeded(
+                name: "billing.usage_status",
+                attributes: [:]
+            ) { _ in
+                let response = try await appState.daemonClient.getBillingUsageStatus()
+                if response.available {
+                    billingUsageState = .loaded(response)
+                } else {
+                    billingUsageState = .unavailable
+                }
             }
         } catch {
             billingUsageState = .error(error.localizedDescription)
