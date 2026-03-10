@@ -140,16 +140,30 @@ struct WorkspaceView: View {
                         // Center - Chat Panel
                         ZStack {
                             if shouldRenderCenterPanel {
-                                ChatPanel(
-                                    session: selectedSession,
-                                    repository: selectedRepository,
-                                    chatInput: $chatInput,
-                                    selectedModel: $selectedModel,
-                                    selectedThinkMode: $selectedThinkMode,
-                                    isPlanMode: $isPlanMode,
-                                    editorState: editorState,
-                                    workspaceTabState: workspaceTabState
-                                )
+                                VStack(spacing: 0) {
+                                    WorkspaceCenterHeader(
+                                        session: selectedSession,
+                                        editorState: editorState,
+                                        workspaceTabState: workspaceTabState,
+                                        onRequestCloseEditorTab: { tabId in
+                                            requestCloseEditorTab(tabId)
+                                        },
+                                        onRequestCloseTerminalTab: { tabId in
+                                            workspaceTabState.closeTerminalTab(tabId, editorTabIds: editorState.tabs.map(\.id))
+                                        }
+                                    )
+
+                                    ChatPanel(
+                                        session: selectedSession,
+                                        repository: selectedRepository,
+                                        chatInput: $chatInput,
+                                        selectedModel: $selectedModel,
+                                        selectedThinkMode: $selectedThinkMode,
+                                        isPlanMode: $isPlanMode,
+                                        editorState: editorState,
+                                        workspaceTabState: workspaceTabState
+                                    )
+                                }
                             } else {
                                 WorkspaceEmptyState(
                                     hasRepositories: !sessions.isEmpty,
@@ -183,15 +197,6 @@ struct WorkspaceView: View {
                     WindowToolbar(content: { Color.clear }, height: 28)
                 } else {
                     TopNavbar(
-                        session: selectedSession,
-                        editorState: editorState,
-                        workspaceTabState: workspaceTabState,
-                        onRequestCloseEditorTab: { tabId in
-                            requestCloseEditorTab(tabId)
-                        },
-                        onRequestCloseTerminalTab: { tabId in
-                            workspaceTabState.closeTerminalTab(tabId, editorTabIds: editorState.tabs.map(\.id))
-                        },
                         onOpenSettings: { appState.showSettings = true }
                     )
                 }
