@@ -22,6 +22,10 @@ use message_sync_retriable_worker::SessionSyncService;
 use message_sync_retriable_worker::{MessageSyncWorker, MessageSyncWorkerConfig};
 use safe_file_ops::SafeFileOps;
 use session_sync_sink::{SessionMetadata, SessionMetadataProvider, SessionSyncSink, SyncContext};
+#[cfg(unix)]
+use signal_hook::consts::signal::{SIGINT, SIGTERM};
+#[cfg(unix)]
+use signal_hook::iterator::Signals;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -78,7 +82,7 @@ pub async fn run_daemon(
     info!(pid = pid, "Daemon started");
 
     startup_status.update("critical_bootstrap", "Initializing IPC server");
-    let ipc_server = IpcServer::new(&paths.socket_file().to_string_lossy());
+    let ipc_server = Arc::new(IpcServer::new(&paths.socket_file().to_string_lossy()));
 
     let sync_sink = Arc::new(SessionSyncSink::new(
         &config.supabase_url,
@@ -236,7 +240,9 @@ pub async fn run_daemon(
 
     startup_status.update("critical_bootstrap", "Starting IPC server");
     let socket_path = paths.socket_file();
-    let mut ipc_task = tokio::spawn(async move { ipc_server.run().await });
+    let ipc_server_task = ipc_server.clone();
+    let mut ipc_task = tokio::spawn(async move { ipc_server_task.run().await });
+    spawn_shutdown_signal_task(ipc_server.clone())?;
     if let Err(error) =
         wait_for_ipc_socket_ready(&socket_path, &mut ipc_task, &startup_status).await
     {
@@ -341,6 +347,41 @@ pub async fn run_daemon(
     remove_runtime_files(&paths);
 
     server_result
+}
+
+fn spawn_shutdown_signal_task(ipc_server: Arc<IpcServer>) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut signals = Signals::new([SIGINT, SIGTERM])?;
+        std::thread::spawn(move || {
+            if let Some(signal) = signals.forever().next() {
+                let signal_name = match signal {
+                    SIGINT => "SIGINT",
+                    SIGTERM => "SIGTERM",
+                    _ => "unknown",
+                };
+                info!(signal = signal_name, "Shutdown signal received");
+                ipc_server.shutdown();
+            }
+        });
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    {
+        tokio::spawn(async move {
+            match tokio::signal::ctrl_c().await {
+                Ok(()) => {
+                    info!(signal = "SIGINT", "Shutdown signal received");
+                    ipc_server.shutdown();
+                }
+                Err(err) => {
+                    warn!(error = %err, "Failed to listen for shutdown signal");
+                }
+            }
+        });
+        Ok(())
+    }
 }
 
 async fn enforce_singleton_and_cleanup(paths: &Paths) -> Result<(), Box<dyn std::error::Error>> {

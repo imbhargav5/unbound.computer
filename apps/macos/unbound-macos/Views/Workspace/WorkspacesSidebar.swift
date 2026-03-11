@@ -126,9 +126,9 @@ struct WorkspacesSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Machine name header (top bar with fixed 64px height)
+            // Sidebar header (top bar with fixed 64px height)
             SidebarHeader(
-                title: Host.current().localizedName ?? "My Mac",
+                title: "Agents",
                 onOpenKeyboardShortcuts: {
                     showKeyboardShortcuts = true
                 },
@@ -288,6 +288,7 @@ struct RepositoryGroup: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, Spacing.xs)
+                .iconTooltip(IconTooltipSpec("New session"))
                 .onHover { hovering in
                     isHoveringAdd = hovering
                 }
@@ -398,6 +399,7 @@ struct MainDirectorySection: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .iconTooltip(IconTooltipSpec("New main session"))
                     .onHover { hovering in
                         isHoveringAdd = hovering
                     }
@@ -478,6 +480,7 @@ struct WorktreeSection: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .iconTooltip(IconTooltipSpec("New worktree session"))
                     .onHover { hovering in
                         isHoveringAdd = hovering
                     }

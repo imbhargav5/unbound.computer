@@ -38,6 +38,7 @@ struct AddWorkspaceSheet: View {
                         .foregroundStyle(colors.mutedForeground)
                 }
                 .buttonGhost(size: .icon)
+                .iconTooltip(IconTooltipSpec("Close"))
             }
             .padding(Spacing.lg)
 

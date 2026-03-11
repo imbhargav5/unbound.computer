@@ -28,9 +28,7 @@ impl HttpClient for LoggingHttpClient {
         let method = request.method().clone();
         let headers = request.headers().clone();
         let body_len = request.body().len();
-        eprintln!(
-            "[trace-smoke] sending {method} {uri} body_len={body_len} headers={headers:?}"
-        );
+        eprintln!("[trace-smoke] sending {method} {uri} body_len={body_len} headers={headers:?}");
 
         let request = request.try_into()?;
         let mut response = match self.inner.execute(request) {

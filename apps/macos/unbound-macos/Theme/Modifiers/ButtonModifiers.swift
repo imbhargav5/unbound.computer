@@ -160,26 +160,21 @@ extension View {
 // MARK: - Icon Button
 
 struct IconButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let systemName: String
+    let tooltip: IconTooltipSpec?
     let variant: ButtonVariant
     let size: CGFloat
     let action: () -> Void
 
-    @State private var isHovering = false
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
     init(
         systemName: String,
+        tooltip: IconTooltipSpec? = nil,
         variant: ButtonVariant = .ghost,
         size: CGFloat = IconSize.md,
         action: @escaping () -> Void
     ) {
         self.systemName = systemName
+        self.tooltip = tooltip
         self.variant = variant
         self.size = size
         self.action = action
@@ -191,8 +186,6 @@ struct IconButton: View {
                 .font(.system(size: size))
         }
         .buttonStyle(ShadcnButtonStyle(variant: variant, size: .icon))
-        .onHover { hovering in
-            isHovering = hovering
-        }
+        .iconTooltip(tooltip)
     }
 }

@@ -54,6 +54,7 @@ struct WorkspaceNavbarTab: View {
                             .frame(width: ChatHeaderTokens.closeIconFrameSize, height: ChatHeaderTokens.closeIconFrameSize)
                     }
                     .buttonStyle(.plain)
+                    .iconTooltip(IconTooltipSpec("Close tab"))
                     .onHover { hovering in
                         isCloseHovered = hovering
                     }

@@ -467,7 +467,16 @@ async fn handle_connection(
         let handler_ms = handler_start.elapsed().as_millis();
 
         let serialize_start = std::time::Instant::now();
-        let response_json = response.to_json()?;
+        let response_json = {
+            let _serialize_span = tracing::info_span!(
+                parent: &request_span,
+                "ipc.response.serialize",
+                method = %method_name,
+                request_id = %request_id
+            )
+            .entered();
+            response.to_json()?
+        };
         let serialize_ms = serialize_start.elapsed().as_millis();
 
         let write_start = std::time::Instant::now();
@@ -477,7 +486,8 @@ async fn handle_connection(
             writer.flush().await?;
             IpcResult::Ok(())
         }
-        .instrument(tracing::debug_span!(
+        .instrument(tracing::info_span!(
+            parent: &request_span,
             "ipc.response.write",
             method = %method_name,
             request_id = %request_id

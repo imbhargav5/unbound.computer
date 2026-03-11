@@ -154,7 +154,7 @@ struct RepositorySettingsView: View {
                             .font(.system(size: IconSize.sm))
                     }
                     .buttonGhost(size: .icon)
-                    .help("Reveal in Finder")
+                    .iconTooltip(IconTooltipSpec("Reveal in Finder"))
                 }
                 .padding(Spacing.md)
                 .background(
@@ -202,7 +202,7 @@ struct RepositorySettingsView: View {
                             .font(.system(size: IconSize.sm))
                     }
                     .buttonGhost(size: .icon)
-                    .help("Choose folder")
+                    .iconTooltip(IconTooltipSpec("Choose folder"))
                 }
             }
         }
@@ -245,7 +245,7 @@ struct RepositorySettingsView: View {
                             .font(.system(size: IconSize.sm))
                     }
                     .buttonGhost(size: .icon)
-                    .help("Choose folder")
+                    .iconTooltip(IconTooltipSpec("Choose folder"))
 
                     Button("Reset") {
                         worktreeRootDir = defaultWorktreeRootDir

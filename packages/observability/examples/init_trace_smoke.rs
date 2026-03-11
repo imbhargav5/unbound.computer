@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use observability::{force_flush, init_with_config, shutdown, LogConfig, LogFormat, ObservabilityMode, OtlpConfig, OtlpSampler};
+use observability::{
+    force_flush, init_with_config, shutdown, LogConfig, LogFormat, ObservabilityMode, OtlpConfig,
+    OtlpSampler,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

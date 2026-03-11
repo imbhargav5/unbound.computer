@@ -16,6 +16,12 @@ private let logger = Logger(label: "app.ui.git")
 
 @MainActor @Observable
 class GitViewModel {
+    enum SidebarRefreshComponent: Equatable {
+        case status
+        case branches
+        case commits
+    }
+
     // MARK: - Dependencies
 
     private weak var daemonClient: DaemonClient?
@@ -221,6 +227,55 @@ class GitViewModel {
             group.addTask { await self.refreshCommits() }
             group.addTask { await self.refreshGHAuthStatus() }
             group.addTask { await self.refreshPullRequests() }
+        }
+    }
+
+    func sidebarRefreshComponents(for tab: RightSidebarTab) -> [SidebarRefreshComponent] {
+        switch tab {
+        case .changes, .files:
+            return [.status]
+        case .commits:
+            return [.status, .branches, .commits]
+        case .spec, .pullRequests:
+            return []
+        }
+    }
+
+    func canRefreshSidebarData(for tab: RightSidebarTab) -> Bool {
+        let components = sidebarRefreshComponents(for: tab)
+        guard !components.isEmpty else { return false }
+        return !isSidebarRefreshInFlight(for: components)
+    }
+
+    func refreshSidebarData(for tab: RightSidebarTab) async {
+        let components = sidebarRefreshComponents(for: tab)
+        guard !components.isEmpty else { return }
+        guard !isSidebarRefreshInFlight(for: components) else { return }
+
+        switch components {
+        case [.status]:
+            await refreshStatus()
+        case [.status, .branches, .commits]:
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.refreshStatus() }
+                group.addTask { await self.refreshBranches() }
+                group.addTask { await self.refreshCommits() }
+            }
+        default:
+            return
+        }
+    }
+
+    private func isSidebarRefreshInFlight(for components: [SidebarRefreshComponent]) -> Bool {
+        components.contains { component in
+            switch component {
+            case .status:
+                return isLoadingStatus
+            case .branches:
+                return isLoadingBranches
+            case .commits:
+                return isLoadingCommits
+            }
         }
     }
 

@@ -627,6 +627,7 @@ struct FileTab: View {
                         .clipShape(RoundedRectangle(cornerRadius: Radius.xs))
                 }
                 .buttonStyle(.plain)
+                .iconTooltip(IconTooltipSpec("Close tab"))
                 .onHover { hovering in
                     isCloseHovered = hovering
                 }

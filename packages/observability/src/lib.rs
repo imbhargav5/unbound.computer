@@ -193,9 +193,7 @@ fn parse_env_filter_var(name: &str) -> Option<String> {
     match EnvFilter::try_new(trimmed) {
         Ok(_) => Some(trimmed.to_string()),
         Err(err) => {
-            eprintln!(
-                "[observability] ignoring invalid {name} value {trimmed:?}: {err}"
-            );
+            eprintln!("[observability] ignoring invalid {name} value {trimmed:?}: {err}");
             None
         }
     }

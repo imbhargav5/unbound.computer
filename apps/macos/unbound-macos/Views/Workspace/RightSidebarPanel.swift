@@ -14,6 +14,7 @@ private let logger = Logger(label: "app.ui.sidebar")
 
 struct RightSidebarPanel: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppState.self) private var appState
 
     // View models
@@ -98,6 +99,12 @@ struct RightSidebarPanel: View {
             isCommitDropdownOpen = false
             isPushDropdownOpen = false
         }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            guard oldPhase != .active, newPhase == .active else { return }
+            Task {
+                await refreshSidebarOnAppReactivationIfNeeded()
+            }
+        }
         .onChange(of: isSelectedSessionStreaming) { wasStreaming, isStreaming in
             guard wasStreaming && !isStreaming else { return }
             Task { await gitViewModel.refreshAll() }
@@ -119,6 +126,19 @@ struct RightSidebarPanel: View {
                 }
             }
         }
+    }
+
+    private func refreshSidebarOnAppReactivationIfNeeded() async {
+        guard let workingDirectory,
+              !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        guard appState.isDaemonConnected else { return }
+
+        let tab = effectiveTab
+        guard gitViewModel.canRefreshSidebarData(for: tab) else { return }
+
+        await gitViewModel.refreshSidebarData(for: tab)
     }
 
     // MARK: - Sidebar Header (branch left, commit right)

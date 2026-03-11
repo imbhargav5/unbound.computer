@@ -258,6 +258,14 @@ struct ThemeColors {
         colorScheme == .dark ? ShadcnColors.Dark.mutedForeground : ShadcnColors.Light.mutedForeground
     }
 
+    var popover: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.popover : ShadcnColors.Light.popover
+    }
+
+    var popoverForeground: Color {
+        colorScheme == .dark ? ShadcnColors.Dark.popoverForeground : ShadcnColors.Light.popoverForeground
+    }
+
     var accent: Color {
         colorScheme == .dark ? ShadcnColors.Dark.accent : ShadcnColors.Light.accent
     }
@@ -483,6 +491,18 @@ struct ThemeColors {
 
     var hoverBackground: Color {
         colorScheme == .dark ? ShadcnColors.Dark.hoverBackground : ShadcnColors.Light.hoverBackground
+    }
+
+    var tooltipBackground: Color {
+        popover
+    }
+
+    var tooltipForeground: Color {
+        popoverForeground
+    }
+
+    var tooltipBorder: Color {
+        border
     }
 
     var editorBackground: Color {

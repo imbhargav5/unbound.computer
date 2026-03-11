@@ -220,6 +220,7 @@ struct RepositoryRow: View {
                         .foregroundStyle(colors.mutedForeground)
                 }
                 .buttonGhost(size: .icon)
+                .iconTooltip(IconTooltipSpec("Remove repository"))
                 .opacity(isHovered ? 1 : 0.5)
             }
             .padding(Spacing.md)

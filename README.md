@@ -215,6 +215,45 @@ pnpm web#dev
 
 Open `apps/macos/unbound-macos.xcodeproj` in Xcode and build/run.
 
+### 7. Start SigNoz locally (optional)
+
+Unbound's local observability defaults assume:
+
+- OTLP HTTP collector on `http://localhost:4318`
+- SigNoz UI available locally at `http://localhost:3301`
+
+The canonical local SigNoz checkout is:
+
+```sh
+~/Code/signoz
+```
+
+If you do not already have a local SigNoz stack there, install it with:
+
+```sh
+git clone -b main https://github.com/SigNoz/signoz.git "$HOME/Code/signoz"
+```
+
+Manage it from this repo with:
+
+```sh
+pnpm signoz:start
+pnpm signoz:status
+pnpm signoz:stop
+```
+
+These commands wrap the Docker Compose stack under `~/Code/signoz/deploy/docker`.
+
+Then open `http://localhost:3301` and verify that the collector is reachable on `http://localhost:4318`.
+
+To validate that this repo is actually sending logs and traces into SigNoz, run:
+
+```sh
+EXPECTED_SERVICES=daemon,macos REQUIRE_TRACES=1 ./scripts/ci/signoz-smoke.sh 1800
+```
+
+For the observability model and investigation workflow used in this repo, see `packages/observability/SIGNOZ_OPERATING_MODEL.md`.
+
 ## Development
 
 ### Daemon

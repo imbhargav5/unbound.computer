@@ -83,11 +83,23 @@ struct VersionControlPanel: View {
 
                     // Action buttons
                     HStack(spacing: Spacing.xs) {
-                        IconButton(systemName: "arrow.triangle.2.circlepath", action: {
-                            Task { await refreshStatus() }
-                        })
-                        IconButton(systemName: "magnifyingglass", action: {})
-                        IconButton(systemName: "line.3.horizontal.decrease", action: {})
+                        IconButton(
+                            systemName: "arrow.triangle.2.circlepath",
+                            tooltip: IconTooltipSpec("Refresh changes"),
+                            action: {
+                                Task { await refreshStatus() }
+                            }
+                        )
+                        IconButton(
+                            systemName: "magnifyingglass",
+                            tooltip: IconTooltipSpec("Search changes"),
+                            action: {}
+                        )
+                        IconButton(
+                            systemName: "line.3.horizontal.decrease",
+                            tooltip: IconTooltipSpec("Filter changes"),
+                            action: {}
+                        )
                     }
                 }
                 .padding(.horizontal, Spacing.sm)
@@ -151,6 +163,7 @@ struct VersionControlPanel: View {
                                 .foregroundStyle(colors.mutedForeground)
                         }
                         .buttonStyle(.plain)
+                        .iconTooltip(IconTooltipSpec("Close diff"))
                     }
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, Spacing.sm)

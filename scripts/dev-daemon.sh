@@ -2,22 +2,26 @@
 # Builds, restarts the dev daemon, and optionally launches the macOS app.
 # Usage:
 #   ./scripts/dev-daemon.sh          # build + restart daemon (foreground)
-#   ./scripts/dev-daemon.sh --app    # build + restart daemon + run macOS app
+#   ./scripts/dev-daemon.sh --app    # build + restart daemon + run apps/web + macOS app
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DAEMON_DIR="$ROOT/apps/daemon"
+WEB_DIR="$ROOT/apps/web"
 BASE_DIR="$HOME/.unbound-dev"
 SOCKET="$BASE_DIR/daemon.sock"
 PID_FILE="$BASE_DIR/daemon.pid"
+WEB_PID_FILE="$BASE_DIR/web.pid"
 STARTUP_STATUS_FILE="$BASE_DIR/startup-status.json"
 ENV_FILE="$DAEMON_DIR/.env.local"
 APP_BUNDLE_ID="com.arni.unbound-macos-dev"
 APP_PROCESS_PATTERN="/Unbound Dev.app/Contents/MacOS/Unbound Dev"
 
 DAEMON_PID=""
+WEB_PID=""
 LAUNCHED_APP=0
+LAUNCHED_WEB=0
 CLEANING_UP=0
 
 append_xcode_build_arg_if_set() {
@@ -54,6 +58,44 @@ stop_pid_if_running() {
   fi
 }
 
+resolve_web_port() {
+  local api_url="${API_URL:-http://localhost:3000}"
+  local without_scheme="${api_url#*://}"
+  local host_port="${without_scheme%%/*}"
+
+  if [[ "$host_port" == *:* ]]; then
+    echo "${host_port##*:}"
+    return
+  fi
+
+  if [[ "$api_url" == https://* ]]; then
+    echo "443"
+  else
+    echo "80"
+  fi
+}
+
+wait_for_http_server() {
+  local name="$1"
+  local url="$2"
+  local pid="$3"
+
+  for _ in $(seq 1 240); do
+    if curl -sS -o /dev/null "$url"; then
+      echo "$name ready at $url"
+      return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "error: $name process exited during startup"
+      return 1
+    fi
+    sleep 0.25
+  done
+
+  echo "error: $name did not start within 60s"
+  return 1
+}
+
 stop_dev_daemon() {
   echo "Stopping dev daemon (base-dir: $BASE_DIR)..."
   if [ -x "$DAEMON_BIN" ]; then
@@ -74,7 +116,44 @@ stop_dev_daemon() {
     "$BASE_DIR/ably-auth.sock" \
     "$BASE_DIR/falco.sock" \
     "$BASE_DIR/nagato.sock" \
-    "$BASE_DIR/daemon-ably.sock"
+    "$BASE_DIR/daemon-ably.sock" \
+    "$WEB_PID_FILE"
+}
+
+stop_local_web() {
+  echo "Stopping apps/web..."
+  if [ -n "$WEB_PID" ]; then
+    stop_pid_if_running "$WEB_PID"
+  elif [ -f "$WEB_PID_FILE" ]; then
+    local pid
+    pid=$(cat "$WEB_PID_FILE" 2>/dev/null || true)
+    stop_pid_if_running "$pid"
+  fi
+  rm -f "$WEB_PID_FILE"
+}
+
+start_local_web() {
+  local web_port="$1"
+  local web_url="http://127.0.0.1:$web_port"
+
+  if [ -f "$WEB_PID_FILE" ]; then
+    local stale_pid
+    stale_pid=$(cat "$WEB_PID_FILE" 2>/dev/null || true)
+    stop_pid_if_running "$stale_pid"
+    rm -f "$WEB_PID_FILE"
+  fi
+
+  echo "Starting apps/web dev server on $web_url..."
+  (
+    cd "$WEB_DIR"
+    exec env PORT="$web_port" pnpm run dev
+  ) &
+  WEB_PID=$!
+  LAUNCHED_WEB=1
+  echo "$WEB_PID" > "$WEB_PID_FILE"
+
+  echo "Waiting for apps/web..."
+  wait_for_http_server "apps/web" "$web_url" "$WEB_PID"
 }
 
 stop_dev_app() {
@@ -101,16 +180,37 @@ cleanup_app_mode() {
   fi
   CLEANING_UP=1
 
+  if [ "$LAUNCHED_WEB" -eq 1 ]; then
+    stop_local_web
+  fi
   if [ "$LAUNCHED_APP" -eq 1 ]; then
     stop_dev_app
   fi
   stop_dev_daemon
 
   if [ "$LAUNCHED_APP" -eq 1 ]; then
-    echo "Dev daemon and Unbound Dev.app stopped."
+    echo "Dev daemon, apps/web, and Unbound Dev.app stopped."
+  elif [ "$LAUNCHED_WEB" -eq 1 ]; then
+    echo "Dev daemon and apps/web stopped."
   else
     echo "Dev daemon stopped."
   fi
+}
+
+monitor_background_processes() {
+  while true; do
+    if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+      wait "$DAEMON_PID"
+      return $?
+    fi
+
+    if [ "$LAUNCHED_WEB" -eq 1 ] && ! kill -0 "$WEB_PID" 2>/dev/null; then
+      wait "$WEB_PID"
+      return $?
+    fi
+
+    sleep 1
+  done
 }
 
 # ── Build daemon ──────────────────────────────────────────────
@@ -188,6 +288,11 @@ if [[ "${1:-}" == "--app" ]]; then
     exit 1
   fi
 
+  WEB_PORT="$(resolve_web_port)"
+  if ! start_local_web "$WEB_PORT"; then
+    exit 1
+  fi
+
   echo "Building and running macOS app..."
   cd "$ROOT/apps/macos"
   XCODE_BUILD_ARGS=()
@@ -237,13 +342,14 @@ if [[ "${1:-}" == "--app" ]]; then
   fi
 
   echo "Dev daemon running in background (PID $DAEMON_PID)."
+  echo "apps/web running in background (PID $WEB_PID)."
   if [ "$LAUNCHED_APP" -eq 1 ]; then
-    echo "Press Ctrl+C to stop the macOS app and daemon."
+    echo "Press Ctrl+C to stop apps/web, the macOS app, and the daemon."
   else
-    echo "Press Ctrl+C to stop the daemon."
+    echo "Press Ctrl+C to stop apps/web and the daemon."
   fi
 
-  wait "$DAEMON_PID"
+  monitor_background_processes
 else
   # Run daemon in foreground — user sees logs directly, Ctrl+C stops it
   echo "Starting dev daemon in foreground (base-dir: $BASE_DIR)..."

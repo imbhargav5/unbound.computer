@@ -25,19 +25,11 @@ struct SidebarHeader: View {
     var body: some View {
         HStack {
             HStack(spacing: Spacing.xs) {
-                Circle()
-                    .fill(colors.success)
-                    .frame(width: 8, height: 8)
-
                 Text(title)
                     .font(Typography.sidebarHeader)
                     .foregroundStyle(colors.foreground)
                     .lineLimit(1)
                     .truncationMode(.middle)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(colors.mutedForeground)
             }
 
             Spacer()
@@ -54,6 +46,7 @@ struct SidebarHeader: View {
                         .contentShape(Rectangle())
                 }
                 .buttonGhost(size: .icon)
+                .iconTooltip(IconTooltipSpec("More actions"))
                 .popover(isPresented: $showMenu, arrowEdge: .trailing) {
                     SidebarHeaderMenu(
                         onOpenKeyboardShortcuts: {
@@ -167,6 +160,7 @@ struct KeyboardShortcutsDialog: View {
                         .foregroundStyle(colors.mutedForeground)
                 }
                 .buttonGhost(size: .icon)
+                .iconTooltip(IconTooltipSpec("Close"))
             }
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.md)
@@ -374,9 +368,17 @@ struct SidebarFooter: View {
             Spacer()
 
             HStack(spacing: Spacing.md) {
-                IconButton(systemName: "message", action: {})
+                IconButton(
+                    systemName: "message",
+                    tooltip: IconTooltipSpec("Messages"),
+                    action: {}
+                )
 
-                IconButton(systemName: "gearshape", action: onOpenSettings)
+                IconButton(
+                    systemName: "gearshape",
+                    tooltip: IconTooltipSpec("Settings", shortcut: "⌘,"),
+                    action: onOpenSettings
+                )
             }
         }
         .padding(.horizontal, Spacing.md)

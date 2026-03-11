@@ -249,6 +249,14 @@ Every tracing/exporter change should pass:
 
 ## 9. Local Smoke Workflow
 
+The local SigNoz stack is expected at `~/Code/signoz` and should be managed from this repo with:
+
+```bash
+pnpm signoz:start
+pnpm signoz:status
+pnpm signoz:stop
+```
+
 Run the local verification script:
 
 ```bash

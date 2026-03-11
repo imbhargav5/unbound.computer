@@ -29,11 +29,17 @@ struct TopNavbar: View {
                     .frame(width: trafficLightWidth)
 
                 if !appState.localSettings.isZenModeEnabled {
-                    IconButton(systemName: "sidebar.left", action: {
-                        withAnimation(.easeOut(duration: Duration.fast)) {
-                            appState.localSettings.leftSidebarVisible.toggle()
+                    IconButton(
+                        systemName: "sidebar.left",
+                        tooltip: IconTooltipSpec(
+                            appState.localSettings.leftSidebarVisible ? "Hide left sidebar" : "Show left sidebar"
+                        ),
+                        action: {
+                            withAnimation(.easeOut(duration: Duration.fast)) {
+                                appState.localSettings.leftSidebarVisible.toggle()
+                            }
                         }
-                    })
+                    )
                 }
             }
 
@@ -42,13 +48,23 @@ struct TopNavbar: View {
             // Right section: right sidebar toggle + settings
             HStack(spacing: Spacing.xxs) {
                 if !appState.localSettings.isZenModeEnabled {
-                    IconButton(systemName: "sidebar.right", action: {
-                        withAnimation(.easeOut(duration: Duration.fast)) {
-                            appState.localSettings.rightSidebarVisible.toggle()
+                    IconButton(
+                        systemName: "sidebar.right",
+                        tooltip: IconTooltipSpec(
+                            appState.localSettings.rightSidebarVisible ? "Hide right sidebar" : "Show right sidebar"
+                        ),
+                        action: {
+                            withAnimation(.easeOut(duration: Duration.fast)) {
+                                appState.localSettings.rightSidebarVisible.toggle()
+                            }
                         }
-                    })
+                    )
 
-                    IconButton(systemName: "gearshape", action: onOpenSettings)
+                    IconButton(
+                        systemName: "gearshape",
+                        tooltip: IconTooltipSpec("Settings", shortcut: "⌘,"),
+                        action: onOpenSettings
+                    )
                 }
             }
             .padding(.trailing, Spacing.sm)

@@ -119,6 +119,8 @@ enum BorderWidth {
 enum Duration {
     /// 0.1s - Fast animation
     static let fast: Double = 0.1
+    /// 0.12s - Hover intent delay for tooltips
+    static let tooltipHoverDelay: Double = 0.12
     /// 0.15s - Default animation
     static let `default`: Double = 0.15
     /// 0.2s - Medium animation
@@ -142,6 +144,19 @@ enum LayoutMetrics {
     static let sidebarRowHeight: CGFloat = 28
     /// Shared left inset for sidebar rows/headers
     static let sidebarInset: CGFloat = 10
+}
+
+// MARK: - Tooltip Metrics
+
+enum TooltipMetrics {
+    /// Vertical gap between icon and tooltip bubble
+    static let gap: CGFloat = 8
+    /// Entry/exit travel distance for tooltip motion
+    static let travel: CGFloat = 6
+    /// Horizontal padding inside tooltip bubble
+    static let horizontalPadding: CGFloat = 10
+    /// Vertical padding inside tooltip bubble
+    static let verticalPadding: CGFloat = 6
 }
 
 // MARK: - Elevation (Shadow/Depth)
