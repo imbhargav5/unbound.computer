@@ -152,7 +152,7 @@ When configured, `daemon-ably` also forwards presence heartbeats to the Durable 
 - Supabase (Postgres, Auth, Realtime)
 - Ably (real-time message delivery, remote command routing)
 - pnpm workspaces + Turborepo
-- AGPL-3.0 license
+- Apache-2.0 license
 
 ## Prerequisites
 
@@ -302,4 +302,4 @@ cd apps/daemon && cargo clippy
 
 ## License
 
-AGPL-3.0 -- see [LICENSE](LICENSE) for details.
+Apache-2.0 -- see [LICENSE](LICENSE) for details.
