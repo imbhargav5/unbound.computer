@@ -17,3 +17,6 @@ export const navbarLinks = [
     href: "/roadmap",
   },
 ];
+
+export const macOsDownloadUrl =
+  "https://github.com/imbhargav5/unbound.computer/releases/latest/download/unbound-macos-apple-silicon.zip";

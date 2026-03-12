@@ -226,8 +226,7 @@ export MACOS_BUILD_NUMBER="1700000000"  # defaults to timestamp
 
 Expected outputs:
 
-- `dist/macos/unbound-macos-v{VERSION}-arm64.zip`
-- `dist/macos/unbound-macos-v{VERSION}-x86_64.zip`
+- `dist/macos/unbound-macos-apple-silicon.zip`
 - `dist/macos/SHA256SUMS`
 
 ## Release CI Secrets (GitHub)

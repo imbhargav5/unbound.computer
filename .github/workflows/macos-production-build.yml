@@ -1,0 +1,227 @@
+name: Build macOS Production App
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      version:
+        required: false
+        type: string
+      release_tag:
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build
+        required: false
+        default: main
+        type: string
+      version:
+        description: Override release version
+        required: false
+        type: string
+      release_tag:
+        description: Existing GitHub release tag to upload into
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Apple Silicon Release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: CI Setup
+        uses: ./.github/actions/ci-setup
+
+      - name: Resolve release version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="$(pnpm tsx scripts/release/get-current-version.ts)"
+          fi
+
+          if [[ -z "$VERSION" ]]; then
+            echo "ERROR: Could not determine release version." >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building macOS release version: $VERSION"
+
+      - name: Validate signing and notarization secrets
+        env:
+          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_PRIVATE_KEY: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY }}
+        run: |
+          missing=()
+
+          for secret_name in \
+            MACOS_CERT_BASE64 \
+            MACOS_CERT_PASSWORD \
+            MACOS_TEAM_ID \
+            MACOS_SIGNING_IDENTITY
+          do
+            if [[ -z "${!secret_name}" ]]; then
+              missing+=("$secret_name")
+            fi
+          done
+
+          has_notary_api_key=0
+          if [[ -n "$APPLE_NOTARYTOOL_KEY_ID" && -n "$APPLE_NOTARYTOOL_ISSUER_ID" && -n "$APPLE_NOTARYTOOL_PRIVATE_KEY" ]]; then
+            has_notary_api_key=1
+          fi
+
+          has_notary_apple_id=0
+          if [[ -n "$APPLE_ID" && -n "$APPLE_ID_PASSWORD" ]]; then
+            has_notary_apple_id=1
+          fi
+
+          if [[ "$has_notary_api_key" != "1" && "$has_notary_apple_id" != "1" ]]; then
+            missing+=("APPLE_ID + APPLE_ID_PASSWORD or APPLE_NOTARYTOOL_KEY_ID + APPLE_NOTARYTOOL_ISSUER_ID + APPLE_NOTARYTOOL_PRIVATE_KEY")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required macOS production release secrets:\n' >&2
+            printf -- '- %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+      - name: Configure signing keychain
+        env:
+          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$MACOS_CERT_BASE64" | base64 --decode > /tmp/macos-cert.p12 2>/dev/null || echo "$MACOS_CERT_BASE64" | base64 -D > /tmp/macos-cert.p12
+          security import /tmp/macos-cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcrun
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security list-keychain -d user -s build.keychain
+
+      - name: Generate Release.xcconfig
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          cat > apps/macos/Config/Release.xcconfig <<EOF
+          API_URL = https://unbound.computer
+          RELAY_URL = wss://unbound-computer.fly.dev
+          SUPABASE_URL = ${SUPABASE_URL}
+          SUPABASE_PUBLISHABLE_KEY = ${SUPABASE_PUBLISHABLE_KEY}
+          INFOPLIST_KEY_API_URL = \$(API_URL)
+          INFOPLIST_KEY_RELAY_URL = \$(RELAY_URL)
+          INFOPLIST_KEY_SUPABASE_URL = \$(SUPABASE_URL)
+          INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = \$(SUPABASE_PUBLISHABLE_KEY)
+          MARKETING_VERSION = \$(RELEASE_VERSION)
+          CURRENT_PROJECT_VERSION = \$(RELEASE_BUILD_NUMBER)
+          EOF
+
+      - name: Build release artifacts
+        env:
+          MACOS_ARCH: arm64
+          MACOS_ZIP_NAME: unbound-macos-apple-silicon.zip
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MACOS_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          ./scripts/release/build-macos-release.sh
+
+      - name: Verify exported app bundle
+        id: exported-app
+        run: |
+          APP_PATH="$(find dist/macos/export-arm64 -maxdepth 1 -name '*.app' -print -quit)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "ERROR: Expected exported .app in dist/macos/export-arm64." >&2
+            exit 1
+          fi
+
+          if [[ ! -x "$APP_PATH/Contents/MacOS/unbound-daemon" ]]; then
+            echo "ERROR: Bundled daemon is missing from $APP_PATH." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict "$APP_PATH"
+          echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Notarize, staple, and repackage
+        env:
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_PRIVATE_KEY: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY }}
+        run: |
+          NOTARY_PROFILE="unbound-release"
+          ZIP_PATH="dist/macos/unbound-macos-apple-silicon.zip"
+          APP_PATH="${{ steps.exported-app.outputs.app_path }}"
+
+          if [[ -n "$APPLE_NOTARYTOOL_KEY_ID" && -n "$APPLE_NOTARYTOOL_ISSUER_ID" && -n "$APPLE_NOTARYTOOL_PRIVATE_KEY" ]]; then
+            echo "$APPLE_NOTARYTOOL_PRIVATE_KEY" > /tmp/AuthKey.p8
+            xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+              --key /tmp/AuthKey.p8 \
+              --key-id "$APPLE_NOTARYTOOL_KEY_ID" \
+              --issuer "$APPLE_NOTARYTOOL_ISSUER_ID"
+          else
+            xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$MACOS_TEAM_ID" \
+              --password "$APPLE_ID_PASSWORD"
+          fi
+
+          xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun stapler staple "$APP_PATH"
+          rm -f "$ZIP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          (
+            cd dist/macos
+            shasum -a 256 "$(basename "$ZIP_PATH")" > SHA256SUMS
+          )
+          spctl -a -vv "$APP_PATH"
+
+      - name: Upload assets to GitHub Release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload \
+            "${{ inputs.release_tag }}" \
+            dist/macos/unbound-macos-apple-silicon.zip \
+            dist/macos/SHA256SUMS \
+            --clobber
+
+      - name: Upload workflow artifacts
+        if: ${{ inputs.release_tag == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unbound-macos-v${{ steps.version.outputs.version }}-apple-silicon
+          path: |
+            dist/macos/unbound-macos-apple-silicon.zip
+            dist/macos/SHA256SUMS
+          if-no-files-found: error

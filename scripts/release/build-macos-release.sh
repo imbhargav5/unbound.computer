@@ -20,6 +20,8 @@ PROJECT_FILE="$PROJECT_DIR/unbound-macos.xcodeproj"
 SCHEME="unbound-macos"
 DIST_DIR="$ROOT_DIR/dist/macos"
 RELEASE_XCCONFIG="${RELEASE_XCCONFIG:-$PROJECT_DIR/Config/Release.xcconfig}"
+MACOS_ARCH="${MACOS_ARCH:-arm64}"
+MACOS_ZIP_NAME="${MACOS_ZIP_NAME:-unbound-macos-apple-silicon.zip}"
 
 MACOS_RELEASE_VERSION="${MACOS_RELEASE_VERSION:-}"
 MACOS_BUILD_NUMBER="${MACOS_BUILD_NUMBER:-${CURRENT_PROJECT_VERSION:-}}"
@@ -52,6 +54,16 @@ if [[ "$ALLOW_UNSIGNED" != "1" ]]; then
 fi
 
 mkdir -p "$DIST_DIR"
+rm -f "$DIST_DIR/$MACOS_ZIP_NAME" "$DIST_DIR/SHA256SUMS"
+
+case "$MACOS_ARCH" in
+  arm64|x86_64)
+    ;;
+  *)
+    echo "ERROR: Unsupported MACOS_ARCH: $MACOS_ARCH" >&2
+    exit 1
+    ;;
+esac
 
 EXPORT_OPTIONS_PLIST="$(mktemp -t unbound-macos-export-options.XXXXXX.plist)"
 trap 'rm -f "$EXPORT_OPTIONS_PLIST"' EXIT
@@ -130,17 +142,15 @@ build_and_export() {
     exit 1
   fi
 
-  local zip_name="unbound-macos-v${MACOS_RELEASE_VERSION}-${arch}.zip"
-  local zip_path="$DIST_DIR/$zip_name"
-  echo "==> Zipping (${arch}) -> $zip_name"
+  local zip_path="$DIST_DIR/$MACOS_ZIP_NAME"
+  echo "==> Zipping (${arch}) -> $MACOS_ZIP_NAME"
   ditto -c -k --keepParent "$app_path" "$zip_path"
 }
 
-build_and_export arm64
-build_and_export x86_64
+build_and_export "$MACOS_ARCH"
 
 pushd "$DIST_DIR" >/dev/null
-shasum -a 256 unbound-macos-v${MACOS_RELEASE_VERSION}-arm64.zip unbound-macos-v${MACOS_RELEASE_VERSION}-x86_64.zip > SHA256SUMS
+shasum -a 256 "$MACOS_ZIP_NAME" > SHA256SUMS
 popd >/dev/null
 
 echo ""
