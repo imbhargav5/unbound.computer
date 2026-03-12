@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { MobileMenuWrapper } from "@/components/mobile-menu-wrapper";
+import { DownloadButton } from "./download-button";
 import { LeftNav } from "./left-nav";
 import { LoginCTAButton } from "./login-cta-button";
 import { MobileMenuOpen } from "./mobile-menu-open";
@@ -14,7 +15,8 @@ export async function ExternalNavigation() {
         <Suspense>
           <LeftNav />
         </Suspense>
-        <div className="hidden items-center gap-4">
+        <div className="flex items-center gap-4">
+          <DownloadButton />
           <div className="hidden lg:block">
             <Suspense>
               <LoginCTAButton />
