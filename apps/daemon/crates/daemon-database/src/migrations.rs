@@ -62,10 +62,10 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
         migrate_v8_plaintext_messages(conn)?;
     }
     if current_version < 9 {
-        migrate_v9_supabase_message_outbox(conn)?;
+        migrate_v9_retired_cloud_outbox(conn)?;
     }
     if current_version < 10 {
-        migrate_v10_supabase_sync_state(conn)?;
+        migrate_v10_retired_cloud_sync_state(conn)?;
     }
     if current_version < 11 {
         migrate_v11_session_state_runtime_envelope(conn)?;
@@ -450,54 +450,17 @@ fn migrate_v8_plaintext_messages(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
-/// V9: Supabase message outbox table.
-fn migrate_v9_supabase_message_outbox(conn: &Connection) -> DatabaseResult<()> {
-    info!("Applying migration v9: supabase_message_outbox");
-
-    conn.execute_batch(
-        "
-        CREATE TABLE IF NOT EXISTS agent_coding_session_message_supabase_outbox (
-            message_id TEXT PRIMARY KEY REFERENCES agent_coding_session_messages(id) ON DELETE CASCADE,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            sent_at TEXT,
-            last_attempt_at TEXT,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_supabase_outbox_sent_at
-            ON agent_coding_session_message_supabase_outbox(sent_at);
-        CREATE INDEX IF NOT EXISTS idx_supabase_outbox_last_attempt_at
-            ON agent_coding_session_message_supabase_outbox(last_attempt_at);
-        ",
-    )?;
-
-    record_migration(conn, 9, "supabase_message_outbox")?;
+/// V9: Retired cloud outbox migration.
+fn migrate_v9_retired_cloud_outbox(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v9: retired cloud outbox");
+    record_migration(conn, 9, "retired_cloud_outbox")?;
     Ok(())
 }
 
-/// V10: Supabase sync state table (cursor-based sync per session).
-/// Replaces per-message outbox with per-session sync tracking.
-fn migrate_v10_supabase_sync_state(conn: &Connection) -> DatabaseResult<()> {
-    info!("Applying migration v10: supabase_sync_state");
-
-    conn.execute_batch(
-        "
-        CREATE TABLE IF NOT EXISTS agent_coding_session_supabase_sync_state (
-            session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
-            last_synced_sequence_number INTEGER NOT NULL DEFAULT 0,
-            last_sync_at TEXT,
-            last_error TEXT,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_attempt_at TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_supabase_sync_state_last_attempt_at
-            ON agent_coding_session_supabase_sync_state(last_attempt_at);
-        ",
-    )?;
-
-    record_migration(conn, 10, "supabase_sync_state")?;
+/// V10: Retired cloud sync state migration.
+fn migrate_v10_retired_cloud_sync_state(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v10: retired cloud sync state");
+    record_migration(conn, 10, "retired_cloud_sync_state")?;
     Ok(())
 }
 
@@ -654,7 +617,6 @@ mod tests {
         assert!(tables.contains(&"agent_coding_sessions".to_string()));
         assert!(tables.contains(&"agent_coding_session_messages".to_string()));
         assert!(tables.contains(&"agent_coding_session_event_outbox".to_string()));
-        assert!(tables.contains(&"agent_coding_session_message_supabase_outbox".to_string()));
         assert!(tables.contains(&"user_settings".to_string()));
         assert!(tables.contains(&"session_secrets".to_string()));
         assert!(tables.contains(&"migrations".to_string()));

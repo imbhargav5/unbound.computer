@@ -5,14 +5,6 @@ use std::path::PathBuf;
 
 /// Bundle identifier for the macOS app (shared database location).
 const BUNDLE_IDENTIFIER: &str = "com.unbound.macos";
-/// Falco socket filename under the base runtime directory.
-const FALCO_SOCKET_NAME: &str = "falco.sock";
-/// Nagato socket filename under the base runtime directory.
-const NAGATO_SOCKET_NAME: &str = "nagato.sock";
-/// daemon-ably socket filename under the base runtime directory.
-const ABLY_SOCKET_NAME: &str = "ably.sock";
-/// Ably token broker socket filename under the base runtime directory.
-const ABLY_AUTH_SOCKET_NAME: &str = "ably-auth.sock";
 
 /// Manages file system paths for the daemon.
 #[derive(Debug, Clone)]
@@ -85,35 +77,6 @@ impl Paths {
         self.base_dir.join("startup-status.json")
     }
 
-    /// Get the Falco socket path (~/.unbound/falco.sock).
-    pub fn falco_socket_file(&self) -> PathBuf {
-        self.base_dir.join(FALCO_SOCKET_NAME)
-    }
-
-    /// Get the Nagato socket path (~/.unbound/nagato.sock).
-    pub fn nagato_socket_file(&self) -> PathBuf {
-        self.base_dir.join(NAGATO_SOCKET_NAME)
-    }
-
-    /// Get the daemon-ably socket path (~/.unbound/ably.sock).
-    pub fn ably_socket_file(&self) -> PathBuf {
-        self.base_dir.join(ABLY_SOCKET_NAME)
-    }
-
-    /// Get the Ably token broker socket path (~/.unbound/ably-auth.sock).
-    pub fn ably_auth_socket_file(&self) -> PathBuf {
-        self.base_dir.join(ABLY_AUTH_SOCKET_NAME)
-    }
-
-    /// Get all managed sidecar socket paths in a stable cleanup order.
-    pub fn sidecar_socket_files(&self) -> [PathBuf; 3] {
-        [
-            self.nagato_socket_file(),
-            self.falco_socket_file(),
-            self.ably_socket_file(),
-        ]
-    }
-
     /// Get the logs directory (~/.unbound/logs).
     pub fn logs_dir(&self) -> PathBuf {
         self.base_dir.join("logs")
@@ -157,18 +120,6 @@ mod tests {
         assert_eq!(
             paths.startup_status_file(),
             base.join("startup-status.json")
-        );
-        assert_eq!(paths.falco_socket_file(), base.join("falco.sock"));
-        assert_eq!(paths.nagato_socket_file(), base.join("nagato.sock"));
-        assert_eq!(paths.ably_socket_file(), base.join("ably.sock"));
-        assert_eq!(paths.ably_auth_socket_file(), base.join("ably-auth.sock"));
-        assert_eq!(
-            paths.sidecar_socket_files(),
-            [
-                base.join("nagato.sock"),
-                base.join("falco.sock"),
-                base.join("ably.sock")
-            ]
         );
         assert_eq!(paths.logs_dir(), base.join("logs"));
         assert_eq!(paths.daemon_log_file(), base.join("logs/daemon.log"));
@@ -228,10 +179,6 @@ mod tests {
         assert!(paths.database_file().ends_with("unbound.sqlite"));
         assert!(paths.socket_file().ends_with("daemon.sock"));
         assert!(paths.pid_file().ends_with("daemon.pid"));
-        assert!(paths.falco_socket_file().ends_with("falco.sock"));
-        assert!(paths.nagato_socket_file().ends_with("nagato.sock"));
-        assert!(paths.ably_socket_file().ends_with("ably.sock"));
-        assert!(paths.ably_auth_socket_file().ends_with("ably-auth.sock"));
         assert!(paths.logs_dir().ends_with("logs"));
         assert!(paths.daemon_log_file().ends_with("daemon.log"));
     }

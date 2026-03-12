@@ -77,11 +77,10 @@ pub use crate::armin::Armin;
 pub use reader::SessionReader;
 pub use side_effect::{NullSink, RecordingSink, SideEffect, SideEffectSink};
 pub use types::{
-    AblySyncState, AgentStatus, CodingSessionRuntimeState, CodingSessionStatus, Message, MessageId,
-    NewMessage, NewRepository, NewSession, NewSessionSecret, PendingSupabaseMessage,
-    PendingSyncMessage, Repository, RepositoryId, RuntimeStatusEnvelope, Session, SessionId,
-    SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
-    SupabaseMessageOutboxEntry, SupabaseSyncState, UserSetting, RUNTIME_STATUS_SCHEMA_VERSION,
+    AgentStatus, CodingSessionRuntimeState, CodingSessionStatus, Message, MessageId, NewMessage,
+    NewRepository, NewSession, NewSessionSecret, Repository, RepositoryId,
+    RuntimeStatusEnvelope, Session, SessionId, SessionSecret, SessionState, SessionStatus,
+    SessionUpdate, UserSetting, RUNTIME_STATUS_SCHEMA_VERSION,
 };
 pub use writer::SessionWriter;
 

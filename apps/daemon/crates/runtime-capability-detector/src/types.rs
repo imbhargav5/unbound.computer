@@ -25,7 +25,7 @@ pub struct DependencyCheckResult {
     pub gh: DependencyInfo,
 }
 
-/// Canonical capabilities payload for syncing to Supabase.
+/// Canonical capabilities payload shared with local clients.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Capabilities {
     pub cli: CliCapabilities,

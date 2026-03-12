@@ -23,7 +23,7 @@
 //! # Message Storage
 //!
 //! Messages are stored as plain text in SQLite. Encryption is only used for
-//! Supabase sync (handled separately, not in this crate).
+//! local session secret material, not cloud synchronization.
 
 mod db;
 mod encryption;

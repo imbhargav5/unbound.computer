@@ -17,14 +17,6 @@ enum DaemonMethod: String, Codable {
     case health
     case shutdown
 
-    // Authentication
-    case authStatus = "auth.status"
-    case authLogin = "auth.login"
-    case authCompleteSocial = "auth.complete_social"
-    case authSupabaseSession = "auth.supabase_session"
-    case authLogout = "auth.logout"
-    case billingUsageStatus = "billing.usage_status"
-
     // Sessions
     case sessionList = "session.list"
     case sessionCreate = "session.create"
@@ -116,8 +108,6 @@ enum DaemonEventType: String, Codable {
     case claudeUser = "claude_user"
     /// Claude result event.
     case claudeResult = "claude_result"
-    /// Auth state changed event.
-    case authStateChanged = "auth_state_changed"
     /// Session created event.
     case sessionCreated = "session_created"
     /// Session deleted event.
@@ -556,118 +546,6 @@ struct AnyCodableValue: Codable {
 // MARK: - Response Types
 
 /// Auth status response from daemon.
-enum DaemonAuthState: String, Codable {
-    case notLoggedIn = "not_logged_in"
-    case pendingValidation = "pending_validation"
-    case loggingIn = "logging_in"
-    case validating = "validating"
-    case verifyingWithServer = "verifying_with_server"
-    case loggedIn = "logged_in"
-    case refreshing = "refreshing"
-    case loggingOut = "logging_out"
-
-    var isValidationInFlight: Bool {
-        switch self {
-        case .pendingValidation, .validating, .verifyingWithServer, .refreshing:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-struct DaemonAuthStatus: Codable {
-    let authenticated: Bool
-    let sessionValid: Bool?
-    let hasStoredSession: Bool?
-    let state: DaemonAuthState?
-    let userId: String?
-    let email: String?
-    let expiresAt: String?  // RFC3339 string from daemon
-
-    var effectiveSessionValid: Bool {
-        sessionValid ?? authenticated
-    }
-
-    var effectiveHasStoredSession: Bool {
-        hasStoredSession ?? (userId != nil || expiresAt != nil)
-    }
-
-    var isValidationPending: Bool {
-        effectiveHasStoredSession && !effectiveSessionValid && (state?.isValidationInFlight ?? false)
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case authenticated
-        case sessionValid = "session_valid"
-        case hasStoredSession = "has_stored_session"
-        case state
-        case userId = "user_id"
-        case email
-        case expiresAt = "expires_at"
-    }
-}
-
-struct DaemonSupabaseSession: Codable {
-    let accessToken: String
-    let userId: String
-    let deviceId: String
-    let expiresAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case userId = "user_id"
-        case deviceId = "device_id"
-        case expiresAt = "expires_at"
-    }
-}
-
-enum DaemonBillingEnforcementState: String, Codable, Equatable {
-    case ok
-    case nearLimit = "near_limit"
-    case overQuota = "over_quota"
-}
-
-struct DaemonBillingUsageStatus: Codable, Equatable {
-    let plan: String
-    let gateway: String
-    let periodStart: String
-    let periodEnd: String
-    let commandsLimit: Int
-    let commandsUsed: Int
-    let commandsRemaining: Int
-    let enforcementState: DaemonBillingEnforcementState
-    let updatedAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case plan
-        case gateway
-        case periodStart = "period_start"
-        case periodEnd = "period_end"
-        case commandsLimit = "commands_limit"
-        case commandsUsed = "commands_used"
-        case commandsRemaining = "commands_remaining"
-        case enforcementState = "enforcement_state"
-        case updatedAt = "updated_at"
-    }
-}
-
-struct DaemonBillingUsageStatusResponse: Codable, Equatable {
-    let available: Bool
-    let stale: Bool
-    let delayHintMinutes: Int
-    let status: DaemonBillingUsageStatus?
-    let fetchedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case available
-        case stale
-        case delayHintMinutes = "delay_hint_minutes"
-        case status
-        case fetchedAt = "fetched_at"
-    }
-}
-
 /// Session from daemon.
 struct DaemonSession: Codable, Identifiable {
     let id: String

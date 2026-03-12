@@ -14,12 +14,6 @@
 		CD79B3BB2F03F0FA00B37FB3 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */; };
 		CD79B3BC2F03F0FA00B37FB4 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3BD2F03F0FA00B37FB5 /* Logging */; };
 		CD79B3C22F03F10A00B37FB3 /* ClaudeConversationTimeline in Frameworks */ = {isa = PBXBuildFile; productRef = CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */; };
-		CDD0B5252F07B6A8002D09F7 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5242F07B6A8002D09F7 /* Auth */; };
-		CDD0B5272F07B6A8002D09F7 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5262F07B6A8002D09F7 /* Functions */; };
-		CDD0B5292F07B6A8002D09F7 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B5282F07B6A8002D09F7 /* PostgREST */; };
-		CDD0B52B2F07B6A8002D09F7 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B52A2F07B6A8002D09F7 /* Realtime */; };
-		CDD0B52D2F07B6A8002D09F7 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B52C2F07B6A8002D09F7 /* Storage */; };
-		CDD0B52F2F07B6A8002D09F7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0B52E2F07B6A8002D09F7 /* Supabase */; };
 		CDD0BA552F097D07002D09F7 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDD0BA542F097D07002D09F7 /* GRDB */; };
 /* End PBXBuildFile section */
 
@@ -62,13 +56,7 @@
 				AB0100032F90000000000001 /* OpenTelemetryProtocolExporterHTTP in Frameworks */,
 				AB0100022F90000000000001 /* OpenTelemetrySdk in Frameworks */,
 				AB0100012F90000000000001 /* OpenTelemetryApi in Frameworks */,
-				CDD0B52D2F07B6A8002D09F7 /* Storage in Frameworks */,
-				CDD0B5292F07B6A8002D09F7 /* PostgREST in Frameworks */,
-				CDD0B5272F07B6A8002D09F7 /* Functions in Frameworks */,
 				CDD0BA552F097D07002D09F7 /* GRDB in Frameworks */,
-				CDD0B5252F07B6A8002D09F7 /* Auth in Frameworks */,
-				CDD0B52B2F07B6A8002D09F7 /* Realtime in Frameworks */,
-				CDD0B52F2F07B6A8002D09F7 /* Supabase in Frameworks */,
 				CD79B3BB2F03F0FA00B37FB3 /* SwiftTerm in Frameworks */,
 				CD79B3BC2F03F0FA00B37FB4 /* Logging in Frameworks */,
 				CD79B3C22F03F10A00B37FB3 /* ClaudeConversationTimeline in Frameworks */,
@@ -148,12 +136,6 @@
 				AB0100212F90000000000001 /* OpenTelemetrySdk */,
 				AB0100222F90000000000001 /* OpenTelemetryProtocolExporterHTTP */,
 				CD79B3BA2F03F0FA00B37FB3 /* SwiftTerm */,
-				CDD0B5242F07B6A8002D09F7 /* Auth */,
-				CDD0B5262F07B6A8002D09F7 /* Functions */,
-				CDD0B5282F07B6A8002D09F7 /* PostgREST */,
-				CDD0B52A2F07B6A8002D09F7 /* Realtime */,
-				CDD0B52C2F07B6A8002D09F7 /* Storage */,
-				CDD0B52E2F07B6A8002D09F7 /* Supabase */,
 				CDD0BA542F097D07002D09F7 /* GRDB */,
 				CD79B3BD2F03F0FA00B37FB5 /* Logging */,
 				CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */,
@@ -215,7 +197,6 @@
 				AB0100102F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */,
 				AB0100112F90000000000001 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */,
 				CD79B3B92F03F0FA00B37FB3 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
-				CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */,
 				CD79B3BE2F03F0FA00B37FB6 /* XCRemoteSwiftPackageReference "swift-log" */,
 				CD79B3C02F03F10A00B37FB3 /* XCLocalSwiftPackageReference "../shared/ClaudeConversationTimeline" */,
@@ -597,14 +578,6 @@
 				minimumVersion = 1.5.0;
 			};
 		};
-		CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase/supabase-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.5.1;
-			};
-		};
 		CDD0BA532F097D07002D09F7 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -644,36 +617,6 @@
 		CD79B3C12F03F10A00B37FB3 /* ClaudeConversationTimeline */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ClaudeConversationTimeline;
-		};
-		CDD0B5242F07B6A8002D09F7 /* Auth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Auth;
-		};
-		CDD0B5262F07B6A8002D09F7 /* Functions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Functions;
-		};
-		CDD0B5282F07B6A8002D09F7 /* PostgREST */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = PostgREST;
-		};
-		CDD0B52A2F07B6A8002D09F7 /* Realtime */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Realtime;
-		};
-		CDD0B52C2F07B6A8002D09F7 /* Storage */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Storage;
-		};
-		CDD0B52E2F07B6A8002D09F7 /* Supabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDD0B5232F07B6A8002D09F7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Supabase;
 		};
 		CDD0BA542F097D07002D09F7 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;

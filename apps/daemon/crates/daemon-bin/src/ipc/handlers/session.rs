@@ -630,27 +630,6 @@ pub async fn create_session_core(
             .insert(created_session.id.as_str(), key);
     }
 
-    let supabase_future = {
-        let session_sync = state.session_sync.clone();
-        let session_id = created_session.id.as_str().to_string();
-        let repository_id = created_session.repository_id.as_str().to_string();
-        let session_secret = session_secret.clone();
-        async move {
-            if let Err(e) = session_sync
-                .sync_new_session(&session_id, &repository_id, &session_secret)
-                .await
-            {
-                warn!(
-                    session_id = %session_id,
-                    "Failed to sync session to Supabase: {}",
-                    e
-                );
-            }
-        }
-    };
-
-    supabase_future.await;
-
     let session_data = serde_json::json!({
         "id": created_session.id.as_str(),
         "repository_id": created_session.repository_id.as_str(),

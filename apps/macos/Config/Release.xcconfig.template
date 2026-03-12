@@ -21,36 +21,6 @@ PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos
 UNBOUND_URL_SCHEME = unbound
 
 // ================================
-// Production URLs
-// ================================
-
-API_URL = https://unbound.computer
-RELAY_URL = wss://unbound-computer.fly.dev
-SUPABASE_URL = https://your-project.supabase.co
-SUPABASE_PUBLISHABLE_KEY = your-production-publishable-key
-
-// ================================
-// Observability (OTLP)
-// ================================
-
-// OpenTelemetry OTLP endpoint (same env var as the daemon)
-UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = https://your-otel-collector.example.com
-
-// Optional OTLP headers (comma-separated key=value pairs)
-// UNBOUND_OTEL_HEADERS = Authorization=Bearer token
-
-// ================================
-// Embed values into the generated Info.plist
-// ================================
-
-INFOPLIST_KEY_API_URL = $(API_URL)
-INFOPLIST_KEY_RELAY_URL = $(RELAY_URL)
-INFOPLIST_KEY_SUPABASE_URL = $(SUPABASE_URL)
-INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = $(SUPABASE_PUBLISHABLE_KEY)
-INFOPLIST_KEY_UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = $(UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT)
-INFOPLIST_KEY_UNBOUND_OTEL_HEADERS = $(UNBOUND_OTEL_HEADERS)
-
-// ================================
 // Versioning (injected by release pipeline)
 // ================================
 

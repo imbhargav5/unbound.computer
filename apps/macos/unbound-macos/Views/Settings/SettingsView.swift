@@ -32,12 +32,8 @@ struct SettingsView: View {
         switch selectedSection {
         case .general:
             GeneralSettings()
-        case .account:
-            AccountSettings()
         case .repositories:
             RepositoriesSettings()
-        case .network:
-            NetworkSettings()
         case .appearance:
             AppearanceSettings()
         case .notifications:

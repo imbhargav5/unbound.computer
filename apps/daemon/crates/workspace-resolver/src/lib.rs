@@ -221,41 +221,6 @@ mod tests {
         fn has_session_secret(&self, _session: &SessionId) -> Result<bool, ArminError> {
             Ok(false)
         }
-
-        fn get_pending_supabase_messages(
-            &self,
-            _limit: usize,
-        ) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
-            Ok(vec![])
-        }
-
-        fn get_supabase_sync_state(
-            &self,
-            _session: &SessionId,
-        ) -> Result<Option<SupabaseSyncState>, ArminError> {
-            Ok(None)
-        }
-
-        fn get_sessions_pending_sync(
-            &self,
-            _limit_per_session: usize,
-        ) -> Result<Vec<SessionPendingSync>, ArminError> {
-            Ok(vec![])
-        }
-
-        fn get_ably_sync_state(
-            &self,
-            _session: &SessionId,
-        ) -> Result<Option<AblySyncState>, ArminError> {
-            Ok(None)
-        }
-
-        fn get_sessions_pending_ably_sync(
-            &self,
-            _limit_per_session: usize,
-        ) -> Result<Vec<SessionPendingSync>, ArminError> {
-            Ok(vec![])
-        }
     }
 
     // =========================================================================

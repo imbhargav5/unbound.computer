@@ -20,49 +20,6 @@ PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos-dev
 UNBOUND_URL_SCHEME = unbound-dev
 
 // ================================
-// Local Development URLs
-// ================================
-
-// Relay WebSocket server (local)
-RELAY_URL = ws://localhost:8080
-
-// Web API server (local Next.js)
-API_URL = http://localhost:3000
-
-// Supabase (local instance)
-SUPABASE_URL = http://127.0.0.1:54321
-
-// Supabase publishable key (local default)
-// This is the default key for local Supabase - safe to commit
-SUPABASE_PUBLISHABLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-
-// ================================
-// Staging URLs (uncomment to use)
-// ================================
-
-// RELAY_URL = wss://staging-relay.example.com
-// API_URL = https://staging.unbound.computer
-// SUPABASE_URL = https://staging-project.supabase.co
-// SUPABASE_PUBLISHABLE_KEY = your-staging-publishable-key
-
-// ================================
-// Observability (OTLP)
-// ================================
-
-// OpenTelemetry OTLP endpoint (same env var as the daemon)
-// UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = http://localhost:4318
-
-// Optional OTLP headers (comma-separated key=value pairs)
-// UNBOUND_OTEL_HEADERS = Authorization=Bearer token,X-Custom=value
-
-// Embed OTLP values into the generated Info.plist when you prefer build-config injection
-INFOPLIST_KEY_UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT = $(UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT)
-INFOPLIST_KEY_UNBOUND_OTEL_HEADERS = $(UNBOUND_OTEL_HEADERS)
-
-// ================================
 // Notes
 // ================================
 // - These values override the defaults in Config.swift when DEBUG is defined
-// - The app reads these from ProcessInfo.processInfo.environment
-// - For Xcode to use these at runtime, add them to Scheme > Run > Arguments > Environment Variables
-//   with $(RELAY_URL), $(API_URL), $(UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT), etc.

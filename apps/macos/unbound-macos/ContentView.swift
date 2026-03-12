@@ -3,7 +3,7 @@
 //  unbound-macos
 //
 //  Main content view with shadcn styling.
-//  Gates app behind daemon connection and authentication.
+//  Gates app behind daemon connection and local dependency checks.
 //
 
 import SwiftUI
@@ -34,7 +34,6 @@ struct ContentView: View {
                 .transition(.opacity)
 
             case .connected:
-                // Daemon connected - check auth
                 connectedContent
             }
         }
@@ -50,60 +49,20 @@ struct ContentView: View {
 
     @ViewBuilder
     private var connectedContent: some View {
-        if appState.isAuthenticated {
-            if appState.dependenciesSatisfied {
-                // Show main app
-                ZStack {
-                    WorkspaceView()
-                        .opacity(appState.showSettings ? 0 : 1)
+        if appState.dependenciesSatisfied {
+            ZStack {
+                WorkspaceView()
+                    .opacity(appState.showSettings ? 0 : 1)
 
-                    if appState.showSettings {
-                        SettingsView()
-                    }
+                if appState.showSettings {
+                    SettingsView()
                 }
-                .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
-            } else {
-                // Dependency check gate
-                DependencyCheckView()
-                    .transition(.opacity)
             }
-        } else if appState.isAuthValidationPending {
-            AuthRestoringView()
-                .transition(.opacity)
+            .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
         } else {
-            // Show login
-            OnboardingView()
+            DependencyCheckView()
                 .transition(.opacity)
         }
-    }
-}
-
-// MARK: - Auth Restoring View
-
-struct AuthRestoringView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var colors: ThemeColors {
-        ThemeColors(colorScheme)
-    }
-
-    var body: some View {
-        VStack(spacing: Spacing.lg) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .scaleEffect(1.5)
-
-            VStack(spacing: Spacing.sm) {
-                Text("Restoring Session")
-                    .font(Typography.title2)
-                    .foregroundColor(colors.foreground)
-
-                Text("Validating saved credentials...")
-                    .font(Typography.body)
-                    .foregroundColor(colors.mutedForeground)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -188,7 +147,7 @@ struct DaemonErrorView: View {
 
 #if DEBUG
 
-#Preview("Connected - Authenticated") {
+#Preview("Connected") {
     ContentView()
         .environment(AppState())
         .frame(width: 1200, height: 800)

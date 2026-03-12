@@ -261,19 +261,6 @@ enum DaemonLauncher {
         loadDotEnv(into: &environment, daemonPath: path)
         #endif
 
-        // Authoritative config from the macOS app — always overrides .env.local.
-        environment["SUPABASE_URL"] = Config.supabaseURL.absoluteString
-        environment["SUPABASE_PUBLISHABLE_KEY"] = Config.supabasePublishableKey
-        environment["UNBOUND_WEB_APP_URL"] = Config.apiURL.absoluteString
-
-        if let heartbeatURL = Config.presenceDOHeartbeatURL {
-            environment["UNBOUND_PRESENCE_DO_HEARTBEAT_URL"] = heartbeatURL
-        }
-        if let token = Config.presenceDOToken {
-            environment["UNBOUND_PRESENCE_DO_TOKEN"] = token
-        }
-        environment["UNBOUND_PRESENCE_DO_TTL_MS"] = String(Config.presenceDOTTLMS)
-
         // Carry over PATH so the daemon can find system tools.
         if let systemPath = ProcessInfo.processInfo.environment["PATH"] {
             environment["PATH"] = systemPath

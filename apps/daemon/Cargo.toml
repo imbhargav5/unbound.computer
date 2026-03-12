@@ -6,13 +6,8 @@ members = [
     "crates/daemon-config-and-utils",
     "crates/daemon-storage",
     "crates/daemon-database",
-    "crates/auth-engine",
-    "crates/daemon-auth",
     "crates/daemon-ipc",
     "crates/daemon-bin",
-
-    "crates/session-sync-sink",
-    "crates/message-sync-retriable-worker",
     "crates/claude-process-manager",
     "crates/safe-repo-dir-lister",
     "crates/session-title-generator",
@@ -96,12 +91,7 @@ claude-debug-logs = { path = "crates/claude-debug-logs" }
 daemon-config-and-utils = { path = "crates/daemon-config-and-utils" }
 daemon-storage = { path = "crates/daemon-storage" }
 daemon-database = { path = "crates/daemon-database" }
-auth-engine = { path = "crates/auth-engine" }
-daemon-auth = { path = "crates/daemon-auth" }
 daemon-ipc = { path = "crates/daemon-ipc" }
-
-session-sync-sink = { path = "crates/session-sync-sink" }
-message-sync-retriable-worker = { path = "crates/message-sync-retriable-worker" }
 claude-process-manager = { path = "crates/claude-process-manager" }
 safe-repo-dir-lister = { path = "crates/safe-repo-dir-lister" }
 session-title-generator = { path = "crates/session-title-generator" }

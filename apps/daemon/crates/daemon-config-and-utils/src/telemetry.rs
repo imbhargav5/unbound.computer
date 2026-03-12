@@ -39,8 +39,8 @@ mod tests {
     #[test]
     fn url_host_extracts_hostname() {
         assert_eq!(
-            url_host("https://example.supabase.co/rest/v1/devices").as_deref(),
-            Some("example.supabase.co")
+            url_host("https://api.example.local/rest/v1/devices").as_deref(),
+            Some("api.example.local")
         );
     }
 }

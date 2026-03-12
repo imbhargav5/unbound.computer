@@ -1064,7 +1064,7 @@ class SessionLiveState {
             case .ping:
                 break
 
-            case .authStateChanged, .sessionCreated, .sessionDeleted:
+            case .sessionCreated, .sessionDeleted:
                 // Global events, not relevant for per-session state
                 break
             }

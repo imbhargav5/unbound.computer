@@ -104,62 +104,8 @@ struct ResolvedObservabilityStatus: Equatable {
 }
 
 enum Config {
-    private static let defaultLocalAPIURL = URL(string: "http://localhost:3000")!
-    private static let defaultProdAPIURL = URL(string: "https://unbound.computer")!
-    private static let defaultPresenceDOTTLMS = 12_000
     private static let defaultDevTraceRatio = 1.0
     private static let defaultProdTraceRatio = 0.05
-
-    // MARK: - API
-
-    /// The main API URL
-    static var apiURL: URL {
-        if let raw = readOptionalConfigValue(env: "API_URL", plist: "API_URL"),
-           let url = URL(string: raw)
-        {
-            return url
-        }
-        #if DEBUG
-        return defaultLocalAPIURL
-        #else
-        return defaultProdAPIURL
-        #endif
-    }
-
-    // MARK: - Supabase
-
-    /// Supabase project URL
-    static var supabaseURL: URL {
-        if let raw = readOptionalConfigValue(env: "SUPABASE_URL", plist: "SUPABASE_URL"),
-           let url = URL(string: raw)
-        {
-            return url
-        }
-        #if DEBUG
-        // Local Supabase
-        return URL(string: "http://127.0.0.1:54321")!
-        #else
-        // Production Supabase - replace with your actual URL
-        return URL(string: "https://your-project.supabase.co")!
-        #endif
-    }
-
-    /// Supabase publishable key
-    static var supabasePublishableKey: String {
-        if let key = readOptionalConfigValue(
-            env: "SUPABASE_PUBLISHABLE_KEY",
-            plist: "SUPABASE_PUBLISHABLE_KEY"
-        ) {
-            return key
-        }
-        #if DEBUG
-        // Local Supabase default publishable key
-        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
-        #else
-        // Production key - should be set properly
-        return ""
-        #endif
-    }
 
     // MARK: - Daemon Paths
 
@@ -184,25 +130,6 @@ enum Config {
     /// Full path to the daemon socket
     static var socketPath: String {
         "\(daemonBaseDir)/daemon.sock"
-    }
-
-    // MARK: - OAuth Configuration
-
-    /// OAuth redirect URL scheme for deep linking
-    static var oauthRedirectScheme: String {
-        if let value = readOptionalConfigValue(env: "UNBOUND_URL_SCHEME", plist: "UNBOUND_URL_SCHEME") {
-            return value
-        }
-        #if DEBUG
-        return "unbound-dev"
-        #else
-        return "unbound"
-        #endif
-    }
-
-    /// Full OAuth redirect URL for Supabase auth callbacks
-    static var oauthRedirectURL: URL {
-        URL(string: "\(oauthRedirectScheme)://auth/callback")!
     }
 
     /// Bundle identifier for the app
@@ -265,35 +192,6 @@ enum Config {
         ).override
     }
 
-    // MARK: - Presence DO
-
-    static var presenceDOHeartbeatURL: String? {
-        readOptionalConfigValue(
-            env: "UNBOUND_PRESENCE_DO_HEARTBEAT_URL",
-            plist: "UNBOUND_PRESENCE_DO_HEARTBEAT_URL"
-        )
-    }
-
-    static var presenceDOToken: String? {
-        readOptionalConfigValue(
-            env: "UNBOUND_PRESENCE_DO_TOKEN",
-            plist: "UNBOUND_PRESENCE_DO_TOKEN"
-        )
-    }
-
-    static var presenceDOTTLMS: Int {
-        if let raw = readOptionalConfigValue(
-            env: "UNBOUND_PRESENCE_DO_TTL_MS",
-            plist: "UNBOUND_PRESENCE_DO_TTL_MS"
-        ),
-           let value = Int(raw),
-           value > 0
-        {
-            return value
-        }
-        return defaultPresenceDOTTLMS
-    }
-
     static var observabilityInfoSampleRate: Double {
         resolveSampleRate(
             env: "UNBOUND_OBS_INFO_SAMPLE_RATE",
@@ -322,9 +220,6 @@ enum Config {
     static func printConfig() {
         #if DEBUG
         logger.debug("Config:")
-        logger.debug("  - API URL: \(apiURL)")
-        logger.debug("  - Supabase URL: \(supabaseURL)")
-        logger.debug("  - OAuth Redirect: \(oauthRedirectURL)")
         logger.debug("  - Daemon Base Dir: \(daemonBaseDir)")
         logger.debug("  - Socket Path: \(socketPath)")
         logger.debug("  - Debug Mode: \(isDebug)")

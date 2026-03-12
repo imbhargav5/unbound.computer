@@ -32,10 +32,9 @@ use crate::side_effect::{SideEffect, SideEffectSink};
 use crate::snapshot::{SessionSnapshot, SnapshotView};
 use crate::sqlite::SqliteStore;
 use crate::types::{
-    AblySyncState, CodingSessionStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
-    NewSessionSecret, PendingSupabaseMessage, Repository, RepositoryId, Session, SessionId,
-    SessionPendingSync, SessionSecret, SessionState, SessionStatus, SessionUpdate,
-    SupabaseSyncState,
+    CodingSessionStatus, Message, NewMessage, NewRepository, NewSession, NewSessionSecret,
+    Repository, RepositoryId, Session, SessionId, SessionSecret, SessionState, SessionStatus,
+    SessionUpdate,
 };
 use crate::writer::SessionWriter;
 use crate::ArminError;
@@ -449,77 +448,6 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         // 1. Commit fact to SQLite
         Ok(self.sqlite.delete_session_secret(session)?)
     }
-
-    // ========================================================================
-    // Supabase message outbox operations
-    // ========================================================================
-
-    fn insert_supabase_message_outbox(&self, message_id: &MessageId) -> Result<(), ArminError> {
-        self.sqlite.insert_supabase_message_outbox(message_id)?;
-        Ok(())
-    }
-
-    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> Result<(), ArminError> {
-        self.sqlite.mark_supabase_messages_sent(message_ids)?;
-        Ok(())
-    }
-
-    fn mark_supabase_messages_failed(
-        &self,
-        message_ids: &[MessageId],
-        error: &str,
-    ) -> Result<(), ArminError> {
-        self.sqlite
-            .mark_supabase_messages_failed(message_ids, error)?;
-        Ok(())
-    }
-
-    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> Result<(), ArminError> {
-        self.sqlite.delete_supabase_message_outbox(message_ids)?;
-        Ok(())
-    }
-
-    // ========================================================================
-    // Supabase sync state operations (cursor-based)
-    // ========================================================================
-
-    fn mark_supabase_sync_success(
-        &self,
-        session: &SessionId,
-        up_to_sequence: i64,
-    ) -> Result<(), ArminError> {
-        self.sqlite
-            .mark_supabase_sync_success(session, up_to_sequence)?;
-        Ok(())
-    }
-
-    fn mark_supabase_sync_failed(
-        &self,
-        session: &SessionId,
-        error: &str,
-    ) -> Result<(), ArminError> {
-        self.sqlite.mark_supabase_sync_failed(session, error)?;
-        Ok(())
-    }
-
-    // ========================================================================
-    // Ably sync state operations (cursor-based)
-    // ========================================================================
-
-    fn mark_ably_sync_success(
-        &self,
-        session: &SessionId,
-        up_to_sequence: i64,
-    ) -> Result<(), ArminError> {
-        self.sqlite
-            .mark_ably_sync_success(session, up_to_sequence)?;
-        Ok(())
-    }
-
-    fn mark_ably_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError> {
-        self.sqlite.mark_ably_sync_failed(session, error)?;
-        Ok(())
-    }
 }
 
 impl<S: SideEffectSink> SessionReader for Armin<S> {
@@ -587,55 +515,6 @@ impl<S: SideEffectSink> SessionReader for Armin<S> {
 
     fn has_session_secret(&self, session: &SessionId) -> Result<bool, ArminError> {
         Ok(self.sqlite.has_session_secret(session)?)
-    }
-
-    // ========================================================================
-    // Supabase message outbox operations
-    // ========================================================================
-
-    fn get_pending_supabase_messages(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<PendingSupabaseMessage>, ArminError> {
-        Ok(self.sqlite.get_pending_supabase_messages(limit)?)
-    }
-
-    // ========================================================================
-    // Supabase sync state operations (cursor-based)
-    // ========================================================================
-
-    fn get_supabase_sync_state(
-        &self,
-        session: &SessionId,
-    ) -> Result<Option<SupabaseSyncState>, ArminError> {
-        Ok(self.sqlite.get_supabase_sync_state(session)?)
-    }
-
-    fn get_sessions_pending_sync(
-        &self,
-        limit_per_session: usize,
-    ) -> Result<Vec<SessionPendingSync>, ArminError> {
-        Ok(self.sqlite.get_sessions_pending_sync(limit_per_session)?)
-    }
-
-    // ========================================================================
-    // Ably sync state operations (cursor-based)
-    // ========================================================================
-
-    fn get_ably_sync_state(
-        &self,
-        session: &SessionId,
-    ) -> Result<Option<AblySyncState>, ArminError> {
-        Ok(self.sqlite.get_ably_sync_state(session)?)
-    }
-
-    fn get_sessions_pending_ably_sync(
-        &self,
-        limit_per_session: usize,
-    ) -> Result<Vec<SessionPendingSync>, ArminError> {
-        Ok(self
-            .sqlite
-            .get_sessions_pending_ably_sync(limit_per_session)?)
     }
 }
 

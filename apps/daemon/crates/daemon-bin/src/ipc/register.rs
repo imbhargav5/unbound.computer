@@ -1,7 +1,6 @@
 //! Handler registration for the IPC server.
 
 use crate::app::DaemonState;
-use crate::auth;
 use crate::ipc::handlers;
 use daemon_ipc::IpcServer;
 use tracing::info;
@@ -10,8 +9,6 @@ use tracing::info;
 pub async fn register_handlers(server: &IpcServer, state: DaemonState) {
     // Register all handler modules
     handlers::health::register(server).await;
-    auth::register_handlers(server, state.clone()).await;
-    handlers::billing::register(server, state.clone()).await;
     handlers::session::register(server, state.clone()).await;
     handlers::repository::register(server, state.clone()).await;
     handlers::message::register(server, state.clone()).await;

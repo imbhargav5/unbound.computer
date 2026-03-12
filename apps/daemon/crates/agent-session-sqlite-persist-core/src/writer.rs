@@ -10,7 +10,7 @@
 //! - If SQLite write fails, nothing else happens
 
 use crate::types::{
-    AgentStatus, CodingSessionStatus, Message, MessageId, NewMessage, NewRepository, NewSession,
+    AgentStatus, CodingSessionStatus, Message, NewMessage, NewRepository, NewSession,
     NewSessionSecret, Repository, RepositoryId, Session, SessionId, SessionUpdate,
 };
 use crate::ArminError;
@@ -143,53 +143,4 @@ pub trait SessionWriter {
 
     /// Deletes a session secret.
     fn delete_session_secret(&self, session: &SessionId) -> Result<bool, ArminError>;
-
-    // ========================================================================
-    // Supabase message outbox operations
-    // ========================================================================
-
-    /// Insert a message into the Supabase message outbox.
-    fn insert_supabase_message_outbox(&self, message_id: &MessageId) -> Result<(), ArminError>;
-
-    /// Mark messages as sent to Supabase.
-    fn mark_supabase_messages_sent(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
-
-    /// Mark messages as failed to sync (updates retry count and last error).
-    fn mark_supabase_messages_failed(
-        &self,
-        message_ids: &[MessageId],
-        error: &str,
-    ) -> Result<(), ArminError>;
-
-    /// Delete messages from the Supabase outbox.
-    fn delete_supabase_message_outbox(&self, message_ids: &[MessageId]) -> Result<(), ArminError>;
-
-    // ========================================================================
-    // Supabase sync state operations (cursor-based)
-    // ========================================================================
-
-    /// Marks sync as successful for a session up to a sequence number.
-    fn mark_supabase_sync_success(
-        &self,
-        session: &SessionId,
-        up_to_sequence: i64,
-    ) -> Result<(), ArminError>;
-
-    /// Marks sync as failed for a session (increments retry count).
-    fn mark_supabase_sync_failed(&self, session: &SessionId, error: &str)
-        -> Result<(), ArminError>;
-
-    // ========================================================================
-    // Ably sync state operations (cursor-based)
-    // ========================================================================
-
-    /// Marks Ably sync as successful for a session up to a sequence number.
-    fn mark_ably_sync_success(
-        &self,
-        session: &SessionId,
-        up_to_sequence: i64,
-    ) -> Result<(), ArminError>;
-
-    /// Marks Ably sync as failed for a session (increments retry count).
-    fn mark_ably_sync_failed(&self, session: &SessionId, error: &str) -> Result<(), ArminError>;
 }

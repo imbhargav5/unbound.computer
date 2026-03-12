@@ -1,9 +1,0 @@
-[package]
-name = "daemon-auth"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-
-[dependencies]
-auth-engine = { workspace = true }

@@ -8,7 +8,7 @@ mod logging;
 mod paths;
 mod telemetry;
 
-pub use config::{compile_time_web_app_url, Config, DEFAULT_WEB_APP_URL};
+pub use config::Config;
 pub use conversation_crypto::{
     decrypt_conversation_message, encrypt_conversation_message,
     encrypt_conversation_message_with_nonce, ConversationCryptoError, EncryptedConversationPayload,

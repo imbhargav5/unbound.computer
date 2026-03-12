@@ -70,7 +70,7 @@ pub async fn check_all() -> Result<DependencyCheckResult, RuntimeCapabilityDetec
     })
 }
 
-/// Collect the canonical capabilities payload for syncing to Supabase.
+/// Collect the canonical capabilities payload exposed over local IPC.
 pub async fn collect_capabilities() -> Result<Capabilities, RuntimeCapabilityDetectorError> {
     let (claude, gh, codex, ollama) = tokio::join!(
         check_dependency("claude"),

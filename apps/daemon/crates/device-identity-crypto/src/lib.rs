@@ -1,7 +1,7 @@
 //! Device identity and crypto coordination for the Unbound daemon.
 //!
 //! Manages loading device ID/private key from keychain, deriving database
-//! encryption keys, and decrypting session secrets from Supabase.
+//! encryption keys, and decoding encrypted session secret records.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use thiserror::Error;
@@ -107,7 +107,7 @@ pub fn encode_base64(bytes: &[u8]) -> String {
     BASE64.encode(bytes)
 }
 
-/// A remote session secret record from Supabase.
+/// An encrypted session secret record shared between devices.
 #[derive(Debug, Clone)]
 pub struct RemoteSecretRecord {
     pub session_id: String,

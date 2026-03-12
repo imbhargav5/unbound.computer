@@ -23,22 +23,6 @@ pub enum Method {
     Health,
     Shutdown,
 
-    // Authentication
-    #[serde(rename = "auth.status")]
-    AuthStatus,
-    #[serde(rename = "auth.login")]
-    AuthLogin,
-    #[serde(rename = "auth.complete_social")]
-    AuthCompleteSocial,
-    #[serde(rename = "auth.supabase_session")]
-    AuthSupabaseSession,
-    #[serde(rename = "auth.logout")]
-    AuthLogout,
-
-    // Billing
-    #[serde(rename = "billing.usage_status")]
-    BillingUsageStatus,
-
     // Sessions
     #[serde(rename = "session.list")]
     SessionList,
@@ -134,8 +118,6 @@ pub enum Method {
     // System operations
     #[serde(rename = "system.check_dependencies")]
     SystemCheckDependencies,
-    #[serde(rename = "system.refresh_capabilities")]
-    SystemRefreshCapabilities,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]
@@ -183,8 +165,6 @@ pub enum EventType {
     TerminalFinished,
     /// Raw Claude NDJSON event (TUI parses typed messages from this).
     ClaudeEvent,
-    /// Authentication state changed.
-    AuthStateChanged,
     /// A new session was created.
     SessionCreated,
     /// A session was deleted.
@@ -432,12 +412,6 @@ mod tests {
     #[test]
     fn method_dotted_names_serialize_correctly() {
         let cases = vec![
-            (Method::AuthStatus, "\"auth.status\""),
-            (Method::AuthLogin, "\"auth.login\""),
-            (Method::AuthCompleteSocial, "\"auth.complete_social\""),
-            (Method::AuthSupabaseSession, "\"auth.supabase_session\""),
-            (Method::AuthLogout, "\"auth.logout\""),
-            (Method::BillingUsageStatus, "\"billing.usage_status\""),
             (Method::SessionList, "\"session.list\""),
             (Method::SessionCreate, "\"session.create\""),
             (Method::SessionGet, "\"session.get\""),
@@ -489,10 +463,6 @@ mod tests {
                 Method::SystemCheckDependencies,
                 "\"system.check_dependencies\"",
             ),
-            (
-                Method::SystemRefreshCapabilities,
-                "\"system.refresh_capabilities\"",
-            ),
             (Method::TerminalRun, "\"terminal.run\""),
             (Method::TerminalStatus, "\"terminal.status\""),
             (Method::TerminalStop, "\"terminal.stop\""),
@@ -509,11 +479,6 @@ mod tests {
         let methods = vec![
             Method::Health,
             Method::Shutdown,
-            Method::AuthStatus,
-            Method::AuthLogin,
-            Method::AuthCompleteSocial,
-            Method::AuthLogout,
-            Method::BillingUsageStatus,
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
@@ -553,7 +518,6 @@ mod tests {
             Method::GhPrChecks,
             Method::GhPrMerge,
             Method::SystemCheckDependencies,
-            Method::SystemRefreshCapabilities,
             Method::TerminalRun,
             Method::TerminalStatus,
             Method::TerminalStop,
@@ -652,9 +616,9 @@ mod tests {
 
     #[test]
     fn request_serialization_includes_method() {
-        let request = Request::new(Method::AuthLogin);
+        let request = Request::new(Method::SessionList);
         let json = request.to_json().unwrap();
-        assert!(json.contains("\"method\":\"auth.login\""));
+        assert!(json.contains("\"method\":\"session.list\""));
     }
 
     #[test]
@@ -853,7 +817,6 @@ mod tests {
             (EventType::TerminalOutput, "\"terminal_output\""),
             (EventType::TerminalFinished, "\"terminal_finished\""),
             (EventType::ClaudeEvent, "\"claude_event\""),
-            (EventType::AuthStateChanged, "\"auth_state_changed\""),
             (EventType::SessionCreated, "\"session_created\""),
             (EventType::SessionDeleted, "\"session_deleted\""),
         ];
@@ -879,7 +842,6 @@ mod tests {
             EventType::TerminalOutput,
             EventType::TerminalFinished,
             EventType::ClaudeEvent,
-            EventType::AuthStateChanged,
             EventType::SessionCreated,
             EventType::SessionDeleted,
         ];
@@ -1017,11 +979,6 @@ mod tests {
         let methods = vec![
             Method::Health,
             Method::Shutdown,
-            Method::AuthStatus,
-            Method::AuthLogin,
-            Method::AuthCompleteSocial,
-            Method::AuthLogout,
-            Method::BillingUsageStatus,
             Method::SessionList,
             Method::SessionCreate,
             Method::SessionGet,
@@ -1065,6 +1022,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 49);
+        assert_eq!(methods.len(), 43);
     }
 }

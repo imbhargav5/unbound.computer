@@ -539,33 +539,15 @@ struct SessionRow: View {
         ThemeColors(colorScheme)
     }
 
-    private var runtimeStatus: CodingSessionRuntimeStatus? {
-        appState.sessionRuntimeStatusService.runtimeStatusBySessionId[session.id]?.codingSession.status
-    }
-
-    private var shouldShowSpinner: Bool {
-        guard let runtimeStatus else { return false }
-        return runtimeStatus == .running || runtimeStatus == .waiting
-    }
-
     var body: some View {
-        let _ = appState.sessionRuntimeStatusService.runtimeStatusBySessionId
         Button(action: onSelect) {
             HStack(spacing: Spacing.sm) {
-                Group {
-                    if shouldShowSpinner {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(isSelected ? colors.primary : colors.gray525)
-                    } else {
-                        Image("bot")
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 12, height: 12)
-                            .foregroundStyle(isSelected ? colors.primary : colors.gray525)
-                    }
-                }
+                Image("bot")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                    .foregroundStyle(isSelected ? colors.primary : colors.gray525)
                 .frame(width: 12, height: 12)
 
                 Text(session.displayTitle)

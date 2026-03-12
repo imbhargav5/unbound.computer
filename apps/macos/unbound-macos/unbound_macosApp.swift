@@ -118,25 +118,6 @@ struct unbound_macosApp: App {
                 .task {
                     await initialize()
                 }
-                .onOpenURL { url in
-                    // Handle deep links (OAuth callbacks)
-                    // Daemon handles auth, so just log for now
-                    logger.info("Deep link received: \(url.absoluteString)")
-
-                    // If this is an auth callback, refresh auth status
-                    if url.scheme == Config.oauthRedirectScheme && url.host == "auth" {
-                        Task {
-                            await TracingService.withUserIntentRoot(
-                                name: "auth.complete_social"
-                            ) { _ in
-                                await appState?.refreshAuthStatus()
-                                if appState?.isAuthenticated == true {
-                                    await appState?.loadDataAsync()
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
         .windowStyle(.hiddenTitleBar)

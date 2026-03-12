@@ -1,13 +1,10 @@
 //! Unbound Daemon - Background service for authentication, database, and relay communication.
 
-mod ably;
 mod app;
 mod armin_adapter;
-mod auth;
 mod ipc;
 mod machines;
 mod observability;
-mod remote_command_handler;
 mod types;
 mod utils;
 

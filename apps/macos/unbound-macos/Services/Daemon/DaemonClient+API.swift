@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import AppKit
 import Logging
 
 private let logger = Logger(label: "app.daemon.api")
@@ -25,86 +24,6 @@ extension DaemonClient {
     func health() async throws -> Bool {
         let response = try await call(method: .health)
         return response.isSuccess
-    }
-}
-
-// MARK: - Authentication
-
-extension DaemonClient {
-    /// Get current authentication status.
-    func getAuthStatus() async throws -> DaemonAuthStatus {
-        let response = try await call(method: .authStatus)
-        return try response.resultAs(DaemonAuthStatus.self)
-    }
-
-    /// Get Supabase auth session tokens for realtime subscribers.
-    func getSupabaseAuthSession() async throws -> DaemonSupabaseSession {
-        let response = try await call(method: .authSupabaseSession)
-        return try response.resultAs(DaemonSupabaseSession.self)
-    }
-
-    /// Start login flow with email and password.
-    /// - Parameters:
-    ///   - email: User's email address.
-    ///   - password: User's password.
-    func loginWithPassword(email: String, password: String) async throws {
-        let params: [String: Any] = [
-            "email": email,
-            "password": password
-        ]
-        _ = try await call(method: .authLogin, params: params)
-    }
-
-    /// Start login flow with OAuth provider.
-    /// - Parameters:
-    ///   - provider: OAuth provider ("github", "google", "gitlab").
-    ///   - email: Unused for social login (kept for compatibility).
-    func loginWithProvider(_ provider: String, email: String? = nil) async throws {
-        var params: [String: Any] = ["provider": provider]
-        if let email {
-            params["email"] = email
-        }
-
-        let startResponse = try await call(method: .authLogin, params: params)
-        let socialStart = try startResponse.resultAs(DaemonSocialLoginStart.self)
-
-        guard let loginUrl = URL(string: socialStart.loginUrl) else {
-            throw DaemonError.decodingFailed("Invalid social login URL")
-        }
-
-        guard NSWorkspace.shared.open(loginUrl) else {
-            throw DaemonError.connectionFailed("Failed to open browser for social login")
-        }
-
-        _ = try await call(method: .authCompleteSocial, params: [
-            "login_id": socialStart.loginId,
-            "timeout_secs": 180
-        ])
-    }
-
-    /// Logout and clear session.
-    func logout() async throws {
-        _ = try await call(method: .authLogout)
-    }
-
-    /// Get billing usage status from daemon cache.
-    func getBillingUsageStatus() async throws -> DaemonBillingUsageStatusResponse {
-        let response = try await call(method: .billingUsageStatus)
-        return try response.resultAs(DaemonBillingUsageStatusResponse.self)
-    }
-}
-
-private struct DaemonSocialLoginStart: Codable {
-    let status: String
-    let provider: String
-    let loginId: String
-    let loginUrl: String
-
-    enum CodingKeys: String, CodingKey {
-        case status
-        case provider
-        case loginId = "login_id"
-        case loginUrl = "login_url"
     }
 }
 

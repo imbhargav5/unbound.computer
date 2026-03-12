@@ -5,7 +5,7 @@
 //  Models for registered local repositories
 //
 //  Architecture: Repository is a logical container with zero execution state.
-//  All work happens in Sessions (worktrees). Settings sync to Supabase.
+//  All work happens in Sessions (worktrees). Settings stay local.
 //
 
 import Foundation
@@ -20,7 +20,7 @@ struct Repository: Identifiable, Codable, Hashable {
     let addedAt: Date
     var isGitRepository: Bool
 
-    // Settings (synced to Supabase)
+    // Settings stored locally
     var sessionsPath: String?
     var defaultBranch: String?
     var defaultRemote: String?

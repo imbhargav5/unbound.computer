@@ -19,7 +19,7 @@ mod linux;
 mod windows;
 
 pub use keys::StorageKeys;
-pub use secrets::{SecretsManager, SupabaseSessionMeta, TrustRole, TrustedDevice};
+pub use secrets::SecretsManager;
 pub use traits::SecureStorage;
 
 use thiserror::Error;
@@ -168,138 +168,6 @@ mod tests {
     }
 
     #[test]
-    fn test_secrets_manager_supabase_session() {
-        let storage = Box::new(MemoryStorage::new());
-        let manager = SecretsManager::new(storage);
-
-        // Initially no session
-        assert!(!manager.has_supabase_session().unwrap());
-
-        // Set session using convenience method
-        let future_time = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
-        manager
-            .set_supabase_session(
-                "access-token",
-                "refresh-token",
-                "user-123",
-                Some("test@example.com"),
-                &future_time,
-            )
-            .unwrap();
-
-        // Session should exist
-        assert!(manager.has_supabase_session().unwrap());
-
-        // Verify individual tokens
-        assert_eq!(
-            manager.get_supabase_access_token().unwrap(),
-            Some("access-token".to_string())
-        );
-        assert_eq!(
-            manager.get_supabase_refresh_token().unwrap(),
-            Some("refresh-token".to_string())
-        );
-
-        // Verify metadata
-        let meta = manager.get_supabase_session_meta().unwrap().unwrap();
-        assert_eq!(meta.user_id, "user-123");
-        assert_eq!(meta.project_ref, "default");
-
-        // Clear session
-        manager.clear_supabase_session().unwrap();
-        assert!(!manager.has_supabase_session().unwrap());
-        assert!(manager.get_supabase_access_token().unwrap().is_none());
-    }
-
-    #[test]
-    fn test_secrets_manager_session_expired() {
-        let storage = Box::new(MemoryStorage::new());
-        let manager = SecretsManager::new(storage);
-
-        // Set expired session (past time)
-        let past_time = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
-        manager
-            .set_supabase_session(
-                "access-token",
-                "refresh-token",
-                "user-123",
-                Some("test@example.com"),
-                &past_time,
-            )
-            .unwrap();
-
-        // Session exists but is expired
-        assert!(manager.has_supabase_session().unwrap());
-        assert!(manager.is_supabase_session_expired().unwrap());
-
-        // Set valid session (future time)
-        let future_time = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
-        manager
-            .set_supabase_session(
-                "access-token-2",
-                "refresh-token-2",
-                "user-456",
-                Some("test2@example.com"),
-                &future_time,
-            )
-            .unwrap();
-
-        // Session should not be expired
-        assert!(!manager.is_supabase_session_expired().unwrap());
-    }
-
-    #[test]
-    fn test_secrets_manager_trusted_devices() {
-        let storage = Box::new(MemoryStorage::new());
-        let manager = SecretsManager::new(storage);
-
-        // Initially no trusted devices
-        let devices = manager.get_trusted_devices().unwrap();
-        assert!(devices.is_empty());
-
-        // Add a trusted device
-        let device1 = TrustedDevice {
-            device_id: "device-1".to_string(),
-            name: "My MacBook".to_string(),
-            public_key: "pubkey-1".to_string(),
-            role: TrustRole::TrustRoot,
-            trusted_at: chrono::Utc::now().to_rfc3339(),
-            expires_at: None,
-        };
-        manager.add_trusted_device(device1.clone()).unwrap();
-
-        // Verify device was added
-        let devices = manager.get_trusted_devices().unwrap();
-        assert_eq!(devices.len(), 1);
-        assert_eq!(devices[0].device_id, "device-1");
-        assert_eq!(devices[0].name, "My MacBook");
-        assert_eq!(devices[0].role, TrustRole::TrustRoot);
-
-        // Add another device
-        let device2 = TrustedDevice {
-            device_id: "device-2".to_string(),
-            name: "My iPhone".to_string(),
-            public_key: "pubkey-2".to_string(),
-            role: TrustRole::TrustedExecutor,
-            trusted_at: chrono::Utc::now().to_rfc3339(),
-            expires_at: Some((chrono::Utc::now() + chrono::Duration::days(30)).to_rfc3339()),
-        };
-        manager.add_trusted_device(device2).unwrap();
-
-        let devices = manager.get_trusted_devices().unwrap();
-        assert_eq!(devices.len(), 2);
-
-        // Remove first device
-        assert!(manager.remove_trusted_device("device-1").unwrap());
-        let devices = manager.get_trusted_devices().unwrap();
-        assert_eq!(devices.len(), 1);
-        assert_eq!(devices[0].device_id, "device-2");
-
-        // Removing non-existent device returns false
-        assert!(!manager.remove_trusted_device("nonexistent").unwrap());
-    }
-
-    #[test]
     fn test_secrets_manager_device_private_key() {
         let storage = Box::new(MemoryStorage::new());
         let manager = SecretsManager::new(storage);
@@ -319,25 +187,15 @@ mod tests {
     #[test]
     fn test_storage_keys_constants() {
         // Verify all storage keys are defined and non-empty
-        assert!(!StorageKeys::MASTER_KEY.is_empty());
         assert!(!StorageKeys::DEVICE_ID.is_empty());
         assert!(!StorageKeys::DEVICE_PRIVATE_KEY.is_empty());
         assert!(!StorageKeys::API_KEY.is_empty());
-        assert!(!StorageKeys::TRUSTED_DEVICES.is_empty());
-        assert!(!StorageKeys::SUPABASE_ACCESS_TOKEN.is_empty());
-        assert!(!StorageKeys::SUPABASE_REFRESH_TOKEN.is_empty());
-        assert!(!StorageKeys::SUPABASE_SESSION_META.is_empty());
 
         // Verify keys are unique
         let keys = vec![
-            StorageKeys::MASTER_KEY,
             StorageKeys::DEVICE_ID,
             StorageKeys::DEVICE_PRIVATE_KEY,
             StorageKeys::API_KEY,
-            StorageKeys::TRUSTED_DEVICES,
-            StorageKeys::SUPABASE_ACCESS_TOKEN,
-            StorageKeys::SUPABASE_REFRESH_TOKEN,
-            StorageKeys::SUPABASE_SESSION_META,
         ];
         let unique: std::collections::HashSet<_> = keys.iter().collect();
         assert_eq!(unique.len(), keys.len(), "Storage keys must be unique");
