@@ -8,6 +8,7 @@ pub mod gh;
 pub mod git;
 pub mod health;
 pub mod message;
+pub mod board;
 pub mod repository;
 pub mod session;
 pub mod system;

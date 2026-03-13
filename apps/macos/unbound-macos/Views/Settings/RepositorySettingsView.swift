@@ -60,10 +60,8 @@ struct RepositorySettingsView: View {
                 ShadcnDivider()
                 repositoryPathSection
                 sessionsPathSection
-                worktreeRootSection
                 branchingSection
                 remoteSection
-                setupHooksSection
                 ShadcnDivider()
                 dangerZoneSection
                 Spacer()
@@ -122,7 +120,7 @@ struct RepositorySettingsView: View {
                     .foregroundStyle(colors.foreground)
             }
 
-            Text("Configure how sessions are created from this repository")
+            Text("Configure repository defaults for issue-owned workspaces")
                 .font(Typography.body)
                 .foregroundStyle(colors.mutedForeground)
         }
@@ -177,9 +175,9 @@ struct RepositorySettingsView: View {
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                Text("Optional repository metadata value. Worktree location is controlled below.")
-                    .font(Typography.caption)
-                    .foregroundStyle(colors.mutedForeground.opacity(0.7))
+                Text("Optional repository metadata value for daemon-managed workspaces.")
+                .font(Typography.caption)
+                .foregroundStyle(colors.mutedForeground.opacity(0.7))
 
                 HStack {
                     TextField("~/unbound/sessions/\(repository.name)", text: $sessionsPath)
@@ -265,11 +263,11 @@ struct RepositorySettingsView: View {
                 .foregroundStyle(colors.foreground)
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Branch new sessions from")
+                Text("Default branch")
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
 
-                Text("The base branch for creating new session worktrees")
+                Text("The branch the daemon should prefer when it prepares issue workspaces")
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground.opacity(0.7))
 

@@ -17,6 +17,16 @@ private func redactedDictionarySummary(_ dictionary: [String: Any]) -> String {
     return "keys=[\(keyList)],count=\(dictionary.count)"
 }
 
+private func decodeDaemonObject<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
+    let data = try JSONSerialization.data(withJSONObject: value)
+    return try JSONDecoder().decode(type, from: data)
+}
+
+private func decodeDaemonArray<T: Decodable>(_ value: Any, as type: T.Type) throws -> [T] {
+    let data = try JSONSerialization.data(withJSONObject: value)
+    return try JSONDecoder().decode([T].self, from: data)
+}
+
 // MARK: - Health
 
 extension DaemonClient {
@@ -24,6 +34,203 @@ extension DaemonClient {
     func health() async throws -> Bool {
         let response = try await call(method: .health)
         return response.isSuccess
+    }
+}
+
+// MARK: - Board
+
+extension DaemonClient {
+    func listCompanies() async throws -> [DaemonCompany] {
+        let response = try await call(method: .companyList)
+        guard let result = response.resultAsDict(),
+              let companies = result["companies"] else {
+            return []
+        }
+        return try decodeDaemonArray(companies, as: DaemonCompany.self)
+    }
+
+    func createCompany(
+        name: String,
+        description: String? = nil,
+        budgetMonthlyCents: Int? = nil,
+        brandColor: String? = nil,
+        requireBoardApprovalForNewAgents: Bool? = nil
+    ) async throws -> DaemonCompany {
+        var params: [String: Any] = ["name": name]
+        if let description { params["description"] = description }
+        if let budgetMonthlyCents { params["budget_monthly_cents"] = budgetMonthlyCents }
+        if let brandColor { params["brand_color"] = brandColor }
+        if let requireBoardApprovalForNewAgents {
+            params["require_board_approval_for_new_agents"] = requireBoardApprovalForNewAgents
+        }
+        let response = try await call(method: .companyCreate, params: params)
+        guard let result = response.resultAsDict(),
+              let company = result["company"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(company, as: DaemonCompany.self)
+    }
+
+    func getCompany(companyId: String) async throws -> DaemonCompany {
+        let response = try await call(method: .companyGet, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let company = result["company"] else {
+            throw DaemonError.notFound("company")
+        }
+        return try decodeDaemonObject(company, as: DaemonCompany.self)
+    }
+
+    func listAgents(companyId: String) async throws -> [DaemonAgent] {
+        let response = try await call(method: .agentList, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let agents = result["agents"] else {
+            return []
+        }
+        return try decodeDaemonArray(agents, as: DaemonAgent.self)
+    }
+
+    func createAgent(params: [String: Any]) async throws -> DaemonAgent {
+        let response = try await call(method: .agentCreate, params: params)
+        guard let result = response.resultAsDict(),
+              let agent = result["agent"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(agent, as: DaemonAgent.self)
+    }
+
+    func getAgent(agentId: String) async throws -> DaemonAgent {
+        let response = try await call(method: .agentGet, params: ["agent_id": agentId])
+        guard let result = response.resultAsDict(),
+              let agent = result["agent"] else {
+            throw DaemonError.notFound("agent")
+        }
+        return try decodeDaemonObject(agent, as: DaemonAgent.self)
+    }
+
+    func listGoals(companyId: String) async throws -> [DaemonGoal] {
+        let response = try await call(method: .goalList, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let goals = result["goals"] else {
+            return []
+        }
+        return try decodeDaemonArray(goals, as: DaemonGoal.self)
+    }
+
+    func listProjects(companyId: String) async throws -> [DaemonProject] {
+        let response = try await call(method: .projectList, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let projects = result["projects"] else {
+            return []
+        }
+        return try decodeDaemonArray(projects, as: DaemonProject.self)
+    }
+
+    func createProject(params: [String: Any]) async throws -> DaemonProject {
+        let response = try await call(method: .projectCreate, params: params)
+        guard let result = response.resultAsDict(),
+              let project = result["project"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(project, as: DaemonProject.self)
+    }
+
+    func getProject(projectId: String) async throws -> DaemonProject {
+        let response = try await call(method: .projectGet, params: ["project_id": projectId])
+        guard let result = response.resultAsDict(),
+              let project = result["project"] else {
+            throw DaemonError.notFound("project")
+        }
+        return try decodeDaemonObject(project, as: DaemonProject.self)
+    }
+
+    func listIssues(params: [String: Any]) async throws -> [DaemonIssue] {
+        let response = try await call(method: .issueList, params: params)
+        guard let result = response.resultAsDict(),
+              let issues = result["issues"] else {
+            return []
+        }
+        return try decodeDaemonArray(issues, as: DaemonIssue.self)
+    }
+
+    func createIssue(params: [String: Any]) async throws -> DaemonIssue {
+        let response = try await call(method: .issueCreate, params: params)
+        guard let result = response.resultAsDict(),
+              let issue = result["issue"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(issue, as: DaemonIssue.self)
+    }
+
+    func getIssue(issueId: String) async throws -> DaemonIssue {
+        let response = try await call(method: .issueGet, params: ["issue_id": issueId])
+        guard let result = response.resultAsDict(),
+              let issue = result["issue"] else {
+            throw DaemonError.notFound("issue")
+        }
+        return try decodeDaemonObject(issue, as: DaemonIssue.self)
+    }
+
+    func listIssueComments(issueId: String) async throws -> [DaemonIssueComment] {
+        let response = try await call(method: .issueCommentList, params: ["issue_id": issueId])
+        guard let result = response.resultAsDict(),
+              let comments = result["comments"] else {
+            return []
+        }
+        return try decodeDaemonArray(comments, as: DaemonIssueComment.self)
+    }
+
+    func addIssueComment(params: [String: Any]) async throws -> DaemonIssueComment {
+        let response = try await call(method: .issueCommentAdd, params: params)
+        guard let result = response.resultAsDict(),
+              let comment = result["comment"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(comment, as: DaemonIssueComment.self)
+    }
+
+    func checkoutIssue(issueId: String) async throws -> DaemonWorkspace {
+        let response = try await call(method: .issueCheckout, params: ["issue_id": issueId])
+        guard let result = response.resultAsDict(),
+              let workspace = result["workspace"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(workspace, as: DaemonWorkspace.self)
+    }
+
+    func listApprovals(companyId: String) async throws -> [DaemonApproval] {
+        let response = try await call(method: .approvalList, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let approvals = result["approvals"] else {
+            return []
+        }
+        return try decodeDaemonArray(approvals, as: DaemonApproval.self)
+    }
+
+    func approveApproval(params: [String: Any]) async throws -> DaemonApproval {
+        let response = try await call(method: .approvalApprove, params: params)
+        guard let result = response.resultAsDict(),
+              let approval = result["approval"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(approval, as: DaemonApproval.self)
+    }
+
+    func listWorkspaces(companyId: String) async throws -> [DaemonWorkspace] {
+        let response = try await call(method: .workspaceList, params: ["company_id": companyId])
+        guard let result = response.resultAsDict(),
+              let workspaces = result["workspaces"] else {
+            return []
+        }
+        return try decodeDaemonArray(workspaces, as: DaemonWorkspace.self)
+    }
+
+    func getWorkspace(sessionId: String) async throws -> DaemonWorkspace {
+        let response = try await call(method: .workspaceGet, params: ["session_id": sessionId])
+        guard let result = response.resultAsDict(),
+              let workspace = result["workspace"] else {
+            throw DaemonError.notFound("workspace")
+        }
+        return try decodeDaemonObject(workspace, as: DaemonWorkspace.self)
     }
 }
 

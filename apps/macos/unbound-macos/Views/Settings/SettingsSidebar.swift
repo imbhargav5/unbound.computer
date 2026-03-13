@@ -27,6 +27,7 @@ struct SettingsSidebar: View {
             // Back button
             Button {
                 appState.showSettings = false
+                appState.selectedScreen = .dashboard
             } label: {
                 HStack(spacing: Spacing.sm) {
                     Image(systemName: "chevron.left")
@@ -50,7 +51,10 @@ struct SettingsSidebar: View {
                     icon: "house",
                     label: "Home",
                     isSelected: false,
-                    action: { appState.showSettings = false }
+                    action: {
+                        appState.showSettings = false
+                        appState.selectedScreen = .dashboard
+                    }
                 )
 
                 // Section items

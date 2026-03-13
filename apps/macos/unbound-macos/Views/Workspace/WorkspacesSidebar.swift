@@ -128,7 +128,7 @@ struct WorkspacesSidebar: View {
         VStack(spacing: 0) {
             // Sidebar header (top bar with fixed 64px height)
             SidebarHeader(
-                title: "Agents",
+                title: "Workspaces",
                 onOpenKeyboardShortcuts: {
                     showKeyboardShortcuts = true
                 },
@@ -212,9 +212,6 @@ struct RepositoryGroup: View {
     var onDeleteSession: ((Session) -> Void)?
 
     @State private var isExpanded: Bool = true
-    @State private var showNewSessionDialog: Bool = false
-    @State private var isHoveringAdd: Bool = false
-
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -275,32 +272,6 @@ struct RepositoryGroup: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-
-                // New session button
-                Button {
-                    showNewSessionDialog = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(isHoveringAdd ? colors.foreground : colors.mutedForeground)
-                        .frame(width: IconSize.sm, height: IconSize.sm)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, Spacing.xs)
-                .iconTooltip(IconTooltipSpec("New session"))
-                .onHover { hovering in
-                    isHoveringAdd = hovering
-                }
-                .popover(isPresented: $showNewSessionDialog, arrowEdge: .trailing) {
-                    NewSessionDialog(
-                        isPresented: $showNewSessionDialog,
-                        repository: repository,
-                        onCreateSession: { locationType in
-                            onCreateSession(repository, locationType)
-                        }
-                    )
-                }
             }
             .padding(.horizontal, LayoutMetrics.sidebarInset)
             .frame(height: 36)
@@ -369,8 +340,6 @@ struct MainDirectorySection: View {
     var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
-    @State private var isHoveringAdd: Bool = false
-
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -388,22 +357,6 @@ struct MainDirectorySection: View {
                     .foregroundStyle(colors.sidebarMeta)
 
                 Spacer()
-
-                // New session button
-                if let onCreateSession = onCreateSession {
-                    Button(action: onCreateSession) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.gray404)
-                            .frame(width: IconSize.xs, height: IconSize.xs)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .iconTooltip(IconTooltipSpec("New main session"))
-                    .onHover { hovering in
-                        isHoveringAdd = hovering
-                    }
-                }
             }
             .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.md)
@@ -449,8 +402,6 @@ struct WorktreeSection: View {
     var onRenameSession: ((Session, String) -> Void)?
     var onDeleteSession: ((Session) -> Void)?
 
-    @State private var isHoveringAdd: Bool = false
-
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -469,22 +420,6 @@ struct WorktreeSection: View {
                     .lineLimit(1)
 
                 Spacer()
-
-                // New session button
-                if let onCreateSession = onCreateSession {
-                    Button(action: onCreateSession) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(isHoveringAdd ? colors.foreground : colors.gray404)
-                            .frame(width: IconSize.xs, height: IconSize.xs)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .iconTooltip(IconTooltipSpec("New worktree session"))
-                    .onHover { hovering in
-                        isHoveringAdd = hovering
-                    }
-                }
             }
             .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.md)

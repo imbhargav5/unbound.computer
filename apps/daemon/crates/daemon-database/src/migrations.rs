@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 11;
+pub const CURRENT_VERSION: i32 = 12;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -69,6 +69,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 11 {
         migrate_v11_session_state_runtime_envelope(conn)?;
+    }
+    if current_version < 12 {
+        migrate_v12_board_schema(conn)?;
     }
 
     info!("Migrations complete");
@@ -595,6 +598,868 @@ fn migrate_v11_session_state_runtime_envelope(conn: &Connection) -> DatabaseResu
     Ok(())
 }
 
+fn column_names(conn: &Connection, table_name: &str) -> DatabaseResult<HashSet<String>> {
+    let sql = format!("PRAGMA table_info({table_name})");
+    let mut stmt = conn.prepare(&sql)?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .collect();
+    Ok(columns)
+}
+
+fn add_column_if_missing(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+    column_sql: &str,
+) -> DatabaseResult<()> {
+    if !column_names(conn, table_name)?.contains(column_name) {
+        conn.execute_batch(&format!("ALTER TABLE {table_name} ADD COLUMN {column_sql};"))?;
+    }
+    Ok(())
+}
+
+/// V12: Add the Unbound local board schema ported from Paperclip.
+fn migrate_v12_board_schema(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v12: board_schema");
+
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS companies (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            issue_prefix TEXT NOT NULL DEFAULT 'UNB',
+            issue_counter INTEGER NOT NULL DEFAULT 0,
+            budget_monthly_cents INTEGER NOT NULL DEFAULT 0,
+            spent_monthly_cents INTEGER NOT NULL DEFAULT 0,
+            require_board_approval_for_new_agents INTEGER NOT NULL DEFAULT 1,
+            brand_color TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS companies_issue_prefix_idx
+            ON companies(issue_prefix);
+
+        CREATE TABLE IF NOT EXISTS auth_users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            email_verified INTEGER NOT NULL DEFAULT 0,
+            image TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS auth_users_email_idx
+            ON auth_users(email);
+
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            id TEXT PRIMARY KEY,
+            expires_at TEXT NOT NULL,
+            token TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS auth_sessions_token_idx
+            ON auth_sessions(token);
+        CREATE INDEX IF NOT EXISTS auth_sessions_user_idx
+            ON auth_sessions(user_id);
+
+        CREATE TABLE IF NOT EXISTS auth_accounts (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+            access_token TEXT,
+            refresh_token TEXT,
+            id_token TEXT,
+            access_token_expires_at TEXT,
+            refresh_token_expires_at TEXT,
+            scope TEXT,
+            password TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS auth_accounts_user_idx
+            ON auth_accounts(user_id);
+        CREATE INDEX IF NOT EXISTS auth_accounts_provider_idx
+            ON auth_accounts(provider_id, account_id);
+
+        CREATE TABLE IF NOT EXISTS auth_verifications (
+            id TEXT PRIMARY KEY,
+            identifier TEXT NOT NULL,
+            value TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS auth_verifications_identifier_idx
+            ON auth_verifications(identifier);
+
+        CREATE TABLE IF NOT EXISTS instance_user_roles (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+            role TEXT NOT NULL DEFAULT 'instance_admin',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS instance_user_roles_user_role_unique_idx
+            ON instance_user_roles(user_id, role);
+        CREATE INDEX IF NOT EXISTS instance_user_roles_role_idx
+            ON instance_user_roles(role);
+
+        CREATE TABLE IF NOT EXISTS agents (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'general',
+            title TEXT,
+            icon TEXT,
+            status TEXT NOT NULL DEFAULT 'idle',
+            reports_to TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            capabilities TEXT,
+            adapter_type TEXT NOT NULL DEFAULT 'process',
+            adapter_config TEXT NOT NULL DEFAULT '{}',
+            runtime_config TEXT NOT NULL DEFAULT '{}',
+            budget_monthly_cents INTEGER NOT NULL DEFAULT 0,
+            spent_monthly_cents INTEGER NOT NULL DEFAULT 0,
+            permissions TEXT NOT NULL DEFAULT '{}',
+            last_heartbeat_at TEXT,
+            metadata TEXT,
+            home_path TEXT,
+            instructions_path TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (json_valid(adapter_config)),
+            CHECK (json_valid(runtime_config)),
+            CHECK (json_valid(permissions)),
+            CHECK (metadata IS NULL OR json_valid(metadata))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS agents_company_slug_idx
+            ON agents(company_id, slug);
+        CREATE INDEX IF NOT EXISTS agents_company_status_idx
+            ON agents(company_id, status);
+        CREATE INDEX IF NOT EXISTS agents_company_reports_to_idx
+            ON agents(company_id, reports_to);
+
+        CREATE TABLE IF NOT EXISTS company_memberships (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            principal_type TEXT NOT NULL,
+            principal_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            membership_role TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS company_memberships_company_principal_unique_idx
+            ON company_memberships(company_id, principal_type, principal_id);
+        CREATE INDEX IF NOT EXISTS company_memberships_principal_status_idx
+            ON company_memberships(principal_type, principal_id, status);
+        CREATE INDEX IF NOT EXISTS company_memberships_company_status_idx
+            ON company_memberships(company_id, status);
+
+        CREATE TABLE IF NOT EXISTS principal_permission_grants (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            principal_type TEXT NOT NULL,
+            principal_id TEXT NOT NULL,
+            permission_key TEXT NOT NULL,
+            scope TEXT,
+            granted_by_user_id TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (scope IS NULL OR json_valid(scope))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS principal_permission_grants_unique_idx
+            ON principal_permission_grants(company_id, principal_type, principal_id, permission_key);
+        CREATE INDEX IF NOT EXISTS principal_permission_grants_company_permission_idx
+            ON principal_permission_grants(company_id, permission_key);
+
+        CREATE TABLE IF NOT EXISTS invites (
+            id TEXT PRIMARY KEY,
+            company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+            invite_type TEXT NOT NULL DEFAULT 'company_join',
+            token_hash TEXT NOT NULL,
+            allowed_join_types TEXT NOT NULL DEFAULT 'both',
+            defaults_payload TEXT,
+            expires_at TEXT NOT NULL,
+            invited_by_user_id TEXT,
+            revoked_at TEXT,
+            accepted_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (defaults_payload IS NULL OR json_valid(defaults_payload))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS invites_token_hash_unique_idx
+            ON invites(token_hash);
+        CREATE INDEX IF NOT EXISTS invites_company_invite_state_idx
+            ON invites(company_id, invite_type, revoked_at, expires_at);
+
+        CREATE TABLE IF NOT EXISTS join_requests (
+            id TEXT PRIMARY KEY,
+            invite_id TEXT NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            request_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending_approval',
+            request_ip TEXT NOT NULL,
+            requesting_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            request_email_snapshot TEXT,
+            agent_name TEXT,
+            adapter_type TEXT,
+            capabilities TEXT,
+            agent_defaults_payload TEXT,
+            claim_secret_hash TEXT,
+            claim_secret_expires_at TEXT,
+            claim_secret_consumed_at TEXT,
+            created_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            approved_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            approved_at TEXT,
+            rejected_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            rejected_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (agent_defaults_payload IS NULL OR json_valid(agent_defaults_payload))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS join_requests_invite_unique_idx
+            ON join_requests(invite_id);
+        CREATE INDEX IF NOT EXISTS join_requests_company_status_type_created_idx
+            ON join_requests(company_id, status, request_type, created_at);
+
+        CREATE TABLE IF NOT EXISTS agent_config_revisions (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            created_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            source TEXT NOT NULL DEFAULT 'patch',
+            rolled_back_from_revision_id TEXT,
+            changed_keys TEXT NOT NULL DEFAULT '[]',
+            before_config TEXT NOT NULL,
+            after_config TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (json_valid(changed_keys)),
+            CHECK (json_valid(before_config)),
+            CHECK (json_valid(after_config))
+        );
+        CREATE INDEX IF NOT EXISTS agent_config_revisions_company_agent_created_idx
+            ON agent_config_revisions(company_id, agent_id, created_at);
+        CREATE INDEX IF NOT EXISTS agent_config_revisions_agent_created_idx
+            ON agent_config_revisions(agent_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS agent_api_keys (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            key_hash TEXT NOT NULL,
+            last_used_at TEXT,
+            revoked_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS agent_api_keys_key_hash_idx
+            ON agent_api_keys(key_hash);
+        CREATE INDEX IF NOT EXISTS agent_api_keys_company_agent_idx
+            ON agent_api_keys(company_id, agent_id);
+
+        CREATE TABLE IF NOT EXISTS agent_runtime_state (
+            agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            adapter_type TEXT NOT NULL,
+            session_id TEXT,
+            state_json TEXT NOT NULL DEFAULT '{}',
+            last_run_id TEXT,
+            last_run_status TEXT,
+            total_input_tokens INTEGER NOT NULL DEFAULT 0,
+            total_output_tokens INTEGER NOT NULL DEFAULT 0,
+            total_cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+            total_cost_cents INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (json_valid(state_json))
+        );
+        CREATE INDEX IF NOT EXISTS agent_runtime_state_company_agent_idx
+            ON agent_runtime_state(company_id, agent_id);
+        CREATE INDEX IF NOT EXISTS agent_runtime_state_company_updated_idx
+            ON agent_runtime_state(company_id, updated_at);
+
+        CREATE TABLE IF NOT EXISTS agent_task_sessions (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            adapter_type TEXT NOT NULL,
+            task_key TEXT NOT NULL,
+            session_params_json TEXT,
+            session_display_id TEXT,
+            last_run_id TEXT,
+            last_error TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (session_params_json IS NULL OR json_valid(session_params_json))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS agent_task_sessions_company_agent_adapter_task_uniq
+            ON agent_task_sessions(company_id, agent_id, adapter_type, task_key);
+        CREATE INDEX IF NOT EXISTS agent_task_sessions_company_agent_updated_idx
+            ON agent_task_sessions(company_id, agent_id, updated_at);
+        CREATE INDEX IF NOT EXISTS agent_task_sessions_company_task_updated_idx
+            ON agent_task_sessions(company_id, task_key, updated_at);
+
+        CREATE TABLE IF NOT EXISTS agent_wakeup_requests (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            source TEXT NOT NULL,
+            trigger_detail TEXT,
+            reason TEXT,
+            payload TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            coalesced_count INTEGER NOT NULL DEFAULT 0,
+            requested_by_actor_type TEXT,
+            requested_by_actor_id TEXT,
+            idempotency_key TEXT,
+            run_id TEXT,
+            requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+            claimed_at TEXT,
+            finished_at TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (payload IS NULL OR json_valid(payload))
+        );
+        CREATE INDEX IF NOT EXISTS agent_wakeup_requests_company_agent_status_idx
+            ON agent_wakeup_requests(company_id, agent_id, status);
+        CREATE INDEX IF NOT EXISTS agent_wakeup_requests_company_requested_idx
+            ON agent_wakeup_requests(company_id, requested_at);
+        CREATE INDEX IF NOT EXISTS agent_wakeup_requests_agent_requested_idx
+            ON agent_wakeup_requests(agent_id, requested_at);
+
+        CREATE TABLE IF NOT EXISTS goals (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            description TEXT,
+            level TEXT NOT NULL DEFAULT 'task',
+            status TEXT NOT NULL DEFAULT 'planned',
+            parent_id TEXT REFERENCES goals(id) ON DELETE SET NULL,
+            owner_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS goals_company_idx
+            ON goals(company_id);
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            goal_id TEXT REFERENCES goals(id) ON DELETE SET NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'backlog',
+            lead_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            target_date TEXT,
+            color TEXT,
+            execution_workspace_policy TEXT,
+            archived_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (execution_workspace_policy IS NULL OR json_valid(execution_workspace_policy))
+        );
+        CREATE INDEX IF NOT EXISTS projects_company_idx
+            ON projects(company_id);
+
+        CREATE TABLE IF NOT EXISTS project_workspaces (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            cwd TEXT,
+            repo_url TEXT,
+            repo_ref TEXT,
+            metadata TEXT,
+            is_primary INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (metadata IS NULL OR json_valid(metadata))
+        );
+        CREATE INDEX IF NOT EXISTS project_workspaces_company_project_idx
+            ON project_workspaces(company_id, project_id);
+        CREATE INDEX IF NOT EXISTS project_workspaces_project_primary_idx
+            ON project_workspaces(project_id, is_primary);
+
+        CREATE TABLE IF NOT EXISTS project_goals (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (project_id, goal_id)
+        );
+        CREATE INDEX IF NOT EXISTS project_goals_project_idx
+            ON project_goals(project_id);
+        CREATE INDEX IF NOT EXISTS project_goals_goal_idx
+            ON project_goals(goal_id);
+        CREATE INDEX IF NOT EXISTS project_goals_company_idx
+            ON project_goals(company_id);
+
+        CREATE TABLE IF NOT EXISTS heartbeat_runs (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            invocation_source TEXT NOT NULL DEFAULT 'on_demand',
+            trigger_detail TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            started_at TEXT,
+            finished_at TEXT,
+            error TEXT,
+            wakeup_request_id TEXT REFERENCES agent_wakeup_requests(id) ON DELETE SET NULL,
+            exit_code INTEGER,
+            signal TEXT,
+            usage_json TEXT,
+            result_json TEXT,
+            session_id_before TEXT,
+            session_id_after TEXT,
+            log_store TEXT,
+            log_ref TEXT,
+            log_bytes INTEGER,
+            log_sha256 TEXT,
+            log_compressed INTEGER NOT NULL DEFAULT 0,
+            stdout_excerpt TEXT,
+            stderr_excerpt TEXT,
+            error_code TEXT,
+            external_run_id TEXT,
+            context_snapshot TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (usage_json IS NULL OR json_valid(usage_json)),
+            CHECK (result_json IS NULL OR json_valid(result_json)),
+            CHECK (context_snapshot IS NULL OR json_valid(context_snapshot))
+        );
+        CREATE INDEX IF NOT EXISTS heartbeat_runs_company_agent_started_idx
+            ON heartbeat_runs(company_id, agent_id, started_at);
+
+        CREATE TABLE IF NOT EXISTS issues (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+            goal_id TEXT REFERENCES goals(id) ON DELETE SET NULL,
+            parent_id TEXT REFERENCES issues(id) ON DELETE SET NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'backlog',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            assignee_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            assignee_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            checkout_run_id TEXT REFERENCES heartbeat_runs(id) ON DELETE SET NULL,
+            execution_run_id TEXT REFERENCES heartbeat_runs(id) ON DELETE SET NULL,
+            execution_agent_name_key TEXT,
+            execution_locked_at TEXT,
+            created_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            issue_number INTEGER,
+            identifier TEXT,
+            request_depth INTEGER NOT NULL DEFAULT 0,
+            billing_code TEXT,
+            assignee_adapter_overrides TEXT,
+            execution_workspace_settings TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            cancelled_at TEXT,
+            hidden_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (assignee_adapter_overrides IS NULL OR json_valid(assignee_adapter_overrides)),
+            CHECK (execution_workspace_settings IS NULL OR json_valid(execution_workspace_settings))
+        );
+        CREATE INDEX IF NOT EXISTS issues_company_status_idx
+            ON issues(company_id, status);
+        CREATE INDEX IF NOT EXISTS issues_company_assignee_status_idx
+            ON issues(company_id, assignee_agent_id, status);
+        CREATE INDEX IF NOT EXISTS issues_company_assignee_user_status_idx
+            ON issues(company_id, assignee_user_id, status);
+        CREATE INDEX IF NOT EXISTS issues_company_parent_idx
+            ON issues(company_id, parent_id);
+        CREATE INDEX IF NOT EXISTS issues_company_project_idx
+            ON issues(company_id, project_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS issues_identifier_idx
+            ON issues(identifier);
+
+        CREATE TABLE IF NOT EXISTS labels (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            color TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS labels_company_idx
+            ON labels(company_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS labels_company_name_idx
+            ON labels(company_id, name);
+
+        CREATE TABLE IF NOT EXISTS issue_labels (
+            issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+            label_id TEXT NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (issue_id, label_id)
+        );
+        CREATE INDEX IF NOT EXISTS issue_labels_issue_idx
+            ON issue_labels(issue_id);
+        CREATE INDEX IF NOT EXISTS issue_labels_label_idx
+            ON issue_labels(label_id);
+        CREATE INDEX IF NOT EXISTS issue_labels_company_idx
+            ON issue_labels(company_id);
+
+        CREATE TABLE IF NOT EXISTS approvals (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            type TEXT NOT NULL,
+            requested_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            requested_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            payload TEXT NOT NULL,
+            decision_note TEXT,
+            decided_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            decided_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (json_valid(payload))
+        );
+        CREATE INDEX IF NOT EXISTS approvals_company_status_type_idx
+            ON approvals(company_id, status, type);
+
+        CREATE TABLE IF NOT EXISTS issue_approvals (
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+            approval_id TEXT NOT NULL REFERENCES approvals(id) ON DELETE CASCADE,
+            linked_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            linked_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (issue_id, approval_id)
+        );
+        CREATE INDEX IF NOT EXISTS issue_approvals_issue_idx
+            ON issue_approvals(issue_id);
+        CREATE INDEX IF NOT EXISTS issue_approvals_approval_idx
+            ON issue_approvals(approval_id);
+        CREATE INDEX IF NOT EXISTS issue_approvals_company_idx
+            ON issue_approvals(company_id);
+
+        CREATE TABLE IF NOT EXISTS issue_comments (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+            author_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            author_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS issue_comments_issue_idx
+            ON issue_comments(issue_id);
+        CREATE INDEX IF NOT EXISTS issue_comments_company_idx
+            ON issue_comments(company_id);
+        CREATE INDEX IF NOT EXISTS issue_comments_company_issue_created_at_idx
+            ON issue_comments(company_id, issue_id, created_at);
+        CREATE INDEX IF NOT EXISTS issue_comments_company_author_issue_created_at_idx
+            ON issue_comments(company_id, author_user_id, issue_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS issue_read_states (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+            last_read_at TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS issue_read_states_company_issue_idx
+            ON issue_read_states(company_id, issue_id);
+        CREATE INDEX IF NOT EXISTS issue_read_states_company_user_idx
+            ON issue_read_states(company_id, user_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS issue_read_states_company_issue_user_idx
+            ON issue_read_states(company_id, issue_id, user_id);
+
+        CREATE TABLE IF NOT EXISTS assets (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL,
+            object_key TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            byte_size INTEGER NOT NULL,
+            sha256 TEXT NOT NULL,
+            original_filename TEXT,
+            created_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS assets_company_created_idx
+            ON assets(company_id, created_at);
+        CREATE INDEX IF NOT EXISTS assets_company_provider_idx
+            ON assets(company_id, provider);
+        CREATE UNIQUE INDEX IF NOT EXISTS assets_company_object_key_uq
+            ON assets(company_id, object_key);
+
+        CREATE TABLE IF NOT EXISTS issue_attachments (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+            asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+            issue_comment_id TEXT REFERENCES issue_comments(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS issue_attachments_company_issue_idx
+            ON issue_attachments(company_id, issue_id);
+        CREATE INDEX IF NOT EXISTS issue_attachments_issue_comment_idx
+            ON issue_attachments(issue_comment_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS issue_attachments_asset_uq
+            ON issue_attachments(asset_id);
+
+        CREATE TABLE IF NOT EXISTS heartbeat_run_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            run_id TEXT NOT NULL REFERENCES heartbeat_runs(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            seq INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            stream TEXT,
+            level TEXT,
+            color TEXT,
+            message TEXT,
+            payload TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (payload IS NULL OR json_valid(payload))
+        );
+        CREATE INDEX IF NOT EXISTS heartbeat_run_events_run_seq_idx
+            ON heartbeat_run_events(run_id, seq);
+        CREATE INDEX IF NOT EXISTS heartbeat_run_events_company_run_idx
+            ON heartbeat_run_events(company_id, run_id);
+        CREATE INDEX IF NOT EXISTS heartbeat_run_events_company_created_idx
+            ON heartbeat_run_events(company_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS cost_events (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            issue_id TEXT REFERENCES issues(id) ON DELETE SET NULL,
+            project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+            goal_id TEXT REFERENCES goals(id) ON DELETE SET NULL,
+            billing_code TEXT,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            input_tokens INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            cost_cents INTEGER NOT NULL,
+            occurred_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS cost_events_company_occurred_idx
+            ON cost_events(company_id, occurred_at);
+        CREATE INDEX IF NOT EXISTS cost_events_company_agent_occurred_idx
+            ON cost_events(company_id, agent_id, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS approval_comments (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            approval_id TEXT NOT NULL REFERENCES approvals(id) ON DELETE CASCADE,
+            author_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            author_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS approval_comments_company_idx
+            ON approval_comments(company_id);
+        CREATE INDEX IF NOT EXISTS approval_comments_approval_idx
+            ON approval_comments(approval_id);
+        CREATE INDEX IF NOT EXISTS approval_comments_approval_created_idx
+            ON approval_comments(approval_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            actor_type TEXT NOT NULL DEFAULT 'system',
+            actor_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            run_id TEXT REFERENCES heartbeat_runs(id) ON DELETE SET NULL,
+            details TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (details IS NULL OR json_valid(details))
+        );
+        CREATE INDEX IF NOT EXISTS activity_log_company_created_idx
+            ON activity_log(company_id, created_at);
+        CREATE INDEX IF NOT EXISTS activity_log_run_id_idx
+            ON activity_log(run_id);
+        CREATE INDEX IF NOT EXISTS activity_log_entity_type_id_idx
+            ON activity_log(entity_type, entity_id);
+
+        CREATE TABLE IF NOT EXISTS company_secrets (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'local_encrypted',
+            external_ref TEXT,
+            latest_version INTEGER NOT NULL DEFAULT 1,
+            description TEXT,
+            created_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS company_secrets_company_idx
+            ON company_secrets(company_id);
+        CREATE INDEX IF NOT EXISTS company_secrets_company_provider_idx
+            ON company_secrets(company_id, provider);
+        CREATE UNIQUE INDEX IF NOT EXISTS company_secrets_company_name_uq
+            ON company_secrets(company_id, name);
+
+        CREATE TABLE IF NOT EXISTS company_secret_versions (
+            id TEXT PRIMARY KEY,
+            secret_id TEXT NOT NULL REFERENCES company_secrets(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            material TEXT NOT NULL,
+            value_sha256 TEXT NOT NULL,
+            created_by_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            created_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            revoked_at TEXT,
+            CHECK (json_valid(material))
+        );
+        CREATE INDEX IF NOT EXISTS company_secret_versions_secret_idx
+            ON company_secret_versions(secret_id, created_at);
+        CREATE INDEX IF NOT EXISTS company_secret_versions_value_sha256_idx
+            ON company_secret_versions(value_sha256);
+        CREATE UNIQUE INDEX IF NOT EXISTS company_secret_versions_secret_version_uq
+            ON company_secret_versions(secret_id, version);
+
+        CREATE TABLE IF NOT EXISTS workspace_runtime_services (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+            project_workspace_id TEXT REFERENCES project_workspaces(id) ON DELETE SET NULL,
+            issue_id TEXT REFERENCES issues(id) ON DELETE SET NULL,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT,
+            service_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            lifecycle TEXT NOT NULL,
+            reuse_key TEXT,
+            command TEXT,
+            cwd TEXT,
+            port INTEGER,
+            url TEXT,
+            provider TEXT NOT NULL,
+            provider_ref TEXT,
+            owner_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+            started_by_run_id TEXT REFERENCES heartbeat_runs(id) ON DELETE SET NULL,
+            last_used_at TEXT NOT NULL DEFAULT (datetime('now')),
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            stopped_at TEXT,
+            stop_policy TEXT,
+            health_status TEXT NOT NULL DEFAULT 'unknown',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            CHECK (stop_policy IS NULL OR json_valid(stop_policy))
+        );
+        CREATE INDEX IF NOT EXISTS workspace_runtime_services_company_workspace_status_idx
+            ON workspace_runtime_services(company_id, project_workspace_id, status);
+        CREATE INDEX IF NOT EXISTS workspace_runtime_services_company_project_status_idx
+            ON workspace_runtime_services(company_id, project_id, status);
+        CREATE INDEX IF NOT EXISTS workspace_runtime_services_run_idx
+            ON workspace_runtime_services(started_by_run_id);
+        CREATE INDEX IF NOT EXISTS workspace_runtime_services_company_updated_idx
+            ON workspace_runtime_services(company_id, updated_at);
+        ",
+    )?;
+
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "company_id",
+        "company_id TEXT REFERENCES companies(id) ON DELETE SET NULL",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "project_id",
+        "project_id TEXT REFERENCES projects(id) ON DELETE SET NULL",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "issue_id",
+        "issue_id TEXT REFERENCES issues(id) ON DELETE SET NULL",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "agent_id",
+        "agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "workspace_type",
+        "workspace_type TEXT NOT NULL DEFAULT 'legacy'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "workspace_status",
+        "workspace_status TEXT NOT NULL DEFAULT 'active'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "workspace_repo_path",
+        "workspace_repo_path TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "workspace_branch",
+        "workspace_branch TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "workspace_metadata",
+        "workspace_metadata TEXT DEFAULT '{}' CHECK (json_valid(workspace_metadata))",
+    )?;
+
+    conn.execute_batch(
+        "
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_company_id
+            ON agent_coding_sessions(company_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_project_id
+            ON agent_coding_sessions(project_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_issue_id
+            ON agent_coding_sessions(issue_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_agent_id
+            ON agent_coding_sessions(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_workspace_type
+            ON agent_coding_sessions(workspace_type);
+        CREATE INDEX IF NOT EXISTS idx_agent_coding_sessions_workspace_status
+            ON agent_coding_sessions(workspace_status);
+        ",
+    )?;
+
+    record_migration(conn, 12, "board_schema")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -619,6 +1484,15 @@ mod tests {
         assert!(tables.contains(&"agent_coding_session_event_outbox".to_string()));
         assert!(tables.contains(&"user_settings".to_string()));
         assert!(tables.contains(&"session_secrets".to_string()));
+        assert!(tables.contains(&"companies".to_string()));
+        assert!(tables.contains(&"auth_users".to_string()));
+        assert!(tables.contains(&"agents".to_string()));
+        assert!(tables.contains(&"projects".to_string()));
+        assert!(tables.contains(&"issues".to_string()));
+        assert!(tables.contains(&"issue_comments".to_string()));
+        assert!(tables.contains(&"approvals".to_string()));
+        assert!(tables.contains(&"activity_log".to_string()));
+        assert!(tables.contains(&"company_secrets".to_string()));
         assert!(tables.contains(&"migrations".to_string()));
     }
 
@@ -635,7 +1509,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 11);
+        assert_eq!(version, 12);
     }
 
     #[test]
@@ -695,5 +1569,85 @@ mod tests {
         assert!(!columns.contains(&"queued_commands".to_string()));
         assert!(!columns.contains(&"diff_summary".to_string()));
         assert!(!columns.contains(&"updated_at".to_string()));
+    }
+
+    #[test]
+    fn test_board_session_columns_exist() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(agent_coding_sessions)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(columns.contains(&"company_id".to_string()));
+        assert!(columns.contains(&"project_id".to_string()));
+        assert!(columns.contains(&"issue_id".to_string()));
+        assert!(columns.contains(&"agent_id".to_string()));
+        assert!(columns.contains(&"workspace_type".to_string()));
+        assert!(columns.contains(&"workspace_status".to_string()));
+        assert!(columns.contains(&"workspace_repo_path".to_string()));
+        assert!(columns.contains(&"workspace_branch".to_string()));
+        assert!(columns.contains(&"workspace_metadata".to_string()));
+    }
+
+    #[test]
+    fn test_full_board_table_set_exists() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|row| row.ok())
+            .collect();
+
+        for table in [
+            "companies",
+            "auth_users",
+            "auth_sessions",
+            "auth_accounts",
+            "auth_verifications",
+            "instance_user_roles",
+            "agents",
+            "company_memberships",
+            "principal_permission_grants",
+            "invites",
+            "join_requests",
+            "agent_config_revisions",
+            "agent_api_keys",
+            "agent_runtime_state",
+            "agent_task_sessions",
+            "agent_wakeup_requests",
+            "projects",
+            "project_workspaces",
+            "workspace_runtime_services",
+            "project_goals",
+            "goals",
+            "issues",
+            "labels",
+            "issue_labels",
+            "issue_approvals",
+            "issue_comments",
+            "issue_read_states",
+            "assets",
+            "issue_attachments",
+            "heartbeat_runs",
+            "heartbeat_run_events",
+            "cost_events",
+            "approvals",
+            "approval_comments",
+            "activity_log",
+            "company_secrets",
+            "company_secret_versions",
+        ] {
+            assert!(tables.contains(&table.to_string()), "missing table: {table}");
+        }
     }
 }
