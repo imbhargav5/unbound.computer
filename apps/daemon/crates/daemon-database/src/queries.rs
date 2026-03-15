@@ -162,12 +162,17 @@ pub fn insert_session(
 ) -> DatabaseResult<AgentCodingSession> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_coding_sessions (id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, 'active', ?5, ?6, ?7, ?7, ?7)",
+        "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'active', ?10, ?11, ?12, ?12, ?12)",
         params![
             session.id,
             session.repository_id,
             session.title,
+            session.agent_id,
+            session.agent_name,
+            session.issue_id,
+            session.issue_title,
+            session.issue_url,
             session.claude_session_id,
             session.is_worktree,
             session.worktree_path,
@@ -181,7 +186,7 @@ pub fn insert_session(
 /// Get a session by ID.
 pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
          FROM agent_coding_sessions WHERE id = ?1",
     )?;
 
@@ -190,13 +195,18 @@ pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCo
             id: row.get(0)?,
             repository_id: row.get(1)?,
             title: row.get(2)?,
-            claude_session_id: row.get(3)?,
-            status: SessionStatus::from_str(&row.get::<_, String>(4)?),
-            is_worktree: row.get(5)?,
-            worktree_path: row.get(6)?,
-            created_at: parse_datetime(row.get::<_, String>(7)?),
-            last_accessed_at: parse_datetime(row.get::<_, String>(8)?),
-            updated_at: parse_datetime(row.get::<_, String>(9)?),
+            agent_id: row.get(3)?,
+            agent_name: row.get(4)?,
+            issue_id: row.get(5)?,
+            issue_title: row.get(6)?,
+            issue_url: row.get(7)?,
+            claude_session_id: row.get(8)?,
+            status: SessionStatus::from_str(&row.get::<_, String>(9)?),
+            is_worktree: row.get(10)?,
+            worktree_path: row.get(11)?,
+            created_at: parse_datetime(row.get::<_, String>(12)?),
+            last_accessed_at: parse_datetime(row.get::<_, String>(13)?),
+            updated_at: parse_datetime(row.get::<_, String>(14)?),
         })
     });
 
@@ -213,7 +223,7 @@ pub fn list_sessions_for_repository(
     repository_id: &str,
 ) -> DatabaseResult<Vec<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
          FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
     )?;
 
@@ -223,13 +233,18 @@ pub fn list_sessions_for_repository(
                 id: row.get(0)?,
                 repository_id: row.get(1)?,
                 title: row.get(2)?,
-                claude_session_id: row.get(3)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(4)?),
-                is_worktree: row.get(5)?,
-                worktree_path: row.get(6)?,
-                created_at: parse_datetime(row.get::<_, String>(7)?),
-                last_accessed_at: parse_datetime(row.get::<_, String>(8)?),
-                updated_at: parse_datetime(row.get::<_, String>(9)?),
+                agent_id: row.get(3)?,
+                agent_name: row.get(4)?,
+                issue_id: row.get(5)?,
+                issue_title: row.get(6)?,
+                issue_url: row.get(7)?,
+                claude_session_id: row.get(8)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(9)?),
+                is_worktree: row.get(10)?,
+                worktree_path: row.get(11)?,
+                created_at: parse_datetime(row.get::<_, String>(12)?),
+                last_accessed_at: parse_datetime(row.get::<_, String>(13)?),
+                updated_at: parse_datetime(row.get::<_, String>(14)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -648,6 +663,44 @@ mod tests {
         id
     }
 
+    fn insert_test_company(conn: &Connection) -> String {
+        let id = "company-1".to_string();
+        conn.execute(
+            "INSERT INTO companies (id, name) VALUES (?1, ?2)",
+            params![id, "Test Company"],
+        )
+        .unwrap();
+        "company-1".to_string()
+    }
+
+    fn insert_test_agent(
+        conn: &Connection,
+        company_id: &str,
+        agent_id: &str,
+        name: &str,
+    ) -> String {
+        conn.execute(
+            "INSERT INTO agents (id, company_id, name, slug) VALUES (?1, ?2, ?3, ?4)",
+            params![agent_id, company_id, name, format!("{agent_id}-slug")],
+        )
+        .unwrap();
+        agent_id.to_string()
+    }
+
+    fn insert_test_issue(
+        conn: &Connection,
+        company_id: &str,
+        issue_id: &str,
+        title: &str,
+    ) -> String {
+        conn.execute(
+            "INSERT INTO issues (id, company_id, title) VALUES (?1, ?2, ?3)",
+            params![issue_id, company_id, title],
+        )
+        .unwrap();
+        issue_id.to_string()
+    }
+
     fn insert_test_session(conn: &Connection, repo_id: &str) -> String {
         let id = "session-1".to_string();
         insert_session(
@@ -656,6 +709,11 @@ mod tests {
                 id: id.clone(),
                 repository_id: repo_id.to_string(),
                 title: "Test Session".to_string(),
+                agent_id: None,
+                agent_name: None,
+                issue_id: None,
+                issue_title: None,
+                issue_url: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -797,6 +855,9 @@ mod tests {
     fn session_insert_and_get() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
+        let company_id = insert_test_company(&conn);
+        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
+        let issue_id = insert_test_issue(&conn, &company_id, "issue-123", "Fix launch bug");
 
         let session = insert_session(
             &conn,
@@ -804,6 +865,11 @@ mod tests {
                 id: "s1".into(),
                 repository_id: repo_id,
                 title: "My Session".into(),
+                agent_id: Some(agent_id.clone()),
+                agent_name: Some("Debug Agent".into()),
+                issue_id: Some(issue_id.clone()),
+                issue_title: Some("Fix launch bug".into()),
+                issue_url: Some("https://example.com/issues/ENG-123".into()),
                 claude_session_id: Some("claude-xyz".into()),
                 is_worktree: true,
                 worktree_path: Some("/worktree".into()),
@@ -813,6 +879,14 @@ mod tests {
 
         assert_eq!(session.id, "s1");
         assert_eq!(session.title, "My Session");
+        assert_eq!(session.agent_id, Some(agent_id));
+        assert_eq!(session.agent_name, Some("Debug Agent".into()));
+        assert_eq!(session.issue_id, Some(issue_id));
+        assert_eq!(session.issue_title, Some("Fix launch bug".into()));
+        assert_eq!(
+            session.issue_url,
+            Some("https://example.com/issues/ENG-123".into())
+        );
         assert_eq!(session.claude_session_id, Some("claude-xyz".into()));
         assert!(session.is_worktree);
         assert_eq!(session.worktree_path, Some("/worktree".into()));
@@ -866,6 +940,14 @@ mod tests {
     fn session_list_for_repository() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
+        let company_id = insert_test_company(&conn);
+        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
+        let issue_id = insert_test_issue(
+            &conn,
+            &company_id,
+            "issue-999",
+            "Investigate session linking",
+        );
 
         insert_session(
             &conn,
@@ -873,6 +955,11 @@ mod tests {
                 id: "s1".into(),
                 repository_id: repo_id.clone(),
                 title: "First".into(),
+                agent_id: None,
+                agent_name: None,
+                issue_id: None,
+                issue_title: None,
+                issue_url: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -885,6 +972,11 @@ mod tests {
                 id: "s2".into(),
                 repository_id: repo_id.clone(),
                 title: "Second".into(),
+                agent_id: Some(agent_id),
+                agent_name: Some("Debug Agent".into()),
+                issue_id: Some(issue_id.clone()),
+                issue_title: Some("Investigate session linking".into()),
+                issue_url: Some("https://example.com/issues/ENG-999".into()),
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -894,6 +986,11 @@ mod tests {
 
         let sessions = list_sessions_for_repository(&conn, &repo_id).unwrap();
         assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].issue_id.as_deref(), Some(issue_id.as_str()));
+        assert_eq!(
+            sessions[0].issue_url.as_deref(),
+            Some("https://example.com/issues/ENG-999")
+        );
 
         // No sessions for other repo
         let empty = list_sessions_for_repository(&conn, "other-repo").unwrap();

@@ -3,12 +3,12 @@
 //! Each handler module contains thin handlers that compose the appropriate
 //! store, store_stream, and machines modules.
 
+pub mod board;
 pub mod claude;
 pub mod gh;
 pub mod git;
 pub mod health;
 pub mod message;
-pub mod board;
 pub mod repository;
 pub mod session;
 pub mod system;

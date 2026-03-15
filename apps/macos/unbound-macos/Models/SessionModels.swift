@@ -23,6 +23,11 @@ struct Session: Identifiable, Codable, Hashable {
     let id: UUID
     let repositoryId: UUID
     var title: String
+    var agentId: String?
+    var agentName: String?
+    var issueId: String?
+    var issueTitle: String?
+    var issueURL: String?
     var claudeSessionId: String?
     var status: SessionStatus
     // Worktree columns (replaced worktree_id FK)
@@ -35,6 +40,11 @@ struct Session: Identifiable, Codable, Hashable {
         id: UUID = UUID(),
         repositoryId: UUID,
         title: String = "New conversation",
+        agentId: String? = nil,
+        agentName: String? = nil,
+        issueId: String? = nil,
+        issueTitle: String? = nil,
+        issueURL: String? = nil,
         claudeSessionId: String? = nil,
         status: SessionStatus = .active,
         isWorktree: Bool = false,
@@ -45,6 +55,11 @@ struct Session: Identifiable, Codable, Hashable {
         self.id = id
         self.repositoryId = repositoryId
         self.title = title
+        self.agentId = agentId
+        self.agentName = agentName
+        self.issueId = issueId
+        self.issueTitle = issueTitle
+        self.issueURL = issueURL
         self.claudeSessionId = claudeSessionId
         self.status = status
         self.isWorktree = isWorktree
@@ -56,6 +71,21 @@ struct Session: Identifiable, Codable, Hashable {
     /// Display title - uses provided title or default
     var displayTitle: String {
         title.isEmpty ? "New conversation" : title
+    }
+
+    var displayAgentName: String {
+        guard let agentName, !agentName.isEmpty else { return "Agent" }
+        return agentName
+    }
+
+    var displayIssueTitle: String? {
+        if let issueTitle, !issueTitle.isEmpty {
+            return issueTitle
+        }
+        if let issueId, !issueId.isEmpty {
+            return issueId
+        }
+        return nil
     }
 
     /// Check if the worktree directory still exists

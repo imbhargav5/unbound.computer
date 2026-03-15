@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 12;
+pub const CURRENT_VERSION: i32 = 15;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -72,6 +72,15 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 12 {
         migrate_v12_board_schema(conn)?;
+    }
+    if current_version < 13 {
+        migrate_v13_session_agent_metadata(conn)?;
+    }
+    if current_version < 14 {
+        migrate_v14_session_issue_metadata(conn)?;
+    }
+    if current_version < 15 {
+        migrate_v15_reconcile_board_and_session_metadata(conn)?;
     }
 
     info!("Migrations complete");
@@ -616,15 +625,14 @@ fn add_column_if_missing(
     column_sql: &str,
 ) -> DatabaseResult<()> {
     if !column_names(conn, table_name)?.contains(column_name) {
-        conn.execute_batch(&format!("ALTER TABLE {table_name} ADD COLUMN {column_sql};"))?;
+        conn.execute_batch(&format!(
+            "ALTER TABLE {table_name} ADD COLUMN {column_sql};"
+        ))?;
     }
     Ok(())
 }
 
-/// V12: Add the Unbound local board schema ported from Paperclip.
-fn migrate_v12_board_schema(conn: &Connection) -> DatabaseResult<()> {
-    info!("Applying migration v12: board_schema");
-
+fn ensure_board_schema(conn: &Connection) -> DatabaseResult<()> {
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS companies (
@@ -1456,7 +1464,72 @@ fn migrate_v12_board_schema(conn: &Connection) -> DatabaseResult<()> {
         ",
     )?;
 
+    Ok(())
+}
+
+/// V12: Add the Unbound local board schema ported from Paperclip.
+fn migrate_v12_board_schema(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v12: board_schema");
+
+    ensure_board_schema(conn)?;
+
     record_migration(conn, 12, "board_schema")?;
+    Ok(())
+}
+
+fn ensure_session_agent_metadata(conn: &Connection) -> DatabaseResult<()> {
+    add_column_if_missing(conn, "agent_coding_sessions", "agent_id", "agent_id TEXT")?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "agent_name",
+        "agent_name TEXT",
+    )?;
+    Ok(())
+}
+
+fn ensure_session_issue_metadata(conn: &Connection) -> DatabaseResult<()> {
+    add_column_if_missing(conn, "agent_coding_sessions", "issue_id", "issue_id TEXT")?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "issue_title",
+        "issue_title TEXT",
+    )?;
+    add_column_if_missing(conn, "agent_coding_sessions", "issue_url", "issue_url TEXT")?;
+    Ok(())
+}
+
+/// V13: Persist stable cross-project agent metadata on sessions.
+fn migrate_v13_session_agent_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v13: session agent metadata");
+
+    ensure_session_agent_metadata(conn)?;
+
+    record_migration(conn, 13, "session_agent_metadata")?;
+    Ok(())
+}
+
+/// V14: Persist issue linkage on sessions created from issue-driven agents.
+fn migrate_v14_session_issue_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v14: session issue metadata");
+
+    ensure_session_issue_metadata(conn)?;
+
+    record_migration(conn, 14, "session_issue_metadata")?;
+    Ok(())
+}
+
+/// V15: Reconcile local databases that may have taken either the board-schema
+/// path or the earlier session-metadata-only path before those histories merged.
+fn migrate_v15_reconcile_board_and_session_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v15: reconcile board and session metadata");
+
+    ensure_board_schema(conn)?;
+    ensure_session_agent_metadata(conn)?;
+    ensure_session_issue_metadata(conn)?;
+
+    record_migration(conn, 15, "reconcile_board_and_session_metadata")?;
     Ok(())
 }
 
@@ -1509,7 +1582,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 12);
+        assert_eq!(version, 15);
     }
 
     #[test]
@@ -1587,7 +1660,10 @@ mod tests {
         assert!(columns.contains(&"company_id".to_string()));
         assert!(columns.contains(&"project_id".to_string()));
         assert!(columns.contains(&"issue_id".to_string()));
+        assert!(columns.contains(&"issue_title".to_string()));
+        assert!(columns.contains(&"issue_url".to_string()));
         assert!(columns.contains(&"agent_id".to_string()));
+        assert!(columns.contains(&"agent_name".to_string()));
         assert!(columns.contains(&"workspace_type".to_string()));
         assert!(columns.contains(&"workspace_status".to_string()));
         assert!(columns.contains(&"workspace_repo_path".to_string()));
@@ -1647,7 +1723,10 @@ mod tests {
             "company_secrets",
             "company_secret_versions",
         ] {
-            assert!(tables.contains(&table.to_string()), "missing table: {table}");
+            assert!(
+                tables.contains(&table.to_string()),
+                "missing table: {table}"
+            );
         }
     }
 }

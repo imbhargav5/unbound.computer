@@ -9,8 +9,14 @@ import Foundation
 
 enum WorkspaceTabSelection: Equatable {
     case conversation
+    case agentRuns(String)
     case terminal(UUID)
     case editor(UUID)
+}
+
+struct WorkspaceAgentRunsTab: Equatable {
+    let agentId: String
+    var title: String
 }
 
 struct WorkspaceTerminalTab: Identifiable, Equatable {
@@ -24,6 +30,7 @@ struct WorkspaceTerminalTab: Identifiable, Equatable {
 final class WorkspaceTabState {
     private(set) var sessionId: UUID?
     private(set) var workspacePath: String?
+    private(set) var agentRunsTab: WorkspaceAgentRunsTab?
     private(set) var terminalTabs: [WorkspaceTerminalTab] = []
     private(set) var terminalTabSequence: Int = 0
 
@@ -35,6 +42,7 @@ final class WorkspaceTabState {
         self.workspacePath = workspacePath
 
         guard isSameSession else {
+            agentRunsTab = nil
             terminalTabs.removeAll()
             terminalTabSequence = 0
             selection = .conversation
@@ -45,7 +53,11 @@ final class WorkspaceTabState {
             terminalTabs.removeAll()
             terminalTabSequence = 0
             if case .terminal = selection {
-                selection = .conversation
+                if let agentRunsTab {
+                    selection = .agentRuns(agentRunsTab.agentId)
+                } else {
+                    selection = .conversation
+                }
             }
             return
         }
@@ -82,6 +94,16 @@ final class WorkspaceTabState {
         selection = .conversation
     }
 
+    func openAgentRuns(agentId: String, title: String = "Runs") {
+        agentRunsTab = WorkspaceAgentRunsTab(agentId: agentId, title: title)
+        selection = .agentRuns(agentId)
+    }
+
+    func selectAgentRuns() {
+        guard let agentRunsTab else { return }
+        selection = .agentRuns(agentRunsTab.agentId)
+    }
+
     func selectTerminal(_ tabId: UUID) {
         guard terminalTabs.contains(where: { $0.id == tabId }) else { return }
         selection = .terminal(tabId)
@@ -111,6 +133,16 @@ final class WorkspaceTabState {
         )
     }
 
+    func closeAgentRuns(editorTabIds: [UUID]) {
+        guard let agentRunsTab else { return }
+        let removedSelection = WorkspaceTabSelection.agentRuns(agentRunsTab.agentId)
+        let wasSelected = selection == removedSelection
+        self.agentRunsTab = nil
+
+        guard wasSelected else { return }
+        selection = fallbackSelection(removing: removedSelection, editorTabIds: editorTabIds)
+    }
+
     private func fallbackSelection(
         removing removedTab: WorkspaceTabSelection,
         editorTabIds: [UUID]
@@ -131,7 +163,9 @@ final class WorkspaceTabState {
     }
 
     private func orderedTabs(editorTabIds: [UUID]) -> [WorkspaceTabSelection] {
-        [.conversation]
+        let runsTabs = agentRunsTab.map { [WorkspaceTabSelection.agentRuns($0.agentId)] } ?? []
+        return [.conversation]
+            + runsTabs
             + terminalTabs.map { .terminal($0.id) }
             + editorTabIds.map { .editor($0) }
     }

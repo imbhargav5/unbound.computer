@@ -276,7 +276,12 @@ extension DaemonClient {
         isWorktree: Bool = false,
         worktreeName: String? = nil,
         baseBranch: String? = nil,
-        worktreeBranch: String? = nil
+        worktreeBranch: String? = nil,
+        agentId: String? = nil,
+        agentName: String? = nil,
+        issueId: String? = nil,
+        issueTitle: String? = nil,
+        issueURL: String? = nil
     ) async throws -> DaemonSession {
         var params: [String: Any] = ["repository_id": repositoryId]
         if let title {
@@ -293,6 +298,17 @@ extension DaemonClient {
         }
         if let worktreeBranch, !worktreeBranch.isEmpty {
             params["worktree_branch"] = worktreeBranch
+        }
+        if let agentId, !agentId.isEmpty, let agentName, !agentName.isEmpty {
+            params["agent_id"] = agentId
+            params["agent_name"] = agentName
+        }
+        if let issueId, !issueId.isEmpty, let issueTitle, !issueTitle.isEmpty {
+            params["issue_id"] = issueId
+            params["issue_title"] = issueTitle
+            if let issueURL, !issueURL.isEmpty {
+                params["issue_url"] = issueURL
+            }
         }
         let response = try await call(method: .sessionCreate, params: params)
 

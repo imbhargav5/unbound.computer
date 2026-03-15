@@ -35,7 +35,9 @@ pub async fn list_companies(db: &AsyncDatabase) -> BoardResult<Vec<Company>> {
 pub async fn get_company(db: &AsyncDatabase, company_id: &str) -> BoardResult<Option<Company>> {
     let company_id = company_id.to_string();
     Ok(db
-        .call_with_operation("board.company.get", move |conn| get_company_sync(conn, &company_id))
+        .call_with_operation("board.company.get", move |conn| {
+            get_company_sync(conn, &company_id)
+        })
         .await?)
 }
 
@@ -182,10 +184,13 @@ pub async fn create_company(
         "ceo",
     ) {
         let company_id = creation.0.id.clone();
-        db.call_with_operation("board.company.rollback_after_scaffold_failure", move |conn| {
-            conn.execute("DELETE FROM companies WHERE id = ?1", params![company_id])?;
-            Ok(())
-        })
+        db.call_with_operation(
+            "board.company.rollback_after_scaffold_failure",
+            move |conn| {
+                conn.execute("DELETE FROM companies WHERE id = ?1", params![company_id])?;
+                Ok(())
+            },
+        )
         .await?;
         let _ = fs::remove_dir_all(paths.company_root(&creation.0.id));
         return Err(error);
@@ -443,14 +448,18 @@ pub async fn list_goals(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec
 pub async fn list_projects(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Project>> {
     let company_id = company_id.to_string();
     Ok(db
-        .call_with_operation("board.project.list", move |conn| list_projects_sync(conn, &company_id))
+        .call_with_operation("board.project.list", move |conn| {
+            list_projects_sync(conn, &company_id)
+        })
         .await?)
 }
 
 pub async fn get_project(db: &AsyncDatabase, project_id: &str) -> BoardResult<Option<Project>> {
     let project_id = project_id.to_string();
     Ok(db
-        .call_with_operation("board.project.get", move |conn| get_project_sync(conn, &project_id))
+        .call_with_operation("board.project.get", move |conn| {
+            get_project_sync(conn, &project_id)
+        })
         .await?)
 }
 
@@ -551,14 +560,18 @@ pub async fn create_project(db: &AsyncDatabase, input: CreateProjectInput) -> Bo
 
 pub async fn list_issues(db: &AsyncDatabase, filter: IssueListFilter) -> BoardResult<Vec<Issue>> {
     Ok(db
-        .call_with_operation("board.issue.list", move |conn| list_issues_sync(conn, &filter))
+        .call_with_operation("board.issue.list", move |conn| {
+            list_issues_sync(conn, &filter)
+        })
         .await?)
 }
 
 pub async fn get_issue(db: &AsyncDatabase, issue_id: &str) -> BoardResult<Option<Issue>> {
     let issue_id = issue_id.to_string();
     Ok(db
-        .call_with_operation("board.issue.get", move |conn| get_issue_sync(conn, &issue_id))
+        .call_with_operation("board.issue.get", move |conn| {
+            get_issue_sync(conn, &issue_id)
+        })
         .await?)
 }
 
@@ -810,8 +823,8 @@ pub async fn approve_approval(
     input: ApprovalDecisionInput,
 ) -> BoardResult<Approval> {
     let approval_id = require_name(&input.approval_id, "approval_id")?;
-    let decided_by_user_id =
-        normalize_optional_string(input.decided_by_user_id).unwrap_or_else(|| LOCAL_BOARD_USER_ID.to_string());
+    let decided_by_user_id = normalize_optional_string(input.decided_by_user_id)
+        .unwrap_or_else(|| LOCAL_BOARD_USER_ID.to_string());
     let decision_note = normalize_optional_string(input.decision_note);
     let now = now_rfc3339();
 
@@ -883,14 +896,13 @@ pub async fn approve_approval(
 pub async fn list_workspaces(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Workspace>> {
     let company_id = company_id.to_string();
     Ok(db
-        .call_with_operation("board.workspace.list", move |conn| list_workspaces_sync(conn, &company_id))
+        .call_with_operation("board.workspace.list", move |conn| {
+            list_workspaces_sync(conn, &company_id)
+        })
         .await?)
 }
 
-pub async fn get_workspace(
-    db: &AsyncDatabase,
-    session_id: &str,
-) -> BoardResult<Option<Workspace>> {
+pub async fn get_workspace(db: &AsyncDatabase, session_id: &str) -> BoardResult<Option<Workspace>> {
     let session_id = session_id.to_string();
     Ok(db
         .call_with_operation("board.workspace.get", move |conn| {
@@ -916,14 +928,12 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
             let issue = get_issue_sync(conn, &issue_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Issue not found".to_string()))?;
             let company_id = issue.company_id.clone();
-            let assignee_agent_id = issue
-                .assignee_agent_id
-                .clone()
-                .ok_or_else(|| DatabaseError::InvalidData("Issue must be assigned to an agent".to_string()))?;
-            let project_id = issue
-                .project_id
-                .clone()
-                .ok_or_else(|| DatabaseError::InvalidData("Issue must belong to a project".to_string()))?;
+            let assignee_agent_id = issue.assignee_agent_id.clone().ok_or_else(|| {
+                DatabaseError::InvalidData("Issue must be assigned to an agent".to_string())
+            })?;
+            let project_id = issue.project_id.clone().ok_or_else(|| {
+                DatabaseError::InvalidData("Issue must belong to a project".to_string())
+            })?;
 
             if let Some(workspace) = find_latest_workspace_for_issue_sync(conn, &issue.id)? {
                 if workspace.workspace_status == "active" {
@@ -932,11 +942,12 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
             }
 
             let primary = get_primary_project_workspace_by_project_sync(conn, &project_id)?
-                .ok_or_else(|| DatabaseError::NotFound("Project primary workspace not configured".to_string()))?;
-            let cwd = primary
-                .cwd
-                .clone()
-                .ok_or_else(|| DatabaseError::InvalidData("Project primary workspace has no repo path".to_string()))?;
+                .ok_or_else(|| {
+                    DatabaseError::NotFound("Project primary workspace not configured".to_string())
+                })?;
+            let cwd = primary.cwd.clone().ok_or_else(|| {
+                DatabaseError::InvalidData("Project primary workspace has no repo path".to_string())
+            })?;
             let repository = queries::get_repository_by_path(conn, &cwd)?
                 .map(|repo| (repo.id, repo.default_branch))
                 .unwrap_or_else(|| {
@@ -1003,11 +1014,20 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
             ),
         };
 
+    let agent = get_agent(db, &agent_id)
+        .await?
+        .ok_or_else(|| DatabaseError::NotFound("Assigned agent not found".to_string()))?;
+
     let session = writer
         .create_session_with_metadata(NewSession {
             id: agent_session_sqlite_persist_core::SessionId::new(),
             repository_id: RepositoryId::from_string(&repository_id),
             title,
+            agent_id: Some(agent_id.clone()),
+            agent_name: Some(agent.name.clone()),
+            issue_id: Some(issue.id.clone()),
+            issue_title: Some(issue.title.clone()),
+            issue_url: None,
             claude_session_id: None,
             is_worktree: false,
             worktree_path: None,
@@ -1109,7 +1129,9 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                     row_to_workspace,
                 )
                 .optional()?
-                .ok_or_else(|| DatabaseError::NotFound("Workspace missing after create".to_string()))?;
+                .ok_or_else(|| {
+                    DatabaseError::NotFound("Workspace missing after create".to_string())
+                })?;
 
             tx.commit()?;
             Ok(workspace)
@@ -1191,16 +1213,14 @@ fn list_projects_sync(conn: &Connection, company_id: &str) -> DatabaseResult<Vec
 
     let project_rows = stmt
         .query_map(params![company_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row_to_project_base(row)?,
-            ))
+            Ok((row.get::<_, String>(0)?, row_to_project_base(row)?))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut projects = Vec::with_capacity(project_rows.len());
     for (project_id, mut project) in project_rows {
-        project.primary_workspace = get_primary_project_workspace_by_project_sync(conn, &project_id)?;
+        project.primary_workspace =
+            get_primary_project_workspace_by_project_sync(conn, &project_id)?;
         projects.push(project);
     }
     Ok(projects)
@@ -1220,7 +1240,8 @@ fn get_project_sync(conn: &Connection, project_id: &str) -> DatabaseResult<Optio
         .optional()?;
 
     if let Some(project) = project.as_mut() {
-        project.primary_workspace = get_primary_project_workspace_by_project_sync(conn, project_id)?;
+        project.primary_workspace =
+            get_primary_project_workspace_by_project_sync(conn, project_id)?;
     }
 
     Ok(project)
@@ -1271,7 +1292,10 @@ fn list_issues_sync(conn: &Connection, filter: &IssueListFilter) -> DatabaseResu
 
     let mut stmt = conn.prepare(&sql)?;
     let issues = stmt
-        .query_map(rusqlite::params_from_iter(param_values.iter()), row_to_issue)?
+        .query_map(
+            rusqlite::params_from_iter(param_values.iter()),
+            row_to_issue,
+        )?
         .collect::<Result<Vec<_>, _>>()
         .map_err(DatabaseError::from)?;
     Ok(issues)
@@ -1545,7 +1569,12 @@ fn ensure_local_board_user(conn: &Connection, now: &str) -> DatabaseResult<()> {
         "INSERT OR IGNORE INTO auth_users (
             id, name, email, email_verified, image, created_at, updated_at
          ) VALUES (?1, ?2, ?3, 1, NULL, ?4, ?4)",
-        params![LOCAL_BOARD_USER_ID, LOCAL_BOARD_NAME, LOCAL_BOARD_EMAIL, now],
+        params![
+            LOCAL_BOARD_USER_ID,
+            LOCAL_BOARD_NAME,
+            LOCAL_BOARD_EMAIL,
+            now
+        ],
     )?;
     conn.execute(
         "INSERT OR IGNORE INTO instance_user_roles (
@@ -1733,13 +1762,17 @@ fn parse_json(text: String) -> Value {
 fn require_name(value: &str, field_name: &str) -> BoardResult<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(BoardError::InvalidInput(format!("{field_name} must not be empty")));
+        return Err(BoardError::InvalidInput(format!(
+            "{field_name} must not be empty"
+        )));
     }
     Ok(trimmed.to_string())
 }
 
 fn normalize_optional_string(value: Option<String>) -> Option<String> {
-    value.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn now_rfc3339() -> String {

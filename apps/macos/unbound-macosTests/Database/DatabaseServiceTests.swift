@@ -52,6 +52,11 @@ final class DatabaseServiceTests: XCTestCase {
             id: UUID().uuidString.lowercased(),
             repositoryId: repositoryID.uuidString.lowercased(),
             title: "Fix integration",
+            agentId: "agent-123",
+            agentName: "Debug Agent",
+            issueId: "ENG-123",
+            issueTitle: "Fix integration flow",
+            issueURL: "https://example.com/issues/ENG-123",
             claudeSessionId: "claude-session-1",
             status: "active",
             isWorktree: true,
@@ -64,6 +69,11 @@ final class DatabaseServiceTests: XCTestCase {
         XCTAssertNotNil(session)
         XCTAssertEqual(session?.repositoryId, repositoryID)
         XCTAssertEqual(session?.title, "Fix integration")
+        XCTAssertEqual(session?.agentId, "agent-123")
+        XCTAssertEqual(session?.agentName, "Debug Agent")
+        XCTAssertEqual(session?.issueId, "ENG-123")
+        XCTAssertEqual(session?.issueTitle, "Fix integration flow")
+        XCTAssertEqual(session?.issueURL, "https://example.com/issues/ENG-123")
         XCTAssertEqual(session?.status, .active)
         XCTAssertEqual(session?.isWorktree, true)
         XCTAssertEqual(session?.worktreePath, "/tmp/worktree")

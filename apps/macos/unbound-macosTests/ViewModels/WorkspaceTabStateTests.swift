@@ -86,6 +86,54 @@ final class WorkspaceTabStateTests: XCTestCase {
     }
 
     @MainActor
+    func testOpenAgentRunsCreatesTransientTabAndSelectsIt() {
+        let state = WorkspaceTabState()
+        let sessionId = UUID()
+
+        state.resetForSession(sessionId, workspacePath: "/tmp/repo")
+        state.openAgentRuns(agentId: "agent-123", title: "Ops Agent")
+
+        XCTAssertEqual(state.agentRunsTab, WorkspaceAgentRunsTab(agentId: "agent-123", title: "Ops Agent"))
+        XCTAssertEqual(state.selection, .agentRuns("agent-123"))
+    }
+
+    @MainActor
+    func testClosingAgentRunsFallsForwardToTerminalThenEditor() {
+        let state = WorkspaceTabState()
+        let sessionId = UUID()
+        let terminal = state.createTerminalTab(for: sessionId, workspacePath: "/tmp/repo")
+        let editorId = UUID()
+
+        state.openAgentRuns(agentId: "agent-123", title: "Ops Agent")
+        state.selectAgentRuns()
+        state.closeAgentRuns(editorTabIds: [editorId])
+        XCTAssertEqual(state.selection, .terminal(terminal?.id ?? UUID()))
+
+        state.openAgentRuns(agentId: "agent-123", title: "Ops Agent")
+        state.selectAgentRuns()
+        state.closeTerminalTab(terminal?.id ?? UUID(), editorTabIds: [editorId])
+        XCTAssertEqual(state.selection, .agentRuns("agent-123"))
+
+        state.closeAgentRuns(editorTabIds: [editorId])
+        XCTAssertEqual(state.selection, .editor(editorId))
+    }
+
+    @MainActor
+    func testResetForNewSessionClearsAgentRunsTab() {
+        let state = WorkspaceTabState()
+        let firstSessionId = UUID()
+        let secondSessionId = UUID()
+
+        state.resetForSession(firstSessionId, workspacePath: "/tmp/first")
+        state.openAgentRuns(agentId: "agent-123", title: "Ops Agent")
+
+        state.resetForSession(secondSessionId, workspacePath: "/tmp/second")
+
+        XCTAssertNil(state.agentRunsTab)
+        XCTAssertEqual(state.selection, .conversation)
+    }
+
+    @MainActor
     func testSidebarCreationFlowSelectsRequestedSessionAndActivatesTerminalTab() {
         let repositoryId = UUID()
         let selectedSession = Session(id: UUID(), repositoryId: repositoryId, title: "Selected")

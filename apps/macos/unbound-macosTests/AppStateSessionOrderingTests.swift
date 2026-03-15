@@ -97,6 +97,57 @@ final class AppStateSessionOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionsForAgentFiltersAcrossRepositoriesAndSortsByRecency() {
+        let repoOne = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        let repoTwo = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let base = Date(timeIntervalSince1970: 4_000)
+
+        let newest = Session(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000021")!,
+            repositoryId: repoTwo,
+            title: "repo-two",
+            agentId: "agent-123",
+            agentName: "Ops Agent",
+            createdAt: base.addingTimeInterval(-100),
+            lastAccessed: base
+        )
+        let middle = Session(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000022")!,
+            repositoryId: repoOne,
+            title: "repo-one",
+            agentId: "agent-123",
+            agentName: "Ops Agent",
+            createdAt: base.addingTimeInterval(-200),
+            lastAccessed: base.addingTimeInterval(-50)
+        )
+        let unrelated = Session(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000023")!,
+            repositoryId: repoOne,
+            title: "other-agent",
+            agentId: "agent-999",
+            agentName: "Other Agent",
+            createdAt: base.addingTimeInterval(-300),
+            lastAccessed: base.addingTimeInterval(-25)
+        )
+
+        let appState = AppState()
+        appState.configureForPreview(
+            repositories: [
+                Repository(id: repoOne, path: "/tmp/repo-one"),
+                Repository(id: repoTwo, path: "/tmp/repo-two")
+            ],
+            sessions: [
+                repoOne: [middle, unrelated],
+                repoTwo: [newest]
+            ]
+        )
+
+        let ordered = appState.sessionsForAgent("agent-123")
+
+        XCTAssertEqual(ordered.map(\.id), [newest.id, middle.id])
+    }
+
+    @MainActor
     private func makeAppState(repositoryId: UUID, sessions: [Session]) -> AppState {
         let appState = AppState()
         let repository = Repository(id: repositoryId, path: "/tmp/repo")

@@ -92,6 +92,8 @@ impl SqliteStore {
             self.migrate_v1_full_schema(&conn)?;
         }
 
+        self.ensure_session_agent_metadata_columns(&conn)?;
+
         // Ensure runtime session state uses grouped JSON envelope schema
         self.ensure_session_state_runtime_envelope(&conn)?;
 
@@ -261,6 +263,11 @@ impl SqliteStore {
                 id TEXT PRIMARY KEY,
                 repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
                 title TEXT NOT NULL DEFAULT 'New conversation',
+                agent_id TEXT,
+                agent_name TEXT,
+                issue_id TEXT,
+                issue_title TEXT,
+                issue_url TEXT,
                 claude_session_id TEXT,
                 status TEXT NOT NULL DEFAULT 'active',
                 is_worktree INTEGER NOT NULL DEFAULT 0,
@@ -278,6 +285,10 @@ impl SqliteStore {
                 ON agent_coding_sessions(last_accessed_at);
             CREATE INDEX IF NOT EXISTS idx_sessions_is_worktree
                 ON agent_coding_sessions(is_worktree);
+            CREATE INDEX IF NOT EXISTS idx_sessions_agent_id
+                ON agent_coding_sessions(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_issue_id
+                ON agent_coding_sessions(issue_id);
             "#,
         )?;
 
@@ -359,6 +370,42 @@ impl SqliteStore {
         )?;
 
         tracing::info!("Armin migration v1 applied successfully");
+        Ok(())
+    }
+
+    fn ensure_session_agent_metadata_columns(&self, conn: &Connection) -> SqliteResult<()> {
+        let mut stmt = conn.prepare("PRAGMA table_info(agent_coding_sessions)")?;
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if !columns.iter().any(|c| c == "agent_id") {
+            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_id TEXT;")?;
+        }
+
+        if !columns.iter().any(|c| c == "agent_name") {
+            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_name TEXT;")?;
+        }
+
+        if !columns.iter().any(|c| c == "issue_id") {
+            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_id TEXT;")?;
+        }
+
+        if !columns.iter().any(|c| c == "issue_title") {
+            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_title TEXT;")?;
+        }
+
+        if !columns.iter().any(|c| c == "issue_url") {
+            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_url TEXT;")?;
+        }
+
+        conn.execute_batch(
+            "
+            CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON agent_coding_sessions(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_issue_id ON agent_coding_sessions(issue_id);
+            ",
+        )?;
+
         Ok(())
     }
 
@@ -546,12 +593,17 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
-            "INSERT INTO agent_coding_sessions (id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, 'active', ?5, ?6, ?7, ?7, ?7)",
+            "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'active', ?10, ?11, ?12, ?12, ?12)",
             params![
                 session.id.as_str(),
                 session.repository_id.as_str(),
                 session.title,
+                session.agent_id,
+                session.agent_name,
+                session.issue_id,
+                session.issue_title,
+                session.issue_url,
                 session.claude_session_id,
                 session.is_worktree,
                 session.worktree_path,
@@ -567,7 +619,7 @@ impl SqliteStore {
     pub fn get_agent_session(&self, id: &SessionId) -> SqliteResult<Option<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
              FROM agent_coding_sessions WHERE id = ?1",
         )?;
 
@@ -576,13 +628,18 @@ impl SqliteStore {
                 id: SessionId::from_string(row.get::<_, String>(0)?),
                 repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
                 title: row.get(2)?,
-                claude_session_id: row.get(3)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(4)?),
-                is_worktree: row.get(5)?,
-                worktree_path: row.get(6)?,
-                created_at: Self::parse_datetime(row.get::<_, String>(7)?),
-                last_accessed_at: Self::parse_datetime(row.get::<_, String>(8)?),
-                updated_at: Self::parse_datetime(row.get::<_, String>(9)?),
+                agent_id: row.get(3)?,
+                agent_name: row.get(4)?,
+                issue_id: row.get(5)?,
+                issue_title: row.get(6)?,
+                issue_url: row.get(7)?,
+                claude_session_id: row.get(8)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(9)?),
+                is_worktree: row.get(10)?,
+                worktree_path: row.get(11)?,
+                created_at: Self::parse_datetime(row.get::<_, String>(12)?),
+                last_accessed_at: Self::parse_datetime(row.get::<_, String>(13)?),
+                updated_at: Self::parse_datetime(row.get::<_, String>(14)?),
             })
         });
 
@@ -600,7 +657,7 @@ impl SqliteStore {
     ) -> SqliteResult<Vec<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
              FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
         )?;
 
@@ -610,13 +667,18 @@ impl SqliteStore {
                     id: SessionId::from_string(row.get::<_, String>(0)?),
                     repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
                     title: row.get(2)?,
-                    claude_session_id: row.get(3)?,
-                    status: SessionStatus::from_str(&row.get::<_, String>(4)?),
-                    is_worktree: row.get(5)?,
-                    worktree_path: row.get(6)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(7)?),
-                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(8)?),
-                    updated_at: Self::parse_datetime(row.get::<_, String>(9)?),
+                    agent_id: row.get(3)?,
+                    agent_name: row.get(4)?,
+                    issue_id: row.get(5)?,
+                    issue_title: row.get(6)?,
+                    issue_url: row.get(7)?,
+                    claude_session_id: row.get(8)?,
+                    status: SessionStatus::from_str(&row.get::<_, String>(9)?),
+                    is_worktree: row.get(10)?,
+                    worktree_path: row.get(11)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(12)?),
+                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(13)?),
+                    updated_at: Self::parse_datetime(row.get::<_, String>(14)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -628,7 +690,7 @@ impl SqliteStore {
     pub fn list_all_agent_sessions(&self) -> SqliteResult<Vec<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
              FROM agent_coding_sessions ORDER BY last_accessed_at DESC",
         )?;
 
@@ -638,13 +700,18 @@ impl SqliteStore {
                     id: SessionId::from_string(row.get::<_, String>(0)?),
                     repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
                     title: row.get(2)?,
-                    claude_session_id: row.get(3)?,
-                    status: SessionStatus::from_str(&row.get::<_, String>(4)?),
-                    is_worktree: row.get(5)?,
-                    worktree_path: row.get(6)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(7)?),
-                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(8)?),
-                    updated_at: Self::parse_datetime(row.get::<_, String>(9)?),
+                    agent_id: row.get(3)?,
+                    agent_name: row.get(4)?,
+                    issue_id: row.get(5)?,
+                    issue_title: row.get(6)?,
+                    issue_url: row.get(7)?,
+                    claude_session_id: row.get(8)?,
+                    status: SessionStatus::from_str(&row.get::<_, String>(9)?),
+                    is_worktree: row.get(10)?,
+                    worktree_path: row.get(11)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(12)?),
+                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(13)?),
+                    updated_at: Self::parse_datetime(row.get::<_, String>(14)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -1141,6 +1208,11 @@ mod tests {
             id: SessionId::new(),
             repository_id: repo_id.clone(),
             title: "Test".to_string(),
+            agent_id: None,
+            agent_name: None,
+            issue_id: None,
+            issue_title: None,
+            issue_url: None,
             claude_session_id: None,
             is_worktree: false,
             worktree_path: None,
@@ -1170,6 +1242,11 @@ mod tests {
             id: id.clone(),
             repository_id: repo_id,
             title: "Test".to_string(),
+            agent_id: Some("agent-123".to_string()),
+            agent_name: Some("Debug Agent".to_string()),
+            issue_id: Some("ENG-123".to_string()),
+            issue_title: Some("Fix launch bug".to_string()),
+            issue_url: Some("https://example.com/issues/ENG-123".to_string()),
             claude_session_id: None,
             is_worktree: false,
             worktree_path: None,
@@ -1178,6 +1255,14 @@ mod tests {
 
         let retrieved = store.get_agent_session(&id).unwrap().unwrap();
         assert_eq!(retrieved.id.as_str(), "my-custom-session-id");
+        assert_eq!(retrieved.agent_id.as_deref(), Some("agent-123"));
+        assert_eq!(retrieved.agent_name.as_deref(), Some("Debug Agent"));
+        assert_eq!(retrieved.issue_id.as_deref(), Some("ENG-123"));
+        assert_eq!(retrieved.issue_title.as_deref(), Some("Fix launch bug"));
+        assert_eq!(
+            retrieved.issue_url.as_deref(),
+            Some("https://example.com/issues/ENG-123")
+        );
     }
 
     #[test]

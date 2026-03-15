@@ -27,7 +27,9 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
             let db = list_db.clone();
             async move {
                 match service::list_companies(&db).await {
-                    Ok(companies) => json_response(&req.id, &serde_json::json!({ "companies": companies })),
+                    Ok(companies) => {
+                        json_response(&req.id, &serde_json::json!({ "companies": companies }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -39,13 +41,18 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::CompanyGet, move |req| {
             let db = get_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::get_company(&db, &company_id).await {
-                    Ok(Some(company)) => json_response(&req.id, &serde_json::json!({ "company": company })),
-                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Company not found"),
+                    Ok(Some(company)) => {
+                        json_response(&req.id, &serde_json::json!({ "company": company }))
+                    }
+                    Ok(None) => {
+                        Response::error(&req.id, error_codes::NOT_FOUND, "Company not found")
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -64,7 +71,9 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
                     Err(response) => return response,
                 };
                 match service::create_company(&db, &paths, input).await {
-                    Ok(company) => json_response(&req.id, &serde_json::json!({ "company": company })),
+                    Ok(company) => {
+                        json_response(&req.id, &serde_json::json!({ "company": company }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -78,10 +87,11 @@ async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::AgentList, move |req| {
             let db = list_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::list_agents(&db, &company_id).await {
                     Ok(agents) => json_response(&req.id, &serde_json::json!({ "agents": agents })),
                     Err(error) => board_error_response(&req.id, error),
@@ -95,12 +105,15 @@ async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::AgentGet, move |req| {
             let db = get_db.clone();
             async move {
-                let agent_id = match required_string_param(&req.id, req.params.as_ref(), "agent_id") {
+                let agent_id = match required_string_param(&req.id, req.params.as_ref(), "agent_id")
+                {
                     Ok(agent_id) => agent_id,
                     Err(response) => return response,
                 };
                 match service::get_agent(&db, &agent_id).await {
-                    Ok(Some(agent)) => json_response(&req.id, &serde_json::json!({ "agent": agent })),
+                    Ok(Some(agent)) => {
+                        json_response(&req.id, &serde_json::json!({ "agent": agent }))
+                    }
                     Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Agent not found"),
                     Err(error) => board_error_response(&req.id, error),
                 }
@@ -134,10 +147,11 @@ async fn register_goal_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::GoalList, move |req| {
             let db = list_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::list_goals(&db, &company_id).await {
                     Ok(goals) => json_response(&req.id, &serde_json::json!({ "goals": goals })),
                     Err(error) => board_error_response(&req.id, error),
@@ -153,12 +167,15 @@ async fn register_project_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ProjectList, move |req| {
             let db = list_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::list_projects(&db, &company_id).await {
-                    Ok(projects) => json_response(&req.id, &serde_json::json!({ "projects": projects })),
+                    Ok(projects) => {
+                        json_response(&req.id, &serde_json::json!({ "projects": projects }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -170,13 +187,18 @@ async fn register_project_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ProjectGet, move |req| {
             let db = get_db.clone();
             async move {
-                let project_id = match required_string_param(&req.id, req.params.as_ref(), "project_id") {
-                    Ok(project_id) => project_id,
-                    Err(response) => return response,
-                };
+                let project_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "project_id") {
+                        Ok(project_id) => project_id,
+                        Err(response) => return response,
+                    };
                 match service::get_project(&db, &project_id).await {
-                    Ok(Some(project)) => json_response(&req.id, &serde_json::json!({ "project": project })),
-                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Project not found"),
+                    Ok(Some(project)) => {
+                        json_response(&req.id, &serde_json::json!({ "project": project }))
+                    }
+                    Ok(None) => {
+                        Response::error(&req.id, error_codes::NOT_FOUND, "Project not found")
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -193,7 +215,9 @@ async fn register_project_handlers(server: &IpcServer, state: DaemonState) {
                     Err(response) => return response,
                 };
                 match service::create_project(&db, input).await {
-                    Ok(project) => json_response(&req.id, &serde_json::json!({ "project": project })),
+                    Ok(project) => {
+                        json_response(&req.id, &serde_json::json!({ "project": project }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -224,12 +248,15 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::IssueGet, move |req| {
             let db = get_db.clone();
             async move {
-                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id") {
+                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
+                {
                     Ok(issue_id) => issue_id,
                     Err(response) => return response,
                 };
                 match service::get_issue(&db, &issue_id).await {
-                    Ok(Some(issue)) => json_response(&req.id, &serde_json::json!({ "issue": issue })),
+                    Ok(Some(issue)) => {
+                        json_response(&req.id, &serde_json::json!({ "issue": issue }))
+                    }
                     Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Issue not found"),
                     Err(error) => board_error_response(&req.id, error),
                 }
@@ -259,12 +286,15 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::IssueCommentList, move |req| {
             let db = comment_list_db.clone();
             async move {
-                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id") {
+                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
+                {
                     Ok(issue_id) => issue_id,
                     Err(response) => return response,
                 };
                 match service::list_issue_comments(&db, &issue_id).await {
-                    Ok(comments) => json_response(&req.id, &serde_json::json!({ "comments": comments })),
+                    Ok(comments) => {
+                        json_response(&req.id, &serde_json::json!({ "comments": comments }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -276,12 +306,15 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::IssueCommentAdd, move |req| {
             let db = comment_add_db.clone();
             async move {
-                let input = match parse_params::<AddIssueCommentInput>(&req.id, req.params.as_ref()) {
+                let input = match parse_params::<AddIssueCommentInput>(&req.id, req.params.as_ref())
+                {
                     Ok(input) => input,
                     Err(response) => return response,
                 };
                 match service::add_issue_comment(&db, input).await {
-                    Ok(comment) => json_response(&req.id, &serde_json::json!({ "comment": comment })),
+                    Ok(comment) => {
+                        json_response(&req.id, &serde_json::json!({ "comment": comment }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -295,7 +328,8 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
             let db = checkout_db.clone();
             let armin = checkout_armin.clone();
             async move {
-                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id") {
+                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
+                {
                     Ok(issue_id) => issue_id,
                     Err(response) => return response,
                 };
@@ -316,10 +350,11 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ApprovalList, move |req| {
             let db = list_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::list_approvals(&db, &company_id).await {
                     Ok(approvals) => {
                         json_response(&req.id, &serde_json::json!({ "approvals": approvals }))
@@ -335,15 +370,18 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ApprovalGet, move |req| {
             let db = get_db.clone();
             async move {
-                let approval_id = match required_string_param(&req.id, req.params.as_ref(), "approval_id") {
-                    Ok(approval_id) => approval_id,
-                    Err(response) => return response,
-                };
+                let approval_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "approval_id") {
+                        Ok(approval_id) => approval_id,
+                        Err(response) => return response,
+                    };
                 match service::get_approval(&db, &approval_id).await {
                     Ok(Some(approval)) => {
                         json_response(&req.id, &serde_json::json!({ "approval": approval }))
                     }
-                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Approval not found"),
+                    Ok(None) => {
+                        Response::error(&req.id, error_codes::NOT_FOUND, "Approval not found")
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -355,10 +393,11 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::ApprovalApprove, move |req| {
             let db = approve_db.clone();
             async move {
-                let input = match parse_params::<ApprovalDecisionInput>(&req.id, req.params.as_ref()) {
-                    Ok(input) => input,
-                    Err(response) => return response,
-                };
+                let input =
+                    match parse_params::<ApprovalDecisionInput>(&req.id, req.params.as_ref()) {
+                        Ok(input) => input,
+                        Err(response) => return response,
+                    };
                 match service::approve_approval(&db, input).await {
                     Ok(approval) => {
                         json_response(&req.id, &serde_json::json!({ "approval": approval }))
@@ -376,10 +415,11 @@ async fn register_workspace_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::WorkspaceList, move |req| {
             let db = list_db.clone();
             async move {
-                let company_id = match required_string_param(&req.id, req.params.as_ref(), "company_id") {
-                    Ok(company_id) => company_id,
-                    Err(response) => return response,
-                };
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
                 match service::list_workspaces(&db, &company_id).await {
                     Ok(workspaces) => {
                         json_response(&req.id, &serde_json::json!({ "workspaces": workspaces }))
@@ -395,15 +435,18 @@ async fn register_workspace_handlers(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::WorkspaceGet, move |req| {
             let db = get_db.clone();
             async move {
-                let session_id = match required_string_param(&req.id, req.params.as_ref(), "session_id") {
-                    Ok(session_id) => session_id,
-                    Err(response) => return response,
-                };
+                let session_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "session_id") {
+                        Ok(session_id) => session_id,
+                        Err(response) => return response,
+                    };
                 match service::get_workspace(&db, &session_id).await {
                     Ok(Some(workspace)) => {
                         json_response(&req.id, &serde_json::json!({ "workspace": workspace }))
                     }
-                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Workspace not found"),
+                    Ok(None) => {
+                        Response::error(&req.id, error_codes::NOT_FOUND, "Workspace not found")
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -411,7 +454,10 @@ async fn register_workspace_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 }
 
-fn parse_params<T: DeserializeOwned>(request_id: &str, params: Option<&Value>) -> Result<T, Response> {
+fn parse_params<T: DeserializeOwned>(
+    request_id: &str,
+    params: Option<&Value>,
+) -> Result<T, Response> {
     let value = params.cloned().unwrap_or(Value::Object(Default::default()));
     serde_json::from_value(value).map_err(|error| {
         Response::error(
@@ -422,7 +468,11 @@ fn parse_params<T: DeserializeOwned>(request_id: &str, params: Option<&Value>) -
     })
 }
 
-fn required_string_param(request_id: &str, params: Option<&Value>, key: &str) -> Result<String, Response> {
+fn required_string_param(
+    request_id: &str,
+    params: Option<&Value>,
+    key: &str,
+) -> Result<String, Response> {
     params
         .and_then(|params| params.get(key))
         .and_then(Value::as_str)
@@ -444,11 +494,15 @@ fn json_response(request_id: &str, payload: &Value) -> Response {
 
 fn board_error_response(request_id: &str, error: BoardError) -> Response {
     match error {
-        BoardError::Conflict(message) => Response::error(request_id, error_codes::CONFLICT, &message),
+        BoardError::Conflict(message) => {
+            Response::error(request_id, error_codes::CONFLICT, &message)
+        }
         BoardError::InvalidInput(message) => {
             Response::error(request_id, error_codes::INVALID_PARAMS, &message)
         }
-        BoardError::NotFound(message) => Response::error(request_id, error_codes::NOT_FOUND, &message),
+        BoardError::NotFound(message) => {
+            Response::error(request_id, error_codes::NOT_FOUND, &message)
+        }
         BoardError::Database(daemon_database::DatabaseError::NotFound(message)) => {
             Response::error(request_id, error_codes::NOT_FOUND, &message)
         }

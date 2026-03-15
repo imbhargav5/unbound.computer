@@ -586,6 +586,11 @@ struct DaemonSession: Codable, Identifiable {
     let id: String
     let repositoryId: String
     let title: String
+    let agentId: String?
+    let agentName: String?
+    let issueId: String?
+    let issueTitle: String?
+    let issueURL: String?
     let claudeSessionId: String?
     let status: String
     let isWorktree: Bool?
@@ -597,6 +602,11 @@ struct DaemonSession: Codable, Identifiable {
         case id
         case repositoryId = "repository_id"
         case title
+        case agentId = "agent_id"
+        case agentName = "agent_name"
+        case issueId = "issue_id"
+        case issueTitle = "issue_title"
+        case issueURL = "issue_url"
         case claudeSessionId = "claude_session_id"
         case status
         case isWorktree = "is_worktree"
@@ -622,6 +632,11 @@ struct DaemonSession: Codable, Identifiable {
             id: uuid,
             repositoryId: repoUuid,
             title: title,
+            agentId: agentId,
+            agentName: agentName,
+            issueId: issueId,
+            issueTitle: issueTitle,
+            issueURL: issueURL,
             claudeSessionId: claudeSessionId,
             status: SessionStatus(rawValue: status) ?? .active,
             isWorktree: isWorktree ?? false,
