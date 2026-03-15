@@ -50,6 +50,15 @@ struct ChatPanel: View {
         return tabId
     }
 
+    private var agentRuns: [Session] {
+        guard let agentId = session?.agentId else { return [] }
+        return appState.sessionsForAgent(agentId)
+    }
+
+    private var repositoriesById: [UUID: Repository] {
+        Dictionary(uniqueKeysWithValues: appState.repositories.map { ($0.id, $0) })
+    }
+
     /// The live state for the current session (nil if no session selected)
     private var liveState: SessionLiveState? {
         guard let session else { return nil }
@@ -165,6 +174,8 @@ struct ChatPanel: View {
             switch workspaceTabState.selection {
             case .conversation:
                 chatColumn
+            case .agentRuns:
+                agentRunsColumn
             case .editor:
                 editorColumn
             case .terminal:
@@ -256,6 +267,10 @@ struct ChatPanel: View {
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
+            if session != nil {
+                sessionHeaderCard
+            }
+
             VStack(spacing: 0) {
                 if let session = session {
                     if isLoadingMessages {
@@ -290,7 +305,7 @@ struct ChatPanel: View {
                             onLatestContentVisible: {
                                 liveState?.markMessageSendVisibleFeedback(reason: "chat_content_visible")
                             },
-                            header: { sessionTimelineHeaderCard }
+                            header: { EmptyView() }
                         )
                         .id(session.id)
                     }
@@ -350,6 +365,26 @@ struct ChatPanel: View {
         .frame(minWidth: 300)
     }
 
+    @ViewBuilder
+    private var agentRunsColumn: some View {
+        if let session, session.agentId != nil {
+            AgentRunsView(
+                currentSession: session,
+                runs: agentRuns,
+                repositoriesById: repositoriesById,
+                onSelectRun: handleRunSelection
+            )
+        } else {
+            ContentUnavailableView(
+                "No agent runs",
+                systemImage: "clock.arrow.circlepath",
+                description: Text("This session is not linked to a persisted agent.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(colors.chatBackground)
+        }
+    }
+
     private var terminalColumn: some View {
         ZStack {
             ForEach(workspaceTabState.terminalTabs) { tab in
@@ -370,13 +405,27 @@ struct ChatPanel: View {
         .background(colors.chatBackground)
     }
 
-    private var sessionTimelineHeaderCard: some View {
+    private var sessionHeaderCard: some View {
         HStack(alignment: .center, spacing: Spacing.md) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(session?.displayTitle ?? "Session")
                     .font(Typography.bodyMedium)
                     .foregroundStyle(colors.foreground)
                     .lineLimit(1)
+
+                if let agentName = session?.agentName, !agentName.isEmpty {
+                    Text(agentName)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                }
+
+                if let issueTitle = session?.displayIssueTitle {
+                    Text(issueTitle)
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.mutedForeground)
+                        .lineLimit(1)
+                }
 
                 Text(session?.id.uuidString.lowercased() ?? "")
                     .font(Typography.mono)
@@ -387,13 +436,25 @@ struct ChatPanel: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: Spacing.xxs) {
-                Text("Rendered")
-                    .font(Typography.micro)
-                    .foregroundStyle(colors.mutedForeground)
-                Text("\(renderedMessageCount)")
-                    .font(Typography.captionMedium)
-                    .foregroundStyle(colors.foreground)
+            HStack(alignment: .center, spacing: Spacing.sm) {
+                if let agentId = session?.agentId {
+                    Button("View Runs") {
+                        workspaceTabState.openAgentRuns(
+                            agentId: agentId,
+                            title: session?.displayAgentName ?? "Runs"
+                        )
+                    }
+                    .buttonOutline(size: .sm)
+                }
+
+                VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                    Text("Rendered")
+                        .font(Typography.micro)
+                        .foregroundStyle(colors.mutedForeground)
+                    Text("\(renderedMessageCount)")
+                        .font(Typography.captionMedium)
+                        .foregroundStyle(colors.foreground)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -503,6 +564,18 @@ struct ChatPanel: View {
         if !response.isEmpty {
             liveState?.respondToPrompt(response)
         }
+    }
+
+    private func handleRunSelection(_ run: Session) {
+        let editorTabIds = editorState.tabs.map(\.id)
+        workspaceTabState.closeAgentRuns(editorTabIds: editorTabIds)
+
+        guard run.id != session?.id else {
+            workspaceTabState.selectConversation()
+            return
+        }
+
+        appState.selectSession(run.id, source: .agentRuns)
     }
 }
 
@@ -837,6 +910,8 @@ private func makePreviewWorkspaceTabState(
     switch selection {
     case .conversation:
         state.selectConversation()
+    case .agentRuns(let agentId):
+        state.openAgentRuns(agentId: agentId, title: "Preview Agent")
     case .terminal:
         if let firstTerminal = state.terminalTabs.first {
             state.selectTerminal(firstTerminal.id)
@@ -923,6 +998,65 @@ private func makePreviewWorkspaceTabState(
         )
     )
     .environment(AppState.preview())
+    .preferredColorScheme(.dark)
+    .frame(width: 900, height: 600)
+}
+
+#Preview("Runs Selected") {
+    let editorState = EditorState.preview()
+    let appState = AppState()
+    let currentSession = Session(
+        id: PreviewData.sessionId1,
+        repositoryId: PreviewData.repoId1,
+        title: "Implement WebSocket relay",
+        agentId: "agent-preview",
+        agentName: "Ops Agent",
+        issueId: "ENG-123",
+        issueTitle: "Investigate relay connection drift",
+        issueURL: "https://example.com/issues/ENG-123",
+        status: .active,
+        createdAt: Date().addingTimeInterval(-7200),
+        lastAccessed: Date()
+    )
+    let historicalRun = Session(
+        id: PreviewData.sessionId4,
+        repositoryId: PreviewData.repoId2,
+        title: "Add rebase support",
+        agentId: "agent-preview",
+        agentName: "Ops Agent",
+        issueId: "ENG-101",
+        issueTitle: "Stabilize rebase workflow",
+        issueURL: "https://example.com/issues/ENG-101",
+        status: .archived,
+        isWorktree: true,
+        worktreePath: "/tmp/preview-agent-worktree",
+        createdAt: Date().addingTimeInterval(-172800),
+        lastAccessed: Date().addingTimeInterval(-86400)
+    )
+    appState.configureForPreview(
+        repositories: PreviewData.repositories,
+        sessions: [
+            PreviewData.repoId1: [currentSession],
+            PreviewData.repoId2: [historicalRun]
+        ],
+        selectedRepositoryId: PreviewData.repoId1,
+        selectedSessionId: currentSession.id
+    )
+
+    return ChatPanel(
+        session: currentSession,
+        repository: PreviewData.repositories.first,
+        chatInput: .constant(""),
+        selectedModel: .constant(.opus),
+        selectedThinkMode: .constant(.none),
+        isPlanMode: .constant(false),
+        editorState: editorState,
+        workspaceTabState: makePreviewWorkspaceTabState(
+            editorState: editorState,
+            selection: .agentRuns("agent-preview")
+        )
+    )
+    .environment(appState)
     .preferredColorScheme(.dark)
     .frame(width: 900, height: 600)
 }

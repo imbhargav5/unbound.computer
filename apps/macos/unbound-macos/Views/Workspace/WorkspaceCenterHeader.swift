@@ -2,7 +2,7 @@
 //  WorkspaceCenterHeader.swift
 //  unbound-macos
 //
-//  Center-pane tab strip for conversation, terminal, and editor tabs.
+//  Center-pane tab strip for conversation, runs, terminal, and editor tabs.
 //
 
 import SwiftUI
@@ -27,10 +27,26 @@ struct WorkspaceCenterHeader: View {
                     label: session?.displayTitle ?? "New conversation",
                     isSelected: workspaceTabState.selection == .conversation,
                     isClosable: false,
-                    showsTrailingDivider: !workspaceTabState.terminalTabs.isEmpty || !editorState.tabs.isEmpty,
+                    showsTrailingDivider: workspaceTabState.agentRunsTab != nil || !workspaceTabState.terminalTabs.isEmpty || !editorState.tabs.isEmpty,
                     onSelect: { workspaceTabState.selectConversation() },
                     onClose: {}
                 )
+
+                if let agentRunsTab = workspaceTabState.agentRunsTab {
+                    WorkspaceNavbarTab(
+                        label: "Runs",
+                        badge: agentRunsTab.title,
+                        isSelected: workspaceTabState.selection == .agentRuns(agentRunsTab.agentId),
+                        isClosable: true,
+                        showsTrailingDivider: !workspaceTabState.terminalTabs.isEmpty || !editorState.tabs.isEmpty,
+                        onSelect: {
+                            workspaceTabState.selectAgentRuns()
+                        },
+                        onClose: {
+                            workspaceTabState.closeAgentRuns(editorTabIds: editorState.tabs.map(\.id))
+                        }
+                    )
+                }
 
                 ForEach(Array(workspaceTabState.terminalTabs.enumerated()), id: \.element.id) { index, tab in
                     WorkspaceNavbarTab(
@@ -91,6 +107,8 @@ private func makeCenterHeaderPreviewState(
     switch selection {
     case .conversation:
         state.selectConversation()
+    case .agentRuns(let agentId):
+        state.openAgentRuns(agentId: agentId, title: "Preview Agent")
     case .terminal:
         if let terminalId = state.terminalTabs.first?.id {
             state.selectTerminal(terminalId)
@@ -127,6 +145,23 @@ private func makeCenterHeaderPreviewState(
             editorState: editorState,
             selection: .terminal(UUID()),
             terminalCount: 2
+        ),
+        onRequestCloseEditorTab: { _ in },
+        onRequestCloseTerminalTab: { _ in }
+    )
+    .preferredColorScheme(.dark)
+    .frame(width: 900)
+}
+
+#Preview("Runs") {
+    let editorState = EditorState.preview()
+
+    return WorkspaceCenterHeader(
+        session: PreviewData.allSessions.first,
+        editorState: editorState,
+        workspaceTabState: makeCenterHeaderPreviewState(
+            editorState: editorState,
+            selection: .agentRuns("agent-preview")
         ),
         onRequestCloseEditorTab: { _ in },
         onRequestCloseTerminalTab: { _ in }

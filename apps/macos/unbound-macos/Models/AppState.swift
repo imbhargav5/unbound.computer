@@ -257,6 +257,13 @@ class AppState {
         (sessions[repositoryId] ?? []).sorted(by: Session.isMoreRecent(_:than:))
     }
 
+    func sessionsForAgent(_ agentId: String) -> [Session] {
+        sessions.values
+            .flatMap { $0 }
+            .filter { $0.agentId == agentId }
+            .sorted(by: Session.isMoreRecent(_:than:))
+    }
+
     private func clearCachedData() {
         repositories = []
         sessions = [:]
@@ -371,7 +378,12 @@ class AppState {
     func createSession(
         repositoryId: UUID,
         title: String? = nil,
-        locationType: SessionLocationType = .mainDirectory
+        locationType: SessionLocationType = .mainDirectory,
+        agentId: String? = nil,
+        agentName: String? = nil,
+        issueId: String? = nil,
+        issueTitle: String? = nil,
+        issueURL: String? = nil
     ) async throws -> Session {
         try await TracingService.withUserIntentRootIfNeeded(
             name: "session.create",
@@ -383,7 +395,12 @@ class AppState {
                 repositoryId: repositoryId.uuidString,
                 title: title,
                 isWorktree: isWorktree,
-                baseBranch: isWorktree ? repositoryDefaults?.defaultBranch : nil
+                baseBranch: isWorktree ? repositoryDefaults?.defaultBranch : nil,
+                agentId: agentId,
+                agentName: agentName,
+                issueId: issueId,
+                issueTitle: issueTitle,
+                issueURL: issueURL
             )
             guard let session = daemonSession.toSession() else {
                 throw DaemonError.decodingFailed("Invalid session data")

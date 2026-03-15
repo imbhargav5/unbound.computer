@@ -75,6 +75,68 @@ fn normalize_optional_string(value: Option<&str>) -> Option<String> {
         .map(String::from)
 }
 
+fn normalize_agent_metadata(
+    params: &serde_json::Value,
+) -> Result<(Option<String>, Option<String>), SessionCreateCoreError> {
+    let agent_id = normalize_optional_string(params.get("agent_id").and_then(|v| v.as_str()));
+    let agent_name = normalize_optional_string(params.get("agent_name").and_then(|v| v.as_str()));
+
+    match (agent_id, agent_name) {
+        (Some(agent_id), Some(agent_name)) => Ok((Some(agent_id), Some(agent_name))),
+        (None, None) => Ok((None, None)),
+        _ => Err(SessionCreateCoreError::new(
+            "invalid_params",
+            "agent_id and agent_name must be provided together",
+        )),
+    }
+}
+
+fn normalize_issue_metadata(
+    params: &serde_json::Value,
+) -> Result<(Option<String>, Option<String>, Option<String>), SessionCreateCoreError> {
+    let issue_id = normalize_optional_string(params.get("issue_id").and_then(|v| v.as_str()));
+    let issue_title = normalize_optional_string(params.get("issue_title").and_then(|v| v.as_str()));
+    let issue_url = normalize_optional_string(params.get("issue_url").and_then(|v| v.as_str()));
+
+    match (issue_id, issue_title, issue_url) {
+        (None, None, None) => Ok((None, None, None)),
+        (Some(issue_id), Some(issue_title), issue_url) => {
+            Ok((Some(issue_id), Some(issue_title), issue_url))
+        }
+        _ => Err(SessionCreateCoreError::new(
+            "invalid_params",
+            "issue_id and issue_title must be provided together; issue_url is optional",
+        )),
+    }
+}
+
+fn session_id_from_params(params: &serde_json::Value) -> Option<String> {
+    params
+        .get("session_id")
+        .or_else(|| params.get("id"))
+        .and_then(|value| value.as_str())
+        .map(String::from)
+}
+
+fn session_json(session: &agent_session_sqlite_persist_core::Session) -> serde_json::Value {
+    serde_json::json!({
+        "id": session.id.as_str(),
+        "repository_id": session.repository_id.as_str(),
+        "title": session.title,
+        "agent_id": session.agent_id,
+        "agent_name": session.agent_name,
+        "issue_id": session.issue_id,
+        "issue_title": session.issue_title,
+        "issue_url": session.issue_url,
+        "claude_session_id": session.claude_session_id,
+        "status": session.status.as_str(),
+        "is_worktree": session.is_worktree,
+        "worktree_path": session.worktree_path,
+        "created_at": session.created_at.to_rfc3339(),
+        "last_accessed_at": session.last_accessed_at.to_rfc3339(),
+    })
+}
+
 fn is_legacy_worktree_root(root_dir: &str) -> bool {
     let trimmed = root_dir.trim();
     if trimmed.is_empty() {
@@ -360,22 +422,7 @@ async fn register_session_list(server: &IpcServer, state: DaemonState) {
 
                 let session_data: Vec<serde_json::Value> = {
                     let _span = info_span!("serialize_sessions", count = sessions.len()).entered();
-                    sessions
-                        .iter()
-                        .map(|s| {
-                            serde_json::json!({
-                                "id": s.id.as_str(),
-                                "repository_id": s.repository_id.as_str(),
-                                "title": s.title,
-                                "claude_session_id": s.claude_session_id,
-                                "status": s.status.as_str(),
-                                "is_worktree": s.is_worktree,
-                                "worktree_path": s.worktree_path,
-                                "created_at": s.created_at.to_rfc3339(),
-                                "last_accessed_at": s.last_accessed_at.to_rfc3339(),
-                            })
-                        })
-                        .collect()
+                    sessions.iter().map(session_json).collect()
                 };
                 Response::success(&req.id, serde_json::json!({ "sessions": session_data }))
             }
@@ -404,6 +451,8 @@ pub async fn create_session_core(
         .get("is_worktree")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    let (agent_id, agent_name) = normalize_agent_metadata(params)?;
+    let (issue_id, issue_title, issue_url) = normalize_issue_metadata(params)?;
 
     let worktree_name = params
         .get("worktree_name")
@@ -536,6 +585,11 @@ pub async fn create_session_core(
         id: session_id.clone(),
         repository_id: RepositoryId::from_string(&repository_id),
         title,
+        agent_id,
+        agent_name,
+        issue_id,
+        issue_title,
+        issue_url,
         claude_session_id: None,
         is_worktree,
         worktree_path,
@@ -630,16 +684,7 @@ pub async fn create_session_core(
             .insert(created_session.id.as_str(), key);
     }
 
-    let session_data = serde_json::json!({
-        "id": created_session.id.as_str(),
-        "repository_id": created_session.repository_id.as_str(),
-        "title": created_session.title,
-        "status": created_session.status.as_str(),
-        "is_worktree": created_session.is_worktree,
-        "worktree_path": created_session.worktree_path,
-        "created_at": created_session.created_at.to_rfc3339(),
-        "last_accessed_at": created_session.last_accessed_at.to_rfc3339(),
-    });
+    let session_data = session_json(&created_session);
 
     Ok(session_data)
 }
@@ -714,15 +759,14 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::SessionGet, move |req| {
             let armin = state.armin.clone();
             async move {
-                let id = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("id"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
+                let id = req.params.as_ref().and_then(session_id_from_params);
 
                 let Some(id) = id else {
-                    return Response::error(&req.id, error_codes::INVALID_PARAMS, "id is required");
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "session_id is required",
+                    );
                 };
 
                 let session_id = SessionId::from_string(&id);
@@ -730,16 +774,7 @@ async fn register_session_get(server: &IpcServer, state: DaemonState) {
                 match armin.get_session(&session_id) {
                     Ok(Some(s)) => Response::success(
                         &req.id,
-                        serde_json::json!({
-                            "session": {
-                                "id": s.id.as_str(),
-                                "repository_id": s.repository_id.as_str(),
-                                "title": s.title,
-                                "status": s.status.as_str(),
-                                "created_at": s.created_at.to_rfc3339(),
-                                "last_accessed_at": s.last_accessed_at.to_rfc3339(),
-                            }
-                        }),
+                        serde_json::json!({ "session": session_json(&s) }),
                     ),
                     Ok(None) => {
                         Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
@@ -817,16 +852,7 @@ async fn register_session_update(server: &IpcServer, state: DaemonState) {
                 if current.title == title {
                     return Response::success(
                         &req.id,
-                        serde_json::json!({
-                            "session": {
-                                "id": current.id.as_str(),
-                                "repository_id": current.repository_id.as_str(),
-                                "title": current.title,
-                                "status": current.status.as_str(),
-                                "created_at": current.created_at.to_rfc3339(),
-                                "last_accessed_at": current.last_accessed_at.to_rfc3339(),
-                            }
-                        }),
+                        serde_json::json!({ "session": session_json(&current) }),
                     );
                 }
 
@@ -854,16 +880,7 @@ async fn register_session_update(server: &IpcServer, state: DaemonState) {
                 match armin.get_session(&session_id) {
                     Ok(Some(s)) => Response::success(
                         &req.id,
-                        serde_json::json!({
-                            "session": {
-                                "id": s.id.as_str(),
-                                "repository_id": s.repository_id.as_str(),
-                                "title": s.title,
-                                "status": s.status.as_str(),
-                                "created_at": s.created_at.to_rfc3339(),
-                                "last_accessed_at": s.last_accessed_at.to_rfc3339(),
-                            }
-                        }),
+                        serde_json::json!({ "session": session_json(&s) }),
                     ),
                     Ok(None) => {
                         Response::error(&req.id, error_codes::NOT_FOUND, "Session not found")
@@ -884,15 +901,14 @@ async fn register_session_delete(server: &IpcServer, state: DaemonState) {
         .register_handler(Method::SessionDelete, move |req| {
             let state = state.clone();
             async move {
-                let id = req
-                    .params
-                    .as_ref()
-                    .and_then(|p| p.get("id"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
+                let id = req.params.as_ref().and_then(session_id_from_params);
 
                 let Some(id) = id else {
-                    return Response::error(&req.id, error_codes::INVALID_PARAMS, "id is required");
+                    return Response::error(
+                        &req.id,
+                        error_codes::INVALID_PARAMS,
+                        "session_id is required",
+                    );
                 };
 
                 // First, get the session to check if it's a worktree
@@ -1162,5 +1178,100 @@ mod tests {
             "timed-out hook leaked child process that wrote marker file"
         );
         let _ = fs::remove_file(marker_file);
+    }
+
+    #[test]
+    fn normalize_agent_metadata_accepts_complete_pair() {
+        let params = serde_json::json!({
+            "agent_id": " agent-123 ",
+            "agent_name": " Debug Agent "
+        });
+
+        assert_eq!(
+            normalize_agent_metadata(&params).unwrap(),
+            (
+                Some("agent-123".to_string()),
+                Some("Debug Agent".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn normalize_agent_metadata_rejects_partial_pair() {
+        let params = serde_json::json!({
+            "agent_id": "agent-123"
+        });
+
+        let err = normalize_agent_metadata(&params).expect_err("expected invalid params");
+        assert_eq!(err.code, "invalid_params");
+        assert!(err.message.contains("agent_id and agent_name"));
+    }
+
+    #[test]
+    fn normalize_issue_metadata_accepts_complete_pair_with_optional_url() {
+        let params = serde_json::json!({
+            "issue_id": " issue-123 ",
+            "issue_title": " Fix launch bug ",
+            "issue_url": " https://example.com/issues/123 "
+        });
+
+        assert_eq!(
+            normalize_issue_metadata(&params).unwrap(),
+            (
+                Some("issue-123".to_string()),
+                Some("Fix launch bug".to_string()),
+                Some("https://example.com/issues/123".to_string()),
+            )
+        );
+    }
+
+    #[test]
+    fn normalize_issue_metadata_rejects_partial_pair() {
+        let params = serde_json::json!({
+            "issue_title": "Fix launch bug"
+        });
+
+        let err = normalize_issue_metadata(&params).expect_err("expected invalid params");
+        assert_eq!(err.code, "invalid_params");
+        assert!(err.message.contains("issue_id and issue_title"));
+    }
+
+    #[test]
+    fn session_json_includes_agent_metadata() {
+        let session = agent_session_sqlite_persist_core::Session {
+            id: SessionId::from_string("10000000-0000-0000-0000-000000000001"),
+            repository_id: RepositoryId::from_string("20000000-0000-0000-0000-000000000001"),
+            title: "Cross-project agent".to_string(),
+            agent_id: Some("agent-123".to_string()),
+            agent_name: Some("Debug Agent".to_string()),
+            issue_id: Some("issue-123".to_string()),
+            issue_title: Some("Fix launch bug".to_string()),
+            issue_url: Some("https://example.com/issues/123".to_string()),
+            claude_session_id: Some("claude-123".to_string()),
+            status: agent_session_sqlite_persist_core::SessionStatus::Active,
+            is_worktree: true,
+            worktree_path: Some("/tmp/worktree".to_string()),
+            created_at: chrono::Utc::now(),
+            last_accessed_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let json = session_json(&session);
+        assert_eq!(json["agent_id"], "agent-123");
+        assert_eq!(json["agent_name"], "Debug Agent");
+        assert_eq!(json["issue_id"], "issue-123");
+        assert_eq!(json["issue_title"], "Fix launch bug");
+        assert_eq!(json["issue_url"], "https://example.com/issues/123");
+        assert_eq!(json["claude_session_id"], "claude-123");
+    }
+
+    #[test]
+    fn session_id_from_params_prefers_session_id_key() {
+        let params = serde_json::json!({
+            "session_id": "new-id",
+            "id": "legacy-id"
+        });
+
+        assert_eq!(session_id_from_params(&params), Some("new-id".to_string()));
     }
 }

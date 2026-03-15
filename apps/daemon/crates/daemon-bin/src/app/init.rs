@@ -9,16 +9,16 @@ use daemon_database::AsyncDatabase;
 use daemon_ipc::IpcServer;
 use daemon_storage::{create_secrets_manager, SecretsManager};
 use safe_file_ops::SafeFileOps;
+#[cfg(unix)]
+use signal_hook::consts::signal::{SIGINT, SIGTERM};
+#[cfg(unix)]
+use signal_hook::iterator::Signals;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::info;
-#[cfg(unix)]
-use signal_hook::consts::signal::{SIGINT, SIGTERM};
-#[cfg(unix)]
-use signal_hook::iterator::Signals;
 
 /// Run the daemon.
 pub async fn run_daemon(

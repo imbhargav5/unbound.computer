@@ -29,6 +29,7 @@ enum UserIntentSource: String, Sendable {
     case createSession = "create_session"
     case addRepository = "add_repository"
     case createTerminalTab = "create_terminal_tab"
+    case agentRuns = "agent_runs"
     case toolbar
     case keyboardShortcut = "keyboard_shortcut"
     case unknown

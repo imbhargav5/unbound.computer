@@ -46,11 +46,36 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertFalse(session.worktreeExists)
     }
 
+    func testSessionDisplayAgentNameFallsBackWhenMissing() {
+        let session = Session(repositoryId: UUID(), agentName: nil)
+        XCTAssertEqual(session.displayAgentName, "Agent")
+
+        let namedSession = Session(repositoryId: UUID(), agentName: "Ops Agent")
+        XCTAssertEqual(namedSession.displayAgentName, "Ops Agent")
+    }
+
+    func testSessionDisplayIssueTitlePrefersTitleThenId() {
+        let issueTitled = Session(
+            repositoryId: UUID(),
+            issueId: "ENG-123",
+            issueTitle: "Fix integration flow"
+        )
+        XCTAssertEqual(issueTitled.displayIssueTitle, "Fix integration flow")
+
+        let issueIdOnly = Session(repositoryId: UUID(), issueId: "ENG-456")
+        XCTAssertEqual(issueIdOnly.displayIssueTitle, "ENG-456")
+    }
+
     func testDaemonSessionInvalidIdsReturnNil() {
         let daemonSession = DaemonSession(
             id: "bad-session-id",
             repositoryId: "bad-repo-id",
             title: "Broken",
+            agentId: nil,
+            agentName: nil,
+            issueId: nil,
+            issueTitle: nil,
+            issueURL: nil,
             claudeSessionId: nil,
             status: "active",
             isWorktree: false,
@@ -68,6 +93,11 @@ final class SessionRepositoryTests: XCTestCase {
             id: UUID().uuidString.lowercased(),
             repositoryId: repositoryID,
             title: "Unknown status",
+            agentId: "agent-123",
+            agentName: "Debug Agent",
+            issueId: "ENG-123",
+            issueTitle: "Fix integration flow",
+            issueURL: "https://example.com/issues/ENG-123",
             claudeSessionId: nil,
             status: "not-real-status",
             isWorktree: nil,
@@ -78,5 +108,10 @@ final class SessionRepositoryTests: XCTestCase {
 
         XCTAssertEqual(daemonSession.toSession()?.status, .active)
         XCTAssertEqual(daemonSession.toSession()?.isWorktree, false)
+        XCTAssertEqual(daemonSession.toSession()?.agentId, "agent-123")
+        XCTAssertEqual(daemonSession.toSession()?.agentName, "Debug Agent")
+        XCTAssertEqual(daemonSession.toSession()?.issueId, "ENG-123")
+        XCTAssertEqual(daemonSession.toSession()?.issueTitle, "Fix integration flow")
+        XCTAssertEqual(daemonSession.toSession()?.issueURL, "https://example.com/issues/ENG-123")
     }
 }

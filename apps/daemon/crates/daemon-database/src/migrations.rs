@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 11;
+pub const CURRENT_VERSION: i32 = 13;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -69,6 +69,12 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 11 {
         migrate_v11_session_state_runtime_envelope(conn)?;
+    }
+    if current_version < 12 {
+        migrate_v12_session_agent_metadata(conn)?;
+    }
+    if current_version < 13 {
+        migrate_v13_session_issue_metadata(conn)?;
     }
 
     info!("Migrations complete");
@@ -595,6 +601,60 @@ fn migrate_v11_session_state_runtime_envelope(conn: &Connection) -> DatabaseResu
     Ok(())
 }
 
+/// V12: Persist stable cross-project agent metadata on sessions.
+fn migrate_v12_session_agent_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v12: session agent metadata");
+
+    let columns: HashSet<String> = conn
+        .prepare("PRAGMA table_info(agent_coding_sessions)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+
+    if !columns.contains("agent_id") {
+        conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_id TEXT;")?;
+    }
+
+    if !columns.contains("agent_name") {
+        conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_name TEXT;")?;
+    }
+
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON agent_coding_sessions(agent_id);",
+    )?;
+
+    record_migration(conn, 12, "session_agent_metadata")?;
+    Ok(())
+}
+
+/// V13: Persist issue linkage on sessions created from issue-driven agents.
+fn migrate_v13_session_issue_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v13: session issue metadata");
+
+    let columns: HashSet<String> = conn
+        .prepare("PRAGMA table_info(agent_coding_sessions)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<HashSet<_>, _>>()?;
+
+    if !columns.contains("issue_id") {
+        conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_id TEXT;")?;
+    }
+
+    if !columns.contains("issue_title") {
+        conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_title TEXT;")?;
+    }
+
+    if !columns.contains("issue_url") {
+        conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_url TEXT;")?;
+    }
+
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_issue_id ON agent_coding_sessions(issue_id);",
+    )?;
+
+    record_migration(conn, 13, "session_issue_metadata")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,7 +695,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 11);
+        assert_eq!(version, 13);
     }
 
     #[test]
@@ -695,5 +755,40 @@ mod tests {
         assert!(!columns.contains(&"queued_commands".to_string()));
         assert!(!columns.contains(&"diff_summary".to_string()));
         assert!(!columns.contains(&"updated_at".to_string()));
+    }
+
+    #[test]
+    fn test_sessions_table_has_agent_metadata_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(agent_coding_sessions)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(columns.contains(&"agent_id".to_string()));
+        assert!(columns.contains(&"agent_name".to_string()));
+    }
+
+    #[test]
+    fn test_sessions_table_has_issue_metadata_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(agent_coding_sessions)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(columns.contains(&"issue_id".to_string()));
+        assert!(columns.contains(&"issue_title".to_string()));
+        assert!(columns.contains(&"issue_url".to_string()));
     }
 }
