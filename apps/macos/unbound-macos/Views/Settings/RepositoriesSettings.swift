@@ -69,10 +69,46 @@ struct RepositoriesSettings: View {
                     .environment(appState)
             }
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "An unknown error occurred")
+        .overlay {
+            if showError {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { showError = false }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.destructive)
+                            Text("Error")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        Text(errorMessage ?? "An unknown error occurred")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("OK") { showError = false }
+                                .buttonPrimary(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 360)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
+                }
+                .transition(.opacity)
+            }
         }
     }
 

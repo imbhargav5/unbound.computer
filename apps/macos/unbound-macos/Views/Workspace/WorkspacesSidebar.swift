@@ -272,6 +272,7 @@ struct RepositoryGroup: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .fullRowHitTarget()
             }
             .padding(.horizontal, LayoutMetrics.sidebarInset)
             .frame(height: 36)
@@ -495,7 +496,7 @@ struct SessionRow: View {
             .padding(.leading, LayoutMetrics.sidebarInset)
             .padding(.trailing, Spacing.sm)
             .frame(height: LayoutMetrics.sidebarRowHeight)
-            .fullRowHitTarget()
+            .fullWidthRow()
             .background(
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .fill(isSelected ? colors.hoverBackground : (isHovered ? colors.hoverBackground : Color.clear))
@@ -506,6 +507,7 @@ struct SessionRow: View {
             )
         }
         .buttonStyle(.plain)
+        .fullRowHitTarget()
         .onHover { hovering in
             isHovered = hovering
         }
@@ -545,29 +547,15 @@ struct SessionRow: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .confirmationDialog(
-            "Archive Session?",
-            isPresented: $showArchiveConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Archive") {
+        .sheet(isPresented: $showArchiveConfirmation) {
+            ArchiveSessionSheet {
                 onArchive?()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This session will be moved to the archived section.")
         }
-        .confirmationDialog(
-            "Delete Session?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete") {
+        .sheet(isPresented: $showDeleteConfirmation) {
+            DeleteSessionSheet {
                 onDelete?()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone. All messages in this session will be permanently deleted.")
         }
         .sheet(isPresented: $showRenameDialog) {
             RenameSessionSheet(initialTitle: renameTitle) { newTitle in
@@ -577,10 +565,96 @@ struct SessionRow: View {
     }
 }
 
+private struct ArchiveSessionSheet: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
+
+    let onArchive: () -> Void
+
+    private var colors: ThemeColors { ThemeColors(colorScheme) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "archivebox")
+                    .font(.system(size: IconSize.lg, weight: .semibold))
+                    .foregroundStyle(colors.warning)
+                Text("Archive Session?")
+                    .font(Typography.h4)
+                    .foregroundStyle(colors.foreground)
+                Spacer()
+            }
+
+            Text("This session will be moved to the archived section.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+
+            HStack(spacing: Spacing.sm) {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonSecondary(size: .sm)
+                Button("Archive") {
+                    onArchive()
+                    dismiss()
+                }
+                .buttonPrimary(size: .sm)
+            }
+        }
+        .padding(Spacing.lg)
+        .frame(width: 320)
+        .background(colors.card)
+    }
+}
+
+private struct DeleteSessionSheet: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
+
+    let onDelete: () -> Void
+
+    private var colors: ThemeColors { ThemeColors(colorScheme) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "trash")
+                    .font(.system(size: IconSize.lg, weight: .semibold))
+                    .foregroundStyle(colors.destructive)
+                Text("Delete Session?")
+                    .font(Typography.h4)
+                    .foregroundStyle(colors.foreground)
+                Spacer()
+            }
+
+            Text("This action cannot be undone. All messages in this session will be permanently deleted.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+
+            HStack(spacing: Spacing.sm) {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonSecondary(size: .sm)
+                Button("Delete") {
+                    onDelete()
+                    dismiss()
+                }
+                .buttonDestructive(size: .sm)
+            }
+        }
+        .padding(Spacing.lg)
+        .frame(width: 360)
+        .background(colors.card)
+    }
+}
+
 private struct RenameSessionSheet: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
+    @FocusState private var isTitleFocused: Bool
     let onSave: (String) -> Void
+
+    private var colors: ThemeColors { ThemeColors(colorScheme) }
 
     init(initialTitle: String, onSave: @escaping (String) -> Void) {
         _title = State(initialValue: initialTitle)
@@ -592,30 +666,45 @@ private struct RenameSessionSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Rename Session")
-                .font(Typography.body)
-
-            TextField("Session title", text: $title)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    handleSave()
-                }
-
-            HStack {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "pencil")
+                    .font(.system(size: IconSize.lg, weight: .semibold))
+                    .foregroundStyle(colors.primary)
+                Text("Rename Session")
+                    .font(Typography.h4)
+                    .foregroundStyle(colors.foreground)
                 Spacer()
-                Button("Cancel") {
-                    dismiss()
-                }
-                Button("Save") {
-                    handleSave()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(trimmedTitle.isEmpty)
+            }
+
+            ShadcnDivider()
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Session title")
+                    .font(Typography.caption)
+                    .foregroundStyle(colors.mutedForeground)
+                ShadcnTextField("Session title", text: $title, variant: .filled)
+                    .focused($isTitleFocused)
+                    .onSubmit { handleSave() }
+            }
+
+            HStack(spacing: Spacing.sm) {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonSecondary(size: .sm)
+                Button("Save") { handleSave() }
+                    .buttonPrimary(size: .sm)
+                    .disabled(trimmedTitle.isEmpty)
             }
         }
-        .padding(Spacing.md)
-        .frame(minWidth: 320)
+        .padding(Spacing.lg)
+        .frame(width: 360)
+        .background(colors.card)
+        .onAppear {
+            Task { @MainActor in
+                isTitleFocused = true
+            }
+        }
     }
 
     private func handleSave() {

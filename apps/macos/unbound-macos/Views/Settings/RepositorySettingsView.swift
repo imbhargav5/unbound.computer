@@ -91,17 +91,51 @@ struct RepositorySettingsView: View {
                 .disabled(!hasChanges || isSaving)
             }
         }
-        .confirmationDialog(
-            "Remove Repository?",
-            isPresented: $showRemoveConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Remove") {
-                removeRepository()
+        .overlay {
+            if showRemoveConfirmation {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { showRemoveConfirmation = false }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "trash")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.destructive)
+                            Text("Remove Repository?")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        Text("This will remove \"\(repository.name)\" from Unbound. The repository files will not be deleted.")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("Cancel") { showRemoveConfirmation = false }
+                                .buttonSecondary(size: .sm)
+                            Button("Remove") {
+                                removeRepository()
+                                showRemoveConfirmation = false
+                            }
+                            .buttonDestructive(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 400)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
+                }
+                .transition(.opacity)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will remove \"\(repository.name)\" from Unbound. The repository files will not be deleted.")
         }
     }
 
@@ -419,8 +453,7 @@ struct RepositorySettingsView: View {
                 Text("Timeout (seconds)")
                     .font(Typography.caption)
                     .foregroundStyle(colors.mutedForeground)
-                TextField("300", text: timeoutSeconds)
-                    .textFieldStyle(.roundedBorder)
+                ShadcnTextField("300", text: timeoutSeconds, variant: .filled)
                     .frame(width: 120)
             }
         }

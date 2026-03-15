@@ -178,42 +178,117 @@ struct ChatPanel: View {
             let state = appState.sessionStateManager.state(for: session.id)
             await state.activate()
         }
-        .alert(
-            liveState?.errorAlertTitle ?? "Error",
-            isPresented: showErrorAlertBinding
-        ) {
-            Button("OK", role: .cancel) {
-                liveState?.dismissErrorAlert()
+        .overlay {
+            if showErrorAlertBinding.wrappedValue {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            liveState?.dismissErrorAlert()
+                        }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.destructive)
+                            Text(liveState?.errorAlertTitle ?? "Error")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        Text(liveState?.errorAlertMessage ?? "An unknown error occurred")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("OK") {
+                                liveState?.dismissErrorAlert()
+                            }
+                            .buttonPrimary(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 360)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
+                }
+                .transition(.opacity)
             }
-        } message: {
-            Text(liveState?.errorAlertMessage ?? "An unknown error occurred")
         }
-        .confirmationDialog(
-            "File changed on disk",
-            isPresented: $showConflictDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Reload") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
-                    clearConflictState()
+        .overlay {
+            if showConflictDialog {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            clearConflictState()
+                        }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.warning)
+                            Text("File Changed on Disk")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        if let revision = conflictRevision {
+                            Text("Current revision token: \(revision.token)")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(colors.mutedForeground)
+                        } else {
+                            Text("The file was modified externally. Reload or overwrite your local edits.")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("Cancel") {
+                                clearConflictState()
+                            }
+                            .buttonSecondary(size: .sm)
+
+                            Button("Overwrite") {
+                                guard let tabId = conflictTabId else { return }
+                                Task {
+                                    await overwriteAfterConflict(tabId: tabId)
+                                }
+                            }
+                            .buttonDestructive(size: .sm)
+
+                            Button("Reload") {
+                                guard let tabId = conflictTabId else { return }
+                                Task {
+                                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
+                                    clearConflictState()
+                                }
+                            }
+                            .buttonPrimary(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 400)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
                 }
-            }
-            Button("Overwrite") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await overwriteAfterConflict(tabId: tabId)
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                clearConflictState()
-            }
-        } message: {
-            if let revision = conflictRevision {
-                Text("Current revision token: \(revision.token)")
-            } else {
-                Text("The file was modified externally. Reload or overwrite your local edits.")
+                .transition(.opacity)
             }
         }
     }

@@ -231,53 +231,133 @@ struct WorkspaceView: View {
                     }
                 )
             }
-        }
-        .confirmationDialog(
-            "Unsaved changes",
-            isPresented: $showUnsavedCloseDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Save") {
-                Task { await saveAndClosePendingTab() }
-            }
-            Button("Discard", role: .destructive) {
-                if let tabId = pendingCloseTabId {
-                    closeEditorTab(id: tabId)
+
+            if showUnsavedCloseDialog {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            pendingCloseTabId = nil
+                            showUnsavedCloseDialog = false
+                        }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "doc.badge.ellipsis")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.warning)
+                            Text("Unsaved Changes")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        Text("Save changes before closing this tab?")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("Cancel") {
+                                pendingCloseTabId = nil
+                                showUnsavedCloseDialog = false
+                            }
+                            .buttonSecondary(size: .sm)
+
+                            Button("Discard") {
+                                if let tabId = pendingCloseTabId {
+                                    closeEditorTab(id: tabId)
+                                }
+                                pendingCloseTabId = nil
+                                showUnsavedCloseDialog = false
+                            }
+                            .buttonDestructive(size: .sm)
+
+                            Button("Save") {
+                                showUnsavedCloseDialog = false
+                                Task { await saveAndClosePendingTab() }
+                            }
+                            .buttonPrimary(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 380)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
                 }
-                pendingCloseTabId = nil
+                .transition(.opacity)
             }
-            Button("Cancel", role: .cancel) {
-                pendingCloseTabId = nil
-            }
-        } message: {
-            Text("Save changes before closing this tab?")
-        }
-        .confirmationDialog(
-            "File changed on disk",
-            isPresented: $showConflictDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Reload") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
-                    clearConflictState()
+
+            if showConflictDialog {
+                ZStack {
+                    Color(hex: "0D0D0D").opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            clearConflictState()
+                        }
+
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: IconSize.lg, weight: .semibold))
+                                .foregroundStyle(colors.warning)
+                            Text("File Changed on Disk")
+                                .font(Typography.h4)
+                                .foregroundStyle(colors.foreground)
+                            Spacer()
+                        }
+
+                        if let revision = conflictRevision {
+                            Text("Current revision token: \(revision.token)")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(colors.mutedForeground)
+                        } else {
+                            Text("The file was modified externally. Reload or overwrite your local edits.")
+                                .font(Typography.bodySmall)
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+
+                        HStack(spacing: Spacing.sm) {
+                            Spacer()
+                            Button("Cancel") {
+                                clearConflictState()
+                            }
+                            .buttonSecondary(size: .sm)
+
+                            Button("Overwrite") {
+                                guard let tabId = conflictTabId else { return }
+                                Task {
+                                    await overwriteAfterConflict(tabId: tabId)
+                                }
+                            }
+                            .buttonDestructive(size: .sm)
+
+                            Button("Reload") {
+                                guard let tabId = conflictTabId else { return }
+                                Task {
+                                    await editorState.reloadFile(tabId: tabId, daemonClient: appState.daemonClient)
+                                    clearConflictState()
+                                }
+                            }
+                            .buttonPrimary(size: .sm)
+                        }
+                    }
+                    .padding(Spacing.lg)
+                    .frame(width: 400)
+                    .background(colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(colors.border, lineWidth: BorderWidth.default)
+                    )
+                    .elevation(Elevation.lg)
                 }
-            }
-            Button("Overwrite") {
-                guard let tabId = conflictTabId else { return }
-                Task {
-                    await overwriteAfterConflict(tabId: tabId)
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                clearConflictState()
-            }
-        } message: {
-            if let revision = conflictRevision {
-                Text("Current revision token: \(revision.token)")
-            } else {
-                Text("The file was modified externally. Reload or overwrite your local edits.")
+                .transition(.opacity)
             }
         }
         .background(colors.background)
