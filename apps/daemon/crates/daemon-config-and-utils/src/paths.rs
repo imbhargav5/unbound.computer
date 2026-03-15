@@ -56,10 +56,55 @@ impl Paths {
         self.base_dir.join("config.json")
     }
 
+    /// Get the application support directory used for shared daemon/app data.
+    pub fn app_support_dir(&self) -> &PathBuf {
+        &self.app_support_dir
+    }
+
     /// Get the database file path (~/Library/Application Support/com.unbound.macos/unbound.sqlite).
     /// This is shared with the macOS app.
     pub fn database_file(&self) -> PathBuf {
         self.app_support_dir.join("unbound.sqlite")
+    }
+
+    /// Get the root directory for company-scoped data beside the SQLite database.
+    pub fn companies_dir(&self) -> PathBuf {
+        self.app_support_dir.join("companies")
+    }
+
+    /// Get the root directory for a single company.
+    pub fn company_root(&self, company_id: &str) -> PathBuf {
+        self.companies_dir().join(company_id)
+    }
+
+    /// Get the agents directory for a company.
+    pub fn company_agents_dir(&self, company_id: &str) -> PathBuf {
+        self.company_root(company_id).join("agents")
+    }
+
+    /// Get the canonical home directory for a company agent.
+    pub fn agent_home_dir(&self, company_id: &str, agent_slug: &str) -> PathBuf {
+        self.company_agents_dir(company_id).join(agent_slug)
+    }
+
+    /// Get the daily memory directory for a company agent.
+    pub fn agent_memory_dir(&self, company_id: &str, agent_slug: &str) -> PathBuf {
+        self.agent_home_dir(company_id, agent_slug).join("memory")
+    }
+
+    /// Get the life-events directory for a company agent.
+    pub fn agent_life_dir(&self, company_id: &str, agent_slug: &str) -> PathBuf {
+        self.agent_home_dir(company_id, agent_slug).join("life")
+    }
+
+    /// Get the attachments directory for a company.
+    pub fn company_attachments_dir(&self, company_id: &str) -> PathBuf {
+        self.company_root(company_id).join("attachments")
+    }
+
+    /// Get the assets directory for a company.
+    pub fn company_assets_dir(&self, company_id: &str) -> PathBuf {
+        self.company_root(company_id).join("assets")
     }
 
     /// Get the IPC socket path (~/.unbound/daemon.sock).
@@ -91,6 +136,7 @@ impl Paths {
     pub fn ensure_dirs(&self) -> CoreResult<()> {
         std::fs::create_dir_all(&self.base_dir)?;
         std::fs::create_dir_all(&self.app_support_dir)?;
+        std::fs::create_dir_all(self.companies_dir())?;
         std::fs::create_dir_all(self.logs_dir())?;
         Ok(())
     }
@@ -114,7 +160,9 @@ mod tests {
 
         assert_eq!(paths.base_dir(), &base);
         assert_eq!(paths.config_file(), base.join("config.json"));
+        assert_eq!(paths.app_support_dir(), &base);
         assert_eq!(paths.database_file(), base.join("unbound.sqlite"));
+        assert_eq!(paths.companies_dir(), base.join("companies"));
         assert_eq!(paths.socket_file(), base.join("daemon.sock"));
         assert_eq!(paths.pid_file(), base.join("daemon.pid"));
         assert_eq!(
@@ -175,8 +223,10 @@ mod tests {
 
         // Test all accessor methods return expected paths
         assert!(paths.base_dir().ends_with("path"));
+        assert!(paths.app_support_dir().ends_with("path"));
         assert!(paths.config_file().ends_with("config.json"));
         assert!(paths.database_file().ends_with("unbound.sqlite"));
+        assert!(paths.companies_dir().ends_with("companies"));
         assert!(paths.socket_file().ends_with("daemon.sock"));
         assert!(paths.pid_file().ends_with("daemon.pid"));
         assert!(paths.logs_dir().ends_with("logs"));
@@ -203,5 +253,37 @@ mod tests {
         let logs_dir = paths.logs_dir();
 
         assert!(log_file.starts_with(&logs_dir));
+    }
+
+    #[test]
+    fn test_company_layout_paths() {
+        let base = PathBuf::from("/test/layout");
+        let paths = Paths::with_base_dir(base.clone());
+
+        assert_eq!(paths.company_root("co_123"), base.join("companies/co_123"));
+        assert_eq!(
+            paths.company_agents_dir("co_123"),
+            base.join("companies/co_123/agents")
+        );
+        assert_eq!(
+            paths.agent_home_dir("co_123", "ceo-agent"),
+            base.join("companies/co_123/agents/ceo-agent")
+        );
+        assert_eq!(
+            paths.agent_memory_dir("co_123", "ceo-agent"),
+            base.join("companies/co_123/agents/ceo-agent/memory")
+        );
+        assert_eq!(
+            paths.agent_life_dir("co_123", "ceo-agent"),
+            base.join("companies/co_123/agents/ceo-agent/life")
+        );
+        assert_eq!(
+            paths.company_assets_dir("co_123"),
+            base.join("companies/co_123/assets")
+        );
+        assert_eq!(
+            paths.company_attachments_dir("co_123"),
+            base.join("companies/co_123/attachments")
+        );
     }
 }

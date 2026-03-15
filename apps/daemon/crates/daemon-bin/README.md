@@ -1,255 +1,135 @@
 # Daemon Bin
 
-The **main binary entry point** for the Unbound daemon. It wires together all specialized crates into a single long-running process that serves the macOS app over Unix domain sockets.
+Main binary entry point for the local Unbound daemon.
+
+`daemon-bin` wires together IPC transport, session persistence, board domain
+services, process managers, repository file operations, and observability into
+one long-running process (`unbound-daemon`).
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        unbound-daemon                                │
-│                                                                      │
-│  CLI (clap)                                                          │
-│    ├── start [--foreground]                                          │
-│    ├── stop                                                          │
-│    └── status                                                        │
-│                                                                      │
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │                      IPC Server (Unix Socket)                  │  │
-│  │                                                                │  │
-│  │  health ─── auth ─── session ─── message ─── repository       │  │
-│  │  claude ─── terminal ─── git ─── subscription                 │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-│                              │                                       │
-│              ┌───────────────┼───────────────┐                       │
-│              ▼               ▼               ▼                       │
-│         ┌────────┐    ┌──────────┐    ┌──────────┐                  │
-│         │ Armin  │    │   Deku   │    │ Git Ops  │                  │
-│         │(state) │    │ (Claude) │    │  (git)   │                  │
-│         └────────┘    └──────────┘    └──────────┘                  │
-│              │                                                       │
-│     ┌────────┼────────┐                                             │
-│     ▼        ▼        ▼                                             │
-│  Toshinori  Levi  AblyRealtime  SafeFileOps                              │
-│  (sink)    (cold)   (hot)      (files)                              │
-└─────────────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Platform Services: SQLite, Keychain, Supabase, Claude CLI          │
-└─────────────────────────────────────────────────────────────────────┘
+macOS App / CLI
+       |
+       | Unix Socket (NDJSON)
+       v
++-------------------------------+
+|        unbound-daemon         |
+|                               |
+|  IPC handlers                 |
+|   - board/session/message     |
+|   - repository/file ops       |
+|   - claude/terminal           |
+|   - git/gh/system             |
+|                               |
+|  Shared state                 |
+|   - Armin session engine      |
+|   - Async SQLite executor     |
+|   - Secrets manager           |
+|   - SafeFileOps               |
+|   - process registries        |
++-------------------------------+
+       |
+       +--> SQLite (`unbound.sqlite`)
+       +--> Keychain/secure storage
+       +--> Claude CLI / terminal processes
 ```
 
 ## CLI
 
+```bash
+unbound-daemon start [--foreground] [--base-dir <path>]
+unbound-daemon stop [--base-dir <path>]
+unbound-daemon status [--base-dir <path>]
+unbound-daemon --log-level debug start --foreground
 ```
-unbound-daemon start [--foreground]   # Start the daemon
-unbound-daemon stop                   # Stop the daemon gracefully (or force kill)
-unbound-daemon status                 # Check if daemon is running + version
-unbound-daemon --log-level debug ...  # Set log verbosity (default: info)
-```
 
-## Initialization Sequence
+`--base-dir` overrides runtime file paths (socket, pid, logs, config).
 
-On `start`, the daemon boots services in dependency order:
+## Startup Sequence
 
-1. **Singleton check** - Ensure no other daemon is running (via socket probe)
-2. **File system setup** - Create directories, write PID file
-3. **IPC server** - Bind Unix socket
-4. **Toshinori** - Supabase sync sink
-5. **Armin** - Session engine (SQLite-backed)
-6. **Database** - Async SQLite executor
-7. **SecretsManager** - Platform keychain access
-8. **SupabaseClient** - REST API client
-9. **Auth validation + capabilities refresh** - Verify session and sync device capabilities
-10. **Levi** - Supabase message sync worker (cold path)
-11. **daemon-ably sidecar** - Shared Ably transport process (only when authenticated context exists). Forwards `UNBOUND_PRESENCE_DO_*` envs when configured.
-12. **AblyRealtimeSyncer + Falco sidecar** - Hot-path message publish chain (`Armin -> Falco -> daemon-ably -> Ably`)
-13. **Nagato server + Nagato sidecar** - Remote command ingress bridge (`Ably -> daemon-ably -> Nagato -> daemon`)
-14. **Sidecar log capture** - Stream sidecar stdout/stderr into observability
-15. **SafeFileOps** - Rope-backed file I/O with cache
-16. **Handler registration** - Wire IPC methods to handlers
-17. **Listen** - Accept client connections
+On `start`, the daemon performs a critical bootstrap sequence:
 
-The daemon starts the Ably token broker (`~/.unbound/ably-auth.sock`) and mints audience-scoped tokens.
-`daemon-ably` receives those broker credentials and exposes one local socket at `~/.unbound/ably.sock`.
-Falco and Nagato only receive `UNBOUND_ABLY_SOCKET`; they never receive broker tokens or raw Ably API keys.
+1. Enforce singleton (probe socket, remove stale runtime files)
+2. Ensure runtime directories exist
+3. Write PID file
+4. Initialize IPC server
+5. Open Armin session engine
+6. Open async SQLite database
+7. Initialize secure storage and local device identity/keys
+8. Build shared `DaemonState`
+9. Register IPC handlers
+10. Start IPC server and wait for socket readiness
+11. Mark startup status as `ready`
+
+Startup progress is written to `startup-status.json` for diagnostics.
 
 ## Shared State
 
-All handlers share a `DaemonState` (cheap to clone via Arc):
+All handlers clone a shared `DaemonState` (Arc + Mutex/RwLock internals):
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `agent-session-sqlite-persist-core` | `Arc<DaemonArmin>` | Session engine (snapshot + delta views) |
-| `db` | `AsyncDatabase` | Thread-safe SQLite executor |
-| `secrets` | `Arc<Mutex<SecretsManager>>` | Platform keychain access |
-| `safe-file-ops` | `Arc<SafeFileOps>` | Cached file I/O |
-| `config` | `Arc<Config>` | Supabase URLs, relay config |
-| `paths` | `Arc<Paths>` | Socket, PID, database paths |
-| `toshinori` | `Arc<ToshinoriSink>` | Supabase change sink |
-| `message_sync` | `Arc<Levi>` | Message sync worker |
-| `realtime_message_sync` | `Option<Arc<AblyRealtimeSyncer>>` | Ably hot-path message sync worker |
-| `supabase_client` | `Arc<SupabaseClient>` | REST API for device management |
-| `session_sync` | `Arc<SessionSyncService>` | Background session sync |
-| `session_secret_cache` | `SessionSecretCache` | In-memory secret lookup |
-| `claude_processes` | `Arc<Mutex<HashMap>>` | Active Claude CLI processes |
-| `terminal_processes` | `Arc<Mutex<HashMap>>` | Active terminal processes |
+- `armin`: session engine + side-effect source
+- `db`: async SQLite executor
+- `secrets`: platform secrets manager
+- `safe_file_ops`: rope-backed file IO helpers
+- `subscriptions`: event fanout manager for IPC subscriptions
+- `session_secret_cache`: decrypted session secret cache
+- `claude_processes` / `terminal_processes`: in-flight process registries
+- `device_id`, `device_private_key`, `db_encryption_key`: local identity+crypto material
+- `paths`, `config`: runtime configuration and filesystem layout
 
-## IPC Handlers
+## IPC Method Domains
 
-Every IPC method maps to a handler that extracts params, validates, delegates to a crate, and returns a JSON response.
+Handlers are registered in modules under `src/ipc/handlers`:
 
-| Domain | Methods | Backing Crate |
-|--------|---------|---------------|
-| Health | `health`, `shutdown`, `outbox.status` | - |
-| Auth | `auth.login`, `auth.complete_social`, `auth.status`, `auth.logout` | auth-engine |
-| Sessions | `session.list`, `session.create`, `session.get`, `session.delete` | armin |
-| Messages | `message.list`, `message.send` | armin |
-| Repos | `repository.list`, `repository.add`, `repository.remove` | armin |
-| Files | `repository.list_files`, `repository.read_file`, `repository.write_file`, ... | safe-file-ops, safe-repo-dir-lister |
-| Claude | `claude.send`, `claude.status`, `claude.stop` | deku, eren-machines |
-| Terminal | `terminal.run`, `terminal.status`, `terminal.stop` | eren-machines |
-| Git | `git.status`, `git.diff_file`, `git.log`, `git.branches`, `git.stage`, `git.commit`, `git.push`, ... | git-ops |
-| GitHub | `gh.auth_status`, `gh.pr_create`, `gh.pr_view`, `gh.pr_list`, `gh.pr_checks`, `gh.pr_merge` | gh-cli-ops |
-| System | `system.check_dependencies`, `system.refresh_capabilities` | runtime-capability-detector, auth-engine |
-| Streaming | `session.subscribe`, `session.unsubscribe` | daemon-ipc |
+- Health/lifecycle: `health`, `shutdown`
+- Board: company/agent/goal/project/issue/approval/workspace methods
+- Sessions and messages
+- Repository CRUD + repository settings + safe file operations
+- Claude process control and streaming
+- Terminal process control and streaming
+- Git operations
+- GitHub CLI operations
+- System dependency checks
 
 ## Side-Effect Bridge
 
-The `armin_adapter` composes two sinks so every Armin commit fans out:
+`armin_adapter` maps Armin side-effects into IPC events:
 
-```
-Armin commit
-    ├──► DaemonSideEffectSink  -> broadcast to IPC clients
-    └──► ToshinoriSink
-            ├──► Levi (cold path) -> Supabase messages/session tables
-            └──► AblyRealtimeSyncer (hot path) -> Falco -> daemon-ably -> Ably
-```
+- Session create/delete -> global subscription events
+- Message append -> per-session `message` events
+- Runtime status updates -> per-session `status_change` events
 
-`MessageAppended` is fanned out to both cold and hot paths. Hot path uses channel
-`session:{session_id}:conversation` with event `conversation.message.v1`.
+Event payloads include sequence numbers and can carry trace context.
 
-`RuntimeStatusUpdated` is fanned out to Supabase `runtime_status` updates and
-an Ably LiveObjects object-set on channel `session:{session_id}:status` with
-object key `coding_session_status`.
+## Lifecycle Behavior
 
-## Crate Structure
+- `status` checks health endpoint over the daemon socket.
+- `stop` requests graceful `shutdown`, waits up to 3 seconds, then falls back to
+  SIGKILL when the PID still points to `unbound-daemon`.
+- Runtime cleanup removes socket and pid files on shutdown.
+
+## Crate Layout
 
 ```
 daemon-bin/
 ├── Cargo.toml
 └── src/
-    ├── main.rs                     # CLI entry point (clap)
+    ├── main.rs
     ├── app/
-    │   ├── init.rs                 # Boot sequence
-    │   ├── lifecycle.rs            # Stop / status commands
-    │   └── state.rs                # DaemonState definition
-    ├── auth/
-    │   ├── login.rs                # OAuth + device registration
-    │   ├── logout.rs               # Token revocation + cleanup
-    │   └── status.rs               # Session validity check
+    │   ├── init.rs
+    │   ├── lifecycle.rs
+    │   ├── startup_status.rs
+    │   └── state.rs
     ├── ipc/
-    │   ├── register.rs             # Handler registration
+    │   ├── register.rs
     │   └── handlers/
-    │       ├── health.rs
-    │       ├── git.rs
-    │       ├── message.rs
-    │       ├── session.rs
-    │       ├── repository.rs
-    │       ├── claude.rs
-    │       └── terminal.rs
     ├── machines/
-    │   ├── claude/stream.rs        # Claude event → Armin bridge
-    │   ├── terminal/stream.rs      # Terminal output → Armin bridge
-    │   └── git/operations.rs       # Git Ops wrappers
-    ├── armin_adapter.rs            # Composite side-effect sink
+    │   ├── claude/
+    │   ├── terminal/
+    │   └── git/
+    ├── armin_adapter.rs
+    ├── observability.rs
+    ├── types/
     └── utils/
-        ├── secrets.rs              # Key derivation helpers
-        └── session_secret_cache.rs # In-memory secret cache
 ```
-
-## Lifecycle
-
-**Startup**: Singleton check → service init → handler registration → listen loop
-
-**Shutdown**: `shutdown` IPC method → tokio cancellation → cleanup PID + socket files
-
-**Stop command**: Sends `shutdown` IPC call → waits 3s → SIGKILL if still running
-
-## Token Auth Migration Checklist
-
-- `api/v1/mobile/ably/token` supports audience-scoped token issuance (`daemon_falco` / `daemon_nagato` / mobile audiences).
-- Daemon Ably broker (`~/.unbound/ably-auth.sock`) is running and sidecars authenticate with broker tokens.
-- `daemon-ably` receives broker envs (`UNBOUND_ABLY_BROKER_SOCKET`, `UNBOUND_ABLY_BROKER_TOKEN_FALCO`, `UNBOUND_ABLY_BROKER_TOKEN_NAGATO`).
-- Runtime sidecars (`falco`, `nagato`) use local transport env only (`UNBOUND_ABLY_SOCKET`).
-- iOS clients use token auth callback only (no `ABLY_API_KEY` fallback path).
-- Logout clears broker token cache, tears down daemon-ably/Falco/Nagato sidecars, and removes `ably.sock`, `falco.sock`, `nagato.sock`.
-- Manual key rotation reminder: rotate legacy Ably API keys in server-side secret storage and revoke old keys after rollout verification.
-
-## Presence Heartbeat Contract
-
-`daemon-ably` emits message-based presence heartbeats for iOS remote-command gating and can also
-forward DO heartbeat config when `UNBOUND_PRESENCE_DO_*` is set (see `daemon-ably` for details).
-
-| Field | Value |
-|-------|-------|
-| Channel | `presence:{user_id}` (normalized to lowercase) |
-| Event | `daemon.presence.v1` |
-| Producer | `daemon-ably` |
-| Status values | `online`, `offline` |
-| Online cadence | immediate publish on startup + periodic heartbeat |
-| Offline signal | best-effort publish during graceful shutdown |
-
-Payload schema:
-
-```json
-{
-  "schema_version": 1,
-  "user_id": "user-uuid",
-  "device_id": "device-uuid",
-  "status": "online",
-  "source": "daemon-ably",
-  "sent_at_ms": 1739030400000
-}
-```
-
-`user_id` is normalized by trimming whitespace and lowercasing before being used
-for the channel name and payload.
-
-## Regression Matrix
-
-Use this matrix for QA and release checks after sidecar changes:
-
-| Scenario | Expected Result |
-|----------|-----------------|
-| Falco side-effect publish with channel/event/payload overrides | Override behavior matches pre-migration output exactly |
-| Nagato command handling under load | One-in-flight processing remains enforced |
-| Nagato daemon timeout | Fail-open behavior publishes timeout ACK and continues |
-| daemon-ably restart while daemon stays up | Falco/Nagato recover transport without process restart |
-| Login/logout transitions | Sidecars start/stop deterministically and sockets are cleaned |
-| iOS target-device gating | Remote actions disable after heartbeat TTL and re-enable after next heartbeat |
-
-## Dependencies
-
-This crate depends on nearly every other workspace crate:
-
-- **armin** - Session/message storage engine
-- **daemon-config-and-utils** - Config, paths, logging, crypto primitives
-- **daemon-ipc** - Unix socket server and protocol
-- **daemon-database** - Async SQLite persistence
-- **daemon-storage** - Platform keychain
-- **auth-engine** - OAuth flow and token/session management
-- **toshinori** - Supabase sync sink
-- **levi** - Message sync worker
-- **daemon-ably** (runtime process) - Shared Ably transport + heartbeat publisher
-- **daemon-falco** (runtime process) - Ably publisher for hot-path payloads
-- **daemon-nagato** (runtime process) - Remote command ingress sidecar
-- **deku** - Claude CLI process manager
-- **git-ops** - Native git operations (libgit2)
-- **safe-file-ops** - Rope-backed file I/O
-- **safe-repo-dir-lister** - Directory listing
-- **eren-machines** - Process registry and event bridge
-- **historia-lifecycle** - PID/singleton management
-- **session-lifecycle-orchestrator** - Session orchestration
-- **sakura-working-dir-resolution** - Working directory resolution
-- **device-identity-crypto** - Device identity and key management

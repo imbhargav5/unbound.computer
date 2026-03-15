@@ -35,6 +35,62 @@ pub enum Method {
     #[serde(rename = "session.delete")]
     SessionDelete,
 
+    // Companies
+    #[serde(rename = "company.list")]
+    CompanyList,
+    #[serde(rename = "company.create")]
+    CompanyCreate,
+    #[serde(rename = "company.get")]
+    CompanyGet,
+
+    // Agents
+    #[serde(rename = "agent.list")]
+    AgentList,
+    #[serde(rename = "agent.create")]
+    AgentCreate,
+    #[serde(rename = "agent.get")]
+    AgentGet,
+
+    // Goals
+    #[serde(rename = "goal.list")]
+    GoalList,
+
+    // Projects
+    #[serde(rename = "project.list")]
+    ProjectList,
+    #[serde(rename = "project.create")]
+    ProjectCreate,
+    #[serde(rename = "project.get")]
+    ProjectGet,
+
+    // Issues
+    #[serde(rename = "issue.list")]
+    IssueList,
+    #[serde(rename = "issue.create")]
+    IssueCreate,
+    #[serde(rename = "issue.get")]
+    IssueGet,
+    #[serde(rename = "issue.comment.list")]
+    IssueCommentList,
+    #[serde(rename = "issue.comment.add")]
+    IssueCommentAdd,
+    #[serde(rename = "issue.checkout")]
+    IssueCheckout,
+
+    // Approvals
+    #[serde(rename = "approval.list")]
+    ApprovalList,
+    #[serde(rename = "approval.get")]
+    ApprovalGet,
+    #[serde(rename = "approval.approve")]
+    ApprovalApprove,
+
+    // Workspaces
+    #[serde(rename = "workspace.list")]
+    WorkspaceList,
+    #[serde(rename = "workspace.get")]
+    WorkspaceGet,
+
     // Messages
     #[serde(rename = "message.list")]
     MessageList,
@@ -975,7 +1031,7 @@ mod tests {
 
     #[test]
     fn all_method_count() {
-        // Ensure we have exactly 49 methods by trying to serialize each.
+        // Ensure we have exactly 44 methods by trying to serialize each.
         let methods = vec![
             Method::Health,
             Method::Shutdown,
@@ -1022,6 +1078,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 43);
+        assert_eq!(methods.len(), 44);
     }
 }

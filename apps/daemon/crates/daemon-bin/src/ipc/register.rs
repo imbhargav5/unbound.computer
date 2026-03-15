@@ -9,6 +9,7 @@ use tracing::info;
 pub async fn register_handlers(server: &IpcServer, state: DaemonState) {
     // Register all handler modules
     handlers::health::register(server).await;
+    handlers::board::register(server, state.clone()).await;
     handlers::session::register(server, state.clone()).await;
     handlers::repository::register(server, state.clone()).await;
     handlers::message::register(server, state.clone()).await;

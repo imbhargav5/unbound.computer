@@ -24,6 +24,41 @@ enum DaemonMethod: String, Codable {
     case sessionUpdate = "session.update"
     case sessionDelete = "session.delete"
 
+    // Companies
+    case companyList = "company.list"
+    case companyCreate = "company.create"
+    case companyGet = "company.get"
+
+    // Agents
+    case agentList = "agent.list"
+    case agentCreate = "agent.create"
+    case agentGet = "agent.get"
+
+    // Goals
+    case goalList = "goal.list"
+
+    // Projects
+    case projectList = "project.list"
+    case projectCreate = "project.create"
+    case projectGet = "project.get"
+
+    // Issues
+    case issueList = "issue.list"
+    case issueCreate = "issue.create"
+    case issueGet = "issue.get"
+    case issueCommentList = "issue.comment.list"
+    case issueCommentAdd = "issue.comment.add"
+    case issueCheckout = "issue.checkout"
+
+    // Approvals
+    case approvalList = "approval.list"
+    case approvalGet = "approval.get"
+    case approvalApprove = "approval.approve"
+
+    // Workspaces
+    case workspaceList = "workspace.list"
+    case workspaceGet = "workspace.get"
+
     // Messages
     case messageList = "message.list"
     case messageSend = "message.send"
@@ -656,6 +691,342 @@ struct DaemonRepository: Codable, Identifiable {
             defaultBranch: defaultBranch,
             defaultRemote: defaultRemote
         )
+    }
+}
+
+struct DaemonCompany: Codable, Identifiable {
+    let id: String
+    let name: String
+    let description: String?
+    let status: String
+    let issuePrefix: String
+    let issueCounter: Int
+    let budgetMonthlyCents: Int
+    let spentMonthlyCents: Int
+    let requireBoardApprovalForNewAgents: Bool
+    let brandColor: String?
+    let ceoAgentId: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case description
+        case status
+        case issuePrefix = "issue_prefix"
+        case issueCounter = "issue_counter"
+        case budgetMonthlyCents = "budget_monthly_cents"
+        case spentMonthlyCents = "spent_monthly_cents"
+        case requireBoardApprovalForNewAgents = "require_board_approval_for_new_agents"
+        case brandColor = "brand_color"
+        case ceoAgentId = "ceo_agent_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonAgent: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let name: String
+    let slug: String
+    let role: String
+    let title: String?
+    let icon: String?
+    let status: String
+    let reportsTo: String?
+    let capabilities: String?
+    let adapterType: String
+    let adapterConfig: [String: AnyCodableValue]?
+    let runtimeConfig: [String: AnyCodableValue]?
+    let budgetMonthlyCents: Int
+    let spentMonthlyCents: Int
+    let permissions: [String: AnyCodableValue]?
+    let lastHeartbeatAt: String?
+    let metadata: [String: AnyCodableValue]?
+    let homePath: String?
+    let instructionsPath: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case name
+        case slug
+        case role
+        case title
+        case icon
+        case status
+        case reportsTo = "reports_to"
+        case capabilities
+        case adapterType = "adapter_type"
+        case adapterConfig = "adapter_config"
+        case runtimeConfig = "runtime_config"
+        case budgetMonthlyCents = "budget_monthly_cents"
+        case spentMonthlyCents = "spent_monthly_cents"
+        case permissions
+        case lastHeartbeatAt = "last_heartbeat_at"
+        case metadata
+        case homePath = "home_path"
+        case instructionsPath = "instructions_path"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonProjectWorkspace: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let projectId: String
+    let name: String
+    let cwd: String?
+    let repoUrl: String?
+    let repoRef: String?
+    let metadata: [String: AnyCodableValue]?
+    let isPrimary: Bool
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case projectId = "project_id"
+        case name
+        case cwd
+        case repoUrl = "repo_url"
+        case repoRef = "repo_ref"
+        case metadata
+        case isPrimary = "is_primary"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonGoal: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let title: String
+    let description: String?
+    let level: String
+    let status: String
+    let parentId: String?
+    let ownerAgentId: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case title
+        case description
+        case level
+        case status
+        case parentId = "parent_id"
+        case ownerAgentId = "owner_agent_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonProject: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let goalId: String?
+    let name: String
+    let description: String?
+    let status: String
+    let leadAgentId: String?
+    let targetDate: String?
+    let color: String?
+    let executionWorkspacePolicy: [String: AnyCodableValue]?
+    let archivedAt: String?
+    let createdAt: String
+    let updatedAt: String
+    let primaryWorkspace: DaemonProjectWorkspace?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case goalId = "goal_id"
+        case name
+        case description
+        case status
+        case leadAgentId = "lead_agent_id"
+        case targetDate = "target_date"
+        case color
+        case executionWorkspacePolicy = "execution_workspace_policy"
+        case archivedAt = "archived_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case primaryWorkspace = "primary_workspace"
+    }
+}
+
+struct DaemonIssue: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let projectId: String?
+    let goalId: String?
+    let parentId: String?
+    let title: String
+    let description: String?
+    let status: String
+    let priority: String
+    let assigneeAgentId: String?
+    let assigneeUserId: String?
+    let checkoutRunId: String?
+    let executionRunId: String?
+    let executionAgentNameKey: String?
+    let executionLockedAt: String?
+    let createdByAgentId: String?
+    let createdByUserId: String?
+    let issueNumber: Int?
+    let identifier: String?
+    let requestDepth: Int
+    let billingCode: String?
+    let assigneeAdapterOverrides: [String: AnyCodableValue]?
+    let executionWorkspaceSettings: [String: AnyCodableValue]?
+    let startedAt: String?
+    let completedAt: String?
+    let cancelledAt: String?
+    let hiddenAt: String?
+    let workspaceSessionId: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case projectId = "project_id"
+        case goalId = "goal_id"
+        case parentId = "parent_id"
+        case title
+        case description
+        case status
+        case priority
+        case assigneeAgentId = "assignee_agent_id"
+        case assigneeUserId = "assignee_user_id"
+        case checkoutRunId = "checkout_run_id"
+        case executionRunId = "execution_run_id"
+        case executionAgentNameKey = "execution_agent_name_key"
+        case executionLockedAt = "execution_locked_at"
+        case createdByAgentId = "created_by_agent_id"
+        case createdByUserId = "created_by_user_id"
+        case issueNumber = "issue_number"
+        case identifier
+        case requestDepth = "request_depth"
+        case billingCode = "billing_code"
+        case assigneeAdapterOverrides = "assignee_adapter_overrides"
+        case executionWorkspaceSettings = "execution_workspace_settings"
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+        case cancelledAt = "cancelled_at"
+        case hiddenAt = "hidden_at"
+        case workspaceSessionId = "workspace_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonIssueComment: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let issueId: String
+    let authorAgentId: String?
+    let authorUserId: String?
+    let body: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case issueId = "issue_id"
+        case authorAgentId = "author_agent_id"
+        case authorUserId = "author_user_id"
+        case body
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonApproval: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let approvalType: String
+    let requestedByAgentId: String?
+    let requestedByUserId: String?
+    let status: String
+    let payload: [String: AnyCodableValue]?
+    let decisionNote: String?
+    let decidedByUserId: String?
+    let decidedAt: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case approvalType = "approval_type"
+        case requestedByAgentId = "requested_by_agent_id"
+        case requestedByUserId = "requested_by_user_id"
+        case status
+        case payload
+        case decisionNote = "decision_note"
+        case decidedByUserId = "decided_by_user_id"
+        case decidedAt = "decided_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonWorkspace: Codable, Identifiable {
+    let sessionId: String
+    let repositoryId: String
+    let companyId: String?
+    let projectId: String?
+    let issueId: String?
+    let agentId: String?
+    let title: String
+    let status: String
+    let workspaceType: String
+    let workspaceStatus: String
+    let workspaceRepoPath: String?
+    let workspaceBranch: String?
+    let workspaceMetadata: [String: AnyCodableValue]?
+    let issueIdentifier: String?
+    let issueTitle: String?
+    let projectName: String?
+    let agentName: String?
+    let createdAt: String
+    let lastAccessedAt: String
+    let updatedAt: String
+
+    var id: String { sessionId }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case repositoryId = "repository_id"
+        case companyId = "company_id"
+        case projectId = "project_id"
+        case issueId = "issue_id"
+        case agentId = "agent_id"
+        case title
+        case status
+        case workspaceType = "workspace_type"
+        case workspaceStatus = "workspace_status"
+        case workspaceRepoPath = "workspace_repo_path"
+        case workspaceBranch = "workspace_branch"
+        case workspaceMetadata = "workspace_metadata"
+        case issueIdentifier = "issue_identifier"
+        case issueTitle = "issue_title"
+        case projectName = "project_name"
+        case agentName = "agent_name"
+        case createdAt = "created_at"
+        case lastAccessedAt = "last_accessed_at"
+        case updatedAt = "updated_at"
     }
 }
 

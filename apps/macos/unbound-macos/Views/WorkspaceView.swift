@@ -421,12 +421,7 @@ struct WorkspaceView: View {
                         name: "repository.add",
                         source: .addRepository
                     ) { _ in
-                        let repository = try await appState.addRepository(path: url.path)
-                        let session = try await appState.createSession(
-                            repositoryId: repository.id,
-                            title: "New conversation"
-                        )
-                        appState.selectSession(session.id, source: .addRepository)
+                        _ = try await appState.addRepository(path: url.path)
                     }
                 }
             } catch {

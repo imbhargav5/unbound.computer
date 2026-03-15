@@ -74,6 +74,11 @@ enum DaemonConnectionState: Equatable {
 @MainActor
 @Observable
 class AppState {
+    private enum PersistedKeys {
+        static let themeMode = "themeMode"
+        static let selectedCompanyId = "selectedCompanyId"
+    }
+
     let daemonClient = DaemonClient.shared
     let sessionStateManager = SessionStateManager()
 
@@ -91,9 +96,16 @@ class AppState {
         dependencyStatus == .satisfied
     }
 
+    var currentShell: BoardShellKind {
+        if hasCompletedInitialCompanyLoad, companies.isEmpty {
+            return .firstCompanySetup
+        }
+        return selectedScreen == .workspaces ? .workspace : .companyDashboard
+    }
+
     var themeMode: ThemeMode {
         didSet {
-            UserDefaults.standard.set(themeMode.rawValue, forKey: "themeMode")
+            UserDefaults.standard.set(themeMode.rawValue, forKey: PersistedKeys.themeMode)
         }
     }
 
@@ -101,24 +113,44 @@ class AppState {
 
     var showSettings: Bool = false
     var showCommandPalette: Bool = false
+    var selectedScreen: AppScreen = .dashboard
     var selectedSessionId: UUID?
     var selectedRepositoryId: UUID?
+    var selectedCompanyId: String?
+    var selectedBoardWorkspaceId: String?
+    var selectedIssueId: String?
+    var selectedProjectId: String?
+    var selectedAgentId: String?
+    var selectedApprovalId: String?
 
     private(set) var repositories: [Repository] = []
     private(set) var sessions: [UUID: [Session]] = [:]
+    private(set) var companies: [DaemonCompany] = []
+    private(set) var workspaces: [DaemonWorkspace] = []
+    private(set) var agents: [DaemonAgent] = []
+    private(set) var goals: [DaemonGoal] = []
+    private(set) var issues: [DaemonIssue] = []
+    private(set) var approvals: [DaemonApproval] = []
+    private(set) var projects: [DaemonProject] = []
+    private(set) var issueComments: [String: [DaemonIssueComment]] = [:]
 
     private(set) var isLoadingRepositories: Bool = false
     private(set) var isLoadingSessions: Bool = false
+    private(set) var isLoadingBoardData: Bool = false
+    private(set) var hasCompletedInitialCompanyLoad: Bool = false
+    private(set) var boardError: String?
 
     init() {
         logger.info("AppState.init started")
 
-        if let savedTheme = UserDefaults.standard.string(forKey: "themeMode"),
+        if let savedTheme = UserDefaults.standard.string(forKey: PersistedKeys.themeMode),
            let theme = ThemeMode(rawValue: savedTheme) {
             self.themeMode = theme
         } else {
             self.themeMode = .system
         }
+
+        self.selectedCompanyId = UserDefaults.standard.string(forKey: PersistedKeys.selectedCompanyId)
 
         logger.info("AppState.init completed")
     }
@@ -140,6 +172,7 @@ class AppState {
             await checkDependencies()
             if dependenciesSatisfied {
                 await loadDataAsync()
+                await loadBoardDataAsync()
             }
         } catch {
             logger.error("Failed to connect to daemon: \(error)")
@@ -204,6 +237,7 @@ class AppState {
         await checkDependencies()
         if dependenciesSatisfied {
             await loadDataAsync()
+            await loadBoardDataAsync()
         }
     }
 
@@ -225,6 +259,16 @@ class AppState {
 
         let totalSessions = sessions.values.reduce(0) { $0 + $1.count }
         logger.info("Data loaded: \(repositories.count) repositories, \(totalSessions) total sessions")
+    }
+
+    func loadBoardDataAsync() async {
+        logger.info("Loading board data from daemon...")
+        await refreshCompanies()
+        guard let selectedCompanyId else {
+            clearCompanyScopedBoardData()
+            return
+        }
+        await refreshCompanyScopedBoardData(companyId: selectedCompanyId)
     }
 
     func refreshRepositories() async {
@@ -253,6 +297,144 @@ class AppState {
         }
     }
 
+    func refreshCompanies() async {
+        isLoadingBoardData = true
+        defer {
+            isLoadingBoardData = false
+            hasCompletedInitialCompanyLoad = true
+        }
+
+        do {
+            companies = try await daemonClient.listCompanies()
+            boardError = nil
+            let preferredCompanyId = selectedCompanyId ?? UserDefaults.standard.string(forKey: PersistedKeys.selectedCompanyId)
+            if let preferredCompanyId,
+               companies.contains(where: { $0.id == preferredCompanyId }) {
+                selectedCompanyId = preferredCompanyId
+                persistSelectedCompanyId(preferredCompanyId)
+                return
+            }
+            selectedCompanyId = companies.first?.id
+            persistSelectedCompanyId(selectedCompanyId)
+        } catch {
+            boardError = error.localizedDescription
+            logger.error("Failed to load companies: \(error)")
+        }
+    }
+
+    func selectCompany(_ companyId: String?) async {
+        guard selectedCompanyId != companyId else { return }
+        selectedCompanyId = companyId
+        persistSelectedCompanyId(companyId)
+        selectedSessionId = nil
+        selectedRepositoryId = nil
+        selectedBoardWorkspaceId = nil
+        selectedIssueId = nil
+        selectedProjectId = nil
+        selectedAgentId = nil
+        selectedApprovalId = nil
+        issueComments = [:]
+
+        guard let companyId else {
+            clearCompanyScopedBoardData()
+            return
+        }
+
+        await refreshCompanyScopedBoardData(companyId: companyId)
+    }
+
+    func refreshCompanyScopedBoardData(companyId: String? = nil) async {
+        guard let companyId = companyId ?? selectedCompanyId else {
+            clearCompanyScopedBoardData()
+            return
+        }
+
+        isLoadingBoardData = true
+        defer { isLoadingBoardData = false }
+
+        do {
+            let loadedWorkspaces = try await daemonClient.listWorkspaces(companyId: companyId)
+            let loadedAgents = try await daemonClient.listAgents(companyId: companyId)
+            let loadedGoals = try await daemonClient.listGoals(companyId: companyId)
+            let loadedProjects = try await daemonClient.listProjects(companyId: companyId)
+            let loadedIssues = try await daemonClient.listIssues(params: ["company_id": companyId])
+            let loadedApprovals = try await daemonClient.listApprovals(companyId: companyId)
+
+            workspaces = loadedWorkspaces
+            agents = loadedAgents
+            goals = loadedGoals
+            projects = loadedProjects
+            issues = loadedIssues
+            approvals = loadedApprovals
+            boardError = nil
+
+            if let selectedBoardWorkspaceId,
+               !workspaces.contains(where: { $0.id == selectedBoardWorkspaceId }) {
+                self.selectedBoardWorkspaceId = workspaces.first?.id
+            } else if self.selectedBoardWorkspaceId == nil {
+                self.selectedBoardWorkspaceId = workspaces.first?.id
+            }
+
+            if let selectedIssueId,
+               !issues.contains(where: { $0.id == selectedIssueId }) {
+                self.selectedIssueId = issues.first?.id
+            }
+
+            if let selectedAgentId,
+               !agents.contains(where: { $0.id == selectedAgentId }) {
+                self.selectedAgentId = preferredAgentId(from: agents)
+            } else if self.selectedAgentId == nil {
+                self.selectedAgentId = preferredAgentId(from: agents)
+            }
+
+            if let selectedProjectId,
+               !projects.contains(where: { $0.id == selectedProjectId }) {
+                self.selectedProjectId = projects.first?.id
+            }
+
+            if let selectedApprovalId,
+               !approvals.contains(where: { $0.id == selectedApprovalId }) {
+                self.selectedApprovalId = approvals.first?.id
+            }
+
+            if let workspaceId = self.selectedBoardWorkspaceId,
+               let sessionId = UUID(uuidString: workspaceId) {
+                selectSession(sessionId, source: .sidebar)
+            }
+        } catch {
+            boardError = error.localizedDescription
+            logger.error("Failed to load company-scoped board data for \(companyId): \(error)")
+        }
+    }
+
+    func refreshIssueComments(issueId: String) async {
+        do {
+            issueComments[issueId] = try await daemonClient.listIssueComments(issueId: issueId)
+        } catch {
+            logger.error("Failed to load comments for issue \(issueId): \(error)")
+        }
+    }
+
+    func selectBoardWorkspace(_ workspace: DaemonWorkspace) async {
+        selectedBoardWorkspaceId = workspace.id
+
+        if let repositoryId = UUID(uuidString: workspace.repositoryId) {
+            if !repositories.contains(where: { $0.id == repositoryId }) {
+                await refreshRepositories()
+            }
+
+            let knownSessionIds = Set((sessions[repositoryId] ?? []).map(\.id))
+            if let workspaceSessionId = UUID(uuidString: workspace.sessionId),
+               !knownSessionIds.contains(workspaceSessionId) {
+                await refreshSessions(for: repositoryId)
+            }
+
+            if let workspaceSessionId = UUID(uuidString: workspace.sessionId) {
+                selectSession(workspaceSessionId, source: .sidebar)
+            }
+        }
+    }
+
     func sessionsForRepository(_ repositoryId: UUID) -> [Session] {
         (sessions[repositoryId] ?? []).sorted(by: Session.isMoreRecent(_:than:))
     }
@@ -269,6 +451,38 @@ class AppState {
         sessions = [:]
         selectedSessionId = nil
         selectedRepositoryId = nil
+        companies = []
+        workspaces = []
+        agents = []
+        goals = []
+        issues = []
+        approvals = []
+        projects = []
+        issueComments = [:]
+        selectedCompanyId = nil
+        hasCompletedInitialCompanyLoad = false
+        selectedBoardWorkspaceId = nil
+        selectedIssueId = nil
+        selectedProjectId = nil
+        selectedAgentId = nil
+        selectedApprovalId = nil
+    }
+
+    private func clearCompanyScopedBoardData() {
+        workspaces = []
+        agents = []
+        goals = []
+        issues = []
+        approvals = []
+        projects = []
+        issueComments = [:]
+        selectedSessionId = nil
+        selectedRepositoryId = nil
+        selectedBoardWorkspaceId = nil
+        selectedIssueId = nil
+        selectedProjectId = nil
+        selectedAgentId = nil
+        selectedApprovalId = nil
     }
 
     private func userIntentAttributes(
@@ -531,6 +745,84 @@ class AppState {
         }
     }
 
+    // MARK: - Board Mutations
+
+    func createCompany(
+        name: String,
+        description: String? = nil,
+        budgetMonthlyCents: Int? = nil,
+        brandColor: String? = nil,
+        requireBoardApprovalForNewAgents: Bool? = nil
+    ) async throws -> DaemonCompany {
+        let company = try await daemonClient.createCompany(
+            name: name,
+            description: description,
+            budgetMonthlyCents: budgetMonthlyCents,
+            brandColor: brandColor,
+            requireBoardApprovalForNewAgents: requireBoardApprovalForNewAgents
+        )
+        await refreshCompanies()
+        await selectCompany(company.id)
+        selectedScreen = .dashboard
+        return company
+    }
+
+    func createAgent(params: [String: Any]) async throws -> DaemonAgent {
+        let agent = try await daemonClient.createAgent(params: params)
+        await refreshCompanyScopedBoardData(companyId: agent.companyId)
+        selectedAgentId = agent.id
+        return agent
+    }
+
+    func createProject(params: [String: Any]) async throws -> DaemonProject {
+        let project = try await daemonClient.createProject(params: params)
+        await refreshRepositories()
+        await refreshCompanyScopedBoardData(companyId: project.companyId)
+        selectedProjectId = project.id
+        return project
+    }
+
+    func createIssue(params: [String: Any]) async throws -> DaemonIssue {
+        let issue = try await daemonClient.createIssue(params: params)
+        await refreshCompanyScopedBoardData(companyId: issue.companyId)
+        selectedIssueId = issue.id
+        return issue
+    }
+
+    func addIssueComment(params: [String: Any]) async throws -> DaemonIssueComment {
+        let comment = try await daemonClient.addIssueComment(params: params)
+        await refreshIssueComments(issueId: comment.issueId)
+        return comment
+    }
+
+    func checkoutIssue(issueId: String) async throws -> DaemonWorkspace {
+        let workspace = try await daemonClient.checkoutIssue(issueId: issueId)
+        await refreshRepositories()
+        if let repositoryId = UUID(uuidString: workspace.repositoryId) {
+            await refreshSessions(for: repositoryId)
+        }
+        if let companyId = workspace.companyId {
+            await refreshCompanyScopedBoardData(companyId: companyId)
+        }
+        selectedBoardWorkspaceId = workspace.id
+        if let sessionId = UUID(uuidString: workspace.sessionId) {
+            selectSession(sessionId, source: .sidebar)
+        }
+        selectedScreen = .workspaces
+        return workspace
+    }
+
+    func approveApproval(approvalId: String, decisionNote: String? = nil) async throws -> DaemonApproval {
+        var params: [String: Any] = ["approval_id": approvalId]
+        if let decisionNote {
+            params["decision_note"] = decisionNote
+        }
+        let approval = try await daemonClient.approveApproval(params: params)
+        await refreshCompanyScopedBoardData(companyId: approval.companyId)
+        selectedApprovalId = approval.id
+        return approval
+    }
+
     #if DEBUG
     func configureForPreview(
         repositories: [Repository] = [],
@@ -551,9 +843,62 @@ class AppState {
     #endif
 }
 
+private extension AppState {
+    func persistSelectedCompanyId(_ companyId: String?) {
+        if let companyId {
+            UserDefaults.standard.set(companyId, forKey: PersistedKeys.selectedCompanyId)
+        } else {
+            UserDefaults.standard.removeObject(forKey: PersistedKeys.selectedCompanyId)
+        }
+    }
+
+    func preferredAgentId(from agents: [DaemonAgent]) -> String? {
+        if let ceoAgentId = selectedCompany?.ceoAgentId,
+           agents.contains(where: { $0.id == ceoAgentId }) {
+            return ceoAgentId
+        }
+
+        if let fallbackCeoId = agents.first(where: { $0.role.caseInsensitiveCompare("ceo") == .orderedSame })?.id {
+            return fallbackCeoId
+        }
+
+        return agents.first?.id
+    }
+}
+
 // MARK: - Convenience Accessors
 
 extension AppState {
+    var selectedCompany: DaemonCompany? {
+        guard let id = selectedCompanyId else { return nil }
+        return companies.first { $0.id == id }
+    }
+
+    var selectedBoardWorkspace: DaemonWorkspace? {
+        guard let id = selectedBoardWorkspaceId else { return nil }
+        return workspaces.first { $0.id == id }
+    }
+
+    var selectedIssue: DaemonIssue? {
+        guard let id = selectedIssueId else { return nil }
+        return issues.first { $0.id == id }
+    }
+
+    var selectedProject: DaemonProject? {
+        guard let id = selectedProjectId else { return nil }
+        return projects.first { $0.id == id }
+    }
+
+    var selectedAgent: DaemonAgent? {
+        guard let id = selectedAgentId else { return nil }
+        return agents.first { $0.id == id }
+    }
+
+    var selectedApproval: DaemonApproval? {
+        guard let id = selectedApprovalId else { return nil }
+        return approvals.first { $0.id == id }
+    }
+
     var selectedRepository: Repository? {
         guard let id = selectedRepositoryId else { return nil }
         return repositories.first { $0.id == id }

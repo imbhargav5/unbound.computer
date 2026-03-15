@@ -50,15 +50,27 @@ struct ContentView: View {
     @ViewBuilder
     private var connectedContent: some View {
         if appState.dependenciesSatisfied {
-            ZStack {
-                WorkspaceView()
-                    .opacity(appState.showSettings ? 0 : 1)
-
-                if appState.showSettings {
-                    SettingsView()
+            if !appState.hasCompletedInitialCompanyLoad {
+                DaemonConnectingView(
+                    title: "Loading companies",
+                    message: "Checking local companies before opening Unbound..."
+                )
+                .transition(.opacity)
+            } else if let boardError = appState.boardError,
+                      appState.hasCompletedInitialCompanyLoad,
+                      appState.companies.isEmpty {
+                InitialCompanyLoadErrorView(message: boardError) {
+                    Task {
+                        await appState.loadBoardDataAsync()
+                    }
                 }
+                .transition(.opacity)
+            } else if appState.currentShell == .firstCompanySetup {
+                CreateFirstCompanyView()
+                    .transition(.opacity)
+            } else {
+                BoardRootView()
             }
-            .animation(.easeInOut(duration: Duration.default), value: appState.showSettings)
         } else {
             DependencyCheckView()
                 .transition(.opacity)
@@ -71,6 +83,9 @@ struct ContentView: View {
 struct DaemonConnectingView: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    var title: String = "Connecting to Unbound"
+    var message: String = "Starting daemon service..."
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
@@ -82,11 +97,11 @@ struct DaemonConnectingView: View {
                 .scaleEffect(1.5)
 
             VStack(spacing: Spacing.sm) {
-                Text("Connecting to Unbound")
+                Text(title)
                     .font(Typography.title2)
                     .foregroundColor(colors.foreground)
 
-                Text("Starting daemon service...")
+                Text(message)
                     .font(Typography.body)
                     .foregroundColor(colors.mutedForeground)
             }

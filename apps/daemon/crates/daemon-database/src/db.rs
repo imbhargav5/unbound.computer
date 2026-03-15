@@ -660,6 +660,37 @@ mod tests {
         Database::open_in_memory().unwrap()
     }
 
+    fn insert_test_company(db: &Database) -> String {
+        let id = "company-1".to_string();
+        db.connection()
+            .execute(
+                "INSERT INTO companies (id, name) VALUES (?1, ?2)",
+                rusqlite::params![id, "Test Company"],
+            )
+            .unwrap();
+        "company-1".to_string()
+    }
+
+    fn insert_test_agent(db: &Database, company_id: &str, agent_id: &str, name: &str) -> String {
+        db.connection()
+            .execute(
+                "INSERT INTO agents (id, company_id, name, slug) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![agent_id, company_id, name, format!("{agent_id}-slug")],
+            )
+            .unwrap();
+        agent_id.to_string()
+    }
+
+    fn insert_test_issue(db: &Database, company_id: &str, issue_id: &str, title: &str) -> String {
+        db.connection()
+            .execute(
+                "INSERT INTO issues (id, company_id, title) VALUES (?1, ?2, ?3)",
+                rusqlite::params![issue_id, company_id, title],
+            )
+            .unwrap();
+        issue_id.to_string()
+    }
+
     fn setup_test_repo_and_session(db: &Database) -> (String, String) {
         let repo_id = "repo-1".to_string();
         let session_id = "session-1".to_string();
@@ -734,6 +765,9 @@ mod tests {
     #[test]
     fn test_session_crud() {
         let db = create_test_db();
+        let company_id = insert_test_company(&db);
+        let agent_id = insert_test_agent(&db, &company_id, "agent-123", "Debug Agent");
+        let issue_id = insert_test_issue(&db, &company_id, "issue-123", "Fix launch bug");
 
         // Create repository first
         db.insert_repository(&NewRepository {
@@ -753,9 +787,9 @@ mod tests {
                 id: "session-1".to_string(),
                 repository_id: "repo-1".to_string(),
                 title: "Test Session".to_string(),
-                agent_id: Some("agent-123".to_string()),
+                agent_id: Some(agent_id.clone()),
                 agent_name: Some("Debug Agent".to_string()),
-                issue_id: Some("ENG-123".to_string()),
+                issue_id: Some(issue_id.clone()),
                 issue_title: Some("Fix launch bug".to_string()),
                 issue_url: Some("https://example.com/issues/ENG-123".to_string()),
                 claude_session_id: Some("claude-123".to_string()),
@@ -766,9 +800,9 @@ mod tests {
 
         assert_eq!(session.id, "session-1");
         assert_eq!(session.title, "Test Session");
-        assert_eq!(session.agent_id.as_deref(), Some("agent-123"));
+        assert_eq!(session.agent_id.as_deref(), Some(agent_id.as_str()));
         assert_eq!(session.agent_name.as_deref(), Some("Debug Agent"));
-        assert_eq!(session.issue_id.as_deref(), Some("ENG-123"));
+        assert_eq!(session.issue_id.as_deref(), Some(issue_id.as_str()));
         assert_eq!(session.issue_title.as_deref(), Some("Fix launch bug"));
         assert_eq!(
             session.issue_url.as_deref(),

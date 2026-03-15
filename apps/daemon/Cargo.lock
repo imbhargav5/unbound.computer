@@ -596,6 +596,7 @@ dependencies = [
  "clap",
  "claude-debug-logs",
  "claude-process-manager",
+ "daemon-board",
  "daemon-config-and-utils",
  "daemon-database",
  "daemon-ipc",
@@ -616,6 +617,23 @@ dependencies = [
  "tracing-opentelemetry",
  "uuid",
  "workspace-resolver",
+]
+
+[[package]]
+name = "daemon-board"
+version = "0.0.19"
+dependencies = [
+ "agent-session-sqlite-persist-core",
+ "chrono",
+ "daemon-config-and-utils",
+ "daemon-database",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

@@ -663,6 +663,44 @@ mod tests {
         id
     }
 
+    fn insert_test_company(conn: &Connection) -> String {
+        let id = "company-1".to_string();
+        conn.execute(
+            "INSERT INTO companies (id, name) VALUES (?1, ?2)",
+            params![id, "Test Company"],
+        )
+        .unwrap();
+        "company-1".to_string()
+    }
+
+    fn insert_test_agent(
+        conn: &Connection,
+        company_id: &str,
+        agent_id: &str,
+        name: &str,
+    ) -> String {
+        conn.execute(
+            "INSERT INTO agents (id, company_id, name, slug) VALUES (?1, ?2, ?3, ?4)",
+            params![agent_id, company_id, name, format!("{agent_id}-slug")],
+        )
+        .unwrap();
+        agent_id.to_string()
+    }
+
+    fn insert_test_issue(
+        conn: &Connection,
+        company_id: &str,
+        issue_id: &str,
+        title: &str,
+    ) -> String {
+        conn.execute(
+            "INSERT INTO issues (id, company_id, title) VALUES (?1, ?2, ?3)",
+            params![issue_id, company_id, title],
+        )
+        .unwrap();
+        issue_id.to_string()
+    }
+
     fn insert_test_session(conn: &Connection, repo_id: &str) -> String {
         let id = "session-1".to_string();
         insert_session(
@@ -817,6 +855,9 @@ mod tests {
     fn session_insert_and_get() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
+        let company_id = insert_test_company(&conn);
+        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
+        let issue_id = insert_test_issue(&conn, &company_id, "issue-123", "Fix launch bug");
 
         let session = insert_session(
             &conn,
@@ -824,9 +865,9 @@ mod tests {
                 id: "s1".into(),
                 repository_id: repo_id,
                 title: "My Session".into(),
-                agent_id: Some("agent-123".into()),
+                agent_id: Some(agent_id.clone()),
                 agent_name: Some("Debug Agent".into()),
-                issue_id: Some("ENG-123".into()),
+                issue_id: Some(issue_id.clone()),
                 issue_title: Some("Fix launch bug".into()),
                 issue_url: Some("https://example.com/issues/ENG-123".into()),
                 claude_session_id: Some("claude-xyz".into()),
@@ -838,9 +879,9 @@ mod tests {
 
         assert_eq!(session.id, "s1");
         assert_eq!(session.title, "My Session");
-        assert_eq!(session.agent_id, Some("agent-123".into()));
+        assert_eq!(session.agent_id, Some(agent_id));
         assert_eq!(session.agent_name, Some("Debug Agent".into()));
-        assert_eq!(session.issue_id, Some("ENG-123".into()));
+        assert_eq!(session.issue_id, Some(issue_id));
         assert_eq!(session.issue_title, Some("Fix launch bug".into()));
         assert_eq!(
             session.issue_url,
@@ -899,6 +940,14 @@ mod tests {
     fn session_list_for_repository() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
+        let company_id = insert_test_company(&conn);
+        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
+        let issue_id = insert_test_issue(
+            &conn,
+            &company_id,
+            "issue-999",
+            "Investigate session linking",
+        );
 
         insert_session(
             &conn,
@@ -923,9 +972,9 @@ mod tests {
                 id: "s2".into(),
                 repository_id: repo_id.clone(),
                 title: "Second".into(),
-                agent_id: Some("agent-123".into()),
+                agent_id: Some(agent_id),
                 agent_name: Some("Debug Agent".into()),
-                issue_id: Some("ENG-999".into()),
+                issue_id: Some(issue_id.clone()),
                 issue_title: Some("Investigate session linking".into()),
                 issue_url: Some("https://example.com/issues/ENG-999".into()),
                 claude_session_id: None,
@@ -937,7 +986,7 @@ mod tests {
 
         let sessions = list_sessions_for_repository(&conn, &repo_id).unwrap();
         assert_eq!(sessions.len(), 2);
-        assert_eq!(sessions[0].issue_id.as_deref(), Some("ENG-999"));
+        assert_eq!(sessions[0].issue_id.as_deref(), Some(issue_id.as_str()));
         assert_eq!(
             sessions[0].issue_url.as_deref(),
             Some("https://example.com/issues/ENG-999")
