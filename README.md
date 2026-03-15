@@ -1,14 +1,12 @@
 # Unbound
 
-A local-first AI coding assistant with native clients, a background daemon, and optional cloud sync.
+A local-first AI coding assistant with native clients and a background daemon.
 
 ## What is Unbound?
 
-Unbound is a development tool that pairs a background Rust daemon with native client applications to provide AI-assisted coding sessions. The daemon manages Claude CLI processes, tracks sessions in a local SQLite database, handles authentication, and orchestrates git operations -- all through a Unix socket IPC interface that any client can connect to.
+Unbound pairs a background Rust daemon with native clients to provide AI-assisted coding sessions over a local Unix socket. The daemon manages Claude CLI and terminal processes, tracks sessions in SQLite, performs git operations, and exposes a board/task domain for company-agent-project-issue workflows.
 
-The system follows a local-first architecture: all session data lives in SQLite on your machine, and the daemon operates fully offline. When signed in, sessions optionally sync to Supabase with end-to-end encryption (X25519 + ChaCha20-Poly1305), enabling cross-device access through the web app.
-
-Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path for instant message delivery (via the Falco sidecar through `daemon-ably`), while **Supabase** serves as the cold path for durable, batched message sync (via the Levi worker). Inbound remote commands (e.g., web-initiated sessions) flow through Ably into the Nagato sidecar (also through `daemon-ably`), which forwards them to the daemon for processing.
+The current daemon runtime is local-first and local-only: state is persisted in local SQLite plus platform secure storage, and clients interact through IPC methods and streaming events.
 
 ## Architecture
 
@@ -16,36 +14,27 @@ Real-time streaming uses a dual-path sync model: **Ably** serves as the hot path
 macOS App (SwiftUI) ──┐
                       ├── Unix Socket (NDJSON) ──> Daemon (Rust)
 CLI (Rust/ratatui) ───┘                              |
-                                          ┌──────────┼──────────┐
-                                       SQLite      Supabase     Ably
-                                       (local)   (cold sync)  (hot sync)
+                                          ┌──────────┼───────────┐
+                                       SQLite     Secure Storage  Local FS
+                                       (state)    (keys/secrets) (repos/files)
                                           |
                                     ┌─────┼──────┐
-                                 Claude  libgit2  Groq
-                                  CLI    (git)   (titles)
-
-                          ┌────────── Daemon Sidecars ──────────┐
-                          │                                     │
-                   daemon-ably (Go)                       Nagato (Go)
-                 Ably transport + IPC               Consumes remote
-                        for sidecars                commands from Ably
-                          │                                     │
-                        Falco (Go)                              │
-                  Publishes state changes to Ably               │
+                                 Claude  libgit2  GH CLI
+                                  CLI    (git)   (optional)
 ```
 
-Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages Claude CLI processes, persists all session data to SQLite, and syncs encrypted messages through two paths:
+Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages local processes, persists session/board state to SQLite, and streams runtime events to subscribers:
 
-- **Hot path (Ably via Falco):** Every message is published to Ably in real-time for instant cross-device delivery. Falco is a Go sidecar that receives side-effects from the daemon over a Unix socket and publishes them to Ably channels.
-- **Cold path (Supabase via Levi):** Messages are batched, encrypted, and upserted to Supabase for durable storage and offline sync. Levi is a Rust worker with cursor-based sync, batching (50 messages / 500ms), and exponential backoff retries.
-- **Inbound commands (Ably via Nagato):** Remote commands (e.g., starting a session from the web) arrive on Ably, are consumed by the Nagato Go sidecar, and forwarded to the daemon over a Unix socket.
+- **Request/response IPC:** structured method calls for board, session, repository, Claude, terminal, git, and system operations.
+- **Streaming IPC:** `session.subscribe` channels with ordered events (message/status/terminal/Claude/session lifecycle).
+- **Shared local identity:** device identifiers and key material are managed through secure local storage and reused across daemon runs.
 
 ## Project Structure
 
 ```
 unbound.computer/
 ├── apps/
-│   ├── daemon/          # Rust daemon (23 crates)
+│   ├── daemon/          # Rust daemon (21 crates)
 │   ├── macos/           # macOS native app (SwiftUI)
 │   ├── cli-new/         # Terminal client (Rust/ratatui)
 │   ├── web/             # Web app (Next.js)
@@ -80,45 +69,39 @@ The Rust daemon is organized into focused crates under `apps/daemon/crates/`:
 
 | Crate | Description |
 |-------|-------------|
-| `daemon-bin` | Binary entry point, CLI parsing, daemon lifecycle, IPC handlers |
-| `daemon-config-and-utils` | Shared config, paths, logging, hybrid encryption |
-| `daemon-ipc` | Unix socket server, NDJSON protocol, request routing |
-| `daemon-auth` | Backward-compat shim for `auth-engine` |
-| `daemon-database` | Async SQLite executor, migrations, model types |
-| `daemon-storage` | Platform-specific secure storage (Keychain, Secret Service, Credential Vault) |
-| `agent-session-sqlite-persist-core` | SQLite-backed session engine: commits facts, derives views, emits side-effects |
-| `deku` | Claude CLI process manager: spawning, streaming, event parsing |
-| `git-ops` | Native git operations via libgit2 (status, diff, log, branches, worktrees) |
+| `daemon-bin` | Binary entry point, startup/lifecycle wiring, IPC handler registration |
+| `daemon-config-and-utils` | Shared config, paths, logging/telemetry, crypto helpers |
+| `daemon-ipc` | Unix socket IPC server/client, subscription transport |
+| `daemon-database` | Async SQLite executor, migrations, query helpers |
+| `daemon-storage` | Platform secure storage integration |
+| `daemon-board` | Local board domain services (company/agent/project/issue/approval/workspace) |
+| `agent-session-sqlite-persist-core` | SQLite-backed session engine with side-effects |
+| `claude-process-manager` | Claude process orchestration and stream integration |
+| `claude-debug-logs` | Raw Claude event JSONL debug logging |
+| `git-ops` | Native git operations via libgit2 |
 | `gh-cli-ops` | GitHub CLI orchestration for PR workflows |
-| `levi` | Supabase message sync worker with batching, encryption, and retries |
-| `toshinori` | Supabase + Ably sync sink for Armin side-effects |
-| `session-title-generator` | Session title generation via Groq Llama 3.1 8B |
-| `safe-repo-dir-lister` | Safe directory listing with path traversal protection |
-| `auth-engine` | Auth FSM, OAuth flows, Supabase integration |
+| `session-title-generator` | Session title generation |
+| `safe-repo-dir-lister` | Safe directory listing with traversal protection |
 | `safe-file-ops` | Rope-backed file reader/writer with conflict detection |
-| `session-lifecycle-orchestrator` | Session lifecycle orchestration |
-| `eren-machines` | Process lifecycle management |
-| `sakura-working-dir-resolution` | Workspace path resolution |
-| `one-for-all-protocol` | Shared protocol types (extracted from daemon-ipc) |
+| `ipc-protocol-types` | Shared request/response/event protocol types |
+| `workspace-resolver` | Workspace and path resolution helpers |
+| `process-event-bridge` | Process event normalization/bridging primitives |
+| `session-lifecycle-orchestrator` | Session lifecycle orchestration helpers |
 | `device-identity-crypto` | Device identity and crypto coordination |
-| `historia-lifecycle` | Daemon lifecycle and startup orchestration |
-| `runtime-capability-detector` | System dependency detection for required CLI tools |
+| `daemon-lifecycle` | Daemon lifecycle utilities |
+| `runtime-capability-detector` | System dependency detection for required tools |
 
 ## Daemon Sidecars
 
-The daemon communicates with Go sidecar processes over Unix domain sockets using a custom binary frame protocol:
+The repository still includes Go sidecar packages for Ably transport flows:
 
 | Sidecar | Language | Purpose |
 |---------|----------|---------|
-| **daemon-ably** | Go | Owns the Ably realtime connection and exposes an IPC transport socket for Falco/Nagato. |
-| **Falco** | Go | Publishes Armin side-effects (messages, session events) to Ably channels for real-time cross-device sync. Implements at-least-once delivery with retry. |
-| **Nagato** | Go | Subscribes to Ably for inbound remote commands and forwards them to the daemon. Implements fail-open timeouts (15s) to prevent blocking. |
+| **daemon-ably** | Go | Ably transport process exposing a local socket for companion sidecars. |
+| **daemon-falco** | Go | Ably publisher sidecar. |
+| **daemon-nagato** | Go | Ably consumer sidecar. |
 
-Both sidecars are stateless and crash-safe -- the daemon tracks unacknowledged effects for resend on restart, and Ably handles redelivery for unprocessed commands.
-
-The daemon also captures sidecar stdout/stderr streams and forwards them through the observability pipeline for unified log search.
-
-When configured, `daemon-ably` also forwards presence heartbeats to the Durable Object ingress (`UNBOUND_PRESENCE_DO_*`) while the legacy Ably heartbeat stream remains available during migration.
+These sidecars are documented in their package READMEs and are not part of the current default local daemon bootstrap path.
 
 ## Tech Stack
 
@@ -129,7 +112,7 @@ When configured, `daemon-ably` also forwards presence heartbeats to the Durable 
 - ChaCha20-Poly1305 + X25519 encryption
 - Unix domain sockets via interprocess
 - clap for CLI, tracing for logging
-- PostHog + Sentry sinks via shared observability crate
+- OpenTelemetry integration via shared observability crate
 
 **Daemon Sidecars (Go)**
 - Ably SDK for real-time pub/sub (via `daemon-ably`)
@@ -149,8 +132,6 @@ When configured, `daemon-ably` also forwards presence heartbeats to the Durable 
 - Biome for linting/formatting
 
 **Infrastructure**
-- Supabase (Postgres, Auth, Realtime)
-- Ably (real-time message delivery, remote command routing)
 - pnpm workspaces + Turborepo
 - Apache-2.0 license
 

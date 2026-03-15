@@ -1,6 +1,6 @@
 # Device Identity Crypto
 
-**Device identity and crypto coordination for the Unbound daemon.** Sasuke manages the device's cryptographic identity - device ID, private key, and database encryption key - along with base64 utilities for key encoding and a type for remote secret records from Supabase.
+**Device identity and crypto coordination for the Unbound daemon.** This crate manages the device's cryptographic identity - device ID, private key, and database encryption key - along with base64 utilities for key encoding and a type for encrypted remote secret records.
 
 ## Architecture
 
@@ -9,7 +9,7 @@
 │                           Daemon                                 │
 │                                                                  │
 │  DeviceIdentity                                                  │
-│    ├── device_id          (String)    ◄── Supabase registration │
+│    ├── device_id          (String)    ◄── local daemon identity │
 │    ├── device_private_key ([u8; 32])  ◄── Keychain              │
 │    └── db_encryption_key  ([u8; 32])  ◄── Key derivation        │
 │                                                                  │
@@ -82,7 +82,7 @@ let encoded: String = encode_base64(&[1, 2, 3]);
 
 ## Remote Secret Records
 
-Represents encrypted session secrets fetched from Supabase for cross-device access:
+Represents encrypted session secrets fetched from a remote source for cross-device access:
 
 ```rust
 use device_identity_crypto::RemoteSecretRecord;

@@ -33,7 +33,7 @@ let capabilities = collect_capabilities().await?;
 
 ## Capabilities Payload
 
-`collect_capabilities` builds the canonical payload synced to Supabase. It includes
+`collect_capabilities` builds the canonical daemon capability payload. It includes
 the dependency status plus extra CLI tool discovery:
 
 | Tool | Notes |
