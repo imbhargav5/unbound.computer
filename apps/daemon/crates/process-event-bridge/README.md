@@ -1,4 +1,4 @@
-# Eren Machines
+# process-event-bridge
 
 **Process lifecycle management (Claude CLI, terminal) for the Unbound daemon.** Eren owns the process registry and the event bridges that convert external process output into Armin messages.
 
@@ -32,7 +32,7 @@
 The `ProcessRegistry` tracks running processes by session ID and provides stop signals via broadcast channels.
 
 ```rust
-use eren_machines::ProcessRegistry;
+use process_event_bridge::ProcessRegistry;
 
 let registry = ProcessRegistry::new();
 
@@ -78,7 +78,7 @@ registry.remove("session-123");
 Converts Claude CLI JSON events into Armin session messages.
 
 ```rust
-use eren_machines::claude_bridge;
+use process_event_bridge::claude_bridge;
 
 // Store a raw Claude JSON event as a message
 let msg = claude_bridge::store_event(&armin, session_id, raw_json)?;
@@ -96,7 +96,7 @@ claude_bridge::set_idle(&armin, session_id)?;
 Converts terminal process output into structured Armin messages.
 
 ```rust
-use eren_machines::terminal_bridge;
+use process_event_bridge::terminal_bridge;
 
 // Store stdout/stderr lines
 terminal_bridge::store_stdout(&armin, session_id, "build succeeded")?;
@@ -134,7 +134,7 @@ pub enum ProcessError {
 ## Testing
 
 ```bash
-cargo test -p eren-machines
+cargo test -p process-event-bridge
 ```
 
 26 tests covering registry operations, bridge message formats, sequence tracking, and error handling.

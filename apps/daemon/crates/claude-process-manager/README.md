@@ -1,6 +1,6 @@
-# Deku
+# claude-process-manager
 
-Deku is the **Claude CLI process manager** for the Unbound daemon. It encapsulates all the logic for spawning, streaming, and controlling Claude CLI processes.
+`claude-process-manager` is the **Claude CLI process manager** for the Unbound daemon. It encapsulates the logic for spawning, streaming, and controlling Claude CLI processes.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Deku is the **Claude CLI process manager** for the Unbound daemon. It encapsulat
 ┌─────────────────────────────────────────────────────────────────┐
 │                           Daemon                                 │
 │                                                                  │
-│  IPC Handler ──► Deku::spawn() ──► ClaudeProcess                │
+│  IPC Handler ──► ClaudeProcess::spawn() ──► ClaudeProcess       │
 │                        │                  │                      │
 │                        │                  │ stdout               │
 │                        │                  ▼                      │
@@ -23,7 +23,7 @@ Deku is the **Claude CLI process manager** for the Unbound daemon. It encapsulat
 ## Usage
 
 ```rust
-use deku::{ClaudeConfig, ClaudeProcess, ClaudeEvent};
+use claude_process_manager::{ClaudeConfig, ClaudeProcess, ClaudeEvent};
 
 // Create configuration
 let config = ClaudeConfig::new("Hello, Claude!", "/path/to/repo")
@@ -96,9 +96,9 @@ tokio::spawn(async move {
 
 ## Integration
 
-Deku is designed to be integrated with the daemon's event handling:
+`claude-process-manager` is designed to be integrated with the daemon's event handling:
 
-1. **Daemon spawns** a Claude process via Deku
+1. **Daemon spawns** a Claude process via `claude-process-manager`
 2. **Event stream** yields parsed JSON events
 3. **Handler bridges** events to Armin (storage) and IPC (real-time broadcast)
 4. **Stop signal** can be sent from IPC handler when user requests abort

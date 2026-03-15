@@ -149,7 +149,7 @@ cargo test -p gh-cli-ops
 Recommended companion checks:
 
 ```bash
-cargo test -p one-for-all-protocol
+cargo test -p ipc-protocol-types
 cargo test -p daemon-bin
 ```
 

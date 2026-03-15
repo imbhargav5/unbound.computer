@@ -1,4 +1,4 @@
-# Sakura Working Dir Resolution
+# workspace-resolver
 
 **Session-to-working-directory resolution for the Unbound daemon.** A single place to resolve the effective working directory for a session, eliminating the duplicated `session.worktree_path || repo.path` pattern across IPC handlers.
 
@@ -15,7 +15,7 @@ let dir = if let Some(wt) = session.worktree_path {
 };
 ```
 
-Sakura centralizes this into one function.
+This crate centralizes this into one function.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ Sakura centralizes this into one function.
 ### Resolve Working Directory for a Session
 
 ```rust
-use sakura_working_dir_resolution::resolve_working_dir;
+use workspace_resolver::resolve_working_dir;
 
 let resolved = resolve_working_dir(&armin, &session_id)?;
 
@@ -63,7 +63,7 @@ git_ops::get_status(Path::new(&resolved.working_dir))?;
 ### Convenience: From String ID
 
 ```rust
-use sakura_working_dir_resolution::resolve_working_dir_from_str;
+use workspace_resolver::resolve_working_dir_from_str;
 
 let resolved = resolve_working_dir_from_str(&armin, "session-uuid-string")?;
 ```
@@ -73,7 +73,7 @@ let resolved = resolve_working_dir_from_str(&armin, "session-uuid-string")?;
 For handlers that just need the repo path (not session-aware):
 
 ```rust
-use sakura_working_dir_resolution::resolve_repository_path;
+use workspace_resolver::resolve_repository_path;
 
 let repo_path = resolve_repository_path(&armin, "repo-uuid-string")?;
 ```
@@ -116,7 +116,7 @@ pub enum ResolveError {
 ## Testing
 
 ```bash
-cargo test -p sakura-working-dir-resolution
+cargo test -p workspace-resolver
 ```
 
 Tests cover regular sessions, worktree sessions, missing sessions, missing repositories, multi-session repos, and error message formatting.

@@ -1,75 +1,78 @@
 # daemon-config-and-utils
 
-Shared types, configuration, and utilities used across all daemon crates.
+Shared config, paths, logging, telemetry, and crypto utilities used across
+daemon crates.
 
 ## Purpose
 
-Provides foundational components that other crates depend on, avoiding circular dependencies and code duplication.
+This crate holds cross-cutting daemon infrastructure so feature crates can
+reuse a single source of truth for runtime configuration and filesystem layout.
 
 ## Key Features
 
-- **Configuration**: app config and runtime settings
-- **Web app URL**: compile-time override for daemon web calls (`UNBOUND_WEB_APP_URL`)
-- **Paths**: XDG-compliant directory management
-- **Logging + tracing**: unified `tracing` and OpenTelemetry setup
-- **Presence DO heartbeat**: compile-time envs for presence ingest
-- **Conversation crypto**: shared ChaCha20-Poly1305 helpers for message payloads
-- **Hybrid crypto**: X25519 + ChaCha20-Poly1305 encryption
-- **Git operations**: status, diff, log, branch management
+- `Config` loading from file + env overrides
+- `Paths` helpers for runtime files and app-shared data layout
+- Logging and OTEL bootstrap (`init_logging`, `force_flush`, `shutdown`)
+- Conversation payload crypto helpers (ChaCha20-Poly1305)
+- Device hybrid crypto helpers (X25519 + ChaCha20-Poly1305)
+- Telemetry helper utilities (`hash_identifier`, URL host extraction, response summaries)
+- Backward-compatible re-export of `git-ops` functions and types
 
-## Conversation Crypto Utility
+## Configuration
 
-`conversation_crypto` provides one shared implementation for conversation payload
-encryption/decryption, used by both Supabase and Ably message paths.
+`Config::load(&paths)` loads `config.json` then applies env overrides.
 
-Public helpers:
+Environment variables:
 
-- `encrypt_conversation_message(key, plaintext)`
-- `encrypt_conversation_message_with_nonce(key, nonce, plaintext)` (test-oriented)
-- `decrypt_conversation_message(key, content_encrypted_b64, content_nonce_b64)`
+- `UNBOUND_LOG_LEVEL` (`trace|debug|info|warn|error`)
+- `UNBOUND_ENV` (`dev|prod|production`)
+- `UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT`
+- `UNBOUND_OTEL_HEADERS` (`k=v,k2=v2`)
+- `UNBOUND_OTEL_SAMPLER` (`always_on|parentbased_traceidratio`)
+- `UNBOUND_OTEL_TRACES_SAMPLER_ARG` (clamped `0.0..1.0`)
+
+## Paths Layout
+
+Default runtime base dir:
+
+- `~/.unbound`
+
+Shared app data dir (default):
+
+- `~/Library/Application Support/com.unbound.macos`
+
+Notable path helpers:
+
+- `socket_file()` -> daemon socket path
+- `pid_file()` -> daemon PID path
+- `startup_status_file()` -> startup diagnostics JSON
+- `database_file()` -> shared SQLite file
+- `companies_dir()/company_root()/agent_home_dir()` -> company-agent layout
+- `logs_dir()/daemon_log_file()` -> daemon logs
+
+For tests or custom runtime roots, use `Paths::with_base_dir(...)`.
+
+## Conversation Crypto Contract
+
+Helpers:
+
+- `encrypt_conversation_message(...)`
+- `encrypt_conversation_message_with_nonce(...)`
+- `decrypt_conversation_message(...)`
 
 Contract:
 
-- key length: 32 bytes
-- nonce length: 12 bytes
-- algorithm: ChaCha20-Poly1305
-- transport encoding: base64 (`content_encrypted`, `content_nonce`)
+- Key: 32 bytes
+- Nonce: 12 bytes
+- Cipher: ChaCha20-Poly1305
+- Transport fields: base64 strings
 
-## Path Helpers
+## Hybrid Crypto Contract
 
-`Paths` includes socket helpers used by daemon subprocess bridges:
+Helpers:
 
-- `socket_file()` -> `~/.unbound/daemon.sock`
-- `falco_socket_file()` -> `~/.unbound/falco.sock`
-- `nagato_socket_file()` -> `~/.unbound/nagato.sock`
+- `generate_keypair()`
+- `encrypt_for_device(...)`
+- `decrypt_for_device(...)`
 
-## Observability Configuration
-
-Environment-driven config used by daemon Rust services:
-
-- `UNBOUND_ENV`: `dev` or `prod`
-- `UNBOUND_LOG_LEVEL`: `trace|debug|info|warn|error`
-- `UNBOUND_LOG_FORMAT`: `pretty|json`
-- `UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP traces endpoint
-- `UNBOUND_OTEL_HEADERS`: OTLP headers (`k=v,k2=v2`)
-- `UNBOUND_OTEL_SAMPLER`: `always_on|parentbased_traceidratio`
-- `UNBOUND_OTEL_TRACES_SAMPLER_ARG`: ratio for ratio-based sampling
-
-Notes:
-
-- In `dev`, logs are verbose and include local file output to `~/.unbound/logs/dev.jsonl`.
-- In `prod`, logs are lightweight JSON and traces are sampled by configured sampler settings.
-
-## Presence DO Configuration
-
-Compile-time configuration for daemon presence heartbeats:
-
-- `UNBOUND_PRESENCE_DO_HEARTBEAT_URL`: heartbeat ingest endpoint
-- `UNBOUND_PRESENCE_DO_TOKEN`: optional bearer token for ingest auth
-- `UNBOUND_PRESENCE_DO_TTL_MS`: TTL used by DO payloads (default 12000ms)
-
-## Web App URL Configuration
-
-The daemon reads the web app base URL at build time via `UNBOUND_WEB_APP_URL`.
-`compile_time_web_app_url()` trims whitespace, removes trailing slashes, and falls
-back to `https://unbound.computer` if the configured value is empty.
+Used for device-scoped secret material exchange.
