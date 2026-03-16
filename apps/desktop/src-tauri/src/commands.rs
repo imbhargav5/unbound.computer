@@ -16,7 +16,7 @@ pub struct DesktopState {
     subscriptions: Mutex<HashMap<String, JoinHandle<()>>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct DesktopSettings {
     pub preferred_company_id: Option<String>,
@@ -24,6 +24,22 @@ pub struct DesktopSettings {
     pub preferred_view: Option<String>,
     pub show_raw_message_json: bool,
     pub last_repository_path: Option<String>,
+    pub theme_mode: Option<String>,
+    pub font_size_preset: Option<String>,
+}
+
+impl Default for DesktopSettings {
+    fn default() -> Self {
+        Self {
+            preferred_company_id: None,
+            preferred_repository_id: None,
+            preferred_view: Some("dashboard".to_string()),
+            show_raw_message_json: false,
+            last_repository_path: None,
+            theme_mode: Some("dark".to_string()),
+            font_size_preset: Some("medium".to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

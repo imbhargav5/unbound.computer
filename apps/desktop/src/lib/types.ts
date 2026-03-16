@@ -33,6 +33,8 @@ export interface DesktopSettings {
   preferred_view?: string | null;
   show_raw_message_json: boolean;
   last_repository_path?: string | null;
+  theme_mode?: "system" | "light" | "dark" | null;
+  font_size_preset?: "small" | "medium" | "large" | null;
 }
 
 export interface Company {

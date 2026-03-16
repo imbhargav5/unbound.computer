@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import {
   type FormEvent,
+  type ReactNode,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -85,6 +86,9 @@ type SettingsSection =
   | "notifications"
   | "privacy";
 
+type ThemeMode = "system" | "light" | "dark";
+type FontSizePreset = "small" | "medium" | "large";
+
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits";
@@ -107,12 +111,17 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "privacy", label: "Privacy" },
 ];
 
+const themeModes: ThemeMode[] = ["system", "light", "dark"];
+const fontSizePresets: FontSizePreset[] = ["small", "medium", "large"];
+
 const defaultSettings: DesktopSettings = {
   preferred_company_id: null,
   preferred_repository_id: null,
   preferred_view: "dashboard",
   show_raw_message_json: false,
   last_repository_path: null,
+  theme_mode: "dark",
+  font_size_preset: "medium",
 };
 
 export function App() {
@@ -162,6 +171,7 @@ export function App() {
   const selectedRepository = repositories.find(
     (repository) => repository.id === selectedRepositoryId
   );
+  const selectedCompany = companySnapshot?.company ?? null;
   const companyWorkspaces = companySnapshot?.workspaces ?? [];
   const selectedBoardWorkspace =
     companyWorkspaces.find((workspace) => workspace.id === selectedBoardWorkspaceId) ??
@@ -171,6 +181,16 @@ export function App() {
     (companySnapshot?.agents ?? []).find((agent) => agent.id === selectedAgentId) ??
     companySnapshot?.agents[0] ??
     null;
+  const orderedSidebarAgents = useMemo(
+    () =>
+      orderSidebarAgents(
+        companySnapshot?.agents ?? [],
+        typeof selectedCompany?.ceo_agent_id === "string"
+          ? selectedCompany.ceo_agent_id
+          : null
+      ),
+    [companySnapshot?.agents, selectedCompany?.ceo_agent_id]
+  );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
   const previewTabLabel = selectedFilePath
@@ -246,18 +266,19 @@ export function App() {
 
         const companiesValue = loadedCompanies as Company[];
         const repositoriesValue = loadedRepositories as RepositoryRecord[];
-        const nextScreen = normalizeScreen(loadedSettings.preferred_view);
+        const nextSettings = mergeDesktopSettings(loadedSettings);
+        const nextScreen = normalizeScreen(nextSettings.preferred_view);
         const nextCompanyId =
-          loadedSettings.preferred_company_id ??
+          nextSettings.preferred_company_id ??
           companiesValue[0]?.id ??
           null;
         const nextRepositoryId =
-          loadedSettings.preferred_repository_id ??
+          nextSettings.preferred_repository_id ??
           repositoriesValue[0]?.id ??
           null;
 
         startTransition(() => {
-          setSettings(loadedSettings);
+          setSettings(nextSettings);
           setCompanies(companiesValue);
           setRepositories(repositoriesValue);
           setSelectedScreen(nextScreen);
@@ -277,6 +298,12 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.themeMode = settings.theme_mode ?? "dark";
+    document.documentElement.dataset.fontSizePreset =
+      settings.font_size_preset ?? "medium";
+  }, [settings.font_size_preset, settings.theme_mode]);
 
   useEffect(() => {
     if (!selectedCompanyId || bootstrap?.state !== "ready") {
@@ -528,15 +555,16 @@ export function App() {
         ]);
         const companiesValue = loadedCompanies as Company[];
         const repositoriesValue = loadedRepositories as RepositoryRecord[];
+        const nextSettings = mergeDesktopSettings(loadedSettings);
         const nextCompanyId =
-          loadedSettings.preferred_company_id ?? companiesValue[0]?.id ?? null;
+          nextSettings.preferred_company_id ?? companiesValue[0]?.id ?? null;
         const nextRepositoryId =
-          loadedSettings.preferred_repository_id ?? repositoriesValue[0]?.id ?? null;
+          nextSettings.preferred_repository_id ?? repositoriesValue[0]?.id ?? null;
 
-        setSettings(loadedSettings);
+        setSettings(nextSettings);
         setCompanies(companiesValue);
         setRepositories(repositoriesValue);
-        setSelectedScreen(normalizeScreen(loadedSettings.preferred_view));
+        setSelectedScreen(normalizeScreen(nextSettings.preferred_view));
         setSelectedCompanyId(nextCompanyId);
         setSelectedRepositoryId(nextRepositoryId);
       }
@@ -820,6 +848,15 @@ export function App() {
     }
   };
 
+  const applySettingsPatch = async (patch: Partial<DesktopSettings>) => {
+    const nextSettings = mergeDesktopSettings({
+      ...settings,
+      ...patch,
+    });
+    setSettings(nextSettings);
+    await persistSettings(nextSettings);
+  };
+
   const handleSettingsSubmit = async (event: FormEvent) => {
     event.preventDefault();
     await persistSettings(settings);
@@ -828,9 +865,10 @@ export function App() {
   const persistSettings = async (nextSettings: DesktopSettings) => {
     try {
       const saved = await settingsUpdate(nextSettings);
-      setSettings(saved);
-      if (saved.preferred_view) {
-        setSelectedScreen(normalizeScreen(saved.preferred_view));
+      const merged = mergeDesktopSettings(saved);
+      setSettings(merged);
+      if (merged.preferred_view) {
+        setSelectedScreen(normalizeScreen(merged.preferred_view));
       }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
@@ -982,7 +1020,6 @@ export function App() {
     );
   }
 
-  const selectedCompany = companySnapshot?.company ?? null;
   const activeWorkspaceTitle =
     activeSession?.title ??
     selectedBoardWorkspace?.issue_title ??
@@ -1049,33 +1086,71 @@ export function App() {
               </button>
             </div>
 
-            <div className="board-sidebar-section">
-              <BoardSidebarButton
-                active={selectedScreen === "dashboard"}
-                label="Dashboard"
-                onClick={() => handleSelectScreen("dashboard")}
-              />
-              <BoardSidebarButton
-                active={selectedScreen === "inbox"}
-                label="Inbox"
-                onClick={() => handleSelectScreen("inbox")}
-              />
-              <form className="sidebar-inline-form" onSubmit={handleCreateIssue}>
-                <input
-                  onChange={(event) => setNewIssueTitle(event.target.value)}
-                  placeholder="New issue"
-                  value={newIssueTitle}
+            <div className="board-sidebar-scroll">
+              <div className="board-sidebar-section">
+                <BoardSidebarButton
+                  active={selectedScreen === "dashboard"}
+                  label="Dashboard"
+                  onClick={() => handleSelectScreen("dashboard")}
                 />
-                <button className="icon-button" type="submit">
-                  +
-                </button>
-              </form>
-            </div>
+                <BoardSidebarButton
+                  active={selectedScreen === "inbox"}
+                  label="Inbox"
+                  onClick={() => handleSelectScreen("inbox")}
+                />
+                <form className="sidebar-inline-form" onSubmit={handleCreateIssue}>
+                  <input
+                    onChange={(event) => setNewIssueTitle(event.target.value)}
+                    placeholder="New issue"
+                    value={newIssueTitle}
+                  />
+                  <button className="icon-button" type="submit">
+                    +
+                  </button>
+                </form>
+              </div>
 
-            {primaryBoardSections.map((section) => (
-              <div className="board-sidebar-section" key={section.title}>
-                <span className="sidebar-section-title">{section.title}</span>
-                {section.screens.map((screen) => (
+              {primaryBoardSections.map((section) => (
+                <div className="board-sidebar-section" key={section.title}>
+                  <span className="sidebar-section-title">{section.title}</span>
+                  {section.screens.map((screen) => (
+                    <BoardSidebarButton
+                      active={selectedScreen === screen}
+                      key={screen}
+                      label={screenLabel(screen)}
+                      onClick={() => handleSelectScreen(screen)}
+                    />
+                  ))}
+                </div>
+              ))}
+
+              <div className="board-sidebar-section">
+                <div className="sidebar-section-row">
+                  <span className="sidebar-section-title">Agents</span>
+                </div>
+                {orderedSidebarAgents.length ? (
+                  orderedSidebarAgents.map((agent) => (
+                    <button
+                      className={
+                        selectedScreen === "agents" && selectedAgentId === agent.id
+                          ? "agent-sidebar-button active"
+                          : "agent-sidebar-button"
+                      }
+                      key={agent.id}
+                      onClick={() => handleSelectAgent(agent.id)}
+                      type="button"
+                    >
+                      {agent.name || agent.title || agent.role || agent.id}
+                    </button>
+                  ))
+                ) : (
+                  <div className="agent-sidebar-empty">No agents yet</div>
+                )}
+              </div>
+
+              <div className="board-sidebar-section">
+                <span className="sidebar-section-title">{companyBoardSection.title}</span>
+                {companyBoardSection.screens.map((screen) => (
                   <BoardSidebarButton
                     active={selectedScreen === screen}
                     key={screen}
@@ -1084,38 +1159,6 @@ export function App() {
                   />
                 ))}
               </div>
-            ))}
-
-            <div className="board-sidebar-section">
-              <div className="sidebar-section-row">
-                <span className="sidebar-section-title">Agents</span>
-              </div>
-              {(companySnapshot?.agents ?? []).map((agent) => (
-                <button
-                  className={
-                    selectedScreen === "agents" && selectedAgentId === agent.id
-                      ? "agent-sidebar-button active"
-                      : "agent-sidebar-button"
-                  }
-                  key={agent.id}
-                  onClick={() => handleSelectAgent(agent.id)}
-                  type="button"
-                >
-                  {agent.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="board-sidebar-section">
-              <span className="sidebar-section-title">{companyBoardSection.title}</span>
-              {companyBoardSection.screens.map((screen) => (
-                <BoardSidebarButton
-                  active={selectedScreen === screen}
-                  key={screen}
-                  label={screenLabel(screen)}
-                  onClick={() => handleSelectScreen(screen)}
-                />
-              ))}
             </div>
           </aside>
 
@@ -1813,30 +1856,24 @@ export function App() {
               onClick={() => handleSelectScreen("dashboard")}
               type="button"
             >
-              <span>‹</span>
+              <span className="settings-back-chevron">‹</span>
               <span>Back</span>
             </button>
             <div className="settings-nav">
-              <button
-                className="settings-nav-item"
+              <SettingsSidebarItem
+                icon="house"
+                isSelected={false}
+                label="Home"
                 onClick={() => handleSelectScreen("dashboard")}
-                type="button"
-              >
-                Home
-              </button>
+              />
               {settingsSections.map((section) => (
-                <button
-                  className={
-                    selectedSettingsSection === section.id
-                      ? "settings-nav-item active"
-                      : "settings-nav-item"
-                  }
+                <SettingsSidebarItem
+                  icon={settingsSectionIcon(section.id)}
+                  isSelected={selectedSettingsSection === section.id}
                   key={section.id}
+                  label={section.label}
                   onClick={() => setSelectedSettingsSection(section.id)}
-                  type="button"
-                >
-                  {section.label}
-                </button>
+                />
               ))}
             </div>
           </aside>
@@ -1845,78 +1882,99 @@ export function App() {
             {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
 
             {selectedSettingsSection === "appearance" ? (
-              <section className="settings-surface-grid">
-                <section className="surface-panel">
-                  <h3>Desktop settings</h3>
-                  <form className="settings-form" onSubmit={handleSettingsSubmit}>
-                    <label className="checkbox-row">
-                      <input
-                        checked={settings.show_raw_message_json}
-                        onChange={(event) =>
-                          setSettings((current) => ({
-                            ...current,
-                            show_raw_message_json: event.target.checked,
-                          }))
-                        }
-                        type="checkbox"
+              <SettingsPageShell
+                subtitle="Customize how the app looks on your device."
+                title="Appearance"
+              >
+                <SettingsSectionBlock
+                  description="Select your preferred color scheme"
+                  title="Theme"
+                >
+                  <div className="settings-card-row">
+                    {themeModes.map((mode) => (
+                      <ThemeModeCard
+                        isAvailable={mode === "dark"}
+                        isSelected={(settings.theme_mode ?? "dark") === mode}
+                        key={mode}
+                        mode={mode}
+                        onSelect={() => void applySettingsPatch({ theme_mode: mode })}
                       />
-                      <span>Show raw JSON for structured session messages</span>
-                    </label>
-                    <label>
-                      <span>Preferred shell</span>
-                      <select
-                        onChange={(event) =>
-                          setSettings((current) => ({
-                            ...current,
-                            preferred_view: event.target.value,
-                          }))
-                        }
-                        value={settings.preferred_view ?? "dashboard"}
-                      >
-                        <option value="dashboard">Dashboard</option>
-                        <option value="workspaces">Workspaces</option>
-                        <option value="settings">Settings</option>
-                      </select>
-                    </label>
-                    <button className="primary-button" type="submit">
-                      Save settings
-                    </button>
-                  </form>
-                </section>
-
-                <section className="surface-panel">
-                  <h3>Daemon runtime</h3>
-                  <dl className="blocking-metadata">
-                    <div>
-                      <dt>App version</dt>
-                      <dd>{bootstrap.expected_app_version}</dd>
-                    </div>
-                    <div>
-                      <dt>Daemon version</dt>
-                      <dd>{bootstrap.daemon_info?.daemon_version}</dd>
-                    </div>
-                    <div>
-                      <dt>Socket</dt>
-                      <dd>{bootstrap.socket_path}</dd>
-                    </div>
-                    <div>
-                      <dt>Base dir</dt>
-                      <dd>{bootstrap.base_dir}</dd>
-                    </div>
-                  </dl>
-                </section>
-              </section>
+                    ))}
+                  </div>
+                </SettingsSectionBlock>
+              </SettingsPageShell>
             ) : null}
 
             {selectedSettingsSection === "general" ? (
-              <RoutePlaceholder
-                body="General settings content now lives under the same dedicated settings sidebar flow as the Swift app."
+              <SettingsPageShell
+                subtitle="Configure general app preferences."
                 title="General"
-              />
+              >
+                <SettingsSectionBlock
+                  description="Adjust the interface text size"
+                  title="Text Size"
+                >
+                  <div className="settings-card-row">
+                    {fontSizePresets.map((preset) => (
+                      <FontSizePresetCard
+                        isSelected={(settings.font_size_preset ?? "medium") === preset}
+                        key={preset}
+                        onSelect={() => void applySettingsPatch({ font_size_preset: preset })}
+                        preset={preset}
+                      />
+                    ))}
+                  </div>
+                </SettingsSectionBlock>
+
+                <SettingsSectionBlock
+                  description="Local desktop preferences that are not part of the native macOS settings surface."
+                  title="Desktop"
+                >
+                  <section className="settings-inline-panel">
+                    <form className="settings-form" onSubmit={handleSettingsSubmit}>
+                      <label className="checkbox-row">
+                        <input
+                          checked={settings.show_raw_message_json}
+                          onChange={(event) =>
+                            setSettings((current) => ({
+                              ...current,
+                              show_raw_message_json: event.target.checked,
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span>Show raw JSON for structured session messages</span>
+                      </label>
+                      <label>
+                        <span>Preferred shell</span>
+                        <select
+                          onChange={(event) =>
+                            setSettings((current) => ({
+                              ...current,
+                              preferred_view: event.target.value,
+                            }))
+                          }
+                          value={settings.preferred_view ?? "dashboard"}
+                        >
+                          <option value="dashboard">Dashboard</option>
+                          <option value="workspaces">Workspaces</option>
+                          <option value="settings">Settings</option>
+                        </select>
+                      </label>
+                      <button className="primary-button" type="submit">
+                        Save device settings
+                      </button>
+                    </form>
+                  </section>
+                </SettingsSectionBlock>
+              </SettingsPageShell>
             ) : null}
             {selectedSettingsSection === "repositories" ? (
-              <section className="settings-surface-grid">
-                <section className="surface-panel wide">
+              <SettingsPageShell
+                subtitle="Manage your registered repositories."
+                title="Repositories"
+              >
+                <section className="settings-inline-panel">
                   <div className="surface-header">
                     <h3>Repositories</h3>
                     <button className="secondary-button" onClick={() => void handleAddRepository()} type="button">
@@ -1941,19 +1999,49 @@ export function App() {
                     ))}
                   </div>
                 </section>
-              </section>
+              </SettingsPageShell>
             ) : null}
             {selectedSettingsSection === "notifications" ? (
-              <RoutePlaceholder
-                body="Notifications are intentionally kept in the settings shell, matching the Swift navigation even while the daemon-backed controls are still pending."
+              <SettingsPageShell
+                subtitle="This feature is coming soon."
                 title="Notifications"
-              />
+              >
+                <section className="settings-inline-panel">
+                  <p>Settings for notifications will appear here.</p>
+                </section>
+              </SettingsPageShell>
             ) : null}
             {selectedSettingsSection === "privacy" ? (
-              <RoutePlaceholder
-                body="Privacy remains a first-class settings route. Secrets and compatibility data stay in Rust or the daemon, not browser-local storage."
+              <SettingsPageShell
+                subtitle="Your data is protected with end-to-end encryption."
                 title="Privacy"
-              />
+              >
+                <SettingsSectionBlock
+                  description="Runtime information and local storage boundaries."
+                  title="Daemon Runtime"
+                >
+                  <section className="settings-inline-panel">
+                    <dl className="blocking-metadata">
+                      <div>
+                        <dt>App version</dt>
+                        <dd>{bootstrap.expected_app_version}</dd>
+                      </div>
+                      <div>
+                        <dt>Daemon version</dt>
+                        <dd>{bootstrap.daemon_info?.daemon_version}</dd>
+                      </div>
+                      <div>
+                        <dt>Socket</dt>
+                        <dd>{bootstrap.socket_path}</dd>
+                      </div>
+                      <div>
+                        <dt>Base dir</dt>
+                        <dd>{bootstrap.base_dir}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                </SettingsSectionBlock>
+              </SettingsPageShell>
             ) : null}
           </main>
         </>
@@ -2009,6 +2097,162 @@ function RoutePlaceholder({ title, body }: { title: string; body: string }) {
         <p>{body}</p>
       </div>
     </section>
+  );
+}
+
+function SettingsSidebarItem({
+  icon,
+  isSelected,
+  label,
+  onClick,
+}: {
+  icon: string;
+  isSelected: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "settings-nav-item active" : "settings-nav-item"}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="settings-nav-icon">{symbolForSettingsIcon(icon)}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SettingsPageShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="settings-page-shell">
+      <div className="settings-page-header">
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      <div className="settings-page-divider" />
+      <div className="settings-page-body">{children}</div>
+    </section>
+  );
+}
+
+function SettingsSectionBlock({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="settings-section-block">
+      <div className="settings-section-header">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ThemeModeCard({
+  mode,
+  isSelected,
+  isAvailable,
+  onSelect,
+}: {
+  mode: ThemeMode;
+  isSelected: boolean;
+  isAvailable: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "settings-option-card active" : "settings-option-card"}
+      disabled={!isAvailable}
+      onClick={onSelect}
+      type="button"
+    >
+      <ThemePreview mode={mode} />
+      <div className="settings-option-label">
+        <span className="settings-option-icon">{themeModeSymbol(mode)}</span>
+        <span>{capitalize(mode)}</span>
+      </div>
+      {!isAvailable ? (
+        <small>Coming soon</small>
+      ) : isSelected ? (
+        <span className="settings-option-check">●</span>
+      ) : (
+        <span className="settings-option-empty" />
+      )}
+    </button>
+  );
+}
+
+function ThemePreview({ mode }: { mode: ThemeMode }) {
+  return (
+    <div className={`theme-preview theme-preview-${mode}`}>
+      <div className="theme-preview-sidebar">
+        <div />
+        <div />
+        <div />
+      </div>
+      <div className="theme-preview-main">
+        <div />
+        <div />
+        <div />
+      </div>
+    </div>
+  );
+}
+
+function FontSizePresetCard({
+  preset,
+  isSelected,
+  onSelect,
+}: {
+  preset: FontSizePreset;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "settings-option-card active" : "settings-option-card"}
+      onClick={onSelect}
+      type="button"
+    >
+      <FontSizePreview preset={preset} />
+      <div className="settings-option-label">
+        <span className="settings-option-icon">{fontSizePresetSymbol(preset)}</span>
+        <span>{capitalize(preset)}</span>
+      </div>
+      <small>{fontSizePresetDescription(preset)}</small>
+      {isSelected ? (
+        <span className="settings-option-check">●</span>
+      ) : (
+        <span className="settings-option-empty" />
+      )}
+    </button>
+  );
+}
+
+function FontSizePreview({ preset }: { preset: FontSizePreset }) {
+  return (
+    <div className={`font-preview font-preview-${preset}`}>
+      <div />
+      <div />
+      <div />
+      <div />
+    </div>
   );
 }
 
@@ -2235,6 +2479,104 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
   }
 
   return "dashboard";
+}
+
+function mergeDesktopSettings(settings: DesktopSettings): DesktopSettings {
+  return {
+    ...defaultSettings,
+    ...settings,
+  };
+}
+
+function settingsSectionIcon(section: SettingsSection) {
+  switch (section) {
+    case "general":
+      return "gear";
+    case "repositories":
+      return "folder";
+    case "appearance":
+      return "paintbrush";
+    case "notifications":
+      return "bell";
+    case "privacy":
+      return "shield";
+  }
+}
+
+function symbolForSettingsIcon(icon: string) {
+  switch (icon) {
+    case "house":
+      return "⌂";
+    case "gear":
+      return "⚙";
+    case "folder":
+      return "▣";
+    case "paintbrush":
+      return "◐";
+    case "bell":
+      return "◔";
+    case "shield":
+      return "⛨";
+    default:
+      return "•";
+  }
+}
+
+function themeModeSymbol(mode: ThemeMode) {
+  switch (mode) {
+    case "system":
+      return "◐";
+    case "light":
+      return "☼";
+    case "dark":
+      return "◑";
+  }
+}
+
+function fontSizePresetSymbol(preset: FontSizePreset) {
+  switch (preset) {
+    case "small":
+      return "A−";
+    case "medium":
+      return "A";
+    case "large":
+      return "A+";
+  }
+}
+
+function fontSizePresetDescription(preset: FontSizePreset) {
+  switch (preset) {
+    case "small":
+      return "Compact interface";
+    case "medium":
+      return "Default size";
+    case "large":
+      return "Larger text and UI";
+  }
+}
+
+function capitalize(value: string) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function orderSidebarAgents<
+  T extends { id: string; role?: string | null }
+>(agents: T[], ceoAgentId: string | null) {
+  if (ceoAgentId) {
+    const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
+    if (ceoAgent) {
+      return [ceoAgent, ...agents.filter((agent) => agent.id !== ceoAgentId)];
+    }
+  }
+
+  const ceoAgent = agents.find(
+    (agent) => agent.role?.toLowerCase() === "ceo"
+  );
+  if (ceoAgent) {
+    return [ceoAgent, ...agents.filter((agent) => agent.id !== ceoAgent.id)];
+  }
+
+  return agents;
 }
 
 function gitStatusBadge(status: string | null | undefined) {
