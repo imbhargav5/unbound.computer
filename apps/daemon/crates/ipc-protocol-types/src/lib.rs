@@ -5,6 +5,25 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Shared IPC protocol version understood by daemon and desktop clients.
+pub const IPC_PROTOCOL_VERSION: u32 = 1;
+
+/// Compatibility range for supported desktop app versions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DesktopCompatibilityRange {
+    pub min_version: String,
+    pub max_version: String,
+    pub strict: bool,
+}
+
+/// Version and compatibility metadata returned by the daemon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DaemonVersionInfo {
+    pub daemon_version: String,
+    pub protocol_version: u32,
+    pub desktop_compatibility: DesktopCompatibilityRange,
+}
+
 /// W3C trace propagation fields passed across IPC boundaries.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TraceContext {
@@ -48,6 +67,8 @@ pub enum Method {
     AgentList,
     #[serde(rename = "agent.create")]
     AgentCreate,
+    #[serde(rename = "agent_hire.create")]
+    AgentHireCreate,
     #[serde(rename = "agent.get")]
     AgentGet,
 
@@ -70,12 +91,32 @@ pub enum Method {
     IssueCreate,
     #[serde(rename = "issue.get")]
     IssueGet,
+    #[serde(rename = "issue.update")]
+    IssueUpdate,
     #[serde(rename = "issue.comment.list")]
     IssueCommentList,
     #[serde(rename = "issue.comment.add")]
     IssueCommentAdd,
     #[serde(rename = "issue.checkout")]
     IssueCheckout,
+
+    // Agent runs
+    #[serde(rename = "agent_run.list")]
+    AgentRunList,
+    #[serde(rename = "agent_run.get")]
+    AgentRunGet,
+    #[serde(rename = "agent_run.events")]
+    AgentRunEvents,
+    #[serde(rename = "agent_run.log")]
+    AgentRunLog,
+    #[serde(rename = "agent_run.cancel")]
+    AgentRunCancel,
+    #[serde(rename = "agent_run.invoke")]
+    AgentRunInvoke,
+    #[serde(rename = "agent_run.retry")]
+    AgentRunRetry,
+    #[serde(rename = "agent_run.resume")]
+    AgentRunResume,
 
     // Approvals
     #[serde(rename = "approval.list")]
@@ -174,6 +215,8 @@ pub enum Method {
     // System operations
     #[serde(rename = "system.check_dependencies")]
     SystemCheckDependencies,
+    #[serde(rename = "system.version")]
+    SystemVersion,
 
     // Terminal operations
     #[serde(rename = "terminal.run")]

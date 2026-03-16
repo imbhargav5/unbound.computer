@@ -1,4 +1,4 @@
-name: Build macOS Production App
+name: Build macOS Production Desktop
 
 on:
   workflow_call:
@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Apple Silicon Release
+    name: Build Apple Silicon Release Artifacts
     runs-on: macos-latest
     steps:
       - name: Checkout repo
@@ -123,28 +123,22 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security list-keychain -d user -s build.keychain
 
-      - name: Generate Release.xcconfig
+      - name: Generate release env file
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          cat > apps/macos/Config/Release.xcconfig <<EOF
-          API_URL = https://unbound.computer
-          RELAY_URL = wss://unbound-computer.fly.dev
-          SUPABASE_URL = ${SUPABASE_URL}
-          SUPABASE_PUBLISHABLE_KEY = ${SUPABASE_PUBLISHABLE_KEY}
-          INFOPLIST_KEY_API_URL = \$(API_URL)
-          INFOPLIST_KEY_RELAY_URL = \$(RELAY_URL)
-          INFOPLIST_KEY_SUPABASE_URL = \$(SUPABASE_URL)
-          INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = \$(SUPABASE_PUBLISHABLE_KEY)
-          MARKETING_VERSION = \$(RELEASE_VERSION)
-          CURRENT_PROJECT_VERSION = \$(RELEASE_BUILD_NUMBER)
+          cat > .env.release <<EOF
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
+          UNBOUND_ENV=production
           EOF
 
       - name: Build release artifacts
         env:
           MACOS_ARCH: arm64
-          MACOS_ZIP_NAME: unbound-macos-apple-silicon.zip
+          APP_ZIP_NAME: unbound-desktop-macos-apple-silicon.zip
+          DAEMON_ARCHIVE_NAME: unbound-daemon-macos-apple-silicon.zip
           MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -152,22 +146,30 @@ jobs:
         run: |
           ./scripts/release/build-macos-release.sh
 
-      - name: Verify exported app bundle
+      - name: Verify exported desktop app and daemon
         id: exported-app
         run: |
-          APP_PATH="$(find dist/macos/export-arm64 -maxdepth 1 -name '*.app' -print -quit)"
+          APP_PATH="$(find dist/macos/export-app -maxdepth 1 -name '*.app' -print -quit)"
           if [[ -z "$APP_PATH" ]]; then
-            echo "ERROR: Expected exported .app in dist/macos/export-arm64." >&2
+            echo "ERROR: Expected exported .app in dist/macos/export-app." >&2
             exit 1
           fi
 
-          if [[ ! -x "$APP_PATH/Contents/MacOS/unbound-daemon" ]]; then
-            echo "ERROR: Bundled daemon is missing from $APP_PATH." >&2
+          if [[ -e "$APP_PATH/Contents/MacOS/unbound-daemon" ]]; then
+            echo "ERROR: Desktop app bundle unexpectedly embeds unbound-daemon." >&2
+            exit 1
+          fi
+
+          DAEMON_PATH="dist/macos/export-daemon/unbound-daemon"
+          if [[ ! -x "$DAEMON_PATH" ]]; then
+            echo "ERROR: Expected standalone daemon artifact at $DAEMON_PATH." >&2
             exit 1
           fi
 
           codesign --verify --deep --strict "$APP_PATH"
+          codesign --verify --strict "$DAEMON_PATH"
           echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
+          echo "daemon_path=$DAEMON_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Notarize, staple, and repackage
         env:
@@ -179,8 +181,10 @@ jobs:
           APPLE_NOTARYTOOL_PRIVATE_KEY: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY }}
         run: |
           NOTARY_PROFILE="unbound-release"
-          ZIP_PATH="dist/macos/unbound-macos-apple-silicon.zip"
+          APP_ZIP_PATH="dist/macos/unbound-desktop-macos-apple-silicon.zip"
+          DAEMON_ZIP_PATH="dist/macos/unbound-daemon-macos-apple-silicon.zip"
           APP_PATH="${{ steps.exported-app.outputs.app_path }}"
+          DAEMON_PATH="${{ steps.exported-app.outputs.daemon_path }}"
 
           if [[ -n "$APPLE_NOTARYTOOL_KEY_ID" && -n "$APPLE_NOTARYTOOL_ISSUER_ID" && -n "$APPLE_NOTARYTOOL_PRIVATE_KEY" ]]; then
             echo "$APPLE_NOTARYTOOL_PRIVATE_KEY" > /tmp/AuthKey.p8
@@ -195,15 +199,19 @@ jobs:
               --password "$APPLE_ID_PASSWORD"
           fi
 
-          xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun notarytool submit "$APP_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun notarytool submit "$DAEMON_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
           xcrun stapler staple "$APP_PATH"
-          rm -f "$ZIP_PATH"
-          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          rm -f "$APP_ZIP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
           (
             cd dist/macos
-            shasum -a 256 "$(basename "$ZIP_PATH")" > SHA256SUMS
+            shasum -a 256 \
+              "$(basename "$APP_ZIP_PATH")" \
+              "$(basename "$DAEMON_ZIP_PATH")" > SHA256SUMS
           )
           spctl -a -vv "$APP_PATH"
+          spctl -a -vv -t exec "$DAEMON_PATH"
 
       - name: Upload assets to GitHub Release
         if: ${{ inputs.release_tag != '' }}
@@ -212,7 +220,8 @@ jobs:
         run: |
           gh release upload \
             "${{ inputs.release_tag }}" \
-            dist/macos/unbound-macos-apple-silicon.zip \
+            dist/macos/unbound-desktop-macos-apple-silicon.zip \
+            dist/macos/unbound-daemon-macos-apple-silicon.zip \
             dist/macos/SHA256SUMS \
             --clobber
 
@@ -220,8 +229,9 @@ jobs:
         if: ${{ inputs.release_tag == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: unbound-macos-v${{ steps.version.outputs.version }}-apple-silicon
+          name: unbound-desktop-v${{ steps.version.outputs.version }}-apple-silicon
           path: |
-            dist/macos/unbound-macos-apple-silicon.zip
+            dist/macos/unbound-desktop-macos-apple-silicon.zip
+            dist/macos/unbound-daemon-macos-apple-silicon.zip
             dist/macos/SHA256SUMS
           if-no-files-found: error

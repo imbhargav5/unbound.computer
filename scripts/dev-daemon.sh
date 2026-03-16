@@ -1,36 +1,25 @@
 #!/usr/bin/env bash
-# Builds, restarts the dev daemon, and optionally launches the macOS app.
+# Builds, restarts the dev daemon, and optionally launches the Tauri desktop app.
 # Usage:
 #   ./scripts/dev-daemon.sh          # build + restart daemon (foreground)
-#   ./scripts/dev-daemon.sh --app    # build + restart daemon + macOS app
+#   ./scripts/dev-daemon.sh --app    # build + restart daemon + desktop app
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DAEMON_DIR="$ROOT/apps/daemon"
+DESKTOP_DIR="$ROOT/apps/desktop"
 BASE_DIR="$HOME/.unbound-dev"
 SOCKET="$BASE_DIR/daemon.sock"
 PID_FILE="$BASE_DIR/daemon.pid"
+APP_PID_FILE="$BASE_DIR/desktop-app.pid"
 STARTUP_STATUS_FILE="$BASE_DIR/startup-status.json"
 ENV_FILE="$DAEMON_DIR/.env.local"
-APP_BUNDLE_ID="com.arni.unbound-macos-dev"
-APP_PROCESS_PATTERN="/Unbound Dev.app/Contents/MacOS/Unbound Dev"
 
 DAEMON_PID=""
+APP_PID=""
 LAUNCHED_APP=0
 CLEANING_UP=0
-
-append_xcode_build_arg_if_set() {
-  local key="$1"
-  local value="${!key:-}"
-
-  if [ -n "$value" ]; then
-    XCODE_BUILD_ARGS+=(
-      "${key}=${value}"
-      "INFOPLIST_KEY_${key}=${value}"
-    )
-  fi
-}
 
 print_startup_status() {
   local elapsed_s="$1"
@@ -78,20 +67,17 @@ stop_dev_daemon() {
 }
 
 stop_dev_app() {
-  echo "Stopping Unbound Dev.app..."
-  osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+  echo "Stopping Unbound Desktop dev app..."
 
-  for _ in $(seq 1 20); do
-    if ! pgrep -f "$APP_PROCESS_PATTERN" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 0.25
-  done
-
-  if pgrep -f "$APP_PROCESS_PATTERN" >/dev/null 2>&1; then
-    echo "Force stopping Unbound Dev.app..."
-    pkill -f "$APP_PROCESS_PATTERN" >/dev/null 2>&1 || true
+  if [ -n "$APP_PID" ]; then
+    stop_pid_if_running "$APP_PID"
+  elif [ -f "$APP_PID_FILE" ]; then
+    local pid
+    pid=$(cat "$APP_PID_FILE" 2>/dev/null || true)
+    stop_pid_if_running "$pid"
   fi
+
+  rm -f "$APP_PID_FILE"
 }
 
 cleanup_app_mode() {
@@ -106,7 +92,7 @@ cleanup_app_mode() {
   stop_dev_daemon
 
   if [ "$LAUNCHED_APP" -eq 1 ]; then
-    echo "Dev daemon and Unbound Dev.app stopped."
+    echo "Dev daemon and Unbound Desktop stopped."
   else
     echo "Dev daemon stopped."
   fi
@@ -114,6 +100,11 @@ cleanup_app_mode() {
 
 monitor_background_processes() {
   while true; do
+    if [ -n "$APP_PID" ] && ! kill -0 "$APP_PID" 2>/dev/null; then
+      wait "$APP_PID"
+      return $?
+    fi
+
     if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
       wait "$DAEMON_PID"
       return $?
@@ -198,57 +189,18 @@ if [[ "${1:-}" == "--app" ]]; then
     exit 1
   fi
 
-  echo "Building and running macOS app..."
-  cd "$ROOT/apps/macos"
-  XCODE_BUILD_ARGS=()
-  if [ -n "${UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
-    echo "Embedding OTLP endpoint into macOS app build for Signoz logs..."
-    append_xcode_build_arg_if_set "UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT"
-  else
-    echo "warning: UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT is not set; macOS app OTLP logs will stay local."
-  fi
-
-  append_xcode_build_arg_if_set "UNBOUND_OTEL_HEADERS"
-  append_xcode_build_arg_if_set "UNBOUND_OTEL_SAMPLER"
-  append_xcode_build_arg_if_set "UNBOUND_OTEL_TRACES_SAMPLER_ARG"
-  append_xcode_build_arg_if_set "UNBOUND_OBS_MODE"
-  append_xcode_build_arg_if_set "UNBOUND_OBS_INFO_SAMPLE_RATE"
-  append_xcode_build_arg_if_set "UNBOUND_OBS_DEBUG_SAMPLE_RATE"
-  append_xcode_build_arg_if_set "UNBOUND_ENV"
-
-  xcodebuild \
-    -project unbound-macos.xcodeproj \
-    -scheme unbound-macos \
-    -configuration Debug \
-    "${XCODE_BUILD_ARGS[@]}" \
-    build 2>&1 | tail -5
-
-  # Find and launch the built app
-  BUILD_DIR=$(xcodebuild \
-    -project unbound-macos.xcodeproj \
-    -scheme unbound-macos \
-    -configuration Debug \
-    -showBuildSettings 2>/dev/null | awk -F ' = ' '/ BUILT_PRODUCTS_DIR = / { print $2; exit }')
-
-  APP_PATH=""
-  if [ -n "$BUILD_DIR" ]; then
-    APP_PATH=$(find "$BUILD_DIR" -maxdepth 1 -type d -name "*.app" | head -n 1)
-  fi
-
-  if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
-    echo "Launching $(basename "$APP_PATH")..."
-    open "$APP_PATH"
-    LAUNCHED_APP=1
-  else
-    echo "warning: could not find built .app in ${BUILD_DIR:-<unknown build dir>}"
-    if [ -n "$BUILD_DIR" ]; then
-      ls "$BUILD_DIR"/*.app 2>/dev/null || echo "  (none)"
-    fi
-  fi
+  echo "Launching Tauri desktop app..."
+  stop_dev_app
+  cd "$DESKTOP_DIR"
+  pnpm tauri:dev &
+  APP_PID=$!
+  echo "$APP_PID" > "$APP_PID_FILE"
+  LAUNCHED_APP=1
 
   echo "Dev daemon running in background (PID $DAEMON_PID)."
   if [ "$LAUNCHED_APP" -eq 1 ]; then
-    echo "Press Ctrl+C to stop the macOS app and the daemon."
+    echo "Desktop app running in dev mode (PID $APP_PID)."
+    echo "Press Ctrl+C to stop the desktop app and the daemon."
   else
     echo "Press Ctrl+C to stop the daemon."
   fi

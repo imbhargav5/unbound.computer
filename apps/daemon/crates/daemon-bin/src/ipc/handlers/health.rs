@@ -1,6 +1,6 @@
 //! Health and shutdown handlers.
 
-use daemon_ipc::{IpcServer, Method, Response};
+use daemon_ipc::{IpcServer, Method, Response, IPC_PROTOCOL_VERSION};
 use tracing::info;
 
 /// Register health and shutdown handlers.
@@ -13,6 +13,7 @@ pub async fn register(server: &IpcServer) {
                 serde_json::json!({
                     "status": "ok",
                     "version": env!("CARGO_PKG_VERSION"),
+                    "protocol_version": IPC_PROTOCOL_VERSION,
                 }),
             )
         })

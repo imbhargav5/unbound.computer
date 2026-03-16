@@ -5,6 +5,10 @@
   "packageManager": "pnpm@9.0.6",
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "desktop#dev": "turbo run dev --filter=desktop",
+    "desktop:dev": "pnpm --filter @unbound/desktop tauri:dev",
+    "desktop:build": "pnpm --filter @unbound/desktop build",
+    "desktop:bundle": "pnpm --filter @unbound/desktop tauri:build",
     "web#dev": "turbo run dev --filter=web",
     "build": "turbo run build",
     "lint": "turbo run lint",

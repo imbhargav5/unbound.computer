@@ -2,6 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DESKTOP_DIR="$ROOT_DIR/apps/desktop"
+DAEMON_DIR="$ROOT_DIR/apps/daemon"
+DIST_DIR="$ROOT_DIR/dist/macos"
+APP_EXPORT_DIR="$DIST_DIR/export-app"
+DAEMON_EXPORT_DIR="$DIST_DIR/export-daemon"
+DESKTOP_TAURI_CONFIG="$DESKTOP_DIR/src-tauri/tauri.conf.json"
+DESKTOP_CARGO_TOML="$DESKTOP_DIR/src-tauri/Cargo.toml"
+DESKTOP_METADATA_BACKUP_DIR="$(mktemp -d)"
 
 # Source release env vars (Supabase URL/key, presence config, etc.)
 # These are compile-time values baked into the daemon binary.
@@ -15,19 +23,13 @@ else
   echo "  Create .env.release with SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, etc." >&2
 fi
 
-PROJECT_DIR="$ROOT_DIR/apps/macos"
-PROJECT_FILE="$PROJECT_DIR/unbound-macos.xcodeproj"
-SCHEME="unbound-macos"
-DIST_DIR="$ROOT_DIR/dist/macos"
-RELEASE_XCCONFIG="${RELEASE_XCCONFIG:-$PROJECT_DIR/Config/Release.xcconfig}"
 MACOS_ARCH="${MACOS_ARCH:-arm64}"
-MACOS_ZIP_NAME="${MACOS_ZIP_NAME:-unbound-macos-apple-silicon.zip}"
-
+APP_ZIP_NAME="${APP_ZIP_NAME:-unbound-desktop-macos-apple-silicon.zip}"
+DAEMON_ARCHIVE_NAME="${DAEMON_ARCHIVE_NAME:-unbound-daemon-macos-apple-silicon.zip}"
 MACOS_RELEASE_VERSION="${MACOS_RELEASE_VERSION:-}"
 MACOS_BUILD_NUMBER="${MACOS_BUILD_NUMBER:-${CURRENT_PROJECT_VERSION:-}}"
 MACOS_SIGNING_IDENTITY="${MACOS_SIGNING_IDENTITY:-}"
 MACOS_TEAM_ID="${MACOS_TEAM_ID:-}"
-MACOS_CODE_SIGN_STYLE="${MACOS_CODE_SIGN_STYLE:-Manual}"
 ALLOW_UNSIGNED="${ALLOW_UNSIGNED:-0}"
 
 if [[ -z "$MACOS_RELEASE_VERSION" ]]; then
@@ -53,9 +55,6 @@ if [[ "$ALLOW_UNSIGNED" != "1" ]]; then
   fi
 fi
 
-mkdir -p "$DIST_DIR"
-rm -f "$DIST_DIR/$MACOS_ZIP_NAME" "$DIST_DIR/SHA256SUMS"
-
 case "$MACOS_ARCH" in
   arm64|x86_64)
     ;;
@@ -65,92 +64,134 @@ case "$MACOS_ARCH" in
     ;;
 esac
 
-EXPORT_OPTIONS_PLIST="$(mktemp -t unbound-macos-export-options.XXXXXX.plist)"
-trap 'rm -f "$EXPORT_OPTIONS_PLIST"' EXIT
+mkdir -p "$DIST_DIR"
+rm -rf "$APP_EXPORT_DIR" "$DAEMON_EXPORT_DIR"
+rm -f \
+  "$DIST_DIR/$APP_ZIP_NAME" \
+  "$DIST_DIR/$DAEMON_ARCHIVE_NAME" \
+  "$DIST_DIR/SHA256SUMS"
 
-XCCONFIG_ARGS=()
-if [[ -f "$RELEASE_XCCONFIG" ]]; then
-  XCCONFIG_ARGS=(-xcconfig "$RELEASE_XCCONFIG")
-fi
+cp "$DESKTOP_TAURI_CONFIG" "$DESKTOP_METADATA_BACKUP_DIR/tauri.conf.json"
+cp "$DESKTOP_CARGO_TOML" "$DESKTOP_METADATA_BACKUP_DIR/Cargo.toml"
 
-if [[ "$ALLOW_UNSIGNED" == "1" ]]; then
-  cat > "$EXPORT_OPTIONS_PLIST" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>development</string>
-</dict>
-</plist>
-PLIST
-else
-  cat > "$EXPORT_OPTIONS_PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>developer-id</string>
-  <key>signingStyle</key>
-  <string>manual</string>
-  <key>teamID</key>
-  <string>${MACOS_TEAM_ID}</string>
-  <key>signingCertificate</key>
-  <string>${MACOS_SIGNING_IDENTITY}</string>
-</dict>
-</plist>
-PLIST
-fi
-
-build_and_export() {
-  local arch="$1"
-  local archive_path="$DIST_DIR/unbound-macos-${arch}.xcarchive"
-  local export_path="$DIST_DIR/export-${arch}"
-
-  rm -rf "$archive_path" "$export_path"
-
-  echo "==> Archiving (${arch})"
-  xcodebuild archive \
-    -project "$PROJECT_FILE" \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -destination "generic/platform=macOS" \
-    -archivePath "$archive_path" \
-    ${XCCONFIG_ARGS[@]+"${XCCONFIG_ARGS[@]}"} \
-    ARCHS="$arch" \
-    ONLY_ACTIVE_ARCH=NO \
-    MARKETING_VERSION="$MACOS_RELEASE_VERSION" \
-    CURRENT_PROJECT_VERSION="$MACOS_BUILD_NUMBER" \
-    RELEASE_VERSION="$MACOS_RELEASE_VERSION" \
-    RELEASE_BUILD_NUMBER="$MACOS_BUILD_NUMBER" \
-    ${MACOS_TEAM_ID:+DEVELOPMENT_TEAM="$MACOS_TEAM_ID"} \
-    ${MACOS_SIGNING_IDENTITY:+CODE_SIGN_IDENTITY="$MACOS_SIGNING_IDENTITY"} \
-    ${MACOS_SIGNING_IDENTITY:+CODE_SIGN_STYLE="$MACOS_CODE_SIGN_STYLE"} \
-    ${ALLOW_UNSIGNED:+CODE_SIGNING_ALLOWED=$( [[ "$ALLOW_UNSIGNED" == "1" ]] && echo NO || echo YES )}
-
-  echo "==> Exporting (${arch})"
-  xcodebuild -exportArchive \
-    -archivePath "$archive_path" \
-    -exportPath "$export_path" \
-    -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
-
-  local app_path
-  app_path="$(find "$export_path" -maxdepth 1 -name "*.app" -print -quit)"
-  if [[ -z "$app_path" ]]; then
-    echo "ERROR: Expected .app in $export_path" >&2
-    exit 1
-  fi
-
-  local zip_path="$DIST_DIR/$MACOS_ZIP_NAME"
-  echo "==> Zipping (${arch}) -> $MACOS_ZIP_NAME"
-  ditto -c -k --keepParent "$app_path" "$zip_path"
+restore_desktop_metadata() {
+  cp "$DESKTOP_METADATA_BACKUP_DIR/tauri.conf.json" "$DESKTOP_TAURI_CONFIG"
+  cp "$DESKTOP_METADATA_BACKUP_DIR/Cargo.toml" "$DESKTOP_CARGO_TOML"
+  rm -rf "$DESKTOP_METADATA_BACKUP_DIR"
 }
 
-build_and_export "$MACOS_ARCH"
+trap restore_desktop_metadata EXIT
+
+apply_desktop_metadata() {
+  python3 - "$DESKTOP_TAURI_CONFIG" "$DESKTOP_CARGO_TOML" "$MACOS_RELEASE_VERSION" "$MACOS_BUILD_NUMBER" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+tauri_path = pathlib.Path(sys.argv[1])
+cargo_path = pathlib.Path(sys.argv[2])
+version = sys.argv[3]
+build_number = sys.argv[4]
+
+config = json.loads(tauri_path.read_text())
+config["version"] = version
+bundle = config.setdefault("bundle", {})
+macos = bundle.setdefault("macOS", {})
+macos["bundleVersion"] = build_number
+tauri_path.write_text(json.dumps(config, indent=2) + "\n")
+
+cargo = cargo_path.read_text()
+cargo, count = re.subn(r'(?m)^version = "[^"]+"$', f'version = "{version}"', cargo, count=1)
+if count != 1:
+    raise SystemExit("failed to update desktop Cargo.toml version")
+cargo_path.write_text(cargo)
+PY
+}
+
+codesign_if_needed() {
+  local target_path="$1"
+
+  if [[ "$ALLOW_UNSIGNED" == "1" ]]; then
+    return
+  fi
+
+  codesign \
+    --force \
+    --timestamp \
+    --options runtime \
+    --sign "$MACOS_SIGNING_IDENTITY" \
+    "$target_path"
+}
+
+codesign_app_if_needed() {
+  local app_path="$1"
+
+  if [[ "$ALLOW_UNSIGNED" == "1" ]]; then
+    return
+  fi
+
+  codesign \
+    --force \
+    --deep \
+    --timestamp \
+    --options runtime \
+    --sign "$MACOS_SIGNING_IDENTITY" \
+    "$app_path"
+}
+
+echo "==> Building release daemon"
+pushd "$DAEMON_DIR" >/dev/null
+cargo build -p daemon-bin --release
+popd >/dev/null
+
+DAEMON_BIN="$DAEMON_DIR/target/release/unbound-daemon"
+if [[ ! -x "$DAEMON_BIN" ]]; then
+  echo "ERROR: Expected daemon binary at $DAEMON_BIN" >&2
+  exit 1
+fi
+
+echo "==> Building Tauri desktop app"
+apply_desktop_metadata
+pushd "$DESKTOP_DIR" >/dev/null
+pnpm tauri:build
+popd >/dev/null
+
+BUILT_APP_PATH="$(find "$DESKTOP_DIR/src-tauri/target/release/bundle" -maxdepth 4 -name '*.app' -print -quit)"
+if [[ -z "$BUILT_APP_PATH" ]]; then
+  echo "ERROR: Could not find built Tauri app bundle under apps/desktop/src-tauri/target/release/bundle" >&2
+  exit 1
+fi
+
+APP_PATH="$APP_EXPORT_DIR/$(basename "$BUILT_APP_PATH")"
+DAEMON_PATH="$DAEMON_EXPORT_DIR/unbound-daemon"
+
+mkdir -p "$APP_EXPORT_DIR" "$DAEMON_EXPORT_DIR"
+ditto "$BUILT_APP_PATH" "$APP_PATH"
+cp -f "$DAEMON_BIN" "$DAEMON_PATH"
+chmod +x "$DAEMON_PATH"
+
+if [[ -e "$APP_PATH/Contents/MacOS/unbound-daemon" ]]; then
+  echo "ERROR: Desktop app bundle unexpectedly contains unbound-daemon." >&2
+  exit 1
+fi
+
+codesign_app_if_needed "$APP_PATH"
+codesign_if_needed "$DAEMON_PATH"
+
+if [[ "$ALLOW_UNSIGNED" != "1" ]]; then
+  codesign --verify --deep --strict "$APP_PATH"
+  codesign --verify --strict "$DAEMON_PATH"
+fi
+
+echo "==> Packaging desktop app"
+ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/$APP_ZIP_NAME"
+
+echo "==> Packaging daemon"
+ditto -c -k --keepParent "$DAEMON_PATH" "$DIST_DIR/$DAEMON_ARCHIVE_NAME"
 
 pushd "$DIST_DIR" >/dev/null
-shasum -a 256 "$MACOS_ZIP_NAME" > SHA256SUMS
+shasum -a 256 "$APP_ZIP_NAME" "$DAEMON_ARCHIVE_NAME" > SHA256SUMS
 popd >/dev/null
 
 echo ""

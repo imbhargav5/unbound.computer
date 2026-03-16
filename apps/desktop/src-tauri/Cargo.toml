@@ -1,0 +1,19 @@
+[package]
+name = "unbound-desktop"
+version = "0.0.19"
+edition = "2021"
+description = "Unbound desktop client powered by Tauri"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+daemon-ipc = { path = "../../daemon/crates/daemon-ipc" }
+dirs = "6.0"
+rfd = "0.15"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2", features = [] }
+tokio = { version = "1.43", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
+url = "2.5"

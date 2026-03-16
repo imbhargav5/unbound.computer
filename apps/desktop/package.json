@@ -1,0 +1,33 @@
+{
+  "name": "@unbound/desktop",
+  "private": true,
+  "version": "0.0.19",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 1420",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@xterm/xterm": "^5.5.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.3",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^4.0.4"
+  }
+}

@@ -1,19 +1,19 @@
 # Unbound
 
-A local-first AI coding assistant with native clients and a background daemon.
+A local-first AI coding assistant with a Tauri desktop client, native iOS app, and a background daemon.
 
 ## What is Unbound?
 
-Unbound pairs a background Rust daemon with native clients to provide AI-assisted coding sessions over a local Unix socket. The daemon manages Claude CLI and terminal processes, tracks sessions in SQLite, performs git operations, and exposes a board/task domain for company-agent-project-issue workflows.
+Unbound pairs a background Rust daemon with a Tauri desktop app, a native iOS app, and CLI tooling to provide AI-assisted coding sessions over a local Unix socket. The daemon manages Claude CLI and terminal processes, tracks sessions in SQLite, performs git operations, and exposes a board/task domain for company-agent-project-issue workflows.
 
 The current daemon runtime is local-first and local-only: state is persisted in local SQLite plus platform secure storage, and clients interact through IPC methods and streaming events.
 
 ## Architecture
 
 ```
-macOS App (SwiftUI) ──┐
-                      ├── Unix Socket (NDJSON) ──> Daemon (Rust)
-CLI (Rust/ratatui) ───┘                              |
+Desktop App (Tauri) ─┐
+                     ├── Unix Socket (NDJSON) ──> Daemon (Rust)
+CLI (Rust/ratatui) ──┘                              |
                                           ┌──────────┼───────────┐
                                        SQLite     Secure Storage  Local FS
                                        (state)    (keys/secrets) (repos/files)
@@ -22,6 +22,8 @@ CLI (Rust/ratatui) ───┘                              |
                                  Claude  libgit2  GH CLI
                                   CLI    (git)   (optional)
 ```
+
+Production desktop builds do not bundle the daemon. The desktop app connects to a separately installed `unbound-daemon`, can start an installed daemon when needed, and blocks on explicit install/update states when the daemon is missing or incompatible.
 
 Clients connect to the daemon over a Unix domain socket using an NDJSON-based protocol. The daemon spawns and manages local processes, persists session/board state to SQLite, and streams runtime events to subscribers:
 
@@ -35,6 +37,7 @@ Clients connect to the daemon over a Unix domain socket using an NDJSON-based pr
 unbound.computer/
 ├── apps/
 │   ├── daemon/          # Rust daemon (21 crates)
+│   ├── desktop/         # Tauri desktop app (React + Rust)
 │   ├── macos/           # macOS native app (SwiftUI)
 │   ├── cli-new/         # Terminal client (Rust/ratatui)
 │   ├── web/             # Web app (Next.js)
@@ -119,11 +122,14 @@ These sidecars are documented in their package READMEs and are not part of the c
 - Binary frame protocol over Unix domain sockets
 - Stateless, crash-safe design
 
-**macOS App (Swift)**
-- SwiftUI with MVVM architecture
-- Unix socket IPC to daemon
-- swift-log for structured logging
-- Keychain integration for secure storage
+**Desktop App (Tauri)**
+- React + Vite frontend
+- Tauri v2 Rust shell for native integrations
+- Unix socket IPC to daemon through a Rust bridge
+- xterm.js for terminal rendering
+
+**macOS App (Swift, legacy)**
+- SwiftUI native client retained in-tree during desktop migration
 
 **Web App (TypeScript)**
 - Next.js (App Router)
@@ -140,7 +146,7 @@ These sidecars are documented in their package READMEs and are not part of the c
 - **Rust** (stable toolchain)
 - **Node.js** v20+
 - **pnpm** v9+
-- **Xcode** (for macOS app)
+- **Xcode Command Line Tools** (for macOS desktop builds)
 - **Supabase CLI** (for local database development)
 
 ## Getting Started
@@ -192,9 +198,17 @@ pnpm cli
 pnpm web#dev
 ```
 
-### 6. Open the macOS app
+### 6. Run the desktop app
 
-Open `apps/macos/unbound-macos.xcodeproj` in Xcode and build/run.
+```sh
+# Start the daemon in the foreground
+pnpm daemon:dev
+
+# Or start the daemon and the Tauri desktop app together
+pnpm daemon:dev:app
+```
+
+For production-style installs, build and install `unbound-daemon` separately from the desktop app. The desktop shell will refuse to continue until it finds a compatible installed daemon.
 
 ### 7. Start SigNoz locally (optional)
 

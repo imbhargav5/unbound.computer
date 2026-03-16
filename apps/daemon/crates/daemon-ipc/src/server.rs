@@ -857,7 +857,7 @@ mod tests {
             .await;
 
         server
-            .register_handler(Method::AuthStatus, |req| async move {
+            .register_handler(Method::GhAuthStatus, |req| async move {
                 Response::success(&req.id, serde_json::json!({"logged_in": false}))
             })
             .await;

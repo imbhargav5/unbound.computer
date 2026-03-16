@@ -1,5 +1,7 @@
 # Unbound macOS App
 
+> Legacy native macOS client retained in-tree during the Tauri desktop migration. The primary desktop runtime is now `apps/desktop`, while `unbound-daemon` remains a separate installed process in production.
+
 Native macOS application for running Claude Code sessions with remote viewing capabilities.
 
 ## Prerequisites
