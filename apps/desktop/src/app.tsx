@@ -1890,7 +1890,7 @@ export function App() {
                   description="Select your preferred color scheme"
                   title="Theme"
                 >
-                  <div className="settings-card-row">
+                  <div className="theme-card-row">
                     {themeModes.map((mode) => (
                       <ThemeModeCard
                         isAvailable={mode === "dark"}
@@ -2177,30 +2177,53 @@ function ThemeModeCard({
 }) {
   return (
     <button
-      className={isSelected ? "settings-option-card active" : "settings-option-card"}
+      className={isSelected ? "theme-card active" : "theme-card"}
       disabled={!isAvailable}
       onClick={onSelect}
       type="button"
     >
-      <ThemePreview mode={mode} />
-      <div className="settings-option-label">
-        <span className="settings-option-icon">{themeModeSymbol(mode)}</span>
+      <ThemePreview
+        isAvailable={isAvailable}
+        isSelected={isSelected}
+        mode={mode}
+      />
+      <div className="theme-card-label">
+        <span className="theme-card-icon">{themeModeSymbol(mode)}</span>
         <span>{capitalize(mode)}</span>
       </div>
       {!isAvailable ? (
-        <small>Coming soon</small>
+        <small className="theme-card-meta">Coming soon</small>
       ) : isSelected ? (
-        <span className="settings-option-check">●</span>
+        <span className="theme-card-check">✓</span>
       ) : (
-        <span className="settings-option-empty" />
+        <span className="theme-card-empty" />
       )}
     </button>
   );
 }
 
-function ThemePreview({ mode }: { mode: ThemeMode }) {
+function ThemePreview({
+  mode,
+  isSelected,
+  isAvailable,
+}: {
+  mode: ThemeMode;
+  isSelected: boolean;
+  isAvailable: boolean;
+}) {
+  const previewMode = mode === "light" ? "light" : "dark";
+
   return (
-    <div className={`theme-preview theme-preview-${mode}`}>
+    <div
+      className={[
+        "theme-preview",
+        `theme-preview-${previewMode}`,
+        isSelected ? "selected" : "",
+        isAvailable ? "" : "unavailable",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="theme-preview-sidebar">
         <div />
         <div />
@@ -2237,7 +2260,7 @@ function FontSizePresetCard({
       </div>
       <small>{fontSizePresetDescription(preset)}</small>
       {isSelected ? (
-        <span className="settings-option-check">●</span>
+        <span className="settings-option-check">✓</span>
       ) : (
         <span className="settings-option-empty" />
       )}
@@ -2527,9 +2550,9 @@ function themeModeSymbol(mode: ThemeMode) {
     case "system":
       return "◐";
     case "light":
-      return "☼";
+      return "☀";
     case "dark":
-      return "◑";
+      return "☾";
   }
 }
 

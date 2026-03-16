@@ -1059,6 +1059,7 @@ p {
 .settings-page-header p,
 .settings-section-header p,
 .settings-option-card small,
+.theme-card-meta,
 .settings-inline-panel p,
 .checkbox-row span {
   color: #7a7a7a;
@@ -1098,6 +1099,12 @@ p {
   gap: 16px;
 }
 
+.theme-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .settings-option-card {
   min-width: 148px;
   display: flex;
@@ -1113,8 +1120,8 @@ p {
 }
 
 .settings-option-card.active {
-  background: #141416;
-  border-color: #2563eb;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: #f59e0b;
 }
 
 .settings-option-card:disabled {
@@ -1135,14 +1142,80 @@ p {
 }
 
 .settings-option-check {
-  color: #2563eb;
-  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #0d0d0d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .settings-option-empty {
   width: 14px;
   height: 14px;
-  border: 1px solid #3a3a3d;
+  border: 1px solid #1f1f1f;
+  border-radius: 999px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #d4d4d8;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.theme-card.active {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.theme-card:disabled {
+  cursor: not-allowed;
+}
+
+.theme-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.theme-card.active .theme-card-label {
+  color: #f5f5f5;
+}
+
+.theme-card-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.theme-card-check {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #0d0d0d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.theme-card-empty {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #1f1f1f;
   border-radius: 999px;
 }
 
@@ -1150,21 +1223,33 @@ p {
 .font-preview {
   width: 100px;
   height: 64px;
-  border-radius: 8px;
+  border-radius: 3px;
   overflow: hidden;
-  border: 1px solid #2a2a2d;
+  border: 1px solid #1f1f1f;
 }
 
 .theme-preview {
   display: flex;
+  transition: border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.theme-preview.selected {
+  border-color: #f59e0b;
+  box-shadow: inset 0 0 0 1px #f59e0b;
+}
+
+.theme-preview.unavailable,
+.theme-card:disabled .theme-card-label,
+.theme-card:disabled .theme-card-meta {
+  opacity: 0.5;
 }
 
 .theme-preview-sidebar {
-  width: 34px;
+  width: 36px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 8px;
+  padding: 8px;
 }
 
 .theme-preview-sidebar div,
@@ -1177,35 +1262,26 @@ p {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-}
-
-.theme-preview-system .theme-preview-sidebar {
-  background: #19191c;
-}
-
-.theme-preview-system .theme-preview-main {
-  background: linear-gradient(180deg, #f1f5f9 0%, #dbe4ee 100%);
+  gap: 4px;
+  padding: 8px;
 }
 
 .theme-preview-light .theme-preview-sidebar {
-  background: #dfe7ef;
+  background: #ffffff;
 }
 
 .theme-preview-light .theme-preview-main {
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .theme-preview-dark .theme-preview-sidebar {
-  background: #17171a;
+  background: #0a0a0a;
 }
 
 .theme-preview-dark .theme-preview-main {
-  background: #09090b;
+  background: #0d0d0d;
 }
 
-.theme-preview-system .theme-preview-sidebar div,
 .theme-preview-light .theme-preview-sidebar div {
   background: rgba(15, 23, 42, 0.18);
 }
@@ -1214,7 +1290,6 @@ p {
   background: rgba(255, 255, 255, 0.16);
 }
 
-.theme-preview-system .theme-preview-main div,
 .theme-preview-light .theme-preview-main div {
   background: rgba(15, 23, 42, 0.14);
 }
@@ -1224,23 +1299,27 @@ p {
 }
 
 .theme-preview-sidebar div:nth-child(1) {
-  width: 18px;
+  width: 24px;
   height: 4px;
 }
 
-.theme-preview-sidebar div:nth-child(2),
+.theme-preview-sidebar div:nth-child(2) {
+  width: 20px;
+  height: 3px;
+}
+
 .theme-preview-sidebar div:nth-child(3) {
-  width: 14px;
+  width: 22px;
   height: 3px;
 }
 
 .theme-preview-main div:nth-child(1) {
-  width: 48px;
+  width: 100%;
   height: 6px;
 }
 
 .theme-preview-main div:nth-child(2) {
-  width: 36px;
+  width: 50px;
   height: 4px;
 }
 
@@ -1248,6 +1327,10 @@ p {
   width: 100%;
   height: 16px;
   margin-top: auto;
+}
+
+.theme-card:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.05);
 }
 
 .font-preview {
