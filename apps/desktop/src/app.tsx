@@ -1565,7 +1565,7 @@ export function App() {
       </aside>
 
       {layout === "companyDashboard" ? (
-        <>
+        <div className="company-dashboard-shell">
           <aside className="board-sidebar">
             <div className="board-sidebar-header">
               <div>
@@ -2001,11 +2001,11 @@ export function App() {
               />
             ) : null}
           </main>
-        </>
+        </div>
       ) : null}
 
       {layout === "workspace" ? (
-        <>
+        <div className="workspace-shell">
           <aside className="workspace-sidebar">
             <div className="workspace-sidebar-header">
               <div>
@@ -2415,11 +2415,11 @@ export function App() {
               ) : null}
             </section>
           </aside>
-        </>
+        </div>
       ) : null}
 
       {layout === "settings" ? (
-        <>
+        <div className="settings-shell">
           <aside className="settings-sidebar">
             <div className="settings-traffic-spacer" />
             <button
@@ -2615,7 +2615,7 @@ export function App() {
               </SettingsPageShell>
             ) : null}
           </main>
-        </>
+        </div>
       ) : null}
 
       {isCreateProjectDialogOpen ? (
