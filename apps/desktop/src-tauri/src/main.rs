@@ -1,15 +1,34 @@
 mod commands;
 mod compatibility;
 mod observability;
+mod updater;
 
 use commands::DesktopState;
 
 fn main() {
     observability::init();
 
-    let run_result = tauri::Builder::default()
+    let updater_config = match updater::load_config() {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::error!(error = %error, "desktop auto update configuration is invalid");
+            None
+        }
+    };
+
+    let mut builder = tauri::Builder::default();
+    if let Some(config) = updater_config.as_ref() {
+        builder = builder.plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(config.pubkey.clone())
+                .build(),
+        );
+    }
+
+    let updater_config_for_setup = updater_config.clone();
+    let run_result = builder
         .manage(DesktopState::default())
-        .setup(|_app| {
+        .setup(move |app| {
             tracing::info!(
                 operation = "desktop.startup",
                 feature = "desktop",
@@ -17,6 +36,9 @@ fn main() {
                 app_version = env!("CARGO_PKG_VERSION"),
                 "desktop tauri app ready"
             );
+            if let Some(config) = updater_config_for_setup.clone() {
+                updater::spawn_startup_update_check(app.handle().clone(), config);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

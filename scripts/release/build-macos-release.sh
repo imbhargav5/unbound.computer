@@ -31,6 +31,8 @@ MACOS_BUILD_NUMBER="${MACOS_BUILD_NUMBER:-${CURRENT_PROJECT_VERSION:-}}"
 MACOS_SIGNING_IDENTITY="${MACOS_SIGNING_IDENTITY:-}"
 MACOS_TEAM_ID="${MACOS_TEAM_ID:-}"
 ALLOW_UNSIGNED="${ALLOW_UNSIGNED:-0}"
+UPDATER_ARCHIVE_NAME="${UPDATER_ARCHIVE_NAME:-unbound-desktop-macos-apple-silicon-updater.tar.gz}"
+UPDATER_METADATA_NAME="${UPDATER_METADATA_NAME:-latest.json}"
 
 if [[ -z "$MACOS_RELEASE_VERSION" ]]; then
   if command -v pnpm >/dev/null 2>&1; then
@@ -69,6 +71,9 @@ rm -rf "$APP_EXPORT_DIR" "$DAEMON_EXPORT_DIR"
 rm -f \
   "$DIST_DIR/$APP_ZIP_NAME" \
   "$DIST_DIR/$DAEMON_ARCHIVE_NAME" \
+  "$DIST_DIR/$UPDATER_ARCHIVE_NAME" \
+  "$DIST_DIR/${UPDATER_ARCHIVE_NAME}.sig" \
+  "$DIST_DIR/$UPDATER_METADATA_NAME" \
   "$DIST_DIR/SHA256SUMS"
 
 cp "$DESKTOP_TAURI_CONFIG" "$DESKTOP_METADATA_BACKUP_DIR/tauri.conf.json"
@@ -190,8 +195,25 @@ ditto -c -k --keepParent "$APP_PATH" "$DIST_DIR/$APP_ZIP_NAME"
 echo "==> Packaging daemon"
 ditto -c -k --keepParent "$DAEMON_PATH" "$DIST_DIR/$DAEMON_ARCHIVE_NAME"
 
+echo "==> Generating updater artifacts"
+"$ROOT_DIR/scripts/release/generate-desktop-updater-artifacts.sh" \
+  "$APP_PATH" \
+  "$DIST_DIR" \
+  "$MACOS_RELEASE_VERSION" \
+  "v$MACOS_RELEASE_VERSION"
+
 pushd "$DIST_DIR" >/dev/null
-shasum -a 256 "$APP_ZIP_NAME" "$DAEMON_ARCHIVE_NAME" > SHA256SUMS
+checksum_files=("$APP_ZIP_NAME" "$DAEMON_ARCHIVE_NAME")
+if [[ -f "$UPDATER_ARCHIVE_NAME" ]]; then
+  checksum_files+=("$UPDATER_ARCHIVE_NAME")
+fi
+if [[ -f "${UPDATER_ARCHIVE_NAME}.sig" ]]; then
+  checksum_files+=("${UPDATER_ARCHIVE_NAME}.sig")
+fi
+if [[ -f "$UPDATER_METADATA_NAME" ]]; then
+  checksum_files+=("$UPDATER_METADATA_NAME")
+fi
+shasum -a 256 "${checksum_files[@]}" > SHA256SUMS
 popd >/dev/null
 
 echo ""

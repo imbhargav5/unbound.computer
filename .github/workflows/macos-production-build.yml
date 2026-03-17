@@ -143,6 +143,9 @@ jobs:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
           MACOS_BUILD_NUMBER: ${{ github.run_number }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           ./scripts/release/build-macos-release.sh
 
@@ -179,12 +182,17 @@ jobs:
           APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
           APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
           APPLE_NOTARYTOOL_PRIVATE_KEY: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           NOTARY_PROFILE="unbound-release"
           APP_ZIP_PATH="dist/macos/unbound-desktop-macos-apple-silicon.zip"
           DAEMON_ZIP_PATH="dist/macos/unbound-daemon-macos-apple-silicon.zip"
           APP_PATH="${{ steps.exported-app.outputs.app_path }}"
           DAEMON_PATH="${{ steps.exported-app.outputs.daemon_path }}"
+          UPDATER_ARCHIVE_NAME="unbound-desktop-macos-apple-silicon-updater.tar.gz"
+          UPDATER_METADATA_NAME="latest.json"
 
           if [[ -n "$APPLE_NOTARYTOOL_KEY_ID" && -n "$APPLE_NOTARYTOOL_ISSUER_ID" && -n "$APPLE_NOTARYTOOL_PRIVATE_KEY" ]]; then
             echo "$APPLE_NOTARYTOOL_PRIVATE_KEY" > /tmp/AuthKey.p8
@@ -204,11 +212,23 @@ jobs:
           xcrun stapler staple "$APP_PATH"
           rm -f "$APP_ZIP_PATH"
           ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
+          ./scripts/release/generate-desktop-updater-artifacts.sh "$APP_PATH" "dist/macos" "${{ steps.version.outputs.version }}" "v${{ steps.version.outputs.version }}"
           (
             cd dist/macos
-            shasum -a 256 \
-              "$(basename "$APP_ZIP_PATH")" \
-              "$(basename "$DAEMON_ZIP_PATH")" > SHA256SUMS
+            checksum_files=(
+              "$(basename "$APP_ZIP_PATH")"
+              "$(basename "$DAEMON_ZIP_PATH")"
+            )
+            if [[ -f "$UPDATER_ARCHIVE_NAME" ]]; then
+              checksum_files+=("$UPDATER_ARCHIVE_NAME")
+            fi
+            if [[ -f "${UPDATER_ARCHIVE_NAME}.sig" ]]; then
+              checksum_files+=("${UPDATER_ARCHIVE_NAME}.sig")
+            fi
+            if [[ -f "$UPDATER_METADATA_NAME" ]]; then
+              checksum_files+=("$UPDATER_METADATA_NAME")
+            fi
+            shasum -a 256 "${checksum_files[@]}" > SHA256SUMS
           )
           spctl -a -vv "$APP_PATH"
           spctl -a -vv -t exec "$DAEMON_PATH"
@@ -218,11 +238,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          assets=(
+            dist/macos/unbound-desktop-macos-apple-silicon.zip
+            dist/macos/unbound-daemon-macos-apple-silicon.zip
+            dist/macos/SHA256SUMS
+          )
+          if [[ -f dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz ]]; then
+            assets+=(dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz)
+          fi
+          if [[ -f dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz.sig ]]; then
+            assets+=(dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz.sig)
+          fi
+          if [[ -f dist/macos/latest.json ]]; then
+            assets+=(dist/macos/latest.json)
+          fi
           gh release upload \
             "${{ inputs.release_tag }}" \
-            dist/macos/unbound-desktop-macos-apple-silicon.zip \
-            dist/macos/unbound-daemon-macos-apple-silicon.zip \
-            dist/macos/SHA256SUMS \
+            "${assets[@]}" \
             --clobber
 
       - name: Upload workflow artifacts
@@ -234,4 +266,7 @@ jobs:
             dist/macos/unbound-desktop-macos-apple-silicon.zip
             dist/macos/unbound-daemon-macos-apple-silicon.zip
             dist/macos/SHA256SUMS
+            dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz
+            dist/macos/unbound-desktop-macos-apple-silicon-updater.tar.gz.sig
+            dist/macos/latest.json
           if-no-files-found: error

@@ -74,3 +74,16 @@ The canonical macOS release path is the repo-level release script:
 ```
 
 That script produces separate desktop-app and daemon artifacts under `dist/macos/`.
+
+When the release build is given updater signing material, it also publishes the
+desktop updater manifest and signed archive needed by the Tauri auto-updater:
+
+- `TAURI_UPDATER_PUBLIC_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (optional if the key has no password)
+
+The desktop shell checks
+`https://github.com/imbhargav5/unbound.computer/releases/latest/download/latest.json`
+on startup when an updater public key is configured at build time. For local
+debug builds, automatic update checks stay off unless
+`UNBOUND_DESKTOP_ALLOW_AUTO_UPDATE_IN_DEBUG=1` is set.
