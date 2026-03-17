@@ -2813,14 +2813,15 @@ p {
 
 .issues-inline-description-input {
   width: 100%;
-  min-height: 120px;
+  min-height: 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: #d4d4da;
   font-size: 14px;
   line-height: 1.7;
-  resize: vertical;
+  overflow: hidden;
+  resize: none;
 }
 
 .issues-detail-inline-meta {

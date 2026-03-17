@@ -9,6 +9,7 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -5795,10 +5796,25 @@ function IssueDetailView({
   const [linkedRunsError, setLinkedRunsError] = useState<string | null>(null);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isIssueActionsOpen, setIsIssueActionsOpen] = useState(false);
+  const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
   const issueActionsMenuRef = useRef<HTMLDivElement | null>(null);
   const issueActionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const issueProjectName = projectLabel(issueDraft.projectId || null);
+
+  const syncDescriptionInputHeight = () => {
+    const textarea = descriptionInputRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+
+  useLayoutEffect(() => {
+    syncDescriptionInputHeight();
+  }, [issue.id, issueDraft.description]);
 
   useEffect(() => {
     setActiveTab("conversation");
@@ -6094,7 +6110,10 @@ function IssueDetailView({
                     description: event.target.value,
                   })
                 }
+                onInput={syncDescriptionInputHeight}
                 placeholder="Add context, scope, acceptance criteria, or a short brief for the assignee."
+                ref={descriptionInputRef}
+                rows={1}
                 value={issueDraft.description}
               />
               <div className="issues-detail-inline-meta">
