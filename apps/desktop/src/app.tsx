@@ -118,7 +118,13 @@ type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
+type IssueDetailTab = "conversation" | "runs" | "subissues";
 type AgentsRouteMode = "details" | "runs";
+
+interface IssueLinkedRun {
+  label: string;
+  run: AgentRunRecord;
+}
 
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
@@ -4884,6 +4890,101 @@ function IssueDetailView({
 }) {
   const canSaveIssueEdits =
     !isSavingIssue && issueDraft.title.trim().length > 0;
+  const [activeTab, setActiveTab] = useState<IssueDetailTab>("conversation");
+  const [linkedRuns, setLinkedRuns] = useState<IssueLinkedRun[]>([]);
+  const [isLoadingLinkedRuns, setIsLoadingLinkedRuns] = useState(false);
+  const [linkedRunsError, setLinkedRunsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveTab("conversation");
+
+    const runLabelsById = new Map<string, string[]>();
+    const pushRunLabel = (runId: string | null | undefined, label: string) => {
+      if (!runId) {
+        return;
+      }
+
+      const labels = runLabelsById.get(runId);
+      if (labels) {
+        labels.push(label);
+        return;
+      }
+
+      runLabelsById.set(runId, [label]);
+    };
+
+    pushRunLabel(issue.checkout_run_id, "Checkout Run");
+    pushRunLabel(issue.execution_run_id, "Execution Run");
+
+    const runRequests = Array.from(runLabelsById.entries()).map(
+      ([runId, labels]) => ({
+        runId,
+        label: labels.join(" / "),
+      })
+    );
+
+    if (!runRequests.length) {
+      setLinkedRuns([]);
+      setLinkedRunsError(null);
+      setIsLoadingLinkedRuns(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingLinkedRuns(true);
+
+    void Promise.allSettled(
+      runRequests.map(async ({ runId, label }) => ({
+        label,
+        run: await boardGetAgentRun(runId),
+      }))
+    )
+      .then((results) => {
+        if (cancelled) {
+          return;
+        }
+
+        const nextLinkedRuns: IssueLinkedRun[] = [];
+        const failedLabels: string[] = [];
+
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            nextLinkedRuns.push(result.value);
+            return;
+          }
+
+          failedLabels.push(runRequests[index]?.label ?? "Run");
+        });
+
+        startTransition(() => {
+          setLinkedRuns(nextLinkedRuns);
+          setLinkedRunsError(
+            failedLabels.length
+              ? `Could not load ${failedLabels.join(" or ")}.`
+              : null
+          );
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLinkedRuns([]);
+        setLinkedRunsError(
+          error instanceof Error ? error.message : "Could not load linked runs."
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingLinkedRuns(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.id, issue.checkout_run_id, issue.execution_run_id]);
 
   return (
     <section className="route-scroll issues-detail-route">
@@ -5012,80 +5113,166 @@ function IssueDetailView({
             </section>
           )}
 
-          {subissues.length ? (
-            <section className="issues-detail-section">
-              <h3>Subissues</h3>
-              <div className="surface-list dense">
-                {subissues.map((child) => (
-                  <div
-                    className="surface-list-row issues-supporting-row"
-                    key={child.id}
-                  >
-                    <strong>{child.identifier ?? child.title}</strong>
-                    <span className="workspace-status-pill">
-                      {priorityLabel(child.status)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {linkedApprovals.length ? (
-            <section className="issues-detail-section">
-              <h3>Linked Approvals</h3>
-              <div className="surface-list dense">
-                {linkedApprovals.map((approval) => (
-                  <button
-                    className="file-list-button"
-                    key={approval.id}
-                    onClick={() => onLinkedApprovalSelect(approval.id)}
-                    type="button"
-                  >
-                    <strong>
-                      {priorityLabel(approval.approval_type ?? "approval")}
-                    </strong>
-                    <span>
-                      {priorityLabel(approval.status ?? "pending")}
-                      {approval.updated_at
-                        ? ` · ${formatIssueDate(approval.updated_at)}`
-                        : ""}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           <section className="issues-detail-section">
-            <h3>Comments</h3>
-            {comments.length ? (
-              <div className="issues-comment-list">
-                {comments.map((comment) => (
-                  <article className="issues-comment-card" key={comment.id}>
-                    <p>{comment.body}</p>
-                    <span>{formatIssueDate(comment.created_at)}</span>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="issues-detail-copy muted">No comments yet.</p>
-            )}
-
-            <div className="issues-comment-composer">
-              <textarea
-                onChange={(event) => onNewCommentBodyChange(event.target.value)}
-                placeholder="Add a comment"
-                value={newCommentBody}
-              />
+            <div
+              className="issues-detail-tabs"
+              role="tablist"
+              aria-label="Issue details sections"
+            >
               <button
-                className="secondary-button"
-                disabled={isWorking || !newCommentBody.trim()}
-                onClick={onAddComment}
+                aria-selected={activeTab === "conversation"}
+                className={
+                  activeTab === "conversation"
+                    ? "issues-detail-tab-button active"
+                    : "issues-detail-tab-button"
+                }
+                onClick={() => setActiveTab("conversation")}
+                role="tab"
                 type="button"
               >
-                Add Comment
+                Conversation
               </button>
+              <button
+                aria-selected={activeTab === "runs"}
+                className={
+                  activeTab === "runs"
+                    ? "issues-detail-tab-button active"
+                    : "issues-detail-tab-button"
+                }
+                onClick={() => setActiveTab("runs")}
+                role="tab"
+                type="button"
+              >
+                Runs
+              </button>
+              <button
+                aria-selected={activeTab === "subissues"}
+                className={
+                  activeTab === "subissues"
+                    ? "issues-detail-tab-button active"
+                    : "issues-detail-tab-button"
+                }
+                onClick={() => setActiveTab("subissues")}
+                role="tab"
+                type="button"
+              >
+                Sub-issues
+              </button>
+            </div>
+
+            <div className="issues-detail-tab-panel" role="tabpanel">
+              {activeTab === "conversation" ? (
+                <>
+                  {comments.length ? (
+                    <div className="issues-comment-list">
+                      {comments.map((comment) => (
+                        <article
+                          className="issues-comment-card"
+                          key={comment.id}
+                        >
+                          <p>{comment.body}</p>
+                          <span>{formatIssueDate(comment.created_at)}</span>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="issues-detail-copy muted">No comments yet.</p>
+                  )}
+
+                  <div className="issues-comment-composer">
+                    <textarea
+                      onChange={(event) =>
+                        onNewCommentBodyChange(event.target.value)
+                      }
+                      placeholder="Add a comment"
+                      value={newCommentBody}
+                    />
+                    <button
+                      className="secondary-button"
+                      disabled={isWorking || !newCommentBody.trim()}
+                      onClick={onAddComment}
+                      type="button"
+                    >
+                      Add Comment
+                    </button>
+                  </div>
+                </>
+              ) : null}
+
+              {activeTab === "runs" ? (
+                <>
+                  {isLoadingLinkedRuns ? (
+                    <p className="issues-detail-copy muted">Loading runs...</p>
+                  ) : null}
+                  {linkedRunsError ? (
+                    <p className="issues-detail-copy muted">
+                      {linkedRunsError}
+                    </p>
+                  ) : null}
+                  {linkedRuns.length ? (
+                    <div className="issues-linked-run-list">
+                      {linkedRuns.map(({ label, run }) => (
+                        <article
+                          className="issues-linked-run-card"
+                          key={`${label}-${run.id}`}
+                        >
+                          <div className="issues-linked-run-header">
+                            <div className="issues-linked-run-heading">
+                              <span className="issues-linked-run-label">
+                                {label}
+                              </span>
+                              <strong>{shortAgentRunTitle(run.id)}</strong>
+                            </div>
+                            <RunStatusBadge status={run.status} />
+                          </div>
+                          <p className="issues-linked-run-summary">
+                            {agentRunSummary(run)}
+                          </p>
+                          <div className="issues-linked-run-meta">
+                            <span>
+                              {agentRunInvocationSourceLabel(
+                                run.invocation_source
+                              )}
+                            </span>
+                            <span>
+                              {formatRelativeAgentRunDate(run.created_at)}
+                            </span>
+                            {run.wake_reason ? (
+                              <span>
+                                {agentRunWakeReasonLabel(run.wake_reason)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : !isLoadingLinkedRuns && !linkedRunsError ? (
+                    <p className="issues-detail-copy muted">
+                      No runs linked to this issue yet.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {activeTab === "subissues" ? (
+                subissues.length ? (
+                  <div className="surface-list dense">
+                    {subissues.map((child) => (
+                      <div
+                        className="surface-list-row issues-supporting-row"
+                        key={child.id}
+                      >
+                        <strong>{child.identifier ?? child.title}</strong>
+                        <span className="workspace-status-pill">
+                          {priorityLabel(child.status)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="issues-detail-copy muted">No sub-issues yet.</p>
+                )
+              ) : null}
             </div>
           </section>
         </section>
@@ -5246,6 +5433,32 @@ function IssueDetailView({
               />
             </div>
           </section>
+
+          {linkedApprovals.length ? (
+            <section className="issues-sidebar-section">
+              <h3>Linked Approvals</h3>
+              <div className="surface-list dense">
+                {linkedApprovals.map((approval) => (
+                  <button
+                    className="file-list-button"
+                    key={approval.id}
+                    onClick={() => onLinkedApprovalSelect(approval.id)}
+                    type="button"
+                  >
+                    <strong>
+                      {priorityLabel(approval.approval_type ?? "approval")}
+                    </strong>
+                    <span>
+                      {priorityLabel(approval.status ?? "pending")}
+                      {approval.updated_at
+                        ? ` · ${formatIssueDate(approval.updated_at)}`
+                        : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </aside>
       </div>
     </section>
