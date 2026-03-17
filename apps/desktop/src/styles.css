@@ -874,7 +874,7 @@ p {
 
 .project-kanban-board {
   position: absolute;
-  width: 760px;
+  width: 920px;
   height: 540px;
   display: flex;
   flex-direction: column;

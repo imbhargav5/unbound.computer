@@ -211,6 +211,9 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
   y: 88,
 };
 
+const dashboardProjectBoardWidth = 920;
+const dashboardProjectBoardHeight = 540;
+
 const defaultCompanyBrandColor = "#0F766E";
 
 export function App() {
@@ -5537,8 +5540,6 @@ function buildDashboardProjectBoards(
   projects: ProjectRecord[],
   issues: IssueRecord[]
 ): DashboardProjectBoardLayout[] {
-  const boardWidth = 760;
-  const boardHeight = 540;
   const columnCount = projects.length <= 1 ? 1 : 2;
 
   return projects.map((project, index) => {
@@ -5556,8 +5557,8 @@ function buildDashboardProjectBoards(
       project,
       columns,
       issueCount: projectIssues.length,
-      left: 120 + col * (boardWidth + 44),
-      top: 104 + row * (boardHeight + 44) + (col === 1 ? 42 : 0),
+      left: 120 + col * (dashboardProjectBoardWidth + 44),
+      top: 104 + row * (dashboardProjectBoardHeight + 44) + (col === 1 ? 42 : 0),
     };
   });
 }
@@ -5567,10 +5568,12 @@ function buildDashboardCanvasBounds(projectBoards: DashboardProjectBoardLayout[]
     return { width: 2200, height: 1600 };
   }
 
-  const boardWidth = 760;
-  const boardHeight = 540;
-  const maxRight = Math.max(...projectBoards.map((board) => board.left + boardWidth));
-  const maxBottom = Math.max(...projectBoards.map((board) => board.top + boardHeight));
+  const maxRight = Math.max(
+    ...projectBoards.map((board) => board.left + dashboardProjectBoardWidth)
+  );
+  const maxBottom = Math.max(
+    ...projectBoards.map((board) => board.top + dashboardProjectBoardHeight)
+  );
 
   return {
     width: Math.max(maxRight + 160, 2200),
