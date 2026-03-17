@@ -107,6 +107,7 @@ type AppScreen =
   | "dashboard"
   | "inbox"
   | "workspaces"
+  | "org"
   | "agents"
   | "issues"
   | "approvals"
@@ -143,6 +144,7 @@ type WorkspaceSidebarTab = "changes" | "files" | "commits";
 type CompanyContextMenuScreen =
   | "dashboard"
   | "workspaces"
+  | "org"
   | "issues"
   | "companySettings";
 type CompanyContextMenuIconKey = CompanyContextMenuScreen | "agents";
@@ -471,6 +473,7 @@ function issueWorkspaceTargetHint({
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
+  { title: "People", screens: ["org"] },
   { title: "Planning", screens: ["goals"] },
 ];
 
@@ -519,6 +522,7 @@ const companyContextMenuItems: Array<{
 }> = [
   { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
   { icon: "workspaces", label: "Worktrees", screen: "workspaces" },
+  { icon: "org", label: "Org", screen: "org" },
   { icon: "issues", label: "Issues", screen: "issues" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
@@ -3662,6 +3666,16 @@ export function App() {
               />
             ) : null}
 
+            {selectedScreen === "org" ? (
+              <OrgRouteView
+                agents={boardAgents}
+                company={selectedCompany}
+                projects={boardProjects}
+                selectedAgentId={selectedAgentId}
+                onSelectAgent={handleSelectAgent}
+              />
+            ) : null}
+
             {selectedScreen === "agents" ? (
               <AgentsRouteView
                 agentRunError={agentRunError}
@@ -4583,6 +4597,7 @@ export function App() {
                           )}
                         >
                           <option value="dashboard">Dashboard</option>
+                          <option value="org">Org</option>
                           <option value="stats">Stats</option>
                           <option value="activity">Activity</option>
                           <option value="costs">Costs</option>
@@ -4773,6 +4788,304 @@ function SummaryPill({
     <div className="summary-pill">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+interface OrgHierarchyNode {
+  agent: AgentRecord;
+  leadProjects: ProjectRecord[];
+  reports: OrgHierarchyNode[];
+  totalReports: number;
+}
+
+function OrgRouteView({
+  agents,
+  company,
+  projects,
+  selectedAgentId,
+  onSelectAgent,
+}: {
+  agents: AgentRecord[];
+  company: Company | null;
+  projects: ProjectRecord[];
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const ceoAgentId = company?.ceo_agent_id ?? null;
+  const agentMap = useMemo(
+    () => new Map(agents.map((agent) => [agent.id, agent])),
+    [agents]
+  );
+  const hierarchy = useMemo(
+    () => buildOrgHierarchy(agents, projects, ceoAgentId),
+    [agents, projects, ceoAgentId]
+  );
+  const flattenedHierarchy = useMemo(() => flattenOrgHierarchy(hierarchy), [hierarchy]);
+  const managersCount = flattenedHierarchy.filter(
+    (node) => node.reports.length > 0
+  ).length;
+  const leadAssignments = useMemo(
+    () => buildProjectLeadAssignments(agents, projects),
+    [agents, projects]
+  );
+  const projectsWithoutLead = useMemo(
+    () => projects.filter((project) => !project.lead_agent_id),
+    [projects]
+  );
+  const ceo = useMemo(
+    () => findCompanyCeo(agents, ceoAgentId),
+    [agents, ceoAgentId]
+  );
+
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <DashboardBreadcrumbs items={[{ label: "Org" }]} />
+        <span className="route-kicker">Org</span>
+        <h1>{company?.name ? `${company.name} org` : "Org"}</h1>
+        <p>
+          See the reporting hierarchy, who leads projects, and how work is
+          distributed across the company.
+        </p>
+      </div>
+
+      <div className="summary-grid">
+        <SummaryPill label="CEO" value={ceo?.name ?? "Unassigned"} />
+        <SummaryPill label="Agents" value={String(agents.length)} />
+        <SummaryPill label="Managers" value={String(managersCount)} />
+        <SummaryPill
+          label="Project Leads"
+          value={String(leadAssignments.length)}
+        />
+      </div>
+
+      <div className="surface-grid">
+        <section className="surface-panel wide">
+          <div className="surface-header">
+            <div>
+              <h3>Hierarchy</h3>
+              <p>
+                Managers stack top to bottom. Open any agent to review its full
+                configuration and runs.
+              </p>
+            </div>
+          </div>
+
+          {hierarchy.length ? (
+            <div className="org-tree-list">
+              {hierarchy.map((node) => (
+                <OrgTreeNodeCard
+                  agentMap={agentMap}
+                  ceoAgentId={ceoAgentId}
+                  key={node.agent.id}
+                  node={node}
+                  onSelectAgent={onSelectAgent}
+                  selectedAgentId={selectedAgentId}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              No agents yet. Create agents to build the org chart.
+            </p>
+          )}
+        </section>
+
+        <section className="surface-panel">
+          <div className="surface-header">
+            <div>
+              <h3>Leadership</h3>
+              <p>Project ownership and any gaps in lead coverage.</p>
+            </div>
+          </div>
+
+          {leadAssignments.length ? (
+            <div className="surface-list">
+              {leadAssignments.map(({ agent, projects: ownedProjects }) => (
+                <button
+                  className={
+                    selectedAgentId === agent.id
+                      ? "org-lead-button active"
+                      : "org-lead-button"
+                  }
+                  key={agent.id}
+                  onClick={() => onSelectAgent(agent.id)}
+                  type="button"
+                >
+                  <div className="org-lead-button-head">
+                    <div className="org-lead-button-copy">
+                      <strong>{agent.name}</strong>
+                      <span>
+                        {agent.title ??
+                          humanizeIssueValue(String(agent.role ?? "agent"))}
+                      </span>
+                    </div>
+                    <span className="org-chip accent">
+                      {ownedProjects.length}{" "}
+                      {ownedProjects.length === 1 ? "project" : "projects"}
+                    </span>
+                  </div>
+                  <div className="org-lead-projects">
+                    {ownedProjects.slice(0, 3).map((project) => (
+                      <span className="org-project-chip" key={project.id}>
+                        {project.name}
+                      </span>
+                    ))}
+                    {ownedProjects.length > 3 ? (
+                      <span className="org-project-chip">
+                        +{ownedProjects.length - 3} more
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              No projects have a lead assigned yet.
+            </p>
+          )}
+
+          <section className="org-side-section">
+            <div className="surface-header">
+              <h3>Projects without a lead</h3>
+              <span>{projectsWithoutLead.length}</span>
+            </div>
+            {projectsWithoutLead.length ? (
+              <div className="org-project-gap-list">
+                {projectsWithoutLead.map((project) => (
+                  <div className="surface-list-row" key={project.id}>
+                    <div>
+                      <strong>{project.name}</strong>
+                      <span>{humanizeIssueValue(project.status)}</span>
+                    </div>
+                    <span>Assign lead</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="surface-empty-copy">
+                Every project currently has a lead.
+              </p>
+            )}
+          </section>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function OrgTreeNodeCard({
+  agentMap,
+  ceoAgentId,
+  node,
+  onSelectAgent,
+  selectedAgentId,
+}: {
+  agentMap: Map<string, AgentRecord>;
+  ceoAgentId: string | null;
+  node: OrgHierarchyNode;
+  onSelectAgent: (agentId: string) => void;
+  selectedAgentId: string | null;
+}) {
+  const isRoot = isOrgRootAgent(node.agent, agentMap, ceoAgentId);
+  const managerName = isRoot
+    ? "Company root"
+    : agentMap.get(node.agent.reports_to ?? "")?.name ?? "Unknown manager";
+  const statusLabel = humanizeIssueValue(String(node.agent.status ?? "active"));
+  const capabilityPreview = summarizeOrgText(node.agent.capabilities, 180);
+
+  return (
+    <div className="org-tree-node">
+      <button
+        className={
+          selectedAgentId === node.agent.id
+            ? "org-tree-card active"
+            : "org-tree-card"
+        }
+        onClick={() => onSelectAgent(node.agent.id)}
+        type="button"
+      >
+        <div className="org-tree-card-head">
+          <div className="org-tree-card-heading">
+            <span
+              className={`org-status-dot ${normalizeAgentStatusTone(
+                node.agent.status
+              )}`}
+            />
+            <div className="org-tree-card-heading-copy">
+              <strong>{node.agent.name}</strong>
+              <span>
+                {node.agent.title ??
+                  humanizeIssueValue(String(node.agent.role ?? "agent"))}
+              </span>
+            </div>
+          </div>
+
+          <div className="org-tree-card-badges">
+            {isRoot ? <span className="org-chip accent">CEO</span> : null}
+            {node.leadProjects.length ? (
+              <span className="org-chip">
+                Leads {node.leadProjects.length}
+              </span>
+            ) : null}
+            {node.reports.length ? (
+              <span className="org-chip">{node.reports.length} reports</span>
+            ) : null}
+            <span
+              className={`agent-run-status-badge ${normalizeAgentStatusTone(
+                node.agent.status
+              )}`}
+            >
+              {statusLabel.toLowerCase()}
+            </span>
+          </div>
+        </div>
+
+        <div className="org-tree-card-meta">
+          <span>{isRoot ? "Company root" : `Reports to ${managerName}`}</span>
+          <span>
+            {node.totalReports} total{" "}
+            {node.totalReports === 1 ? "report" : "reports"}
+          </span>
+          <span>{agentAdapterTypeLabel(node.agent.adapter_type)}</span>
+        </div>
+
+        {capabilityPreview ? (
+          <p className="org-tree-card-copy">{capabilityPreview}</p>
+        ) : null}
+
+        {node.leadProjects.length ? (
+          <div className="org-tree-projects">
+            {node.leadProjects.slice(0, 3).map((project) => (
+              <span className="org-project-chip" key={project.id}>
+                {project.name}
+              </span>
+            ))}
+            {node.leadProjects.length > 3 ? (
+              <span className="org-project-chip">
+                +{node.leadProjects.length - 3} more
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </button>
+
+      {node.reports.length ? (
+        <div className="org-tree-children">
+          {node.reports.map((childNode) => (
+            <OrgTreeNodeCard
+              agentMap={agentMap}
+              ceoAgentId={ceoAgentId}
+              key={childNode.agent.id}
+              node={childNode}
+              onSelectAgent={onSelectAgent}
+              selectedAgentId={selectedAgentId}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -9780,6 +10093,27 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
           />
         </svg>
       );
+    case "org":
+      return (
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M8 2.5a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 0 1 0-3.5ZM3.75 10.25a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3ZM12.25 10.25a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3Z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M8 6v2.25M4 10.25V9h8v1.25"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
     case "workspaces":
       return (
         <svg
@@ -9952,6 +10286,8 @@ function screenLabel(screen: AppScreen) {
   switch (screen) {
     case "dashboard":
       return "Dashboard";
+    case "org":
+      return "Org";
     case "stats":
       return "Stats";
     case "inbox":
@@ -9991,6 +10327,10 @@ function boardRootLayout(screen: AppScreen): BoardRootLayout {
 }
 
 function preferredViewForScreen(screen: AppScreen) {
+  if (screen === "org") {
+    return "org";
+  }
+
   if (screen === "workspaces") {
     return "workspaces";
   }
@@ -10023,6 +10363,10 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
     return "appSettings";
   }
 
+  if (view === "org") {
+    return "org";
+  }
+
   if (view === "activity") {
     return "activity";
   }
@@ -10049,6 +10393,10 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
 function preferredViewSelectValue(view: string | null | undefined) {
   if (view === "settings") {
     return "settings";
+  }
+
+  if (view === "org") {
+    return "org";
   }
 
   if (view === "activity") {
@@ -11285,6 +11633,212 @@ function orderSidebarAgents<T extends { id: string; role?: string | null }>(
   }
 
   return agents;
+}
+
+function buildOrgHierarchy(
+  agents: AgentRecord[],
+  projects: ProjectRecord[],
+  ceoAgentId: string | null
+): OrgHierarchyNode[] {
+  const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+  const childrenByManagerId = new Map<string, AgentRecord[]>();
+  const leadProjectsByAgentId = new Map<string, ProjectRecord[]>();
+  const roots: AgentRecord[] = [];
+
+  for (const project of projects) {
+    if (!project.lead_agent_id) {
+      continue;
+    }
+    const existing = leadProjectsByAgentId.get(project.lead_agent_id) ?? [];
+    existing.push(project);
+    leadProjectsByAgentId.set(project.lead_agent_id, existing);
+  }
+
+  for (const agent of agents) {
+    const managerId =
+      typeof agent.reports_to === "string" && agent.reports_to.trim().length > 0
+        ? agent.reports_to
+        : null;
+
+    if (
+      isOrgRootAgent(agent, agentMap, ceoAgentId) ||
+      !managerId ||
+      !agentMap.has(managerId)
+    ) {
+      roots.push(agent);
+      continue;
+    }
+
+    const existing = childrenByManagerId.get(managerId) ?? [];
+    existing.push(agent);
+    childrenByManagerId.set(managerId, existing);
+  }
+
+  const buildNode = (
+    agent: AgentRecord,
+    lineage: Set<string>
+  ): OrgHierarchyNode => {
+    if (lineage.has(agent.id)) {
+      return {
+        agent,
+        leadProjects: sortProjectsForOrg(
+          leadProjectsByAgentId.get(agent.id) ?? []
+        ),
+        reports: [],
+        totalReports: 0,
+      };
+    }
+
+    const nextLineage = new Set(lineage);
+    nextLineage.add(agent.id);
+    const reports = sortAgentsForOrg(
+      childrenByManagerId.get(agent.id) ?? [],
+      ceoAgentId
+    ).map((child) => buildNode(child, nextLineage));
+
+    return {
+      agent,
+      leadProjects: sortProjectsForOrg(
+        leadProjectsByAgentId.get(agent.id) ?? []
+      ),
+      reports,
+      totalReports: reports.reduce(
+        (count, child) => count + 1 + child.totalReports,
+        0
+      ),
+    };
+  };
+
+  return sortAgentsForOrg(roots, ceoAgentId).map((agent) =>
+    buildNode(agent, new Set<string>())
+  );
+}
+
+function flattenOrgHierarchy(nodes: OrgHierarchyNode[]): OrgHierarchyNode[] {
+  const flattened: OrgHierarchyNode[] = [];
+  for (const node of nodes) {
+    flattened.push(node);
+    flattened.push(...flattenOrgHierarchy(node.reports));
+  }
+  return flattened;
+}
+
+function buildProjectLeadAssignments(
+  agents: AgentRecord[],
+  projects: ProjectRecord[]
+) {
+  const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+  const assignments = new Map<string, ProjectRecord[]>();
+
+  for (const project of projects) {
+    if (!project.lead_agent_id || !agentMap.has(project.lead_agent_id)) {
+      continue;
+    }
+
+    const existing = assignments.get(project.lead_agent_id) ?? [];
+    existing.push(project);
+    assignments.set(project.lead_agent_id, existing);
+  }
+
+  return Array.from(assignments.entries())
+    .map(([agentId, ownedProjects]) => ({
+      agent: agentMap.get(agentId)!,
+      projects: sortProjectsForOrg(ownedProjects),
+    }))
+    .sort((left, right) => {
+      if (right.projects.length !== left.projects.length) {
+        return right.projects.length - left.projects.length;
+      }
+
+      return compareAgentRecordsForOrg(left.agent, right.agent, null);
+    });
+}
+
+function sortAgentsForOrg(
+  agents: AgentRecord[],
+  ceoAgentId: string | null
+) {
+  return [...agents].sort((left, right) =>
+    compareAgentRecordsForOrg(left, right, ceoAgentId)
+  );
+}
+
+function compareAgentRecordsForOrg(
+  left: AgentRecord,
+  right: AgentRecord,
+  ceoAgentId: string | null
+) {
+  const leftIsCeo = isCeoAgent(left, ceoAgentId);
+  const rightIsCeo = isCeoAgent(right, ceoAgentId);
+  if (leftIsCeo !== rightIsCeo) {
+    return leftIsCeo ? -1 : 1;
+  }
+
+  const leftLabel = (
+    left.name ||
+    left.title ||
+    left.role ||
+    left.id
+  ).toLowerCase();
+  const rightLabel = (
+    right.name ||
+    right.title ||
+    right.role ||
+    right.id
+  ).toLowerCase();
+
+  return leftLabel.localeCompare(rightLabel);
+}
+
+function sortProjectsForOrg(projects: ProjectRecord[]) {
+  return [...projects].sort((left, right) =>
+    (left.name || left.title || left.id).localeCompare(
+      right.name || right.title || right.id
+    )
+  );
+}
+
+function isCeoAgent(
+  agent: Pick<AgentRecord, "id" | "role">,
+  ceoAgentId: string | null
+) {
+  if (ceoAgentId) {
+    return agent.id === ceoAgentId;
+  }
+
+  return agent.role?.toLowerCase() === "ceo";
+}
+
+function isOrgRootAgent(
+  agent: AgentRecord,
+  agentMap: Map<string, AgentRecord>,
+  ceoAgentId: string | null
+) {
+  if (isCeoAgent(agent, ceoAgentId)) {
+    return true;
+  }
+
+  if (!agent.reports_to || !agentMap.has(agent.reports_to)) {
+    return true;
+  }
+
+  return agent.reports_to === agent.id;
+}
+
+function summarizeOrgText(
+  value: string | null | undefined,
+  maxLength = 160
+) {
+  const normalized = value?.split(/\s+/).filter(Boolean).join(" ").trim() ?? "";
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 3)}...`;
 }
 
 function gitStatusBadge(status: string | null | undefined) {
