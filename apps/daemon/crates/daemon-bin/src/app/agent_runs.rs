@@ -1792,8 +1792,11 @@ impl AgentRunCoordinator {
             let issue = service::get_issue(&self.db, issue_id)
                 .await?
                 .ok_or_else(|| BoardError::NotFound("Issue not found for run".to_string()))?;
+            let attachments =
+                service::list_issue_attachments(&self.db, self.paths.as_ref(), issue_id).await?;
+            let attachment_summary = format_issue_attachment_summary(&attachments);
             format!(
-                "Issue: {}\nTitle: {}\nStatus: {}\nPriority: {}\nDescription: {}\n",
+                "Issue: {}\nTitle: {}\nStatus: {}\nPriority: {}\nDescription: {}\n{}\n",
                 issue.identifier.unwrap_or(issue.id),
                 issue.title,
                 issue.status,
@@ -1801,6 +1804,7 @@ impl AgentRunCoordinator {
                 issue
                     .description
                     .unwrap_or_else(|| "No description.".to_string()),
+                attachment_summary,
             )
         } else {
             "This run is not linked to a specific issue.\n".to_string()
@@ -1953,6 +1957,29 @@ fn issue_id_from_value(payload: &Value) -> Option<String> {
         .get("issue_id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
+}
+
+fn format_issue_attachment_summary(attachments: &[daemon_board::IssueAttachment]) -> String {
+    if attachments.is_empty() {
+        return "Attachments: None.".to_string();
+    }
+
+    let mut summary = String::from("Attachments:");
+    for attachment in attachments {
+        let name = attachment
+            .original_filename
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(attachment.object_key.as_str());
+        summary.push_str(&format!(
+            "\n- {name} | {content_type} | {byte_size} bytes | Local path: {local_path}",
+            content_type = attachment.content_type,
+            byte_size = attachment.byte_size,
+            local_path = attachment.local_path,
+        ));
+    }
+
+    summary
 }
 
 fn build_idempotency_key(

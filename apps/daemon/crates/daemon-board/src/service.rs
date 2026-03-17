@@ -1,9 +1,9 @@
 use crate::error::{BoardError, BoardResult};
 use crate::models::{
-    AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval, ApprovalDecisionInput, Company,
-    CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
-    CreateProjectInput, Goal, Issue, IssueComment, IssueListFilter, Project, ProjectWorkspace,
-    UpdateAgentInput, UpdateIssueInput, Workspace,
+    AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval,
+    ApprovalDecisionInput, Company, CreateAgentHireInput, CreateAgentInput, CreateCompanyInput,
+    CreateIssueInput, CreateProjectInput, Goal, Issue, IssueAttachment, IssueComment,
+    IssueListFilter, Project, ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, Workspace,
 };
 use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionWriter};
 use chrono::Utc;
@@ -11,9 +11,10 @@ use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, DatabaseError, DatabaseResult, NewRepository};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 const LOCAL_BOARD_USER_ID: &str = "local-board";
@@ -1393,6 +1394,36 @@ pub async fn list_issue_comments(
         .await?)
 }
 
+pub async fn list_issue_attachments(
+    db: &AsyncDatabase,
+    paths: &Paths,
+    issue_id: &str,
+) -> BoardResult<Vec<IssueAttachment>> {
+    let issue_id = issue_id.to_string();
+    let paths = paths.clone();
+    Ok(db
+        .call_with_operation("board.issue.attachment.list", move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT
+                    ia.id, ia.company_id, ia.issue_id, ia.asset_id, ia.issue_comment_id,
+                    a.provider, a.object_key, a.content_type, a.byte_size, a.sha256,
+                    a.original_filename, a.created_by_agent_id, a.created_by_user_id,
+                    ia.created_at, ia.updated_at
+                 FROM issue_attachments ia
+                 JOIN assets a ON a.id = ia.asset_id
+                 WHERE ia.issue_id = ?1
+                 ORDER BY ia.created_at ASC",
+            )?;
+            let attachments = stmt
+                .query_map(params![issue_id], |row| {
+                    row_to_issue_attachment(row, &paths)
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(attachments)
+        })
+        .await?)
+}
+
 pub async fn add_issue_comment(
     db: &AsyncDatabase,
     input: AddIssueCommentInput,
@@ -1468,6 +1499,183 @@ pub async fn add_issue_comment(
             Ok(comment)
         })
         .await?)
+}
+
+pub async fn add_issue_attachment(
+    db: &AsyncDatabase,
+    paths: &Paths,
+    input: AddIssueAttachmentInput,
+) -> BoardResult<IssueAttachment> {
+    let company_id = require_name(&input.company_id, "company_id")?;
+    let issue_id = require_name(&input.issue_id, "issue_id")?;
+    let local_file_path = require_name(&input.local_file_path, "local_file_path")?;
+    let issue_comment_id = normalize_optional_string(input.issue_comment_id);
+    let created_by_agent_id = normalize_optional_string(input.created_by_agent_id);
+    let created_by_user_id = normalize_optional_string(input.created_by_user_id)
+        .or_else(|| Some(LOCAL_BOARD_USER_ID.to_string()));
+    let now = now_rfc3339();
+
+    let source_path = PathBuf::from(&local_file_path);
+    if !source_path.is_file() {
+        return Err(BoardError::InvalidInput(format!(
+            "Attachment file does not exist: {local_file_path}"
+        )));
+    }
+
+    let attachment_bytes = fs::read(&source_path)?;
+    let byte_size = attachment_bytes.len() as i64;
+    let sha256 = format!("{:x}", Sha256::digest(&attachment_bytes));
+    let original_filename = source_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(ToOwned::to_owned)
+        .filter(|value| !value.is_empty());
+    let attachment_id = Uuid::new_v4().to_string();
+    let asset_id = Uuid::new_v4().to_string();
+    let object_key = format!(
+        "{issue_id}/{attachment_id}-{}",
+        sanitize_attachment_filename(original_filename.as_deref().unwrap_or("attachment"))
+    );
+    let target_path = paths.company_attachment_file(&company_id, &object_key);
+    let content_type = guess_content_type(
+        original_filename
+            .as_deref()
+            .or_else(|| source_path.extension().and_then(|value| value.to_str())),
+    );
+
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::create_dir_all(paths.company_assets_dir(&company_id))?;
+    fs::write(&target_path, &attachment_bytes)?;
+
+    let persisted = db
+        .call_with_operation("board.issue.attachment.add", {
+            let company_id = company_id.clone();
+            let issue_id = issue_id.clone();
+            let issue_comment_id = issue_comment_id.clone();
+            let created_by_agent_id = created_by_agent_id.clone();
+            let created_by_user_id = created_by_user_id.clone();
+            let object_key = object_key.clone();
+            let content_type = content_type.clone();
+            let sha256 = sha256.clone();
+            let original_filename = original_filename.clone();
+            let attachment_id = attachment_id.clone();
+            let asset_id = asset_id.clone();
+            let now = now.clone();
+            let paths = paths.clone();
+            move |conn| {
+                let tx = conn.unchecked_transaction()?;
+                ensure_issue_exists_sync(&tx, &company_id, &issue_id)?;
+
+                if let Some(comment_id) = issue_comment_id.as_deref() {
+                    let valid_comment = tx
+                        .query_row(
+                            "SELECT 1
+                             FROM issue_comments
+                             WHERE id = ?1 AND company_id = ?2 AND issue_id = ?3",
+                            params![comment_id, company_id, issue_id],
+                            |row| row.get::<_, i64>(0),
+                        )
+                        .optional()?;
+                    if valid_comment.is_none() {
+                        return Err(DatabaseError::InvalidData(
+                            "issue_comment_id must belong to the same issue".to_string(),
+                        ));
+                    }
+                }
+
+                if let Some(agent_id) = created_by_agent_id.as_deref() {
+                    validate_company_agent_sync(&tx, &company_id, agent_id, "created_by_agent_id")?;
+                }
+
+                tx.execute(
+                    "INSERT INTO assets (
+                        id, company_id, provider, object_key, content_type, byte_size, sha256,
+                        original_filename, created_by_agent_id, created_by_user_id, created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
+                    params![
+                        asset_id,
+                        company_id,
+                        "local_file",
+                        object_key,
+                        content_type,
+                        byte_size,
+                        sha256,
+                        original_filename,
+                        created_by_agent_id,
+                        created_by_user_id,
+                        now,
+                    ],
+                )?;
+
+                tx.execute(
+                    "INSERT INTO issue_attachments (
+                        id, company_id, issue_id, asset_id, issue_comment_id, created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+                    params![
+                        attachment_id,
+                        company_id,
+                        issue_id,
+                        asset_id,
+                        issue_comment_id,
+                        now,
+                    ],
+                )?;
+
+                insert_activity_sync(
+                    &tx,
+                    &company_id,
+                    if created_by_agent_id.is_some() { "agent" } else { "user" },
+                    created_by_agent_id
+                        .as_deref()
+                        .or(created_by_user_id.as_deref())
+                        .unwrap_or(LOCAL_BOARD_USER_ID),
+                    "issue.attachment_added",
+                    "issue_attachment",
+                    &attachment_id,
+                    created_by_agent_id.as_deref(),
+                    Some(json!({
+                        "issue_id": issue_id,
+                        "asset_id": asset_id,
+                        "original_filename": original_filename,
+                        "content_type": content_type,
+                        "byte_size": byte_size,
+                    })),
+                    &now,
+                )?;
+
+                let attachment = tx
+                    .query_row(
+                        "SELECT
+                            ia.id, ia.company_id, ia.issue_id, ia.asset_id, ia.issue_comment_id,
+                            a.provider, a.object_key, a.content_type, a.byte_size, a.sha256,
+                            a.original_filename, a.created_by_agent_id, a.created_by_user_id,
+                            ia.created_at, ia.updated_at
+                         FROM issue_attachments ia
+                         JOIN assets a ON a.id = ia.asset_id
+                         WHERE ia.id = ?1",
+                        params![attachment_id],
+                        |row| row_to_issue_attachment(row, &paths),
+                    )
+                    .optional()?
+                    .ok_or_else(|| {
+                        DatabaseError::NotFound("Attachment missing after insert".to_string())
+                    })?;
+
+                tx.commit()?;
+                Ok(attachment)
+            }
+        })
+        .await;
+
+    match persisted {
+        Ok(attachment) => Ok(attachment),
+        Err(error) => {
+            let _ = fs::remove_file(&target_path);
+            Err(error.into())
+        }
+    }
 }
 
 pub async fn list_approvals(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Approval>> {
@@ -2396,6 +2604,34 @@ fn row_to_issue_comment(row: &Row<'_>) -> rusqlite::Result<IssueComment> {
     })
 }
 
+fn row_to_issue_attachment(row: &Row<'_>, paths: &Paths) -> rusqlite::Result<IssueAttachment> {
+    let company_id: String = row.get(1)?;
+    let object_key: String = row.get(6)?;
+    let local_path = paths
+        .company_attachment_file(&company_id, &object_key)
+        .to_string_lossy()
+        .to_string();
+
+    Ok(IssueAttachment {
+        id: row.get(0)?,
+        company_id,
+        issue_id: row.get(2)?,
+        asset_id: row.get(3)?,
+        issue_comment_id: row.get(4)?,
+        provider: row.get(5)?,
+        object_key,
+        content_type: row.get(7)?,
+        byte_size: row.get(8)?,
+        sha256: row.get(9)?,
+        original_filename: row.get(10)?,
+        created_by_agent_id: row.get(11)?,
+        created_by_user_id: row.get(12)?,
+        local_path,
+        created_at: row.get(13)?,
+        updated_at: row.get(14)?,
+    })
+}
+
 fn row_to_approval(row: &Row<'_>) -> rusqlite::Result<Approval> {
     Ok(Approval {
         id: row.get(0)?,
@@ -2939,6 +3175,24 @@ fn validate_company_agent_sync(
     Ok(())
 }
 
+fn ensure_issue_exists_sync(
+    conn: &Connection,
+    company_id: &str,
+    issue_id: &str,
+) -> DatabaseResult<()> {
+    let exists = conn
+        .query_row(
+            "SELECT 1 FROM issues WHERE id = ?1 AND company_id = ?2",
+            params![issue_id, company_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?;
+    if exists.is_none() {
+        return Err(DatabaseError::NotFound("Issue not found".to_string()));
+    }
+    Ok(())
+}
+
 fn validate_assignable_agent_sync(
     conn: &Connection,
     company_id: &str,
@@ -2983,6 +3237,57 @@ fn validate_issue_ids_for_company_sync(
         }
     }
     Ok(())
+}
+
+fn sanitize_attachment_filename(value: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    let trimmed = sanitized.trim();
+    if trimmed.is_empty() {
+        "attachment".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn guess_content_type(file_name_or_extension: Option<&str>) -> String {
+    let extension = file_name_or_extension
+        .and_then(|value| {
+            Path::new(value)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .or(Some(value))
+        })
+        .unwrap_or("")
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+
+    match extension.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "txt" | "md" | "log" => "text/plain",
+        "json" => "application/json",
+        "csv" => "text/csv",
+        "zip" => "application/zip",
+        "tar" => "application/x-tar",
+        "gz" => "application/gzip",
+        "patch" | "diff" => "text/x-diff",
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "swift" | "java" | "kt" | "sql"
+        | "toml" | "yaml" | "yml" => "text/plain",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }
 
 fn activity_actor<'a>(
@@ -4169,6 +4474,71 @@ mod tests {
         .unwrap();
 
         assert_eq!(comment.target_agent_id.as_deref(), Some(agent.id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn add_issue_attachment_copies_file_and_lists_it() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Attachments".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let source_path = dir.path().join("source-brief.txt");
+        fs::write(&source_path, "attachment payload").unwrap();
+
+        let attachment = add_issue_attachment(
+            &db,
+            &paths,
+            AddIssueAttachmentInput {
+                company_id: company.id.clone(),
+                issue_id: issue.id.clone(),
+                local_file_path: source_path.to_string_lossy().to_string(),
+                ..AddIssueAttachmentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(attachment.issue_id, issue.id);
+        assert_eq!(
+            attachment.original_filename.as_deref(),
+            Some("source-brief.txt")
+        );
+        assert!(attachment.local_path.contains("/attachments/"));
+        assert_eq!(
+            fs::read_to_string(&attachment.local_path).unwrap(),
+            "attachment payload"
+        );
+
+        let listed = list_issue_attachments(&db, &paths, &issue.id)
+            .await
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, attachment.id);
+        assert_eq!(listed[0].local_path, attachment.local_path);
     }
 
     #[tokio::test]

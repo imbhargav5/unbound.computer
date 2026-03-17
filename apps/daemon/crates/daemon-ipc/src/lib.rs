@@ -10,7 +10,7 @@ mod server;
 
 pub use error::{IpcError, IpcResult};
 pub use ipc_protocol_types::{
-    error_codes, DaemonVersionInfo, DesktopCompatibilityRange, Event, EventType,
-    IPC_PROTOCOL_VERSION, Method, Request, Response, TraceContext,
+    error_codes, DaemonVersionInfo, DesktopCompatibilityRange, Event, EventType, Method, Request,
+    Response, TraceContext, IPC_PROTOCOL_VERSION,
 };
 pub use server::{IpcClient, IpcServer, StreamingSubscription, SubscriptionManager};

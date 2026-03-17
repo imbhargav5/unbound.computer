@@ -17,6 +17,7 @@ import type {
   GitLogResult,
   GitStatusResult,
   GitWorktreeRecord,
+  IssueAttachmentRecord,
   IssueCommentRecord,
   IssueRecord,
   ProjectRecord,
@@ -82,6 +83,16 @@ export const boardUpdateIssue = (params: Record<string, unknown>) =>
 export const boardListIssueComments = (issueId: string) =>
   invokeCommand<IssueCommentRecord[]>("board_list_issue_comments", {
     issueId,
+  });
+
+export const boardListIssueAttachments = (issueId: string) =>
+  invokeCommand<IssueAttachmentRecord[]>("board_list_issue_attachments", {
+    issueId,
+  });
+
+export const boardAddIssueAttachment = (params: Record<string, unknown>) =>
+  invokeCommand<IssueAttachmentRecord>("board_add_issue_attachment", {
+    params,
   });
 
 export const boardListIssueRuns = (issueId: string, limit?: number) =>

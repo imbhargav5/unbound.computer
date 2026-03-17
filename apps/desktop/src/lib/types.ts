@@ -235,6 +235,26 @@ export interface IssueCommentRecord {
   [key: string]: unknown;
 }
 
+export interface IssueAttachmentRecord {
+  id: string;
+  company_id: string;
+  issue_id: string;
+  asset_id: string;
+  issue_comment_id?: string | null;
+  provider: string;
+  object_key: string;
+  content_type: string;
+  byte_size: number;
+  sha256: string;
+  original_filename?: string | null;
+  created_by_agent_id?: string | null;
+  created_by_user_id?: string | null;
+  local_path: string;
+  created_at: string;
+  updated_at: string;
+  [key: string]: unknown;
+}
+
 export interface ApprovalRecord {
   id: string;
   company_id?: string | null;

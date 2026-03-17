@@ -17,6 +17,7 @@ import {
 } from "react";
 import {
   boardAddIssueComment,
+  boardAddIssueAttachment,
   boardCancelAgentRun,
   boardApproveApproval,
   boardCheckoutIssue,
@@ -27,6 +28,7 @@ import {
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
+  boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
   boardListCompanies,
@@ -89,6 +91,7 @@ import type {
   GitStatusFile,
   GitStatusResult,
   GitWorktreeRecord,
+  IssueAttachmentRecord,
   GoalRecord,
   IssueCommentRecord,
   IssueRecord,
@@ -207,6 +210,11 @@ interface ProjectWorktreeState {
   worktrees: GitWorktreeRecord[];
   isLoading: boolean;
   errorMessage: string | null;
+}
+
+interface IssueAttachmentDraft {
+  path: string;
+  name: string;
 }
 
 interface AgentConfigEnvVarDraft {
@@ -582,6 +590,9 @@ export function App() {
   const [issueCommentsByIssueId, setIssueCommentsByIssueId] = useState<
     Record<string, IssueCommentRecord[]>
   >({});
+  const [issueAttachmentsByIssueId, setIssueAttachmentsByIssueId] = useState<
+    Record<string, IssueAttachmentRecord[]>
+  >({});
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null
@@ -652,6 +663,9 @@ export function App() {
   ] = useState("");
   const [issueDialogError, setIssueDialogError] = useState<string | null>(null);
   const [isIssueDialogSaving, setIsIssueDialogSaving] = useState(false);
+  const [issueDialogAttachments, setIssueDialogAttachments] = useState<
+    IssueAttachmentDraft[]
+  >([]);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
   const [newIssueCommentTargetAgentId, setNewIssueCommentTargetAgentId] =
     useState("");
@@ -742,6 +756,9 @@ export function App() {
   );
   const selectedIssueComments = selectedIssue
     ? (issueCommentsByIssueId[selectedIssue.id] ?? [])
+    : [];
+  const selectedIssueAttachments = selectedIssue
+    ? (issueAttachmentsByIssueId[selectedIssue.id] ?? [])
     : [];
   const boardGoals = companySnapshot?.goals ?? [];
   const selectedGoal =
@@ -1342,6 +1359,13 @@ export function App() {
         )
       )
     );
+    setIssueAttachmentsByIssueId((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([issueId]) =>
+          nextIssues.some((issue) => issue.id === issueId)
+        )
+      )
+    );
   }, [companySnapshot]);
 
   useEffect(() => {
@@ -1363,9 +1387,10 @@ export function App() {
 
     const loadIssueDetailState = async () => {
       try {
-        const [freshIssue, comments] = await Promise.all([
+        const [freshIssue, comments, attachments] = await Promise.all([
           boardGetIssue(selectedIssue.id),
           boardListIssueComments(selectedIssue.id),
+          boardListIssueAttachments(selectedIssue.id),
         ]);
 
         if (cancelled) {
@@ -1389,6 +1414,10 @@ export function App() {
         setIssueCommentsByIssueId((current) => ({
           ...current,
           [selectedIssue.id]: comments as IssueCommentRecord[],
+        }));
+        setIssueAttachmentsByIssueId((current) => ({
+          ...current,
+          [selectedIssue.id]: attachments as IssueAttachmentRecord[],
         }));
         setNewIssueCommentTargetAgentId(detailIssue.assignee_agent_id ?? "");
         setIsEditingIssue(false);
@@ -2411,6 +2440,7 @@ export function App() {
     setIssueDialogWorkspaceWorktreePath("");
     setIssueDialogWorkspaceWorktreeBranch("");
     setIssueDialogWorkspaceWorktreeName("");
+    setIssueDialogAttachments([]);
     setIssueDialogError(null);
     setIsIssueDialogSaving(false);
   };
@@ -2458,6 +2488,34 @@ export function App() {
     resetIssueDialog();
   };
 
+  const handleAddIssueDialogAttachment = async () => {
+    setIssueDialogError(null);
+    try {
+      const path = await desktopPickFile();
+      if (!path) {
+        return;
+      }
+
+      setIssueDialogAttachments((current) => {
+        if (current.some((attachment) => attachment.path === path)) {
+          return current;
+        }
+
+        return [...current, { path, name: fileName(path) }];
+      });
+    } catch (error) {
+      setIssueDialogError(
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  };
+
+  const handleRemoveIssueDialogAttachment = (path: string) => {
+    setIssueDialogAttachments((current) =>
+      current.filter((attachment) => attachment.path !== path)
+    );
+  };
+
   const handleCreateIssueFromDialog = async () => {
     if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
       return;
@@ -2498,8 +2556,46 @@ export function App() {
       }
 
       const createdIssue = await boardCreateIssue(params);
+      let uploadedAttachments: IssueAttachmentRecord[] = [];
+      let attachmentUploadMessage: string | null = null;
+
+      if (issueDialogAttachments.length > 0) {
+        const uploadResults = await Promise.allSettled(
+          issueDialogAttachments.map((attachment) =>
+            boardAddIssueAttachment({
+              company_id: createdIssue.company_id,
+              issue_id: createdIssue.id,
+              local_file_path: attachment.path,
+            })
+          )
+        );
+
+        uploadedAttachments = uploadResults.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : []
+        );
+
+        const failedUploads = uploadResults.filter(
+          (result) => result.status === "rejected"
+        );
+        if (failedUploads.length > 0) {
+          const firstFailure = failedUploads[0];
+          attachmentUploadMessage =
+            firstFailure.status === "rejected"
+              ? firstFailure.reason instanceof Error
+                ? firstFailure.reason.message
+                : String(firstFailure.reason)
+              : null;
+        }
+      }
+
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
+      if (uploadedAttachments.length > 0) {
+        setIssueAttachmentsByIssueId((current) => ({
+          ...current,
+          [createdIssue.id]: uploadedAttachments,
+        }));
+      }
       setSelectedIssueId(createdIssue.id);
       setIssueDraft(createIssueDraft(createdIssue));
       setIssuesRouteMode("detail");
@@ -2509,6 +2605,11 @@ export function App() {
         preferred_view: preferredViewForScreen("issues"),
       });
       handleCloseCreateIssueDialog();
+      if (attachmentUploadMessage) {
+        setStatusMessage(
+          `${createdIssue.identifier ?? createdIssue.title} created, but one or more attachments failed to upload: ${attachmentUploadMessage}`
+        );
+      }
     } catch (error) {
       setIssueDialogError(
         error instanceof Error ? error.message : String(error)
@@ -2800,6 +2901,46 @@ export function App() {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setIsWorking(false);
+    }
+  };
+
+  const handleAddIssueAttachment = async (issue: IssueRecord) => {
+    setStatusMessage(null);
+
+    try {
+      const path = await desktopPickFile();
+      if (!path) {
+        return;
+      }
+
+      setIsWorking(true);
+      const attachment = await boardAddIssueAttachment({
+        company_id: issue.company_id,
+        issue_id: issue.id,
+        local_file_path: path,
+      });
+      const attachments = await boardListIssueAttachments(issue.id);
+      setIssueAttachmentsByIssueId((current) => ({
+        ...current,
+        [issue.id]: attachments as IssueAttachmentRecord[],
+      }));
+      setStatusMessage(
+        `${attachment.original_filename ?? fileName(path)} attached to ${issue.identifier ?? issue.title}.`
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleRevealIssueAttachment = async (
+    attachment: IssueAttachmentRecord
+  ) => {
+    try {
+      await desktopRevealInFinder(attachment.local_path);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -3571,6 +3712,7 @@ export function App() {
                       assigneeAgentId
                     )
                   }
+                  attachments={selectedIssueAttachments}
                   availablePriorityOptions={issuePriorityOptions}
                   availableStatusOptions={issueStatusOptions}
                   canStartWorkspace={
@@ -3589,6 +3731,9 @@ export function App() {
                   newCommentBody={newIssueCommentBody}
                   newCommentTargetAgentId={newIssueCommentTargetAgentId}
                   onAddComment={() => void handleAddIssueComment(selectedIssue)}
+                  onAddAttachment={() =>
+                    void handleAddIssueAttachment(selectedIssue)
+                  }
                   onBack={() => handleShowIssuesList()}
                   onBeginEditing={() => beginEditingIssue(selectedIssue)}
                   onCancelEditing={() => discardIssueEdits(selectedIssue)}
@@ -3609,6 +3754,9 @@ export function App() {
                   onOpenRunDetail={handleOpenIssueLinkedRun}
                   onNewCommentBodyChange={setNewIssueCommentBody}
                   onCommentTargetAgentChange={setNewIssueCommentTargetAgentId}
+                  onRevealAttachment={(attachment) =>
+                    void handleRevealIssueAttachment(attachment)
+                  }
                   onParentIssueSelect={(parentIssueId) =>
                     setIssueDraft((current) => ({
                       ...current,
@@ -4560,14 +4708,17 @@ export function App() {
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
           onAssigneeChange={setIssueDialogAssigneeAgentId}
+          onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
           onCreate={() => void handleCreateIssueFromDialog()}
           onDescriptionChange={setIssueDialogDescription}
           onPriorityChange={setIssueDialogPriority}
           onProjectChange={handleIssueDialogProjectChange}
+          onRemoveAttachment={handleRemoveIssueDialogAttachment}
           onStatusChange={setIssueDialogStatus}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
+          attachments={issueDialogAttachments}
           priorities={mergeIssueOptions(
             ["low", "medium", "high", "urgent"],
             issueDialogPriority
@@ -6370,6 +6521,7 @@ function IssueDetailView({
   isSavingIssue,
   isWorking,
   canStartWorkspace,
+  attachments,
   availableStatusOptions,
   availablePriorityOptions,
   projects,
@@ -6391,6 +6543,8 @@ function IssueDetailView({
   onNewCommentBodyChange,
   onCommentTargetAgentChange,
   onAddComment,
+  onAddAttachment,
+  onRevealAttachment,
   projectLabel,
   assigneeLabel,
   parentIssueLabel,
@@ -6405,6 +6559,7 @@ function IssueDetailView({
   isSavingIssue: boolean;
   isWorking: boolean;
   canStartWorkspace: boolean;
+  attachments: IssueAttachmentRecord[];
   availableStatusOptions: string[];
   availablePriorityOptions: string[];
   projects: ProjectRecord[];
@@ -6431,6 +6586,8 @@ function IssueDetailView({
   onNewCommentBodyChange: (value: string) => void;
   onCommentTargetAgentChange: (value: string) => void;
   onAddComment: () => void;
+  onAddAttachment: () => void;
+  onRevealAttachment: (attachment: IssueAttachmentRecord) => void;
   projectLabel: (projectId?: string | null) => string;
   assigneeLabel: (assigneeAgentId?: string | null) => string;
   parentIssueLabel: (parentIssueId?: string | null) => string;
@@ -6826,75 +6983,141 @@ function IssueDetailView({
             <div className="issues-detail-tab-panel" role="tabpanel">
               {activeTab === "conversation" ? (
                 <>
-                  {comments.length ? (
-                    <div className="issues-comment-list">
-                      {comments.map((comment) => (
-                        <article
-                          className="issues-comment-card"
-                          key={comment.id}
-                        >
-                          {comment.target_agent_id ? (
-                            <div className="issues-comment-card-target">
-                              Tagged{" "}
-                              {issueAssigneeLabel(
-                                agents,
-                                comment.target_agent_id
-                              )}
-                            </div>
-                          ) : null}
-                          <p>{comment.body}</p>
-                          <span>{formatIssueDate(comment.created_at)}</span>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="issues-detail-copy muted">No comments yet.</p>
-                  )}
-
-                  <div className="issues-comment-composer">
-                    <div className="issues-comment-composer-target">
-                      <span className="issues-comment-composer-label">
-                        Tag agent
-                      </span>
-                      <div className="issue-dialog-select-shell">
-                        <select
-                          className="issue-dialog-select"
-                          onChange={(event) =>
-                            onCommentTargetAgentChange(event.target.value)
-                          }
-                          value={newCommentTargetAgentId}
-                        >
-                          <option value="">No tagged agent</option>
-                          {agents.map((agent) => (
-                            <option key={agent.id} value={agent.id}>
-                              {agent.name}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="issue-dialog-select-arrow">▼</span>
+                  <div className="issues-detail-subsection">
+                    <div className="issues-detail-subsection-header">
+                      <div className="issues-detail-subsection-copy">
+                        <h3>Attachments</h3>
+                        <p className="issues-detail-copy muted">
+                          Files live with the local board data and are included
+                          in new Claude runs for this issue.
+                        </p>
                       </div>
-                      <p className="issues-detail-copy muted">
-                        The tagged agent will pick up a new run in this
-                        issue&apos;s worktree.
-                      </p>
+                      <button
+                        className="secondary-button compact-button"
+                        disabled={isWorking}
+                        onClick={onAddAttachment}
+                        type="button"
+                      >
+                        {isWorking ? "Uploading..." : "Add attachment"}
+                      </button>
                     </div>
-                    <textarea
-                      onChange={(event) =>
-                        onNewCommentBodyChange(event.target.value)
-                      }
-                      placeholder="Add a comment"
-                      value={newCommentBody}
-                    />
-                    <button
-                      className="secondary-button"
-                      disabled={isWorking || !newCommentBody.trim()}
-                      onClick={onAddComment}
-                      type="button"
-                    >
-                      {newCommentTargetAgentId
-                        ? "Add Comment & Run"
-                        : "Add Comment"}
-                    </button>
+
+                    {attachments.length ? (
+                      <div className="issue-attachment-list">
+                        {attachments.map((attachment) => (
+                          <div
+                            className="issue-attachment-row"
+                            key={attachment.id}
+                          >
+                            <div className="issue-attachment-meta">
+                              <strong>
+                                {attachment.original_filename ??
+                                  fileName(attachment.local_path)}
+                              </strong>
+                              <span>
+                                {formatFileSize(attachment.byte_size)} ·{" "}
+                                {attachment.content_type} ·{" "}
+                                {formatIssueDate(attachment.created_at)}
+                              </span>
+                            </div>
+                            <div className="issue-attachment-actions">
+                              <button
+                                className="secondary-button compact-button"
+                                onClick={() => onRevealAttachment(attachment)}
+                                type="button"
+                              >
+                                Reveal
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="issues-detail-copy muted">
+                        No attachments yet.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="issues-detail-subsection">
+                    <div className="issues-detail-subsection-header">
+                      <div className="issues-detail-subsection-copy">
+                        <h3>Comments</h3>
+                      </div>
+                    </div>
+
+                    {comments.length ? (
+                      <div className="issues-comment-list">
+                        {comments.map((comment) => (
+                          <article
+                            className="issues-comment-card"
+                            key={comment.id}
+                          >
+                            {comment.target_agent_id ? (
+                              <div className="issues-comment-card-target">
+                                Tagged{" "}
+                                {issueAssigneeLabel(
+                                  agents,
+                                  comment.target_agent_id
+                                )}
+                              </div>
+                            ) : null}
+                            <p>{comment.body}</p>
+                            <span>{formatIssueDate(comment.created_at)}</span>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="issues-detail-copy muted">
+                        No comments yet.
+                      </p>
+                    )}
+
+                    <div className="issues-comment-composer">
+                      <div className="issues-comment-composer-target">
+                        <span className="issues-comment-composer-label">
+                          Tag agent
+                        </span>
+                        <div className="issue-dialog-select-shell">
+                          <select
+                            className="issue-dialog-select"
+                            onChange={(event) =>
+                              onCommentTargetAgentChange(event.target.value)
+                            }
+                            value={newCommentTargetAgentId}
+                          >
+                            <option value="">No tagged agent</option>
+                            {agents.map((agent) => (
+                              <option key={agent.id} value={agent.id}>
+                                {agent.name}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="issue-dialog-select-arrow">▼</span>
+                        </div>
+                        <p className="issues-detail-copy muted">
+                          The tagged agent will pick up a new run in this
+                          issue&apos;s worktree.
+                        </p>
+                      </div>
+                      <textarea
+                        onChange={(event) =>
+                          onNewCommentBodyChange(event.target.value)
+                        }
+                        placeholder="Add a comment"
+                        value={newCommentBody}
+                      />
+                      <button
+                        className="secondary-button"
+                        disabled={isWorking || !newCommentBody.trim()}
+                        onClick={onAddComment}
+                        type="button"
+                      >
+                        {newCommentTargetAgentId
+                          ? "Add Comment & Run"
+                          : "Add Comment"}
+                      </button>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -8654,6 +8877,7 @@ function CreateIssueDialogView({
   companyPrefix,
   title,
   description,
+  attachments,
   selectedPriority,
   selectedProjectId,
   selectedStatus,
@@ -8664,11 +8888,13 @@ function CreateIssueDialogView({
   agents,
   isSaving,
   errorMessage,
+  onAddAttachment,
   onTitleChange,
   onDescriptionChange,
   onPriorityChange,
   onStatusChange,
   onProjectChange,
+  onRemoveAttachment,
   onWorkspaceTargetChange,
   onAssigneeChange,
   onCreate,
@@ -8681,6 +8907,7 @@ function CreateIssueDialogView({
   companyPrefix: string;
   title: string;
   description: string;
+  attachments: IssueAttachmentDraft[];
   selectedPriority: string;
   selectedProjectId: string;
   selectedStatus: string;
@@ -8691,11 +8918,13 @@ function CreateIssueDialogView({
   agents: AgentRecord[];
   isSaving: boolean;
   errorMessage: string | null;
+  onAddAttachment: () => void;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onPriorityChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onProjectChange: (value: string) => void;
+  onRemoveAttachment: (path: string) => void;
   onWorkspaceTargetChange: (value: string) => void;
   onAssigneeChange: (value: string) => void;
   onCreate: () => void;
@@ -8861,6 +9090,41 @@ function CreateIssueDialogView({
               placeholder="Add description..."
               value={description}
             />
+
+            {attachments.length ? (
+              <div className="issue-dialog-attachments">
+                <div className="issues-detail-subsection-header">
+                  <div className="issues-detail-subsection-copy">
+                    <h3>Attachments</h3>
+                    <p className="issues-detail-copy muted">
+                      These files will be copied into the board storage and
+                      linked to the issue when it is created.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="issue-attachment-list">
+                  {attachments.map((attachment) => (
+                    <div className="issue-attachment-row" key={attachment.path}>
+                      <div className="issue-attachment-meta">
+                        <strong>{attachment.name}</strong>
+                        <span>{attachment.path}</span>
+                      </div>
+                      <div className="issue-attachment-actions">
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={isSaving}
+                          onClick={() => onRemoveAttachment(attachment.path)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -8889,6 +9153,15 @@ function CreateIssueDialogView({
                 </option>
               ))}
             </IssueDialogFooterSelect>
+
+            <button
+              className="issue-dialog-footer-chip issue-dialog-footer-chip-button"
+              disabled={isSaving}
+              onClick={onAddAttachment}
+              type="button"
+            >
+              Attachment
+            </button>
           </div>
 
           <div className="issue-dialog-footer-actions">
@@ -11037,6 +11310,28 @@ function gitStatusBadge(status: string | null | undefined) {
 
 function fileName(path: string) {
   return path.split("/").filter(Boolean).at(-1) ?? path;
+}
+
+function formatFileSize(bytes: number | null | undefined) {
+  if (typeof bytes !== "number" || Number.isNaN(bytes) || bytes < 0) {
+    return "Unknown size";
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const decimals = value >= 10 ? 0 : 1;
+  return `${value.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
 function parentPath(path: string) {

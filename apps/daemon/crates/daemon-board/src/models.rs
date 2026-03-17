@@ -138,6 +138,26 @@ pub struct IssueComment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueAttachment {
+    pub id: String,
+    pub company_id: String,
+    pub issue_id: String,
+    pub asset_id: String,
+    pub issue_comment_id: Option<String>,
+    pub provider: String,
+    pub object_key: String,
+    pub content_type: String,
+    pub byte_size: i64,
+    pub sha256: String,
+    pub original_filename: Option<String>,
+    pub created_by_agent_id: Option<String>,
+    pub created_by_user_id: Option<String>,
+    pub local_path: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Approval {
     pub id: String,
     pub company_id: String,
@@ -356,6 +376,16 @@ pub struct AddIssueCommentInput {
     pub author_user_id: Option<String>,
     pub target_agent_id: Option<String>,
     pub body: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AddIssueAttachmentInput {
+    pub company_id: String,
+    pub issue_id: String,
+    pub local_file_path: String,
+    pub issue_comment_id: Option<String>,
+    pub created_by_agent_id: Option<String>,
+    pub created_by_user_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

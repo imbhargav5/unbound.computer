@@ -3,9 +3,9 @@
 use crate::app::{ensure_issue_workspace, DaemonState};
 use daemon_board::service;
 use daemon_board::{
-    AddIssueCommentInput, ApprovalDecisionInput, BoardError, CreateAgentHireInput,
-    CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, Issue,
-    IssueListFilter, UpdateAgentInput, UpdateIssueInput,
+    AddIssueAttachmentInput, AddIssueCommentInput, ApprovalDecisionInput, BoardError,
+    CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
+    CreateProjectInput, Issue, IssueListFilter, UpdateAgentInput, UpdateIssueInput,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use serde::de::DeserializeOwned;
@@ -432,6 +432,8 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let comment_list_db = state.db.clone();
+    let attachment_list_db = state.db.clone();
+    let attachment_list_paths = state.paths.clone();
     server
         .register_handler(Method::IssueCommentList, move |req| {
             let db = comment_list_db.clone();
@@ -444,6 +446,48 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 match service::list_issue_comments(&db, &issue_id).await {
                     Ok(comments) => {
                         json_response(&req.id, &serde_json::json!({ "comments": comments }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    server
+        .register_handler(Method::IssueAttachmentList, move |req| {
+            let db = attachment_list_db.clone();
+            let paths = attachment_list_paths.clone();
+            async move {
+                let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
+                {
+                    Ok(issue_id) => issue_id,
+                    Err(response) => return response,
+                };
+                match service::list_issue_attachments(&db, &paths, &issue_id).await {
+                    Ok(attachments) => {
+                        json_response(&req.id, &serde_json::json!({ "attachments": attachments }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let attachment_add_db = state.db.clone();
+    let attachment_add_paths = state.paths.clone();
+    server
+        .register_handler(Method::IssueAttachmentAdd, move |req| {
+            let db = attachment_add_db.clone();
+            let paths = attachment_add_paths.clone();
+            async move {
+                let input =
+                    match parse_params::<AddIssueAttachmentInput>(&req.id, req.params.as_ref()) {
+                        Ok(input) => input,
+                        Err(response) => return response,
+                    };
+                match service::add_issue_attachment(&db, &paths, input).await {
+                    Ok(attachment) => {
+                        json_response(&req.id, &serde_json::json!({ "attachment": attachment }))
                     }
                     Err(error) => board_error_response(&req.id, error),
                 }

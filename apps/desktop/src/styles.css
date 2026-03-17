@@ -2668,6 +2668,12 @@ p {
   padding: 16px 24px 22px;
 }
 
+.issue-dialog-attachments {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
 .issue-dialog-description-input {
   width: 100%;
   min-height: 156px;
@@ -2843,6 +2849,12 @@ p {
   color: #71717a;
   font-size: 10px;
   pointer-events: none;
+}
+
+.issue-dialog-footer-chip-button {
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .issue-dialog-footer-actions {
@@ -3551,6 +3563,23 @@ p {
   gap: 14px;
 }
 
+.issues-detail-subsection {
+  display: grid;
+  gap: 12px;
+}
+
+.issues-detail-subsection-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.issues-detail-subsection-copy {
+  display: grid;
+  gap: 4px;
+}
+
 .issues-detail-copy {
   color: #d4d4d4;
   white-space: pre-wrap;
@@ -3558,6 +3587,52 @@ p {
 
 .issues-supporting-row {
   align-items: center;
+}
+
+.issue-attachment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.issue-attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #1f1f23;
+  border-radius: 18px;
+  background: #0d0d10;
+}
+
+.issue-attachment-meta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.issue-attachment-meta strong {
+  color: #ededf2;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.issue-attachment-meta span {
+  color: #8b8b95;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.issue-attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .issues-linked-run-list {

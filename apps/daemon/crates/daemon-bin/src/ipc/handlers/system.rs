@@ -1,8 +1,8 @@
 //! System handlers.
 
 use daemon_ipc::{
-    error_codes, DaemonVersionInfo, DesktopCompatibilityRange, IpcServer,
-    IPC_PROTOCOL_VERSION, Method, Response,
+    error_codes, DaemonVersionInfo, DesktopCompatibilityRange, IpcServer, Method, Response,
+    IPC_PROTOCOL_VERSION,
 };
 use tracing::info;
 
@@ -30,10 +30,7 @@ pub async fn register(server: &IpcServer, _state: crate::app::DaemonState) {
                 },
             };
 
-            Response::success(
-                &req.id,
-                serde_json::to_value(&version_info).unwrap(),
-            )
+            Response::success(&req.id, serde_json::to_value(&version_info).unwrap())
         })
         .await;
 

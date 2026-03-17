@@ -102,6 +102,11 @@ impl Paths {
         self.company_root(company_id).join("attachments")
     }
 
+    /// Resolve a specific attachment file path for a company.
+    pub fn company_attachment_file(&self, company_id: &str, object_key: &str) -> PathBuf {
+        self.company_attachments_dir(company_id).join(object_key)
+    }
+
     /// Get the assets directory for a company.
     pub fn company_assets_dir(&self, company_id: &str) -> PathBuf {
         self.company_root(company_id).join("assets")
@@ -305,6 +310,10 @@ mod tests {
         assert_eq!(
             paths.company_attachments_dir("co_123"),
             base.join("companies/co_123/attachments")
+        );
+        assert_eq!(
+            paths.company_attachment_file("co_123", "issue-1/file.txt"),
+            base.join("companies/co_123/attachments/issue-1/file.txt")
         );
     }
 }

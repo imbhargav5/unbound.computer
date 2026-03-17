@@ -103,6 +103,10 @@ pub enum Method {
     IssueCommentList,
     #[serde(rename = "issue.comment.add")]
     IssueCommentAdd,
+    #[serde(rename = "issue.attachment.list")]
+    IssueAttachmentList,
+    #[serde(rename = "issue.attachment.add")]
+    IssueAttachmentAdd,
     #[serde(rename = "issue.run.list")]
     IssueRunList,
     #[serde(rename = "issue.checkout")]
