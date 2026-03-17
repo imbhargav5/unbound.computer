@@ -2503,36 +2503,40 @@ p {
 }
 
 .issue-dialog {
-  width: min(720px, calc(100vw - 32px));
+  width: min(760px, calc(100vw - 32px));
   overflow: hidden;
   border: 1px solid #27272a;
-  border-radius: 20px;
+  border-radius: 18px;
   background: #09090b;
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45);
 }
 
 .issue-dialog-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 24px 24px 18px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #1f1f23;
 }
 
-.issue-dialog-header-copy {
+.issue-dialog-breadcrumbs {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #a1a1aa;
+  font-size: 13px;
 }
 
 .issue-dialog-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
+  min-height: 26px;
   padding: 0 8px;
   border: 1px solid #27272a;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #111113;
   color: #d4d4d8;
   font-size: 11px;
@@ -2540,34 +2544,144 @@ p {
   letter-spacing: 0.08em;
 }
 
-.issue-dialog-title-block {
-  display: grid;
-  gap: 6px;
-}
-
-.issue-dialog-title-block h2 {
-  color: #fafafa;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.issue-dialog-title-block p {
-  max-width: 520px;
-  color: #a1a1aa;
-  font-size: 13px;
-  line-height: 1.5;
+.issue-dialog-breadcrumb-sep {
+  color: #52525b;
 }
 
 .issue-dialog-body {
   display: grid;
-  gap: 18px;
-  padding: 0 24px 24px;
+  gap: 0;
+}
+
+.issue-dialog-body > .issue-dialog-alert {
+  margin: 18px 24px 0;
 }
 
 .issue-dialog-divider {
   height: 1px;
   background: #18181b;
+}
+
+.issue-dialog-composer {
+  display: grid;
+  gap: 18px;
+  padding: 22px 24px 18px;
+}
+
+.issue-dialog-title-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fafafa;
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.issue-dialog-title-input::placeholder {
+  color: #5d5d68;
+}
+
+.issue-dialog-inline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.issue-dialog-inline-copy {
+  color: #a1a1aa;
+  font-size: 14px;
+}
+
+.issue-dialog-inline-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  min-width: 112px;
+  border: 1px solid #2a2a30;
+  border-radius: 10px;
+  background: #111113;
+  color: #e5e7eb;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.issue-dialog-inline-select:hover {
+  border-color: #3a3a42;
+  background: #141417;
+}
+
+.issue-dialog-inline-select:focus-within {
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+.issue-dialog-inline-select.is-disabled {
+  opacity: 0.5;
+}
+
+.issue-dialog-inline-select-project {
+  min-width: 128px;
+}
+
+.issue-dialog-inline-select-worktree {
+  min-width: min(100%, 320px);
+}
+
+.issue-dialog-inline-select-control {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 34px 0 12px;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+}
+
+.issue-dialog-inline-select-arrow {
+  position: absolute;
+  right: 12px;
+  color: #71717a;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.issue-dialog-worktree-block {
+  display: grid;
+  gap: 8px;
+}
+
+.issue-dialog-inline-hint {
+  color: #7f7f89;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.issue-dialog-description-panel {
+  padding: 16px 24px 22px;
+}
+
+.issue-dialog-description-input {
+  width: 100%;
+  min-height: 156px;
+  border: 0;
+  outline: 0;
+  resize: vertical;
+  background: transparent;
+  color: #ededf1;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.issue-dialog-description-input::placeholder {
+  color: #71717a;
 }
 
 .issue-dialog-grid {
@@ -2672,15 +2786,95 @@ p {
 
 .issue-dialog-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 0 24px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid #1f1f23;
 }
 
-.issue-dialog-footer .secondary-button,
-.issue-dialog-footer .primary-button {
-  min-height: 40px;
-  padding: 0 16px;
+.issue-dialog-footer-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.issue-dialog-footer-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid #2a2a30;
+  border-radius: 10px;
+  background: #0f0f11;
+  color: #e4e4e7;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.issue-dialog-footer-chip:hover {
+  border-color: #3a3a42;
+  background: #131316;
+}
+
+.issue-dialog-footer-chip:focus-within {
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+.issue-dialog-footer-chip-control {
+  min-height: 34px;
+  padding: 0 30px 0 12px;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.issue-dialog-footer-chip-arrow {
+  position: absolute;
+  right: 10px;
+  color: #71717a;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.issue-dialog-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.issue-dialog-discard-button {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 140ms ease;
+}
+
+.issue-dialog-discard-button:hover {
+  color: #d4d4d8;
+}
+
+.issue-dialog-create-button {
+  min-height: 36px;
+  min-width: 138px;
+  border-color: #f4f4f5;
+  background: #f4f4f5;
+  color: #111113;
+}
+
+.issue-dialog-create-button:hover {
+  background: #ffffff;
 }
 
 .project-dialog-header {
@@ -2817,6 +3011,19 @@ p {
 
   .project-folder-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .issue-dialog-title-input {
+    font-size: 30px;
+  }
+
+  .issue-dialog-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .issue-dialog-footer-actions {
+    justify-content: space-between;
   }
 }
 

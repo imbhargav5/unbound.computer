@@ -4556,25 +4556,31 @@ export function App() {
       {isCreateIssueDialogOpen ? (
         <CreateIssueDialogView
           agents={companySnapshot?.agents ?? []}
+          companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
-          issues={boardIssues}
           onAssigneeChange={setIssueDialogAssigneeAgentId}
           onClose={handleCloseCreateIssueDialog}
           onCreate={() => void handleCreateIssueFromDialog()}
           onDescriptionChange={setIssueDialogDescription}
-          onParentIssueChange={setIssueDialogParentIssueId}
           onPriorityChange={setIssueDialogPriority}
           onProjectChange={handleIssueDialogProjectChange}
+          onStatusChange={setIssueDialogStatus}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
-          priorities={["low", "medium", "high", "urgent"]}
+          priorities={mergeIssueOptions(
+            ["low", "medium", "high", "urgent"],
+            issueDialogPriority
+          )}
           projects={boardProjects}
           selectedAssigneeAgentId={issueDialogAssigneeAgentId}
-          selectedParentIssueId={issueDialogParentIssueId}
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
           selectedStatus={issueDialogStatus}
+          statuses={mergeIssueOptions(
+            ["todo", "backlog", "in_progress", "blocked", "done", "cancelled"],
+            issueDialogStatus
+          )}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
@@ -8645,26 +8651,26 @@ function ProjectDialogSelectField({
 }
 
 function CreateIssueDialogView({
+  companyPrefix,
   title,
   description,
   selectedPriority,
   selectedProjectId,
   selectedStatus,
   selectedAssigneeAgentId,
-  selectedParentIssueId,
   priorities,
+  statuses,
   projects,
   agents,
-  issues,
   isSaving,
   errorMessage,
   onTitleChange,
   onDescriptionChange,
   onPriorityChange,
+  onStatusChange,
   onProjectChange,
   onWorkspaceTargetChange,
   onAssigneeChange,
-  onParentIssueChange,
   onCreate,
   onClose,
   selectedWorkspaceTargetValue,
@@ -8672,26 +8678,26 @@ function CreateIssueDialogView({
   workspaceTargetLoading,
   workspaceTargetWorktrees,
 }: {
+  companyPrefix: string;
   title: string;
   description: string;
   selectedPriority: string;
   selectedProjectId: string;
   selectedStatus: string;
   selectedAssigneeAgentId: string;
-  selectedParentIssueId: string;
   priorities: string[];
+  statuses: string[];
   projects: ProjectRecord[];
   agents: AgentRecord[];
-  issues: IssueRecord[];
   isSaving: boolean;
   errorMessage: string | null;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onPriorityChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
   onProjectChange: (value: string) => void;
   onWorkspaceTargetChange: (value: string) => void;
   onAssigneeChange: (value: string) => void;
-  onParentIssueChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
   selectedWorkspaceTargetValue: string;
@@ -8704,6 +8710,7 @@ function CreateIssueDialogView({
     projects.find((project) => project.id === selectedProjectId) ?? null;
   const selectedProjectRepoPath =
     selectedProject?.primary_workspace?.cwd ?? null;
+  const shouldShowWorktreeTarget = Boolean(selectedProject);
   const fallbackSelectedWorktree =
     selectedWorkspaceTargetValue.startsWith("existing:") &&
     !workspaceTargetWorktrees.some(
@@ -8718,9 +8725,6 @@ function CreateIssueDialogView({
           path: selectedWorkspaceTargetValue.slice("existing:".length),
         }
       : null;
-  const shouldShowRoutingContext =
-    Boolean(selectedProject) ||
-    normalizeBoardIssueValue(selectedStatus) !== "backlog";
   const workspaceTargetHint = issueWorkspaceTargetHint({
     errorMessage: workspaceTargetErrorMessage,
     hasProject: Boolean(selectedProject),
@@ -8739,15 +8743,14 @@ function CreateIssueDialogView({
         role="dialog"
       >
         <div className="issue-dialog-header">
-          <div className="issue-dialog-header-copy">
-            <span className="issue-dialog-badge">BOARD</span>
-            <div className="issue-dialog-title-block">
-              <h2 id="create-issue-dialog-title">Create issue</h2>
-              <p>
-                Create a new board issue with optional routing to a project,
-                assignee, or parent issue.
-              </p>
-            </div>
+          <div className="issue-dialog-breadcrumbs">
+            <span className="issue-dialog-badge">
+              {companyPrefix.toUpperCase()}
+            </span>
+            <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
+              &gt;
+            </span>
+            <span id="create-issue-dialog-title">New issue</span>
           </div>
           <button
             aria-label="Close create issue dialog"
@@ -8760,62 +8763,123 @@ function CreateIssueDialogView({
         </div>
 
         <div className="issue-dialog-body">
-          <div className="issue-dialog-divider" />
-
           {errorMessage ? (
             <div className="issue-dialog-alert">{errorMessage}</div>
           ) : null}
 
-          {shouldShowRoutingContext ? (
-            <div className="issue-dialog-context">
-              {selectedProject ? (
-                <div className="issue-dialog-context-chip">
-                  <span className="issue-dialog-context-label">Project</span>
-                  <strong>
-                    {selectedProject.name ??
-                      selectedProject.title ??
-                      "Untitled project"}
-                  </strong>
-                </div>
-              ) : null}
-              <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">Column</span>
-                <strong>{humanizeIssueValue(selectedStatus)}</strong>
-              </div>
-            </div>
-          ) : null}
-
-          <label className="issue-dialog-field issue-dialog-field-full">
-            <span className="issue-dialog-label">Title</span>
+          <div className="issue-dialog-composer">
             <input
-              className="issue-dialog-input"
+              autoFocus
+              className="issue-dialog-title-input"
               onChange={(event) => onTitleChange(event.target.value)}
-              placeholder="Investigate CI flake"
+              placeholder="Issue title"
               value={title}
             />
-            <small className="issue-dialog-hint">
-              This becomes the main issue title and the default worktree label.
-            </small>
-          </label>
 
-          <label className="issue-dialog-field issue-dialog-field-full">
-            <span className="issue-dialog-label">Description</span>
+            <div className="issue-dialog-inline-row">
+              <span className="issue-dialog-inline-copy">For</span>
+              <IssueDialogInlineSelect
+                ariaLabel="Select assignee"
+                onChange={onAssigneeChange}
+                value={selectedAssigneeAgentId}
+              >
+                <option value="">Assignee</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name || agent.title || agent.role || agent.id}
+                  </option>
+                ))}
+              </IssueDialogInlineSelect>
+              <span className="issue-dialog-inline-copy">in</span>
+              <IssueDialogInlineSelect
+                ariaLabel="Select project"
+                className="issue-dialog-inline-select-project"
+                onChange={onProjectChange}
+                value={selectedProjectId}
+              >
+                <option value="">Project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name ?? project.title ?? project.id}
+                  </option>
+                ))}
+              </IssueDialogInlineSelect>
+            </div>
+
+            {shouldShowWorktreeTarget ? (
+              <div className="issue-dialog-worktree-block">
+                <div className="issue-dialog-inline-row">
+                  <span className="issue-dialog-inline-copy">Run in</span>
+                  <IssueDialogInlineSelect
+                    ariaLabel="Select worktree target"
+                    className="issue-dialog-inline-select-worktree"
+                    disabled={!selectedProjectRepoPath}
+                    onChange={onWorkspaceTargetChange}
+                    value={selectedWorkspaceTargetValue}
+                  >
+                    <option value="main">Main worktree</option>
+                    <option
+                      disabled={!selectedProjectRepoPath}
+                      value="new_worktree"
+                    >
+                      New git worktree
+                    </option>
+                    {workspaceTargetWorktrees.map((worktree) => (
+                      <option
+                        key={worktree.path}
+                        value={existingWorktreeTargetValue(worktree.path)}
+                      >
+                        {worktree.branch
+                          ? `${worktree.name} · ${worktree.branch}`
+                          : worktree.name}
+                      </option>
+                    ))}
+                    {fallbackSelectedWorktree ? (
+                      <option
+                        value={existingWorktreeTargetValue(
+                          fallbackSelectedWorktree.path
+                        )}
+                      >
+                        {fallbackSelectedWorktree.name}
+                      </option>
+                    ) : null}
+                  </IssueDialogInlineSelect>
+                </div>
+                <p className="issue-dialog-inline-hint">
+                  {workspaceTargetHint}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="issue-dialog-divider" />
+
+          <div className="issue-dialog-description-panel">
             <textarea
-              className="issue-dialog-input issue-dialog-textarea"
+              className="issue-dialog-description-input"
               onChange={(event) => onDescriptionChange(event.target.value)}
-              placeholder="What needs to happen, how should success be measured, and what context should the assignee keep in mind?"
+              placeholder="Add description..."
               value={description}
             />
-            <small className="issue-dialog-hint">
-              Optional background, acceptance criteria, or context for the
-              assignee.
-            </small>
-          </label>
+          </div>
+        </div>
 
-          <div className="issue-dialog-grid">
-            <IssueDialogSelectField
-              hint="Controls ordering and urgency in board views."
-              label="Priority"
+        <div className="issue-dialog-footer">
+          <div className="issue-dialog-footer-tools">
+            <IssueDialogFooterSelect
+              ariaLabel="Select issue status"
+              onChange={onStatusChange}
+              value={selectedStatus}
+            >
+              {statuses.map((status) => (
+                <option key={status} value={status}>
+                  {humanizeIssueValue(status)}
+                </option>
+              ))}
+            </IssueDialogFooterSelect>
+
+            <IssueDialogFooterSelect
+              ariaLabel="Select issue priority"
               onChange={onPriorityChange}
               value={selectedPriority}
             >
@@ -8824,102 +8888,98 @@ function CreateIssueDialogView({
                   {humanizeIssueValue(priority)}
                 </option>
               ))}
-            </IssueDialogSelectField>
+            </IssueDialogFooterSelect>
+          </div>
 
-            <IssueDialogSelectField
-              hint="Optional project anchor for worktree routing and repo context."
-              label="Project"
-              onChange={onProjectChange}
-              value={selectedProjectId}
+          <div className="issue-dialog-footer-actions">
+            <button
+              className="issue-dialog-discard-button"
+              disabled={isSaving}
+              onClick={onClose}
+              type="button"
             >
-              <option value="">No project</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </IssueDialogSelectField>
-
-            <IssueDialogSelectField
-              hint={workspaceTargetHint}
-              label="Worktree target"
-              onChange={onWorkspaceTargetChange}
-              value={selectedWorkspaceTargetValue}
+              Discard Draft
+            </button>
+            <button
+              className="primary-button issue-dialog-create-button"
+              disabled={!canCreate}
+              onClick={onCreate}
+              type="button"
             >
-              <option value="main">Main worktree</option>
-              <option disabled={!selectedProjectRepoPath} value="new_worktree">
-                New git worktree
-              </option>
-              {workspaceTargetWorktrees.map((worktree) => (
-                <option
-                  key={worktree.path}
-                  value={existingWorktreeTargetValue(worktree.path)}
-                >
-                  {worktree.branch
-                    ? `${worktree.name} · ${worktree.branch}`
-                    : worktree.name}
-                </option>
-              ))}
-              {fallbackSelectedWorktree ? (
-                <option
-                  value={existingWorktreeTargetValue(
-                    fallbackSelectedWorktree.path
-                  )}
-                >
-                  {fallbackSelectedWorktree.name}
-                </option>
-              ) : null}
-            </IssueDialogSelectField>
-
-            <IssueDialogSelectField
-              hint="Optional agent owner for execution or follow-up."
-              label="Assignee"
-              onChange={onAssigneeChange}
-              value={selectedAssigneeAgentId}
-            >
-              <option value="">Unassigned</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name || agent.title || agent.role || agent.id}
-                </option>
-              ))}
-            </IssueDialogSelectField>
-
-            <IssueDialogSelectField
-              hint="Use this to nest follow-up work under an existing issue."
-              label="Parent issue"
-              onChange={onParentIssueChange}
-              value={selectedParentIssueId}
-            >
-              <option value="">No parent issue</option>
-              {issues.map((issue) => (
-                <option key={issue.id} value={issue.id}>
-                  {issue.identifier ?? issue.title}
-                </option>
-              ))}
-            </IssueDialogSelectField>
+              {isSaving ? "Creating..." : "Create Issue"}
+            </button>
           </div>
         </div>
-
-        <div className="issue-dialog-footer">
-          <button
-            className="secondary-button"
-            disabled={isSaving}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="primary-button"
-            disabled={!canCreate}
-            onClick={onCreate}
-            type="button"
-          >
-            {isSaving ? "Creating issue..." : "Create issue"}
-          </button>
-        </div>
       </div>
+    </div>
+  );
+}
+
+function IssueDialogInlineSelect({
+  children,
+  ariaLabel,
+  className,
+  disabled,
+  onChange,
+  value,
+}: {
+  children: ReactNode;
+  ariaLabel: string;
+  className?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div
+      className={[
+        "issue-dialog-inline-select",
+        disabled ? "is-disabled" : "",
+        className ?? "",
+      ]
+        .join(" ")
+        .trim()}
+    >
+      <select
+        aria-label={ariaLabel}
+        className="issue-dialog-inline-select-control"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {children}
+      </select>
+      <span aria-hidden="true" className="issue-dialog-inline-select-arrow">
+        ▼
+      </span>
+    </div>
+  );
+}
+
+function IssueDialogFooterSelect({
+  ariaLabel,
+  children,
+  onChange,
+  value,
+}: {
+  ariaLabel: string;
+  children: ReactNode;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="issue-dialog-footer-chip">
+      <select
+        aria-label={ariaLabel}
+        className="issue-dialog-footer-chip-control"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {children}
+      </select>
+      <span aria-hidden="true" className="issue-dialog-footer-chip-arrow">
+        ▼
+      </span>
     </div>
   );
 }
