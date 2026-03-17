@@ -13,10 +13,9 @@ use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::LogExporter;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
-use opentelemetry_sdk::logs::log_processor_with_async_runtime::BatchLogProcessor as AsyncBatchLogProcessor;
-use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
-use opentelemetry_sdk::{runtime, trace, Resource};
+use opentelemetry_sdk::{trace, Resource};
 use otel_logs::OtlpLogLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -428,7 +427,11 @@ fn init_otel_log_layer(config: &LogConfig, otlp: &OtlpConfig) -> Option<OtlpLogL
     let resource = build_resource(config);
     let endpoint = otlp_signal_endpoint(&otlp.endpoint, "logs");
 
-    let http_client = reqwest::Client::new();
+    // Desktop/Tauri initializes observability before any Tokio runtime exists, so
+    // OTLP logs need the thread-backed processor plus a blocking HTTP client.
+    let http_client = std::thread::spawn(reqwest::blocking::Client::new)
+        .join()
+        .unwrap_or_else(|_| reqwest::blocking::Client::new());
     let mut exporter_builder = LogExporter::builder()
         .with_http()
         .with_http_client(http_client)
@@ -447,7 +450,7 @@ fn init_otel_log_layer(config: &LogConfig, otlp: &OtlpConfig) -> Option<OtlpLogL
         }
     };
 
-    let batch_processor = AsyncBatchLogProcessor::builder(exporter, runtime::Tokio).build();
+    let batch_processor = BatchLogProcessor::builder(exporter).build();
 
     let provider = SdkLoggerProvider::builder()
         .with_log_processor(batch_processor)
