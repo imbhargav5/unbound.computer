@@ -1067,21 +1067,128 @@ p {
   text-transform: uppercase;
 }
 
-.project-kanban-board-grouping select {
-  min-width: 148px;
-  padding: 9px 12px;
-  border: 1px solid #2a2a31;
-  border-radius: 12px;
-  background: #141418;
-  color: #f5f5f5;
-  font-size: 12px;
-  cursor: pointer;
+.project-kanban-board-grouping .shadcn-select {
+  min-width: 168px;
 }
 
-.project-kanban-board-grouping select:focus-visible {
+.shadcn-select {
+  position: relative;
+  width: 100%;
+}
+
+.shadcn-select-trigger {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid #2a2a31;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #17171b, #101013);
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.shadcn-select-trigger:hover {
+  border-color: #393943;
+  background: linear-gradient(180deg, #1b1b20, #121216);
+}
+
+.shadcn-select-trigger:focus-visible,
+.shadcn-select.open .shadcn-select-trigger {
   outline: none;
   border-color: rgba(245, 158, 11, 0.55);
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14);
+  background: linear-gradient(180deg, #1c1c22, #131317);
+}
+
+.shadcn-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shadcn-select-icon,
+.shadcn-select-item-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.shadcn-select-icon {
+  color: #8f8f98;
+}
+
+.shadcn-select-icon svg,
+.shadcn-select-item-indicator svg {
+  width: 14px;
+  height: 14px;
+}
+
+.shadcn-select-content {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #2b2b31;
+  border-radius: 14px;
+  background: rgba(15, 15, 18, 0.98);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(18px);
+}
+
+.shadcn-select-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #d4d4d8;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.shadcn-select-item:hover,
+.shadcn-select-item:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fafafa;
+}
+
+.shadcn-select-item.is-selected {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fef3c7;
+}
+
+.shadcn-select-item-indicator {
+  color: #f59e0b;
 }
 
 .project-kanban-columns {

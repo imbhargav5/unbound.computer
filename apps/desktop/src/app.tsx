@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import {
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type RefObject,
@@ -172,6 +173,11 @@ interface DashboardProjectBoardLayout {
   issueCount: number;
 }
 
+interface SelectOption<T extends string> {
+  label: string;
+  value: T;
+}
+
 interface CreateIssueDialogDefaults {
   assigneeAgentId?: string;
   projectId?: string;
@@ -267,6 +273,12 @@ const dashboardProjectGroupingOptions: DashboardProjectGrouping[] = [
   "priority",
   "assignee",
 ];
+const dashboardProjectGroupingSelectOptions: Array<
+  SelectOption<DashboardProjectGrouping>
+> = dashboardProjectGroupingOptions.map((value) => ({
+  label: humanizeIssueValue(value),
+  value,
+}));
 
 const defaultSettings: DesktopSettings = {
   preferred_company_id: null,
@@ -5331,6 +5343,186 @@ function SidebarLinkButton({
   );
 }
 
+function ShadcnSelect<T extends string>({
+  ariaLabel,
+  onChange,
+  options,
+  value,
+}: {
+  ariaLabel: string;
+  onChange: (value: T) => void;
+  options: Array<SelectOption<T>>;
+  value: T;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedIndex = Math.max(
+    options.findIndex((option) => option.value === value),
+    0
+  );
+  const selectedOption = options[selectedIndex] ?? options[0] ?? null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const closeMenu = (event?: Event) => {
+      const target = event?.target as Node | null | undefined;
+      if (target && selectRef.current?.contains(target)) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      optionRefs.current[selectedIndex]?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, selectedIndex]);
+
+  const handleTriggerKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>
+  ) => {
+    if (
+      event.key === "ArrowDown" ||
+      event.key === "ArrowUp" ||
+      event.key === "Enter" ||
+      event.key === " "
+    ) {
+      event.preventDefault();
+      setIsOpen(true);
+    }
+  };
+
+  const handleOptionKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      optionRefs.current[(index + 1) % options.length]?.focus();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      optionRefs.current[(index - 1 + options.length) % options.length]?.focus();
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      optionRefs.current[0]?.focus();
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      optionRefs.current[options.length - 1]?.focus();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div
+      className={isOpen ? "shadcn-select open" : "shadcn-select"}
+      onPointerDown={(event) => event.stopPropagation()}
+      ref={selectRef}
+    >
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        className="shadcn-select-trigger"
+        onClick={() => setIsOpen((current) => !current)}
+        onKeyDown={handleTriggerKeyDown}
+        type="button"
+      >
+        <span className="shadcn-select-value">
+          {selectedOption?.label ?? "Select option"}
+        </span>
+        <span aria-hidden="true" className="shadcn-select-icon">
+          <ChevronUpDownIcon />
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div
+          aria-label={ariaLabel}
+          className="shadcn-select-content"
+          role="listbox"
+        >
+          {options.map((option, index) => {
+            const isSelected = option.value === selectedOption?.value;
+            return (
+              <button
+                aria-selected={isSelected}
+                className={
+                  isSelected
+                    ? "shadcn-select-item is-selected"
+                    : "shadcn-select-item"
+                }
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                onKeyDown={(event) => handleOptionKeyDown(event, index)}
+                ref={(node) => {
+                  optionRefs.current[index] = node;
+                }}
+                role="option"
+                type="button"
+              >
+                <span>{option.label}</span>
+                <span
+                  aria-hidden="true"
+                  className="shadcn-select-item-indicator"
+                >
+                  {isSelected ? <CheckIcon /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DashboardCanvasRouteView({
   agents,
   canvasBounds,
@@ -5432,23 +5624,14 @@ function DashboardCanvasRouteView({
                   <div className="project-kanban-board-side">
                     <label className="project-kanban-board-grouping">
                       <span>Group by</span>
-                      <select
-                        onChange={(event) =>
-                          onProjectGroupingChange(
-                            projectBoard.project.id,
-                            normalizeDashboardProjectGrouping(
-                              event.target.value
-                            )
-                          )
+                      <ShadcnSelect
+                        ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} board by`}
+                        onChange={(nextValue) =>
+                          onProjectGroupingChange(projectBoard.project.id, nextValue)
                         }
+                        options={dashboardProjectGroupingSelectOptions}
                         value={projectBoard.grouping}
-                      >
-                        {dashboardProjectGroupingOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {humanizeIssueValue(option)}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </label>
 
                     <div className="project-kanban-board-meta">
@@ -6762,6 +6945,49 @@ function AgentHeaderPauseIcon() {
         stroke="currentColor"
         strokeLinecap="round"
         strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function ChevronUpDownIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="m8 10 4-4 4 4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="m16 14-4 4-4-4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="m5 12.5 4.2 4.2L19 7"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.9"
       />
     </svg>
   );
