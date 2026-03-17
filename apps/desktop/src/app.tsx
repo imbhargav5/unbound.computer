@@ -212,7 +212,6 @@ export function App() {
   const [gitCommitMessage, setGitCommitMessage] = useState("");
   const [prompt, setPrompt] = useState("");
   const [terminalCommand, setTerminalCommand] = useState("");
-  const [newProjectTitle, setNewProjectTitle] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
   const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
@@ -1394,29 +1393,6 @@ export function App() {
     }
   };
 
-  const handleCreateProject = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedCompanyId || !newProjectTitle.trim()) {
-      return;
-    }
-
-    setIsWorking(true);
-    try {
-      const project = await boardCreateProject({
-        company_id: selectedCompanyId,
-        name: newProjectTitle.trim(),
-      });
-      const snapshot = await boardCompanySnapshot(selectedCompanyId);
-      setCompanySnapshot(snapshot);
-      setSelectedProjectId(project.id);
-      setNewProjectTitle("");
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
   const handleAddRepository = async () => {
     setStatusMessage(null);
     try {
@@ -1843,24 +1819,24 @@ export function App() {
 
                   <section className="surface-panel">
                     <h3>Projects</h3>
-                    <form className="stack-form" onSubmit={handleCreateProject}>
-                      <input
-                        onChange={(event) => setNewProjectTitle(event.target.value)}
-                        placeholder="Create project"
-                        value={newProjectTitle}
-                      />
-                      <button className="secondary-button" type="submit">
-                        Create
-                      </button>
-                    </form>
-                    <div className="surface-list">
-                      {(companySnapshot?.projects ?? []).map((project) => (
-                        <div className="surface-list-row" key={project.id}>
-                          <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
-                          <span>{project.status ?? "pending"}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {(companySnapshot?.projects ?? []).length ? (
+                      <div className="surface-list">
+                        {(companySnapshot?.projects ?? []).slice(0, 5).map((project) => (
+                          <div className="surface-list-row" key={project.id}>
+                            <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
+                            <span>
+                              {project.primary_workspace?.cwd ??
+                                project.status ??
+                                "Missing repo path"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="surface-empty-copy">
+                        Projects define the main repo path for workspaces.
+                      </p>
+                    )}
                   </section>
 
                   <section className="surface-panel">

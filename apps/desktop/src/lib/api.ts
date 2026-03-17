@@ -42,7 +42,7 @@ export const boardCreateCompany = (params: Record<string, unknown>) =>
 
 export const boardCompanySnapshot = (companyId: string) =>
   invokeCommand<CompanySnapshot>("board_company_snapshot", {
-    company_id: companyId,
+    companyId,
   });
 
 export const boardCreateProject = (params: Record<string, unknown>) =>
@@ -53,7 +53,7 @@ export const boardCreateIssue = (params: Record<string, unknown>) =>
 
 export const boardGetIssue = (issueId: string) =>
   invokeCommand<IssueRecord>("board_get_issue", {
-    issue_id: issueId,
+    issueId,
   });
 
 export const boardUpdateIssue = (params: Record<string, unknown>) =>
@@ -61,7 +61,7 @@ export const boardUpdateIssue = (params: Record<string, unknown>) =>
 
 export const boardListIssueComments = (issueId: string) =>
   invokeCommand<IssueCommentRecord[]>("board_list_issue_comments", {
-    issue_id: issueId,
+    issueId,
   });
 
 export const boardAddIssueComment = (params: Record<string, unknown>) =>
@@ -69,7 +69,7 @@ export const boardAddIssueComment = (params: Record<string, unknown>) =>
 
 export const boardCheckoutIssue = (issueId: string) =>
   invokeCommand<WorkspaceRecord>("board_checkout_issue", {
-    issue_id: issueId,
+    issueId,
   });
 
 export const boardApproveApproval = (params: Record<string, unknown>) =>
@@ -82,7 +82,7 @@ export const repositoryAdd = (path: string, name?: string) =>
   invokeCommand<RepositoryRecord>("repository_add", {
     path,
     name,
-    is_git_repository: true,
+    isGitRepository: true,
   });
 
 export const repositoryRemove = (id: string) =>
@@ -90,7 +90,7 @@ export const repositoryRemove = (id: string) =>
 
 export const repositoryGetSettings = (repositoryId: string) =>
   invokeCommand<Record<string, unknown>>("repository_get_settings", {
-    repository_id: repositoryId,
+    repositoryId,
   });
 
 export const repositoryUpdateSettings = (params: Record<string, unknown>) =>
@@ -102,9 +102,9 @@ export const repositoryListFiles = (
   includeHidden = false
 ) =>
   invokeCommand<FileEntry[]>("repository_list_files", {
-    session_id: sessionId,
-    relative_path: relativePath,
-    include_hidden: includeHidden,
+    sessionId,
+    relativePath,
+    includeHidden,
   });
 
 export const repositoryReadFile = (
@@ -113,9 +113,9 @@ export const repositoryReadFile = (
   maxBytes?: number
 ) =>
   invokeCommand<FileReadResult>("repository_read_file", {
-    session_id: sessionId,
-    relative_path: relativePath,
-    max_bytes: maxBytes,
+    sessionId,
+    relativePath,
+    maxBytes,
   });
 
 export const repositoryWriteFile = (
@@ -126,10 +126,10 @@ export const repositoryWriteFile = (
   force?: boolean
 ) =>
   invokeCommand<Record<string, unknown>>("repository_write_file", {
-    session_id: sessionId,
-    relative_path: relativePath,
+    sessionId,
+    relativePath,
     content,
-    expected_revision: expectedRevision,
+    expectedRevision,
     force,
   });
 
@@ -143,18 +143,18 @@ export const repositoryReplaceFileRange = (
   force?: boolean
 ) =>
   invokeCommand<Record<string, unknown>>("repository_replace_file_range", {
-    session_id: sessionId,
-    relative_path: relativePath,
-    start_line: startLine,
-    end_line_exclusive: endLineExclusive,
+    sessionId,
+    relativePath,
+    startLine,
+    endLineExclusive,
     replacement,
-    expected_revision: expectedRevision,
+    expectedRevision,
     force,
   });
 
 export const sessionList = (repositoryId: string) =>
   invokeCommand<SessionRecord[]>("session_list", {
-    repository_id: repositoryId,
+    repositoryId,
   });
 
 export const sessionCreate = (params: Record<string, unknown>) =>
@@ -168,7 +168,7 @@ export const sessionUpdate = (params: Record<string, unknown>) =>
 
 export const messageList = (sessionId: string) =>
   invokeCommand<SessionMessage[]>("message_list", {
-    session_id: sessionId,
+    sessionId,
   });
 
 export const claudeSend = (
@@ -177,19 +177,19 @@ export const claudeSend = (
   permissionMode?: string
 ) =>
   invokeCommand<Record<string, unknown>>("claude_send", {
-    session_id: sessionId,
+    sessionId,
     content,
-    permission_mode: permissionMode,
+    permissionMode,
   });
 
 export const claudeStatus = (sessionId: string) =>
   invokeCommand<Record<string, unknown>>("claude_status", {
-    session_id: sessionId,
+    sessionId,
   });
 
 export const claudeStop = (sessionId: string) =>
   invokeCommand<Record<string, unknown>>("claude_stop", {
-    session_id: sessionId,
+    sessionId,
   });
 
 export const terminalRun = (
@@ -198,37 +198,37 @@ export const terminalRun = (
   workingDir?: string
 ) =>
   invokeCommand<Record<string, unknown>>("terminal_run", {
-    session_id: sessionId,
+    sessionId,
     command,
-    working_dir: workingDir,
+    workingDir,
   });
 
 export const terminalStatus = (sessionId: string) =>
   invokeCommand<Record<string, unknown>>("terminal_status", {
-    session_id: sessionId,
+    sessionId,
   });
 
 export const terminalStop = (sessionId: string) =>
   invokeCommand<Record<string, unknown>>("terminal_stop", {
-    session_id: sessionId,
+    sessionId,
   });
 
 export const gitStatus = (sessionId?: string, repositoryId?: string) =>
   invokeCommand<GitStatusResult>("git_status", {
-    session_id: sessionId,
-    repository_id: repositoryId,
+    sessionId,
+    repositoryId,
   });
 
 export const gitLog = (sessionId?: string, repositoryId?: string) =>
   invokeCommand<GitLogResult>("git_log", {
-    session_id: sessionId,
-    repository_id: repositoryId,
+    sessionId,
+    repositoryId,
   });
 
 export const gitBranches = (sessionId?: string, repositoryId?: string) =>
   invokeCommand<GitBranchesResult>("git_branches", {
-    session_id: sessionId,
-    repository_id: repositoryId,
+    sessionId,
+    repositoryId,
   });
 
 export const gitDiffFile = (
@@ -239,29 +239,29 @@ export const gitDiffFile = (
   maxLines?: number
 ) =>
   invokeCommand<GitDiffResult>("git_diff_file", {
-    file_path: filePath,
-    session_id: sessionId,
-    repository_id: repositoryId,
+    filePath,
+    sessionId,
+    repositoryId,
     path,
-    max_lines: maxLines,
+    maxLines,
   });
 
 export const gitStage = (paths: string[], sessionId?: string) =>
   invokeCommand<Record<string, unknown>>("git_stage", {
     paths,
-    session_id: sessionId,
+    sessionId,
   });
 
 export const gitUnstage = (paths: string[], sessionId?: string) =>
   invokeCommand<Record<string, unknown>>("git_unstage", {
     paths,
-    session_id: sessionId,
+    sessionId,
   });
 
 export const gitDiscard = (paths: string[], sessionId?: string) =>
   invokeCommand<Record<string, unknown>>("git_discard", {
     paths,
-    session_id: sessionId,
+    sessionId,
   });
 
 export const gitCommit = (params: Record<string, unknown>) =>
@@ -285,10 +285,10 @@ export const desktopOpenExternal = (url: string) =>
   invokeCommand<void>("desktop_open_external", { url });
 
 export const sessionSubscribe = (sessionId: string) =>
-  invokeCommand<void>("session_subscribe", { session_id: sessionId });
+  invokeCommand<void>("session_subscribe", { sessionId });
 
 export const sessionUnsubscribe = (sessionId: string) =>
-  invokeCommand<void>("session_unsubscribe", { session_id: sessionId });
+  invokeCommand<void>("session_unsubscribe", { sessionId });
 
 export const listenToSessionEvents = (
   handler: (payload: SessionStreamPayload) => void
