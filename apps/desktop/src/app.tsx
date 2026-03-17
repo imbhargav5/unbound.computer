@@ -1854,8 +1854,8 @@ export function App() {
             ) : null}
 
             {selectedScreen === "goals" ? (
-              <RoutePlaceholder
-                body="The Goals route is present in the shell. Goal-specific daemon UI parity still needs dedicated data surfaces."
+              <BoardPlaceholderView
+                message="The schema is in place. Goal service and UI parity are the next daemon port."
                 title="Goals"
               />
             ) : null}
@@ -3447,6 +3447,56 @@ function RoutePlaceholder({ title, body }: { title: string; body: string }) {
         <p>{body}</p>
       </div>
     </section>
+  );
+}
+
+function BoardPlaceholderView({
+  title,
+  message,
+}: {
+  title: string;
+  message: string;
+}) {
+  return (
+    <section className="board-placeholder-route">
+      <div className="board-placeholder-state">
+        <BoardPlaceholderIcon />
+        <div className="board-placeholder-copy">
+          <h2>{title}</h2>
+          <p>{message}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BoardPlaceholderIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="board-placeholder-icon"
+      fill="none"
+      viewBox="0 0 48 48"
+    >
+      <path
+        d="M9 15.5h30v14a5.5 5.5 0 0 1-5.5 5.5H14.5A5.5 5.5 0 0 1 9 29.5v-14Z"
+        rx="5.5"
+        stroke="currentColor"
+        strokeWidth="2.5"
+      />
+      <path
+        d="M16 22h16"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2.5"
+      />
+      <path
+        d="M18.5 12.5h11"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2.5"
+      />
+    </svg>
   );
 }
 
