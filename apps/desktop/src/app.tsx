@@ -4111,49 +4111,68 @@ function CreateIssueDialogView({
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
         aria-modal="true"
+        aria-labelledby="create-issue-dialog-title"
         className="issue-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
         <div className="issue-dialog-header">
           <div className="issue-dialog-header-copy">
-            <h2>Create Issue</h2>
-            <p>
-              Create a new board issue with optional routing to a project, assignee, or
-              parent issue.
-            </p>
+            <span className="issue-dialog-badge">BOARD</span>
+            <div className="issue-dialog-title-block">
+              <h2 id="create-issue-dialog-title">Create issue</h2>
+              <p>
+                Create a new board issue with optional routing to a project, assignee, or
+                parent issue.
+              </p>
+            </div>
           </div>
-          <button className="project-dialog-close" onClick={onClose} type="button">
-            ✕
+          <button
+            aria-label="Close create issue dialog"
+            className="project-dialog-close issue-dialog-close"
+            onClick={onClose}
+            type="button"
+          >
+            x
           </button>
         </div>
 
         <div className="issue-dialog-body">
-          <label className="form-field">
-            <span>Title</span>
+          <div className="issue-dialog-divider" />
+
+          {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+
+          <label className="issue-dialog-field issue-dialog-field-full">
+            <span className="issue-dialog-label">Title</span>
             <input
+              className="issue-dialog-input"
               onChange={(event) => onTitleChange(event.target.value)}
               placeholder="Investigate CI flake"
               value={title}
             />
-            <small>This becomes the main issue title and the default workspace label.</small>
+            <small className="issue-dialog-hint">
+              This becomes the main issue title and the default workspace label.
+            </small>
           </label>
 
-          <label className="form-field">
-            <span>Description</span>
+          <label className="issue-dialog-field issue-dialog-field-full">
+            <span className="issue-dialog-label">Description</span>
             <textarea
-              className="issue-dialog-textarea"
+              className="issue-dialog-input issue-dialog-textarea"
               onChange={(event) => onDescriptionChange(event.target.value)}
               placeholder="What needs to happen, how should success be measured, and what context should the assignee keep in mind?"
               value={description}
             />
-            <small>Optional background, acceptance criteria, or context for the assignee.</small>
+            <small className="issue-dialog-hint">
+              Optional background, acceptance criteria, or context for the assignee.
+            </small>
           </label>
 
-          <label className="form-field">
-            <span>Priority</span>
-            <select
-              onChange={(event) => onPriorityChange(event.target.value)}
+          <div className="issue-dialog-grid">
+            <IssueDialogSelectField
+              hint="Controls ordering and urgency in board views."
+              label="Priority"
+              onChange={onPriorityChange}
               value={selectedPriority}
             >
               {priorities.map((priority) => (
@@ -4161,14 +4180,12 @@ function CreateIssueDialogView({
                   {humanizeIssueValue(priority)}
                 </option>
               ))}
-            </select>
-            <small>Controls ordering and urgency in board views.</small>
-          </label>
+            </IssueDialogSelectField>
 
-          <label className="form-field">
-            <span>Project</span>
-            <select
-              onChange={(event) => onProjectChange(event.target.value)}
+            <IssueDialogSelectField
+              hint="Optional project anchor for workspace routing and repo context."
+              label="Project"
+              onChange={onProjectChange}
               value={selectedProjectId}
             >
               <option value="">No project</option>
@@ -4177,14 +4194,12 @@ function CreateIssueDialogView({
                   {project.name}
                 </option>
               ))}
-            </select>
-            <small>Optional project anchor for workspace routing and repo context.</small>
-          </label>
+            </IssueDialogSelectField>
 
-          <label className="form-field">
-            <span>Assignee</span>
-            <select
-              onChange={(event) => onAssigneeChange(event.target.value)}
+            <IssueDialogSelectField
+              hint="Optional agent owner for execution or follow-up."
+              label="Assignee"
+              onChange={onAssigneeChange}
               value={selectedAssigneeAgentId}
             >
               <option value="">Unassigned</option>
@@ -4193,14 +4208,12 @@ function CreateIssueDialogView({
                   {agent.name || agent.title || agent.role || agent.id}
                 </option>
               ))}
-            </select>
-            <small>Optional agent owner for execution or follow-up.</small>
-          </label>
+            </IssueDialogSelectField>
 
-          <label className="form-field">
-            <span>Parent Issue</span>
-            <select
-              onChange={(event) => onParentIssueChange(event.target.value)}
+            <IssueDialogSelectField
+              hint="Use this to nest follow-up work under an existing issue."
+              label="Parent issue"
+              onChange={onParentIssueChange}
               value={selectedParentIssueId}
             >
               <option value="">No parent issue</option>
@@ -4209,11 +4222,8 @@ function CreateIssueDialogView({
                   {issue.identifier ?? issue.title}
                 </option>
               ))}
-            </select>
-            <small>Use this to nest follow-up work under an existing issue.</small>
-          </label>
-
-          {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
+            </IssueDialogSelectField>
+          </div>
         </div>
 
         <div className="issue-dialog-footer">
@@ -4231,11 +4241,44 @@ function CreateIssueDialogView({
             onClick={onCreate}
             type="button"
           >
-            {isSaving ? "Creating..." : "Create Issue"}
+            {isSaving ? "Creating issue..." : "Create issue"}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function IssueDialogSelectField({
+  children,
+  hint,
+  label,
+  onChange,
+  value,
+}: {
+  children: ReactNode;
+  hint: string;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="issue-dialog-field">
+      <span className="issue-dialog-label">{label}</span>
+      <div className="issue-dialog-select-shell">
+        <select
+          className="issue-dialog-select"
+          onChange={(event) => onChange(event.target.value)}
+          value={value}
+        >
+          {children}
+        </select>
+        <span aria-hidden="true" className="issue-dialog-select-arrow">
+          v
+        </span>
+      </div>
+      <small className="issue-dialog-hint">{hint}</small>
+    </label>
   );
 }
 

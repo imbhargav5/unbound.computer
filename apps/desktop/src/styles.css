@@ -1308,56 +1308,184 @@ p {
 }
 
 .issue-dialog {
-  width: min(620px, calc(100vw - 32px));
+  width: min(720px, calc(100vw - 32px));
   overflow: hidden;
-  border: 1px solid #242424;
-  border-radius: 16px;
-  background: #070707;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  border: 1px solid #27272a;
+  border-radius: 20px;
+  background: #09090b;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45);
 }
 
 .issue-dialog-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid #1d1d1d;
+  gap: 18px;
+  padding: 24px 24px 18px;
 }
 
 .issue-dialog-header-copy {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.issue-dialog-header-copy h2 {
-  color: #f5f5f5;
+.issue-dialog-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #27272a;
+  border-radius: 999px;
+  background: #111113;
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.issue-dialog-title-block {
+  display: grid;
+  gap: 6px;
+}
+
+.issue-dialog-title-block h2 {
+  color: #fafafa;
   font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
-.issue-dialog-header-copy p {
-  color: #8a8a8a;
+.issue-dialog-title-block p {
+  max-width: 520px;
+  color: #a1a1aa;
   font-size: 13px;
   line-height: 1.5;
 }
 
 .issue-dialog-body {
   display: grid;
+  gap: 18px;
+  padding: 0 24px 24px;
+}
+
+.issue-dialog-divider {
+  height: 1px;
+  background: #18181b;
+}
+
+.issue-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  padding: 20px;
+}
+
+.issue-dialog-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.issue-dialog-field-full {
+  grid-column: 1 / -1;
+}
+
+.issue-dialog-label {
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.issue-dialog-hint {
+  color: #8f8f98;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.issue-dialog-input,
+.issue-dialog-select-shell {
+  width: 100%;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  background: #0c0c0d;
+  color: #fafafa;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.issue-dialog-input {
+  min-height: 40px;
+  padding: 10px 12px;
+}
+
+.issue-dialog-input::placeholder {
+  color: #71717a;
+}
+
+.issue-dialog-input:focus,
+.issue-dialog-select-shell:focus-within {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+  background: #101012;
 }
 
 .issue-dialog-textarea {
-  min-height: 96px;
+  min-height: 128px;
   resize: vertical;
+  line-height: 1.55;
+}
+
+.issue-dialog-select-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 36px 0 12px;
+}
+
+.issue-dialog-select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+}
+
+.issue-dialog-select-arrow {
+  position: absolute;
+  right: 12px;
+  color: #71717a;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.issue-dialog-alert {
+  padding: 12px 14px;
+  border: 1px solid rgba(248, 113, 113, 0.24);
+  border-radius: 12px;
+  background: rgba(127, 29, 29, 0.24);
+  color: #fecaca;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .issue-dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 0 20px 20px;
+  padding: 0 24px 24px;
+}
+
+.issue-dialog-footer .secondary-button,
+.issue-dialog-footer .primary-button {
+  min-height: 40px;
+  padding: 0 16px;
 }
 
 .project-dialog-header {
@@ -1398,6 +1526,21 @@ p {
   border-radius: 16px;
   background: transparent;
   color: #9a9a9a;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.project-dialog-close:hover {
+  background: #171719;
+  color: #f4f4f5;
+}
+
+.project-dialog-close:focus-visible {
+  outline: 2px solid rgba(245, 158, 11, 0.4);
+  outline-offset: 2px;
+}
+
+.issue-dialog-close {
+  flex: 0 0 auto;
 }
 
 .project-dialog-body {
@@ -1475,6 +1618,16 @@ p {
 .project-dialog-create-button:disabled {
   background: #4a4a4a;
   color: #5b5b5b;
+}
+
+@media (max-width: 760px) {
+  .issue-dialog {
+    width: min(100%, calc(100vw - 24px));
+  }
+
+  .issue-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .issues-detail-route {
