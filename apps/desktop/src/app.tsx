@@ -409,10 +409,6 @@ export function App() {
       dashboardCanvasBounds
     );
   };
-  const resetDashboardCanvasView = () => {
-    setDashboardCanvasOffset(clampDashboardOffset(defaultDashboardCanvasOffset));
-  };
-
   useEffect(() => {
     const terminal = new Terminal({
       convertEol: true,
@@ -2001,16 +1997,13 @@ export function App() {
                 agents={companySnapshot?.agents ?? []}
                 canvasBounds={dashboardCanvasBounds}
                 canvasOffset={dashboardCanvasOffset}
-                company={selectedCompany}
                 isDragging={isDashboardCanvasDragging}
-                issues={boardIssues}
                 onCreateProject={handleOpenCreateProjectDialog}
                 onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
                 onPointerCancel={handleDashboardCanvasPointerEnd}
                 onPointerDown={handleDashboardCanvasPointerDown}
                 onPointerMove={handleDashboardCanvasPointerMove}
                 onPointerUp={handleDashboardCanvasPointerEnd}
-                onResetView={resetDashboardCanvasView}
                 projectBoards={dashboardProjectBoards}
                 viewportRef={dashboardCanvasViewportRef}
                 onWheel={handleDashboardCanvasWheel}
@@ -3006,16 +2999,13 @@ function DashboardCanvasRouteView({
   agents,
   canvasBounds,
   canvasOffset,
-  company,
   isDragging,
-  issues,
   onCreateProject,
   onOpenIssue,
   onPointerCancel,
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  onResetView,
   onWheel,
   projectBoards,
   viewportRef,
@@ -3023,43 +3013,19 @@ function DashboardCanvasRouteView({
   agents: AgentRecord[];
   canvasBounds: { height: number; width: number };
   canvasOffset: DashboardCanvasOffset;
-  company: Company | null;
   isDragging: boolean;
-  issues: IssueRecord[];
   onCreateProject: () => void;
   onOpenIssue: (issueId: string) => void;
   onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  onResetView: () => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectBoards: DashboardProjectBoardLayout[];
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
     <section className="dashboard-canvas-route">
-      <div className="dashboard-canvas-toolbar">
-        <div className="dashboard-canvas-toolbar-copy">
-          <span className="route-kicker">Dashboard</span>
-          <h1>{company?.name ?? "Project boards"}</h1>
-          <p>
-            Pan across the company canvas to see every project board and the issues
-            queued inside it.
-          </p>
-        </div>
-        <div className="dashboard-canvas-toolbar-actions">
-          <SummaryPill label="Projects" value={projectBoards.length} />
-          <SummaryPill label="Issues" value={issues.length} />
-          <button className="secondary-button" onClick={onResetView} type="button">
-            Reset view
-          </button>
-          <button className="primary-button" onClick={onCreateProject} type="button">
-            Create project
-          </button>
-        </div>
-      </div>
-
       {projectBoards.length ? (
         <div
           className={

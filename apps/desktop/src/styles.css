@@ -704,43 +704,6 @@ p {
     #0d0d0f;
 }
 
-.dashboard-canvas-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 28px 32px 24px;
-  border-bottom: 1px solid #1a1a1d;
-}
-
-.dashboard-canvas-toolbar-copy {
-  display: grid;
-  gap: 10px;
-  max-width: 720px;
-}
-
-.dashboard-canvas-toolbar-copy h1 {
-  margin: 0;
-  font-size: 32px;
-  letter-spacing: -0.04em;
-}
-
-.dashboard-canvas-toolbar-copy p {
-  margin: 0;
-  color: #8a8a8a;
-}
-
-.dashboard-canvas-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.dashboard-canvas-toolbar-actions .summary-pill {
-  min-width: 116px;
-}
-
 .dashboard-canvas-viewport {
   position: relative;
   flex: 1;
@@ -2949,14 +2912,6 @@ p {
 }
 
 @media (max-width: 1440px) {
-  .dashboard-canvas-toolbar {
-    flex-direction: column;
-  }
-
-  .dashboard-canvas-toolbar-actions {
-    justify-content: flex-start;
-  }
-
   .workspace-inspector {
     width: 340px;
   }
