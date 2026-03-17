@@ -60,6 +60,10 @@ export interface AgentRecord {
   role?: string | null;
   title?: string | null;
   status?: string | null;
+  adapter_type?: string | null;
+  budget_monthly_cents?: number | null;
+  spent_monthly_cents?: number | null;
+  last_heartbeat_at?: string | null;
   [key: string]: unknown;
 }
 

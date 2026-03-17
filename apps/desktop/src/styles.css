@@ -1326,6 +1326,108 @@ p {
   color: #8a8a8a;
 }
 
+.costs-overview-panel,
+.costs-summary-panel,
+.costs-agents-panel {
+  gap: 18px;
+}
+
+.costs-progress-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #1b1b1d;
+  border-radius: 18px;
+  background: #0c0c0d;
+}
+
+.costs-progress-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.costs-progress-copy strong {
+  color: #f5f5f5;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.costs-progress-copy span {
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.costs-progress-track,
+.cost-agent-row-progress {
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: #18181b;
+}
+
+.costs-progress-fill,
+.cost-agent-row-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #34d399 0%, #f59e0b 100%);
+}
+
+.costs-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.costs-agent-list {
+  display: grid;
+  gap: 12px;
+}
+
+.cost-agent-row {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #1b1b1d;
+  border-radius: 18px;
+  background: #0c0c0d;
+}
+
+.cost-agent-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cost-agent-row-copy,
+.cost-agent-row-metrics {
+  display: grid;
+  gap: 6px;
+}
+
+.cost-agent-row-copy {
+  min-width: 0;
+}
+
+.cost-agent-row-copy strong,
+.cost-agent-row-metrics strong {
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cost-agent-row-copy span,
+.cost-agent-row-metrics span {
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cost-agent-row-metrics {
+  justify-items: end;
+  flex: 0 0 auto;
+}
+
 .approval-queue-row {
   width: 100%;
   display: flex;

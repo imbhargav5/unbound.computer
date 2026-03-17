@@ -2569,9 +2569,9 @@ export function App() {
             ) : null}
 
             {selectedScreen === "costs" ? (
-              <RoutePlaceholder
-                body="Cost summaries are still a placeholder, but the screen now sits in the same company-shell flow as the Swift app."
-                title="Costs"
+              <CostsRouteView
+                agents={companySnapshot?.agents ?? []}
+                company={selectedCompany}
               />
             ) : null}
           </main>
@@ -3103,6 +3103,8 @@ export function App() {
                         >
                           <option value="dashboard">Dashboard</option>
                           <option value="stats">Stats</option>
+                          <option value="activity">Activity</option>
+                          <option value="costs">Costs</option>
                           <option value="workspaces">Workspaces</option>
                           <option value="settings">Settings</option>
                         </select>
@@ -4234,6 +4236,199 @@ function ActivityFeedRow({
         {item.trailingLabel.replaceAll("_", " ")}
       </span>
     </button>
+  );
+}
+
+function CostsRouteView({
+  company,
+  agents,
+}: {
+  company: Company | null;
+  agents: AgentRecord[];
+}) {
+  const sortedAgents = useMemo(
+    () =>
+      agents
+        .slice()
+        .sort((left, right) => {
+          const spendDelta = agentSpentCents(right) - agentSpentCents(left);
+          if (spendDelta !== 0) {
+            return spendDelta;
+          }
+
+          const budgetDelta = agentBudgetCents(right) - agentBudgetCents(left);
+          if (budgetDelta !== 0) {
+            return budgetDelta;
+          }
+
+          return (left.name || left.title || left.role || left.id).localeCompare(
+            right.name || right.title || right.role || right.id
+          );
+        }),
+    [agents]
+  );
+  const companyBudget = companyBudgetCents(company);
+  const companySpent = companySpentCents(company);
+  const companyRemaining = companyBudget - companySpent;
+  const agentTrackedSpend = sortedAgents.reduce(
+    (total, agent) => total + agentSpentCents(agent),
+    0
+  );
+  const agentsWithSpendCount = sortedAgents.filter((agent) => agentSpentCents(agent) > 0).length;
+  const overBudgetAgentsCount = sortedAgents.filter(isAgentOverBudget).length;
+  const companyUtilizationLabel = formatBudgetUtilization(companySpent, companyBudget);
+  const companyBudgetStatus = companyBudgetStatusLabel(companySpent, companyBudget);
+  const unattributedSpend = companySpent - agentTrackedSpend;
+
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <span className="route-kicker">Costs</span>
+        <h1>Budget and spend</h1>
+        <p>
+          Company and agent spend from the daemon-backed board models, matching the cost
+          data the Swift surfaces already exposed.
+        </p>
+      </div>
+
+      <div className="metric-grid">
+        <MetricCard label="Monthly Budget" value={formatCents(companyBudget)} />
+        <MetricCard label="Spent This Month" value={formatCents(companySpent)} />
+        <MetricCard label="Remaining" value={formatCents(companyRemaining)} />
+        <MetricCard label="Utilization" value={companyUtilizationLabel} />
+        <MetricCard label="Tracked Agents" value={agentsWithSpendCount} />
+        <MetricCard label="Over Budget" value={overBudgetAgentsCount} />
+      </div>
+
+      <div className="surface-grid">
+        <section className="surface-panel wide costs-overview-panel">
+          <div className="surface-header">
+            <h3>Company Budget</h3>
+          </div>
+
+          <div className="summary-grid">
+            <SummaryPill label="Budget" value={formatCents(companyBudget)} />
+            <SummaryPill label="Spent" value={formatCents(companySpent)} />
+            <SummaryPill label="Tracked Agent Spend" value={formatCents(agentTrackedSpend)} />
+            <SummaryPill label="Status" value={companyBudgetStatus} />
+          </div>
+
+          <div className="costs-progress-card">
+            <div className="costs-progress-copy">
+              <strong>{companyBudgetStatus}</strong>
+              <span>
+                {companyBudget > 0
+                  ? `${formatCents(companySpent)} spent of ${formatCents(companyBudget)} this month`
+                  : `${formatCents(companySpent)} spent this month with no company budget cap`}
+              </span>
+            </div>
+
+            <div className="costs-progress-track" role="presentation">
+              <div
+                className="costs-progress-fill"
+                style={{ width: `${budgetProgressPercent(companySpent, companyBudget)}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="surface-list costs-summary-list">
+            <div className="surface-list-row">
+              <span>Budget Utilization</span>
+              <strong>{companyUtilizationLabel}</strong>
+            </div>
+            <div className="surface-list-row">
+              <span>Budget Remaining</span>
+              <strong>{formatCents(companyRemaining)}</strong>
+            </div>
+            <div className="surface-list-row">
+              <span>Unattributed Spend</span>
+              <strong>{formatCents(unattributedSpend)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="surface-panel costs-summary-panel">
+          <div className="surface-header">
+            <h3>Guardrails</h3>
+          </div>
+
+          <div className="surface-list costs-summary-list">
+            <div className="surface-list-row">
+              <span>Agents With Budget Caps</span>
+              <strong>{sortedAgents.filter((agent) => agentBudgetCents(agent) > 0).length}</strong>
+            </div>
+            <div className="surface-list-row">
+              <span>Agents Over Budget</span>
+              <strong>{overBudgetAgentsCount}</strong>
+            </div>
+            <div className="surface-list-row">
+              <span>Total Agents</span>
+              <strong>{sortedAgents.length}</strong>
+            </div>
+            <div className="surface-list-row">
+              <span>Company Policy</span>
+              <strong>{companyBudget > 0 ? "Budget capped" : "No company cap"}</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="surface-panel costs-agents-panel">
+        <div className="surface-header">
+          <h3>Agent Spend</h3>
+        </div>
+
+        {sortedAgents.length ? (
+          <div className="surface-list costs-agent-list">
+            {sortedAgents.map((agent) => (
+              <CostAgentRow agent={agent} key={agent.id} />
+            ))}
+          </div>
+        ) : (
+          <div className="workspace-empty-state">
+            <h3>No agents yet</h3>
+            <p>Agent spend will appear here once the company has active agents.</p>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function CostAgentRow({ agent }: { agent: AgentRecord }) {
+  const budget = agentBudgetCents(agent);
+  const spent = agentSpentCents(agent);
+  const spendLabel =
+    budget > 0 ? `${formatCents(spent)} / ${formatCents(budget)}` : formatCents(spent);
+  const spendStatus = agentBudgetStatusLabel(spent, budget);
+  const secondaryMeta = [agent.title ?? agent.role, agent.status ?? "unknown"];
+  const heartbeatLabel = formatTimestamp(agent.last_heartbeat_at);
+
+  if (heartbeatLabel !== "n/a") {
+    secondaryMeta.push(heartbeatLabel);
+  }
+
+  return (
+    <div className="cost-agent-row">
+      <div className="cost-agent-row-top">
+        <div className="cost-agent-row-copy">
+          <strong>{agent.name || agent.title || agent.role || agent.id}</strong>
+          <span>{secondaryMeta.filter(Boolean).join(" · ")}</span>
+        </div>
+
+        <div className="cost-agent-row-metrics">
+          <strong>{spendLabel}</strong>
+          <span>{spendStatus}</span>
+        </div>
+      </div>
+
+      <div className="cost-agent-row-progress" role="presentation">
+        <div
+          className="cost-agent-row-progress-fill"
+          style={{ width: `${budgetProgressPercent(spent, budget)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -5524,6 +5719,10 @@ function preferredViewForScreen(screen: AppScreen) {
     return "activity";
   }
 
+  if (screen === "costs") {
+    return "costs";
+  }
+
   if (screen === "appSettings") {
     return "settings";
   }
@@ -5548,6 +5747,10 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
     return "activity";
   }
 
+  if (view === "costs") {
+    return "costs";
+  }
+
   if (view === "company_settings") {
     return "companySettings";
   }
@@ -5566,6 +5769,14 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
 function preferredViewSelectValue(view: string | null | undefined) {
   if (view === "settings") {
     return "settings";
+  }
+
+  if (view === "activity") {
+    return "activity";
+  }
+
+  if (view === "costs") {
+    return "costs";
   }
 
   if (view === "stats") {
@@ -5929,6 +6140,71 @@ function formatIssueDate(value: string | null | undefined) {
 
 function formatBoardDate(value: string | null | undefined) {
   return formatIssueDate(value);
+}
+
+function companyBudgetCents(company: Company | null) {
+  return typeof company?.budget_monthly_cents === "number"
+    ? company.budget_monthly_cents
+    : 0;
+}
+
+function companySpentCents(company: Company | null) {
+  return typeof company?.spent_monthly_cents === "number"
+    ? company.spent_monthly_cents
+    : 0;
+}
+
+function agentBudgetCents(agent: AgentRecord) {
+  return typeof agent.budget_monthly_cents === "number" ? agent.budget_monthly_cents : 0;
+}
+
+function agentSpentCents(agent: AgentRecord) {
+  return typeof agent.spent_monthly_cents === "number" ? agent.spent_monthly_cents : 0;
+}
+
+function formatBudgetUtilization(spentCents: number, budgetCents: number) {
+  if (budgetCents <= 0) {
+    return "No cap";
+  }
+
+  return `${Math.round((spentCents / budgetCents) * 100)}%`;
+}
+
+function budgetProgressPercent(spentCents: number, budgetCents: number) {
+  if (budgetCents <= 0) {
+    return spentCents > 0 ? 100 : 0;
+  }
+
+  return clampNumber((spentCents / budgetCents) * 100, 0, 100);
+}
+
+function companyBudgetStatusLabel(spentCents: number, budgetCents: number) {
+  if (budgetCents <= 0) {
+    return "No company cap";
+  }
+
+  if (spentCents > budgetCents) {
+    return `Over by ${formatCents(spentCents - budgetCents)}`;
+  }
+
+  return `${formatCents(budgetCents - spentCents)} remaining`;
+}
+
+function agentBudgetStatusLabel(spentCents: number, budgetCents: number) {
+  if (budgetCents <= 0) {
+    return spentCents > 0 ? "Tracked spend" : "No spend yet";
+  }
+
+  if (spentCents > budgetCents) {
+    return `Over by ${formatCents(spentCents - budgetCents)}`;
+  }
+
+  return `${formatBudgetUtilization(spentCents, budgetCents)} used`;
+}
+
+function isAgentOverBudget(agent: AgentRecord) {
+  const budget = agentBudgetCents(agent);
+  return budget > 0 && agentSpentCents(agent) > budget;
 }
 
 function formatApprovalPayload(payload: Record<string, unknown>) {
