@@ -191,6 +191,11 @@ interface ActivityFeedItem {
   target: ActivityFeedTarget;
 }
 
+interface DashboardBreadcrumbItem {
+  label: string;
+  onClick?: () => void;
+}
+
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
   { title: "Projects", screens: ["projects", "goals"] },
@@ -3075,6 +3080,9 @@ export function App() {
             {selectedScreen === "companySettings" ? (
               <section className="route-scroll">
                 <div className="route-header compact">
+                  <DashboardBreadcrumbs
+                    items={[{ label: "Company settings" }]}
+                  />
                   <span className="route-kicker">Company settings</span>
                   <h1>{selectedCompany?.name ?? "Company settings"}</h1>
                   <p>
@@ -4045,6 +4053,16 @@ function AgentsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs
+          items={
+            selectedAgent
+              ? [
+                  { label: "Agents" },
+                  { label: selectedAgent.name || "Agent" },
+                ]
+              : [{ label: "Agents" }]
+          }
+        />
         <span className="route-kicker">Agents</span>
         <h1>{selectedAgent?.name ?? "Company roster"}</h1>
         <p>
@@ -4204,10 +4222,16 @@ function AgentRunsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
-        <button className="issues-back-button" onClick={onBack} type="button">
-          <span>‹</span>
-          <span>Back to Agent</span>
-        </button>
+        <DashboardBreadcrumbs
+          items={[
+            { label: "Agents", onClick: onBack },
+            {
+              label: selectedAgent
+                ? `${selectedAgent.name} run history`
+                : "Run history",
+            },
+          ]}
+        />
         <span className="route-kicker">Agent runs</span>
         <div className="agents-route-header-row">
           <div>
@@ -4548,6 +4572,11 @@ function DashboardCanvasRouteView({
 }) {
   return (
     <section className="dashboard-canvas-route">
+      <div className="dashboard-canvas-route-header">
+        <div className="dashboard-canvas-route-header-inner">
+          <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
+        </div>
+      </div>
       {projectBoards.length ? (
         <div
           className={
@@ -4759,6 +4788,7 @@ function StatsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header">
+        <DashboardBreadcrumbs items={[{ label: "Stats" }]} />
         <span className="route-kicker">Stats</span>
         <h1>{company?.name ?? "Unbound"}</h1>
         <p>
@@ -4899,7 +4929,7 @@ function IssuesListView({
     <section className="issues-route">
       <div className="issues-route-header">
         <div className="issues-route-header-inner">
-          <span>ISSUES</span>
+          <DashboardBreadcrumbs items={[{ label: "Issues" }]} />
         </div>
       </div>
 
@@ -5243,19 +5273,19 @@ function IssueDetailView({
     onHideIssue();
   };
 
+  const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
+
   return (
     <section className="route-scroll issues-detail-route">
-      <div className="route-header compact">
-        <button className="issues-back-button" onClick={onBack} type="button">
-          <span>‹</span>
-          <span>Back to Issues</span>
-        </button>
-        <span className="route-kicker">Issues</span>
-        <h1>Issue Details</h1>
-      </div>
+      <DashboardBreadcrumbs
+        items={[
+          { label: "Issues", onClick: onBack },
+          { label: issueBreadcrumbTitle },
+        ]}
+      />
 
       <div className="issues-detail-layout">
-        <section className="surface-panel issues-detail-panel issues-detail-main-panel">
+        <section className="issues-detail-panel issues-detail-main-panel">
           <div className="issues-detail-identity-row">
             <div className="issues-detail-identity-copy">
               <span className="issues-detail-identifier">
@@ -5889,6 +5919,16 @@ function ApprovalsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs
+          items={
+            currentApproval
+              ? [
+                  { label: "Approvals" },
+                  { label: currentApproval.approval_type ?? "Decision queue" },
+                ]
+              : [{ label: "Approvals" }]
+          }
+        />
         <span className="route-kicker">Approvals</span>
         <h1>Decision queue</h1>
       </div>
@@ -6009,6 +6049,7 @@ function ActivityRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs items={[{ label: "Activity" }]} />
         <span className="route-kicker">Activity</span>
         <h1>Approvals and recent issue activity</h1>
       </div>
@@ -6117,6 +6158,7 @@ function CostsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs items={[{ label: "Costs" }]} />
         <span className="route-kicker">Costs</span>
         <h1>Budget and spend</h1>
         <p>
@@ -6302,6 +6344,21 @@ function ProjectsRouteView({
     <section className="route-scroll">
       <div className="route-header compact projects-route-header">
         <div>
+          <DashboardBreadcrumbs
+            items={
+              currentProject
+                ? [
+                    { label: "Projects" },
+                    {
+                      label:
+                        currentProject.name ??
+                        currentProject.title ??
+                        "Project",
+                    },
+                  ]
+                : [{ label: "Projects" }]
+            }
+          />
           <span className="route-kicker">Projects</span>
           <h1>Repo anchors and ownership</h1>
         </div>
@@ -6419,6 +6476,13 @@ function GoalsRouteView({
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs
+          items={
+            currentGoal
+              ? [{ label: "Goals" }, { label: currentGoal.title }]
+              : [{ label: "Goals" }]
+          }
+        />
         <span className="route-kicker">Goals</span>
         <h1>Board objectives and hierarchy</h1>
         <p>
@@ -7014,10 +7078,55 @@ function ApprovalQueueRow({
   );
 }
 
+function DashboardBreadcrumbs({
+  items,
+}: {
+  items: DashboardBreadcrumbItem[];
+}) {
+  return (
+    <nav aria-label="Breadcrumb" className="dashboard-breadcrumbs">
+      {items.map((item, index) => {
+        const isCurrent = index === items.length - 1;
+
+        return (
+          <div className="dashboard-breadcrumb-step" key={`${item.label}-${index}`}>
+            {item.onClick && !isCurrent ? (
+              <button
+                className="dashboard-breadcrumb-button"
+                onClick={item.onClick}
+                type="button"
+              >
+                {item.label}
+              </button>
+            ) : (
+              <span
+                className={
+                  isCurrent
+                    ? "dashboard-breadcrumb-current"
+                    : "dashboard-breadcrumb-label"
+                }
+              >
+                {item.label}
+              </span>
+            )}
+
+            {!isCurrent ? (
+              <span aria-hidden="true" className="dashboard-breadcrumb-separator">
+                ›
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 function RoutePlaceholder({ title, body }: { title: string; body: string }) {
   return (
     <section className="route-scroll">
       <div className="route-header compact">
+        <DashboardBreadcrumbs items={[{ label: title }]} />
         <span className="route-kicker">{title}</span>
         <h1>{title}</h1>
         <p>{body}</p>
