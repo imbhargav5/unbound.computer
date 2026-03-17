@@ -16,6 +16,7 @@ fn main() {
             commands::board_update_agent,
             commands::board_company_snapshot,
             commands::board_create_project,
+            commands::board_delete_project,
             commands::board_create_issue,
             commands::board_get_issue,
             commands::board_update_issue,

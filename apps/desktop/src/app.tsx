@@ -23,6 +23,7 @@ import {
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
+  boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
   boardListAgentRunEvents,
@@ -102,6 +103,7 @@ type AppScreen =
   | "agents"
   | "issues"
   | "approvals"
+  | "projects"
   | "goals"
   | "stats"
   | "activity"
@@ -501,6 +503,10 @@ export function App() {
     () => buildDashboardCanvasBounds(dashboardProjectBoards),
     [dashboardProjectBoards]
   );
+  const selectedProject =
+    boardProjects.find((project) => project.id === selectedProjectId) ??
+    boardProjects[0] ??
+    null;
   const boardApprovals = companySnapshot?.approvals ?? [];
   const selectedApproval =
     boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
@@ -1832,11 +1838,22 @@ export function App() {
 
   const handleSelectProjectSidebar = (projectId: string) => {
     setSelectedProjectId(projectId);
-    handleSelectScreen("dashboard");
+    handleSelectScreen("projects");
   };
 
   const handleSelectAgentTab = (tab: AgentsRouteMode) => {
     setAgentsRouteMode(tab);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    const deletedProject = await boardDeleteProject(projectId);
+    const snapshot = await boardCompanySnapshot(selectedCompanyId);
+    setCompanySnapshot(snapshot);
+    setStatusMessage(`Deleted project ${deletedProject.name}.`);
   };
 
   const handleRefreshAgentRuns = async () => {
@@ -2083,7 +2100,7 @@ export function App() {
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
       setSelectedProjectId(project.id);
-      setSelectedScreen("dashboard");
+      setSelectedScreen("projects");
       handleCloseCreateProjectDialog();
     } catch (error) {
       setProjectDialogError(
@@ -3044,6 +3061,7 @@ export function App() {
                     orderedSidebarProjects.map((project) => (
                       <button
                         className={
+                          selectedScreen === "projects" &&
                           selectedProjectId === project.id
                             ? "agent-sidebar-button active"
                             : "agent-sidebar-button"
@@ -3271,6 +3289,31 @@ export function App() {
                   void handleApproveApproval(approvalId)
                 }
                 onSelectApproval={setSelectedApprovalId}
+              />
+            ) : null}
+
+            {selectedScreen === "projects" ? (
+              <ProjectsRouteView
+                currentProject={selectedProject}
+                currentProjectIssueCount={
+                  selectedProject
+                    ? boardIssues.filter(
+                        (issue) => issue.project_id === selectedProject.id
+                      ).length
+                    : 0
+                }
+                currentProjectWorkspaceCount={
+                  selectedProject
+                    ? companyWorkspaces.filter(
+                        (workspace) => workspace.project_id === selectedProject.id
+                      ).length
+                    : 0
+                }
+                goals={boardGoals}
+                onDeleteProject={handleDeleteProject}
+                onOpenCreateProject={handleOpenCreateProjectDialog}
+                onSelectProject={setSelectedProjectId}
+                projects={boardProjects}
               />
             ) : null}
 
@@ -7207,125 +7250,188 @@ function ProjectsRouteView({
   projects,
   goals,
   currentProject,
+  currentProjectIssueCount,
+  currentProjectWorkspaceCount,
+  onDeleteProject,
   onSelectProject,
   onOpenCreateProject,
 }: {
   projects: ProjectRecord[];
   goals: GoalRecord[];
   currentProject: ProjectRecord | null;
+  currentProjectIssueCount: number;
+  currentProjectWorkspaceCount: number;
+  onDeleteProject: (projectId: string) => Promise<void>;
   onSelectProject: (projectId: string) => void;
   onOpenCreateProject: () => void;
 }) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsDeleteDialogOpen(false);
+    setIsDeletingProject(false);
+    setDeleteError(null);
+  }, [currentProject?.id]);
+
+  const handleConfirmProjectDelete = async () => {
+    if (!currentProject || isDeletingProject) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeletingProject(true);
+
+    try {
+      await onDeleteProject(currentProject.id);
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+      setIsDeletingProject(false);
+    }
+  };
+
   return (
-    <section className="route-scroll">
-      <div className="route-header compact projects-route-header">
-        <div>
-          <DashboardBreadcrumbs
-            items={
-              currentProject
-                ? [
-                    { label: "Projects" },
-                    {
-                      label:
-                        currentProject.name ??
-                        currentProject.title ??
-                        "Project",
-                    },
-                  ]
-                : [{ label: "Projects" }]
-            }
-          />
-          <span className="route-kicker">Projects</span>
-          <h1>Repo anchors and ownership</h1>
-        </div>
-
-        <button
-          className="primary-button"
-          onClick={onOpenCreateProject}
-          type="button"
-        >
-          New Project
-        </button>
-      </div>
-
-      <section className="surface-panel projects-panel">
-        <div className="surface-header">
-          <h3>Projects</h3>
-        </div>
-        {projects.length ? (
-          <div className="surface-list">
-            {projects.map((project) => (
-              <ProjectQueueRow
-                isSelected={currentProject?.id === project.id}
-                key={project.id}
-                onClick={() => onSelectProject(project.id)}
-                project={project}
-              />
-            ))}
+    <>
+      <section className="route-scroll">
+        <div className="route-header compact projects-route-header">
+          <div>
+            <DashboardBreadcrumbs
+              items={
+                currentProject
+                  ? [
+                      { label: "Projects" },
+                      {
+                        label:
+                          currentProject.name ??
+                          currentProject.title ??
+                          "Project",
+                      },
+                    ]
+                  : [{ label: "Projects" }]
+              }
+            />
+            <span className="route-kicker">Projects</span>
+            <h1>Repo anchors and ownership</h1>
           </div>
-        ) : (
-          <p className="projects-empty-text">
-            Projects define the main repo anchor that issue workspaces run
-            inside.
-          </p>
-        )}
+
+          <button
+            className="primary-button"
+            onClick={onOpenCreateProject}
+            type="button"
+          >
+            New Project
+          </button>
+        </div>
+
+        <section className="surface-panel projects-panel">
+          <div className="surface-header projects-detail-header">
+            <h3>Project Details</h3>
+            {currentProject ? (
+              <button
+                className="secondary-button compact-button destructive-button"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                type="button"
+              >
+                Delete Project
+              </button>
+            ) : null}
+          </div>
+
+          {currentProject ? (
+            <div className="projects-detail-stack">
+              <h2>{currentProject.name}</h2>
+
+              {currentProject.description ? (
+                <section className="projects-detail-section">
+                  <h3>Description</h3>
+                  <p>{currentProject.description}</p>
+                </section>
+              ) : null}
+
+              <div className="projects-detail-grid">
+                <DetailRow label="Status" value={currentProject.status} />
+                <DetailRow
+                  label="Lead Agent"
+                  value={currentProject.lead_agent_id ?? "Unassigned"}
+                />
+                <DetailRow
+                  label="Goal"
+                  value={goalTitleForProject(goals, currentProject.goal_id)}
+                />
+                <DetailRow
+                  label="Issues"
+                  value={String(currentProjectIssueCount)}
+                />
+                <DetailRow
+                  label="Workspaces"
+                  value={String(currentProjectWorkspaceCount)}
+                />
+                <DetailRow
+                  label="Repo Path"
+                  value={currentProject.primary_workspace?.cwd ?? "Missing"}
+                />
+                <DetailRow
+                  label="Repo URL"
+                  value={
+                    currentProject.primary_workspace?.repo_url ?? "Local only"
+                  }
+                />
+                <DetailRow
+                  label="Repo Ref"
+                  value={currentProject.primary_workspace?.repo_ref ?? "main"}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="workspace-empty-state projects-empty-state-panel">
+              <h3>Select a project</h3>
+              <p>Project repo-anchor configuration appears here.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="surface-panel projects-panel">
+          <div className="surface-header">
+            <h3>Projects</h3>
+          </div>
+          {projects.length ? (
+            <div className="surface-list">
+              {projects.map((project) => (
+                <ProjectQueueRow
+                  isSelected={currentProject?.id === project.id}
+                  key={project.id}
+                  onClick={() => onSelectProject(project.id)}
+                  project={project}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="projects-empty-text">
+              Projects define the main repo anchor that issue workspaces run
+              inside.
+            </p>
+          )}
+        </section>
       </section>
 
-      {currentProject ? (
-        <section className="surface-panel projects-panel">
-          <div className="surface-header">
-            <h3>Project Details</h3>
-          </div>
-
-          <div className="projects-detail-stack">
-            <h2>{currentProject.name}</h2>
-
-            {currentProject.description ? (
-              <section className="projects-detail-section">
-                <h3>Description</h3>
-                <p>{currentProject.description}</p>
-              </section>
-            ) : null}
-
-            <div className="projects-detail-grid">
-              <DetailRow label="Status" value={currentProject.status} />
-              <DetailRow
-                label="Lead Agent"
-                value={currentProject.lead_agent_id ?? "Unassigned"}
-              />
-              <DetailRow
-                label="Goal"
-                value={goalTitleForProject(goals, currentProject.goal_id)}
-              />
-              <DetailRow
-                label="Repo Path"
-                value={currentProject.primary_workspace?.cwd ?? "Missing"}
-              />
-              <DetailRow
-                label="Repo URL"
-                value={
-                  currentProject.primary_workspace?.repo_url ?? "Local only"
-                }
-              />
-              <DetailRow
-                label="Repo Ref"
-                value={currentProject.primary_workspace?.repo_ref ?? "main"}
-              />
-            </div>
-          </div>
-        </section>
-      ) : (
-        <section className="surface-panel projects-panel">
-          <div className="surface-header">
-            <h3>Project Details</h3>
-          </div>
-          <div className="workspace-empty-state projects-empty-state-panel">
-            <h3>Select a project</h3>
-            <p>Project repo-anchor configuration appears here.</p>
-          </div>
-        </section>
-      )}
-    </section>
+      {isDeleteDialogOpen && currentProject ? (
+        <DeleteProjectDialogView
+          errorMessage={deleteError}
+          isDeleting={isDeletingProject}
+          issueCount={currentProjectIssueCount}
+          onClose={() => {
+            if (!isDeletingProject) {
+              setIsDeleteDialogOpen(false);
+            }
+          }}
+          onConfirm={() => void handleConfirmProjectDelete()}
+          project={currentProject}
+          workspaceCount={currentProjectWorkspaceCount}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -7550,6 +7656,109 @@ function ProjectQueueRow({
       </div>
       <span className="project-queue-row-trailing">{project.status}</span>
     </button>
+  );
+}
+
+function DeleteProjectDialogView({
+  errorMessage,
+  isDeleting,
+  issueCount,
+  onClose,
+  onConfirm,
+  project,
+  workspaceCount,
+}: {
+  errorMessage: string | null;
+  isDeleting: boolean;
+  issueCount: number;
+  onClose: () => void;
+  onConfirm: () => void;
+  project: ProjectRecord;
+  workspaceCount: number;
+}) {
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={() => {
+        if (!isDeleting) {
+          onClose();
+        }
+      }}
+      role="presentation"
+    >
+      <div
+        aria-describedby="delete-project-dialog-description"
+        aria-labelledby="delete-project-dialog-title"
+        aria-modal="true"
+        className="project-dialog project-delete-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="project-dialog-header">
+          <div className="project-dialog-title-block">
+            <h2 id="delete-project-dialog-title">
+              Delete {project.name ?? project.title ?? "project"}?
+            </h2>
+            <p id="delete-project-dialog-description">
+              This will permanently delete this project, all related issues,
+              and all related workspaces. This action cannot be undone.
+            </p>
+          </div>
+          <button
+            aria-label="Close delete project dialog"
+            className="project-dialog-close"
+            disabled={isDeleting}
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="project-dialog-body">
+          <div className="project-dialog-divider" />
+
+          {errorMessage ? (
+            <div className="issue-dialog-alert">{errorMessage}</div>
+          ) : null}
+
+          <div className="project-delete-impact-grid">
+            <div className="project-delete-impact-card">
+              <strong>{issueCount}</strong>
+              <span>Issues will be deleted</span>
+            </div>
+            <div className="project-delete-impact-card">
+              <strong>{workspaceCount}</strong>
+              <span>Workspaces will be deleted</span>
+            </div>
+          </div>
+
+          <p className="project-delete-warning">
+            Repository records stay intact, but every board issue and workspace
+            anchored to this project will be removed.
+          </p>
+        </div>
+
+        <div className="issue-dialog-footer project-dialog-footer">
+          <button
+            className="secondary-button"
+            disabled={isDeleting}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="secondary-button destructive-button"
+            disabled={isDeleting}
+            onClick={onConfirm}
+            type="button"
+          >
+            {isDeleting ? "Deleting..." : "Delete Project"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -8688,6 +8897,8 @@ function screenLabel(screen: AppScreen) {
       return "Issues";
     case "approvals":
       return "Approvals";
+    case "projects":
+      return "Projects";
     case "goals":
       return "Goals";
     case "activity":

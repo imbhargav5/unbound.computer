@@ -288,6 +288,26 @@ async fn register_project_handlers(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
+
+    let delete_db = state.db.clone();
+    server
+        .register_handler(Method::ProjectDelete, move |req| {
+            let db = delete_db.clone();
+            async move {
+                let project_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "project_id") {
+                        Ok(project_id) => project_id,
+                        Err(response) => return response,
+                    };
+                match service::delete_project(&db, &project_id).await {
+                    Ok(project) => {
+                        json_response(&req.id, &serde_json::json!({ "project": project }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
 }
 
 async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {

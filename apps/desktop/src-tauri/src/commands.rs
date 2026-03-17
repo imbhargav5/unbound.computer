@@ -193,6 +193,12 @@ pub async fn board_create_project(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn board_delete_project(project_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::ProjectDelete, Some(json!({ "project_id": project_id }))).await?;
+    Ok(extract_field(value, "project"))
+}
+
+#[tauri::command]
 pub async fn board_create_issue(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::IssueCreate, Some(params)).await?;
     Ok(extract_field(value, "issue"))

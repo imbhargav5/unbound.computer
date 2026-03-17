@@ -62,6 +62,11 @@ export const boardCompanySnapshot = (companyId: string) =>
 export const boardCreateProject = (params: Record<string, unknown>) =>
   invokeCommand<ProjectRecord>("board_create_project", { params });
 
+export const boardDeleteProject = (projectId: string) =>
+  invokeCommand<ProjectRecord>("board_delete_project", {
+    projectId,
+  });
+
 export const boardCreateIssue = (params: Record<string, unknown>) =>
   invokeCommand<IssueRecord>("board_create_issue", { params });
 

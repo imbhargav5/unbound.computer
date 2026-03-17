@@ -991,6 +991,74 @@ pub async fn create_project(db: &AsyncDatabase, input: CreateProjectInput) -> Bo
         .await?)
 }
 
+pub async fn delete_project(db: &AsyncDatabase, project_id: &str) -> BoardResult<Project> {
+    let project_id = require_name(project_id, "project_id")?;
+    let now = now_rfc3339();
+
+    Ok(db
+        .call_with_operation("board.project.delete", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            let project = get_project_sync(&tx, &project_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Project not found".to_string()))?;
+
+            tx.execute(
+                "DELETE FROM workspace_runtime_services
+                 WHERE project_id = ?1
+                    OR project_workspace_id IN (
+                        SELECT id FROM project_workspaces WHERE project_id = ?1
+                    )
+                    OR issue_id IN (
+                        SELECT id FROM issues WHERE project_id = ?1
+                    )",
+                params![project_id],
+            )?;
+
+            let session_ids = {
+                let mut stmt = tx.prepare(
+                    "SELECT id
+                     FROM agent_coding_sessions
+                     WHERE project_id = ?1
+                        OR issue_id IN (
+                            SELECT id FROM issues WHERE project_id = ?1
+                        )",
+                )?;
+                let rows = stmt.query_map(params![project_id], |row| row.get::<_, String>(0))?;
+                rows.collect::<Result<Vec<_>, _>>()?
+            };
+
+            for session_id in session_ids {
+                tx.execute(
+                    "DELETE FROM agent_coding_sessions WHERE id = ?1",
+                    params![session_id],
+                )?;
+            }
+
+            tx.execute(
+                "DELETE FROM issues WHERE project_id = ?1",
+                params![project_id],
+            )?;
+
+            tx.execute("DELETE FROM projects WHERE id = ?1", params![project_id])?;
+
+            insert_activity_sync(
+                &tx,
+                &project.company_id,
+                "system",
+                LOCAL_BOARD_USER_ID,
+                "project.deleted",
+                "project",
+                &project.id,
+                project.lead_agent_id.as_deref(),
+                Some(json!({ "name": project.name.clone() })),
+                &now,
+            )?;
+
+            tx.commit()?;
+            Ok(project)
+        })
+        .await?)
+}
+
 pub async fn list_issues(db: &AsyncDatabase, filter: IssueListFilter) -> BoardResult<Vec<Issue>> {
     Ok(db
         .call_with_operation("board.issue.list", move |conn| {
@@ -3572,6 +3640,169 @@ mod tests {
 
         assert_eq!(issue.assignee_agent_id, Some(ceo.id.clone()));
         assert_eq!(issue.execution_agent_name_key, Some(ceo.slug.clone()));
+    }
+
+    #[tokio::test]
+    async fn delete_project_removes_related_issues_and_workspaces() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let alpha_repo_path = dir.path().join("alpha").to_string_lossy().into_owned();
+        let beta_repo_path = dir.path().join("beta").to_string_lossy().into_owned();
+
+        let alpha_project = create_project(
+            &db,
+            CreateProjectInput {
+                company_id: company.id.clone(),
+                name: "Alpha".to_string(),
+                repo_path: Some(alpha_repo_path.clone()),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let beta_project = create_project(
+            &db,
+            CreateProjectInput {
+                company_id: company.id.clone(),
+                name: "Beta".to_string(),
+                repo_path: Some(beta_repo_path.clone()),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let alpha_issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(alpha_project.id.clone()),
+                title: "Alpha issue".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let beta_issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(beta_project.id.clone()),
+                title: "Beta issue".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let alpha_session_id = Uuid::new_v4().to_string();
+        let beta_session_id = Uuid::new_v4().to_string();
+        let company_id = company.id.clone();
+        let alpha_project_id = alpha_project.id.clone();
+        let beta_project_id = beta_project.id.clone();
+        let alpha_issue_id = alpha_issue.id.clone();
+        let beta_issue_id = beta_issue.id.clone();
+        let session_now = now_rfc3339();
+
+        db.call_with_operation("board.project_delete_test.seed_workspaces", move |conn| {
+            let alpha_repo_id: String = conn.query_row(
+                "SELECT id FROM repositories WHERE path = ?1",
+                params![alpha_repo_path],
+                |row| row.get(0),
+            )?;
+            let beta_repo_id: String = conn.query_row(
+                "SELECT id FROM repositories WHERE path = ?1",
+                params![beta_repo_path],
+                |row| row.get(0),
+            )?;
+
+            conn.execute(
+                "INSERT INTO agent_coding_sessions (
+                    id, repository_id, title, status, is_worktree,
+                    created_at, last_accessed_at, updated_at,
+                    company_id, project_id, issue_id
+                 ) VALUES (?1, ?2, ?3, 'active', 0, ?4, ?4, ?4, ?5, ?6, ?7)",
+                params![
+                    alpha_session_id,
+                    alpha_repo_id,
+                    "Alpha workspace",
+                    session_now,
+                    company_id,
+                    alpha_project_id,
+                    alpha_issue_id,
+                ],
+            )?;
+
+            conn.execute(
+                "INSERT INTO agent_coding_sessions (
+                    id, repository_id, title, status, is_worktree,
+                    created_at, last_accessed_at, updated_at,
+                    company_id, project_id, issue_id
+                 ) VALUES (?1, ?2, ?3, 'active', 0, ?4, ?4, ?4, ?5, ?6, ?7)",
+                params![
+                    beta_session_id,
+                    beta_repo_id,
+                    "Beta workspace",
+                    session_now,
+                    company_id,
+                    beta_project_id,
+                    beta_issue_id,
+                ],
+            )?;
+
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        let deleted_project = delete_project(&db, &alpha_project.id).await.unwrap();
+        assert_eq!(deleted_project.id, alpha_project.id);
+
+        assert!(get_project(&db, &alpha_project.id).await.unwrap().is_none());
+
+        let remaining_projects = list_projects(&db, &company.id).await.unwrap();
+        assert_eq!(remaining_projects.len(), 1);
+        assert_eq!(remaining_projects[0].id, beta_project.id);
+
+        let remaining_issues = list_issues(
+            &db,
+            IssueListFilter {
+                company_id: company.id.clone(),
+                ..IssueListFilter::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(remaining_issues.len(), 1);
+        assert_eq!(remaining_issues[0].id, beta_issue.id);
+
+        let remaining_workspaces = list_workspaces(&db, &company.id).await.unwrap();
+        assert_eq!(remaining_workspaces.len(), 1);
+        assert_eq!(
+            remaining_workspaces[0].project_id.as_deref(),
+            Some(beta_project.id.as_str())
+        );
+        assert_eq!(
+            remaining_workspaces[0].issue_id.as_deref(),
+            Some(beta_issue.id.as_str())
+        );
     }
 
     #[tokio::test]

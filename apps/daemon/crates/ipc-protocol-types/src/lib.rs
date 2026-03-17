@@ -87,6 +87,8 @@ pub enum Method {
     ProjectCreate,
     #[serde(rename = "project.get")]
     ProjectGet,
+    #[serde(rename = "project.delete")]
+    ProjectDelete,
 
     // Issues
     #[serde(rename = "issue.list")]

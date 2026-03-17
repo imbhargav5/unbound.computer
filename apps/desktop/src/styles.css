@@ -2126,6 +2126,10 @@ p {
   gap: 18px;
 }
 
+.projects-detail-header {
+  align-items: center;
+}
+
 .goals-panel {
   gap: 18px;
 }
@@ -2229,6 +2233,38 @@ p {
 .goals-empty-state-panel,
 .projects-empty-state-panel {
   margin-top: 0;
+}
+
+.project-delete-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.project-delete-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-delete-impact-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #27272a;
+  border-radius: 14px;
+  background: #0c0c0d;
+}
+
+.project-delete-impact-card strong {
+  color: #fafafa;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.project-delete-impact-card span,
+.project-delete-warning {
+  color: #a1a1aa;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .goals-detail-hero {
@@ -2629,7 +2665,8 @@ p {
   }
 
   .project-dialog-grid,
-  .issue-dialog-grid {
+  .issue-dialog-grid,
+  .project-delete-impact-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
