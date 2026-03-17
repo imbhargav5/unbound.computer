@@ -212,6 +212,7 @@ export function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedIssuesListTab, setSelectedIssuesListTab] =
     useState<IssuesListTab>("new");
@@ -321,6 +322,10 @@ export function App() {
     ? issueCommentsByIssueId[selectedIssue.id] ?? []
     : [];
   const boardGoals = companySnapshot?.goals ?? [];
+  const selectedGoal =
+    boardGoals.find((goal) => goal.id === selectedGoalId) ??
+    boardGoals[0] ??
+    null;
   const boardProjects = companySnapshot?.projects ?? [];
   const dashboardProjectBoards = useMemo(
     () => buildDashboardProjectBoards(boardProjects, boardIssues),
@@ -582,6 +587,7 @@ export function App() {
   useEffect(() => {
     const nextWorkspaces = companySnapshot?.workspaces ?? [];
     const nextAgents = companySnapshot?.agents ?? [];
+    const nextGoals = companySnapshot?.goals ?? [];
     const nextIssues = companySnapshot?.issues ?? [];
     const nextApprovals = companySnapshot?.approvals ?? [];
     const nextProjects = companySnapshot?.projects ?? [];
@@ -619,6 +625,13 @@ export function App() {
         return current;
       }
       return nextProjects[0]?.id ?? null;
+    });
+
+    setSelectedGoalId((current) => {
+      if (current && nextGoals.some((goal) => goal.id === current)) {
+        return current;
+      }
+      return nextGoals[0]?.id ?? null;
     });
 
     setIssueCommentsByIssueId((current) =>
@@ -2142,9 +2155,12 @@ export function App() {
             ) : null}
 
             {selectedScreen === "goals" ? (
-              <BoardPlaceholderView
-                message="The schema is in place. Goal service and UI parity are the next daemon port."
-                title="Goals"
+              <GoalsRouteView
+                agents={companySnapshot?.agents ?? []}
+                currentGoal={selectedGoal}
+                goals={boardGoals}
+                onSelectGoal={setSelectedGoalId}
+                projects={boardProjects}
               />
             ) : null}
 
@@ -3924,6 +3940,192 @@ function ProjectsRouteView({
   );
 }
 
+function GoalsRouteView({
+  agents,
+  currentGoal,
+  goals,
+  onSelectGoal,
+  projects,
+}: {
+  agents: AgentRecord[];
+  currentGoal: GoalRecord | null;
+  goals: GoalRecord[];
+  onSelectGoal: (goalId: string) => void;
+  projects: ProjectRecord[];
+}) {
+  const childGoals = currentGoal
+    ? goals.filter((goal) => goal.parent_id === currentGoal.id)
+    : [];
+  const relatedProjects = currentGoal
+    ? projects.filter((project) => project.goal_id === currentGoal.id)
+    : [];
+
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <span className="route-kicker">Goals</span>
+        <h1>Board objectives and hierarchy</h1>
+        <p>
+          Goals are already loaded from the daemon and used during project planning. This
+          route surfaces them directly in the company shell.
+        </p>
+      </div>
+
+      <section className="surface-panel goals-panel">
+        <div className="surface-header">
+          <h3>Goals</h3>
+        </div>
+        {goals.length ? (
+          <div className="surface-list">
+            {goals.map((goal) => (
+              <GoalQueueRow
+                goal={goal}
+                isSelected={currentGoal?.id === goal.id}
+                key={goal.id}
+                onClick={() => onSelectGoal(goal.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="workspace-empty-state goals-empty-state-panel">
+            <h3>No goals yet</h3>
+            <p>Goals created through the daemon-backed board flows will appear here.</p>
+          </div>
+        )}
+      </section>
+
+      {currentGoal ? (
+        <section className="surface-panel goals-panel">
+          <div className="surface-header">
+            <h3>Goal Details</h3>
+          </div>
+
+          <div className="goals-detail-stack">
+            <div className="goals-detail-hero">
+              <div>
+                <span className="goal-level-pill">
+                  {humanizeIssueValue(currentGoal.level ?? "company")}
+                </span>
+                <h2>{currentGoal.title}</h2>
+              </div>
+              <span className="goal-status-pill">
+                {humanizeIssueValue(currentGoal.status ?? "planned")}
+              </span>
+            </div>
+
+            {currentGoal.description ? (
+              <section className="projects-detail-section">
+                <h3>Description</h3>
+                <p>{currentGoal.description}</p>
+              </section>
+            ) : null}
+
+            <div className="goals-detail-grid">
+              <DetailRow
+                label="Level"
+                value={humanizeIssueValue(currentGoal.level ?? "company")}
+              />
+              <DetailRow
+                label="Status"
+                value={humanizeIssueValue(currentGoal.status ?? "planned")}
+              />
+              <DetailRow
+                label="Owner Agent"
+                value={goalOwnerLabel(agents, currentGoal.owner_agent_id)}
+              />
+              <DetailRow
+                label="Parent Goal"
+                value={goalTitleForProject(goals, currentGoal.parent_id)}
+              />
+              <DetailRow
+                label="Child Goals"
+                value={String(childGoals.length)}
+              />
+              <DetailRow
+                label="Linked Projects"
+                value={String(relatedProjects.length)}
+              />
+              <DetailRow
+                label="Created"
+                value={formatBoardDate(currentGoal.created_at)}
+              />
+              <DetailRow
+                label="Updated"
+                value={formatBoardDate(currentGoal.updated_at)}
+              />
+            </div>
+
+            {childGoals.length ? (
+              <section className="goals-detail-section">
+                <h3>Child Goals</h3>
+                <div className="surface-list">
+                  {childGoals.map((goal) => (
+                    <button
+                      className="goal-relationship-row"
+                      key={goal.id}
+                      onClick={() => onSelectGoal(goal.id)}
+                      type="button"
+                    >
+                      <div className="goal-relationship-row-main">
+                        <strong>{goal.title}</strong>
+                        <span>{humanizeIssueValue(goal.status ?? "planned")}</span>
+                      </div>
+                      <span className="goal-relationship-row-trailing">
+                        {humanizeIssueValue(goal.level ?? "company")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {relatedProjects.length ? (
+              <section className="goals-detail-section">
+                <h3>Linked Projects</h3>
+                <div className="surface-list">
+                  {relatedProjects.map((project) => (
+                    <div className="surface-list-row" key={project.id}>
+                      <span>{project.name}</span>
+                      <strong>{humanizeIssueValue(project.status ?? "planned")}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function GoalQueueRow({
+  goal,
+  isSelected,
+  onClick,
+}: {
+  goal: GoalRecord;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "goal-queue-row active" : "goal-queue-row"}
+      onClick={onClick}
+      type="button"
+    >
+      <div className="goal-queue-row-main">
+        <strong>{goal.title}</strong>
+        <span>{goal.description ?? "No description yet"}</span>
+      </div>
+      <div className="goal-queue-row-meta">
+        <span>{humanizeIssueValue(goal.level ?? "company")}</span>
+        <span>{humanizeIssueValue(goal.status ?? "planned")}</span>
+      </div>
+    </button>
+  );
+}
+
 function ProjectQueueRow({
   project,
   isSelected,
@@ -5169,6 +5371,15 @@ function issueAssigneeLabel(agents: AgentRecord[], assigneeAgentId?: string | nu
 
   const agent = agents.find((entry) => entry.id === assigneeAgentId);
   return agent?.name || agent?.title || agent?.role || assigneeAgentId;
+}
+
+function goalOwnerLabel(agents: AgentRecord[], ownerAgentId?: string | null) {
+  if (!ownerAgentId) {
+    return "Unassigned";
+  }
+
+  const agent = agents.find((entry) => entry.id === ownerAgentId);
+  return agent?.name || agent?.title || agent?.role || ownerAgentId;
 }
 
 function issueParentLabel(issues: IssueRecord[], parentIssueId?: string | null) {
