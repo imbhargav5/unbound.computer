@@ -3184,7 +3184,6 @@ export function App() {
 
             {selectedScreen === "agents" ? (
               <AgentsRouteView
-                agents={companySnapshot?.agents ?? []}
                 agentRunError={agentRunError}
                 agentRunEvents={agentRunEvents}
                 agentRunLogContent={agentRunLogContent}
@@ -3217,11 +3216,9 @@ export function App() {
                 onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
                 onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
                 onSaveConfiguration={() => void handleSaveAgentConfiguration()}
-                onSelectAgent={handleSelectAgent}
                 onSelectRun={handleSelectAgentRun}
                 onSelectTab={handleSelectAgentTab}
                 selectedAgent={selectedAgent}
-                selectedAgentId={selectedAgentId}
                 selectedRun={selectedAgentRun}
               />
             ) : null}
@@ -4269,7 +4266,6 @@ function SummaryPill({
 }
 
 function AgentsRouteView({
-  agents,
   agentRunError,
   agentRunEvents,
   agentRunLogContent,
@@ -4293,14 +4289,11 @@ function AgentsRouteView({
   onResumeSelectedRun,
   onRetrySelectedRun,
   onSaveConfiguration,
-  onSelectAgent,
   onSelectRun,
   onSelectTab,
   selectedAgent,
-  selectedAgentId,
   selectedRun,
 }: {
-  agents: AgentRecord[];
   agentRunError: string | null;
   agentRunEvents: AgentRunEventRecord[];
   agentRunLogContent: string;
@@ -4327,11 +4320,9 @@ function AgentsRouteView({
   onResumeSelectedRun: () => void;
   onRetrySelectedRun: () => void;
   onSaveConfiguration: () => void;
-  onSelectAgent: (agentId: string) => void;
   onSelectRun: (runId: string) => void;
   onSelectTab: (tab: AgentsRouteMode) => void;
   selectedAgent: AgentRecord | null;
-  selectedAgentId: string | null;
   selectedRun: AgentRunRecord | null;
 }) {
   const agentHeaderSubtitle =
@@ -4357,15 +4348,15 @@ function AgentsRouteView({
           }
         />
         <span className="route-kicker">Agents</span>
-        <h1>{selectedAgent?.name ?? "Company roster"}</h1>
+        <h1>{selectedAgent?.name ?? "Agents"}</h1>
         <p>
           Review the selected agent, adjust its configuration, and inspect its
           run history from one shared workspace.
         </p>
       </div>
 
-      <div className="surface-grid">
-        <section className="surface-panel wide">
+      <div className="surface-grid single">
+        <section className="surface-panel">
           {selectedAgent ? (
             <>
               <div className="agent-page-header">
@@ -4479,35 +4470,6 @@ function AgentsRouteView({
             </>
           ) : (
             <p>No agents are available for this company yet.</p>
-          )}
-        </section>
-
-        <section className="surface-panel">
-          <div className="surface-header">
-            <h3>Roster</h3>
-          </div>
-          {agents.length ? (
-            <div className="surface-list">
-              {agents.map((agent) => (
-                <button
-                  className={
-                    agent.id === selectedAgentId
-                      ? "file-list-button active"
-                      : "file-list-button"
-                  }
-                  key={agent.id}
-                  onClick={() => onSelectAgent(agent.id)}
-                  type="button"
-                >
-                  <strong>{agent.name}</strong>
-                  <span>{agent.title ?? agent.role ?? "Agent"}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              No agents have been created for this company yet.
-            </p>
           )}
         </section>
       </div>
