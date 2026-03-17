@@ -194,7 +194,6 @@ export function App() {
   const [prompt, setPrompt] = useState("");
   const [terminalCommand, setTerminalCommand] = useState("");
   const [newProjectTitle, setNewProjectTitle] = useState("");
-  const [newIssueTitle, setNewIssueTitle] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
   const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
@@ -202,6 +201,15 @@ export function App() {
   const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
   const [projectDialogError, setProjectDialogError] = useState<string | null>(null);
   const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
+  const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
+  const [issueDialogTitle, setIssueDialogTitle] = useState("");
+  const [issueDialogDescription, setIssueDialogDescription] = useState("");
+  const [issueDialogPriority, setIssueDialogPriority] = useState("medium");
+  const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
+  const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] = useState("");
+  const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
+  const [issueDialogError, setIssueDialogError] = useState<string | null>(null);
+  const [isIssueDialogSaving, setIsIssueDialogSaving] = useState(false);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
   const [isEditingIssue, setIsEditingIssue] = useState(false);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(createEmptyIssueDraft());
@@ -953,6 +961,77 @@ export function App() {
     }
   };
 
+  const resetIssueDialog = () => {
+    setIssueDialogTitle("");
+    setIssueDialogDescription("");
+    setIssueDialogPriority("medium");
+    setIssueDialogProjectId("");
+    setIssueDialogAssigneeAgentId("");
+    setIssueDialogParentIssueId("");
+    setIssueDialogError(null);
+    setIsIssueDialogSaving(false);
+  };
+
+  const handleOpenCreateIssueDialog = () => {
+    resetIssueDialog();
+    setIsCreateIssueDialogOpen(true);
+  };
+
+  const handleCloseCreateIssueDialog = () => {
+    setIsCreateIssueDialogOpen(false);
+    resetIssueDialog();
+  };
+
+  const handleCreateIssueFromDialog = async () => {
+    if (
+      !selectedCompanyId ||
+      !issueDialogTitle.trim() ||
+      isIssueDialogSaving
+    ) {
+      return;
+    }
+
+    setIsIssueDialogSaving(true);
+    setIssueDialogError(null);
+
+    try {
+      const params: Record<string, unknown> = {
+        company_id: selectedCompanyId,
+        title: issueDialogTitle.trim(),
+        priority: issueDialogPriority,
+      };
+
+      if (issueDialogDescription.trim()) {
+        params.description = issueDialogDescription.trim();
+      }
+      if (issueDialogProjectId) {
+        params.project_id = issueDialogProjectId;
+      }
+      if (issueDialogAssigneeAgentId) {
+        params.assignee_agent_id = issueDialogAssigneeAgentId;
+      }
+      if (issueDialogParentIssueId) {
+        params.parent_id = issueDialogParentIssueId;
+      }
+
+      const createdIssue = await boardCreateIssue(params);
+      const snapshot = await boardCompanySnapshot(selectedCompanyId);
+      setCompanySnapshot(snapshot);
+      setSelectedIssueId(createdIssue.id);
+      setIssueDraft(createIssueDraft(createdIssue));
+      setIssuesRouteMode("detail");
+      setSelectedScreen("issues");
+      void persistSettings({
+        ...settings,
+        preferred_view: preferredViewForScreen("issues"),
+      });
+      handleCloseCreateIssueDialog();
+    } catch (error) {
+      setIssueDialogError(error instanceof Error ? error.message : String(error));
+      setIsIssueDialogSaving(false);
+    }
+  };
+
   const handleShowIssuesList = (tab?: IssuesListTab) => {
     if (tab) {
       setSelectedIssuesListTab(tab);
@@ -1237,36 +1316,6 @@ export function App() {
     }
   };
 
-  const handleCreateIssue = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedCompanyId || !newIssueTitle.trim()) {
-      return;
-    }
-
-    setIsWorking(true);
-    try {
-      const createdIssue = await boardCreateIssue({
-        company_id: selectedCompanyId,
-        title: newIssueTitle.trim(),
-      });
-      const snapshot = await boardCompanySnapshot(selectedCompanyId);
-      setCompanySnapshot(snapshot);
-      setSelectedIssueId((createdIssue as IssueRecord).id);
-      setIssueDraft(createIssueDraft(createdIssue as IssueRecord));
-      setIssuesRouteMode("detail");
-      setSelectedScreen("issues");
-      void persistSettings({
-        ...settings,
-        preferred_view: preferredViewForScreen("issues"),
-      });
-      setNewIssueTitle("");
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
   const handleAddRepository = async () => {
     setStatusMessage(null);
     try {
@@ -1530,6 +1579,10 @@ export function App() {
 
             <div className="board-sidebar-scroll">
               <div className="board-sidebar-section">
+                <SidebarLinkButton
+                  label="New Issue"
+                  onClick={handleOpenCreateIssueDialog}
+                />
                 <BoardSidebarButton
                   active={selectedScreen === "dashboard"}
                   label="Dashboard"
@@ -1540,16 +1593,6 @@ export function App() {
                   label="Inbox"
                   onClick={() => handleSelectScreen("inbox")}
                 />
-                <form className="sidebar-inline-form" onSubmit={handleCreateIssue}>
-                  <input
-                    onChange={(event) => setNewIssueTitle(event.target.value)}
-                    placeholder="New issue"
-                    value={newIssueTitle}
-                  />
-                  <button className="icon-button" type="submit">
-                    +
-                  </button>
-                </form>
               </div>
 
               {primaryBoardSections.map((section) => (
@@ -2593,6 +2636,31 @@ export function App() {
           onTargetDateChange={setProjectDialogTargetDate}
         />
       ) : null}
+
+      {isCreateIssueDialogOpen ? (
+        <CreateIssueDialogView
+          agents={companySnapshot?.agents ?? []}
+          errorMessage={issueDialogError}
+          isSaving={isIssueDialogSaving}
+          issues={boardIssues}
+          onAssigneeChange={setIssueDialogAssigneeAgentId}
+          onClose={handleCloseCreateIssueDialog}
+          onCreate={() => void handleCreateIssueFromDialog()}
+          onDescriptionChange={setIssueDialogDescription}
+          onParentIssueChange={setIssueDialogParentIssueId}
+          onPriorityChange={setIssueDialogPriority}
+          onProjectChange={setIssueDialogProjectId}
+          onTitleChange={setIssueDialogTitle}
+          priorities={["low", "medium", "high", "urgent"]}
+          projects={boardProjects}
+          selectedAssigneeAgentId={issueDialogAssigneeAgentId}
+          selectedParentIssueId={issueDialogParentIssueId}
+          selectedPriority={issueDialogPriority}
+          selectedProjectId={issueDialogProjectId}
+          title={issueDialogTitle}
+          description={issueDialogDescription}
+        />
+      ) : null}
     </div>
   );
 }
@@ -2631,6 +2699,21 @@ function BoardSidebarButton({
       type="button"
     >
       {label}
+    </button>
+  );
+}
+
+function SidebarLinkButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="sidebar-link-button" onClick={onClick} type="button">
+      <span className="sidebar-link-icon">+</span>
+      <span>{label}</span>
     </button>
   );
 }
@@ -3408,6 +3491,183 @@ function CreateProjectDialogView({
               {isSaving ? "Creating..." : "Create project"}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateIssueDialogView({
+  title,
+  description,
+  selectedPriority,
+  selectedProjectId,
+  selectedAssigneeAgentId,
+  selectedParentIssueId,
+  priorities,
+  projects,
+  agents,
+  issues,
+  isSaving,
+  errorMessage,
+  onTitleChange,
+  onDescriptionChange,
+  onPriorityChange,
+  onProjectChange,
+  onAssigneeChange,
+  onParentIssueChange,
+  onCreate,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  selectedPriority: string;
+  selectedProjectId: string;
+  selectedAssigneeAgentId: string;
+  selectedParentIssueId: string;
+  priorities: string[];
+  projects: ProjectRecord[];
+  agents: AgentRecord[];
+  issues: IssueRecord[];
+  isSaving: boolean;
+  errorMessage: string | null;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onPriorityChange: (value: string) => void;
+  onProjectChange: (value: string) => void;
+  onAssigneeChange: (value: string) => void;
+  onParentIssueChange: (value: string) => void;
+  onCreate: () => void;
+  onClose: () => void;
+}) {
+  const canCreate = !isSaving && title.trim().length > 0;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        aria-modal="true"
+        className="issue-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="issue-dialog-header">
+          <div className="issue-dialog-header-copy">
+            <h2>Create Issue</h2>
+            <p>
+              Create a new board issue with optional routing to a project, assignee, or
+              parent issue.
+            </p>
+          </div>
+          <button className="project-dialog-close" onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+
+        <div className="issue-dialog-body">
+          <label className="form-field">
+            <span>Title</span>
+            <input
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder="Investigate CI flake"
+              value={title}
+            />
+            <small>This becomes the main issue title and the default workspace label.</small>
+          </label>
+
+          <label className="form-field">
+            <span>Description</span>
+            <textarea
+              className="issue-dialog-textarea"
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              placeholder="What needs to happen, how should success be measured, and what context should the assignee keep in mind?"
+              value={description}
+            />
+            <small>Optional background, acceptance criteria, or context for the assignee.</small>
+          </label>
+
+          <label className="form-field">
+            <span>Priority</span>
+            <select
+              onChange={(event) => onPriorityChange(event.target.value)}
+              value={selectedPriority}
+            >
+              {priorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {humanizeIssueValue(priority)}
+                </option>
+              ))}
+            </select>
+            <small>Controls ordering and urgency in board views.</small>
+          </label>
+
+          <label className="form-field">
+            <span>Project</span>
+            <select
+              onChange={(event) => onProjectChange(event.target.value)}
+              value={selectedProjectId}
+            >
+              <option value="">No project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <small>Optional project anchor for workspace routing and repo context.</small>
+          </label>
+
+          <label className="form-field">
+            <span>Assignee</span>
+            <select
+              onChange={(event) => onAssigneeChange(event.target.value)}
+              value={selectedAssigneeAgentId}
+            >
+              <option value="">Unassigned</option>
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name || agent.title || agent.role || agent.id}
+                </option>
+              ))}
+            </select>
+            <small>Optional agent owner for execution or follow-up.</small>
+          </label>
+
+          <label className="form-field">
+            <span>Parent Issue</span>
+            <select
+              onChange={(event) => onParentIssueChange(event.target.value)}
+              value={selectedParentIssueId}
+            >
+              <option value="">No parent issue</option>
+              {issues.map((issue) => (
+                <option key={issue.id} value={issue.id}>
+                  {issue.identifier ?? issue.title}
+                </option>
+              ))}
+            </select>
+            <small>Use this to nest follow-up work under an existing issue.</small>
+          </label>
+
+          {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
+        </div>
+
+        <div className="issue-dialog-footer">
+          <button
+            className="secondary-button"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            disabled={!canCreate}
+            onClick={onCreate}
+            type="button"
+          >
+            {isSaving ? "Creating..." : "Create Issue"}
+          </button>
         </div>
       </div>
     </div>
