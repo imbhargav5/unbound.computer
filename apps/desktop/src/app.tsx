@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   boardAddIssueComment,
+  boardApproveApproval,
   boardCheckoutIssue,
   boardCompanySnapshot,
   boardCreateCompany,
@@ -238,6 +239,11 @@ export function App() {
   const selectedIssueComments = selectedIssue
     ? issueCommentsByIssueId[selectedIssue.id] ?? []
     : [];
+  const boardApprovals = companySnapshot?.approvals ?? [];
+  const selectedApproval =
+    boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
+    boardApprovals[0] ??
+    null;
   const companyWorkspaces = companySnapshot?.workspaces ?? [];
   const selectedBoardWorkspace =
     companyWorkspaces.find((workspace) => workspace.id === selectedBoardWorkspaceId) ??
@@ -989,6 +995,28 @@ export function App() {
     }
   };
 
+  const handleApproveApproval = async (approvalId: string) => {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    setIsWorking(true);
+    setStatusMessage(null);
+    try {
+      const approval = await boardApproveApproval({
+        approval_id: approvalId,
+      });
+      const snapshot = await boardCompanySnapshot(selectedCompanyId);
+      setCompanySnapshot(snapshot);
+      setSelectedApprovalId((approval as ApprovalRecord).id);
+      setSelectedScreen("approvals");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
   const handleOpenDirectory = async (relativePath: string) => {
     if (!selectedSessionId) {
       return;
@@ -1711,33 +1739,13 @@ export function App() {
             ) : null}
 
             {selectedScreen === "approvals" ? (
-              <section className="route-scroll">
-                <div className="route-header compact">
-                  <span className="route-kicker">Approvals</span>
-                  <h1>Board approvals</h1>
-                </div>
-                <div className="surface-grid single">
-                  <section className="surface-panel">
-                    <div className="surface-list">
-                      {(companySnapshot?.approvals ?? []).map((approval) => (
-                        <button
-                          className={
-                            selectedApprovalId === approval.id
-                              ? "file-list-button active"
-                              : "file-list-button"
-                          }
-                          key={approval.id}
-                          onClick={() => setSelectedApprovalId(approval.id)}
-                          type="button"
-                        >
-                          <strong>{humanizeIssueValue(approval.approval_type ?? "approval")}</strong>
-                          <span>{humanizeIssueValue(approval.status ?? "pending")}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </section>
+              <ApprovalsRouteView
+                approvals={boardApprovals}
+                currentApproval={selectedApproval}
+                isWorking={isWorking}
+                onApprove={(approvalId) => void handleApproveApproval(approvalId)}
+                onSelectApproval={setSelectedApprovalId}
+              />
             ) : null}
 
             {selectedScreen === "projects" ? (
@@ -2960,6 +2968,145 @@ function IssueDetailView({
   );
 }
 
+function ApprovalsRouteView({
+  approvals,
+  currentApproval,
+  isWorking,
+  onSelectApproval,
+  onApprove,
+}: {
+  approvals: ApprovalRecord[];
+  currentApproval: ApprovalRecord | null;
+  isWorking: boolean;
+  onSelectApproval: (approvalId: string) => void;
+  onApprove: (approvalId: string) => void;
+}) {
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <span className="route-kicker">Approvals</span>
+        <h1>Decision queue</h1>
+      </div>
+
+      <div className="surface-grid single">
+        <section className="surface-panel approvals-panel">
+          <div className="surface-header">
+            <h3>Approvals</h3>
+          </div>
+          {approvals.length ? (
+            <div className="surface-list">
+              {approvals.map((approval) => (
+                <ApprovalQueueRow
+                  approval={approval}
+                  isSelected={currentApproval?.id === approval.id}
+                  onClick={() => onSelectApproval(approval.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="approvals-empty-text">
+              Hire approvals and issue-linked approvals will appear here.
+            </p>
+          )}
+        </section>
+
+        {currentApproval ? (
+          <section className="surface-panel approvals-panel">
+            <div className="surface-header">
+              <h3>Approval Details</h3>
+            </div>
+
+            <div className="approvals-detail-stack">
+              <div className="approvals-detail-header">
+                <div>
+                  <h2>{currentApproval.approval_type ?? "approval"}</h2>
+                  <p>Status: {currentApproval.status ?? "pending"}</p>
+                </div>
+
+                {currentApproval.status === "pending" ? (
+                  <button
+                    className="primary-button"
+                    disabled={isWorking}
+                    onClick={() => onApprove(currentApproval.id)}
+                    type="button"
+                  >
+                    Approve
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="approvals-detail-grid">
+                <DetailRow
+                  label="Requested By Agent"
+                  value={currentApproval.requested_by_agent_id ?? "System"}
+                />
+                <DetailRow
+                  label="Requested By User"
+                  value={currentApproval.requested_by_user_id ?? "Local Board"}
+                />
+                <DetailRow
+                  label="Decided By"
+                  value={currentApproval.decided_by_user_id ?? "Pending"}
+                />
+                <DetailRow
+                  label="Created"
+                  value={formatBoardDate(currentApproval.created_at)}
+                />
+                <DetailRow
+                  label="Updated"
+                  value={formatBoardDate(currentApproval.updated_at)}
+                />
+              </div>
+
+              {currentApproval.payload &&
+              Object.keys(currentApproval.payload).length > 0 ? (
+                <section className="approvals-payload-section">
+                  <h3>Payload</h3>
+                  <pre>{formatApprovalPayload(currentApproval.payload)}</pre>
+                </section>
+              ) : null}
+            </div>
+          </section>
+        ) : (
+          <section className="surface-panel approvals-panel">
+            <div className="surface-header">
+              <h3>Approval Details</h3>
+            </div>
+            <div className="workspace-empty-state approvals-empty-state">
+              <h3>Select an approval</h3>
+              <p>Approval payloads and decisions show here.</p>
+            </div>
+          </section>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ApprovalQueueRow({
+  approval,
+  isSelected,
+  onClick,
+}: {
+  approval: ApprovalRecord;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "approval-queue-row active" : "approval-queue-row"}
+      onClick={onClick}
+      type="button"
+    >
+      <div className="approval-queue-row-main">
+        <strong>{approval.approval_type ?? "approval"}</strong>
+        <span>{formatBoardDate(approval.created_at)}</span>
+      </div>
+      <span className="approval-queue-row-trailing">{approval.status ?? "pending"}</span>
+    </button>
+  );
+}
+
 function RoutePlaceholder({ title, body }: { title: string; body: string }) {
   return (
     <section className="route-scroll">
@@ -3593,6 +3740,38 @@ function formatIssueDate(value: string | null | undefined) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatBoardDate(value: string | null | undefined) {
+  return formatIssueDate(value);
+}
+
+function formatApprovalPayload(payload: Record<string, unknown>) {
+  return Object.entries(payload)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}: ${formatApprovalPayloadValue(value)}`)
+    .join("\n");
+}
+
+function formatApprovalPayloadValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null ||
+    value === undefined
+  ) {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function findCompanyCeo<
