@@ -32,6 +32,7 @@ enum DaemonMethod: String, Codable {
     // Agents
     case agentList = "agent.list"
     case agentCreate = "agent.create"
+    case agentHireCreate = "agent_hire.create"
     case agentGet = "agent.get"
 
     // Goals
@@ -46,9 +47,20 @@ enum DaemonMethod: String, Codable {
     case issueList = "issue.list"
     case issueCreate = "issue.create"
     case issueGet = "issue.get"
+    case issueUpdate = "issue.update"
     case issueCommentList = "issue.comment.list"
     case issueCommentAdd = "issue.comment.add"
     case issueCheckout = "issue.checkout"
+
+    // Agent runs
+    case agentRunList = "agent_run.list"
+    case agentRunGet = "agent_run.get"
+    case agentRunEvents = "agent_run.events"
+    case agentRunLog = "agent_run.log"
+    case agentRunCancel = "agent_run.cancel"
+    case agentRunInvoke = "agent_run.invoke"
+    case agentRunRetry = "agent_run.retry"
+    case agentRunResume = "agent_run.resume"
 
     // Approvals
     case approvalList = "approval.list"
@@ -535,6 +547,10 @@ struct AnyCodableValue: Codable {
             value = int
         } else if let int64 = try? container.decode(Int64.self) {
             value = int64
+        } else if let uint = try? container.decode(UInt.self) {
+            value = uint
+        } else if let uint64 = try? container.decode(UInt64.self) {
+            value = uint64
         } else if let double = try? container.decode(Double.self) {
             value = double
         } else if let string = try? container.decode(String.self) {
@@ -563,6 +579,10 @@ struct AnyCodableValue: Codable {
             try container.encode(int)
         case let int64 as Int64:
             try container.encode(int64)
+        case let uint as UInt:
+            try container.encode(uint)
+        case let uint64 as UInt64:
+            try container.encode(uint64)
         case let double as Double:
             try container.encode(double)
         case let string as String:
@@ -1027,6 +1047,112 @@ struct DaemonWorkspace: Codable, Identifiable {
         case createdAt = "created_at"
         case lastAccessedAt = "last_accessed_at"
         case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonAgentRun: Codable, Identifiable {
+    let id: String
+    let companyId: String
+    let agentId: String
+    let invocationSource: String
+    let triggerDetail: String?
+    let wakeReason: String?
+    let status: String
+    let startedAt: String?
+    let finishedAt: String?
+    let error: String?
+    let wakeupRequestId: String?
+    let exitCode: Int?
+    let signal: String?
+    let usageJson: AnyCodableValue?
+    let resultJson: AnyCodableValue?
+    let sessionIdBefore: String?
+    let sessionIdAfter: String?
+    let logStore: String?
+    let logRef: String?
+    let logBytes: Int?
+    let logSha256: String?
+    let logCompressed: Bool
+    let stdoutExcerpt: String?
+    let stderrExcerpt: String?
+    let errorCode: String?
+    let externalRunId: String?
+    let contextSnapshot: AnyCodableValue?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case agentId = "agent_id"
+        case invocationSource = "invocation_source"
+        case triggerDetail = "trigger_detail"
+        case wakeReason = "wake_reason"
+        case status
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
+        case error
+        case wakeupRequestId = "wakeup_request_id"
+        case exitCode = "exit_code"
+        case signal
+        case usageJson = "usage_json"
+        case resultJson = "result_json"
+        case sessionIdBefore = "session_id_before"
+        case sessionIdAfter = "session_id_after"
+        case logStore = "log_store"
+        case logRef = "log_ref"
+        case logBytes = "log_bytes"
+        case logSha256 = "log_sha256"
+        case logCompressed = "log_compressed"
+        case stdoutExcerpt = "stdout_excerpt"
+        case stderrExcerpt = "stderr_excerpt"
+        case errorCode = "error_code"
+        case externalRunId = "external_run_id"
+        case contextSnapshot = "context_snapshot"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DaemonAgentRunEvent: Codable, Identifiable {
+    let id: Int64
+    let companyId: String
+    let runId: String
+    let agentId: String
+    let seq: Int
+    let eventType: String
+    let stream: String?
+    let level: String?
+    let color: String?
+    let message: String?
+    let payload: AnyCodableValue?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case companyId = "company_id"
+        case runId = "run_id"
+        case agentId = "agent_id"
+        case seq
+        case eventType = "event_type"
+        case stream
+        case level
+        case color
+        case message
+        case payload
+        case createdAt = "created_at"
+    }
+}
+
+struct DaemonAgentRunLogChunk: Codable {
+    let content: String
+    let nextOffset: UInt64
+    let done: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case nextOffset = "next_offset"
+        case done
     }
 }
 

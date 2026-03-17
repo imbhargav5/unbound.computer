@@ -74,6 +74,7 @@ struct ArchivedSessionsSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .fullRowHitTarget()
 
                 // Archived sessions grouped by repository
                 if isExpanded {

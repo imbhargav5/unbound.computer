@@ -43,6 +43,7 @@ struct SettingsSidebar: View {
                 .padding(.horizontal, Spacing.xl)
             }
             .buttonStyle(.plain)
+            .fullRowHitTarget()
 
             // Nav list
             VStack(spacing: Spacing.xxs) {
@@ -112,6 +113,7 @@ struct SettingsNavItem: View {
             }
             .frame(height: LayoutMetrics.compactToolbarHeight)
             .padding(.horizontal, Spacing.md)
+            .fullWidthRow()
             .background(
                 RoundedRectangle(cornerRadius: Radius.xxl)
                     .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
@@ -119,6 +121,7 @@ struct SettingsNavItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .fullRowHitTarget()
         .onHover { hovering in
             withAnimation(.easeInOut(duration: Duration.fast)) {
                 isHovered = hovering

@@ -89,10 +89,12 @@ private struct ChangeRow: View {
             }
             .padding(.horizontal, 16)
             .frame(height: 24)
+            .fullWidthRow()
             .background(isSelected ? Color(hex: "F59E0B").opacity(0.06) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .fullRowHitTarget()
     }
 
     private var pathView: some View {

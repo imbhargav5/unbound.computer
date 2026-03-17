@@ -98,6 +98,15 @@ extension DaemonClient {
         return try decodeDaemonObject(agent, as: DaemonAgent.self)
     }
 
+    func createAgentHire(params: [String: Any]) async throws -> DaemonAgent {
+        let response = try await call(method: .agentHireCreate, params: params)
+        guard let result = response.resultAsDict(),
+              let agent = result["agent"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(agent, as: DaemonAgent.self)
+    }
+
     func getAgent(agentId: String) async throws -> DaemonAgent {
         let response = try await call(method: .agentGet, params: ["agent_id": agentId])
         guard let result = response.resultAsDict(),
@@ -170,6 +179,15 @@ extension DaemonClient {
         return try decodeDaemonObject(issue, as: DaemonIssue.self)
     }
 
+    func updateIssue(params: [String: Any]) async throws -> DaemonIssue {
+        let response = try await call(method: .issueUpdate, params: params)
+        guard let result = response.resultAsDict(),
+              let issue = result["issue"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(issue, as: DaemonIssue.self)
+    }
+
     func listIssueComments(issueId: String) async throws -> [DaemonIssueComment] {
         let response = try await call(method: .issueCommentList, params: ["issue_id": issueId])
         guard let result = response.resultAsDict(),
@@ -195,6 +213,104 @@ extension DaemonClient {
             throw DaemonError.noResult
         }
         return try decodeDaemonObject(workspace, as: DaemonWorkspace.self)
+    }
+
+    func listAgentRuns(agentId: String, limit: Int? = nil) async throws -> [DaemonAgentRun] {
+        var params: [String: Any] = ["agent_id": agentId]
+        if let limit { params["limit"] = limit }
+        let response = try await call(method: .agentRunList, params: params)
+        guard let result = response.resultAsDict(),
+              let runs = result["runs"] else {
+            return []
+        }
+        return try decodeDaemonArray(runs, as: DaemonAgentRun.self)
+    }
+
+    func getAgentRun(runId: String) async throws -> DaemonAgentRun {
+        let response = try await call(method: .agentRunGet, params: ["run_id": runId])
+        guard let result = response.resultAsDict(),
+              let run = result["run"] else {
+            throw DaemonError.notFound("agent_run")
+        }
+        return try decodeDaemonObject(run, as: DaemonAgentRun.self)
+    }
+
+    func listAgentRunEvents(
+        runId: String,
+        afterSeq: Int? = nil,
+        limit: Int? = nil
+    ) async throws -> [DaemonAgentRunEvent] {
+        var params: [String: Any] = ["run_id": runId]
+        if let afterSeq { params["after_seq"] = afterSeq }
+        if let limit { params["limit"] = limit }
+        let response = try await call(method: .agentRunEvents, params: params)
+        guard let result = response.resultAsDict(),
+              let events = result["events"] else {
+            return []
+        }
+        return try decodeDaemonArray(events, as: DaemonAgentRunEvent.self)
+    }
+
+    func readAgentRunLog(
+        runId: String,
+        offset: UInt64 = 0,
+        limitBytes: Int = 16_384
+    ) async throws -> DaemonAgentRunLogChunk {
+        let response = try await call(
+            method: .agentRunLog,
+            params: [
+                "run_id": runId,
+                "offset": offset,
+                "limit_bytes": limitBytes,
+            ]
+        )
+        guard let result = response.resultAsDict() else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(result, as: DaemonAgentRunLogChunk.self)
+    }
+
+    func invokeAgentRun(
+        agentId: String,
+        issueId: String? = nil,
+        prompt: String? = nil
+    ) async throws -> DaemonAgentRun {
+        var params: [String: Any] = ["agent_id": agentId]
+        if let issueId { params["issue_id"] = issueId }
+        if let prompt { params["prompt"] = prompt }
+        let response = try await call(method: .agentRunInvoke, params: params)
+        guard let result = response.resultAsDict(),
+              let run = result["run"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(run, as: DaemonAgentRun.self)
+    }
+
+    func cancelAgentRun(runId: String) async throws -> DaemonAgentRun {
+        let response = try await call(method: .agentRunCancel, params: ["run_id": runId])
+        guard let result = response.resultAsDict(),
+              let run = result["run"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(run, as: DaemonAgentRun.self)
+    }
+
+    func retryAgentRun(runId: String) async throws -> DaemonAgentRun {
+        let response = try await call(method: .agentRunRetry, params: ["run_id": runId])
+        guard let result = response.resultAsDict(),
+              let run = result["run"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(run, as: DaemonAgentRun.self)
+    }
+
+    func resumeAgentRun(runId: String) async throws -> DaemonAgentRun {
+        let response = try await call(method: .agentRunResume, params: ["run_id": runId])
+        guard let result = response.resultAsDict(),
+              let run = result["run"] else {
+            throw DaemonError.noResult
+        }
+        return try decodeDaemonObject(run, as: DaemonAgentRun.self)
     }
 
     func listApprovals(companyId: String) async throws -> [DaemonApproval] {

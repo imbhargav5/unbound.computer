@@ -68,6 +68,9 @@ struct ContentView: View {
             } else if appState.currentShell == .firstCompanySetup {
                 CreateFirstCompanyView()
                     .transition(.opacity)
+            } else if appState.currentShell == .ceoSetupRequired {
+                CreateCEOAgentView()
+                    .transition(.opacity)
             } else {
                 BoardRootView()
             }

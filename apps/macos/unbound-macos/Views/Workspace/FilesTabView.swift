@@ -131,10 +131,10 @@ private struct FilesTabRow: View {
                 .padding(.leading, 16 + CGFloat(level) * 16)
                 .padding(.trailing, 16)
                 .frame(height: 26)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                .fullWidthRow()
             }
             .buttonStyle(.plain)
+            .fullRowHitTarget()
 
             // Children
             if isExpanded && item.hasChildren {

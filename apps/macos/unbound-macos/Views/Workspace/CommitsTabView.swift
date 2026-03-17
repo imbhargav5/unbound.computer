@@ -235,10 +235,10 @@ struct CommitRow: View {
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .fullWidthRow()
         }
         .buttonStyle(.plain)
+        .fullRowHitTarget()
     }
 }
 

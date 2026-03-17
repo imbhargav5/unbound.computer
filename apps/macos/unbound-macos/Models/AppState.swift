@@ -69,6 +69,77 @@ enum DaemonConnectionState: Equatable {
     }
 }
 
+enum BoardOnboardingStep: String, Codable {
+    case createCEO
+    case bootstrapIssue
+}
+
+struct BoardOnboardingState: Codable, Equatable {
+    var companyId: String
+    var step: BoardOnboardingStep
+    var ceoName: String
+    var ceoTitle: String
+    var bootstrapIssueTitle: String
+    var bootstrapIssueDescription: String
+    var ceoAgentId: String?
+
+    static func initial(companyId: String, companyName: String? = nil) -> Self {
+        Self(
+            companyId: companyId,
+            step: .createCEO,
+            ceoName: "CEO",
+            ceoTitle: "Chief Executive Officer",
+            bootstrapIssueTitle: "Create your CEO HEARTBEAT.md",
+            bootstrapIssueDescription: defaultBootstrapIssueDescription(companyName: companyName),
+            ceoAgentId: nil
+        )
+    }
+
+    static func defaultBootstrapIssueDescription(companyName: String? = nil) -> String {
+        let trimmedCompanyName = companyName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let companyReference = (trimmedCompanyName?.isEmpty == false)
+            ? trimmedCompanyName!
+            : "this company"
+
+        return """
+        Setup yourself as the CEO for \(companyReference).
+
+        During your first run, use the Agent home and Instructions paths provided in the run context to create or fetch your AGENTS.md, HEARTBEAT.md, SOUL.md, TOOLS.md, and MEMORY.md files.
+
+        Make sure the CEO workspace is ready for future heartbeats, document what you created, and leave the company in a bootstrapped state for the next run.
+
+        After you finish that setup, submit a board-native hire request for a Founding Engineer that links back to this issue. Use the board helper commands provided in the run prompt so Unbound creates the real agent record and any required approval. Do not create sibling agent directories or AGENTS.md files by hand for new hires.
+        """
+    }
+}
+
+enum IssuesListTab: String, Hashable, CaseIterable {
+    case new
+    case all
+
+    var title: String {
+        switch self {
+        case .new: return "New"
+        case .all: return "All"
+        }
+    }
+}
+
+enum IssuesRouteDestination: Hashable {
+    case list
+    case detail(issueId: String)
+
+    var issueId: String? {
+        switch self {
+        case .list:
+            return nil
+        case .detail(let issueId):
+            return issueId
+        }
+    }
+}
+
 // MARK: - App State
 
 @MainActor
@@ -77,6 +148,7 @@ class AppState {
     private enum PersistedKeys {
         static let themeMode = "themeMode"
         static let selectedCompanyId = "selectedCompanyId"
+        static let boardOnboardingState = "boardOnboardingState"
     }
 
     let daemonClient = DaemonClient.shared
@@ -100,6 +172,12 @@ class AppState {
         if hasCompletedInitialCompanyLoad, companies.isEmpty {
             return .firstCompanySetup
         }
+        if boardOnboardingState != nil {
+            return .ceoSetupRequired
+        }
+        if let selectedCompany, selectedCompany.ceoAgentId == nil {
+            return .ceoSetupRequired
+        }
         return selectedScreen == .workspaces ? .workspace : .companyDashboard
     }
 
@@ -122,6 +200,9 @@ class AppState {
     var selectedProjectId: String?
     var selectedAgentId: String?
     var selectedApprovalId: String?
+    var selectedIssuesListTab: IssuesListTab = .new
+    var issuesRouteDestination: IssuesRouteDestination = .list
+    private(set) var boardOnboardingState: BoardOnboardingState?
 
     private(set) var repositories: [Repository] = []
     private(set) var sessions: [UUID: [Session]] = [:]
@@ -151,6 +232,7 @@ class AppState {
         }
 
         self.selectedCompanyId = UserDefaults.standard.string(forKey: PersistedKeys.selectedCompanyId)
+        self.boardOnboardingState = Self.loadBoardOnboardingState()
 
         logger.info("AppState.init completed")
     }
@@ -307,14 +389,18 @@ class AppState {
         do {
             companies = try await daemonClient.listCompanies()
             boardError = nil
-            let preferredCompanyId = selectedCompanyId ?? UserDefaults.standard.string(forKey: PersistedKeys.selectedCompanyId)
+            let onboardingCompanyId = boardOnboardingState?.companyId
+            let preferredCompanyId = onboardingCompanyId
+                ?? selectedCompanyId
+                ?? UserDefaults.standard.string(forKey: PersistedKeys.selectedCompanyId)
             if let preferredCompanyId,
                companies.contains(where: { $0.id == preferredCompanyId }) {
                 selectedCompanyId = preferredCompanyId
                 persistSelectedCompanyId(preferredCompanyId)
-                return
+            } else {
+                selectedCompanyId = companies.first?.id
             }
-            selectedCompanyId = companies.first?.id
+            reconcileBoardOnboardingState(with: companies)
             persistSelectedCompanyId(selectedCompanyId)
         } catch {
             boardError = error.localizedDescription
@@ -333,6 +419,7 @@ class AppState {
         selectedProjectId = nil
         selectedAgentId = nil
         selectedApprovalId = nil
+        issuesRouteDestination = .list
         issueComments = [:]
 
         guard let companyId else {
@@ -377,8 +464,10 @@ class AppState {
 
             if let selectedIssueId,
                !issues.contains(where: { $0.id == selectedIssueId }) {
-                self.selectedIssueId = issues.first?.id
+                self.selectedIssueId = nil
             }
+
+            reconcileIssuesRouteState()
 
             if let selectedAgentId,
                !agents.contains(where: { $0.id == selectedAgentId }) {
@@ -466,6 +555,7 @@ class AppState {
         selectedProjectId = nil
         selectedAgentId = nil
         selectedApprovalId = nil
+        issuesRouteDestination = .list
     }
 
     private func clearCompanyScopedBoardData() {
@@ -483,6 +573,7 @@ class AppState {
         selectedProjectId = nil
         selectedAgentId = nil
         selectedApprovalId = nil
+        issuesRouteDestination = .list
     }
 
     private func userIntentAttributes(
@@ -761,6 +852,7 @@ class AppState {
             brandColor: brandColor,
             requireBoardApprovalForNewAgents: requireBoardApprovalForNewAgents
         )
+        beginBoardOnboarding(for: company.id, companyName: company.name)
         await refreshCompanies()
         await selectCompany(company.id)
         selectedScreen = .dashboard
@@ -769,6 +861,15 @@ class AppState {
 
     func createAgent(params: [String: Any]) async throws -> DaemonAgent {
         let agent = try await daemonClient.createAgent(params: params)
+        await refreshCompanies()
+        await refreshCompanyScopedBoardData(companyId: agent.companyId)
+        selectedAgentId = agent.id
+        return agent
+    }
+
+    func createAgentHire(params: [String: Any]) async throws -> DaemonAgent {
+        let agent = try await daemonClient.createAgentHire(params: params)
+        await refreshCompanies()
         await refreshCompanyScopedBoardData(companyId: agent.companyId)
         selectedAgentId = agent.id
         return agent
@@ -785,8 +886,49 @@ class AppState {
     func createIssue(params: [String: Any]) async throws -> DaemonIssue {
         let issue = try await daemonClient.createIssue(params: params)
         await refreshCompanyScopedBoardData(companyId: issue.companyId)
-        selectedIssueId = issue.id
+        showIssueDetail(issueId: issue.id)
         return issue
+    }
+
+    func updateIssue(params: [String: Any]) async throws -> DaemonIssue {
+        let issue = try await daemonClient.updateIssue(params: params)
+        await refreshCompanyScopedBoardData(companyId: issue.companyId)
+        showIssueDetail(issueId: issue.id)
+        return issue
+    }
+
+    func showIssuesList(tab: IssuesListTab? = nil) {
+        if let tab {
+            selectedIssuesListTab = tab
+        }
+        issuesRouteDestination = .list
+        selectedScreen = .issues
+    }
+
+    func showIssueDetail(issueId: String) {
+        selectedIssueId = issueId
+        issuesRouteDestination = .detail(issueId: issueId)
+        selectedScreen = .issues
+    }
+
+    func reconcileIssuesRouteState() {
+        if let selectedIssueId,
+           !issues.contains(where: { $0.id == selectedIssueId }) {
+            self.selectedIssueId = nil
+        }
+
+        switch issuesRouteDestination {
+        case .list:
+            return
+        case .detail(let issueId):
+            guard issues.contains(where: { $0.id == issueId }) else {
+                issuesRouteDestination = .list
+                return
+            }
+            if selectedIssueId != issueId {
+                selectedIssueId = issueId
+            }
+        }
     }
 
     func addIssueComment(params: [String: Any]) async throws -> DaemonIssueComment {
@@ -829,6 +971,16 @@ class AppState {
         sessions: [UUID: [Session]] = [:],
         selectedRepositoryId: UUID? = nil,
         selectedSessionId: UUID? = nil,
+        companies: [DaemonCompany] = [],
+        agents: [DaemonAgent] = [],
+        issues: [DaemonIssue] = [],
+        selectedCompanyId: String? = nil,
+        selectedIssueId: String? = nil,
+        hasCompletedInitialCompanyLoad: Bool = false,
+        selectedScreen: AppScreen? = nil,
+        selectedIssuesListTab: IssuesListTab = .new,
+        issuesRouteDestination: IssuesRouteDestination = .list,
+        boardOnboardingState: BoardOnboardingState? = nil,
         dependencyStatus: DependencyCheckStatus = .satisfied,
         isGhInstalled: Bool? = true
     ) {
@@ -837,18 +989,80 @@ class AppState {
         self.sessions = sessions
         self.selectedRepositoryId = selectedRepositoryId
         self.selectedSessionId = selectedSessionId
+        self.companies = companies
+        self.agents = agents
+        self.issues = issues
+        self.selectedCompanyId = selectedCompanyId ?? companies.first?.id
+        self.selectedIssueId = selectedIssueId
+        self.hasCompletedInitialCompanyLoad = hasCompletedInitialCompanyLoad
+        if let selectedScreen {
+            self.selectedScreen = selectedScreen
+        }
+        self.selectedIssuesListTab = selectedIssuesListTab
+        self.issuesRouteDestination = issuesRouteDestination
+        self.boardOnboardingState = boardOnboardingState
         self.dependencyStatus = dependencyStatus
         self.isGhInstalled = isGhInstalled
+        reconcileIssuesRouteState()
     }
     #endif
 }
 
 private extension AppState {
+    static func loadBoardOnboardingState() -> BoardOnboardingState? {
+        guard let data = UserDefaults.standard.data(forKey: PersistedKeys.boardOnboardingState) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(BoardOnboardingState.self, from: data)
+    }
+
+    func persistBoardOnboardingState() {
+        guard let boardOnboardingState else {
+            UserDefaults.standard.removeObject(forKey: PersistedKeys.boardOnboardingState)
+            return
+        }
+
+        do {
+            let data = try JSONEncoder().encode(boardOnboardingState)
+            UserDefaults.standard.set(data, forKey: PersistedKeys.boardOnboardingState)
+        } catch {
+            logger.error("Failed to persist board onboarding state: \(error)")
+        }
+    }
+
     func persistSelectedCompanyId(_ companyId: String?) {
         if let companyId {
             UserDefaults.standard.set(companyId, forKey: PersistedKeys.selectedCompanyId)
         } else {
             UserDefaults.standard.removeObject(forKey: PersistedKeys.selectedCompanyId)
+        }
+    }
+
+    func reconcileBoardOnboardingState(with companies: [DaemonCompany]) {
+        guard var boardOnboardingState else { return }
+        guard let company = companies.first(where: { $0.id == boardOnboardingState.companyId }) else {
+            self.boardOnboardingState = nil
+            persistBoardOnboardingState()
+            return
+        }
+
+        if selectedCompanyId != company.id {
+            selectedCompanyId = company.id
+            persistSelectedCompanyId(company.id)
+        }
+
+        if let ceoAgentId = company.ceoAgentId {
+            boardOnboardingState.step = .bootstrapIssue
+            boardOnboardingState.ceoAgentId = ceoAgentId
+        } else {
+            boardOnboardingState.step = .createCEO
+            boardOnboardingState.ceoAgentId = nil
+        }
+
+        if self.boardOnboardingState != boardOnboardingState {
+            self.boardOnboardingState = boardOnboardingState
+            persistBoardOnboardingState()
         }
     }
 
@@ -869,6 +1083,62 @@ private extension AppState {
 // MARK: - Convenience Accessors
 
 extension AppState {
+    func beginBoardOnboarding(for companyId: String, companyName: String? = nil) {
+        boardOnboardingState = BoardOnboardingState.initial(companyId: companyId, companyName: companyName)
+        persistBoardOnboardingState()
+    }
+
+    func ensureBoardOnboardingStateForSelectedCompany() {
+        guard let selectedCompany else { return }
+
+        if let boardOnboardingState, boardOnboardingState.companyId == selectedCompany.id {
+            reconcileBoardOnboardingState(with: companies)
+            return
+        }
+
+        if selectedCompany.ceoAgentId == nil {
+            beginBoardOnboarding(for: selectedCompany.id, companyName: selectedCompany.name)
+        }
+    }
+
+    func updateBoardOnboardingDraft(
+        ceoName: String? = nil,
+        ceoTitle: String? = nil,
+        bootstrapIssueTitle: String? = nil,
+        bootstrapIssueDescription: String? = nil
+    ) {
+        guard var boardOnboardingState else { return }
+
+        if let ceoName {
+            boardOnboardingState.ceoName = ceoName
+        }
+        if let ceoTitle {
+            boardOnboardingState.ceoTitle = ceoTitle
+        }
+        if let bootstrapIssueTitle {
+            boardOnboardingState.bootstrapIssueTitle = bootstrapIssueTitle
+        }
+        if let bootstrapIssueDescription {
+            boardOnboardingState.bootstrapIssueDescription = bootstrapIssueDescription
+        }
+
+        self.boardOnboardingState = boardOnboardingState
+        persistBoardOnboardingState()
+    }
+
+    func advanceBoardOnboardingToBootstrapIssue(ceoAgentId: String) {
+        guard var boardOnboardingState else { return }
+        boardOnboardingState.step = .bootstrapIssue
+        boardOnboardingState.ceoAgentId = ceoAgentId
+        self.boardOnboardingState = boardOnboardingState
+        persistBoardOnboardingState()
+    }
+
+    func clearBoardOnboardingState() {
+        boardOnboardingState = nil
+        persistBoardOnboardingState()
+    }
+
     var selectedCompany: DaemonCompany? {
         guard let id = selectedCompanyId else { return nil }
         return companies.first { $0.id == id }

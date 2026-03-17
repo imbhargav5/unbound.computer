@@ -132,12 +132,23 @@ impl Paths {
         self.logs_dir().join("daemon.log")
     }
 
+    /// Get the directory that stores agent run logs.
+    pub fn agent_runs_logs_dir(&self) -> PathBuf {
+        self.logs_dir().join("agent-runs")
+    }
+
+    /// Get the NDJSON log file path for a specific agent run.
+    pub fn agent_run_log_file(&self, run_id: &str) -> PathBuf {
+        self.agent_runs_logs_dir().join(format!("{run_id}.ndjson"))
+    }
+
     /// Ensure all required directories exist.
     pub fn ensure_dirs(&self) -> CoreResult<()> {
         std::fs::create_dir_all(&self.base_dir)?;
         std::fs::create_dir_all(&self.app_support_dir)?;
         std::fs::create_dir_all(self.companies_dir())?;
         std::fs::create_dir_all(self.logs_dir())?;
+        std::fs::create_dir_all(self.agent_runs_logs_dir())?;
         Ok(())
     }
 }
@@ -171,6 +182,11 @@ mod tests {
         );
         assert_eq!(paths.logs_dir(), base.join("logs"));
         assert_eq!(paths.daemon_log_file(), base.join("logs/daemon.log"));
+        assert_eq!(paths.agent_runs_logs_dir(), base.join("logs/agent-runs"));
+        assert_eq!(
+            paths.agent_run_log_file("run-123"),
+            base.join("logs/agent-runs/run-123.ndjson")
+        );
     }
 
     #[test]
@@ -199,6 +215,8 @@ mod tests {
         assert!(base.is_dir());
         assert!(paths.logs_dir().exists());
         assert!(paths.logs_dir().is_dir());
+        assert!(paths.agent_runs_logs_dir().exists());
+        assert!(paths.agent_runs_logs_dir().is_dir());
     }
 
     #[test]
@@ -214,6 +232,7 @@ mod tests {
         // Should still work
         assert!(paths.base_dir().exists());
         assert!(paths.logs_dir().exists());
+        assert!(paths.agent_runs_logs_dir().exists());
     }
 
     #[test]
@@ -231,6 +250,8 @@ mod tests {
         assert!(paths.pid_file().ends_with("daemon.pid"));
         assert!(paths.logs_dir().ends_with("logs"));
         assert!(paths.daemon_log_file().ends_with("daemon.log"));
+        assert!(paths.agent_runs_logs_dir().ends_with("agent-runs"));
+        assert!(paths.agent_run_log_file("run-1").ends_with("run-1.ndjson"));
     }
 
     #[test]

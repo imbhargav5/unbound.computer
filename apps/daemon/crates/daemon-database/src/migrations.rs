@@ -4,12 +4,12 @@
 //! Migrations are run in order and tracked in the `migrations` table.
 
 use crate::DatabaseResult;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 15;
+pub const CURRENT_VERSION: i32 = 16;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -81,6 +81,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 15 {
         migrate_v15_reconcile_board_and_session_metadata(conn)?;
+    }
+    if current_version < 16 {
+        migrate_v16_agent_runs_rename(conn)?;
     }
 
     info!("Migrations complete");
@@ -616,6 +619,17 @@ fn column_names(conn: &Connection, table_name: &str) -> DatabaseResult<HashSet<S
         .into_iter()
         .collect();
     Ok(columns)
+}
+
+fn table_exists(conn: &Connection, table_name: &str) -> DatabaseResult<bool> {
+    let exists = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1 LIMIT 1",
+            [table_name],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?;
+    Ok(exists.is_some())
 }
 
 fn add_column_if_missing(
@@ -1533,9 +1547,60 @@ fn migrate_v15_reconcile_board_and_session_metadata(conn: &Connection) -> Databa
     Ok(())
 }
 
+/// V16: Rename heartbeat run tables to agent run tables and add wake_reason.
+fn migrate_v16_agent_runs_rename(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v16: agent_runs_rename");
+
+    if table_exists(conn, "heartbeat_runs")? && !table_exists(conn, "agent_runs")? {
+        conn.execute_batch("ALTER TABLE heartbeat_runs RENAME TO agent_runs;")?;
+    }
+
+    if table_exists(conn, "heartbeat_run_events")? && !table_exists(conn, "agent_run_events")? {
+        conn.execute_batch("ALTER TABLE heartbeat_run_events RENAME TO agent_run_events;")?;
+    }
+
+    add_column_if_missing(conn, "agent_runs", "wake_reason", "wake_reason TEXT")?;
+
+    conn.execute_batch(
+        "
+        DROP INDEX IF EXISTS heartbeat_runs_company_agent_started_idx;
+        CREATE INDEX IF NOT EXISTS agent_runs_company_agent_started_idx
+            ON agent_runs(company_id, agent_id, started_at);
+        CREATE INDEX IF NOT EXISTS agent_runs_agent_status_created_idx
+            ON agent_runs(agent_id, status, created_at);
+        CREATE INDEX IF NOT EXISTS agent_runs_wakeup_request_idx
+            ON agent_runs(wakeup_request_id);
+
+        DROP INDEX IF EXISTS heartbeat_run_events_run_seq_idx;
+        DROP INDEX IF EXISTS heartbeat_run_events_company_run_idx;
+        DROP INDEX IF EXISTS heartbeat_run_events_company_created_idx;
+        CREATE INDEX IF NOT EXISTS agent_run_events_run_seq_idx
+            ON agent_run_events(run_id, seq);
+        CREATE INDEX IF NOT EXISTS agent_run_events_company_run_idx
+            ON agent_run_events(company_id, run_id);
+        CREATE INDEX IF NOT EXISTS agent_run_events_company_created_idx
+            ON agent_run_events(company_id, created_at);
+        ",
+    )?;
+
+    record_migration(conn, 16, "agent_runs_rename")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::OptionalExtension;
+
+    fn foreign_key_targets(conn: &Connection, table_name: &str) -> Vec<String> {
+        let sql = format!("PRAGMA foreign_key_list({table_name})");
+        conn.prepare(&sql)
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(2))
+            .unwrap()
+            .filter_map(|row| row.ok())
+            .collect()
+    }
 
     #[test]
     fn test_migrations_run_successfully() {
@@ -1582,7 +1647,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 15);
+        assert_eq!(version, 16);
     }
 
     #[test]
@@ -1714,8 +1779,8 @@ mod tests {
             "issue_read_states",
             "assets",
             "issue_attachments",
-            "heartbeat_runs",
-            "heartbeat_run_events",
+            "agent_runs",
+            "agent_run_events",
             "cost_events",
             "approvals",
             "approval_comments",
@@ -1728,5 +1793,122 @@ mod tests {
                 "missing table: {table}"
             );
         }
+
+        assert!(!tables.contains(&"heartbeat_runs".to_string()));
+        assert!(!tables.contains(&"heartbeat_run_events".to_string()));
+    }
+
+    #[test]
+    fn test_agent_runs_schema_has_wake_reason_and_updated_foreign_keys() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let columns = column_names(&conn, "agent_runs").unwrap();
+        assert!(columns.contains("wake_reason"));
+
+        for table_name in ["issues", "activity_log", "workspace_runtime_services"] {
+            let targets = foreign_key_targets(&conn, table_name);
+            assert!(
+                targets.iter().any(|target| target == "agent_runs"),
+                "{table_name} should reference agent_runs"
+            );
+            assert!(
+                !targets.iter().any(|target| target == "heartbeat_runs"),
+                "{table_name} should not reference heartbeat_runs"
+            );
+        }
+    }
+
+    #[test]
+    fn test_v16_migrates_existing_heartbeat_tables_without_data_loss() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+            [],
+        )
+        .unwrap();
+        migrate_v1_initial_schema(&conn).unwrap();
+        migrate_v2_outbox(&conn).unwrap();
+        migrate_v3_normalize_tables(&conn).unwrap();
+        migrate_v4_events_table(&conn).unwrap();
+        migrate_v5_session_secrets(&conn).unwrap();
+        migrate_v6_drop_events_table(&conn).unwrap();
+        migrate_v7_drop_role_column(&conn).unwrap();
+        migrate_v8_plaintext_messages(&conn).unwrap();
+        migrate_v9_retired_cloud_outbox(&conn).unwrap();
+        migrate_v10_retired_cloud_sync_state(&conn).unwrap();
+        migrate_v11_session_state_runtime_envelope(&conn).unwrap();
+        migrate_v12_board_schema(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO companies (
+                id, name, status, issue_prefix, issue_counter,
+                budget_monthly_cents, spent_monthly_cents,
+                require_board_approval_for_new_agents, created_at, updated_at
+            ) VALUES (?1, 'Acme', 'active', 'ACM', 0, 0, 0, 1, ?2, ?2)",
+            rusqlite::params!["company-1", "2026-03-13T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agents (
+                id, company_id, name, slug, role, status,
+                adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+                spent_monthly_cents, permissions, created_at, updated_at
+            ) VALUES (
+                ?1, ?2, 'Agent', 'agent', 'general', 'idle',
+                'process', '{}', '{}', 0, 0, '{}', ?3, ?3
+            )",
+            rusqlite::params!["agent-1", "company-1", "2026-03-13T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO heartbeat_runs (
+                id, company_id, agent_id, invocation_source, trigger_detail, status,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, 'on_demand', 'manual', 'queued', ?4, ?4)",
+            rusqlite::params!["run-1", "company-1", "agent-1", "2026-03-13T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO heartbeat_run_events (
+                company_id, run_id, agent_id, seq, event_type, message, created_at
+            ) VALUES (?1, ?2, ?3, 1, 'queued', 'queued', ?4)",
+            rusqlite::params!["company-1", "run-1", "agent-1", "2026-03-13T00:00:00Z"],
+        )
+        .unwrap();
+
+        migrate_v16_agent_runs_rename(&conn).unwrap();
+
+        let run_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_runs WHERE id = 'run-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let event_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_run_events WHERE run_id = 'run-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let wake_reason: Option<String> = conn
+            .query_row(
+                "SELECT wake_reason FROM agent_runs WHERE id = 'run-1'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+            .flatten();
+
+        assert_eq!(run_count, 1);
+        assert_eq!(event_count, 1);
+        assert_eq!(wake_reason, None);
     }
 }

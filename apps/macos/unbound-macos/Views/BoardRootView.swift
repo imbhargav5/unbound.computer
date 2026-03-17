@@ -11,6 +11,27 @@ import SwiftUI
 
 private let boardLogger = Logger(label: "app.ui.board")
 
+enum BoardRootLayout: Equatable {
+    case workspace
+    case settings
+    case companyDashboard
+}
+
+func boardRootLayout(
+    currentShell: BoardShellKind,
+    selectedScreen: AppScreen
+) -> BoardRootLayout {
+    if currentShell == .workspace {
+        return .workspace
+    }
+
+    if selectedScreen == .settings {
+        return .settings
+    }
+
+    return .companyDashboard
+}
+
 struct BoardRootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
@@ -18,10 +39,17 @@ struct BoardRootView: View {
     @State private var showingCreateCompanySheet = false
     @State private var showingCreateIssueSheet = false
     @State private var showingCreateProjectDialog = false
-    @State private var showingCreateAgentInfoDialog = false
+    @State private var showingCreateAgentSheet = false
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
+    }
+
+    private var layout: BoardRootLayout {
+        boardRootLayout(
+            currentShell: appState.currentShell,
+            selectedScreen: appState.selectedScreen
+        )
     }
 
     var body: some View {
@@ -43,10 +71,14 @@ struct BoardRootView: View {
                 onOpenSettings: { appState.selectedScreen = .settings }
             )
 
-            if appState.currentShell == .workspace {
+            switch layout {
+            case .workspace:
                 BoardWorkspacesRoute()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            case .settings:
+                SettingsView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .companyDashboard:
                 CompanyDashboardSidebar(
                     selectedCompany: appState.selectedCompany,
                     agents: sidebarOrderedAgents(appState.agents, ceoAgentId: appState.selectedCompany?.ceoAgentId),
@@ -60,13 +92,19 @@ struct BoardRootView: View {
                             await appState.refreshCompanyScopedBoardData()
                         }
                     },
-                    onSelectScreen: { appState.selectedScreen = $0 },
+                    onSelectScreen: { screen in
+                        if screen == .issues {
+                            appState.showIssuesList()
+                        } else {
+                            appState.selectedScreen = screen
+                        }
+                    },
                     onSelectAgent: { agentId in
                         appState.selectedAgentId = agentId
                         appState.selectedScreen = .agents
                     },
                     onShowCreateIssue: { showingCreateIssueSheet = true },
-                    onShowCreateAgentInfo: { showingCreateAgentInfoDialog = true }
+                    onShowCreateAgent: { showingCreateAgentSheet = true }
                 )
 
                 companyDashboardContent
@@ -96,10 +134,21 @@ struct BoardRootView: View {
                 issues: appState.issues,
                 onCreate: { params in
                     _ = try await appState.createIssue(params: params)
-                    appState.selectedScreen = .issues
                 }
             )
             .frame(width: 620, height: 520)
+        }
+        .sheet(isPresented: $showingCreateAgentSheet) {
+            CreateAgentSheet(
+                companyId: appState.selectedCompanyId,
+                defaultReportsTo: appState.selectedCompany?.ceoAgentId,
+                requiresBoardApproval: appState.selectedCompany?.requireBoardApprovalForNewAgents ?? true,
+                onCreate: { params in
+                    _ = try await appState.createAgentHire(params: params)
+                    appState.selectedScreen = .agents
+                }
+            )
+            .frame(width: 540, height: 500)
         }
         .overlay {
             if showingCreateProjectDialog {
@@ -125,9 +174,6 @@ struct BoardRootView: View {
                 .zIndex(10)
             }
         }
-        .alert("Ask the CEO to create a new agent.", isPresented: $showingCreateAgentInfoDialog) {
-            Button("OK", role: .cancel) {}
-        }
         .task {
             if appState.isDaemonConnected, !appState.hasCompletedInitialCompanyLoad {
                 await appState.loadBoardDataAsync()
@@ -147,7 +193,7 @@ struct BoardRootView: View {
         case .agents:
             AgentsRoute()
         case .issues:
-            IssuesRoute(onShowCreateIssue: { showingCreateIssueSheet = true })
+            IssuesRoute()
         case .approvals:
             ApprovalsRoute()
         case .projects:
@@ -310,7 +356,7 @@ private struct CompanyDashboardSidebar: View {
     let onSelectScreen: (AppScreen) -> Void
     let onSelectAgent: (String) -> Void
     let onShowCreateIssue: () -> Void
-    let onShowCreateAgentInfo: () -> Void
+    let onShowCreateAgent: () -> Void
 
     private let primarySections: [(String, [AppScreen])] = [
         ("Work", [.issues, .approvals, .workspaces]),
@@ -395,7 +441,7 @@ private struct CompanyDashboardSidebar: View {
 
                             Spacer()
 
-                            Button(action: onShowCreateAgentInfo) {
+                            Button(action: onShowCreateAgent) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(Color(hex: "8A8A8A"))
@@ -406,7 +452,7 @@ private struct CompanyDashboardSidebar: View {
                                     )
                             }
                             .buttonStyle(.plain)
-                            .help("Ask the CEO to create a new agent")
+                            .help("Hire a new agent through the governed board flow")
                             .padding(.trailing, Spacing.sm)
                         }
                         .padding(.top, Spacing.sm)
@@ -604,8 +650,7 @@ private struct DashboardRoute: View {
                         } else {
                             ForEach(appState.issues.prefix(8)) { issue in
                                 Button {
-                                    appState.selectedIssueId = issue.id
-                                    appState.selectedScreen = .issues
+                                    appState.showIssueDetail(issueId: issue.id)
                                 } label: {
                                     DashboardLineItem(
                                         title: issue.identifier ?? issue.title,
@@ -874,8 +919,7 @@ private struct InboxRoute: View {
             appState.selectedApprovalId = approvalId
             appState.selectedScreen = .approvals
         case .issue(let issueId):
-            appState.selectedIssueId = issueId
-            appState.selectedScreen = .issues
+            appState.showIssueDetail(issueId: issueId)
         }
     }
 
@@ -922,40 +966,74 @@ struct CreateFirstCompanyView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private var canCreate: Bool {
+        !isSaving && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     var body: some View {
-        ZStack {
-            colors.background
-                .ignoresSafeArea()
+        BoardOnboardingContainer(
+            eyebrow: "Local board setup",
+            title: "Set up your first company",
+            message: "Your device is ready. Create a company to begin board setup. The next required steps create the CEO agent and its bootstrap issue so the first run can initialize the company properly."
+        ) {
+            BoardCardSurface(padding: Spacing.xl) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Text("Company details")
+                        .font(Typography.h3)
 
-            VStack(spacing: Spacing.xxl) {
-                VStack(spacing: Spacing.sm) {
-                    Text("Set up your first company")
-                        .font(Typography.pageTitle)
-                        .foregroundStyle(colors.foreground)
-
-                    Text("Your device is ready. Create a company to unlock the dashboard, bootstrap the CEO, and create the local agent file structure beside `unbound.sqlite`.")
-                        .font(Typography.body)
+                    Text("This creates the company shell. Right after this, you’ll create the mandatory CEO agent and then author the bootstrap issue that kicks off its first run.")
+                        .font(Typography.bodySmall)
                         .foregroundStyle(colors.mutedForeground)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 640)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    TextField("Company Name", text: $name)
-                    TextField("Description", text: $description, axis: .vertical)
-                    TextField("Monthly Budget (cents)", text: $budget)
-                    TextField("Brand Color", text: $brandColor)
-                    Toggle("Require approval for new agents", isOn: $requireApproval)
+                BoardFormFieldGroup(
+                    label: "Company Name",
+                    hint: "Shown in the company rail, sidebar, and dashboard."
+                ) {
+                    ShadcnTextField("Acme Systems", text: $name, variant: .filled)
+                }
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.destructive)
-                    }
+                BoardFormFieldGroup(
+                    label: "Description",
+                    hint: "Optional context for what this company does or what the board is managing."
+                ) {
+                    BoardMultilineInput(
+                        placeholder: "Internal tools, customer support operations, product engineering, or another operating context...",
+                        text: $description
+                    )
+                }
+
+                BoardFormFieldGroup(
+                    label: "Monthly Budget (cents)",
+                    hint: "Stored as an integer so the board can track budget and spend without currency rounding."
+                ) {
+                    ShadcnTextField("500000", text: $budget, variant: .filled)
+                }
+
+                BoardFormFieldGroup(
+                    label: "Brand Color",
+                    hint: "Optional hex color used for the company badge and accents in the board."
+                ) {
+                    ShadcnTextField("#0F766E", text: $brandColor, variant: .filled)
+                }
+
+                BoardCheckboxRow(
+                    title: "Require approval for new agents",
+                    subtitle: "New hires start behind board approval so you can keep the company roster intentional.",
+                    isOn: $requireApproval
+                )
+
+                if let errorMessage {
+                    BoardInlineMessage(text: errorMessage, tone: .error)
+                }
+
+                HStack {
+                    Spacer()
 
                     Button {
                         Task { await save() }
@@ -966,22 +1044,13 @@ struct CreateFirstCompanyView: View {
                                     .controlSize(.small)
                             }
                             Text("Create Company")
+                                .fontWeight(.medium)
                         }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .buttonPrimary(size: .md)
+                    .disabled(!canCreate)
                 }
-                .padding(Spacing.xl)
-                .background(Color(hex: "111111"))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color(hex: "1F1F1F"), lineWidth: 1)
-                )
-                .frame(width: 520)
             }
-            .padding(Spacing.xxxl)
         }
     }
 
@@ -1004,6 +1073,400 @@ struct CreateFirstCompanyView: View {
     }
 }
 
+private struct BoardOnboardingStepIndicator: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let step: BoardOnboardingStep
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            indicator(number: 1, title: "CEO", isActive: step == .createCEO, isComplete: step == .bootstrapIssue)
+            indicator(number: 2, title: "Bootstrap Issue", isActive: step == .bootstrapIssue, isComplete: false)
+        }
+    }
+
+    @ViewBuilder
+    private func indicator(number: Int, title: String, isActive: Bool, isComplete: Bool) -> some View {
+        HStack(spacing: Spacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(isActive || isComplete ? colors.primary : colors.input)
+                    .frame(width: 24, height: 24)
+
+                if isComplete {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(colors.primaryForeground)
+                } else {
+                    Text("\(number)")
+                        .font(Typography.captionMedium)
+                        .foregroundStyle(isActive ? colors.primaryForeground : colors.mutedForeground)
+                }
+            }
+
+            Text(title)
+                .font(Typography.captionMedium)
+                .foregroundStyle(isActive || isComplete ? colors.foreground : colors.mutedForeground)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.xs)
+        .background((isActive || isComplete ? colors.accent : colors.input.opacity(0.7)))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(isActive || isComplete ? colors.primary.opacity(0.24) : colors.border, lineWidth: BorderWidth.default)
+        )
+    }
+}
+
+struct CreateCEOAgentView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var name = "CEO"
+    @State private var title = "Chief Executive Officer"
+    @State private var bootstrapIssueTitle = BoardOnboardingState.initial(companyId: "preview").bootstrapIssueTitle
+    @State private var bootstrapIssueDescription = BoardOnboardingState.initial(companyId: "preview").bootstrapIssueDescription
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var currentStep: BoardOnboardingStep {
+        appState.boardOnboardingState?.step
+            ?? (appState.selectedCompany?.ceoAgentId == nil ? .createCEO : .bootstrapIssue)
+    }
+
+    private var companyName: String {
+        appState.selectedCompany?.name ?? "this company"
+    }
+
+    private var resolvedCEOAgentId: String? {
+        appState.boardOnboardingState?.ceoAgentId ?? appState.selectedCompany?.ceoAgentId
+    }
+
+    private var createdCEOAgent: DaemonAgent? {
+        guard let resolvedCEOAgentId else { return nil }
+        return appState.agents.first(where: { $0.id == resolvedCEOAgentId })
+    }
+
+    private var canCreateCEO: Bool {
+        !isSaving
+            && appState.selectedCompanyId != nil
+            && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canCreateBootstrapIssue: Bool {
+        !isSaving
+            && appState.selectedCompanyId != nil
+            && resolvedCEOAgentId != nil
+            && !bootstrapIssueTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !bootstrapIssueDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        BoardOnboardingContainer(
+            eyebrow: "CEO setup required",
+            title: currentStep == .createCEO ? "Create the CEO agent" : "Create the CEO bootstrap issue",
+            message: currentStep == .createCEO
+                ? "\(companyName) exists, but the board stays locked until it has a CEO. Step one creates the CEO agent with the local runtime defaults that power its first run."
+                : "\(companyName) now has a CEO, but the company is still blocked until you create the bootstrap issue that becomes the CEO’s first assigned run."
+        ) {
+            BoardCardSurface(padding: Spacing.xl) {
+                BoardOnboardingStepIndicator(step: currentStep)
+
+                if currentStep == .createCEO {
+                    ceoConfigurationStep
+                } else {
+                    bootstrapIssueStep
+                }
+            }
+        }
+        .task(id: appState.selectedCompanyId) {
+            appState.ensureBoardOnboardingStateForSelectedCompany()
+            syncDraftsFromOnboardingState()
+        }
+        .onChange(of: name) { _, newValue in
+            appState.updateBoardOnboardingDraft(ceoName: newValue)
+        }
+        .onChange(of: title) { _, newValue in
+            appState.updateBoardOnboardingDraft(ceoTitle: newValue)
+        }
+        .onChange(of: bootstrapIssueTitle) { _, newValue in
+            appState.updateBoardOnboardingDraft(bootstrapIssueTitle: newValue)
+        }
+        .onChange(of: bootstrapIssueDescription) { _, newValue in
+            appState.updateBoardOnboardingDraft(bootstrapIssueDescription: newValue)
+        }
+    }
+
+    @ViewBuilder
+    private var ceoConfigurationStep: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Step 1 of 2")
+                .font(Typography.caption)
+                .foregroundStyle(colors.primary)
+
+            Text("Create the company’s CEO")
+                .font(Typography.h3)
+
+            Text("This creates the CEO agent record, reserves the local home path, and applies the default heartbeat runtime. The bootstrap issue in the next step is what actually initializes the agent’s instructions and operating files.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        BoardInlineMessage(
+            text: "Execution uses the local Claude Code runtime on this device. Heartbeat is enabled, on-demand wakeups stay on, the run interval is one hour, and the CEO executes one run at a time.",
+            tone: .info
+        )
+
+        BoardFormFieldGroup(
+            label: "Agent Name",
+            hint: "Shown across the board as the company’s executive owner."
+        ) {
+            ShadcnTextField("CEO", text: $name, variant: .filled)
+        }
+
+        BoardFormFieldGroup(
+            label: "Title",
+            hint: "Defaults to the executive title used in company dashboards and run details."
+        ) {
+            ShadcnTextField("Chief Executive Officer", text: $title, variant: .filled)
+        }
+
+        BoardInlineMessage(
+            text: "The CEO uses the `crown` icon, becomes the company’s root reporting node, and stays in onboarding until the bootstrap issue is created.",
+            tone: .info
+        )
+
+        if let errorMessage {
+            BoardInlineMessage(text: errorMessage, tone: .error)
+        }
+
+        HStack {
+            Spacer()
+
+            Button {
+                Task { await createCEOAndContinue() }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text("Create CEO and Continue")
+                        .fontWeight(.medium)
+                }
+            }
+            .buttonPrimary(size: .md)
+            .disabled(!canCreateCEO)
+        }
+    }
+
+    @ViewBuilder
+    private var bootstrapIssueStep: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Step 2 of 2")
+                .font(Typography.caption)
+                .foregroundStyle(colors.primary)
+
+            Text("Create the CEO bootstrap issue")
+                .font(Typography.h3)
+
+            Text("This issue is mandatory. As soon as you create it, Unbound assigns it to the CEO and the existing issue-assignment trigger queues the CEO’s first run automatically.")
+                .font(Typography.bodySmall)
+                .foregroundStyle(colors.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        if let createdCEOAgent {
+            BoardCardSurface(padding: Spacing.lg, elevation: Elevation.sm) {
+                HStack(alignment: .top, spacing: Spacing.md) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: IconSize.lg, weight: .semibold))
+                        .foregroundStyle(colors.primary)
+
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(createdCEOAgent.name)
+                            .font(Typography.bodyMedium)
+                            .foregroundStyle(colors.foreground)
+
+                        Text(createdCEOAgent.title ?? "Chief Executive Officer")
+                            .font(Typography.caption)
+                            .foregroundStyle(colors.mutedForeground)
+
+                        if let homePath = createdCEOAgent.homePath {
+                            Text(homePath)
+                                .font(Typography.micro)
+                                .foregroundStyle(colors.mutedForeground)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    Spacer()
+                }
+            }
+        }
+
+        BoardInlineMessage(
+            text: "Use this task to tell the CEO how to create or fetch its own instruction set. The run prompt also includes the board helper commands the CEO must use for governed hires, issue updates, and comments.",
+            tone: .info
+        )
+
+        BoardFormFieldGroup(
+            label: "Issue Title",
+            hint: "Paperclip uses a direct setup task here so the CEO’s first run is intentional and editable."
+        ) {
+            ShadcnTextField("Create your CEO HEARTBEAT.md", text: $bootstrapIssueTitle, variant: .filled)
+        }
+
+        BoardFormFieldGroup(
+            label: "Bootstrap Brief",
+            hint: "This becomes the first assigned task description for the CEO. Keep it editable so you can tune the bootstrap behavior and the first governed hire request."
+        ) {
+            BoardMultilineInput(
+                placeholder: "Tell the CEO how to create its own instructions, initialize its local home, and what to do after bootstrap...",
+                text: $bootstrapIssueDescription,
+                minHeight: 180
+            )
+        }
+
+        if let errorMessage {
+            BoardInlineMessage(text: errorMessage, tone: .error)
+        }
+
+        HStack {
+            Spacer()
+
+            Button {
+                Task { await createBootstrapIssue() }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text("Create Bootstrap Issue")
+                        .fontWeight(.medium)
+                }
+            }
+            .buttonPrimary(size: .md)
+            .disabled(!canCreateBootstrapIssue)
+        }
+    }
+
+    private func createCEOAndContinue() async {
+        guard let companyId = appState.selectedCompanyId else { return }
+
+        isSaving = true
+        errorMessage = nil
+        defer { isSaving = false }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        appState.updateBoardOnboardingDraft(
+            ceoName: trimmedName,
+            ceoTitle: trimmedTitle,
+            bootstrapIssueTitle: bootstrapIssueTitle,
+            bootstrapIssueDescription: bootstrapIssueDescription
+        )
+
+        do {
+            let params: [String: Any] = [
+                "company_id": companyId,
+                "name": trimmedName,
+                "role": "ceo",
+                "title": trimmedTitle,
+                "icon": "crown",
+                "adapter_type": "process",
+                "runtime_config": [
+                    "heartbeat": [
+                        "enabled": true,
+                        "intervalSec": 3600,
+                        "wakeOnDemand": true,
+                        "cooldownSec": 10,
+                        "maxConcurrentRuns": 1,
+                    ],
+                ],
+            ]
+            let agent = try await appState.createAgent(params: params)
+            appState.advanceBoardOnboardingToBootstrapIssue(ceoAgentId: agent.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func createBootstrapIssue() async {
+        guard let companyId = appState.selectedCompanyId else { return }
+        guard let resolvedCEOAgentId else {
+            errorMessage = "The CEO agent is missing. Recreate the CEO step before creating the bootstrap issue."
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+        defer { isSaving = false }
+
+        let trimmedIssueTitle = bootstrapIssueTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIssueDescription = bootstrapIssueDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        appState.updateBoardOnboardingDraft(
+            ceoName: name,
+            ceoTitle: title,
+            bootstrapIssueTitle: trimmedIssueTitle,
+            bootstrapIssueDescription: trimmedIssueDescription
+        )
+
+        do {
+            var issue = try await appState.createIssue(
+                params: [
+                    "company_id": companyId,
+                    "title": trimmedIssueTitle,
+                    "description": trimmedIssueDescription,
+                    "priority": "high",
+                    "assignee_agent_id": resolvedCEOAgentId,
+                ]
+            )
+            if issue.assigneeAgentId != resolvedCEOAgentId {
+                issue = try await appState.updateIssue(
+                    params: [
+                        "issue_id": issue.id,
+                        "assignee_agent_id": resolvedCEOAgentId,
+                    ]
+                )
+            }
+            appState.clearBoardOnboardingState()
+            appState.showIssueDetail(issueId: issue.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func syncDraftsFromOnboardingState() {
+        if let onboardingState = appState.boardOnboardingState {
+            name = onboardingState.ceoName
+            title = onboardingState.ceoTitle
+            bootstrapIssueTitle = onboardingState.bootstrapIssueTitle
+            bootstrapIssueDescription = onboardingState.bootstrapIssueDescription
+            return
+        }
+
+        if let selectedCompany = appState.selectedCompany {
+            let defaults = BoardOnboardingState.initial(companyId: selectedCompany.id, companyName: selectedCompany.name)
+            name = defaults.ceoName
+            title = defaults.ceoTitle
+            bootstrapIssueTitle = defaults.bootstrapIssueTitle
+            bootstrapIssueDescription = defaults.bootstrapIssueDescription
+        }
+    }
+}
+
 struct InitialCompanyLoadErrorView: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1015,33 +1478,61 @@ struct InitialCompanyLoadErrorView: View {
     }
 
     var body: some View {
-        VStack(spacing: Spacing.xl) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 42))
-                .foregroundStyle(colors.destructive)
+        BoardOnboardingContainer(
+            eyebrow: "Board unavailable",
+            title: "Unable to load companies",
+            message: "Unbound could not finish loading the local board state. Retry once the daemon is healthy again."
+        ) {
+            BoardCardSurface(padding: Spacing.xl) {
+                HStack(alignment: .top, spacing: Spacing.md) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: IconSize.xxl))
+                        .foregroundStyle(colors.destructive)
 
-            VStack(spacing: Spacing.sm) {
-                Text("Unable to load companies")
-                    .font(Typography.title2)
-                    .foregroundStyle(colors.foreground)
-                Text(message)
-                    .font(Typography.body)
-                    .foregroundStyle(colors.mutedForeground)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 560)
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("The initial company check failed")
+                            .font(Typography.h4)
+                            .foregroundStyle(colors.foreground)
+
+                        Text("The board stays unavailable until this local load completes successfully.")
+                            .font(Typography.bodySmall)
+                            .foregroundStyle(colors.mutedForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                BoardInlineMessage(text: message, tone: .error)
+
+                HStack {
+                    Spacer()
+                    Button("Retry", action: onRetry)
+                        .buttonPrimary(size: .md)
+                }
             }
-
-            Button("Retry", action: onRetry)
-                .buttonStyle(.borderedProminent)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
     }
+}
+
+private enum AgentRoutePage {
+    case details
+    case runs
 }
 
 private struct AgentsRoute: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+
+    @State private var page: AgentRoutePage = .details
+    @State private var agentRuns: [DaemonAgentRun] = []
+    @State private var selectedRunId: String?
+    @State private var selectedRun: DaemonAgentRun?
+    @State private var runEvents: [DaemonAgentRunEvent] = []
+    @State private var runLogContent = ""
+    @State private var runLogOffset: UInt64 = 0
+    @State private var isLoadingRuns = false
+    @State private var isLoadingRunDetail = false
+    @State private var isPerformingRunAction = false
+    @State private var runError: String?
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -1055,7 +1546,50 @@ private struct AgentsRoute: View {
         appState.selectedAgent ?? orderedAgents.first
     }
 
+    private var selectedRunIsLive: Bool {
+        guard let selectedRun else { return false }
+        return selectedRun.status == "queued" || selectedRun.status == "running"
+    }
+
+    private var pollKey: String {
+        [
+            selectedAgent?.id ?? "none",
+            selectedRunId ?? "none",
+            page == .runs ? "runs" : "details",
+        ].joined(separator: ":")
+    }
+
     var body: some View {
+        Group {
+            if page == .details {
+                agentDetailsPage
+            } else {
+                agentRunsPage
+            }
+        }
+        .background(colors.background)
+        .task(id: appState.selectedCompanyId) {
+            await handleAgentSelectionChange()
+        }
+        .task(id: appState.selectedAgentId) {
+            await handleAgentSelectionChange()
+        }
+        .task(id: page) {
+            if page == .runs {
+                await loadRuns(resetSelection: true)
+            }
+        }
+        .task(id: selectedRunId) {
+            if page == .runs {
+                await refreshSelectedRun(resetStreams: true)
+            }
+        }
+        .task(id: pollKey) {
+            await pollSelectedRunIfNeeded()
+        }
+    }
+
+    private var agentDetailsPage: some View {
         ScrollView {
             if let agent = selectedAgent {
                 VStack(alignment: .leading, spacing: Spacing.xl) {
@@ -1074,7 +1608,15 @@ private struct AgentsRoute: View {
                                 }
                             }
                             Spacer()
-                            StatusPill(text: agent.status)
+                            VStack(alignment: .trailing, spacing: Spacing.sm) {
+                                StatusPill(text: agent.status)
+                                Button {
+                                    page = .runs
+                                } label: {
+                                    Label("View Runs", systemImage: "clock.arrow.circlepath")
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
                     }
 
@@ -1103,18 +1645,498 @@ private struct AgentsRoute: View {
                 )
             }
         }
-        .background(colors.background)
-        .task(id: appState.selectedCompanyId) {
-            ensureSelectedAgentIfNeeded()
-        }
-        .task(id: appState.selectedAgentId) {
-            ensureSelectedAgentIfNeeded()
+    }
+
+    private var agentRunsPage: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Agent Runs")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.primary)
+                    Text(selectedAgent.map { "\($0.name) Run History" } ?? "Run History")
+                        .font(Typography.pageTitle)
+                }
+
+                Spacer()
+
+                HStack(spacing: Spacing.sm) {
+                    if isLoadingRuns || isLoadingRunDetail {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color(hex: "F59E0B"))
+                    }
+
+                    Button {
+                        Task {
+                            await loadRuns(resetSelection: false)
+                            await refreshSelectedRun(resetStreams: true)
+                        }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        page = .details
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.vertical, Spacing.lg)
+
+            ShadcnDivider()
+
+            if selectedAgent == nil {
+                BoardEmptyState(
+                    title: "Select an agent",
+                    message: "Runs appear once an agent is selected."
+                )
+            } else {
+                HSplitView {
+                    runsListPane
+                        .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
+
+                    runsDetailPane
+                        .frame(minWidth: 460, idealWidth: 860, maxWidth: .infinity)
+                }
+            }
         }
     }
 
+    private var runsListPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                if let runError {
+                    Text(runError)
+                        .font(Typography.caption)
+                        .foregroundStyle(Color.red)
+                }
+
+                if agentRuns.isEmpty && !isLoadingRuns {
+                    BoardEmptyState(
+                        title: "No runs yet",
+                        message: "Queued, running, and completed agent runs will appear here."
+                    )
+                    .frame(maxHeight: .infinity)
+                } else {
+                    ForEach(agentRuns) { run in
+                        AgentRunListRow(
+                            run: run,
+                            isSelected: selectedRunId == run.id,
+                            action: {
+                                selectedRunId = run.id
+                            }
+                        )
+                    }
+                }
+            }
+            .padding(Spacing.lg)
+        }
+        .background(colors.background)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color(hex: "1F1F1F"))
+                .frame(width: BorderWidth.default)
+        }
+    }
+
+    private var runsDetailPane: some View {
+        ScrollView {
+            if let run = selectedRun {
+                VStack(alignment: .leading, spacing: Spacing.xl) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text(shortRunTitle(run.id))
+                                .font(Typography.caption)
+                                .foregroundStyle(colors.primary)
+                            Text(agentRunSummary(run))
+                                .font(Typography.h3)
+                                .foregroundStyle(Color(hex: "F5F5F5"))
+                            Text("\(agentRunInvocationSourceLabel(run.invocationSource)) · \(formatRelativeDate(run.createdAt))")
+                                .font(Typography.caption)
+                                .foregroundStyle(colors.mutedForeground)
+                        }
+                        Spacer()
+                        HStack(spacing: Spacing.sm) {
+                            if run.status == "queued" || run.status == "running" {
+                                Button {
+                                    Task {
+                                        await performRunAction {
+                                            try await appState.daemonClient.cancelAgentRun(runId: run.id)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Cancel", systemImage: "xmark")
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isPerformingRunAction)
+                            }
+
+                            if run.status == "failed" || run.status == "timed_out" {
+                                Button {
+                                    Task {
+                                        await performRunAction {
+                                            try await appState.daemonClient.retryAgentRun(runId: run.id)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Retry", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isPerformingRunAction)
+                            }
+
+                            if run.status == "failed", run.errorCode == "process_lost" {
+                                Button {
+                                    Task {
+                                        await performRunAction {
+                                            try await appState.daemonClient.resumeAgentRun(runId: run.id)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Resume", systemImage: "play.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(isPerformingRunAction)
+                            }
+
+                            StatusPill(text: agentRunStatusLabel(run.status))
+                        }
+                    }
+
+                    DashboardSurfaceCard(title: "Summary") {
+                        DetailGrid(items: [
+                            ("Status", agentRunStatusLabel(run.status)),
+                            ("Invocation Source", agentRunInvocationSourceLabel(run.invocationSource)),
+                            ("Trigger Detail", agentRunTriggerDetailLabel(run.triggerDetail)),
+                            ("Wake Reason", agentRunWakeReasonLabel(run.wakeReason)),
+                            ("Started", formatDate(run.startedAt)),
+                            ("Finished", formatDate(run.finishedAt)),
+                            ("Exit Code", run.exitCode.map(String.init) ?? "None"),
+                            ("Signal", run.signal ?? "None"),
+                            ("Session Before", run.sessionIdBefore ?? "None"),
+                            ("Session After", run.sessionIdAfter ?? "None"),
+                            ("Log Bytes", run.logBytes.map(String.init) ?? "0"),
+                            ("Created", formatDate(run.createdAt))
+                        ])
+                    }
+
+                    if let error = run.error, !error.isEmpty {
+                        DashboardSurfaceCard(title: "Error") {
+                            Text(error)
+                                .font(Typography.body)
+                                .foregroundStyle(Color(hex: "F5F5F5"))
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    DashboardSurfaceCard(title: "Excerpts") {
+                        VStack(alignment: .leading, spacing: Spacing.lg) {
+                            if let stdoutExcerpt = run.stdoutExcerpt, !stdoutExcerpt.isEmpty {
+                                DetailSection(title: "Stdout", text: stdoutExcerpt)
+                            }
+                            if let stderrExcerpt = run.stderrExcerpt, !stderrExcerpt.isEmpty {
+                                DetailSection(title: "Stderr", text: stderrExcerpt)
+                            }
+                            if run.stdoutExcerpt == nil, run.stderrExcerpt == nil {
+                                DashboardEmptyText("Run excerpts appear as output is captured.")
+                            }
+                        }
+                    }
+
+                    if run.usageJson != nil || run.resultJson != nil || run.contextSnapshot != nil {
+                        DashboardSurfaceCard(title: "Payloads") {
+                            VStack(alignment: .leading, spacing: Spacing.lg) {
+                                if let usage = run.usageJson {
+                                    AgentRunCodePanel(
+                                        title: "Usage",
+                                        text: RunJSONFormatter.format(usage),
+                                        maxHeight: 240
+                                    )
+                                }
+                                if let result = run.resultJson {
+                                    AgentRunCodePanel(
+                                        title: "Result",
+                                        text: RunJSONFormatter.format(result),
+                                        maxHeight: 240
+                                    )
+                                }
+                                if let snapshot = run.contextSnapshot {
+                                    AgentRunCodePanel(
+                                        title: "Context Snapshot",
+                                        text: RunJSONFormatter.format(snapshot),
+                                        maxHeight: 240
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardSurfaceCard(title: "Event Stream") {
+                        if runEvents.isEmpty {
+                            DashboardEmptyText("Structured run events will appear here.")
+                        } else {
+                            ForEach(runEvents) { event in
+                                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                                    HStack {
+                                        Text("#\(event.seq) \(agentRunEventLabel(event.eventType))")
+                                            .font(Typography.bodyMedium)
+                                            .foregroundStyle(Color(hex: "F5F5F5"))
+                                        Spacer()
+                                        Text(formatDate(event.createdAt))
+                                            .font(Typography.micro)
+                                            .foregroundStyle(colors.mutedForeground)
+                                    }
+                                    Text([
+                                        event.stream,
+                                        event.level,
+                                        event.message,
+                                    ].compactMap { $0 }.joined(separator: " · "))
+                                    .font(Typography.caption)
+                                    .foregroundStyle(colors.mutedForeground)
+                                    if let payload = event.payload {
+                                        AgentRunCodePanel(
+                                            title: "Payload",
+                                            text: RunJSONFormatter.format(payload),
+                                            maxHeight: 180
+                                        )
+                                        .padding(.top, Spacing.xs)
+                                    }
+                                }
+                                .padding(.vertical, Spacing.xxs)
+                            }
+                        }
+                    }
+
+                    DashboardSurfaceCard(title: "Log") {
+                        if runLogContent.isEmpty {
+                            DashboardEmptyText("Live NDJSON log output will appear here.")
+                        } else {
+                            AgentRunCodePanel(
+                                title: "Raw NDJSON Log",
+                                text: RunJSONFormatter.rawText(runLogContent),
+                                language: "json",
+                                badgeText: "NDJSON",
+                                maxHeight: 360
+                            )
+                        }
+                    }
+                }
+                .padding(Spacing.xl)
+            } else {
+                BoardEmptyState(
+                    title: "Select a run",
+                    message: "Choose a run from the list to inspect its details, logs, and event stream."
+                )
+            }
+        }
+        .background(colors.background)
+    }
+
+    @MainActor
+    private func handleAgentSelectionChange() async {
+        ensureSelectedAgentIfNeeded()
+        agentRuns = []
+        selectedRun = nil
+        selectedRunId = nil
+        runEvents = []
+        runLogContent = ""
+        runLogOffset = 0
+        runError = nil
+
+        if page == .runs {
+            await loadRuns(resetSelection: true)
+        }
+    }
+
+    @MainActor
     private func ensureSelectedAgentIfNeeded() {
         guard appState.selectedAgentId == nil || appState.selectedAgent == nil else { return }
         appState.selectedAgentId = orderedAgents.first?.id
+    }
+
+    @MainActor
+    private func loadRuns(resetSelection: Bool) async {
+        guard let agent = selectedAgent else {
+            agentRuns = []
+            selectedRun = nil
+            selectedRunId = nil
+            return
+        }
+
+        isLoadingRuns = true
+        defer { isLoadingRuns = false }
+
+        do {
+            let runs = try await appState.daemonClient.listAgentRuns(agentId: agent.id, limit: 200)
+            agentRuns = runs
+            runError = nil
+
+            if resetSelection || selectedRunId == nil || !runs.contains(where: { $0.id == selectedRunId }) {
+                selectedRunId = runs.first?.id
+            }
+            if let selectedRunId,
+               let current = runs.first(where: { $0.id == selectedRunId }) {
+                selectedRun = current
+            }
+        } catch {
+            runError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func refreshSelectedRun(resetStreams: Bool) async {
+        guard page == .runs, let runId = selectedRunId else { return }
+
+        isLoadingRunDetail = true
+        defer { isLoadingRunDetail = false }
+
+        do {
+            let run = try await appState.daemonClient.getAgentRun(runId: runId)
+            let afterSeq = resetStreams ? nil : runEvents.last?.seq
+            let events = try await appState.daemonClient.listAgentRunEvents(
+                runId: runId,
+                afterSeq: afterSeq,
+                limit: 400
+            )
+            let logChunk = try await appState.daemonClient.readAgentRunLog(
+                runId: runId,
+                offset: resetStreams ? 0 : runLogOffset
+            )
+
+            selectedRun = run
+            if let index = agentRuns.firstIndex(where: { $0.id == run.id }) {
+                agentRuns[index] = run
+            }
+
+            if resetStreams {
+                runEvents = events
+                runLogContent = logChunk.content
+            } else {
+                runEvents.append(contentsOf: events)
+                if !logChunk.content.isEmpty {
+                    runLogContent += logChunk.content
+                }
+            }
+            runLogOffset = logChunk.nextOffset
+            runError = nil
+        } catch {
+            runError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func pollSelectedRunIfNeeded() async {
+        guard page == .runs else { return }
+
+        while !Task.isCancelled {
+            guard selectedRunIsLive else { break }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { break }
+            await loadRuns(resetSelection: false)
+            await refreshSelectedRun(resetStreams: false)
+        }
+    }
+
+    @MainActor
+    private func performRunAction(
+        operation: @escaping () async throws -> DaemonAgentRun
+    ) async {
+        isPerformingRunAction = true
+        defer { isPerformingRunAction = false }
+
+        do {
+            let updatedRun = try await operation()
+            runError = nil
+            await loadRuns(resetSelection: false)
+            selectedRunId = updatedRun.id
+            await refreshSelectedRun(resetStreams: true)
+        } catch {
+            runError = error.localizedDescription
+        }
+    }
+}
+
+private struct AgentRunListRow: View {
+    let run: DaemonAgentRun
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: Spacing.xxs) {
+                        Text(shortRunTitle(run.id))
+                            .font(Typography.bodyMedium)
+                            .foregroundStyle(Color(hex: "F5F5F5"))
+                        Text(agentRunSummary(run))
+                            .font(Typography.caption)
+                            .foregroundStyle(Color(hex: "9A9A9A"))
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                    StatusPill(text: agentRunStatusLabel(run.status))
+                }
+
+                HStack(spacing: Spacing.sm) {
+                    Text(agentRunInvocationSourceLabel(run.invocationSource))
+                        .font(Typography.micro)
+                        .foregroundStyle(Color(hex: "F59E0B"))
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xxs)
+                        .background(Color(hex: "1B1407"))
+                        .clipShape(Capsule())
+                    Text(formatRelativeDate(run.createdAt))
+                        .font(Typography.micro)
+                        .foregroundStyle(Color(hex: "7A7A7A"))
+                    Spacer()
+                    if let wakeReason = run.wakeReason {
+                        Text(agentRunWakeReasonLabel(Optional(wakeReason)))
+                            .font(Typography.micro)
+                            .foregroundStyle(Color(hex: "7A7A7A"))
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? Color(hex: "181818") : Color(hex: "101010"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Color(hex: "2E2E2E") : Color(hex: "191919"), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct IssueEditDraft {
+    var title: String = ""
+    var description: String = ""
+    var status: String = "backlog"
+    var priority: String = "medium"
+    var projectId: String = ""
+    var assigneeAgentId: String = ""
+    var parentId: String = ""
+
+    init() {}
+
+    init(issue: DaemonIssue) {
+        self.title = issue.title
+        self.description = issue.description ?? ""
+        self.status = issue.status
+        self.priority = issue.priority
+        self.projectId = issue.projectId ?? ""
+        self.assigneeAgentId = issue.assigneeAgentId ?? ""
+        self.parentId = issue.parentId ?? ""
     }
 }
 
@@ -1211,65 +2233,232 @@ private struct ProjectsRoute: View {
 
 private struct IssuesRoute: View {
     @Environment(AppState.self) private var appState
+
+    var body: some View {
+        Group {
+            switch appState.issuesRouteDestination {
+            case .list:
+                IssuesListPage()
+            case .detail(let issueId):
+                IssueDetailPage(issueId: issueId)
+            }
+        }
+        .task(id: appState.issuesRouteDestination.issueId ?? "list") {
+            appState.reconcileIssuesRouteState()
+        }
+    }
+}
+
+private struct IssuesListPage: View {
+    @Environment(AppState.self) private var appState
+
+    private let horizontalInset: CGFloat = 20
+
+    private var visibleIssues: [DaemonIssue] {
+        issuesVisible(in: appState.issues, tab: appState.selectedIssuesListTab)
+    }
+
+    private var summaryText: String {
+        let issueCount = visibleIssues.count
+        let suffix = issueCount == 1 ? "issue" : "issues"
+        return "\(appState.selectedIssuesListTab.title) · \(issueCount) \(suffix)"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            issuesHeader
+            tabBar
+            ScrollView {
+                VStack(spacing: 0) {
+                    summaryBar
+
+                    if visibleIssues.isEmpty {
+                        emptyState
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(visibleIssues) { issue in
+                                IssuesListRow(
+                                    issue: issue,
+                                    isSelected: appState.selectedIssueId == issue.id,
+                                    action: { appState.showIssueDetail(issueId: issue.id) }
+                                )
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: "0A0A0A"))
+    }
+
+    private var issuesHeader: some View {
+        HStack {
+            Text("ISSUES")
+                .font(GeistFont.sans(size: FontSize.sm, weight: .bold))
+                .tracking(0.3)
+                .foregroundStyle(Color(hex: "E5E5E5"))
+            Spacer()
+        }
+        .padding(.horizontal, horizontalInset)
+        .frame(height: 58)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(hex: "1F1F1F"))
+                .frame(height: BorderWidth.default)
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 18) {
+            ForEach(IssuesListTab.allCases, id: \.self) { tab in
+                Button {
+                    appState.selectedIssuesListTab = tab
+                } label: {
+                    Text(tab.title)
+                        .font(GeistFont.sans(size: FontSize.base, weight: .semibold))
+                        .foregroundStyle(appState.selectedIssuesListTab == tab ? Color(hex: "F1F1F1") : Color(hex: "A3A3A3"))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, horizontalInset)
+        .frame(height: 48)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(hex: "1F1F1F"))
+                .frame(height: BorderWidth.default)
+        }
+    }
+
+    private var summaryBar: some View {
+        HStack {
+            Text(summaryText)
+                .font(GeistFont.sans(size: FontSize.xs, weight: .medium))
+                .foregroundStyle(Color(hex: "8E8E8E"))
+            Spacer()
+        }
+        .padding(.horizontal, horizontalInset)
+        .frame(height: 34)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(hex: "151515"))
+                .frame(height: BorderWidth.default)
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("No issues in \(appState.selectedIssuesListTab.title.lowercased())")
+                .font(Typography.h4)
+                .foregroundStyle(Color(hex: "F5F5F5"))
+            Text("Issues own workspaces. Create one from the sidebar to start agent work.")
+                .font(Typography.body)
+                .foregroundStyle(Color(hex: "7A7A7A"))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, horizontalInset)
+        .padding(.vertical, Spacing.xxl)
+    }
+}
+
+private struct IssuesListRow: View {
+    let issue: DaemonIssue
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.md) {
+                Text(issuesListRowTitle(for: issue))
+                    .font(GeistFont.sans(size: FontSize.sm, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? Color(hex: "FFFFFF") : Color(hex: "CDCDCD"))
+                    .lineLimit(1)
+                    .padding(.leading, CGFloat(issue.requestDepth) * 12)
+
+                Spacer(minLength: Spacing.md)
+
+                Text(formatCompactIssueTimestamp(issue.updatedAt))
+                    .font(GeistFont.sans(size: FontSize.xs, weight: .medium))
+                    .foregroundStyle(isSelected ? Color(hex: "8E8E8E") : Color(hex: "6F6F6F"))
+            }
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity)
+            .frame(height: 42)
+            .background(isSelected ? Color(hex: "131313") : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(hex: "191919"))
+                .frame(height: BorderWidth.default)
+        }
+    }
+}
+
+private struct IssueDetailPage: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
-    let onShowCreateIssue: () -> Void
+    let issueId: String
 
     @State private var newCommentBody = ""
+    @State private var isEditingIssue = false
+    @State private var issueDraft = IssueEditDraft()
+    @State private var isSavingIssue = false
+    @State private var issueEditorError: String?
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
     }
 
     private var selectedIssue: DaemonIssue? {
-        appState.selectedIssue ?? appState.issues.first
+        appState.issues.first(where: { $0.id == issueId })
     }
 
     private var subissues: [DaemonIssue] {
-        guard let selectedIssue else { return [] }
-        return appState.issues.filter { $0.parentId == selectedIssue.id }
+        appState.issues.filter { $0.parentId == issueId }
+    }
+
+    private var availableStatusOptions: [String] {
+        mergedIssueOptions(defaults: ["backlog", "in_progress", "blocked", "done", "cancelled"], selected: issueDraft.status)
+    }
+
+    private var availablePriorityOptions: [String] {
+        mergedIssueOptions(defaults: ["low", "medium", "high", "urgent"], selected: issueDraft.priority)
+    }
+
+    private var selectableParentIssues: [DaemonIssue] {
+        appState.issues.filter { $0.id != issueId }
+    }
+
+    private var linkedIssueApprovals: [DaemonApproval] {
+        appState.approvals.filter { approvalLinksIssue($0, issueId: issueId) }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xxl) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text("Issues")
-                            .font(Typography.caption)
-                            .foregroundStyle(colors.primary)
-                        Text("Execution queue")
-                            .font(Typography.pageTitle)
-                    }
-
-                    Spacer()
-
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     Button {
-                        onShowCreateIssue()
+                        appState.showIssuesList()
                     } label: {
-                        Label("New Issue", systemImage: "plus")
+                        Label("Back to Issues", systemImage: "chevron.left")
+                            .font(Typography.label)
+                            .foregroundStyle(Color(hex: "A3A3A3"))
                     }
-                    .buttonStyle(.borderedProminent)
-                }
+                    .buttonStyle(.plain)
 
-                DashboardSurfaceCard(title: "Issues") {
-                    if appState.issues.isEmpty {
-                        DashboardEmptyText("Issues own workspaces. Agents create coding sessions automatically when work starts.")
-                    } else {
-                        ForEach(appState.issues) { issue in
-                            DashboardSelectableLineButton(
-                                title: issue.identifier ?? issue.title,
-                                subtitle: issue.title,
-                                trailing: issue.workspaceSessionId == nil ? issue.status : "workspace",
-                                isSelected: selectedIssue?.id == issue.id,
-                                leadingPadding: CGFloat(issue.requestDepth) * 12,
-                                action: {
-                                    appState.selectedIssueId = issue.id
-                                    Task { await appState.refreshIssueComments(issueId: issue.id) }
-                                }
-                            )
-                        }
-                    }
+                    Text("Issues")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.primary)
+                    Text("Issue Details")
+                        .font(Typography.pageTitle)
                 }
 
                 if let issue = selectedIssue {
@@ -1280,39 +2469,93 @@ private struct IssuesRoute: View {
                                     Text(issue.identifier ?? issue.title)
                                         .font(Typography.caption)
                                         .foregroundStyle(colors.primary)
-                                    Text(issue.title)
-                                        .font(Typography.h3)
-                                        .foregroundStyle(Color(hex: "F5F5F5"))
+                                    if isEditingIssue {
+                                        ShadcnTextField("Issue title", text: $issueDraft.title, variant: .filled)
+                                            .frame(maxWidth: 420)
+                                    } else {
+                                        Text(issue.title)
+                                            .font(Typography.h3)
+                                            .foregroundStyle(Color(hex: "F5F5F5"))
+                                    }
                                 }
                                 Spacer()
-                                if issue.assigneeAgentId != nil && issue.projectId != nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                _ = try await appState.checkoutIssue(issueId: issue.id)
-                                            } catch {
-                                                boardLogger.error("Failed to start workspace for issue \(issue.id): \(error)")
+                                HStack(spacing: Spacing.sm) {
+                                    if issue.assigneeAgentId != nil && issue.projectId != nil && !isEditingIssue {
+                                        Button {
+                                            Task {
+                                                do {
+                                                    _ = try await appState.checkoutIssue(issueId: issue.id)
+                                                } catch {
+                                                    boardLogger.error("Failed to start workspace for issue \(issue.id): \(error)")
+                                                }
+                                            }
+                                        } label: {
+                                            Label("Start Workspace", systemImage: "play.fill")
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                    }
+
+                                    if isEditingIssue {
+                                        Button("Cancel") {
+                                            discardIssueEdits(for: issue)
+                                        }
+                                        .buttonSecondary(size: .md)
+                                        .disabled(isSavingIssue)
+
+                                        Button {
+                                            Task { await saveIssueEdits(for: issue) }
+                                        } label: {
+                                            HStack(spacing: Spacing.sm) {
+                                                if isSavingIssue {
+                                                    ProgressView()
+                                                        .controlSize(.small)
+                                                }
+                                                Text("Save Changes")
+                                                    .fontWeight(.medium)
                                             }
                                         }
-                                    } label: {
-                                        Label("Start Workspace", systemImage: "play.fill")
+                                        .buttonPrimary(size: .md)
+                                        .disabled(!canSaveIssueEdits)
+                                    } else {
+                                        Button("Edit Issue") {
+                                            beginEditing(issue: issue)
+                                        }
+                                        .buttonSecondary(size: .md)
                                     }
-                                    .buttonStyle(.borderedProminent)
                                 }
                             }
 
-                            if let description = issue.description, !description.isEmpty {
+                            if isEditingIssue {
+                                BoardFormFieldGroup(
+                                    label: "Description",
+                                    hint: "Background, acceptance criteria, and bootstrap instructions all live here."
+                                ) {
+                                    BoardMultilineInput(
+                                        placeholder: "What needs to happen, what context matters, and what should the assignee do next?",
+                                        text: $issueDraft.description,
+                                        minHeight: 140
+                                    )
+                                }
+                            } else if let description = issue.description, !description.isEmpty {
                                 DetailSection(title: "Description", text: description)
                             }
 
-                            DetailGrid(items: [
-                                ("Status", issue.status),
-                                ("Priority", issue.priority),
-                                ("Project", issue.projectId ?? "Unassigned"),
-                                ("Assignee", issue.assigneeAgentId ?? "Unassigned"),
-                                ("Parent", issue.parentId ?? "None"),
-                                ("Depth", "\(issue.requestDepth)")
-                            ])
+                            if isEditingIssue {
+                                issueEditorFields
+                            } else {
+                                DetailGrid(items: [
+                                    ("Status", humanizedIssueValue(issue.status)),
+                                    ("Priority", humanizedIssueValue(issue.priority)),
+                                    ("Project", projectLabel(for: issue.projectId)),
+                                    ("Assignee", assigneeLabel(for: issue.assigneeAgentId)),
+                                    ("Parent", parentIssueLabel(for: issue.parentId)),
+                                    ("Depth", "\(issue.requestDepth)")
+                                ])
+                            }
+
+                            if let issueEditorError {
+                                BoardInlineMessage(text: issueEditorError, tone: .error)
+                            }
 
                             if !subissues.isEmpty {
                                 VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -1326,6 +2569,27 @@ private struct IssuesRoute: View {
                                             StatusPill(text: child.status)
                                         }
                                         .padding(.vertical, Spacing.xxs)
+                                    }
+                                }
+                            }
+
+                            if !linkedIssueApprovals.isEmpty {
+                                VStack(alignment: .leading, spacing: Spacing.sm) {
+                                    Text("Linked Approvals")
+                                        .font(Typography.h4)
+                                        .foregroundStyle(Color(hex: "F5F5F5"))
+
+                                    ForEach(linkedIssueApprovals) { approval in
+                                        DashboardSelectableLineButton(
+                                            title: approval.approvalType.replacingOccurrences(of: "_", with: " ").capitalized,
+                                            subtitle: approval.status.replacingOccurrences(of: "_", with: " ").capitalized,
+                                            trailing: formatDate(approval.updatedAt),
+                                            isSelected: appState.selectedApprovalId == approval.id,
+                                            action: {
+                                                appState.selectedApprovalId = approval.id
+                                                appState.selectedScreen = .approvals
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -1388,8 +2652,8 @@ private struct IssuesRoute: View {
                     }
                 } else {
                     BoardEmptyState(
-                        title: "Select an issue",
-                        message: "Comments, subissues, approvals, and workspace status show here."
+                        title: "Issue unavailable",
+                        message: "This issue no longer exists. Return to the list to choose another issue."
                     )
                 }
             }
@@ -1399,7 +2663,182 @@ private struct IssuesRoute: View {
         .task(id: selectedIssue?.id) {
             if let issue = selectedIssue {
                 await appState.refreshIssueComments(issueId: issue.id)
+                isEditingIssue = false
+                syncIssueDraft(from: issue)
+            } else {
+                appState.reconcileIssuesRouteState()
+                isEditingIssue = false
+                issueEditorError = nil
             }
+        }
+    }
+
+    @ViewBuilder
+    private var issueEditorFields: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            BoardFormFieldGroup(
+                label: "Status",
+                hint: "Moves the issue through the board lifecycle and can trigger follow-up automation."
+            ) {
+                BoardMenuField(valueText: humanizedIssueValue(issueDraft.status)) {
+                    ForEach(availableStatusOptions, id: \.self) { status in
+                        Button(humanizedIssueValue(status)) {
+                            issueDraft.status = status
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Priority",
+                hint: "Controls ordering and urgency in issue views."
+            ) {
+                BoardMenuField(valueText: humanizedIssueValue(issueDraft.priority)) {
+                    ForEach(availablePriorityOptions, id: \.self) { priority in
+                        Button(humanizedIssueValue(priority)) {
+                            issueDraft.priority = priority
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Project",
+                hint: "Optional project anchor for execution routing and repo context."
+            ) {
+                BoardMenuField(
+                    valueText: projectLabel(for: issueDraft.projectId),
+                    isPlaceholder: issueDraft.projectId.isEmpty
+                ) {
+                    Button("No project") {
+                        issueDraft.projectId = ""
+                    }
+                    ForEach(appState.projects) { project in
+                        Button(project.name) {
+                            issueDraft.projectId = project.id
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Assignee",
+                hint: "Choose the agent who owns this work, or clear it to leave the issue unassigned."
+            ) {
+                BoardMenuField(
+                    valueText: assigneeLabel(for: issueDraft.assigneeAgentId.nonEmpty),
+                    isPlaceholder: issueDraft.assigneeAgentId.isEmpty
+                ) {
+                    Button("Unassigned") {
+                        issueDraft.assigneeAgentId = ""
+                    }
+                    ForEach(appState.agents) { agent in
+                        Button(agent.name) {
+                            issueDraft.assigneeAgentId = agent.id
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Parent Issue",
+                hint: "Nest the issue under another one, or clear the parent to move it back to the root."
+            ) {
+                BoardMenuField(
+                    valueText: parentIssueLabel(for: issueDraft.parentId.nonEmpty),
+                    isPlaceholder: issueDraft.parentId.isEmpty
+                ) {
+                    Button("No parent issue") {
+                        issueDraft.parentId = ""
+                    }
+                    ForEach(selectableParentIssues) { parentIssue in
+                        Button(parentIssue.identifier ?? parentIssue.title) {
+                            issueDraft.parentId = parentIssue.id
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var canSaveIssueEdits: Bool {
+        !isSavingIssue
+            && !issueDraft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func mergedIssueOptions(defaults: [String], selected: String) -> [String] {
+        let trimmedSelected = selected.trimmingCharacters(in: .whitespacesAndNewlines)
+        var options: [String] = []
+        if !trimmedSelected.isEmpty {
+            options.append(trimmedSelected)
+        }
+        for value in defaults where !options.contains(value) {
+            options.append(value)
+        }
+        return options
+    }
+
+    private func projectLabel(for projectId: String?) -> String {
+        guard let projectId, !projectId.isEmpty else { return "No project" }
+        return appState.projects.first(where: { $0.id == projectId })?.name ?? projectId
+    }
+
+    private func assigneeLabel(for assigneeAgentId: String?) -> String {
+        guard let assigneeAgentId, !assigneeAgentId.isEmpty else { return "Unassigned" }
+        return appState.agents.first(where: { $0.id == assigneeAgentId })?.name ?? assigneeAgentId
+    }
+
+    private func parentIssueLabel(for parentIssueId: String?) -> String {
+        guard let parentIssueId, !parentIssueId.isEmpty else { return "No parent issue" }
+        let parentIssue = appState.issues.first(where: { $0.id == parentIssueId })
+        return parentIssue?.identifier ?? parentIssue?.title ?? parentIssueId
+    }
+
+    private func humanizedIssueValue(_ value: String) -> String {
+        value.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func beginEditing(issue: DaemonIssue) {
+        syncIssueDraft(from: issue)
+        issueEditorError = nil
+        isEditingIssue = true
+    }
+
+    private func discardIssueEdits(for issue: DaemonIssue) {
+        syncIssueDraft(from: issue)
+        issueEditorError = nil
+        isEditingIssue = false
+    }
+
+    private func syncIssueDraft(from issue: DaemonIssue) {
+        issueDraft = IssueEditDraft(issue: issue)
+    }
+
+    private func saveIssueEdits(for issue: DaemonIssue) async {
+        isSavingIssue = true
+        issueEditorError = nil
+        defer { isSavingIssue = false }
+
+        let trimmedTitle = issueDraft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDescription = issueDraft.description.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var params: [String: Any] = [
+            "issue_id": issue.id,
+            "title": trimmedTitle,
+            "status": issueDraft.status,
+            "priority": issueDraft.priority,
+        ]
+        params["description"] = trimmedDescription.isEmpty ? NSNull() : trimmedDescription
+        params["project_id"] = issueDraft.projectId.isEmpty ? NSNull() : issueDraft.projectId
+        params["assignee_agent_id"] = issueDraft.assigneeAgentId.isEmpty ? NSNull() : issueDraft.assigneeAgentId
+        params["parent_id"] = issueDraft.parentId.isEmpty ? NSNull() : issueDraft.parentId
+
+        do {
+            let updatedIssue = try await appState.updateIssue(params: params)
+            issueDraft = IssueEditDraft(issue: updatedIssue)
+            isEditingIssue = false
+        } catch {
+            issueEditorError = error.localizedDescription
         }
     }
 }
@@ -1968,30 +3407,82 @@ private struct CreateCompanySheet: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private var canCreate: Bool {
+        !isSaving && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        Form {
-            TextField("Company Name", text: $name)
-            TextField("Description", text: $description, axis: .vertical)
-            TextField("Monthly Budget (cents)", text: $budget)
-            TextField("Brand Color", text: $brandColor)
-            Toggle("Require approval for new agents", isOn: $requireApproval)
+        BoardDialogScaffold(
+            title: "Create Company",
+            subtitle: "Add a new company shell. The required follow-up flow creates its CEO agent and then the CEO bootstrap issue."
+        ) {
+            BoardFormFieldGroup(
+                label: "Company Name",
+                hint: "Used in the company rail, sidebar, and dashboard."
+            ) {
+                ShadcnTextField("Acme Systems", text: $name, variant: .filled)
+            }
+
+            BoardFormFieldGroup(
+                label: "Description",
+                hint: "Optional context for how this company should operate inside Unbound."
+            ) {
+                BoardMultilineInput(
+                    placeholder: "Internal platform team, design systems, launch operations, or another board context...",
+                    text: $description,
+                    minHeight: 88
+                )
+            }
+
+            BoardFormFieldGroup(
+                label: "Monthly Budget (cents)",
+                hint: "Stored as cents so the board can track spend precisely."
+            ) {
+                ShadcnTextField("500000", text: $budget, variant: .filled)
+            }
+
+            BoardFormFieldGroup(
+                label: "Brand Color",
+                hint: "Optional hex color for the company badge and related accents."
+            ) {
+                ShadcnTextField("#0F766E", text: $brandColor, variant: .filled)
+            }
+
+            BoardCheckboxRow(
+                title: "Require approval for new agents",
+                subtitle: "Keep hiring gated until someone explicitly approves each new agent.",
+                isOn: $requireApproval
+            )
 
             if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
+                BoardInlineMessage(text: errorMessage, tone: .error)
             }
-
-            HStack {
+        } footer: {
+            HStack(spacing: Spacing.sm) {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Create Company") {
-                    Task { await save() }
+
+                Button("Cancel") {
+                    dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonSecondary(size: .md)
+                .disabled(isSaving)
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text("Create Company")
+                            .fontWeight(.medium)
+                    }
+                }
+                .buttonPrimary(size: .md)
+                .disabled(!canCreate)
             }
         }
-        .padding(Spacing.lg)
     }
 
     private func save() async {
@@ -2018,6 +3509,7 @@ private struct CreateAgentSheet: View {
 
     let companyId: String?
     let defaultReportsTo: String?
+    let requiresBoardApproval: Bool
     let onCreate: ([String: Any]) async throws -> Void
 
     @State private var name = ""
@@ -2028,30 +3520,90 @@ private struct CreateAgentSheet: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private var canCreate: Bool {
+        !isSaving
+            && companyId != nil
+            && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        Form {
-            TextField("Name", text: $name)
-            TextField("Role", text: $role)
-            TextField("Title", text: $title)
-            TextField("Icon", text: $icon)
-            TextField("Adapter Type", text: $adapterType)
+        BoardDialogScaffold(
+            title: requiresBoardApproval ? "Hire Agent" : "Create Agent",
+            subtitle: requiresBoardApproval
+                ? "Submit a governed hire request. The agent record appears immediately, and the board creates a linked hire approval before the agent can start working."
+                : "Create a new company agent through the same governed hire flow the CEO uses during runs."
+        ) {
+            BoardFormFieldGroup(
+                label: "Name",
+                hint: "The human-readable name shown in the sidebar, approvals, and issue flows."
+            ) {
+                ShadcnTextField("Customer Ops", text: $name, variant: .filled)
+            }
+
+            BoardFormFieldGroup(
+                label: "Role",
+                hint: "Used for agent defaults and lightweight routing inside the board and approval payload."
+            ) {
+                ShadcnTextField("general", text: $role, variant: .filled)
+            }
+
+            BoardFormFieldGroup(
+                label: "Title",
+                hint: "Optional display title shown in dashboards and issue details."
+            ) {
+                ShadcnTextField("Head of Support", text: $title, variant: .filled)
+            }
+
+            BoardFormFieldGroup(
+                label: "Icon",
+                hint: "Optional SF Symbol or icon key used by the board UI."
+            ) {
+                ShadcnTextField("person.crop.circle", text: $icon, variant: .filled)
+            }
+
+            BoardInlineMessage(
+                text: requiresBoardApproval
+                    ? "This company requires approval for new agents. Saving here creates the pending agent and a hire approval together."
+                    : "This company does not require board approval, but hires still go through the board-native path so the request stays visible in the UI and activity log.",
+                tone: .info
+            )
+
+            BoardFormFieldGroup(
+                label: "Adapter Type",
+                hint: "Defaults to `process` for local process-backed execution."
+            ) {
+                ShadcnTextField("process", text: $adapterType, variant: .filled)
+            }
 
             if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
+                BoardInlineMessage(text: errorMessage, tone: .error)
             }
-
-            HStack {
+        } footer: {
+            HStack(spacing: Spacing.sm) {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Create Agent") {
-                    Task { await save() }
+
+                Button("Cancel") {
+                    dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || companyId == nil)
+                .buttonSecondary(size: .md)
+                .disabled(isSaving)
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(requiresBoardApproval ? "Submit Hire Request" : "Create Agent")
+                            .fontWeight(.medium)
+                    }
+                }
+                .buttonPrimary(size: .md)
+                .disabled(!canCreate)
             }
         }
-        .padding(Spacing.lg)
     }
 
     private func save() async {
@@ -2428,51 +3980,150 @@ private struct CreateIssueSheet: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private let priorities = ["low", "medium", "high", "urgent"]
+
+    private var canCreate: Bool {
+        !isSaving
+            && companyId != nil
+            && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var selectedProjectLabel: String {
+        projects.first(where: { $0.id == selectedProjectId })?.name ?? "No project"
+    }
+
+    private var selectedAssigneeLabel: String {
+        agents.first(where: { $0.id == selectedAssigneeAgentId })?.name ?? "Unassigned"
+    }
+
+    private var selectedParentIssueLabel: String {
+        issues.first(where: { $0.id == selectedParentIssueId })?.identifier
+            ?? issues.first(where: { $0.id == selectedParentIssueId })?.title
+            ?? "No parent issue"
+    }
+
     var body: some View {
-        Form {
-            TextField("Title", text: $title)
-            TextField("Description", text: $description, axis: .vertical)
-            Picker("Priority", selection: $priority) {
-                Text("low").tag("low")
-                Text("medium").tag("medium")
-                Text("high").tag("high")
-                Text("urgent").tag("urgent")
+        BoardDialogScaffold(
+            title: "Create Issue",
+            subtitle: "Create a new board issue with optional routing to a project, assignee, or parent issue."
+        ) {
+            BoardFormFieldGroup(
+                label: "Title",
+                hint: "This becomes the main issue title and the default workspace label."
+            ) {
+                ShadcnTextField("Investigate CI flake", text: $title, variant: .filled)
             }
-            Picker("Project", selection: $selectedProjectId) {
-                Text("None").tag("")
-                ForEach(projects) { project in
-                    Text(project.name).tag(project.id)
+
+            BoardFormFieldGroup(
+                label: "Description",
+                hint: "Optional background, acceptance criteria, or context for the assignee."
+            ) {
+                BoardMultilineInput(
+                    placeholder: "What needs to happen, how should success be measured, and what context should the assignee keep in mind?",
+                    text: $description,
+                    minHeight: 96
+                )
+            }
+
+            BoardFormFieldGroup(
+                label: "Priority",
+                hint: "Controls ordering and urgency in board views."
+            ) {
+                BoardMenuField(valueText: priority.capitalized) {
+                    ForEach(priorities, id: \.self) { option in
+                        Button(option.capitalized) {
+                            priority = option
+                        }
+                    }
                 }
             }
-            Picker("Assignee", selection: $selectedAssigneeAgentId) {
-                Text("None").tag("")
-                ForEach(agents) { agent in
-                    Text(agent.name).tag(agent.id)
+
+            BoardFormFieldGroup(
+                label: "Project",
+                hint: "Optional project anchor for workspace routing and repo context."
+            ) {
+                BoardMenuField(
+                    valueText: selectedProjectLabel,
+                    isPlaceholder: selectedProjectId.isEmpty
+                ) {
+                    Button("No project") {
+                        selectedProjectId = ""
+                    }
+                    ForEach(projects) { project in
+                        Button(project.name) {
+                            selectedProjectId = project.id
+                        }
+                    }
                 }
             }
-            Picker("Parent Issue", selection: $selectedParentIssueId) {
-                Text("None").tag("")
-                ForEach(issues) { issue in
-                    Text(issue.identifier ?? issue.title).tag(issue.id)
+
+            BoardFormFieldGroup(
+                label: "Assignee",
+                hint: "Optional agent owner for execution or follow-up."
+            ) {
+                BoardMenuField(
+                    valueText: selectedAssigneeLabel,
+                    isPlaceholder: selectedAssigneeAgentId.isEmpty
+                ) {
+                    Button("Unassigned") {
+                        selectedAssigneeAgentId = ""
+                    }
+                    ForEach(agents) { agent in
+                        Button(agent.name) {
+                            selectedAssigneeAgentId = agent.id
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Parent Issue",
+                hint: "Use this to nest follow-up work under an existing issue."
+            ) {
+                BoardMenuField(
+                    valueText: selectedParentIssueLabel,
+                    isPlaceholder: selectedParentIssueId.isEmpty
+                ) {
+                    Button("No parent issue") {
+                        selectedParentIssueId = ""
+                    }
+                    ForEach(issues) { issue in
+                        Button(issue.identifier ?? issue.title) {
+                            selectedParentIssueId = issue.id
+                        }
+                    }
                 }
             }
 
             if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
+                BoardInlineMessage(text: errorMessage, tone: .error)
             }
-
-            HStack {
+        } footer: {
+            HStack(spacing: Spacing.sm) {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Create Issue") {
-                    Task { await save() }
+
+                Button("Cancel") {
+                    dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSaving || companyId == nil || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonSecondary(size: .md)
+                .disabled(isSaving)
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text("Create Issue")
+                            .fontWeight(.medium)
+                    }
+                }
+                .buttonPrimary(size: .md)
+                .disabled(!canCreate)
             }
         }
-        .padding(Spacing.lg)
     }
 
     private func save() async {
@@ -2517,6 +4168,179 @@ private func formatDate(_ value: String?) -> String {
     return value
 }
 
+#if DEBUG
+
+#Preview("First Company Setup") {
+    CreateFirstCompanyView()
+        .environment(AppState())
+        .frame(width: 1180, height: 780)
+}
+
+#Preview("CEO Setup Required") {
+    CreateCEOAgentView()
+        .environment(makeCEOOnboardingPreviewState(step: .createCEO))
+        .frame(width: 1180, height: 780)
+}
+
+#Preview("CEO Bootstrap Issue Step") {
+    CreateCEOAgentView()
+        .environment(makeCEOOnboardingPreviewState(step: .bootstrapIssue))
+        .frame(width: 1180, height: 780)
+}
+
+#Preview("Board Settings") {
+    BoardRootView()
+        .environment(makeBoardRootPreviewState(selectedScreen: .settings))
+        .frame(width: 1180, height: 780)
+}
+
+#Preview("Initial Company Load Error") {
+    InitialCompanyLoadErrorView(
+        message: "The board schema could not be read from the local daemon. Check the daemon logs and try again.",
+        onRetry: {}
+    )
+    .frame(width: 1180, height: 780)
+}
+
+#Preview("Create Company Sheet") {
+    CreateCompanySheet { _, _, _, _, _ in }
+        .frame(width: 520, height: 420)
+}
+
+#Preview("Create Agent Sheet") {
+    CreateAgentSheet(
+        companyId: "company-1",
+        defaultReportsTo: nil,
+        requiresBoardApproval: true,
+        onCreate: { _ in }
+    )
+    .frame(width: 520, height: 440)
+}
+
+#Preview("Create Issue Sheet") {
+    CreateIssueSheet(
+        companyId: "company-1",
+        agents: [],
+        projects: [],
+        issues: [],
+        onCreate: { _ in }
+    )
+    .frame(width: 620, height: 520)
+}
+
+#endif
+
+#if DEBUG
+@MainActor
+private func makeBoardRootPreviewState(selectedScreen: AppScreen) -> AppState {
+    let appState = AppState()
+    let company = DaemonCompany(
+        id: "company-1",
+        name: "Acme",
+        description: "Board shell preview company",
+        status: "active",
+        issuePrefix: "ACM",
+        issueCounter: 1,
+        budgetMonthlyCents: 0,
+        spentMonthlyCents: 0,
+        requireBoardApprovalForNewAgents: true,
+        brandColor: "F59E0B",
+        ceoAgentId: "agent-1",
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z"
+    )
+    let agent = DaemonAgent(
+        id: "agent-1",
+        companyId: company.id,
+        name: "CEO",
+        slug: "ceo",
+        role: "ceo",
+        title: "Chief Executive Officer",
+        icon: "crown",
+        status: "idle",
+        reportsTo: nil,
+        capabilities: nil,
+        adapterType: "process",
+        adapterConfig: nil,
+        runtimeConfig: nil,
+        budgetMonthlyCents: 0,
+        spentMonthlyCents: 0,
+        permissions: nil,
+        lastHeartbeatAt: nil,
+        metadata: nil,
+        homePath: "/tmp/acme/agents/ceo",
+        instructionsPath: "/tmp/acme/agents/ceo/AGENTS.md",
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z"
+    )
+
+    appState.configureForPreview(
+        companies: [company],
+        agents: [agent],
+        selectedCompanyId: company.id,
+        hasCompletedInitialCompanyLoad: true,
+        selectedScreen: selectedScreen
+    )
+    return appState
+}
+
+@MainActor
+private func makeCEOOnboardingPreviewState(step: BoardOnboardingStep) -> AppState {
+    let appState = AppState()
+    let company = DaemonCompany(
+        id: "company-1",
+        name: "Acme",
+        description: nil,
+        status: "active",
+        issuePrefix: "ACM",
+        issueCounter: 1,
+        budgetMonthlyCents: 0,
+        spentMonthlyCents: 0,
+        requireBoardApprovalForNewAgents: true,
+        brandColor: nil,
+        ceoAgentId: step == .bootstrapIssue ? "agent-1" : nil,
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z"
+    )
+    let agent = DaemonAgent(
+        id: "agent-1",
+        companyId: company.id,
+        name: "CEO",
+        slug: "ceo",
+        role: "ceo",
+        title: "Chief Executive Officer",
+        icon: "crown",
+        status: "idle",
+        reportsTo: nil,
+        capabilities: nil,
+        adapterType: "process",
+        adapterConfig: nil,
+        runtimeConfig: nil,
+        budgetMonthlyCents: 0,
+        spentMonthlyCents: 0,
+        permissions: nil,
+        lastHeartbeatAt: nil,
+        metadata: nil,
+        homePath: "/tmp/acme/agents/ceo",
+        instructionsPath: "/tmp/acme/agents/ceo/AGENTS.md",
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z"
+    )
+    var onboardingState = BoardOnboardingState.initial(companyId: company.id, companyName: company.name)
+    onboardingState.step = step
+    onboardingState.ceoAgentId = step == .bootstrapIssue ? agent.id : nil
+
+    appState.configureForPreview(
+        companies: [company],
+        agents: step == .bootstrapIssue ? [agent] : [],
+        selectedCompanyId: company.id,
+        hasCompletedInitialCompanyLoad: true,
+        boardOnboardingState: onboardingState
+    )
+    return appState
+}
+#endif
+
 private func parsedDate(_ value: String?) -> Date? {
     guard let value, !value.isEmpty else { return nil }
 
@@ -2555,6 +4379,23 @@ private func projectDialogTargetDateString(_ date: Date) -> String {
     return formatter.string(from: Calendar.current.startOfDay(for: date))
 }
 
+private func approvalLinksIssue(_ approval: DaemonApproval, issueId: String) -> Bool {
+    guard let payload = approval.payload else { return false }
+
+    if let sourceIssueId = payload["source_issue_id"]?.value as? String,
+       sourceIssueId == issueId {
+        return true
+    }
+
+    if let sourceIssueIds = payload["source_issue_ids"]?.value as? [Any] {
+        return sourceIssueIds.contains { value in
+            (value as? String) == issueId
+        }
+    }
+
+    return false
+}
+
 private func anyCodableDictionaryText(_ dictionary: [String: AnyCodableValue]) -> String {
     dictionary
         .sorted(by: { $0.key < $1.key })
@@ -2562,6 +4403,111 @@ private func anyCodableDictionaryText(_ dictionary: [String: AnyCodableValue]) -
             "\(key): \(String(describing: value.value))"
         }
         .joined(separator: "\n")
+}
+
+private func shortRunTitle(_ runId: String) -> String {
+    "Run \(runId.prefix(8))"
+}
+
+private func agentRunSummary(_ run: DaemonAgentRun) -> String {
+    if let error = run.error, !error.isEmpty {
+        return error
+    }
+    if let stdoutExcerpt = run.stdoutExcerpt, !stdoutExcerpt.isEmpty {
+        return stdoutExcerpt
+    }
+    if let stderrExcerpt = run.stderrExcerpt, !stderrExcerpt.isEmpty {
+        return stderrExcerpt
+    }
+    if let wakeReason = run.wakeReason {
+        return agentRunWakeReasonLabel(Optional(wakeReason))
+    }
+    if let triggerDetail = run.triggerDetail {
+        return agentRunTriggerDetailLabel(Optional(triggerDetail))
+    }
+    return "Waiting for run output."
+}
+
+private func agentRunStatusLabel(_ status: String) -> String {
+    switch status {
+    case "queued":
+        return "Queued"
+    case "running":
+        return "Running"
+    case "succeeded":
+        return "Succeeded"
+    case "failed":
+        return "Failed"
+    case "cancelled":
+        return "Cancelled"
+    case "timed_out":
+        return "Timed Out"
+    default:
+        return status.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+private func agentRunInvocationSourceLabel(_ source: String) -> String {
+    switch source {
+    case "timer":
+        return "Timer"
+    case "assignment":
+        return "Assignment"
+    case "on_demand":
+        return "On Demand"
+    case "automation":
+        return "Automation"
+    default:
+        return source.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+private func agentRunTriggerDetailLabel(_ triggerDetail: String?) -> String {
+    guard let triggerDetail, !triggerDetail.isEmpty else { return "None" }
+    switch triggerDetail {
+    case "manual":
+        return "Manual"
+    case "system":
+        return "System"
+    case "ping":
+        return "Ping"
+    case "callback":
+        return "Callback"
+    default:
+        return triggerDetail.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+private func agentRunWakeReasonLabel(_ wakeReason: String?) -> String {
+    guard let wakeReason, !wakeReason.isEmpty else { return "None" }
+    switch wakeReason {
+    case "heartbeat_timer":
+        return "Heartbeat Timer"
+    case "issue_assigned":
+        return "Issue Assigned"
+    case "issue_status_changed":
+        return "Issue Status Changed"
+    case "issue_checked_out":
+        return "Issue Checked Out"
+    case "issue_commented":
+        return "Issue Commented"
+    case "issue_comment_mentioned":
+        return "Issue Comment Mentioned"
+    case "issue_reopened_via_comment":
+        return "Issue Reopened"
+    case "approval_approved":
+        return "Approval Approved"
+    case "issue_execution_promoted":
+        return "Execution Promoted"
+    case "stale_checkout_run":
+        return "Stale Checkout Run"
+    default:
+        return wakeReason.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+private func agentRunEventLabel(_ eventType: String) -> String {
+    eventType.replacingOccurrences(of: "_", with: " ").capitalized
 }
 
 private func sidebarOrderedAgents(_ agents: [DaemonAgent], ceoAgentId: String?) -> [DaemonAgent] {
@@ -2580,6 +4526,71 @@ private func sidebarOrderedAgents(_ agents: [DaemonAgent], ceoAgentId: String?) 
 private func money(_ cents: Int) -> String {
     let dollars = Double(cents) / 100.0
     return dollars.formatted(.currency(code: "USD"))
+}
+
+func issuesVisible(
+    in issues: [DaemonIssue],
+    tab: IssuesListTab,
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> [DaemonIssue] {
+    let visibleIssues = issues.filter { $0.hiddenAt == nil }
+
+    switch tab {
+    case .all:
+        return visibleIssues
+    case .new:
+        guard let threshold = calendar.date(byAdding: .day, value: -7, to: now) else {
+            return visibleIssues
+        }
+        return visibleIssues.filter { issue in
+            guard let createdAt = parsedDate(issue.createdAt) else { return false }
+            return createdAt >= threshold
+        }
+    }
+}
+
+private func issuesListRowTitle(for issue: DaemonIssue) -> String {
+    guard let identifier = issue.identifier, !identifier.isEmpty else {
+        return issue.title
+    }
+    return "\(identifier)  \(issue.title)"
+}
+
+private func formatCompactIssueTimestamp(
+    _ value: String?,
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> String {
+    guard let date = parsedDate(value) else { return "Unknown" }
+
+    let seconds = now.timeIntervalSince(date)
+    if seconds < 60 {
+        return "Just now"
+    }
+    if seconds < 3600 {
+        return "\(max(Int(seconds / 60), 1))m"
+    }
+    if seconds < 86_400 {
+        return "\(max(Int(seconds / 3600), 1))h"
+    }
+    if calendar.isDateInYesterday(date) {
+        return "Yesterday"
+    }
+
+    let startOfNow = calendar.startOfDay(for: now)
+    let startOfDate = calendar.startOfDay(for: date)
+    if let dayDelta = calendar.dateComponents([.day], from: startOfDate, to: startOfNow).day,
+       dayDelta < 7 {
+        return date.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    return date.formatted(.dateTime.month(.abbreviated).day())
+}
+
+private func formatRelativeDate(_ value: String?) -> String {
+    guard let date = parsedDate(value) else { return "Unknown" }
+    return date.formatted(.relative(presentation: .named))
 }
 
 private extension String {

@@ -3,16 +3,21 @@
 use crate::app::DaemonState;
 use daemon_board::service;
 use daemon_board::{
-    AddIssueCommentInput, ApprovalDecisionInput, BoardError, CreateAgentInput, CreateCompanyInput,
-    CreateIssueInput, CreateProjectInput, IssueListFilter,
+    AddIssueCommentInput, ApprovalDecisionInput, BoardError, CreateAgentHireInput,
+    CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, Issue,
+    IssueListFilter, UpdateIssueInput,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashSet;
+use tracing::warn;
 
 pub async fn register(server: &IpcServer, state: DaemonState) {
     register_company_handlers(server, state.clone()).await;
     register_agent_handlers(server, state.clone()).await;
+    register_agent_run_handlers(server, state.clone()).await;
     register_goal_handlers(server, state.clone()).await;
     register_project_handlers(server, state.clone()).await;
     register_issue_handlers(server, state.clone()).await;
@@ -162,6 +167,26 @@ async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
+
+    let hire_db = state.db.clone();
+    let hire_paths = state.paths.clone();
+    server
+        .register_handler(Method::AgentHireCreate, move |req| {
+            let db = hire_db.clone();
+            let paths = hire_paths.clone();
+            async move {
+                let input = match parse_params::<CreateAgentHireInput>(&req.id, req.params.as_ref())
+                {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::create_agent_hire(&db, &paths, input).await {
+                    Ok(agent) => json_response(&req.id, &serde_json::json!({ "agent": agent })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
 }
 
 async fn register_goal_handlers(server: &IpcServer, state: DaemonState) {
@@ -288,16 +313,78 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let create_db = state.db.clone();
+    let create_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::IssueCreate, move |req| {
             let db = create_db.clone();
+            let runs = create_runs.clone();
             async move {
                 let input = match parse_params::<CreateIssueInput>(&req.id, req.params.as_ref()) {
                     Ok(input) => input,
                     Err(response) => return response,
                 };
                 match service::create_issue(&db, input).await {
-                    Ok(issue) => json_response(&req.id, &serde_json::json!({ "issue": issue })),
+                    Ok(issue) => {
+                        maybe_enqueue_issue_run(
+                            runs.as_ref(),
+                            &issue,
+                            "assignment",
+                            Some("system"),
+                            Some("issue_assigned"),
+                        )
+                        .await;
+                        json_response(&req.id, &serde_json::json!({ "issue": issue }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let update_db = state.db.clone();
+    let update_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::IssueUpdate, move |req| {
+            let db = update_db.clone();
+            let runs = update_runs.clone();
+            async move {
+                let input = match parse_params::<UpdateIssueInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+
+                let previous = match service::get_issue(&db, &input.issue_id).await {
+                    Ok(Some(issue)) => issue,
+                    Ok(None) => {
+                        return Response::error(&req.id, error_codes::NOT_FOUND, "Issue not found")
+                    }
+                    Err(error) => return board_error_response(&req.id, error),
+                };
+
+                match service::update_issue(&db, input).await {
+                    Ok(issue) => {
+                        if previous.assignee_agent_id != issue.assignee_agent_id {
+                            maybe_enqueue_issue_run(
+                                runs.as_ref(),
+                                &issue,
+                                "assignment",
+                                Some("system"),
+                                Some("issue_assigned"),
+                            )
+                            .await;
+                        }
+                        if previous.status == "backlog" && issue.status != "backlog" {
+                            maybe_enqueue_issue_run(
+                                runs.as_ref(),
+                                &issue,
+                                "assignment",
+                                Some("system"),
+                                Some("issue_status_changed"),
+                            )
+                            .await;
+                        }
+                        json_response(&req.id, &serde_json::json!({ "issue": issue }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -325,17 +412,91 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let comment_add_db = state.db.clone();
+    let comment_add_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::IssueCommentAdd, move |req| {
             let db = comment_add_db.clone();
+            let runs = comment_add_runs.clone();
             async move {
                 let input = match parse_params::<AddIssueCommentInput>(&req.id, req.params.as_ref())
                 {
                     Ok(input) => input,
                     Err(response) => return response,
                 };
+                let issue_id = input.issue_id.clone();
+                let comment_body = input.body.clone();
+                let author_agent_id = input.author_agent_id.clone();
                 match service::add_issue_comment(&db, input).await {
                     Ok(comment) => {
+                        if let Ok(Some(issue)) = service::get_issue(&db, &issue_id).await {
+                            if let Some(assignee_agent_id) = issue.assignee_agent_id.clone() {
+                                if author_agent_id.as_deref() != Some(assignee_agent_id.as_str()) {
+                                    let _ = runs
+                                        .enqueue_run(crate::app::AgentRunEnqueueRequest {
+                                            agent_id: assignee_agent_id.clone(),
+                                            company_id: Some(issue.company_id.clone()),
+                                            invocation_source: "automation".to_string(),
+                                            trigger_detail: Some("system".to_string()),
+                                            wake_reason: Some("issue_commented".to_string()),
+                                            payload: Some(serde_json::json!({
+                                                "issue_id": issue.id,
+                                                "comment_id": comment.id,
+                                            })),
+                                            prompt: None,
+                                            requested_by_actor_type: Some("system".to_string()),
+                                            requested_by_actor_id: Some(comment.id.clone()),
+                                        })
+                                        .await;
+                                }
+
+                                if matches!(issue.status.as_str(), "done" | "cancelled") {
+                                    if let Ok(reopened) = service::update_issue(
+                                        &db,
+                                        UpdateIssueInput {
+                                            issue_id: issue.id.clone(),
+                                            status: Some("in_progress".to_string()),
+                                            ..UpdateIssueInput::default()
+                                        },
+                                    )
+                                    .await
+                                    {
+                                        maybe_enqueue_issue_run(
+                                            runs.as_ref(),
+                                            &reopened,
+                                            "automation",
+                                            Some("system"),
+                                            Some("issue_reopened_via_comment"),
+                                        )
+                                        .await;
+                                    }
+                                }
+                            }
+
+                            if let Ok(agents) = service::list_agents(&db, &issue.company_id).await {
+                                let mentioned_agent_ids =
+                                    extract_mentioned_agent_ids(&comment_body, &agents);
+                                for agent_id in mentioned_agent_ids {
+                                    let _ = runs
+                                        .enqueue_run(crate::app::AgentRunEnqueueRequest {
+                                            agent_id,
+                                            company_id: Some(issue.company_id.clone()),
+                                            invocation_source: "automation".to_string(),
+                                            trigger_detail: Some("system".to_string()),
+                                            wake_reason: Some(
+                                                "issue_comment_mentioned".to_string(),
+                                            ),
+                                            payload: Some(serde_json::json!({
+                                                "issue_id": issue.id,
+                                                "comment_id": comment.id,
+                                            })),
+                                            prompt: None,
+                                            requested_by_actor_type: Some("system".to_string()),
+                                            requested_by_actor_id: Some(comment.id.clone()),
+                                        })
+                                        .await;
+                                }
+                            }
+                        }
                         json_response(&req.id, &serde_json::json!({ "comment": comment }))
                     }
                     Err(error) => board_error_response(&req.id, error),
@@ -346,10 +507,12 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
 
     let checkout_db = state.db.clone();
     let checkout_armin = state.armin.clone();
+    let checkout_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::IssueCheckout, move |req| {
             let db = checkout_db.clone();
             let armin = checkout_armin.clone();
+            let runs = checkout_runs.clone();
             async move {
                 let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
                 {
@@ -358,6 +521,16 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 };
                 match service::start_issue_workspace(&db, armin.as_ref(), &issue_id).await {
                     Ok(workspace) => {
+                        if let Ok(Some(issue)) = service::get_issue(&db, &issue_id).await {
+                            maybe_enqueue_issue_run(
+                                runs.as_ref(),
+                                &issue,
+                                "assignment",
+                                Some("system"),
+                                Some("issue_checked_out"),
+                            )
+                            .await;
+                        }
                         json_response(&req.id, &serde_json::json!({ "workspace": workspace }))
                     }
                     Err(error) => board_error_response(&req.id, error),
@@ -412,19 +585,205 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let approve_db = state.db.clone();
+    let approve_paths = state.paths.clone();
+    let approve_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::ApprovalApprove, move |req| {
             let db = approve_db.clone();
+            let paths = approve_paths.clone();
+            let runs = approve_runs.clone();
             async move {
                 let input =
                     match parse_params::<ApprovalDecisionInput>(&req.id, req.params.as_ref()) {
                         Ok(input) => input,
                         Err(response) => return response,
                     };
-                match service::approve_approval(&db, input).await {
+                match service::approve_approval(&db, &paths, input).await {
                     Ok(approval) => {
+                        if let Some(agent_id) = approval.requested_by_agent_id.clone() {
+                            let _ = runs
+                                .enqueue_run(crate::app::AgentRunEnqueueRequest {
+                                    agent_id,
+                                    company_id: Some(approval.company_id.clone()),
+                                    invocation_source: "automation".to_string(),
+                                    trigger_detail: Some("system".to_string()),
+                                    wake_reason: Some("approval_approved".to_string()),
+                                    payload: Some(serde_json::json!({
+                                        "approval_id": approval.id,
+                                    })),
+                                    prompt: None,
+                                    requested_by_actor_type: Some("system".to_string()),
+                                    requested_by_actor_id: Some(approval.id.clone()),
+                                })
+                                .await;
+                        }
                         json_response(&req.id, &serde_json::json!({ "approval": approval }))
                     }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_agent_run_handlers(server: &IpcServer, state: DaemonState) {
+    let list_db = state.db.clone();
+    server
+        .register_handler(Method::AgentRunList, move |req| {
+            let db = list_db.clone();
+            async move {
+                let input = match parse_params::<AgentRunListInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::list_agent_runs(&db, &input.agent_id, input.limit).await {
+                    Ok(runs) => json_response(&req.id, &serde_json::json!({ "runs": runs })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let get_db = state.db.clone();
+    server
+        .register_handler(Method::AgentRunGet, move |req| {
+            let db = get_db.clone();
+            async move {
+                let run_id = match required_string_param(&req.id, req.params.as_ref(), "run_id") {
+                    Ok(run_id) => run_id,
+                    Err(response) => return response,
+                };
+                match service::get_agent_run(&db, &run_id).await {
+                    Ok(Some(run)) => json_response(&req.id, &serde_json::json!({ "run": run })),
+                    Ok(None) => Response::error(&req.id, error_codes::NOT_FOUND, "Run not found"),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let events_db = state.db.clone();
+    server
+        .register_handler(Method::AgentRunEvents, move |req| {
+            let db = events_db.clone();
+            async move {
+                let input = match parse_params::<AgentRunEventsInput>(&req.id, req.params.as_ref())
+                {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::list_agent_run_events(
+                    &db,
+                    &input.run_id,
+                    input.after_seq,
+                    input.limit,
+                )
+                .await
+                {
+                    Ok(events) => json_response(&req.id, &serde_json::json!({ "events": events })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let log_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::AgentRunLog, move |req| {
+            let runs = log_runs.clone();
+            async move {
+                let input = match parse_params::<AgentRunLogInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match runs
+                    .read_log_chunk(
+                        &input.run_id,
+                        input.offset.unwrap_or(0),
+                        input.limit_bytes.unwrap_or(16_384),
+                    )
+                    .await
+                {
+                    Ok(chunk) => json_response(
+                        &req.id,
+                        &serde_json::json!({
+                            "content": chunk.content,
+                            "next_offset": chunk.next_offset,
+                            "done": chunk.done,
+                        }),
+                    ),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let invoke_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::AgentRunInvoke, move |req| {
+            let runs = invoke_runs.clone();
+            async move {
+                let input = match parse_params::<InvokeAgentRunInput>(&req.id, req.params.as_ref())
+                {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match runs
+                    .enqueue_manual_run(&input.agent_id, input.issue_id, input.prompt)
+                    .await
+                {
+                    Ok(run) => json_response(&req.id, &serde_json::json!({ "run": run })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let cancel_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::AgentRunCancel, move |req| {
+            let runs = cancel_runs.clone();
+            async move {
+                let run_id = match required_string_param(&req.id, req.params.as_ref(), "run_id") {
+                    Ok(run_id) => run_id,
+                    Err(response) => return response,
+                };
+                match runs.cancel_run(&run_id).await {
+                    Ok(run) => json_response(&req.id, &serde_json::json!({ "run": run })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let retry_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::AgentRunRetry, move |req| {
+            let runs = retry_runs.clone();
+            async move {
+                let run_id = match required_string_param(&req.id, req.params.as_ref(), "run_id") {
+                    Ok(run_id) => run_id,
+                    Err(response) => return response,
+                };
+                match runs.retry_run(&run_id).await {
+                    Ok(run) => json_response(&req.id, &serde_json::json!({ "run": run })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let resume_runs = state.agent_run_coordinator.clone();
+    server
+        .register_handler(Method::AgentRunResume, move |req| {
+            let runs = resume_runs.clone();
+            async move {
+                let run_id = match required_string_param(&req.id, req.params.as_ref(), "run_id") {
+                    Ok(run_id) => run_id,
+                    Err(response) => return response,
+                };
+                match runs.resume_run(&run_id).await {
+                    Ok(run) => json_response(&req.id, &serde_json::json!({ "run": run })),
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -534,4 +893,78 @@ fn board_error_response(request_id: &str, error: BoardError) -> Response {
         }
         other => Response::error(request_id, error_codes::INTERNAL_ERROR, &other.to_string()),
     }
+}
+
+async fn maybe_enqueue_issue_run(
+    coordinator: &crate::app::AgentRunCoordinator,
+    issue: &Issue,
+    invocation_source: &str,
+    trigger_detail: Option<&str>,
+    wake_reason: Option<&str>,
+) {
+    let Some(agent_id) = issue.assignee_agent_id.clone() else {
+        return;
+    };
+
+    if let Err(error) = coordinator
+        .enqueue_run(crate::app::AgentRunEnqueueRequest {
+            agent_id,
+            company_id: Some(issue.company_id.clone()),
+            invocation_source: invocation_source.to_string(),
+            trigger_detail: trigger_detail.map(ToOwned::to_owned),
+            wake_reason: wake_reason.map(ToOwned::to_owned),
+            payload: Some(serde_json::json!({ "issue_id": issue.id })),
+            prompt: None,
+            requested_by_actor_type: Some("system".to_string()),
+            requested_by_actor_id: Some(issue.id.clone()),
+        })
+        .await
+    {
+        warn!(error = %error, issue_id = %issue.id, "Failed to enqueue issue run");
+    }
+}
+
+fn extract_mentioned_agent_ids(comment_body: &str, agents: &[daemon_board::Agent]) -> Vec<String> {
+    let mut mentioned = HashSet::new();
+    let lowered = comment_body.to_lowercase();
+    for agent in agents {
+        let slug_token = format!("@{}", agent.slug.to_lowercase());
+        if lowered.contains(&slug_token) {
+            mentioned.insert(agent.id.clone());
+            continue;
+        }
+
+        let name_token = format!("@{}", agent.name.to_lowercase().replace(' ', ""));
+        if lowered.contains(&name_token) {
+            mentioned.insert(agent.id.clone());
+        }
+    }
+    mentioned.into_iter().collect()
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentRunListInput {
+    agent_id: String,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentRunEventsInput {
+    run_id: String,
+    after_seq: Option<i64>,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentRunLogInput {
+    run_id: String,
+    offset: Option<u64>,
+    limit_bytes: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvokeAgentRunInput {
+    agent_id: String,
+    issue_id: Option<String>,
+    prompt: Option<String>,
 }

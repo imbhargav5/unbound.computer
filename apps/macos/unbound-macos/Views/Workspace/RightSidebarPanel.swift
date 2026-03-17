@@ -775,7 +775,7 @@ private struct PullRequestsTabView: View {
                         }
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fullWidthRow()
                         .background(
                             gitViewModel.selectedPullRequest?.number == pullRequest.number
                                 ? colors.selectionBackground
@@ -792,6 +792,7 @@ private struct PullRequestsTabView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .fullRowHitTarget()
                 }
             }
             .padding(Spacing.xs)

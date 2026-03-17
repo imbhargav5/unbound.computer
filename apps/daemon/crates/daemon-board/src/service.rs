@@ -1,8 +1,9 @@
 use crate::error::{BoardError, BoardResult};
 use crate::models::{
-    AddIssueCommentInput, Agent, Approval, ApprovalDecisionInput, Company, CreateAgentInput,
-    CreateCompanyInput, CreateIssueInput, CreateProjectInput, Goal, Issue, IssueComment,
-    IssueListFilter, Project, ProjectWorkspace, Workspace,
+    AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval, ApprovalDecisionInput, Company,
+    CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
+    CreateProjectInput, Goal, Issue, IssueComment, IssueListFilter, Project, ProjectWorkspace,
+    UpdateIssueInput, Workspace,
 };
 use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionWriter};
 use chrono::Utc;
@@ -10,6 +11,7 @@ use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, DatabaseError, DatabaseResult, NewRepository};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;
@@ -25,6 +27,24 @@ const DEFAULT_COMPANY_PERMISSIONS: [&str; 6] = [
     "tasks:assign_scope",
     "joins:approve",
 ];
+
+#[derive(Clone, Debug)]
+struct HireApprovalActivationTarget {
+    approval_id: String,
+    company_id: String,
+    agent_id: String,
+    agent_name: String,
+    agent_slug: String,
+    agent_role: String,
+    adapter_type: String,
+    company_name: String,
+}
+
+#[derive(Debug)]
+struct PreparedHireApprovalActivation {
+    agent_home: std::path::PathBuf,
+    home_existed_before: bool,
+}
 
 pub async fn list_companies(db: &AsyncDatabase) -> BoardResult<Vec<Company>> {
     Ok(db
@@ -43,11 +63,9 @@ pub async fn get_company(db: &AsyncDatabase, company_id: &str) -> BoardResult<Op
 
 pub async fn create_company(
     db: &AsyncDatabase,
-    paths: &Paths,
+    _paths: &Paths,
     input: CreateCompanyInput,
 ) -> BoardResult<Company> {
-    let paths = paths.clone();
-    let db_paths = paths.clone();
     let name = require_name(&input.name, "company name")?;
     let description = normalize_optional_string(input.description);
     let budget = input.budget_monthly_cents.unwrap_or(0).max(0);
@@ -61,19 +79,8 @@ pub async fn create_company(
             ensure_local_board_user(&tx, &now)?;
 
             let company_id = Uuid::new_v4().to_string();
-            let ceo_agent_id = Uuid::new_v4().to_string();
             let issue_prefix = unique_issue_prefix(&tx, &name)?;
-            let agent_slug = unique_agent_slug(&tx, &company_id, "ceo-agent")?;
             let company_name = name.clone();
-            let home_path = db_paths
-                .agent_home_dir(&company_id, &agent_slug)
-                .to_string_lossy()
-                .to_string();
-            let instructions_path = db_paths
-                .agent_home_dir(&company_id, &agent_slug)
-                .join("AGENTS.md")
-                .to_string_lossy()
-                .to_string();
 
             tx.execute(
                 "INSERT INTO companies (
@@ -89,27 +96,6 @@ pub async fn create_company(
                     budget,
                     require_board_approval,
                     brand_color,
-                    now,
-                ],
-            )?;
-
-            tx.execute(
-                "INSERT INTO agents (
-                    id, company_id, name, slug, role, title, icon, status,
-                    adapter_type, adapter_config, runtime_config, budget_monthly_cents,
-                    spent_monthly_cents, permissions, home_path, instructions_path,
-                    created_at, updated_at
-                 ) VALUES (
-                    ?1, ?2, 'CEO Agent', ?3, 'ceo', 'Chief Executive Officer', 'crown', 'idle',
-                    'process', '{}', '{}', 0, 0, ?4, ?5, ?6, ?7, ?7
-                 )",
-                params![
-                    ceo_agent_id,
-                    company_id,
-                    agent_slug,
-                    json!({ "canCreateAgents": true }).to_string(),
-                    home_path,
-                    instructions_path,
                     now,
                 ],
             )?;
@@ -154,49 +140,15 @@ pub async fn create_company(
                 Some(json!({ "name": company_name, "issue_prefix": issue_prefix })),
                 &now,
             )?;
-            insert_activity_sync(
-                &tx,
-                &company_id,
-                "system",
-                LOCAL_BOARD_USER_ID,
-                "agent.created",
-                "agent",
-                &ceo_agent_id,
-                Some(&ceo_agent_id),
-                Some(json!({ "role": "ceo", "slug": agent_slug })),
-                &now,
-            )?;
 
             let company = get_company_sync(&tx, &company_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Company missing after insert".to_string()))?;
 
             tx.commit()?;
-            Ok((company, ceo_agent_id, agent_slug))
+            Ok(company)
         })
         .await?;
-
-    if let Err(error) = scaffold_agent_home(
-        &paths,
-        &creation.0.id,
-        "CEO Agent",
-        &creation.2,
-        &creation.0.name,
-        "ceo",
-    ) {
-        let company_id = creation.0.id.clone();
-        db.call_with_operation(
-            "board.company.rollback_after_scaffold_failure",
-            move |conn| {
-                conn.execute("DELETE FROM companies WHERE id = ?1", params![company_id])?;
-                Ok(())
-            },
-        )
-        .await?;
-        let _ = fs::remove_dir_all(paths.company_root(&creation.0.id));
-        return Err(error);
-    }
-
-    Ok(creation.0)
+    Ok(creation)
 }
 
 pub async fn update_company(
@@ -229,7 +181,9 @@ pub async fn update_company(
                 "company",
                 &existing_company.id,
                 None,
-                Some(json!({ "brand_color": brand_color })),
+                Some(json!({
+                    "brand_color": brand_color,
+                })),
                 &now,
             )?;
 
@@ -297,11 +251,25 @@ pub async fn create_agent(
     let company_id = require_name(&input.company_id, "company_id")?;
     let name = require_name(&input.name, "agent name")?;
     let role = input.role.unwrap_or_else(|| "general".to_string());
+    let is_ceo = role == "ceo";
+    if is_ceo {
+        let company_id_for_lookup = company_id.clone();
+        let existing_ceo = db
+            .call_with_operation("board.agent.validate_ceo_uniqueness", move |conn| {
+                find_company_ceo_sync(conn, &company_id_for_lookup)
+            })
+            .await?;
+        if existing_ceo.is_some() {
+            return Err(BoardError::Conflict(
+                "Company already has a CEO agent".to_string(),
+            ));
+        }
+    }
     let status_requires_approval = get_company(db, &company_id)
         .await?
         .map(|company| company.require_board_approval_for_new_agents)
         .unwrap_or(true);
-    let desired_status = if role == "ceo" {
+    let desired_status = if is_ceo {
         "idle".to_string()
     } else if status_requires_approval {
         "pending_approval".to_string()
@@ -309,15 +277,33 @@ pub async fn create_agent(
         "idle".to_string()
     };
     let now = now_rfc3339();
-    let description_title = normalize_optional_string(input.title);
-    let icon = normalize_optional_string(input.icon);
+    let description_title = normalize_optional_string(input.title).or_else(|| {
+        if is_ceo {
+            Some("Chief Executive Officer".to_string())
+        } else {
+            None
+        }
+    });
+    let icon = normalize_optional_string(input.icon).or_else(|| {
+        if is_ceo {
+            Some("crown".to_string())
+        } else {
+            None
+        }
+    });
     let reports_to = normalize_optional_string(input.reports_to);
     let capabilities = normalize_optional_string(input.capabilities);
     let adapter_type = input.adapter_type.unwrap_or_else(|| "process".to_string());
     let adapter_config = input.adapter_config.unwrap_or_else(|| json!({}));
     let runtime_config = input.runtime_config.unwrap_or_else(|| json!({}));
     let budget = input.budget_monthly_cents.unwrap_or(0).max(0);
-    let permissions = input.permissions.unwrap_or_else(|| json!({}));
+    let permissions = input.permissions.unwrap_or_else(|| {
+        if is_ceo {
+            json!({ "canCreateAgents": true })
+        } else {
+            json!({})
+        }
+    });
     let metadata = input.metadata;
 
     let agent = db
@@ -327,7 +313,11 @@ pub async fn create_agent(
                 .ok_or_else(|| DatabaseError::NotFound("Company not found".to_string()))?;
             let slug = unique_agent_slug(&tx, &company_id, &name)?;
             let agent_id = Uuid::new_v4().to_string();
-            let reports_to = reports_to.or_else(|| find_company_ceo_sync(&tx, &company_id).ok().flatten());
+            let reports_to = if is_ceo {
+                None
+            } else {
+                reports_to.or_else(|| find_company_ceo_sync(&tx, &company_id).ok().flatten())
+            };
             let home_path = db_paths
                 .agent_home_dir(&company_id, &slug)
                 .to_string_lossy()
@@ -449,14 +439,20 @@ pub async fn create_agent(
         .await?
         .map(|company| company.name)
         .unwrap_or_default();
-    if let Err(error) = scaffold_agent_home(
-        &paths,
-        &agent.company_id,
-        &agent.name,
-        &agent.slug,
-        &company_name,
-        &agent.role,
-    ) {
+    let scaffold_result = if is_ceo {
+        provision_agent_home_root(&paths, &agent.company_id, &agent.slug).map(|_| ())
+    } else {
+        scaffold_agent_home(
+            &paths,
+            &agent.company_id,
+            &agent.name,
+            &agent.slug,
+            &company_name,
+            &agent.role,
+        )
+    };
+
+    if let Err(error) = scaffold_result {
         let agent_id = agent.id.clone();
         db.call_with_operation("board.agent.rollback_after_scaffold_failure", move |conn| {
             conn.execute("DELETE FROM agents WHERE id = ?1", params![agent_id])?;
@@ -465,6 +461,273 @@ pub async fn create_agent(
         .await?;
         let _ = fs::remove_dir_all(paths.agent_home_dir(&agent.company_id, &agent.slug));
         return Err(error);
+    }
+
+    Ok(agent)
+}
+
+pub async fn create_agent_hire(
+    db: &AsyncDatabase,
+    paths: &Paths,
+    input: CreateAgentHireInput,
+) -> BoardResult<Agent> {
+    let paths = paths.clone();
+    let db_paths = paths.clone();
+    let company_id = require_name(&input.company_id, "company_id")?;
+    let name = require_name(&input.name, "agent name")?;
+    let role = input.role.unwrap_or_else(|| "general".to_string());
+    if role == "ceo" {
+        return Err(BoardError::InvalidInput(
+            "CEO agents must be created through the dedicated onboarding flow".to_string(),
+        ));
+    }
+
+    let status_requires_approval = get_company(db, &company_id)
+        .await?
+        .map(|company| company.require_board_approval_for_new_agents)
+        .unwrap_or(true);
+    let desired_status = if status_requires_approval {
+        "pending_approval".to_string()
+    } else {
+        "idle".to_string()
+    };
+    let now = now_rfc3339();
+    let description_title = normalize_optional_string(input.title);
+    let icon = normalize_optional_string(input.icon);
+    let reports_to = normalize_optional_string(input.reports_to);
+    let capabilities = normalize_optional_string(input.capabilities);
+    let adapter_type = input.adapter_type.unwrap_or_else(|| "process".to_string());
+    let adapter_config = input.adapter_config.unwrap_or_else(|| json!({}));
+    let runtime_config = input.runtime_config.unwrap_or_else(|| json!({}));
+    let budget = input.budget_monthly_cents.unwrap_or(0).max(0);
+    let permissions = input.permissions.unwrap_or_else(|| json!({}));
+    let metadata = input.metadata;
+    let requested_by_agent_id = normalize_optional_string(input.requested_by_agent_id);
+    let requested_by_user_id =
+        normalize_optional_string(input.requested_by_user_id).or_else(|| {
+            if requested_by_agent_id.is_none() {
+                Some(LOCAL_BOARD_USER_ID.to_string())
+            } else {
+                None
+            }
+        });
+    let requested_by_run_id = normalize_optional_string(input.requested_by_run_id);
+    let source_issue_ids = normalize_issue_id_list(input.source_issue_id, input.source_issue_ids);
+
+    let created = db
+        .call_with_operation("board.agent_hire.create", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            ensure_local_board_user(&tx, &now)?;
+
+            let company = get_company_sync(&tx, &company_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Company not found".to_string()))?;
+            if let Some(requested_by_agent_id) = requested_by_agent_id.as_deref() {
+                validate_company_agent_sync(
+                    &tx,
+                    &company_id,
+                    requested_by_agent_id,
+                    "requested_by_agent_id",
+                )?;
+            }
+            validate_issue_ids_for_company_sync(&tx, &company_id, &source_issue_ids)?;
+
+            let slug = unique_agent_slug(&tx, &company_id, &name)?;
+            let agent_id = Uuid::new_v4().to_string();
+            let reports_to = reports_to.or_else(|| find_company_ceo_sync(&tx, &company_id).ok().flatten());
+            let home_path = db_paths
+                .agent_home_dir(&company_id, &slug)
+                .to_string_lossy()
+                .to_string();
+            let instructions_path = db_paths
+                .agent_home_dir(&company_id, &slug)
+                .join("AGENTS.md")
+                .to_string_lossy()
+                .to_string();
+
+            tx.execute(
+                "INSERT INTO agents (
+                    id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
+                    adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+                    spent_monthly_cents, permissions, metadata, home_path, instructions_path,
+                    created_at, updated_at
+                 ) VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                    ?11, ?12, ?13, ?14, 0, ?15, ?16, ?17, ?18, ?19, ?19
+                 )",
+                params![
+                    agent_id,
+                    company_id,
+                    name,
+                    slug,
+                    role,
+                    description_title,
+                    icon,
+                    desired_status,
+                    reports_to,
+                    capabilities,
+                    adapter_type,
+                    adapter_config.to_string(),
+                    runtime_config.to_string(),
+                    budget,
+                    permissions.to_string(),
+                    metadata.as_ref().map(Value::to_string),
+                    home_path,
+                    instructions_path,
+                    now,
+                ],
+            )?;
+
+            let (actor_type, actor_id) =
+                activity_actor(requested_by_agent_id.as_deref(), requested_by_user_id.as_deref());
+            insert_activity_sync(
+                &tx,
+                &company.id,
+                actor_type,
+                actor_id,
+                "agent.hire_created",
+                "agent",
+                &agent_id,
+                Some(&agent_id),
+                Some(json!({
+                    "name": name,
+                    "role": role,
+                    "status": desired_status,
+                    "slug": slug,
+                    "source_issue_ids": source_issue_ids,
+                    "requested_by_run_id": requested_by_run_id,
+                })),
+                &now,
+            )?;
+
+            let approval_id = if desired_status == "pending_approval" {
+                let approval_id = Uuid::new_v4().to_string();
+                let approval_payload = json!({
+                    "agent_id": agent_id,
+                    "agent_name": name,
+                    "agent_role": role,
+                    "agent_title": description_title,
+                    "agent_icon": icon,
+                    "agent_slug": slug,
+                    "reports_to": reports_to,
+                    "capabilities": capabilities,
+                    "adapter_type": adapter_type,
+                    "adapter_config": adapter_config,
+                    "runtime_config": runtime_config,
+                    "budget_monthly_cents": budget,
+                    "permissions": permissions,
+                    "metadata": metadata,
+                    "requested_by_agent_id": requested_by_agent_id,
+                    "requested_by_user_id": requested_by_user_id,
+                    "requested_by_run_id": requested_by_run_id,
+                    "source_issue_id": source_issue_ids.first().cloned(),
+                    "source_issue_ids": source_issue_ids,
+                });
+                tx.execute(
+                    "INSERT INTO approvals (
+                        id, company_id, type, requested_by_agent_id, requested_by_user_id, status,
+                        payload, created_at, updated_at
+                     ) VALUES (?1, ?2, 'hire_agent', ?3, ?4, 'pending', ?5, ?6, ?6)",
+                    params![
+                        approval_id,
+                        company_id,
+                        requested_by_agent_id,
+                        requested_by_user_id,
+                        approval_payload.to_string(),
+                        now,
+                    ],
+                )?;
+
+                for issue_id in &source_issue_ids {
+                    tx.execute(
+                        "INSERT OR IGNORE INTO issue_approvals (
+                            company_id, issue_id, approval_id, linked_by_agent_id, linked_by_user_id, created_at
+                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![
+                            company_id,
+                            issue_id,
+                            approval_id,
+                            requested_by_agent_id,
+                            requested_by_user_id,
+                            now,
+                        ],
+                    )?;
+                }
+
+                insert_activity_sync(
+                    &tx,
+                    &company.id,
+                    actor_type,
+                    actor_id,
+                    "approval.created",
+                    "approval",
+                    &approval_id,
+                    Some(&agent_id),
+                    Some(json!({
+                        "type": "hire_agent",
+                        "agent_id": agent_id,
+                        "source_issue_ids": source_issue_ids,
+                    })),
+                    &now,
+                )?;
+
+                Some(approval_id)
+            } else {
+                None
+            };
+
+            let agent = tx
+                .query_row(
+                    "SELECT
+                        id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
+                        adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+                        spent_monthly_cents, permissions, last_heartbeat_at, metadata,
+                        home_path, instructions_path, created_at, updated_at
+                     FROM agents
+                     WHERE id = ?1",
+                    params![agent_id],
+                    row_to_agent,
+                )
+                .optional()?
+                .ok_or_else(|| DatabaseError::NotFound("Agent missing after insert".to_string()))?;
+
+            tx.commit()?;
+            Ok((agent, approval_id))
+        })
+        .await?;
+
+    let (agent, approval_id) = created;
+    if agent.status != "pending_approval" {
+        let company_name = get_company(db, &agent.company_id)
+            .await?
+            .map(|company| company.name)
+            .unwrap_or_default();
+        let scaffold_result = scaffold_agent_home(
+            &paths,
+            &agent.company_id,
+            &agent.name,
+            &agent.slug,
+            &company_name,
+            &agent.role,
+        );
+
+        if let Err(error) = scaffold_result {
+            let agent_id = agent.id.clone();
+            db.call_with_operation(
+                "board.agent_hire.rollback_after_scaffold_failure",
+                move |conn| {
+                    let tx = conn.unchecked_transaction()?;
+                    if let Some(approval_id) = approval_id {
+                        tx.execute("DELETE FROM approvals WHERE id = ?1", params![approval_id])?;
+                    }
+                    tx.execute("DELETE FROM agents WHERE id = ?1", params![agent_id])?;
+                    tx.commit()?;
+                    Ok(())
+                },
+            )
+            .await?;
+            let _ = fs::remove_dir_all(paths.agent_home_dir(&agent.company_id, &agent.slug));
+            return Err(error);
+        }
     }
 
     Ok(agent)
@@ -655,6 +918,9 @@ pub async fn create_issue(db: &AsyncDatabase, input: CreateIssueInput) -> BoardR
             } else {
                 0
             };
+            if let Some(agent_id) = assignee_agent_id.as_deref() {
+                validate_assignable_agent_sync(&tx, &company_id, agent_id, "assignee_agent_id")?;
+            }
             let execution_agent_name_key = if let Some(agent_id) = assignee_agent_id.as_ref() {
                 tx.query_row(
                     "SELECT slug FROM agents WHERE id = ?1 AND company_id = ?2",
@@ -735,6 +1001,164 @@ pub async fn create_issue(db: &AsyncDatabase, input: CreateIssueInput) -> BoardR
 
             let issue = get_issue_sync(&tx, &issue_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Issue missing after insert".to_string()))?;
+            tx.commit()?;
+            Ok(issue)
+        })
+        .await?)
+}
+
+pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardResult<Issue> {
+    let issue_id = require_name(&input.issue_id, "issue_id")?;
+    let title = match input.title {
+        Some(value) => Some(require_name(&value, "issue title")?),
+        None => None,
+    };
+    let description = normalize_optional_update(input.description);
+    let status = input.status.map(|value| value.trim().to_string());
+    let priority = input.priority.map(|value| value.trim().to_string());
+    let project_id = normalize_optional_update(input.project_id);
+    let parent_id = normalize_optional_update(input.parent_id);
+    let assignee_agent_id = normalize_optional_update(input.assignee_agent_id);
+    let assignee_user_id = normalize_optional_update(input.assignee_user_id);
+    let now = now_rfc3339();
+
+    Ok(db
+        .call_with_operation("board.issue.update", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            let current = get_issue_sync(&tx, &issue_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Issue not found".to_string()))?;
+
+            let next_title = title.unwrap_or_else(|| current.title.clone());
+            let next_description = description.unwrap_or_else(|| current.description.clone());
+            let next_status = status
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| current.status.clone());
+            let next_priority = priority
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| current.priority.clone());
+            let next_project_id = project_id.unwrap_or_else(|| current.project_id.clone());
+            let next_parent_id = parent_id.unwrap_or_else(|| current.parent_id.clone());
+            let next_assignee_agent_id = assignee_agent_id.unwrap_or_else(|| current.assignee_agent_id.clone());
+            let next_assignee_user_id = assignee_user_id.unwrap_or_else(|| current.assignee_user_id.clone());
+
+            if next_parent_id.as_deref() == Some(issue_id.as_str()) {
+                return Err(DatabaseError::InvalidData(
+                    "An issue cannot be its own parent".to_string(),
+                )
+                .into());
+            }
+            if let Some(parent_id) = next_parent_id.as_deref() {
+                if issue_has_descendant_sync(&tx, &issue_id, parent_id)? {
+                    return Err(DatabaseError::InvalidData(
+                        "An issue cannot move under one of its descendants".to_string(),
+                    )
+                    .into());
+                }
+            }
+
+            let next_request_depth = if let Some(parent_id) = next_parent_id.as_ref() {
+                tx.query_row(
+                    "SELECT COALESCE(request_depth, 0) + 1 FROM issues WHERE id = ?1 AND company_id = ?2",
+                    params![parent_id, current.company_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+            } else {
+                0
+            };
+            let depth_delta = next_request_depth - current.request_depth;
+            if let Some(agent_id) = next_assignee_agent_id.as_deref() {
+                validate_assignable_agent_sync(
+                    &tx,
+                    &current.company_id,
+                    agent_id,
+                    "assignee_agent_id",
+                )?;
+            }
+            let execution_agent_name_key = if let Some(agent_id) = next_assignee_agent_id.as_ref() {
+                tx.query_row(
+                    "SELECT slug FROM agents WHERE id = ?1 AND company_id = ?2",
+                    params![agent_id, current.company_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+            } else {
+                None
+            };
+            let started_at = if next_status == "in_progress" {
+                current.started_at.clone().or_else(|| Some(now.clone()))
+            } else {
+                current.started_at.clone()
+            };
+            let completed_at = if next_status == "done" {
+                current.completed_at.clone().or_else(|| Some(now.clone()))
+            } else {
+                current.completed_at.clone()
+            };
+            let cancelled_at = if next_status == "cancelled" {
+                current.cancelled_at.clone().or_else(|| Some(now.clone()))
+            } else {
+                current.cancelled_at.clone()
+            };
+
+            tx.execute(
+                "UPDATE issues
+                 SET title = ?1,
+                     description = ?2,
+                     status = ?3,
+                     priority = ?4,
+                     project_id = ?5,
+                     parent_id = ?6,
+                     assignee_agent_id = ?7,
+                     assignee_user_id = ?8,
+                     execution_agent_name_key = ?9,
+                     request_depth = ?10,
+                     started_at = ?11,
+                     completed_at = ?12,
+                     cancelled_at = ?13,
+                     updated_at = ?14
+                 WHERE id = ?15",
+                params![
+                    next_title,
+                    next_description,
+                    next_status,
+                    next_priority,
+                    next_project_id,
+                    next_parent_id,
+                    next_assignee_agent_id,
+                    next_assignee_user_id,
+                    execution_agent_name_key,
+                    next_request_depth,
+                    started_at,
+                    completed_at,
+                    cancelled_at,
+                    now,
+                    issue_id,
+                ],
+            )?;
+
+            shift_issue_subtree_depths_sync(&tx, &issue_id, depth_delta)?;
+
+            insert_activity_sync(
+                &tx,
+                &current.company_id,
+                "system",
+                LOCAL_BOARD_USER_ID,
+                "issue.updated",
+                "issue",
+                &issue_id,
+                next_assignee_agent_id.as_deref(),
+                Some(json!({
+                    "status": next_status,
+                    "priority": next_priority,
+                    "project_id": next_project_id,
+                    "parent_id": next_parent_id,
+                    "assignee_agent_id": next_assignee_agent_id,
+                })),
+                &now,
+            )?;
+
+            let issue = get_issue_sync(&tx, &issue_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Issue missing after update".to_string()))?;
             tx.commit()?;
             Ok(issue)
         })
@@ -865,77 +1289,121 @@ pub async fn get_approval(db: &AsyncDatabase, approval_id: &str) -> BoardResult<
 
 pub async fn approve_approval(
     db: &AsyncDatabase,
+    paths: &Paths,
     input: ApprovalDecisionInput,
 ) -> BoardResult<Approval> {
+    let paths = paths.clone();
     let approval_id = require_name(&input.approval_id, "approval_id")?;
     let decided_by_user_id = normalize_optional_string(input.decided_by_user_id)
         .unwrap_or_else(|| LOCAL_BOARD_USER_ID.to_string());
     let decision_note = normalize_optional_string(input.decision_note);
     let now = now_rfc3339();
+    let activation_target = db
+        .call_with_operation("board.approval.approve.load_activation_target", {
+            let approval_id = approval_id.clone();
+            move |conn| load_hire_approval_activation_target_sync(conn, &approval_id)
+        })
+        .await?;
+    let prepared_activation = activation_target
+        .as_ref()
+        .map(|target| prepare_hire_approval_activation(&paths, target))
+        .transpose()?;
 
-    Ok(db
-        .call_with_operation("board.approval.approve", move |conn| {
-            let tx = conn.unchecked_transaction()?;
-            let approval = tx
-                .query_row(
-                    "SELECT
-                        id, company_id, type, requested_by_agent_id, requested_by_user_id,
-                        status, payload, decision_note, decided_by_user_id, decided_at,
-                        created_at, updated_at
-                     FROM approvals
-                     WHERE id = ?1",
-                    params![approval_id],
-                    row_to_approval,
-                )
-                .optional()?
-                .ok_or_else(|| DatabaseError::NotFound("Approval not found".to_string()))?;
+    let approval_result = db
+        .call_with_operation("board.approval.approve", {
+            let approval_id = approval_id.clone();
+            let decided_by_user_id = decided_by_user_id.clone();
+            let decision_note = decision_note.clone();
+            let now = now.clone();
+            let activation_target = activation_target.clone();
+            move |conn| {
+                let tx = conn.unchecked_transaction()?;
+                let approval = tx
+                    .query_row(
+                        "SELECT
+                            id, company_id, type, requested_by_agent_id, requested_by_user_id,
+                            status, payload, decision_note, decided_by_user_id, decided_at,
+                            created_at, updated_at
+                         FROM approvals
+                         WHERE id = ?1",
+                        params![approval_id],
+                        row_to_approval,
+                    )
+                    .optional()?
+                    .ok_or_else(|| DatabaseError::NotFound("Approval not found".to_string()))?;
 
-            tx.execute(
-                "UPDATE approvals
-                 SET status = 'approved', decision_note = ?1, decided_by_user_id = ?2, decided_at = ?3, updated_at = ?3
-                 WHERE id = ?4",
-                params![decision_note, decided_by_user_id, now, approval_id],
-            )?;
+                tx.execute(
+                    "UPDATE approvals
+                     SET status = 'approved', decision_note = ?1, decided_by_user_id = ?2, decided_at = ?3, updated_at = ?3
+                     WHERE id = ?4",
+                    params![decision_note, decided_by_user_id, now, approval_id],
+                )?;
 
-            if approval.approval_type == "hire_agent" {
-                if let Some(agent_id) = approval.payload.get("agent_id").and_then(Value::as_str) {
+                if let Some(target) = activation_target.as_ref() {
                     tx.execute(
                         "UPDATE agents SET status = 'idle', updated_at = ?1 WHERE id = ?2",
-                        params![now, agent_id],
+                        params![now, target.agent_id],
+                    )?;
+
+                    insert_activity_sync(
+                        &tx,
+                        &target.company_id,
+                        "system",
+                        "hire_hook",
+                        "hire_hook.succeeded",
+                        "agent",
+                        &target.agent_id,
+                        Some(&target.agent_id),
+                        Some(json!({
+                            "source": "approval",
+                            "source_id": target.approval_id,
+                            "adapter_type": target.adapter_type,
+                        })),
+                        &now,
                     )?;
                 }
+
+                insert_activity_sync(
+                    &tx,
+                    &approval.company_id,
+                    "user",
+                    &decided_by_user_id,
+                    "approval.approved",
+                    "approval",
+                    &approval_id,
+                    approval.requested_by_agent_id.as_deref(),
+                    Some(json!({ "type": approval.approval_type })),
+                    &now,
+                )?;
+
+                let approval = tx
+                    .query_row(
+                        "SELECT
+                            id, company_id, type, requested_by_agent_id, requested_by_user_id,
+                            status, payload, decision_note, decided_by_user_id, decided_at,
+                            created_at, updated_at
+                         FROM approvals
+                         WHERE id = ?1",
+                        params![approval_id],
+                        row_to_approval,
+                    )
+                    .optional()?
+                    .ok_or_else(|| DatabaseError::NotFound("Approval missing after update".to_string()))?;
+                tx.commit()?;
+                Ok(approval)
             }
-
-            insert_activity_sync(
-                &tx,
-                &approval.company_id,
-                "user",
-                &decided_by_user_id,
-                "approval.approved",
-                "approval",
-                &approval_id,
-                approval.requested_by_agent_id.as_deref(),
-                Some(json!({ "type": approval.approval_type })),
-                &now,
-            )?;
-
-            let approval = tx
-                .query_row(
-                    "SELECT
-                        id, company_id, type, requested_by_agent_id, requested_by_user_id,
-                        status, payload, decision_note, decided_by_user_id, decided_at,
-                        created_at, updated_at
-                     FROM approvals
-                     WHERE id = ?1",
-                    params![approval_id],
-                    row_to_approval,
-                )
-                .optional()?
-                .ok_or_else(|| DatabaseError::NotFound("Approval missing after update".to_string()))?;
-            tx.commit()?;
-            Ok(approval)
         })
-        .await?)
+        .await;
+
+    match approval_result {
+        Ok(approval) => Ok(approval),
+        Err(error) => {
+            if let Some(prepared_activation) = prepared_activation.as_ref() {
+                rollback_prepared_hire_activation(prepared_activation);
+            }
+            Err(error.into())
+        }
+    }
 }
 
 pub async fn list_workspaces(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Workspace>> {
@@ -958,6 +1426,87 @@ pub async fn get_workspace(db: &AsyncDatabase, session_id: &str) -> BoardResult<
             )
             .optional()
             .map_err(Into::into)
+        })
+        .await?)
+}
+
+pub async fn list_agent_runs(
+    db: &AsyncDatabase,
+    agent_id: &str,
+    limit: Option<i64>,
+) -> BoardResult<Vec<AgentRun>> {
+    let agent_id = agent_id.to_string();
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    Ok(db
+        .call_with_operation("board.agent_run.list", move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT
+                    id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
+                    status, started_at, finished_at, error, wakeup_request_id, exit_code, signal,
+                    usage_json, result_json, session_id_before, session_id_after, log_store,
+                    log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
+                    stderr_excerpt, error_code, external_run_id, context_snapshot,
+                    created_at, updated_at
+                 FROM agent_runs
+                 WHERE agent_id = ?1
+                 ORDER BY created_at DESC
+                 LIMIT ?2",
+            )?;
+            let rows = stmt
+                .query_map(params![agent_id, limit], row_to_agent_run)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+        .await?)
+}
+
+pub async fn get_agent_run(db: &AsyncDatabase, run_id: &str) -> BoardResult<Option<AgentRun>> {
+    let run_id = run_id.to_string();
+    Ok(db
+        .call_with_operation("board.agent_run.get", move |conn| {
+            conn.query_row(
+                "SELECT
+                    id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
+                    status, started_at, finished_at, error, wakeup_request_id, exit_code, signal,
+                    usage_json, result_json, session_id_before, session_id_after, log_store,
+                    log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
+                    stderr_excerpt, error_code, external_run_id, context_snapshot,
+                    created_at, updated_at
+                 FROM agent_runs
+                 WHERE id = ?1",
+                params![run_id],
+                row_to_agent_run,
+            )
+            .optional()
+            .map_err(Into::into)
+        })
+        .await?)
+}
+
+pub async fn list_agent_run_events(
+    db: &AsyncDatabase,
+    run_id: &str,
+    after_seq: Option<i64>,
+    limit: Option<i64>,
+) -> BoardResult<Vec<AgentRunEvent>> {
+    let run_id = run_id.to_string();
+    let after_seq = after_seq.unwrap_or(0);
+    let limit = limit.unwrap_or(200).clamp(1, 1000);
+    Ok(db
+        .call_with_operation("board.agent_run.events", move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT
+                    id, company_id, run_id, agent_id, seq, event_type, stream, level,
+                    color, message, payload, created_at
+                 FROM agent_run_events
+                 WHERE run_id = ?1 AND seq > ?2
+                 ORDER BY seq ASC
+                 LIMIT ?3",
+            )?;
+            let rows = stmt
+                .query_map(params![run_id, after_seq, limit], row_to_agent_run_event)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
         })
         .await?)
 }
@@ -1590,6 +2139,65 @@ fn row_to_workspace(row: &Row<'_>) -> rusqlite::Result<Workspace> {
     })
 }
 
+fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
+    Ok(AgentRun {
+        id: row.get(0)?,
+        company_id: row.get(1)?,
+        agent_id: row.get(2)?,
+        invocation_source: row.get(3)?,
+        trigger_detail: row.get(4)?,
+        wake_reason: row.get(5)?,
+        status: row.get(6)?,
+        started_at: row.get(7)?,
+        finished_at: row.get(8)?,
+        error: row.get(9)?,
+        wakeup_request_id: row.get(10)?,
+        exit_code: row.get(11)?,
+        signal: row.get(12)?,
+        usage_json: row
+            .get::<_, Option<String>>(13)?
+            .map(|value| parse_json(value)),
+        result_json: row
+            .get::<_, Option<String>>(14)?
+            .map(|value| parse_json(value)),
+        session_id_before: row.get(15)?,
+        session_id_after: row.get(16)?,
+        log_store: row.get(17)?,
+        log_ref: row.get(18)?,
+        log_bytes: row.get(19)?,
+        log_sha256: row.get(20)?,
+        log_compressed: row.get(21)?,
+        stdout_excerpt: row.get(22)?,
+        stderr_excerpt: row.get(23)?,
+        error_code: row.get(24)?,
+        external_run_id: row.get(25)?,
+        context_snapshot: row
+            .get::<_, Option<String>>(26)?
+            .map(|value| parse_json(value)),
+        created_at: row.get(27)?,
+        updated_at: row.get(28)?,
+    })
+}
+
+fn row_to_agent_run_event(row: &Row<'_>) -> rusqlite::Result<AgentRunEvent> {
+    Ok(AgentRunEvent {
+        id: row.get(0)?,
+        company_id: row.get(1)?,
+        run_id: row.get(2)?,
+        agent_id: row.get(3)?,
+        seq: row.get(4)?,
+        event_type: row.get(5)?,
+        stream: row.get(6)?,
+        level: row.get(7)?,
+        color: row.get(8)?,
+        message: row.get(9)?,
+        payload: row
+            .get::<_, Option<String>>(10)?
+            .map(|value| parse_json(value)),
+        created_at: row.get(11)?,
+    })
+}
+
 fn get_primary_project_workspace_by_project_sync(
     conn: &Connection,
     project_id: &str,
@@ -1820,6 +2428,31 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn normalize_optional_update(value: Option<Option<String>>) -> Option<Option<String>> {
+    value.map(normalize_optional_string)
+}
+
+fn normalize_issue_id_list(
+    source_issue_id: Option<String>,
+    source_issue_ids: Option<Vec<String>>,
+) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+    for issue_id in source_issue_id
+        .into_iter()
+        .chain(source_issue_ids.into_iter().flatten())
+    {
+        let trimmed = issue_id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if seen.insert(trimmed.to_string()) {
+            normalized.push(trimmed.to_string());
+        }
+    }
+    normalized
+}
+
 fn now_rfc3339() -> String {
     Utc::now().to_rfc3339()
 }
@@ -1832,11 +2465,8 @@ fn scaffold_agent_home(
     company_name: &str,
     role: &str,
 ) -> BoardResult<()> {
-    let agent_home = paths.agent_home_dir(company_id, agent_slug);
-    fs::create_dir_all(paths.agent_memory_dir(company_id, agent_slug))?;
-    fs::create_dir_all(paths.agent_life_dir(company_id, agent_slug))?;
-    fs::create_dir_all(paths.company_assets_dir(company_id))?;
-    fs::create_dir_all(paths.company_attachments_dir(company_id))?;
+    let agent_home = provision_agent_home_root(paths, company_id, agent_slug)?;
+    let base_dir = paths.base_dir().to_string_lossy();
 
     let today_memory_path = paths
         .agent_memory_dir(company_id, agent_slug)
@@ -1845,7 +2475,7 @@ fn scaffold_agent_home(
     write_if_missing(
         &agent_home.join("AGENTS.md"),
         &format!(
-            "# {agent_name}\n\nYou are an {role} agent working inside Unbound for {company_name}.\nOperate through the daemon-managed local board.\n"
+            "# {agent_name}\n\nYou are an {role} agent working inside Unbound for {company_name}.\nOperate through the daemon-managed local board, and use the board helper commands for hires, issue changes, and comments.\nNever create sibling agent directories by hand under companies/.../agents.\n"
         ),
     )?;
     write_if_missing(
@@ -1858,7 +2488,9 @@ fn scaffold_agent_home(
     )?;
     write_if_missing(
         &agent_home.join("TOOLS.md"),
-        "# Tools\n\nList the tools, adapters, and repo anchors this agent relies on inside Unbound.\n",
+        &format!(
+            "# Tools\n\nUse daemon-managed board mutations instead of editing sibling agent directories directly.\n\n- Hire agents: `unbound-daemon --base-dir \"{base_dir}\" board hire-agent ...`\n- Create issues: `unbound-daemon --base-dir \"{base_dir}\" board issue-create ...`\n- Update issues: `unbound-daemon --base-dir \"{base_dir}\" board issue-update ...`\n- Add issue comments: `unbound-daemon --base-dir \"{base_dir}\" board issue-comment-add ...`\n\nDirect filesystem creation of new agent homes does not create board records or approvals.\n"
+        ),
     )?;
     write_if_missing(
         &agent_home.join("MEMORY.md"),
@@ -1872,6 +2504,108 @@ fn scaffold_agent_home(
     Ok(())
 }
 
+fn load_hire_approval_activation_target_sync(
+    conn: &Connection,
+    approval_id: &str,
+) -> DatabaseResult<Option<HireApprovalActivationTarget>> {
+    let approval = conn
+        .query_row(
+            "SELECT
+                id, company_id, type, requested_by_agent_id, requested_by_user_id,
+                status, payload, decision_note, decided_by_user_id, decided_at,
+                created_at, updated_at
+             FROM approvals
+             WHERE id = ?1",
+            params![approval_id],
+            row_to_approval,
+        )
+        .optional()?;
+
+    let Some(approval) = approval else {
+        return Ok(None);
+    };
+    if approval.approval_type != "hire_agent" {
+        return Ok(None);
+    }
+
+    let agent_id = approval
+        .payload
+        .get("agent_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| DatabaseError::InvalidData("Hire approval payload missing agent_id".to_string()))?;
+    let agent = conn
+        .query_row(
+            "SELECT
+                id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
+                adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+                spent_monthly_cents, permissions, last_heartbeat_at, metadata,
+                home_path, instructions_path, created_at, updated_at
+             FROM agents
+             WHERE id = ?1 AND company_id = ?2",
+            params![agent_id, approval.company_id],
+            row_to_agent,
+        )
+        .optional()?
+        .ok_or_else(|| DatabaseError::NotFound("Approved hire agent not found".to_string()))?;
+    let company = get_company_sync(conn, &approval.company_id)?
+        .ok_or_else(|| DatabaseError::NotFound("Company not found".to_string()))?;
+
+    Ok(Some(HireApprovalActivationTarget {
+        approval_id: approval.id,
+        company_id: approval.company_id,
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent_slug: agent.slug,
+        agent_role: agent.role,
+        adapter_type: agent.adapter_type,
+        company_name: company.name,
+    }))
+}
+
+fn prepare_hire_approval_activation(
+    paths: &Paths,
+    target: &HireApprovalActivationTarget,
+) -> BoardResult<PreparedHireApprovalActivation> {
+    let agent_home = paths.agent_home_dir(&target.company_id, &target.agent_slug);
+    let home_existed_before = agent_home.exists();
+
+    if target.adapter_type == "process" {
+        scaffold_agent_home(
+            paths,
+            &target.company_id,
+            &target.agent_name,
+            &target.agent_slug,
+            &target.company_name,
+            &target.agent_role,
+        )?;
+    }
+
+    Ok(PreparedHireApprovalActivation {
+        agent_home,
+        home_existed_before,
+    })
+}
+
+fn rollback_prepared_hire_activation(prepared: &PreparedHireApprovalActivation) {
+    if !prepared.home_existed_before {
+        let _ = fs::remove_dir_all(&prepared.agent_home);
+    }
+}
+
+fn provision_agent_home_root(
+    paths: &Paths,
+    company_id: &str,
+    agent_slug: &str,
+) -> BoardResult<std::path::PathBuf> {
+    let agent_home = paths.agent_home_dir(company_id, agent_slug);
+    fs::create_dir_all(&agent_home)?;
+    fs::create_dir_all(paths.agent_memory_dir(company_id, agent_slug))?;
+    fs::create_dir_all(paths.agent_life_dir(company_id, agent_slug))?;
+    fs::create_dir_all(paths.company_assets_dir(company_id))?;
+    fs::create_dir_all(paths.company_attachments_dir(company_id))?;
+    Ok(agent_home)
+}
+
 fn write_if_missing(path: &Path, contents: &str) -> BoardResult<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -1882,6 +2616,84 @@ fn write_if_missing(path: &Path, contents: &str) -> BoardResult<()> {
     Ok(())
 }
 
+fn validate_company_agent_sync(
+    conn: &Connection,
+    company_id: &str,
+    agent_id: &str,
+    field_name: &str,
+) -> DatabaseResult<()> {
+    let exists = conn
+        .query_row(
+            "SELECT 1 FROM agents WHERE id = ?1 AND company_id = ?2",
+            params![agent_id, company_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?;
+    if exists.is_none() {
+        return Err(DatabaseError::InvalidData(format!(
+            "{field_name} must reference an agent in the same company"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_assignable_agent_sync(
+    conn: &Connection,
+    company_id: &str,
+    agent_id: &str,
+    field_name: &str,
+) -> DatabaseResult<()> {
+    let status = conn
+        .query_row(
+            "SELECT status FROM agents WHERE id = ?1 AND company_id = ?2",
+            params![agent_id, company_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    match status.as_deref() {
+        None => Err(DatabaseError::InvalidData(format!(
+            "{field_name} must reference an agent in the same company"
+        ))),
+        Some("pending_approval") => Err(DatabaseError::InvalidData(
+            "Cannot assign work to pending approval agents".to_string(),
+        )),
+        Some(_) => Ok(()),
+    }
+}
+
+fn validate_issue_ids_for_company_sync(
+    conn: &Connection,
+    company_id: &str,
+    issue_ids: &[String],
+) -> DatabaseResult<()> {
+    for issue_id in issue_ids {
+        let exists = conn
+            .query_row(
+                "SELECT 1 FROM issues WHERE id = ?1 AND company_id = ?2",
+                params![issue_id, company_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        if exists.is_none() {
+            return Err(DatabaseError::InvalidData(format!(
+                "Issue {issue_id} does not belong to this company"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn activity_actor<'a>(
+    requested_by_agent_id: Option<&'a str>,
+    requested_by_user_id: Option<&'a str>,
+) -> (&'static str, &'a str) {
+    if let Some(agent_id) = requested_by_agent_id {
+        ("agent", agent_id)
+    } else {
+        ("user", requested_by_user_id.unwrap_or(LOCAL_BOARD_USER_ID))
+    }
+}
+
 fn find_company_ceo_sync(conn: &Connection, company_id: &str) -> DatabaseResult<Option<String>> {
     conn.query_row(
         "SELECT id FROM agents WHERE company_id = ?1 AND role = 'ceo' ORDER BY created_at ASC LIMIT 1",
@@ -1890,6 +2702,54 @@ fn find_company_ceo_sync(conn: &Connection, company_id: &str) -> DatabaseResult<
     )
     .optional()
     .map_err(Into::into)
+}
+
+fn issue_has_descendant_sync(
+    conn: &Connection,
+    issue_id: &str,
+    candidate_issue_id: &str,
+) -> DatabaseResult<bool> {
+    let mut child_ids = direct_child_issue_ids_sync(conn, issue_id)?;
+    while let Some(child_id) = child_ids.pop() {
+        if child_id == candidate_issue_id {
+            return Ok(true);
+        }
+        child_ids.extend(direct_child_issue_ids_sync(conn, &child_id)?);
+    }
+    Ok(false)
+}
+
+fn direct_child_issue_ids_sync(conn: &Connection, issue_id: &str) -> DatabaseResult<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT id FROM issues WHERE parent_id = ?1")?;
+    let child_ids = stmt
+        .query_map(params![issue_id], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(child_ids)
+}
+
+fn shift_issue_subtree_depths_sync(
+    conn: &Connection,
+    issue_id: &str,
+    depth_delta: i64,
+) -> DatabaseResult<()> {
+    if depth_delta == 0 {
+        return Ok(());
+    }
+
+    for child_id in direct_child_issue_ids_sync(conn, issue_id)? {
+        conn.execute(
+            "UPDATE issues
+             SET request_depth = CASE
+                 WHEN request_depth + ?1 < 0 THEN 0
+                 ELSE request_depth + ?1
+             END
+             WHERE id = ?2",
+            params![depth_delta, child_id],
+        )?;
+        shift_issue_subtree_depths_sync(conn, &child_id, depth_delta)?;
+    }
+
+    Ok(())
 }
 
 fn workspace_select_sql(predicate: Option<&str>) -> String {
@@ -1919,7 +2779,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn create_company_bootstraps_ceo_and_files() {
+    async fn create_company_starts_without_ceo_or_agent_files() {
         let dir = tempdir().unwrap();
         let paths = Paths::with_base_dir(dir.path().join("unbound"));
         paths.ensure_dirs().unwrap();
@@ -1939,14 +2799,821 @@ mod tests {
         let companies = list_companies(&db).await.unwrap();
         assert_eq!(companies.len(), 1);
         assert_eq!(company.issue_prefix, "ACM");
+        assert_eq!(company.ceo_agent_id, None);
 
         let agents = list_agents(&db, &company.id).await.unwrap();
-        assert_eq!(agents.len(), 1);
-        assert_eq!(agents[0].role, "ceo");
-        assert!(Path::new(agents[0].home_path.as_ref().unwrap()).exists());
+        assert!(agents.is_empty());
+        assert!(!paths.company_root(&company.id).exists());
+    }
+
+    #[tokio::test]
+    async fn create_ceo_agent_sets_company_ceo_without_prewriting_instruction_files() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                title: Some("Chief Executive Officer".to_string()),
+                icon: Some("crown".to_string()),
+                runtime_config: Some(json!({
+                    "heartbeat": {
+                        "enabled": true,
+                        "intervalSec": 3600,
+                        "wakeOnDemand": true,
+                        "cooldownSec": 10,
+                        "maxConcurrentRuns": 1
+                    }
+                })),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(ceo.role, "ceo");
+        assert_eq!(ceo.status, "idle");
+        assert_eq!(ceo.reports_to, None);
+        assert!(Path::new(ceo.home_path.as_ref().unwrap()).exists());
+        assert!(paths.agent_memory_dir(&company.id, &ceo.slug).exists());
+        assert!(paths.agent_life_dir(&company.id, &ceo.slug).exists());
         assert!(
-            Path::new(agents[0].instructions_path.as_ref().unwrap()).exists(),
-            "AGENTS.md should exist"
+            !Path::new(ceo.instructions_path.as_ref().unwrap()).exists(),
+            "CEO AGENTS.md should be created by the bootstrap issue, not prewritten"
         );
+
+        let refreshed_company = get_company(&db, &company.id).await.unwrap().unwrap();
+        assert_eq!(refreshed_company.ceo_agent_id, Some(ceo.id.clone()));
+    }
+
+    #[tokio::test]
+    async fn create_non_ceo_agent_still_scaffolds_instruction_files() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            Path::new(agent.instructions_path.as_ref().unwrap()).exists(),
+            "Non-CEO agents should keep the existing scaffolded local files"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_agent_hire_creates_pending_agent_approval_and_issue_link() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let source_issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Bootstrap the engineering team".to_string(),
+                assignee_agent_id: Some(ceo.id.clone()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let hired_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                title: Some("Founding Engineer".to_string()),
+                source_issue_id: Some(source_issue.id.clone()),
+                requested_by_agent_id: Some(ceo.id.clone()),
+                requested_by_run_id: Some("run-123".to_string()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(hired_agent.status, "pending_approval");
+        assert_eq!(hired_agent.reports_to, Some(ceo.id.clone()));
+        assert!(
+            !paths.agent_home_dir(&company.id, &hired_agent.slug).exists(),
+            "Pending approval hires should not have a local home provisioned yet"
+        );
+        assert!(
+            !Path::new(hired_agent.instructions_path.as_deref().unwrap()).exists(),
+            "Pending approval hires should not have instruction files yet"
+        );
+
+        let approvals = list_approvals(&db, &company.id).await.unwrap();
+        assert_eq!(approvals.len(), 1);
+        let approval = &approvals[0];
+        assert_eq!(approval.approval_type, "hire_agent");
+        assert_eq!(approval.requested_by_agent_id, Some(ceo.id.clone()));
+        assert_eq!(approval.requested_by_user_id, None);
+        assert_eq!(
+            approval.payload.get("agent_id").and_then(Value::as_str),
+            Some(hired_agent.id.as_str())
+        );
+        assert_eq!(
+            approval
+                .payload
+                .get("source_issue_id")
+                .and_then(Value::as_str),
+            Some(source_issue.id.as_str())
+        );
+        assert_eq!(
+            approval
+                .payload
+                .get("requested_by_run_id")
+                .and_then(Value::as_str),
+            Some("run-123")
+        );
+
+        let issue_link_count = db
+            .call_with_operation("board.test.issue_approval_count", {
+                let approval_id = approval.id.clone();
+                let issue_id = source_issue.id.clone();
+                move |conn| {
+                    Ok(conn.query_row(
+                        "SELECT COUNT(*) FROM issue_approvals WHERE approval_id = ?1 AND issue_id = ?2",
+                        params![approval_id, issue_id],
+                        |row| row.get::<_, i64>(0),
+                    )?)
+                }
+            })
+            .await
+            .unwrap();
+        assert_eq!(issue_link_count, 1);
+    }
+
+    #[tokio::test]
+    async fn create_agent_hire_without_required_approval_creates_idle_agent() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(agent.status, "idle");
+        assert!(list_approvals(&db, &company.id).await.unwrap().is_empty());
+        assert!(
+            Path::new(agent.instructions_path.as_deref().unwrap()).exists(),
+            "Immediate hires should still scaffold the local agent files"
+        );
+    }
+
+    #[tokio::test]
+    async fn approving_hire_approval_transitions_agent_to_idle() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let hired_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                requested_by_agent_id: Some(ceo.id.clone()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !paths.agent_home_dir(&company.id, &hired_agent.slug).exists(),
+            "Pending approval hires should not be provisioned before approval"
+        );
+
+        let mut approvals = list_approvals(&db, &company.id).await.unwrap();
+        let approval = approvals.remove(0);
+        let approved = approve_approval(
+            &db,
+            &paths,
+            ApprovalDecisionInput {
+                approval_id: approval.id.clone(),
+                ..ApprovalDecisionInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let refreshed_agent = get_agent(&db, &hired_agent.id).await.unwrap().unwrap();
+        assert_eq!(approved.status, "approved");
+        assert_eq!(refreshed_agent.status, "idle");
+        assert!(paths.agent_home_dir(&company.id, &hired_agent.slug).exists());
+        assert!(Path::new(refreshed_agent.instructions_path.as_deref().unwrap()).exists());
+    }
+
+    #[tokio::test]
+    async fn approving_hire_approval_reuses_existing_home_if_present() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let hired_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                requested_by_agent_id: Some(ceo.id.clone()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        scaffold_agent_home(
+            &paths,
+            &company.id,
+            &hired_agent.name,
+            &hired_agent.slug,
+            &company.name,
+            &hired_agent.role,
+        )
+        .unwrap();
+
+        let mut approvals = list_approvals(&db, &company.id).await.unwrap();
+        let approval = approvals.remove(0);
+        let approved = approve_approval(
+            &db,
+            &paths,
+            ApprovalDecisionInput {
+                approval_id: approval.id.clone(),
+                ..ApprovalDecisionInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let refreshed_agent = get_agent(&db, &hired_agent.id).await.unwrap().unwrap();
+        assert_eq!(approved.status, "approved");
+        assert_eq!(refreshed_agent.status, "idle");
+        assert!(Path::new(refreshed_agent.instructions_path.as_deref().unwrap()).exists());
+    }
+
+    #[tokio::test]
+    async fn approving_hire_approval_keeps_pending_state_when_activation_fails() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let hired_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                requested_by_agent_id: Some(ceo.id.clone()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let blocking_path = paths.agent_home_dir(&company.id, &hired_agent.slug);
+        fs::write(&blocking_path, "not a directory").unwrap();
+
+        let mut approvals = list_approvals(&db, &company.id).await.unwrap();
+        let approval = approvals.remove(0);
+        let error = approve_approval(
+            &db,
+            &paths,
+            ApprovalDecisionInput {
+                approval_id: approval.id.clone(),
+                ..ApprovalDecisionInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            error.to_string().contains("File exists")
+                || error
+                    .to_string()
+                    .contains("Not a directory")
+                || error.to_string().contains("directory"),
+            "unexpected activation failure: {error}"
+        );
+
+        let refreshed_approval = get_approval(&db, &approval.id).await.unwrap().unwrap();
+        let refreshed_agent = get_agent(&db, &hired_agent.id).await.unwrap().unwrap();
+        assert_eq!(refreshed_approval.status, "pending");
+        assert_eq!(refreshed_agent.status, "pending_approval");
+    }
+
+    #[tokio::test]
+    async fn create_issue_persists_assignee_for_bootstrap_tasks() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Create your CEO HEARTBEAT.md".to_string(),
+                assignee_agent_id: Some(ceo.id.clone()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(issue.assignee_agent_id, Some(ceo.id.clone()));
+        assert_eq!(issue.execution_agent_name_key, Some(ceo.slug.clone()));
+    }
+
+    #[tokio::test]
+    async fn update_issue_edits_and_clears_visible_issue_fields() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let project = create_project(
+            &db,
+            CreateProjectInput {
+                company_id: company.id.clone(),
+                name: "Bootstrap".to_string(),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let parent_issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Parent".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Child".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let updated = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                title: Some("Updated Child".to_string()),
+                description: Some(Some("Bootstrap the workspace".to_string())),
+                status: Some("in_progress".to_string()),
+                priority: Some("high".to_string()),
+                project_id: Some(Some(project.id.clone())),
+                parent_id: Some(Some(parent_issue.id.clone())),
+                assignee_agent_id: Some(Some(agent.id.clone())),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.title, "Updated Child");
+        assert_eq!(
+            updated.description.as_deref(),
+            Some("Bootstrap the workspace")
+        );
+        assert_eq!(updated.status, "in_progress");
+        assert_eq!(updated.priority, "high");
+        assert_eq!(updated.project_id, Some(project.id.clone()));
+        assert_eq!(updated.parent_id, Some(parent_issue.id.clone()));
+        assert_eq!(updated.assignee_agent_id, Some(agent.id.clone()));
+        assert_eq!(updated.execution_agent_name_key, Some(agent.slug.clone()));
+        assert_eq!(updated.request_depth, parent_issue.request_depth + 1);
+
+        let cleared = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                description: Some(None),
+                project_id: Some(None),
+                parent_id: Some(None),
+                assignee_agent_id: Some(None),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(cleared.description, None);
+        assert_eq!(cleared.project_id, None);
+        assert_eq!(cleared.parent_id, None);
+        assert_eq!(cleared.assignee_agent_id, None);
+        assert_eq!(cleared.execution_agent_name_key, None);
+        assert_eq!(cleared.request_depth, 0);
+    }
+
+    #[tokio::test]
+    async fn create_issue_rejects_pending_approval_assignee() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let pending_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Onboard engineer".to_string(),
+                assignee_agent_id: Some(pending_agent.id.clone()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Cannot assign work to pending approval agents"));
+    }
+
+    #[tokio::test]
+    async fn update_issue_rejects_pending_approval_assignee() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(true),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let ceo = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let pending_agent = create_agent_hire(
+            &db,
+            &paths,
+            CreateAgentHireInput {
+                company_id: company.id.clone(),
+                name: "Founding Engineer".to_string(),
+                role: Some("founding_engineer".to_string()),
+                ..CreateAgentHireInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "CEO bootstrap".to_string(),
+                assignee_agent_id: Some(ceo.id.clone()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                assignee_agent_id: Some(Some(pending_agent.id.clone())),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Cannot assign work to pending approval agents"));
+    }
+
+    #[tokio::test]
+    async fn create_agent_rejects_second_ceo_for_same_company() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Another CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        match error {
+            BoardError::Conflict(message) => {
+                assert!(message.contains("CEO"));
+            }
+            other => panic!("Expected CEO conflict, got {other:?}"),
+        }
     }
 }

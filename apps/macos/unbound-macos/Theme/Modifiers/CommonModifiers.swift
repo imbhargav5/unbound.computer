@@ -214,6 +214,10 @@ struct Badge: View {
 // MARK: - View Extensions
 
 extension View {
+    func fullWidthRow(alignment: Alignment = .leading) -> some View {
+        frame(maxWidth: .infinity, alignment: alignment)
+    }
+
     func surfaceBackground(_ variant: SurfaceBackgroundModifier.SurfaceVariant = .background) -> some View {
         modifier(SurfaceBackgroundModifier(variant: variant))
     }
@@ -227,7 +231,7 @@ extension View {
     }
 
     func fullRowHitTarget(alignment: Alignment = .leading) -> some View {
-        frame(maxWidth: .infinity, alignment: alignment)
+        fullWidthRow(alignment: alignment)
             .contentShape(Rectangle())
     }
 

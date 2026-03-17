@@ -176,6 +176,55 @@ pub struct Workspace {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRun {
+    pub id: String,
+    pub company_id: String,
+    pub agent_id: String,
+    pub invocation_source: String,
+    pub trigger_detail: Option<String>,
+    pub wake_reason: Option<String>,
+    pub status: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub error: Option<String>,
+    pub wakeup_request_id: Option<String>,
+    pub exit_code: Option<i64>,
+    pub signal: Option<String>,
+    pub usage_json: Option<serde_json::Value>,
+    pub result_json: Option<serde_json::Value>,
+    pub session_id_before: Option<String>,
+    pub session_id_after: Option<String>,
+    pub log_store: Option<String>,
+    pub log_ref: Option<String>,
+    pub log_bytes: Option<i64>,
+    pub log_sha256: Option<String>,
+    pub log_compressed: bool,
+    pub stdout_excerpt: Option<String>,
+    pub stderr_excerpt: Option<String>,
+    pub error_code: Option<String>,
+    pub external_run_id: Option<String>,
+    pub context_snapshot: Option<serde_json::Value>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRunEvent {
+    pub id: i64,
+    pub company_id: String,
+    pub run_id: String,
+    pub agent_id: String,
+    pub seq: i64,
+    pub event_type: String,
+    pub stream: Option<String>,
+    pub level: Option<String>,
+    pub color: Option<String>,
+    pub message: Option<String>,
+    pub payload: Option<serde_json::Value>,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateCompanyInput {
     pub name: String,
@@ -206,6 +255,28 @@ pub struct CreateAgentInput {
     pub budget_monthly_cents: Option<i64>,
     pub permissions: Option<serde_json::Value>,
     pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateAgentHireInput {
+    pub company_id: String,
+    pub name: String,
+    pub role: Option<String>,
+    pub title: Option<String>,
+    pub icon: Option<String>,
+    pub reports_to: Option<String>,
+    pub capabilities: Option<String>,
+    pub adapter_type: Option<String>,
+    pub adapter_config: Option<serde_json::Value>,
+    pub runtime_config: Option<serde_json::Value>,
+    pub budget_monthly_cents: Option<i64>,
+    pub permissions: Option<serde_json::Value>,
+    pub metadata: Option<serde_json::Value>,
+    pub source_issue_id: Option<String>,
+    pub source_issue_ids: Option<Vec<String>>,
+    pub requested_by_agent_id: Option<String>,
+    pub requested_by_user_id: Option<String>,
+    pub requested_by_run_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -242,6 +313,19 @@ pub struct CreateIssueInput {
     pub assignee_adapter_overrides: Option<serde_json::Value>,
     pub execution_workspace_settings: Option<serde_json::Value>,
     pub label_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateIssueInput {
+    pub issue_id: String,
+    pub title: Option<String>,
+    pub description: Option<Option<String>>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub project_id: Option<Option<String>>,
+    pub parent_id: Option<Option<String>>,
+    pub assignee_agent_id: Option<Option<String>>,
+    pub assignee_user_id: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

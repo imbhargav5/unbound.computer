@@ -42,7 +42,7 @@ enum AppScreen: Hashable {
         switch self {
         case .dashboard: return "square.grid.2x2"
         case .inbox: return "tray.full"
-        case .workspaces: return "square.split.2x1"
+        case .workspaces: return "chevron.left.forwardslash.chevron.right"
         case .agents: return "person.2"
         case .issues: return "checklist"
         case .approvals: return "checkmark.seal"
@@ -57,6 +57,7 @@ enum AppScreen: Hashable {
 
 enum BoardShellKind: Hashable {
     case firstCompanySetup
+    case ceoSetupRequired
     case companyDashboard
     case workspace
 }

@@ -1,6 +1,6 @@
 //! Daemon initialization.
 
-use crate::app::{DaemonState, StartupStatusWriter};
+use crate::app::{AgentRunCoordinator, DaemonState, StartupStatusWriter};
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
 use crate::utils::SessionSecretCache;
@@ -67,21 +67,37 @@ pub async fn run_daemon(
         .ok_or_else(|| "Database encryption key is unavailable".to_string())?;
     info!(device_id = %device_id, "Local device identity ready");
 
+    let config = Arc::new(config);
+    let shared_paths = Arc::new(paths.clone());
+    let claude_processes = Arc::new(Mutex::new(HashMap::new()));
+    let device_id_state = Arc::new(Mutex::new(Some(device_id)));
+    let agent_run_coordinator = Arc::new(AgentRunCoordinator::new(
+        db.clone(),
+        shared_paths.clone(),
+        armin.clone(),
+        ipc_server.subscriptions().clone(),
+        claude_processes.clone(),
+        device_id_state.clone(),
+    ));
+
     let state = DaemonState {
-        config: Arc::new(config),
-        paths: Arc::new(paths.clone()),
+        config,
+        paths: shared_paths,
         db,
         secrets: Arc::new(Mutex::new(secrets)),
-        claude_processes: Arc::new(Mutex::new(HashMap::new())),
+        claude_processes,
+        agent_run_coordinator,
         terminal_processes: Arc::new(Mutex::new(HashMap::new())),
         db_encryption_key: Arc::new(Mutex::new(Some(db_encryption_key))),
         subscriptions: ipc_server.subscriptions().clone(),
         session_secret_cache: SessionSecretCache::new(),
-        device_id: Arc::new(Mutex::new(Some(device_id))),
+        device_id: device_id_state,
         device_private_key: Arc::new(Mutex::new(Some(device_private_key))),
         armin,
         safe_file_ops: Arc::new(SafeFileOps::with_defaults()),
     };
+
+    state.agent_run_coordinator.clone().spawn_background();
 
     register_handlers(&ipc_server, state.clone()).await;
 

@@ -284,9 +284,10 @@ struct FileTreeRowSimple: View {
                 .padding(.leading, CGFloat(level) * Spacing.lg + Spacing.md)
                 .padding(.trailing, Spacing.md)
                 .padding(.vertical, Spacing.xs)
-                .contentShape(Rectangle())
+                .fullWidthRow()
             }
             .buttonStyle(.plain)
+            .fullRowHitTarget()
             .hoverEffect()
 
             if item.isExpanded && item.hasChildren {
@@ -373,13 +374,14 @@ struct FileTreeRowWithViewModel: View {
                 .padding(.leading, CGFloat(level) * Spacing.lg + Spacing.md)
                 .padding(.trailing, Spacing.md)
                 .padding(.vertical, Spacing.xs)
+                .fullWidthRow()
                 .background(
                     RoundedRectangle(cornerRadius: Radius.sm)
                         .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
                 )
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .fullRowHitTarget()
             .onHover { hovering in
                 isHovered = hovering
             }
@@ -463,13 +465,14 @@ struct FileTreeRowWithDiff: View {
                 .padding(.leading, CGFloat(level) * Spacing.lg + Spacing.md)
                 .padding(.trailing, Spacing.md)
                 .padding(.vertical, Spacing.xs)
+                .fullWidthRow()
                 .background(
                     RoundedRectangle(cornerRadius: Radius.sm)
                         .fill(isSelected ? colors.accent : (isHovered ? colors.muted : Color.clear))
                 )
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .fullRowHitTarget()
             .onHover { hovering in
                 isHovered = hovering
             }

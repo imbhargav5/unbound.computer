@@ -1,5 +1,6 @@
 //! Daemon state definition.
 
+use crate::app::AgentRunCoordinator;
 use crate::armin_adapter::DaemonArmin;
 use crate::utils::SessionSecretCache;
 use daemon_config_and_utils::{Config, Paths};
@@ -23,6 +24,8 @@ pub struct DaemonState {
     pub secrets: Arc<Mutex<SecretsManager>>,
     /// Currently running Claude processes by session_id.
     pub claude_processes: Arc<Mutex<HashMap<String, broadcast::Sender<()>>>>,
+    /// Coordinator for board agent runs and their execution queue.
+    pub agent_run_coordinator: Arc<AgentRunCoordinator>,
     /// Currently running terminal processes by session_id.
     pub terminal_processes: Arc<Mutex<HashMap<String, broadcast::Sender<()>>>>,
     /// Cached database encryption key (derived from device private key).
