@@ -4227,6 +4227,15 @@ function AgentsRouteView({
   selectedAgentId: string | null;
   selectedRun: AgentRunRecord | null;
 }) {
+  const agentHeaderSubtitle =
+    selectedAgent?.title ??
+    selectedAgent?.role ??
+    selectedAgent?.name ??
+    "Agent";
+  const agentHeaderStatusLabel = humanizeIssueValue(
+    selectedAgent?.status ?? "idle"
+  ).toLowerCase();
+
   return (
     <section className="route-scroll">
       <div className="route-header compact">
@@ -4252,19 +4261,47 @@ function AgentsRouteView({
         <section className="surface-panel wide">
           {selectedAgent ? (
             <>
-              <div className="agents-route-header-row">
-                <div>
-                  <span className="route-kicker">Selected agent</span>
-                  <h2>{selectedAgent.name}</h2>
-                  <p>{selectedAgent.title ?? selectedAgent.role ?? "Agent"}</p>
+              <div className="agent-page-header">
+                <div className="agent-page-header-main">
+                  <div className="agent-page-header-identity">
+                    <div aria-hidden="true" className="agent-page-header-icon">
+                      <AgentHeaderBotIcon />
+                    </div>
+
+                    <div className="agent-page-header-copy">
+                      <h2>{selectedAgent.name}</h2>
+                      <p>{agentHeaderSubtitle}</p>
+                    </div>
+                  </div>
+
+                  <div className="agent-page-header-actions">
+                    <AgentHeaderActionChip
+                      icon={<AgentHeaderPlusIcon />}
+                      label="Assign Task"
+                    />
+                    <AgentHeaderActionChip
+                      icon={<AgentHeaderPlayIcon />}
+                      label="Run Heartbeat"
+                    />
+                    <AgentHeaderActionChip
+                      icon={<AgentHeaderPauseIcon />}
+                      label="Pause"
+                    />
+                    <span
+                      className={`agent-run-status-badge agent-page-header-status ${normalizeAgentStatusTone(
+                        selectedAgent.status
+                      )}`}
+                    >
+                      {agentHeaderStatusLabel}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="agent-page-header-icon-chip"
+                    >
+                      <EllipsisHorizontalIcon />
+                    </span>
+                  </div>
                 </div>
-                <span
-                  className={`agent-run-status-badge ${normalizeAgentStatusTone(
-                    selectedAgent.status
-                  )}`}
-                >
-                  {humanizeIssueValue(selectedAgent.status ?? "unknown")}
-                </span>
               </div>
 
               <div className="agents-tab-strip" role="tablist" aria-label="Agent views">
@@ -4279,8 +4316,8 @@ function AgentsRouteView({
                     aria-selected={mode === tabId}
                     className={
                       mode === tabId
-                        ? "issues-detail-tab-button active"
-                        : "issues-detail-tab-button"
+                        ? "agents-tab-button active"
+                        : "agents-tab-button"
                     }
                     key={tabId}
                     onClick={() => onSelectTab(tabId)}
@@ -5167,6 +5204,23 @@ function RunStatusBadge({ status }: { status: string }) {
   return (
     <span className={`agent-run-status-badge ${agentRunStatusTone(status)}`}>
       {agentRunStatusLabel(status)}
+    </span>
+  );
+}
+
+function AgentHeaderActionChip({
+  icon,
+  label,
+}: {
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <span className="agent-page-header-action-chip">
+      <span aria-hidden="true" className="agent-page-header-action-icon">
+        {icon}
+      </span>
+      <span>{label}</span>
     </span>
   );
 }
@@ -6495,6 +6549,106 @@ function IssuePropertyToneMarker({ tone }: { tone?: string }) {
       className="issue-property-tone-marker"
       data-tone={tone ?? "neutral"}
     />
+  );
+}
+
+function AgentHeaderBotIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="20"
+      viewBox="0 0 24 24"
+      width="20"
+    >
+      <path
+        d="M12 4v3"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M7.5 7.5h9A3.5 3.5 0 0 1 20 11v4.5A3.5 3.5 0 0 1 16.5 19h-9A3.5 3.5 0 0 1 4 15.5V11a3.5 3.5 0 0 1 3.5-3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M9 12h.01M15 12h.01"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2.4"
+      />
+      <path
+        d="M9.5 15.5h5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M4 12H2.5M21.5 12H20M8 19v2M16 19v2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function AgentHeaderPlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="16"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function AgentHeaderPlayIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="16"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <path
+        d="m9 7 8 5-8 5V7Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function AgentHeaderPauseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="16"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <path
+        d="M9 6v12M15 6v12"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 
@@ -9373,9 +9527,10 @@ function agentRunStatusTone(status: string) {
 
 function normalizeAgentStatusTone(status: string | null | undefined) {
   switch (status) {
+    case "idle":
+      return "idle";
     case "running":
       return "running";
-    case "idle":
     case "active":
       return "succeeded";
     case "pending_approval":
