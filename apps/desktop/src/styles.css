@@ -883,18 +883,65 @@ p {
 
 .project-kanban-column-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.project-kanban-column-header-copy {
+  display: grid;
+  gap: 4px;
   color: #d4d4d8;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
 }
 
-.project-kanban-column-header strong {
+.project-kanban-column-header-copy strong {
   color: #8a8a8a;
   font-size: 11px;
+}
+
+.project-kanban-column-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.88);
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.project-kanban-column:hover .project-kanban-column-create,
+.project-kanban-column:focus-within .project-kanban-column-create,
+.project-kanban-column-create:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.project-kanban-column-create:hover,
+.project-kanban-column-create:focus-visible {
+  border-color: rgba(245, 158, 11, 0.38);
+  background: rgba(36, 24, 5, 0.95);
+  color: #f7d08a;
+}
+
+.project-kanban-column-create:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
 .project-kanban-cards {
@@ -969,6 +1016,35 @@ p {
   border-radius: 14px;
   color: #666670;
   font-size: 12px;
+}
+
+.issue-dialog-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.issue-dialog-context-chip {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #2a2a31;
+  border-radius: 16px;
+  background: rgba(18, 18, 23, 0.9);
+}
+
+.issue-dialog-context-label {
+  color: #8a8a8a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.issue-dialog-context-chip strong {
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .metric-grid,

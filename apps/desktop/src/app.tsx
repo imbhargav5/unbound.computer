@@ -140,6 +140,11 @@ interface DashboardProjectBoardLayout {
   issueCount: number;
 }
 
+interface CreateIssueDialogDefaults {
+  projectId?: string;
+  status?: string;
+}
+
 interface IssueEditDraft {
   title: string;
   description: string;
@@ -254,6 +259,7 @@ export function App() {
   const [issueDialogTitle, setIssueDialogTitle] = useState("");
   const [issueDialogDescription, setIssueDialogDescription] = useState("");
   const [issueDialogPriority, setIssueDialogPriority] = useState("medium");
+  const [issueDialogStatus, setIssueDialogStatus] = useState("backlog");
   const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
   const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] = useState("");
   const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
@@ -1261,6 +1267,7 @@ export function App() {
     setIssueDialogTitle("");
     setIssueDialogDescription("");
     setIssueDialogPriority("medium");
+    setIssueDialogStatus("backlog");
     setIssueDialogProjectId("");
     setIssueDialogAssigneeAgentId("");
     setIssueDialogParentIssueId("");
@@ -1268,8 +1275,10 @@ export function App() {
     setIsIssueDialogSaving(false);
   };
 
-  const handleOpenCreateIssueDialog = () => {
+  const handleOpenCreateIssueDialog = (defaults?: CreateIssueDialogDefaults) => {
     resetIssueDialog();
+    setIssueDialogStatus(defaults?.status ?? "backlog");
+    setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
 
@@ -1294,6 +1303,7 @@ export function App() {
       const params: Record<string, unknown> = {
         company_id: selectedCompanyId,
         title: issueDialogTitle.trim(),
+        status: issueDialogStatus,
         priority: issueDialogPriority,
       };
 
@@ -2004,6 +2014,9 @@ export function App() {
                 onPointerDown={handleDashboardCanvasPointerDown}
                 onPointerMove={handleDashboardCanvasPointerMove}
                 onPointerUp={handleDashboardCanvasPointerEnd}
+                onCreateIssueForColumn={(projectId, status) =>
+                  handleOpenCreateIssueDialog({ projectId, status })
+                }
                 projectBoards={dashboardProjectBoards}
                 viewportRef={dashboardCanvasViewportRef}
                 onWheel={handleDashboardCanvasWheel}
@@ -2934,6 +2947,7 @@ export function App() {
           selectedParentIssueId={issueDialogParentIssueId}
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
+          selectedStatus={issueDialogStatus}
           title={issueDialogTitle}
           description={issueDialogDescription}
         />
@@ -3006,6 +3020,7 @@ function DashboardCanvasRouteView({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onCreateIssueForColumn,
   onWheel,
   projectBoards,
   viewportRef,
@@ -3020,6 +3035,7 @@ function DashboardCanvasRouteView({
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  onCreateIssueForColumn: (projectId: string, status: string) => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectBoards: DashboardProjectBoardLayout[];
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -3087,8 +3103,20 @@ function DashboardCanvasRouteView({
                   {projectBoard.columns.map((column) => (
                     <section className="project-kanban-column" key={column.status}>
                       <div className="project-kanban-column-header">
-                        <span>{humanizeIssueValue(column.status)}</span>
-                        <strong>{column.issues.length}</strong>
+                        <div className="project-kanban-column-header-copy">
+                          <span>{humanizeIssueValue(column.status)}</span>
+                          <strong>{column.issues.length}</strong>
+                        </div>
+                        <button
+                          className="project-kanban-column-create"
+                          onClick={() =>
+                            onCreateIssueForColumn(projectBoard.project.id, column.status)
+                          }
+                          type="button"
+                        >
+                          <span aria-hidden="true">+</span>
+                          <span>New issue</span>
+                        </button>
                       </div>
 
                       {column.issues.length ? (
@@ -4254,6 +4282,7 @@ function CreateIssueDialogView({
   description,
   selectedPriority,
   selectedProjectId,
+  selectedStatus,
   selectedAssigneeAgentId,
   selectedParentIssueId,
   priorities,
@@ -4275,6 +4304,7 @@ function CreateIssueDialogView({
   description: string;
   selectedPriority: string;
   selectedProjectId: string;
+  selectedStatus: string;
   selectedAssigneeAgentId: string;
   selectedParentIssueId: string;
   priorities: string[];
@@ -4293,6 +4323,9 @@ function CreateIssueDialogView({
   onClose: () => void;
 }) {
   const canCreate = !isSaving && title.trim().length > 0;
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const shouldShowRoutingContext =
+    Boolean(selectedProject) || normalizeBoardIssueValue(selectedStatus) !== "backlog";
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -4328,6 +4361,21 @@ function CreateIssueDialogView({
           <div className="issue-dialog-divider" />
 
           {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+
+          {shouldShowRoutingContext ? (
+            <div className="issue-dialog-context">
+              {selectedProject ? (
+                <div className="issue-dialog-context-chip">
+                  <span className="issue-dialog-context-label">Project</span>
+                  <strong>{selectedProject.name ?? selectedProject.title ?? "Untitled project"}</strong>
+                </div>
+              ) : null}
+              <div className="issue-dialog-context-chip">
+                <span className="issue-dialog-context-label">Column</span>
+                <strong>{humanizeIssueValue(selectedStatus)}</strong>
+              </div>
+            </div>
+          ) : null}
 
           <label className="issue-dialog-field issue-dialog-field-full">
             <span className="issue-dialog-label">Title</span>
