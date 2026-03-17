@@ -987,6 +987,14 @@ p {
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
 }
 
+.project-kanban-board.is-selected {
+  border-color: rgba(245, 158, 11, 0.34);
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(245, 158, 11, 0.18),
+    0 0 0 10px rgba(245, 158, 11, 0.06);
+}
+
 .project-kanban-board-header,
 .project-kanban-board-header *,
 .project-kanban-board-meta,

@@ -102,7 +102,6 @@ type AppScreen =
   | "agents"
   | "issues"
   | "approvals"
-  | "projects"
   | "goals"
   | "stats"
   | "activity"
@@ -236,7 +235,7 @@ interface DashboardBreadcrumbItem {
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
-  { title: "Projects", screens: ["projects", "goals"] },
+  { title: "Planning", screens: ["goals"] },
 ];
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
@@ -502,10 +501,6 @@ export function App() {
     () => buildDashboardCanvasBounds(dashboardProjectBoards),
     [dashboardProjectBoards]
   );
-  const selectedProject =
-    boardProjects.find((project) => project.id === selectedProjectId) ??
-    boardProjects[0] ??
-    null;
   const boardApprovals = companySnapshot?.approvals ?? [];
   const selectedApproval =
     boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
@@ -540,6 +535,15 @@ export function App() {
           : null
       ),
     [companySnapshot?.agents, selectedCompany?.ceo_agent_id]
+  );
+  const orderedSidebarProjects = useMemo(
+    () =>
+      [...boardProjects].sort((left, right) =>
+        (left.name ?? left.title ?? left.id).localeCompare(
+          right.name ?? right.title ?? right.id
+        )
+      ),
+    [boardProjects]
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
@@ -1826,6 +1830,11 @@ export function App() {
     handleSelectScreen("agents");
   };
 
+  const handleSelectProjectSidebar = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    handleSelectScreen("dashboard");
+  };
+
   const handleSelectAgentTab = (tab: AgentsRouteMode) => {
     setAgentsRouteMode(tab);
   };
@@ -2074,7 +2083,7 @@ export function App() {
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
       setSelectedProjectId(project.id);
-      setSelectedScreen("projects");
+      setSelectedScreen("dashboard");
       handleCloseCreateProjectDialog();
     } catch (error) {
       setProjectDialogError(
@@ -3024,6 +3033,34 @@ export function App() {
                 </div>
 
                 <div className="board-sidebar-section">
+                  <div className="sidebar-section-row">
+                    <span className="sidebar-section-title">Projects</span>
+                  </div>
+                  <SidebarLinkButton
+                    label="New Project"
+                    onClick={handleOpenCreateProjectDialog}
+                  />
+                  {orderedSidebarProjects.length ? (
+                    orderedSidebarProjects.map((project) => (
+                      <button
+                        className={
+                          selectedProjectId === project.id
+                            ? "agent-sidebar-button active"
+                            : "agent-sidebar-button"
+                        }
+                        key={project.id}
+                        onClick={() => handleSelectProjectSidebar(project.id)}
+                        type="button"
+                      >
+                        {project.name || project.title || project.id}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="agent-sidebar-empty">No projects yet</div>
+                  )}
+                </div>
+
+                <div className="board-sidebar-section">
                   <span className="sidebar-section-title">
                     {companyBoardSection.title}
                   </span>
@@ -3067,6 +3104,7 @@ export function App() {
                   handleOpenCreateIssueDialog({ projectId, status })
                 }
                 projectBoards={dashboardProjectBoards}
+                selectedProjectId={selectedProjectId}
                 viewportRef={dashboardCanvasViewportRef}
                 onWheel={handleDashboardCanvasWheel}
               />
@@ -3233,16 +3271,6 @@ export function App() {
                   void handleApproveApproval(approvalId)
                 }
                 onSelectApproval={setSelectedApprovalId}
-              />
-            ) : null}
-
-            {selectedScreen === "projects" ? (
-              <ProjectsRouteView
-                currentProject={selectedProject}
-                goals={boardGoals}
-                onOpenCreateProject={handleOpenCreateProjectDialog}
-                onSelectProject={setSelectedProjectId}
-                projects={boardProjects}
               />
             ) : null}
 
@@ -5277,6 +5305,7 @@ function DashboardCanvasRouteView({
   onCreateIssueForColumn,
   onWheel,
   projectBoards,
+  selectedProjectId,
   viewportRef,
 }: {
   agents: AgentRecord[];
@@ -5292,6 +5321,7 @@ function DashboardCanvasRouteView({
   onCreateIssueForColumn: (projectId: string, status: string) => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectBoards: DashboardProjectBoardLayout[];
+  selectedProjectId: string | null;
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
@@ -5326,7 +5356,11 @@ function DashboardCanvasRouteView({
           >
             {projectBoards.map((projectBoard) => (
               <article
-                className="project-kanban-board"
+                className={
+                  selectedProjectId === projectBoard.project.id
+                    ? "project-kanban-board is-selected"
+                    : "project-kanban-board"
+                }
                 key={projectBoard.project.id}
                 style={{
                   left: projectBoard.left,
@@ -8654,8 +8688,6 @@ function screenLabel(screen: AppScreen) {
       return "Issues";
     case "approvals":
       return "Approvals";
-    case "projects":
-      return "Projects";
     case "goals":
       return "Goals";
     case "activity":
