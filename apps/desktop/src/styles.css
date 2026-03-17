@@ -182,6 +182,10 @@ p {
   min-height: 0;
 }
 
+.company-dashboard-shell-canvas {
+  overflow: hidden;
+}
+
 .company-rail {
   width: 64px;
   display: flex;
@@ -473,6 +477,10 @@ p {
   min-height: 0;
   overflow: auto;
   background: #0d0d0f;
+}
+
+.board-content-dashboard {
+  overflow: hidden;
 }
 
 .route-scroll {

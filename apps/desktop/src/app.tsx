@@ -1793,6 +1793,7 @@ export function App() {
     selectedBoardWorkspace?.issue_title ??
     selectedBoardWorkspace?.title ??
     null;
+  const showBoardSidebar = layout === "companyDashboard" && selectedScreen !== "dashboard";
 
   return (
     <div className="swift-shell">
@@ -1892,40 +1893,88 @@ export function App() {
       ) : null}
 
       {layout === "companyDashboard" ? (
-        <div className="company-dashboard-shell">
-          <aside className="board-sidebar">
-            <div className="board-sidebar-header">
-              <div>
-                <strong>{selectedCompany?.name ?? "Company"}</strong>
-                <span>Local board</span>
-              </div>
-              <button className="icon-button" onClick={() => void refreshBoardData()} type="button">
-                ↻
-              </button>
-            </div>
-
-            <div className="board-sidebar-scroll">
-              <div className="board-sidebar-section">
-                <SidebarLinkButton
-                  label="New Issue"
-                  onClick={handleOpenCreateIssueDialog}
-                />
-                <BoardSidebarButton
-                  active={selectedScreen === "dashboard"}
-                  label="Dashboard"
-                  onClick={() => handleSelectScreen("dashboard")}
-                />
-                <BoardSidebarButton
-                  active={selectedScreen === "inbox"}
-                  label="Inbox"
-                  onClick={() => handleSelectScreen("inbox")}
-                />
+        <div
+          className={
+            showBoardSidebar
+              ? "company-dashboard-shell"
+              : "company-dashboard-shell company-dashboard-shell-canvas"
+          }
+        >
+          {showBoardSidebar ? (
+            <aside className="board-sidebar">
+              <div className="board-sidebar-header">
+                <div>
+                  <strong>{selectedCompany?.name ?? "Company"}</strong>
+                  <span>Local board</span>
+                </div>
+                <button
+                  className="icon-button"
+                  onClick={() => void refreshBoardData()}
+                  type="button"
+                >
+                  ↻
+                </button>
               </div>
 
-              {primaryBoardSections.map((section) => (
-                <div className="board-sidebar-section" key={section.title}>
-                  <span className="sidebar-section-title">{section.title}</span>
-                  {section.screens.map((screen) => (
+              <div className="board-sidebar-scroll">
+                <div className="board-sidebar-section">
+                  <SidebarLinkButton
+                    label="New Issue"
+                    onClick={handleOpenCreateIssueDialog}
+                  />
+                  <BoardSidebarButton
+                    active={false}
+                    label="Dashboard"
+                    onClick={() => handleSelectScreen("dashboard")}
+                  />
+                  <BoardSidebarButton
+                    active={selectedScreen === "inbox"}
+                    label="Inbox"
+                    onClick={() => handleSelectScreen("inbox")}
+                  />
+                </div>
+
+                {primaryBoardSections.map((section) => (
+                  <div className="board-sidebar-section" key={section.title}>
+                    <span className="sidebar-section-title">{section.title}</span>
+                    {section.screens.map((screen) => (
+                      <BoardSidebarButton
+                        active={selectedScreen === screen}
+                        key={screen}
+                        label={screenLabel(screen)}
+                        onClick={() => handleSelectScreen(screen)}
+                      />
+                    ))}
+                  </div>
+                ))}
+
+                <div className="board-sidebar-section">
+                  <div className="sidebar-section-row">
+                    <span className="sidebar-section-title">Agents</span>
+                  </div>
+                  {orderedSidebarAgents.length ? (
+                    orderedSidebarAgents.map((agent) => (
+                      <button
+                        className={
+                          selectedScreen === "agents" && selectedAgentId === agent.id
+                            ? "agent-sidebar-button active"
+                            : "agent-sidebar-button"
+                        }
+                        key={agent.id}
+                        onClick={() => handleSelectAgent(agent.id)}
+                        type="button"
+                      >
+                        {agent.name || agent.title || agent.role || agent.id}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="agent-sidebar-empty">No agents yet</div>
+                  )}
+                </div>
+
+                <div className="board-sidebar-section">
+                  <span className="sidebar-section-title">{companyBoardSection.title}</span>
+                  {companyBoardSection.screens.map((screen) => (
                     <BoardSidebarButton
                       active={selectedScreen === screen}
                       key={screen}
@@ -1934,47 +1983,17 @@ export function App() {
                     />
                   ))}
                 </div>
-              ))}
-
-              <div className="board-sidebar-section">
-                <div className="sidebar-section-row">
-                  <span className="sidebar-section-title">Agents</span>
-                </div>
-                {orderedSidebarAgents.length ? (
-                  orderedSidebarAgents.map((agent) => (
-                    <button
-                      className={
-                        selectedScreen === "agents" && selectedAgentId === agent.id
-                          ? "agent-sidebar-button active"
-                          : "agent-sidebar-button"
-                      }
-                      key={agent.id}
-                      onClick={() => handleSelectAgent(agent.id)}
-                      type="button"
-                    >
-                      {agent.name || agent.title || agent.role || agent.id}
-                    </button>
-                  ))
-                ) : (
-                  <div className="agent-sidebar-empty">No agents yet</div>
-                )}
               </div>
+            </aside>
+          ) : null}
 
-              <div className="board-sidebar-section">
-                <span className="sidebar-section-title">{companyBoardSection.title}</span>
-                {companyBoardSection.screens.map((screen) => (
-                  <BoardSidebarButton
-                    active={selectedScreen === screen}
-                    key={screen}
-                    label={screenLabel(screen)}
-                    onClick={() => handleSelectScreen(screen)}
-                  />
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <main className="board-content">
+          <main
+            className={
+              showBoardSidebar
+                ? "board-content"
+                : "board-content board-content-dashboard"
+            }
+          >
             {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
 
             {selectedScreen === "dashboard" ? (
