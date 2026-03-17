@@ -40,6 +40,9 @@ export const boardListCompanies = () =>
 export const boardCreateCompany = (params: Record<string, unknown>) =>
   invokeCommand<Company>("board_create_company", { params });
 
+export const boardUpdateCompany = (params: Record<string, unknown>) =>
+  invokeCommand<Company>("board_update_company", { params });
+
 export const boardCompanySnapshot = (companyId: string) =>
   invokeCommand<CompanySnapshot>("board_company_snapshot", {
     companyId,

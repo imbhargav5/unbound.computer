@@ -24,6 +24,7 @@ import {
   boardGetIssue,
   boardListCompanies,
   boardListIssueComments,
+  boardUpdateCompany,
   boardUpdateIssue,
   claudeSend,
   claudeStatus,
@@ -195,6 +196,8 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
   y: 88,
 };
 
+const defaultCompanyBrandColor = "#0F766E";
+
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(null);
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
@@ -263,6 +266,9 @@ export function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [companyContextMenu, setCompanyContextMenu] =
     useState<CompanyContextMenuState | null>(null);
+  const [companyBrandColorDraft, setCompanyBrandColorDraft] = useState(defaultCompanyBrandColor);
+  const [isSavingCompanyBrandColor, setIsSavingCompanyBrandColor] = useState(false);
+  const [companyBrandColorError, setCompanyBrandColorError] = useState<string | null>(null);
   const [dashboardCanvasOffset, setDashboardCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
   const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] = useState(false);
@@ -503,6 +509,12 @@ export function App() {
     document.documentElement.dataset.fontSizePreset =
       settings.font_size_preset ?? "medium";
   }, [settings.font_size_preset, settings.theme_mode]);
+
+  useEffect(() => {
+    setCompanyBrandColorDraft(normalizeHexColor(selectedCompany?.brand_color));
+    setCompanyBrandColorError(null);
+    setIsSavingCompanyBrandColor(false);
+  }, [selectedCompany?.brand_color, selectedCompanyId]);
 
   useEffect(() => {
     setDashboardCanvasOffset(defaultDashboardCanvasOffset);
@@ -1130,6 +1142,43 @@ export function App() {
   const handleSelectAgent = (agentId: string) => {
     setSelectedAgentId(agentId);
     handleSelectScreen("agents");
+  };
+
+  const handleCompanyBrandColorChange = async (nextColor: string) => {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    const normalizedColor = normalizeHexColor(nextColor);
+    setCompanyBrandColorDraft(normalizedColor);
+    setCompanyBrandColorError(null);
+    setIsSavingCompanyBrandColor(true);
+
+    try {
+      const updatedCompany = await boardUpdateCompany({
+        company_id: selectedCompanyId,
+        brand_color: normalizedColor,
+      });
+
+      setCompanySnapshot((current) =>
+        current
+          ? {
+              ...current,
+              company: updatedCompany,
+            }
+          : current
+      );
+      setCompanies((current) =>
+        current.map((company) =>
+          company.id === updatedCompany.id ? { ...company, ...updatedCompany } : company
+        )
+      );
+    } catch (error) {
+      setCompanyBrandColorDraft(normalizeHexColor(selectedCompany?.brand_color));
+      setCompanyBrandColorError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSavingCompanyBrandColor(false);
+    }
   };
 
   const resetProjectDialog = () => {
@@ -2110,7 +2159,7 @@ export function App() {
                   </p>
                 </div>
 
-                <div className="surface-grid">
+                <div className="surface-grid single">
                   <section className="surface-panel wide">
                     <h3>Company profile</h3>
                     <p>
@@ -2123,9 +2172,12 @@ export function App() {
                         label="Description"
                         value={selectedCompany?.description ?? "No description"}
                       />
-                      <DetailRow
+                      <CompanyBrandColorField
+                        errorMessage={companyBrandColorError}
+                        isSaving={isSavingCompanyBrandColor}
                         label="Brand Color"
-                        value={selectedCompany?.brand_color ?? "Default board accent"}
+                        onChange={(nextColor) => void handleCompanyBrandColorChange(nextColor)}
+                        value={companyBrandColorDraft}
                       />
                       <DetailRow
                         label="Issue Prefix"
@@ -2134,7 +2186,7 @@ export function App() {
                     </div>
                   </section>
 
-                  <section className="surface-panel">
+                  <section className="surface-panel wide">
                     <h3>Board policy</h3>
                     <div className="summary-grid">
                       <SummaryPill
@@ -4461,6 +4513,55 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CompanyBrandColorField({
+  errorMessage,
+  isSaving,
+  label,
+  onChange,
+  value,
+}: {
+  errorMessage: string | null;
+  isSaving: boolean;
+  label: string;
+  onChange: (nextColor: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="company-brand-color-field">
+      <div className="detail-row">
+        <span>{label}</span>
+        <div className="company-brand-color-control">
+          <label
+            className={
+              isSaving
+                ? "company-brand-color-trigger is-saving"
+                : "company-brand-color-trigger"
+            }
+          >
+            <input
+              className="company-brand-color-input"
+              disabled={isSaving}
+              onChange={(event) => onChange(event.target.value)}
+              type="color"
+              value={value}
+            />
+            <span
+              aria-hidden="true"
+              className="company-brand-color-swatch"
+              style={{ backgroundColor: value }}
+            />
+          </label>
+          <div className="company-brand-color-copy">
+            <strong>{value}</strong>
+            <small>{isSaving ? "Saving color..." : "Click the swatch to edit"}</small>
+          </div>
+        </div>
+      </div>
+      {errorMessage ? <p className="company-brand-color-error">{errorMessage}</p> : null}
+    </div>
+  );
+}
+
 function WorkspaceBoardItem({
   active,
   workspace,
@@ -4886,6 +4987,19 @@ function mergeIssueOptions(defaults: string[], selected: string) {
     }
   }
   return options;
+}
+
+function normalizeHexColor(
+  value: string | null | undefined,
+  fallback = defaultCompanyBrandColor
+) {
+  const trimmed = value?.trim() ?? "";
+  const candidate = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(candidate)) {
+    return candidate.toUpperCase();
+  }
+
+  return fallback;
 }
 
 function normalizeBoardIssueValue(value: string | null | undefined) {

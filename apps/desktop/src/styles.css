@@ -1906,6 +1906,71 @@ p {
   background: #0c0c0d;
 }
 
+.company-brand-color-field {
+  display: grid;
+  gap: 8px;
+}
+
+.company-brand-color-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.company-brand-color-trigger {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 1px solid #2a2a2e;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.company-brand-color-trigger:focus-within {
+  outline: 2px solid rgba(245, 158, 11, 0.45);
+  outline-offset: 2px;
+}
+
+.company-brand-color-trigger.is-saving {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.company-brand-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.company-brand-color-swatch {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.company-brand-color-copy {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.company-brand-color-copy small,
+.company-brand-color-error {
+  color: #8a8a8a;
+  font-size: 11px;
+}
+
+.company-brand-color-error {
+  padding: 0 12px;
+  color: #fca5a5;
+}
+
 .workspace-git-panel {
   flex: 1;
   overflow: hidden;

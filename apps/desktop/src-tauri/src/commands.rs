@@ -140,6 +140,12 @@ pub async fn board_create_company(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn board_update_company(params: Value) -> Result<Value, String> {
+    let value = call_daemon(Method::CompanyUpdate, Some(params)).await?;
+    Ok(extract_field(value, "company"))
+}
+
+#[tauri::command]
 pub async fn board_company_snapshot(company_id: String) -> Result<Value, String> {
     let company_params = json!({ "company_id": company_id });
     let company_request = call_daemon(Method::CompanyGet, Some(company_params.clone()));

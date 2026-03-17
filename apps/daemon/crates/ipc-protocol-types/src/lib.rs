@@ -59,6 +59,8 @@ pub enum Method {
     CompanyList,
     #[serde(rename = "company.create")]
     CompanyCreate,
+    #[serde(rename = "company.update")]
+    CompanyUpdate,
     #[serde(rename = "company.get")]
     CompanyGet,
 

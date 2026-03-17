@@ -199,6 +199,51 @@ pub async fn create_company(
     Ok(creation.0)
 }
 
+pub async fn update_company(
+    db: &AsyncDatabase,
+    input: crate::models::UpdateCompanyInput,
+) -> BoardResult<Company> {
+    let company_id = require_name(&input.company_id, "company_id")?;
+    let brand_color = normalize_optional_string(input.brand_color);
+    let now = now_rfc3339();
+
+    let updated_company = db
+        .call_with_operation("board.company.update", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            let existing_company = get_company_sync(&tx, &company_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Company not found".to_string()))?;
+
+            tx.execute(
+                "UPDATE companies
+                 SET brand_color = ?1, updated_at = ?2
+                 WHERE id = ?3",
+                params![brand_color, now, company_id],
+            )?;
+
+            insert_activity_sync(
+                &tx,
+                &existing_company.id,
+                "system",
+                LOCAL_BOARD_USER_ID,
+                "company.updated",
+                "company",
+                &existing_company.id,
+                None,
+                Some(json!({ "brand_color": brand_color })),
+                &now,
+            )?;
+
+            let company = get_company_sync(&tx, &existing_company.id)?
+                .ok_or_else(|| DatabaseError::NotFound("Company missing after update".to_string()))?;
+
+            tx.commit()?;
+            Ok(company)
+        })
+        .await?;
+
+    Ok(updated_company)
+}
+
 pub async fn list_agents(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Agent>> {
     let company_id = company_id.to_string();
     Ok(db

@@ -12,6 +12,7 @@ fn main() {
             commands::system_check_dependencies,
             commands::board_list_companies,
             commands::board_create_company,
+            commands::board_update_company,
             commands::board_company_snapshot,
             commands::board_create_project,
             commands::board_create_issue,

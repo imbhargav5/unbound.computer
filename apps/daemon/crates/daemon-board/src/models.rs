@@ -186,6 +186,12 @@ pub struct CreateCompanyInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateCompanyInput {
+    pub company_id: String,
+    pub brand_color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateAgentInput {
     pub company_id: String,
     pub name: String,

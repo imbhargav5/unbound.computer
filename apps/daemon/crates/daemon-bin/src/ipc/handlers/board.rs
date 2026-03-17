@@ -79,6 +79,29 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
+
+    let update_db = state.db.clone();
+    server
+        .register_handler(Method::CompanyUpdate, move |req| {
+            let db = update_db.clone();
+            async move {
+                let input = match parse_params::<daemon_board::UpdateCompanyInput>(
+                    &req.id,
+                    req.params.as_ref(),
+                ) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::update_company(&db, input).await {
+                    Ok(company) => {
+                        json_response(&req.id, &serde_json::json!({ "company": company }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
 }
 
 async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
