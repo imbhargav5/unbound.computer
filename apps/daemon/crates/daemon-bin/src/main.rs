@@ -56,12 +56,22 @@ enum Commands {
 enum BoardCommands {
     /// Submit a governed hire request for a non-CEO agent
     HireAgent(HireAgentArgs),
+    /// List board issues
+    IssueList(IssueListArgs),
     /// Create a board issue
     IssueCreate(IssueCreateArgs),
+    /// Get a board issue
+    IssueGet(IssueGetArgs),
     /// Update a board issue
     IssueUpdate(IssueUpdateArgs),
+    /// List board issue comments
+    IssueCommentList(IssueCommentListArgs),
     /// Add a board issue comment
     IssueCommentAdd(IssueCommentAddArgs),
+    /// List board issue attachments
+    IssueAttachmentList(IssueAttachmentListArgs),
+    /// Prepare the issue worktree and session
+    IssueCheckout(IssueCheckoutArgs),
 }
 
 #[derive(Args)]
@@ -111,6 +121,20 @@ struct HireAgentArgs {
 }
 
 #[derive(Args)]
+struct IssueListArgs {
+    #[arg(long)]
+    company_id: String,
+    #[arg(long)]
+    project_id: Option<String>,
+    #[arg(long)]
+    parent_id: Option<String>,
+    #[arg(long)]
+    assignee_agent_id: Option<String>,
+    #[arg(long)]
+    include_hidden: bool,
+}
+
+#[derive(Args)]
 struct IssueCreateArgs {
     #[arg(long)]
     company_id: String,
@@ -153,6 +177,12 @@ struct IssueCreateArgs {
 }
 
 #[derive(Args)]
+struct IssueGetArgs {
+    #[arg(long)]
+    issue_id: String,
+}
+
+#[derive(Args)]
 struct IssueUpdateArgs {
     #[arg(long)]
     issue_id: String,
@@ -187,6 +217,12 @@ struct IssueUpdateArgs {
 }
 
 #[derive(Args)]
+struct IssueCommentListArgs {
+    #[arg(long)]
+    issue_id: String,
+}
+
+#[derive(Args)]
 struct IssueCommentAddArgs {
     #[arg(long)]
     company_id: String,
@@ -200,6 +236,18 @@ struct IssueCommentAddArgs {
     author_agent_id: Option<String>,
     #[arg(long)]
     author_user_id: Option<String>,
+}
+
+#[derive(Args)]
+struct IssueAttachmentListArgs {
+    #[arg(long)]
+    issue_id: String,
+}
+
+#[derive(Args)]
+struct IssueCheckoutArgs {
+    #[arg(long)]
+    issue_id: String,
 }
 
 #[tokio::main]
@@ -317,6 +365,18 @@ async fn run_board_command(
 
             call_board(paths, Method::AgentHireCreate, Value::Object(params)).await
         }
+        BoardCommands::IssueList(args) => {
+            let mut params = Map::new();
+            params.insert("company_id".to_string(), Value::String(args.company_id));
+            insert_optional_string(&mut params, "project_id", args.project_id);
+            insert_optional_string(&mut params, "parent_id", args.parent_id);
+            insert_optional_string(&mut params, "assignee_agent_id", args.assignee_agent_id);
+            if args.include_hidden {
+                params.insert("include_hidden".to_string(), Value::Bool(true));
+            }
+
+            call_board(paths, Method::IssueList, Value::Object(params)).await
+        }
         BoardCommands::IssueCreate(args) => {
             let mut params = Map::new();
             params.insert("company_id".to_string(), Value::String(args.company_id));
@@ -362,6 +422,11 @@ async fn run_board_command(
             );
 
             call_board(paths, Method::IssueCreate, Value::Object(params)).await
+        }
+        BoardCommands::IssueGet(args) => {
+            let mut params = Map::new();
+            params.insert("issue_id".to_string(), Value::String(args.issue_id));
+            call_board(paths, Method::IssueGet, Value::Object(params)).await
         }
         BoardCommands::IssueUpdate(args) => {
             ensure_not_conflicting(
@@ -427,6 +492,11 @@ async fn run_board_command(
 
             call_board(paths, Method::IssueUpdate, Value::Object(params)).await
         }
+        BoardCommands::IssueCommentList(args) => {
+            let mut params = Map::new();
+            params.insert("issue_id".to_string(), Value::String(args.issue_id));
+            call_board(paths, Method::IssueCommentList, Value::Object(params)).await
+        }
         BoardCommands::IssueCommentAdd(args) => {
             let body = read_required_text_arg("body", args.body, args.body_file)?;
             let mut params = Map::new();
@@ -437,6 +507,16 @@ async fn run_board_command(
             insert_optional_string(&mut params, "author_user_id", args.author_user_id);
 
             call_board(paths, Method::IssueCommentAdd, Value::Object(params)).await
+        }
+        BoardCommands::IssueAttachmentList(args) => {
+            let mut params = Map::new();
+            params.insert("issue_id".to_string(), Value::String(args.issue_id));
+            call_board(paths, Method::IssueAttachmentList, Value::Object(params)).await
+        }
+        BoardCommands::IssueCheckout(args) => {
+            let mut params = Map::new();
+            params.insert("issue_id".to_string(), Value::String(args.issue_id));
+            call_board(paths, Method::IssueCheckout, Value::Object(params)).await
         }
     }
 }
