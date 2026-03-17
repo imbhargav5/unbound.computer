@@ -326,6 +326,7 @@ pub struct UpdateIssueInput {
     pub parent_id: Option<Option<String>>,
     pub assignee_agent_id: Option<Option<String>>,
     pub assignee_user_id: Option<Option<String>>,
+    pub hidden_at: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

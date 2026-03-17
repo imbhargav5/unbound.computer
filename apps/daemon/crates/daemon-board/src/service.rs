@@ -1020,6 +1020,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
     let parent_id = normalize_optional_update(input.parent_id);
     let assignee_agent_id = normalize_optional_update(input.assignee_agent_id);
     let assignee_user_id = normalize_optional_update(input.assignee_user_id);
+    let hidden_at = normalize_optional_update(input.hidden_at);
     let now = now_rfc3339();
 
     Ok(db
@@ -1040,6 +1041,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
             let next_parent_id = parent_id.unwrap_or_else(|| current.parent_id.clone());
             let next_assignee_agent_id = assignee_agent_id.unwrap_or_else(|| current.assignee_agent_id.clone());
             let next_assignee_user_id = assignee_user_id.unwrap_or_else(|| current.assignee_user_id.clone());
+            let next_hidden_at = hidden_at.unwrap_or_else(|| current.hidden_at.clone());
 
             if next_parent_id.as_deref() == Some(issue_id.as_str()) {
                 return Err(DatabaseError::InvalidData(
@@ -1115,8 +1117,9 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                      started_at = ?11,
                      completed_at = ?12,
                      cancelled_at = ?13,
-                     updated_at = ?14
-                 WHERE id = ?15",
+                     hidden_at = ?14,
+                     updated_at = ?15
+                 WHERE id = ?16",
                 params![
                     next_title,
                     next_description,
@@ -1131,6 +1134,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     started_at,
                     completed_at,
                     cancelled_at,
+                    next_hidden_at,
                     now,
                     issue_id,
                 ],
@@ -1153,6 +1157,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     "project_id": next_project_id,
                     "parent_id": next_parent_id,
                     "assignee_agent_id": next_assignee_agent_id,
+                    "hidden_at": next_hidden_at,
                 })),
                 &now,
             )?;
@@ -3429,6 +3434,7 @@ mod tests {
                 project_id: Some(None),
                 parent_id: Some(None),
                 assignee_agent_id: Some(None),
+                hidden_at: Some(Some(now_rfc3339())),
                 ..UpdateIssueInput::default()
             },
         )
@@ -3440,6 +3446,7 @@ mod tests {
         assert_eq!(cleared.parent_id, None);
         assert_eq!(cleared.assignee_agent_id, None);
         assert_eq!(cleared.execution_agent_name_key, None);
+        assert!(cleared.hidden_at.is_some());
         assert_eq!(cleared.request_depth, 0);
     }
 
