@@ -4472,78 +4472,90 @@ function DashboardCanvasRouteView({
                 </div>
 
                 <div className="project-kanban-columns">
-                  {projectBoard.columns.map((column) => (
-                    <section
-                      className="project-kanban-column"
-                      key={column.status}
-                    >
-                      <div className="project-kanban-column-header">
-                        <div className="project-kanban-column-header-copy">
-                          <span>{humanizeIssueValue(column.status)}</span>
-                          <strong>{column.issues.length}</strong>
-                        </div>
-                      </div>
-
-                      <div className="project-kanban-cards">
-                        <button
-                          className="project-kanban-column-create"
-                          onClick={() =>
-                            onCreateIssueForColumn(
-                              projectBoard.project.id,
-                              column.status
-                            )
-                          }
-                          type="button"
+                  {projectBoard.columns.map((column) => {
+                    const createIssueCard = (
+                      <button
+                        className="project-kanban-column-create"
+                        onClick={() =>
+                          onCreateIssueForColumn(
+                            projectBoard.project.id,
+                            column.status
+                          )
+                        }
+                        type="button"
+                      >
+                        <span
+                          className="project-kanban-column-create-icon"
+                          aria-hidden="true"
                         >
-                          <span
-                            className="project-kanban-column-create-icon"
-                            aria-hidden="true"
-                          >
-                            +
-                          </span>
-                          <span className="project-kanban-column-create-copy">
-                            <strong>New issue</strong>
-                            <small>
-                              Add work directly to{" "}
-                              {humanizeIssueValue(column.status)}
-                            </small>
-                          </span>
-                        </button>
+                          +
+                        </span>
+                        <span className="project-kanban-column-create-copy">
+                          <strong>New issue</strong>
+                          <small>
+                            Add work directly to{" "}
+                            {humanizeIssueValue(column.status)}
+                          </small>
+                        </span>
+                      </button>
+                    );
 
-                        {column.issues.length ? (
-                          column.issues.map((issue) => (
-                            <button
-                              className="project-kanban-card"
-                              data-priority={normalizeBoardIssueValue(
-                                issue.priority
-                              )}
-                              key={issue.id}
-                              onClick={() => onOpenIssue(issue.id)}
-                              type="button"
-                            >
-                              <strong>{issue.identifier ?? issue.title}</strong>
-                              <p>{issue.title}</p>
-                              <div className="project-kanban-card-meta">
-                                <span>
-                                  {humanizeIssueValue(issue.priority)}
-                                </span>
-                                <span>
-                                  {issueAssigneeLabel(
-                                    agents,
-                                    issue.assignee_agent_id
-                                  )}
-                                </span>
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="project-kanban-column-empty">
-                            No issues yet
+                    return (
+                      <section
+                        className="project-kanban-column"
+                        key={column.status}
+                      >
+                        <div className="project-kanban-column-header">
+                          <div className="project-kanban-column-header-copy">
+                            <span>{humanizeIssueValue(column.status)}</span>
+                            <strong>{column.issues.length}</strong>
                           </div>
-                        )}
-                      </div>
-                    </section>
-                  ))}
+                        </div>
+
+                        <div className="project-kanban-cards">
+                          {column.issues.length ? (
+                            <>
+                              {column.issues.map((issue) => (
+                                <button
+                                  className="project-kanban-card"
+                                  data-priority={normalizeBoardIssueValue(
+                                    issue.priority
+                                  )}
+                                  key={issue.id}
+                                  onClick={() => onOpenIssue(issue.id)}
+                                  type="button"
+                                >
+                                  <strong>
+                                    {issue.identifier ?? issue.title}
+                                  </strong>
+                                  <p>{issue.title}</p>
+                                  <div className="project-kanban-card-meta">
+                                    <span>
+                                      {humanizeIssueValue(issue.priority)}
+                                    </span>
+                                    <span>
+                                      {issueAssigneeLabel(
+                                        agents,
+                                        issue.assignee_agent_id
+                                      )}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                              {createIssueCard}
+                            </>
+                          ) : (
+                            <>
+                              {createIssueCard}
+                              <div className="project-kanban-column-empty">
+                                No issues yet
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               </article>
             ))}
