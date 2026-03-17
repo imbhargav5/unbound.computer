@@ -113,11 +113,20 @@ type IssuesRouteMode = "list" | "detail";
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits";
-type CompanyContextMenuScreen = "dashboard" | "workspaces" | "companySettings";
+type CompanyContextMenuScreen =
+  | "dashboard"
+  | "workspaces"
+  | "issues"
+  | "companySettings";
+type CompanyContextMenuIconKey =
+  | CompanyContextMenuScreen
+  | "agents";
 
 interface CompanyContextMenuState {
   companyId: string;
   companyName: string;
+  agents: AgentRecord[];
+  isLoadingAgents: boolean;
   x: number;
   y: number;
 }
@@ -187,12 +196,13 @@ const defaultSettings: DesktopSettings = {
 };
 
 const companyContextMenuItems: Array<{
-  icon: CompanyContextMenuScreen;
+  icon: CompanyContextMenuIconKey;
   label: string;
   screen: CompanyContextMenuScreen;
 }> = [
   { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
   { icon: "workspaces", label: "Workspaces", screen: "workspaces" },
+  { icon: "issues", label: "Issues", screen: "issues" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
 
@@ -559,6 +569,98 @@ export function App() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [companyContextMenu]);
+
+  useEffect(() => {
+    if (!companyContextMenu) {
+      return;
+    }
+
+    if (
+      companyContextMenu.companyId === selectedCompanyId &&
+      companySnapshot
+    ) {
+      const nextAgents = orderSidebarAgents(
+        companySnapshot.agents ?? [],
+        typeof companySnapshot.company?.ceo_agent_id === "string"
+          ? companySnapshot.company.ceo_agent_id
+          : null
+      );
+      if (
+        !companyContextMenu.isLoadingAgents &&
+        sameAgentIdList(companyContextMenu.agents, nextAgents)
+      ) {
+        return;
+      }
+      setCompanyContextMenu((current) => {
+        if (!current || current.companyId !== companyContextMenu.companyId) {
+          return current;
+        }
+
+        return {
+          ...current,
+          agents: nextAgents,
+          isLoadingAgents: false,
+        };
+      });
+      return;
+    }
+
+    if (bootstrap?.state !== "ready" || !companyContextMenu.isLoadingAgents) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadMenuAgents = async () => {
+      try {
+        const snapshot = await boardCompanySnapshot(companyContextMenu.companyId);
+        if (cancelled) {
+          return;
+        }
+
+        const nextAgents = orderSidebarAgents(
+          snapshot.agents ?? [],
+          typeof snapshot.company?.ceo_agent_id === "string"
+            ? snapshot.company.ceo_agent_id
+            : null
+        );
+        setCompanyContextMenu((current) => {
+          if (!current || current.companyId !== companyContextMenu.companyId) {
+            return current;
+          }
+
+          return {
+            ...current,
+            agents: nextAgents,
+            isLoadingAgents: false,
+          };
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setCompanyContextMenu((current) => {
+          if (!current || current.companyId !== companyContextMenu.companyId) {
+            return current;
+          }
+
+          return {
+            ...current,
+            agents: [],
+            isLoadingAgents: false,
+          };
+        });
+        setStatusMessage(error instanceof Error ? error.message : String(error));
+      }
+    };
+
+    void loadMenuAgents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrap?.state, companyContextMenu, companySnapshot, selectedCompanyId]);
 
   useEffect(() => {
     if (!selectedCompanyId || bootstrap?.state !== "ready") {
@@ -1005,6 +1107,9 @@ export function App() {
 
   const handleSelectCompany = (companyId: string) => {
     setCompanyContextMenu(null);
+    if (companyId !== selectedCompanyId) {
+      setCompanySnapshot(null);
+    }
     startTransition(() => {
       setSelectedCompanyId(companyId);
       setSelectedScreen("dashboard");
@@ -1030,11 +1135,18 @@ export function App() {
     }
 
     setCompanyContextMenu(null);
+    if (companyId !== selectedCompanyId) {
+      setCompanySnapshot(null);
+    }
     startTransition(() => {
       setSelectedCompanyId(companyId);
       setSelectedScreen(screen);
       if (screen === "workspaces") {
         setWorkspaceCenterTab("conversation");
+      }
+      if (screen === "issues") {
+        setIssuesRouteMode("list");
+        setSelectedIssueId(null);
       }
     });
 
@@ -1045,6 +1157,28 @@ export function App() {
     });
   };
 
+  const handleSelectCompanyAgent = (companyId: string, agentId: string) => {
+    setCompanyContextMenu(null);
+    if (companyId !== selectedCompanyId) {
+      setCompanySnapshot(null);
+    }
+    startTransition(() => {
+      setSelectedCompanyId(companyId);
+      setSelectedAgentId(agentId);
+      setSelectedScreen("agents");
+      setSelectedIssueId(null);
+      setSelectedApprovalId(null);
+      setIssuesRouteMode("list");
+      setIssueCommentsByIssueId({});
+    });
+
+    void persistSettings({
+      ...settings,
+      preferred_company_id: companyId,
+      preferred_view: preferredViewForScreen("agents"),
+    });
+  };
+
   const handleOpenCompanyContextMenu = (
     event: MouseEvent<HTMLButtonElement>,
     company: Company
@@ -1052,9 +1186,18 @@ export function App() {
     event.preventDefault();
     event.stopPropagation();
 
-    const menuWidth = 216;
-    const menuHeight = 184;
+    const menuWidth = 264;
+    const menuHeight = 420;
     const viewportPadding = 12;
+    const initialAgents =
+      company.id === selectedCompanyId && companySnapshot
+        ? orderSidebarAgents(
+            companySnapshot.agents ?? [],
+            typeof companySnapshot.company?.ceo_agent_id === "string"
+              ? companySnapshot.company.ceo_agent_id
+              : null
+          )
+        : [];
     const nextX = Math.min(
       Math.max(event.clientX + 12, viewportPadding),
       window.innerWidth - menuWidth - viewportPadding
@@ -1065,8 +1208,10 @@ export function App() {
     );
 
     setCompanyContextMenu({
+      agents: initialAgents,
       companyId: company.id,
       companyName: company.name,
+      isLoadingAgents: initialAgents.length === 0 && bootstrap?.state === "ready",
       x: nextX,
       y: nextY,
     });
@@ -1868,7 +2013,7 @@ export function App() {
             </div>
             <div className="company-context-menu-copy">
               <strong>{companyContextMenu.companyName}</strong>
-              <span>Open company route</span>
+              <span>Shortcuts and agent pages</span>
             </div>
           </div>
           <div className="company-context-menu-actions">
@@ -1896,6 +2041,49 @@ export function App() {
                 </button>
               );
             })}
+          </div>
+          <div className="company-context-menu-divider" />
+          <div className="company-context-menu-section">
+            <div className="company-context-menu-section-label">
+              <CompanyContextMenuIcon icon="agents" />
+              <span>Agents</span>
+            </div>
+            <div className="company-context-menu-agent-list">
+              {companyContextMenu.isLoadingAgents ? (
+                <div className="company-context-menu-empty">Loading agents...</div>
+              ) : companyContextMenu.agents.length ? (
+                companyContextMenu.agents.map((agent) => {
+                  const isActive =
+                    companyContextMenu.companyId === selectedCompanyId &&
+                    selectedScreen === "agents" &&
+                    selectedAgentId === agent.id;
+
+                  return (
+                    <button
+                      className={
+                        isActive
+                          ? "company-context-menu-item company-context-menu-item-agent active"
+                          : "company-context-menu-item company-context-menu-item-agent"
+                      }
+                      key={agent.id}
+                      onClick={() =>
+                        handleSelectCompanyAgent(companyContextMenu.companyId, agent.id)
+                      }
+                      role="menuitem"
+                      type="button"
+                    >
+                      <CompanyContextMenuIcon icon="agents" />
+                      <span className="company-context-menu-agent-copy">
+                        <strong>{agent.name || agent.title || agent.role || "Agent"}</strong>
+                        <small>{agent.title ?? agent.role ?? "Agent"}</small>
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="company-context-menu-empty">No agents yet</div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -4917,7 +5105,7 @@ function WorkspaceSidebarTabButton({
 function CompanyContextMenuIcon({
   icon,
 }: {
-  icon: CompanyContextMenuScreen;
+  icon: CompanyContextMenuIconKey;
 }) {
   switch (icon) {
     case "dashboard":
@@ -4951,6 +5139,39 @@ function CompanyContextMenuIcon({
             rx="1.3"
             stroke="currentColor"
             strokeWidth="1.4"
+          />
+        </svg>
+      );
+    case "issues":
+      return (
+        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M4 3.25h8A1.75 1.75 0 0 1 13.75 5v6A1.75 1.75 0 0 1 12 12.75H4A1.75 1.75 0 0 1 2.25 11V5A1.75 1.75 0 0 1 4 3.25Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M5.25 6h5.5M5.25 8.5h5.5M5.25 11h3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.4"
+          />
+        </svg>
+      );
+    case "agents":
+      return (
+        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M8 3.25a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5ZM4.25 12.25c.35-1.67 1.88-2.75 3.75-2.75s3.4 1.08 3.75 2.75"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M2.75 6.25a1.75 1.75 0 1 1 0 3.5M13.25 6.25a1.75 1.75 0 1 0 0 3.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.2"
           />
         </svg>
       );
@@ -5415,6 +5636,14 @@ function goalOwnerLabel(agents: AgentRecord[], ownerAgentId?: string | null) {
 
   const agent = agents.find((entry) => entry.id === ownerAgentId);
   return agent?.name || agent?.title || agent?.role || ownerAgentId;
+}
+
+function sameAgentIdList(left: AgentRecord[], right: AgentRecord[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((agent, index) => agent.id === right[index]?.id);
 }
 
 function issueParentLabel(issues: IssueRecord[], parentIssueId?: string | null) {

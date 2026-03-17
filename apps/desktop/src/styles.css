@@ -248,13 +248,15 @@ p {
 .company-context-menu {
   position: fixed;
   z-index: 60;
-  width: 216px;
+  width: 264px;
+  max-height: min(420px, calc(100vh - 24px));
   padding: 8px;
   border: 1px solid #242428;
   border-radius: 16px;
   background: rgba(12, 12, 14, 0.98);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .company-context-menu-header {
@@ -329,6 +331,71 @@ p {
   height: 16px;
   flex: 0 0 auto;
   color: #8f8f95;
+}
+
+.company-context-menu-divider {
+  height: 1px;
+  margin: 8px 4px 0;
+  background: #1f1f1f;
+}
+
+.company-context-menu-section {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 4px 2px;
+}
+
+.company-context-menu-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: #8f8f95;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.company-context-menu-agent-list {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.company-context-menu-item-agent {
+  align-items: flex-start;
+}
+
+.company-context-menu-agent-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.company-context-menu-agent-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.company-context-menu-agent-copy small {
+  color: #7a7a7a;
+  font-size: 11px;
+}
+
+.company-context-menu-item-agent.active .company-context-menu-agent-copy small,
+.company-context-menu-item-agent:hover .company-context-menu-agent-copy small {
+  color: #a7a7b0;
+}
+
+.company-context-menu-empty {
+  padding: 10px 12px;
+  color: #7a7a7a;
+  font-size: 12px;
 }
 
 .board-sidebar,
