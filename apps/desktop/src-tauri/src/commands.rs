@@ -269,6 +269,19 @@ pub async fn board_list_issue_comments(issue_id: String) -> Result<Value, String
 }
 
 #[tauri::command]
+pub async fn board_list_issue_runs(issue_id: String, limit: Option<u32>) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::IssueRunList,
+        Some(json!({
+            "issue_id": issue_id,
+            "limit": limit,
+        })),
+    )
+    .await?;
+    Ok(extract_field(value, "runs"))
+}
+
+#[tauri::command]
 pub async fn board_add_issue_comment(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::IssueCommentAdd, Some(params)).await?;
     Ok(extract_field(value, "comment"))

@@ -103,6 +103,8 @@ pub enum Method {
     IssueCommentList,
     #[serde(rename = "issue.comment.add")]
     IssueCommentAdd,
+    #[serde(rename = "issue.run.list")]
+    IssueRunList,
     #[serde(rename = "issue.checkout")]
     IssueCheckout,
 
@@ -1084,7 +1086,7 @@ mod tests {
 
     #[test]
     fn all_method_count() {
-        // Ensure we have exactly 44 methods by trying to serialize each.
+        // Ensure this smoke-test list stays in sync with the methods below.
         let methods = vec![
             Method::Health,
             Method::Shutdown,
@@ -1132,6 +1134,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 44);
+        assert_eq!(methods.len(), 45);
     }
 }

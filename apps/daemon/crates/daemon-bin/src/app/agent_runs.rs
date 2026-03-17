@@ -271,24 +271,25 @@ impl AgentRunCoordinator {
 
                 tx.execute(
                     "INSERT INTO agent_runs (
-                        id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
-                        status, started_at, finished_at, error, wakeup_request_id, exit_code, signal,
-                        usage_json, result_json, session_id_before, session_id_after, log_store,
-                        log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
-                        stderr_excerpt, error_code, external_run_id, context_snapshot,
-                        created_at, updated_at
+                        id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                        wake_reason, status, started_at, finished_at, error, wakeup_request_id,
+                        exit_code, signal, usage_json, result_json, session_id_before,
+                        session_id_after, log_store, log_ref, log_bytes, log_sha256,
+                        log_compressed, stdout_excerpt, stderr_excerpt, error_code,
+                        external_run_id, context_snapshot, created_at, updated_at
                      ) VALUES (
                         ?1, ?2, ?3, ?4, ?5, ?6,
-                        'queued', NULL, NULL, NULL, ?7, NULL, NULL,
-                        NULL, NULL, NULL, NULL, 'file',
-                        ?8, 0, NULL, 0, NULL,
-                        NULL, NULL, NULL, ?9,
-                        ?10, ?10
+                        ?7, 'queued', NULL, NULL, NULL, ?8,
+                        NULL, NULL, NULL, NULL, NULL,
+                        NULL, 'file', ?9, 0, NULL,
+                        0, NULL, NULL, NULL,
+                        NULL, ?10, ?11, ?11
                      )",
                     params![
                         run_id,
                         company_id,
                         agent_id,
+                        issue_id,
                         invocation_source,
                         trigger_detail,
                         wake_reason,
@@ -2178,6 +2179,7 @@ mod tests {
             id: "run-1".to_string(),
             company_id: "company-1".to_string(),
             agent_id: "agent-1".to_string(),
+            issue_id: Some("issue-1".to_string()),
             invocation_source: "assignment".to_string(),
             trigger_detail: Some("system".to_string()),
             wake_reason: Some("issue_assigned".to_string()),

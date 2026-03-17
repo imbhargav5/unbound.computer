@@ -84,6 +84,12 @@ export const boardListIssueComments = (issueId: string) =>
     issueId,
   });
 
+export const boardListIssueRuns = (issueId: string, limit?: number) =>
+  invokeCommand<AgentRunRecord[]>("board_list_issue_runs", {
+    issueId,
+    limit,
+  });
+
 export const boardAddIssueComment = (params: Record<string, unknown>) =>
   invokeCommand<IssueCommentRecord>("board_add_issue_comment", { params });
 

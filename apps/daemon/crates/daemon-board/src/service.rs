@@ -1378,7 +1378,9 @@ pub async fn list_issue_comments(
     Ok(db
         .call_with_operation("board.issue.comment.list", move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, issue_id, author_agent_id, author_user_id, body, created_at, updated_at
+                "SELECT
+                    id, company_id, issue_id, author_agent_id, author_user_id,
+                    target_agent_id, body, created_at, updated_at
                  FROM issue_comments
                  WHERE issue_id = ?1
                  ORDER BY created_at ASC",
@@ -1401,22 +1403,28 @@ pub async fn add_issue_comment(
     let author_agent_id = normalize_optional_string(input.author_agent_id);
     let author_user_id = normalize_optional_string(input.author_user_id)
         .or_else(|| Some(LOCAL_BOARD_USER_ID.to_string()));
+    let target_agent_id = normalize_optional_string(input.target_agent_id);
     let now = now_rfc3339();
 
     Ok(db
         .call_with_operation("board.issue.comment.add", move |conn| {
             let tx = conn.unchecked_transaction()?;
+            if let Some(agent_id) = target_agent_id.as_deref() {
+                validate_assignable_agent_sync(&tx, &company_id, agent_id, "target_agent_id")?;
+            }
             let comment_id = Uuid::new_v4().to_string();
             tx.execute(
                 "INSERT INTO issue_comments (
-                    id, company_id, issue_id, author_agent_id, author_user_id, body, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+                    id, company_id, issue_id, author_agent_id, author_user_id,
+                    target_agent_id, body, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
                 params![
                     comment_id,
                     company_id,
                     issue_id,
                     author_agent_id,
                     author_user_id,
+                    target_agent_id,
                     body,
                     now,
                 ],
@@ -1425,26 +1433,37 @@ pub async fn add_issue_comment(
             insert_activity_sync(
                 &tx,
                 &company_id,
-                if author_agent_id.is_some() { "agent" } else { "user" },
+                if author_agent_id.is_some() {
+                    "agent"
+                } else {
+                    "user"
+                },
                 author_agent_id.as_deref().unwrap_or(LOCAL_BOARD_USER_ID),
                 "issue.comment_added",
                 "issue_comment",
                 &comment_id,
                 author_agent_id.as_deref(),
-                Some(json!({ "issue_id": issue_id })),
+                Some(json!({
+                    "issue_id": issue_id,
+                    "target_agent_id": target_agent_id,
+                })),
                 &now,
             )?;
 
             let comment = tx
                 .query_row(
-                    "SELECT id, company_id, issue_id, author_agent_id, author_user_id, body, created_at, updated_at
+                    "SELECT
+                        id, company_id, issue_id, author_agent_id, author_user_id,
+                        target_agent_id, body, created_at, updated_at
                      FROM issue_comments
                      WHERE id = ?1",
                     params![comment_id],
                     row_to_issue_comment,
                 )
                 .optional()?
-                .ok_or_else(|| DatabaseError::NotFound("Comment missing after insert".to_string()))?;
+                .ok_or_else(|| {
+                    DatabaseError::NotFound("Comment missing after insert".to_string())
+                })?;
             tx.commit()?;
             Ok(comment)
         })
@@ -1646,9 +1665,10 @@ pub async fn list_agent_runs(
         .call_with_operation("board.agent_run.list", move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT
-                    id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
-                    status, started_at, finished_at, error, wakeup_request_id, exit_code, signal,
-                    usage_json, result_json, session_id_before, session_id_after, log_store,
+                    id, company_id, agent_id, issue_id, invocation_source,
+                    trigger_detail, wake_reason, status, started_at, finished_at,
+                    error, wakeup_request_id, exit_code, signal, usage_json,
+                    result_json, session_id_before, session_id_after, log_store,
                     log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
                     stderr_excerpt, error_code, external_run_id, context_snapshot,
                     created_at, updated_at
@@ -1665,15 +1685,47 @@ pub async fn list_agent_runs(
         .await?)
 }
 
+pub async fn list_issue_runs(
+    db: &AsyncDatabase,
+    issue_id: &str,
+    limit: Option<i64>,
+) -> BoardResult<Vec<AgentRun>> {
+    let issue_id = issue_id.to_string();
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    Ok(db
+        .call_with_operation("board.issue.run.list", move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT
+                    id, company_id, agent_id, issue_id, invocation_source,
+                    trigger_detail, wake_reason, status, started_at, finished_at,
+                    error, wakeup_request_id, exit_code, signal, usage_json,
+                    result_json, session_id_before, session_id_after, log_store,
+                    log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
+                    stderr_excerpt, error_code, external_run_id, context_snapshot,
+                    created_at, updated_at
+                 FROM agent_runs
+                 WHERE issue_id = ?1
+                 ORDER BY created_at DESC
+                 LIMIT ?2",
+            )?;
+            let rows = stmt
+                .query_map(params![issue_id, limit], row_to_agent_run)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+        .await?)
+}
+
 pub async fn get_agent_run(db: &AsyncDatabase, run_id: &str) -> BoardResult<Option<AgentRun>> {
     let run_id = run_id.to_string();
     Ok(db
         .call_with_operation("board.agent_run.get", move |conn| {
             conn.query_row(
                 "SELECT
-                    id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
-                    status, started_at, finished_at, error, wakeup_request_id, exit_code, signal,
-                    usage_json, result_json, session_id_before, session_id_after, log_store,
+                    id, company_id, agent_id, issue_id, invocation_source,
+                    trigger_detail, wake_reason, status, started_at, finished_at,
+                    error, wakeup_request_id, exit_code, signal, usage_json,
+                    result_json, session_id_before, session_id_after, log_store,
                     log_ref, log_bytes, log_sha256, log_compressed, stdout_excerpt,
                     stderr_excerpt, error_code, external_run_id, context_snapshot,
                     created_at, updated_at
@@ -2337,9 +2389,10 @@ fn row_to_issue_comment(row: &Row<'_>) -> rusqlite::Result<IssueComment> {
         issue_id: row.get(2)?,
         author_agent_id: row.get(3)?,
         author_user_id: row.get(4)?,
-        body: row.get(5)?,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        target_agent_id: row.get(5)?,
+        body: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
     })
 }
 
@@ -2390,38 +2443,39 @@ fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
         id: row.get(0)?,
         company_id: row.get(1)?,
         agent_id: row.get(2)?,
-        invocation_source: row.get(3)?,
-        trigger_detail: row.get(4)?,
-        wake_reason: row.get(5)?,
-        status: row.get(6)?,
-        started_at: row.get(7)?,
-        finished_at: row.get(8)?,
-        error: row.get(9)?,
-        wakeup_request_id: row.get(10)?,
-        exit_code: row.get(11)?,
-        signal: row.get(12)?,
+        issue_id: row.get(3)?,
+        invocation_source: row.get(4)?,
+        trigger_detail: row.get(5)?,
+        wake_reason: row.get(6)?,
+        status: row.get(7)?,
+        started_at: row.get(8)?,
+        finished_at: row.get(9)?,
+        error: row.get(10)?,
+        wakeup_request_id: row.get(11)?,
+        exit_code: row.get(12)?,
+        signal: row.get(13)?,
         usage_json: row
-            .get::<_, Option<String>>(13)?
-            .map(|value| parse_json(value)),
-        result_json: row
             .get::<_, Option<String>>(14)?
             .map(|value| parse_json(value)),
-        session_id_before: row.get(15)?,
-        session_id_after: row.get(16)?,
-        log_store: row.get(17)?,
-        log_ref: row.get(18)?,
-        log_bytes: row.get(19)?,
-        log_sha256: row.get(20)?,
-        log_compressed: row.get(21)?,
-        stdout_excerpt: row.get(22)?,
-        stderr_excerpt: row.get(23)?,
-        error_code: row.get(24)?,
-        external_run_id: row.get(25)?,
-        context_snapshot: row
-            .get::<_, Option<String>>(26)?
+        result_json: row
+            .get::<_, Option<String>>(15)?
             .map(|value| parse_json(value)),
-        created_at: row.get(27)?,
-        updated_at: row.get(28)?,
+        session_id_before: row.get(16)?,
+        session_id_after: row.get(17)?,
+        log_store: row.get(18)?,
+        log_ref: row.get(19)?,
+        log_bytes: row.get(20)?,
+        log_sha256: row.get(21)?,
+        log_compressed: row.get(22)?,
+        stdout_excerpt: row.get(23)?,
+        stderr_excerpt: row.get(24)?,
+        error_code: row.get(25)?,
+        external_run_id: row.get(26)?,
+        context_snapshot: row
+            .get::<_, Option<String>>(27)?
+            .map(|value| parse_json(value)),
+        created_at: row.get(28)?,
+        updated_at: row.get(29)?,
     })
 }
 
@@ -4056,6 +4110,178 @@ mod tests {
 
         assert_eq!(reopened_cancelled.status, "todo");
         assert_eq!(reopened_cancelled.cancelled_at, None);
+    }
+
+    #[tokio::test]
+    async fn add_issue_comment_persists_target_agent_id() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Comment target".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let comment = add_issue_comment(
+            &db,
+            AddIssueCommentInput {
+                company_id: company.id.clone(),
+                issue_id: issue.id.clone(),
+                target_agent_id: Some(agent.id.clone()),
+                body: "Please pick this up.".to_string(),
+                ..AddIssueCommentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(comment.target_agent_id.as_deref(), Some(agent.id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn list_issue_runs_returns_all_runs_linked_to_issue() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Run history".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let other_issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Other".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let company_id = company.id.clone();
+        let agent_id = agent.id.clone();
+        let issue_id = issue.id.clone();
+        let other_issue_id = other_issue.id.clone();
+        db.call_with_operation("board.issue.run.list_test.seed", move |conn| {
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                    wake_reason, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'automation', 'system', 'issue_commented', 'queued', ?5, ?5)",
+                params![
+                    "run-1",
+                    &company_id,
+                    &agent_id,
+                    &issue_id,
+                    "2026-03-18T00:00:00Z"
+                ],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                    wake_reason, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'automation', 'system', 'issue_commented', 'running', ?5, ?5)",
+                params![
+                    "run-2",
+                    &company_id,
+                    &agent_id,
+                    &issue_id,
+                    "2026-03-18T00:01:00Z"
+                ],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                    wake_reason, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'automation', 'system', 'issue_commented', 'queued', ?5, ?5)",
+                params![
+                    "run-3",
+                    &company_id,
+                    &agent_id,
+                    &other_issue_id,
+                    "2026-03-18T00:02:00Z"
+                ],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        let runs = list_issue_runs(&db, &issue.id, Some(10)).await.unwrap();
+
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].id, "run-2");
+        assert_eq!(runs[1].id, "run-1");
+        assert!(runs
+            .iter()
+            .all(|run| run.issue_id.as_deref() == Some(issue.id.as_str())));
     }
 
     #[tokio::test]

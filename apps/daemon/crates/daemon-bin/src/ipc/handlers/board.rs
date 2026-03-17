@@ -451,6 +451,23 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         })
         .await;
 
+    let run_list_db = state.db.clone();
+    server
+        .register_handler(Method::IssueRunList, move |req| {
+            let db = run_list_db.clone();
+            async move {
+                let input = match parse_params::<IssueRunListInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::list_issue_runs(&db, &input.issue_id, input.limit).await {
+                    Ok(runs) => json_response(&req.id, &serde_json::json!({ "runs": runs })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
     let comment_add_db = state.db.clone();
     let comment_add_runs = state.agent_run_coordinator.clone();
     server
@@ -466,74 +483,73 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 let issue_id = input.issue_id.clone();
                 let comment_body = input.body.clone();
                 let author_agent_id = input.author_agent_id.clone();
+                let selected_target_agent_id = input.target_agent_id.clone();
                 match service::add_issue_comment(&db, input).await {
                     Ok(comment) => {
                         if let Ok(Some(issue)) = service::get_issue(&db, &issue_id).await {
-                            if let Some(assignee_agent_id) = issue.assignee_agent_id.clone() {
-                                if author_agent_id.as_deref() != Some(assignee_agent_id.as_str()) {
-                                    let _ = runs
-                                        .enqueue_run(crate::app::AgentRunEnqueueRequest {
-                                            agent_id: assignee_agent_id.clone(),
-                                            company_id: Some(issue.company_id.clone()),
-                                            invocation_source: "automation".to_string(),
-                                            trigger_detail: Some("system".to_string()),
-                                            wake_reason: Some("issue_commented".to_string()),
-                                            payload: Some(serde_json::json!({
-                                                "issue_id": issue.id,
-                                                "comment_id": comment.id,
-                                            })),
-                                            prompt: None,
-                                            requested_by_actor_type: Some("system".to_string()),
-                                            requested_by_actor_id: Some(comment.id.clone()),
-                                        })
-                                        .await;
+                            let was_closed = matches!(issue.status.as_str(), "done" | "cancelled");
+                            let active_issue = if was_closed {
+                                match service::update_issue(
+                                    &db,
+                                    UpdateIssueInput {
+                                        issue_id: issue.id.clone(),
+                                        status: Some("todo".to_string()),
+                                        ..UpdateIssueInput::default()
+                                    },
+                                )
+                                .await
+                                {
+                                    Ok(reopened) => reopened,
+                                    Err(_) => issue.clone(),
                                 }
+                            } else {
+                                issue.clone()
+                            };
 
-                                if matches!(issue.status.as_str(), "done" | "cancelled") {
-                                    if let Ok(reopened) = service::update_issue(
-                                        &db,
-                                        UpdateIssueInput {
-                                            issue_id: issue.id.clone(),
-                                            status: Some("todo".to_string()),
-                                            ..UpdateIssueInput::default()
-                                        },
+                            let mut woke_agent_ids = HashSet::new();
+                            let primary_agent_id = comment
+                                .target_agent_id
+                                .clone()
+                                .or(selected_target_agent_id)
+                                .or(active_issue.assignee_agent_id.clone());
+                            if let Some(agent_id) = primary_agent_id {
+                                if author_agent_id.as_deref() != Some(agent_id.as_str()) {
+                                    let wake_reason = if was_closed {
+                                        "issue_reopened_via_comment"
+                                    } else {
+                                        "issue_commented"
+                                    };
+                                    enqueue_issue_comment_run(
+                                        runs.as_ref(),
+                                        &active_issue,
+                                        &agent_id,
+                                        &comment.id,
+                                        wake_reason,
                                     )
-                                    .await
-                                    {
-                                        maybe_enqueue_issue_run(
-                                            runs.as_ref(),
-                                            &reopened,
-                                            "automation",
-                                            Some("system"),
-                                            Some("issue_reopened_via_comment"),
-                                        )
-                                        .await;
-                                    }
+                                    .await;
+                                    woke_agent_ids.insert(agent_id);
                                 }
                             }
 
-                            if let Ok(agents) = service::list_agents(&db, &issue.company_id).await {
+                            if let Ok(agents) =
+                                service::list_agents(&db, &active_issue.company_id).await
+                            {
                                 let mentioned_agent_ids =
                                     extract_mentioned_agent_ids(&comment_body, &agents);
                                 for agent_id in mentioned_agent_ids {
-                                    let _ = runs
-                                        .enqueue_run(crate::app::AgentRunEnqueueRequest {
-                                            agent_id,
-                                            company_id: Some(issue.company_id.clone()),
-                                            invocation_source: "automation".to_string(),
-                                            trigger_detail: Some("system".to_string()),
-                                            wake_reason: Some(
-                                                "issue_comment_mentioned".to_string(),
-                                            ),
-                                            payload: Some(serde_json::json!({
-                                                "issue_id": issue.id,
-                                                "comment_id": comment.id,
-                                            })),
-                                            prompt: None,
-                                            requested_by_actor_type: Some("system".to_string()),
-                                            requested_by_actor_id: Some(comment.id.clone()),
-                                        })
-                                        .await;
+                                    if !woke_agent_ids.insert(agent_id.clone())
+                                        || author_agent_id.as_deref() == Some(agent_id.as_str())
+                                    {
+                                        continue;
+                                    }
+                                    enqueue_issue_comment_run(
+                                        runs.as_ref(),
+                                        &active_issue,
+                                        &agent_id,
+                                        &comment.id,
+                                        "issue_comment_mentioned",
+                                    )
+                                    .await;
                                 }
                             }
                         }
@@ -958,6 +974,40 @@ fn issue_became_todo(previous: &Issue, next: &Issue) -> bool {
     !is_todo_status(&previous.status) && should_wake_assignee_for_todo_issue(next)
 }
 
+async fn enqueue_issue_comment_run(
+    coordinator: &crate::app::AgentRunCoordinator,
+    issue: &Issue,
+    agent_id: &str,
+    comment_id: &str,
+    wake_reason: &str,
+) {
+    if let Err(error) = coordinator
+        .enqueue_run(crate::app::AgentRunEnqueueRequest {
+            agent_id: agent_id.to_string(),
+            company_id: Some(issue.company_id.clone()),
+            invocation_source: "automation".to_string(),
+            trigger_detail: Some("system".to_string()),
+            wake_reason: Some(wake_reason.to_string()),
+            payload: Some(serde_json::json!({
+                "issue_id": issue.id,
+                "comment_id": comment_id,
+            })),
+            prompt: None,
+            requested_by_actor_type: Some("system".to_string()),
+            requested_by_actor_id: Some(comment_id.to_string()),
+        })
+        .await
+    {
+        warn!(
+            error = %error,
+            issue_id = %issue.id,
+            comment_id,
+            target_agent_id = agent_id,
+            "Failed to enqueue issue comment run"
+        );
+    }
+}
+
 async fn maybe_enqueue_issue_run(
     coordinator: &crate::app::AgentRunCoordinator,
     issue: &Issue,
@@ -1008,6 +1058,12 @@ fn extract_mentioned_agent_ids(comment_body: &str, agents: &[daemon_board::Agent
 #[derive(Debug, Deserialize)]
 struct AgentRunListInput {
     agent_id: String,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueRunListInput {
+    issue_id: String,
     limit: Option<i64>,
 }
 

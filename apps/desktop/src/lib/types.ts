@@ -90,6 +90,7 @@ export interface AgentRunRecord {
   id: string;
   company_id: string;
   agent_id: string;
+  issue_id?: string | null;
   invocation_source: string;
   trigger_detail?: string | null;
   wake_reason?: string | null;
@@ -227,6 +228,7 @@ export interface IssueCommentRecord {
   issue_id: string;
   author_agent_id?: string | null;
   author_user_id?: string | null;
+  target_agent_id?: string | null;
   body: string;
   created_at: string;
   updated_at: string;

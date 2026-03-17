@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 16;
+pub const CURRENT_VERSION: i32 = 17;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -84,6 +84,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     }
     if current_version < 16 {
         migrate_v16_agent_runs_rename(conn)?;
+    }
+    if current_version < 17 {
+        migrate_v17_issue_linked_runs_and_comment_targets(conn)?;
     }
 
     info!("Migrations complete");
@@ -1587,6 +1590,51 @@ fn migrate_v16_agent_runs_rename(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+/// V17: Link agent runs directly to issues and persist targeted agents on comments.
+fn migrate_v17_issue_linked_runs_and_comment_targets(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v17: issue_linked_runs_and_comment_targets");
+
+    add_column_if_missing(
+        conn,
+        "agent_runs",
+        "issue_id",
+        "issue_id TEXT REFERENCES issues(id) ON DELETE SET NULL",
+    )?;
+    add_column_if_missing(
+        conn,
+        "issue_comments",
+        "target_agent_id",
+        "target_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL",
+    )?;
+
+    conn.execute_batch(
+        "
+        CREATE INDEX IF NOT EXISTS agent_runs_issue_created_idx
+            ON agent_runs(issue_id, created_at);
+        CREATE INDEX IF NOT EXISTS issue_comments_target_agent_idx
+            ON issue_comments(target_agent_id);
+
+        UPDATE agent_runs
+        SET issue_id = COALESCE(
+            issue_id,
+            json_extract(context_snapshot, '$.issue_id'),
+            json_extract(context_snapshot, '$.payload.issue_id'),
+            (
+                SELECT i.id
+                FROM issues i
+                WHERE i.execution_run_id = agent_runs.id
+                   OR i.checkout_run_id = agent_runs.id
+                LIMIT 1
+            )
+        )
+        WHERE issue_id IS NULL;
+        ",
+    )?;
+
+    record_migration(conn, 17, "issue_linked_runs_and_comment_targets")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1647,7 +1695,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 16);
+        assert_eq!(version, 17);
     }
 
     #[test]
@@ -1805,6 +1853,10 @@ mod tests {
 
         let columns = column_names(&conn, "agent_runs").unwrap();
         assert!(columns.contains("wake_reason"));
+        assert!(columns.contains("issue_id"));
+
+        let comment_columns = column_names(&conn, "issue_comments").unwrap();
+        assert!(comment_columns.contains("target_agent_id"));
 
         for table_name in ["issues", "activity_log", "workspace_runtime_services"] {
             let targets = foreign_key_targets(&conn, table_name);
@@ -1910,5 +1962,95 @@ mod tests {
         assert_eq!(run_count, 1);
         assert_eq!(event_count, 1);
         assert_eq!(wake_reason, None);
+    }
+
+    #[test]
+    fn test_v17_backfills_issue_links_for_existing_agent_runs() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+            [],
+        )
+        .unwrap();
+        migrate_v1_initial_schema(&conn).unwrap();
+        migrate_v2_outbox(&conn).unwrap();
+        migrate_v3_normalize_tables(&conn).unwrap();
+        migrate_v4_events_table(&conn).unwrap();
+        migrate_v5_session_secrets(&conn).unwrap();
+        migrate_v6_drop_events_table(&conn).unwrap();
+        migrate_v7_drop_role_column(&conn).unwrap();
+        migrate_v8_plaintext_messages(&conn).unwrap();
+        migrate_v9_retired_cloud_outbox(&conn).unwrap();
+        migrate_v10_retired_cloud_sync_state(&conn).unwrap();
+        migrate_v11_session_state_runtime_envelope(&conn).unwrap();
+        migrate_v12_board_schema(&conn).unwrap();
+        migrate_v13_session_agent_metadata(&conn).unwrap();
+        migrate_v14_session_issue_metadata(&conn).unwrap();
+        migrate_v15_reconcile_board_and_session_metadata(&conn).unwrap();
+        migrate_v16_agent_runs_rename(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO companies (
+                id, name, status, issue_prefix, issue_counter,
+                budget_monthly_cents, spent_monthly_cents,
+                require_board_approval_for_new_agents, created_at, updated_at
+            ) VALUES (?1, 'Acme', 'active', 'ACM', 0, 0, 0, 1, ?2, ?2)",
+            rusqlite::params!["company-1", "2026-03-18T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agents (
+                id, company_id, name, slug, role, status,
+                adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+                spent_monthly_cents, permissions, created_at, updated_at
+            ) VALUES (
+                ?1, ?2, 'Agent', 'agent', 'general', 'idle',
+                'process', '{}', '{}', 0, 0, '{}', ?3, ?3
+            )",
+            rusqlite::params!["agent-1", "company-1", "2026-03-18T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO issues (
+                id, company_id, title, status, priority, request_depth, created_at, updated_at
+            ) VALUES (?1, ?2, 'Backfill issue', 'todo', 'medium', 0, ?3, ?3)",
+            rusqlite::params!["issue-1", "company-1", "2026-03-18T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_runs (
+                id, company_id, agent_id, invocation_source, trigger_detail, wake_reason,
+                status, context_snapshot, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, 'automation', 'system', 'issue_commented', 'queued', ?4, ?5, ?5)",
+            rusqlite::params![
+                "run-1",
+                "company-1",
+                "agent-1",
+                r#"{"issue_id":"issue-1","payload":{"issue_id":"issue-1"}}"#,
+                "2026-03-18T00:00:00Z"
+            ],
+        )
+        .unwrap();
+
+        migrate_v17_issue_linked_runs_and_comment_targets(&conn).unwrap();
+
+        let issue_id: Option<String> = conn
+            .query_row(
+                "SELECT issue_id FROM agent_runs WHERE id = 'run-1'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+            .flatten();
+
+        let comment_columns = column_names(&conn, "issue_comments").unwrap();
+
+        assert_eq!(issue_id.as_deref(), Some("issue-1"));
+        assert!(comment_columns.contains("target_agent_id"));
     }
 }

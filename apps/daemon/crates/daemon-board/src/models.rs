@@ -131,6 +131,7 @@ pub struct IssueComment {
     pub issue_id: String,
     pub author_agent_id: Option<String>,
     pub author_user_id: Option<String>,
+    pub target_agent_id: Option<String>,
     pub body: String,
     pub created_at: String,
     pub updated_at: String,
@@ -181,6 +182,7 @@ pub struct AgentRun {
     pub id: String,
     pub company_id: String,
     pub agent_id: String,
+    pub issue_id: Option<String>,
     pub invocation_source: String,
     pub trigger_detail: Option<String>,
     pub wake_reason: Option<String>,
@@ -352,6 +354,7 @@ pub struct AddIssueCommentInput {
     pub issue_id: String,
     pub author_agent_id: Option<String>,
     pub author_user_id: Option<String>,
+    pub target_agent_id: Option<String>,
     pub body: String,
 }
 

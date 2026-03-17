@@ -31,6 +31,7 @@ import {
   boardListAgentRuns,
   boardListCompanies,
   boardListIssueComments,
+  boardListIssueRuns,
   boardReadAgentRunLog,
   boardResumeAgentRun,
   boardRetryAgentRun,
@@ -129,7 +130,7 @@ type IssueDetailTab = "conversation" | "runs" | "subissues";
 type AgentsRouteMode = "dashboard" | "configuration" | "runs";
 
 interface IssueLinkedRun {
-  label: string;
+  label: string | null;
   run: AgentRunRecord;
 }
 
@@ -652,6 +653,8 @@ export function App() {
   const [issueDialogError, setIssueDialogError] = useState<string | null>(null);
   const [isIssueDialogSaving, setIsIssueDialogSaving] = useState(false);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
+  const [newIssueCommentTargetAgentId, setNewIssueCommentTargetAgentId] =
+    useState("");
   const [isEditingIssue, setIsEditingIssue] = useState(false);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(
     createEmptyIssueDraft()
@@ -1350,6 +1353,7 @@ export function App() {
   useEffect(() => {
     if (!selectedIssue || issuesRouteMode !== "detail") {
       setNewIssueCommentBody("");
+      setNewIssueCommentTargetAgentId("");
       setIsEditingIssue(false);
       setIssueEditorError(null);
       return;
@@ -1386,6 +1390,7 @@ export function App() {
           ...current,
           [selectedIssue.id]: comments as IssueCommentRecord[],
         }));
+        setNewIssueCommentTargetAgentId(detailIssue.assignee_agent_id ?? "");
         setIsEditingIssue(false);
         setIssueEditorError(null);
         setNewIssueCommentBody("");
@@ -2778,6 +2783,7 @@ export function App() {
       await boardAddIssueComment({
         company_id: issue.company_id,
         issue_id: issue.id,
+        target_agent_id: newIssueCommentTargetAgentId || undefined,
         body,
       });
       const [comments, snapshot] = await Promise.all([
@@ -3581,6 +3587,7 @@ export function App() {
                   isEditingIssue={isEditingIssue}
                   linkedApprovals={linkedIssueApprovals}
                   newCommentBody={newIssueCommentBody}
+                  newCommentTargetAgentId={newIssueCommentTargetAgentId}
                   onAddComment={() => void handleAddIssueComment(selectedIssue)}
                   onBack={() => handleShowIssuesList()}
                   onBeginEditing={() => beginEditingIssue(selectedIssue)}
@@ -3601,6 +3608,7 @@ export function App() {
                   }}
                   onOpenRunDetail={handleOpenIssueLinkedRun}
                   onNewCommentBodyChange={setNewIssueCommentBody}
+                  onCommentTargetAgentChange={setNewIssueCommentTargetAgentId}
                   onParentIssueSelect={(parentIssueId) =>
                     setIssueDraft((current) => ({
                       ...current,
@@ -5465,7 +5473,9 @@ function AgentRunsTabPanel({
                         onClick={onCancelSelectedRun}
                         type="button"
                       >
-                        Cancel
+                        {selectedRun.status === "running"
+                          ? "Stop Run"
+                          : "Cancel Run"}
                       </button>
                     )}
                     {(selectedRun.status === "failed" ||
@@ -6364,6 +6374,7 @@ function IssueDetailView({
   comments,
   issueEditorError,
   newCommentBody,
+  newCommentTargetAgentId,
   onBack,
   onCommitIssuePatch,
   onHideIssue,
@@ -6372,6 +6383,7 @@ function IssueDetailView({
   onLinkedApprovalSelect,
   onOpenRunDetail,
   onNewCommentBodyChange,
+  onCommentTargetAgentChange,
   onAddComment,
   projectLabel,
   assigneeLabel,
@@ -6397,6 +6409,7 @@ function IssueDetailView({
   comments: IssueCommentRecord[];
   issueEditorError: string | null;
   newCommentBody: string;
+  newCommentTargetAgentId: string;
   onBack: () => void;
   onBeginEditing: () => void;
   onCancelEditing: () => void;
@@ -6410,6 +6423,7 @@ function IssueDetailView({
   onLinkedApprovalSelect: (approvalId: string) => void;
   onOpenRunDetail: (run: AgentRunRecord) => void;
   onNewCommentBodyChange: (value: string) => void;
+  onCommentTargetAgentChange: (value: string) => void;
   onAddComment: () => void;
   projectLabel: (projectId?: string | null) => string;
   assigneeLabel: (assigneeAgentId?: string | null) => string;
@@ -6479,71 +6493,23 @@ function IssueDetailView({
     setIsPropertiesOpen(false);
     setIsIssueActionsOpen(false);
 
-    const runLabelsById = new Map<string, string[]>();
-    const pushRunLabel = (runId: string | null | undefined, label: string) => {
-      if (!runId) {
-        return;
-      }
-
-      const labels = runLabelsById.get(runId);
-      if (labels) {
-        labels.push(label);
-        return;
-      }
-
-      runLabelsById.set(runId, [label]);
-    };
-
-    pushRunLabel(issue.checkout_run_id, "Checkout Run");
-    pushRunLabel(issue.execution_run_id, "Execution Run");
-
-    const runRequests = Array.from(runLabelsById.entries()).map(
-      ([runId, labels]) => ({
-        runId,
-        label: labels.join(" / "),
-      })
-    );
-
-    if (!runRequests.length) {
-      setLinkedRuns([]);
-      setLinkedRunsError(null);
-      setIsLoadingLinkedRuns(false);
-      return;
-    }
-
     let cancelled = false;
     setIsLoadingLinkedRuns(true);
 
-    void Promise.allSettled(
-      runRequests.map(async ({ runId, label }) => ({
-        label,
-        run: await boardGetAgentRun(runId),
-      }))
-    )
-      .then((results) => {
+    void boardListIssueRuns(issue.id, 100)
+      .then((runs) => {
         if (cancelled) {
           return;
         }
 
-        const nextLinkedRuns: IssueLinkedRun[] = [];
-        const failedLabels: string[] = [];
-
-        results.forEach((result, index) => {
-          if (result.status === "fulfilled") {
-            nextLinkedRuns.push(result.value);
-            return;
-          }
-
-          failedLabels.push(runRequests[index]?.label ?? "Run");
-        });
+        const nextLinkedRuns = (runs as AgentRunRecord[]).map((run) => ({
+          label: issueLinkedRunLabel(issue, run),
+          run,
+        }));
 
         startTransition(() => {
           setLinkedRuns(nextLinkedRuns);
-          setLinkedRunsError(
-            failedLabels.length
-              ? `Could not load ${failedLabels.join(" or ")}.`
-              : null
-          );
+          setLinkedRunsError(null);
         });
       })
       .catch((error) => {
@@ -6861,6 +6827,15 @@ function IssueDetailView({
                           className="issues-comment-card"
                           key={comment.id}
                         >
+                          {comment.target_agent_id ? (
+                            <div className="issues-comment-card-target">
+                              Tagged{" "}
+                              {issueAssigneeLabel(
+                                agents,
+                                comment.target_agent_id
+                              )}
+                            </div>
+                          ) : null}
                           <p>{comment.body}</p>
                           <span>{formatIssueDate(comment.created_at)}</span>
                         </article>
@@ -6871,6 +6846,32 @@ function IssueDetailView({
                   )}
 
                   <div className="issues-comment-composer">
+                    <div className="issues-comment-composer-target">
+                      <span className="issues-comment-composer-label">
+                        Tag agent
+                      </span>
+                      <div className="issue-dialog-select-shell">
+                        <select
+                          className="issue-dialog-select"
+                          onChange={(event) =>
+                            onCommentTargetAgentChange(event.target.value)
+                          }
+                          value={newCommentTargetAgentId}
+                        >
+                          <option value="">No tagged agent</option>
+                          {agents.map((agent) => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="issue-dialog-select-arrow">▼</span>
+                      </div>
+                      <p className="issues-detail-copy muted">
+                        The tagged agent will pick up a new run in this
+                        issue&apos;s worktree.
+                      </p>
+                    </div>
                     <textarea
                       onChange={(event) =>
                         onNewCommentBodyChange(event.target.value)
@@ -6884,7 +6885,9 @@ function IssueDetailView({
                       onClick={onAddComment}
                       type="button"
                     >
-                      Add Comment
+                      {newCommentTargetAgentId
+                        ? "Add Comment & Run"
+                        : "Add Comment"}
                     </button>
                   </div>
                 </>
@@ -6904,9 +6907,9 @@ function IssueDetailView({
                     <div className="issues-linked-run-list">
                       {linkedRuns.map(({ label, run }) => (
                         <button
-                          aria-label={`Open ${label} ${shortAgentRunTitle(run.id)} details`}
+                          aria-label={`Open ${label ?? "linked"} ${shortAgentRunTitle(run.id)} details`}
                           className="issues-linked-run-card"
-                          key={`${label}-${run.id}`}
+                          key={`${label ?? "linked"}-${run.id}`}
                           onClick={() => onOpenRunDetail(run)}
                           type="button"
                         >
@@ -6927,6 +6930,14 @@ function IssueDetailView({
                             <span className="issues-linked-run-created-at">
                               {formatIssueDate(run.created_at)}
                             </span>
+                          </div>
+                          <div className="issues-linked-run-summary">
+                            <span>{agentRunSummary(run)}</span>
+                            {label ? (
+                              <span className="issues-linked-run-role-pill">
+                                {label}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="issues-linked-run-meta">
                             <span className="issues-linked-run-id-pill">
@@ -10610,6 +10621,20 @@ function agentRunSummary(run: AgentRunRecord) {
   }
 
   return "Waiting for run output.";
+}
+
+function issueLinkedRunLabel(issue: IssueRecord, run: AgentRunRecord) {
+  const labels: string[] = [];
+
+  if (run.id === issue.execution_run_id) {
+    labels.push("Current execution");
+  }
+
+  if (run.id === issue.checkout_run_id) {
+    labels.push("Checkout");
+  }
+
+  return labels.length ? labels.join(" / ") : null;
 }
 
 function agentRunStatusLabel(status: string) {

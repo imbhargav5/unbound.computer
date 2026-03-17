@@ -56,6 +56,7 @@ fn main() {
             commands::board_get_issue,
             commands::board_update_issue,
             commands::board_list_issue_comments,
+            commands::board_list_issue_runs,
             commands::board_add_issue_comment,
             commands::board_checkout_issue,
             commands::board_approve_approval,
