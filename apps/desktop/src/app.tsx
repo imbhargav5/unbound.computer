@@ -1089,6 +1089,8 @@ export function App() {
       startX: event.clientX,
       startY: event.clientY,
     };
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
     setIsDashboardCanvasDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
