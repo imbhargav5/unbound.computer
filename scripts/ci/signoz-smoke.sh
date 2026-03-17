@@ -8,6 +8,32 @@ DAEMON_LOG_PATH="${DAEMON_LOG_PATH:-$HOME/.unbound-dev/logs/dev.jsonl}"
 EXPECTED_SERVICES="${EXPECTED_SERVICES:-daemon}"
 REQUIRE_TRACES="${REQUIRE_TRACES:-0}"
 
+build_service_sql_list() {
+  local services_csv="$1"
+  local sql_list=""
+  local service
+
+  IFS=',' read -r -a services <<< "$services_csv"
+  for service in "${services[@]}"; do
+    service="$(printf '%s' "$service" | xargs)"
+    if [ -z "$service" ]; then
+      continue
+    fi
+    if [ -n "$sql_list" ]; then
+      sql_list+=","
+    fi
+    sql_list+="'${service}'"
+  done
+
+  if [ -z "$sql_list" ]; then
+    sql_list="'daemon'"
+  fi
+
+  printf '%s' "$sql_list"
+}
+
+EXPECTED_SERVICES_SQL="$(build_service_sql_list "$EXPECTED_SERVICES")"
+
 run_clickhouse() {
   docker exec "$CLICKHOUSE_CONTAINER" clickhouse-client --query "$1"
 }
@@ -25,7 +51,7 @@ SELECT
   max(toDateTime(timestamp/1000000000)) AS last_seen
 FROM signoz_logs.logs_v2
 WHERE timestamp > (toUInt64(toUnixTimestamp(now()) - ${WINDOW_SECONDS}) * 1000000000)
-  AND resources_string['service.name'] IN ('daemon', 'macos')
+  AND resources_string['service.name'] IN (${EXPECTED_SERVICES_SQL})
 GROUP BY service
 ORDER BY service
 FORMAT TSVRaw
@@ -38,7 +64,7 @@ SELECT
   max(timestamp) AS last_seen
 FROM signoz_traces.signoz_index_v3
 WHERE timestamp > (now64(9) - toIntervalSecond(${WINDOW_SECONDS}))
-  AND serviceName IN ('daemon', 'macos')
+  AND serviceName IN (${EXPECTED_SERVICES_SQL})
 GROUP BY service
 ORDER BY service
 FORMAT TSVRaw

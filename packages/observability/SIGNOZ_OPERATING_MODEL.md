@@ -56,7 +56,27 @@ and telemetry quality checks.
 - Nested technical steps become child spans under that root.
 - Detached background work keeps independent daemon-owned roots.
 
-### macOS user-intent roots
+### desktop Tauri command roots
+
+The Tauri desktop shell currently emits native command-root spans named
+`desktop.command`. Query the concrete action via the `operation` attribute.
+
+Examples:
+
+- `desktop.bootstrap`
+- `company.snapshot`
+- `company.list`
+- `project.create`
+- `issue.get`
+- `repository.add`
+- `repository.read_file`
+- `git.status`
+- `terminal.run`
+- `session.subscribe`
+- `settings.get`
+- `settings.update`
+
+### legacy macOS SwiftUI user-intent roots
 
 - `session.open`
 - `session.create`
@@ -139,7 +159,8 @@ Current high-priority async pipelines:
 
 ### Trace views
 
-- End-to-end app/daemon: `service.name IN ("macos", "daemon")`
+- End-to-end app/daemon: `service.name IN ("desktop", "macos", "daemon")`
+- Desktop command flow: `service.name = "desktop"` with columns `name`, `operation`, `duration_nano`, `request.id`, `session.id`, `result`
 - Session open waterfall: `name = "session.open"` with columns `service.name`, `name`, `duration_nano`, `session.id`, `attempt_id`
 - First-feedback send path: `name = "message.send"` with columns `service.name`, `name`, `duration_nano`, `session.id`, `attempt_id`
 - Repository add compound flow: `name = "repository.add"` with columns `service.name`, `name`, `duration_nano`, `workspace.id`, `attempt_id`
@@ -150,7 +171,8 @@ Current high-priority async pipelines:
 ### Log views
 
 - Daemon live logs: `service.name = "daemon"`
-- Cross-runtime session view: `session.id EXISTS AND service.name IN ("macos","daemon")`
+- Desktop live logs: `service.name = "desktop"`
+- Cross-runtime session view: `session.id EXISTS AND service.name IN ("desktop","macos","daemon")`
 - Session open logs: `operation = "session.open"` with `trace_id`, `attempt_id`, `session_id`
 - Message send logs: `operation = "message.send"` with `trace_id`, `attempt_id`, `session_id`
 - Sidecar failures: `event_code LIKE "daemon.sidecar.%"`
@@ -204,7 +226,7 @@ Expected end condition:
 - sidecar restart/backoff count
 - runtime-status retry count
 - auth failure rate
-- daemon log volume vs macOS log volume
+- daemon log volume vs desktop-app log volume
 
 ## 6. Alerts
 
@@ -241,8 +263,8 @@ Expected end condition:
 
 Every tracing/exporter change should pass:
 
-- both `daemon` and `macos` present in logs backend
-- both `daemon` and `macos` present in traces backend
+- `daemon` plus the active desktop client (`desktop` for Tauri, `macos` for legacy SwiftUI) present in logs backend
+- `daemon` plus the active desktop client (`desktop` for Tauri, `macos` for legacy SwiftUI) present in traces backend
 - no `BatchLogProcessor.Emit.AfterShutdown`
 - one end-to-end request has a coherent trace
 - required root-span attributes are present

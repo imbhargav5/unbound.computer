@@ -1,4 +1,4 @@
-use daemon_ipc::{DaemonVersionInfo, IpcClient, IPC_PROTOCOL_VERSION, Method};
+use daemon_ipc::{DaemonVersionInfo, IpcClient, Method, IPC_PROTOCOL_VERSION};
 use semver::Version;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
+use tracing::{info, warn};
 
 const DEV_BASE_DIR_NAME: &str = ".unbound-dev";
 const PROD_BASE_DIR_NAME: &str = ".unbound";
@@ -69,6 +70,14 @@ pub async fn bootstrap(app_version: &str) -> DesktopBootstrapStatus {
     let base_dir = runtime_paths.base_dir.display().to_string();
     let (resolved_daemon_path, searched_paths) = find_installed_daemon();
 
+    info!(
+        app_version,
+        base_dir,
+        socket_path,
+        daemon_found = resolved_daemon_path.is_some(),
+        "starting desktop compatibility bootstrap"
+    );
+
     if ensure_daemon_available(&runtime_paths, resolved_daemon_path.as_deref())
         .await
         .is_err()
@@ -76,8 +85,9 @@ pub async fn bootstrap(app_version: &str) -> DesktopBootstrapStatus {
         return match resolved_daemon_path {
             Some(path) => DesktopBootstrapStatus {
                 state: BootstrapState::DaemonUnavailable,
-                message: "The daemon is installed but unavailable. Check the daemon logs or restart it."
-                    .to_string(),
+                message:
+                    "The daemon is installed but unavailable. Check the daemon logs or restart it."
+                        .to_string(),
                 expected_app_version: app_version.to_string(),
                 base_dir,
                 socket_path,
@@ -106,7 +116,9 @@ pub async fn bootstrap(app_version: &str) -> DesktopBootstrapStatus {
         Err(error) => {
             return DesktopBootstrapStatus {
                 state: BootstrapState::DaemonUnavailable,
-                message: format!("The daemon responded to health checks but version lookup failed: {error}"),
+                message: format!(
+                    "The daemon responded to health checks but version lookup failed: {error}"
+                ),
                 expected_app_version: app_version.to_string(),
                 base_dir,
                 socket_path,
@@ -176,6 +188,12 @@ async fn ensure_daemon_available(
 }
 
 async fn start_daemon(daemon_path: &Path, base_dir: &Path) -> Result<(), String> {
+    info!(
+        daemon_path = %daemon_path.display(),
+        base_dir = %base_dir.display(),
+        "starting daemon from desktop bootstrap"
+    );
+
     let mut command = Command::new(daemon_path);
     command
         .arg("start")
@@ -195,6 +213,10 @@ async fn wait_for_daemon(runtime_paths: &RuntimePaths) -> Result<(), String> {
         if runtime_paths.socket_path.exists() {
             let client = ipc_client(runtime_paths);
             if client.call_method(Method::Health).await.is_ok() {
+                info!(
+                    socket_path = %runtime_paths.socket_path.display(),
+                    "daemon passed desktop health checks"
+                );
                 return Ok(());
             }
         }
@@ -202,6 +224,11 @@ async fn wait_for_daemon(runtime_paths: &RuntimePaths) -> Result<(), String> {
         sleep(Duration::from_millis(STARTUP_WAIT_INTERVAL_MS)).await;
     }
 
+    warn!(
+        socket_path = %runtime_paths.socket_path.display(),
+        attempts = STARTUP_WAIT_ATTEMPTS,
+        "timed out waiting for daemon startup"
+    );
     Err("timed out waiting for daemon startup".to_string())
 }
 
@@ -219,7 +246,8 @@ async fn fetch_version_info(client: &IpcClient) -> Result<DaemonVersionInfo, Str
         .result
         .ok_or_else(|| "system.version returned no result".to_string())?;
 
-    serde_json::from_value(result).map_err(|error| format!("invalid system.version payload: {error}"))
+    serde_json::from_value(result)
+        .map_err(|error| format!("invalid system.version payload: {error}"))
 }
 
 fn validate_compatibility(

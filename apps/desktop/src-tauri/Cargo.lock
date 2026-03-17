@@ -5153,6 +5153,7 @@ version = "0.0.19"
 dependencies = [
  "daemon-ipc",
  "dirs",
+ "observability",
  "rfd",
  "semver",
  "serde",
@@ -5160,7 +5161,9 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tokio",
+ "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]

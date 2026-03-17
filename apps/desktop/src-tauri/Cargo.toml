@@ -10,10 +10,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 daemon-ipc = { path = "../../daemon/crates/daemon-ipc" }
 dirs = "6.0"
+observability = { path = "../../../packages/observability" }
 rfd = "0.15"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2", features = [] }
 tokio = { version = "1.43", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
 url = "2.5"
+uuid = { version = "1.11", features = ["v4"] }

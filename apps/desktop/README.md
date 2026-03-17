@@ -27,6 +27,37 @@ From `apps/desktop`:
 pnpm tauri:dev
 ```
 
+## Observability
+
+The Tauri shell exports logs and traces through the shared Rust OTLP wiring used
+by the daemon.
+
+- `service.name` is `desktop`
+- local dev logs are written to `~/.unbound-dev/logs/desktop.jsonl` in debug builds
+- production logs are written under the resolved `UNBOUND_BASE_DIR` runtime dir
+
+The desktop shell uses the same OTLP env contract as the daemon:
+
+- `UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT`
+- `UNBOUND_OTEL_HEADERS`
+- `UNBOUND_OTEL_SAMPLER`
+- `UNBOUND_OTEL_TRACES_SAMPLER_ARG`
+- `UNBOUND_ENV`
+- `UNBOUND_LOG_FORMAT`
+- `UNBOUND_RUST_LOG`
+
+Example local run against SigNoz:
+
+```bash
+UNBOUND_OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 pnpm desktop:dev
+```
+
+Example smoke query after generating desktop activity:
+
+```bash
+EXPECTED_SERVICES=daemon,desktop REQUIRE_TRACES=1 ./scripts/ci/signoz-smoke.sh 1800
+```
+
 ## Build
 
 ```bash

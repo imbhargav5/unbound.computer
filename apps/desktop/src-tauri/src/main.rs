@@ -1,11 +1,24 @@
 mod commands;
 mod compatibility;
+mod observability;
 
 use commands::DesktopState;
 
 fn main() {
-    tauri::Builder::default()
+    observability::init();
+
+    let run_result = tauri::Builder::default()
         .manage(DesktopState::default())
+        .setup(|_app| {
+            tracing::info!(
+                operation = "desktop.startup",
+                feature = "desktop",
+                result = "ok",
+                app_version = env!("CARGO_PKG_VERSION"),
+                "desktop tauri app ready"
+            );
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::desktop_bootstrap,
             commands::system_version,
@@ -69,6 +82,8 @@ fn main() {
             commands::desktop_reveal_in_finder,
             commands::desktop_open_external
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    observability::shutdown();
+    run_result.expect("error while running tauri application");
 }

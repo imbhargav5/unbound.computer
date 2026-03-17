@@ -1,4 +1,5 @@
 use crate::compatibility::{self, DesktopBootstrapStatus};
+use crate::observability::{command_span, in_command_span, spawn_in_current_span};
 use daemon_ipc::{DaemonVersionInfo, IpcClient, Method};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -9,6 +10,7 @@ use std::process::Command;
 use std::sync::Mutex;
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Emitter, State};
+use tracing::Instrument;
 use url::Url;
 
 #[derive(Default)]
@@ -68,24 +70,46 @@ fn settings_path() -> PathBuf {
         .join("desktop-settings.json")
 }
 
+fn method_operation_name(method: &Method) -> String {
+    serde_json::to_value(method)
+        .ok()
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+        .unwrap_or_else(|| format!("{method:?}").to_ascii_lowercase())
+}
+
+fn session_id_from_params(params: Option<&Value>) -> Option<String> {
+    params.and_then(|value| {
+        value
+            .get("session_id")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+    })
+}
+
 async fn call_daemon(method: Method, params: Option<Value>) -> Result<Value, String> {
-    let client = ipc_client();
-    let response = match params {
-        Some(params) => client
-            .call_method_with_params(method, params)
-            .await
-            .map_err(|error| error.to_string())?,
-        None => client
-            .call_method(method)
-            .await
-            .map_err(|error| error.to_string())?,
-    };
+    let operation = method_operation_name(&method);
+    let session_id = session_id_from_params(params.as_ref());
 
-    if let Some(error) = response.error {
-        return Err(error.message);
-    }
+    in_command_span(operation.as_str(), session_id.as_deref(), async move {
+        let client = ipc_client();
+        let response = match params {
+            Some(params) => client
+                .call_method_with_params(method, params)
+                .await
+                .map_err(|error| error.to_string())?,
+            None => client
+                .call_method(method)
+                .await
+                .map_err(|error| error.to_string())?,
+        };
 
-    Ok(response.result.unwrap_or_else(|| json!({})))
+        if let Some(error) = response.error {
+            return Err(error.message);
+        }
+
+        Ok(response.result.unwrap_or_else(|| json!({})))
+    })
+    .await
 }
 
 fn extract_field(value: Value, field: &str) -> Value {
@@ -124,7 +148,10 @@ fn write_settings(settings: &DesktopSettings) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn desktop_bootstrap() -> Result<DesktopBootstrapStatus, String> {
-    Ok(compatibility::bootstrap(env!("CARGO_PKG_VERSION")).await)
+    in_command_span("desktop.bootstrap", None, async {
+        Ok(compatibility::bootstrap(env!("CARGO_PKG_VERSION")).await)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -164,34 +191,37 @@ pub async fn board_update_agent(params: Value) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn board_company_snapshot(company_id: String) -> Result<Value, String> {
-    let company_params = json!({ "company_id": company_id });
-    let company_request = call_daemon(Method::CompanyGet, Some(company_params.clone()));
-    let agents_request = call_daemon(Method::AgentList, Some(company_params.clone()));
-    let goals_request = call_daemon(Method::GoalList, Some(company_params.clone()));
-    let projects_request = call_daemon(Method::ProjectList, Some(company_params.clone()));
-    let issues_request = call_daemon(Method::IssueList, Some(company_params.clone()));
-    let approvals_request = call_daemon(Method::ApprovalList, Some(company_params.clone()));
-    let workspaces_request = call_daemon(Method::WorkspaceList, Some(company_params));
+    in_command_span("company.snapshot", None, async move {
+        let company_params = json!({ "company_id": company_id });
+        let company_request = call_daemon(Method::CompanyGet, Some(company_params.clone()));
+        let agents_request = call_daemon(Method::AgentList, Some(company_params.clone()));
+        let goals_request = call_daemon(Method::GoalList, Some(company_params.clone()));
+        let projects_request = call_daemon(Method::ProjectList, Some(company_params.clone()));
+        let issues_request = call_daemon(Method::IssueList, Some(company_params.clone()));
+        let approvals_request = call_daemon(Method::ApprovalList, Some(company_params.clone()));
+        let workspaces_request = call_daemon(Method::WorkspaceList, Some(company_params));
 
-    let (company, agents, goals, projects, issues, approvals, workspaces) = tokio::try_join!(
-        company_request,
-        agents_request,
-        goals_request,
-        projects_request,
-        issues_request,
-        approvals_request,
-        workspaces_request
-    )?;
+        let (company, agents, goals, projects, issues, approvals, workspaces) = tokio::try_join!(
+            company_request,
+            agents_request,
+            goals_request,
+            projects_request,
+            issues_request,
+            approvals_request,
+            workspaces_request
+        )?;
 
-    Ok(json!({
-        "company": extract_field(company, "company"),
-        "agents": extract_field(agents, "agents"),
-        "goals": extract_field(goals, "goals"),
-        "projects": extract_field(projects, "projects"),
-        "issues": extract_field(issues, "issues"),
-        "approvals": extract_field(approvals, "approvals"),
-        "workspaces": extract_field(workspaces, "workspaces"),
-    }))
+        Ok(json!({
+            "company": extract_field(company, "company"),
+            "agents": extract_field(agents, "agents"),
+            "goals": extract_field(goals, "goals"),
+            "projects": extract_field(projects, "projects"),
+            "issues": extract_field(issues, "issues"),
+            "approvals": extract_field(approvals, "approvals"),
+            "workspaces": extract_field(workspaces, "workspaces"),
+        }))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -202,7 +232,11 @@ pub async fn board_create_project(params: Value) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn board_delete_project(project_id: String) -> Result<Value, String> {
-    let value = call_daemon(Method::ProjectDelete, Some(json!({ "project_id": project_id }))).await?;
+    let value = call_daemon(
+        Method::ProjectDelete,
+        Some(json!({ "project_id": project_id })),
+    )
+    .await?;
     Ok(extract_field(value, "project"))
 }
 
@@ -690,49 +724,79 @@ pub async fn session_subscribe(
     state: State<'_, DesktopState>,
     session_id: String,
 ) -> Result<(), String> {
-    {
-        let subscriptions = state
-            .subscriptions
-            .lock()
-            .map_err(|_| "subscription state lock poisoned".to_string())?;
-        if subscriptions.contains_key(&session_id) {
-            return Ok(());
-        }
-    }
-
-    let session_id_for_task = session_id.clone();
-    let runtime_paths = compatibility::resolve_runtime_paths();
-    let socket_path = runtime_paths.socket_path.display().to_string();
-    let handle = tauri::async_runtime::spawn(async move {
-        let client = IpcClient::new(&socket_path);
-        match client.subscribe(&session_id_for_task).await {
-            Ok(mut subscription) => {
-                while let Some(event) = subscription.recv().await {
-                    let payload = SessionStreamPayload {
-                        session_id: session_id_for_task.clone(),
-                        event: serde_json::to_value(&event).unwrap_or_else(|_| json!({})),
-                    };
-                    let _ = app.emit("daemon-session-event", payload);
+    let session_id_for_span = session_id.clone();
+    in_command_span(
+        "session.subscribe",
+        Some(session_id_for_span.as_str()),
+        async move {
+            {
+                let subscriptions = state
+                    .subscriptions
+                    .lock()
+                    .map_err(|_| "subscription state lock poisoned".to_string())?;
+                if subscriptions.contains_key(&session_id) {
+                    return Ok(());
                 }
             }
-            Err(error) => {
-                let _ = app.emit(
-                    "daemon-session-stream-error",
-                    json!({
-                        "session_id": session_id_for_task,
-                        "message": error.to_string(),
-                    }),
-                );
-            }
-        }
-    });
 
-    let mut subscriptions = state
-        .subscriptions
-        .lock()
-        .map_err(|_| "subscription state lock poisoned".to_string())?;
-    subscriptions.insert(session_id, handle);
-    Ok(())
+            let session_id_for_task = session_id.clone();
+            let runtime_paths = compatibility::resolve_runtime_paths();
+            let socket_path = runtime_paths.socket_path.display().to_string();
+            let stream_span = command_span(
+                "session.subscribe.stream",
+                Some(session_id_for_task.as_str()),
+            );
+            let handle = spawn_in_current_span(async move {
+                async move {
+                    let client = IpcClient::new(&socket_path);
+                    match client.subscribe(&session_id_for_task).await {
+                        Ok(mut subscription) => {
+                            tracing::info!(
+                                session_id = %session_id_for_task,
+                                "desktop session subscription established"
+                            );
+                            while let Some(event) = subscription.recv().await {
+                                let payload = SessionStreamPayload {
+                                    session_id: session_id_for_task.clone(),
+                                    event: serde_json::to_value(&event)
+                                        .unwrap_or_else(|_| json!({})),
+                                };
+                                let _ = app.emit("daemon-session-event", payload);
+                            }
+                            tracing::info!(
+                                session_id = %session_id_for_task,
+                                "desktop session subscription closed"
+                            );
+                        }
+                        Err(error) => {
+                            tracing::error!(
+                                error = %error,
+                                session_id = %session_id_for_task,
+                                "desktop session subscription failed"
+                            );
+                            let _ = app.emit(
+                                "daemon-session-stream-error",
+                                json!({
+                                    "session_id": session_id_for_task,
+                                    "message": error.to_string(),
+                                }),
+                            );
+                        }
+                    }
+                }
+                .instrument(stream_span)
+                .await
+            });
+
+            let mut subscriptions = state
+                .subscriptions
+                .lock()
+                .map_err(|_| "subscription state lock poisoned".to_string())?;
+            subscriptions.insert(session_id, handle);
+            Ok(())
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -740,70 +804,93 @@ pub async fn session_unsubscribe(
     state: State<'_, DesktopState>,
     session_id: String,
 ) -> Result<(), String> {
-    let mut subscriptions = state
-        .subscriptions
-        .lock()
-        .map_err(|_| "subscription state lock poisoned".to_string())?;
-    if let Some(handle) = subscriptions.remove(&session_id) {
-        handle.abort();
-    }
-    Ok(())
+    let session_id_for_span = session_id.clone();
+    in_command_span(
+        "session.unsubscribe",
+        Some(session_id_for_span.as_str()),
+        async move {
+            let mut subscriptions = state
+                .subscriptions
+                .lock()
+                .map_err(|_| "subscription state lock poisoned".to_string())?;
+            if let Some(handle) = subscriptions.remove(&session_id) {
+                handle.abort();
+            }
+            Ok(())
+        },
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn settings_get() -> Result<DesktopSettings, String> {
-    read_settings()
+    in_command_span("settings.get", None, async { read_settings() }).await
 }
 
 #[tauri::command]
 pub async fn settings_update(settings: DesktopSettings) -> Result<DesktopSettings, String> {
-    write_settings(&settings)?;
-    Ok(settings)
+    in_command_span("settings.update", None, async move {
+        write_settings(&settings)?;
+        Ok(settings)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn desktop_pick_repository_directory() -> Result<Option<String>, String> {
-    Ok(rfd::AsyncFileDialog::new()
-        .pick_folder()
-        .await
-        .map(|handle| handle.path().display().to_string()))
+    in_command_span("desktop.pick_repository_directory", None, async {
+        Ok(rfd::AsyncFileDialog::new()
+            .pick_folder()
+            .await
+            .map(|handle| handle.path().display().to_string()))
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn desktop_pick_file() -> Result<Option<String>, String> {
-    Ok(rfd::AsyncFileDialog::new()
-        .pick_file()
-        .await
-        .map(|handle| handle.path().display().to_string()))
+    in_command_span("desktop.pick_file", None, async {
+        Ok(rfd::AsyncFileDialog::new()
+            .pick_file()
+            .await
+            .map(|handle| handle.path().display().to_string()))
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn desktop_reveal_in_finder(path: String) -> Result<(), String> {
-    Command::new("/usr/bin/open")
-        .args(["-R", &path])
-        .status()
-        .map_err(|error| error.to_string())
-        .and_then(|status| {
-            if status.success() {
-                Ok(())
-            } else {
-                Err(format!("open -R exited with status {status}"))
-            }
-        })
+    in_command_span("desktop.reveal_in_finder", None, async move {
+        Command::new("/usr/bin/open")
+            .args(["-R", &path])
+            .status()
+            .map_err(|error| error.to_string())
+            .and_then(|status| {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(format!("open -R exited with status {status}"))
+                }
+            })
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn desktop_open_external(url: String) -> Result<(), String> {
-    let parsed = Url::parse(&url).map_err(|error| error.to_string())?;
-    Command::new("/usr/bin/open")
-        .arg(parsed.as_str())
-        .status()
-        .map_err(|error| error.to_string())
-        .and_then(|status| {
-            if status.success() {
-                Ok(())
-            } else {
-                Err(format!("open exited with status {status}"))
-            }
-        })
+    in_command_span("desktop.open_external", None, async move {
+        let parsed = Url::parse(&url).map_err(|error| error.to_string())?;
+        Command::new("/usr/bin/open")
+            .arg(parsed.as_str())
+            .status()
+            .map_err(|error| error.to_string())
+            .and_then(|status| {
+                if status.success() {
+                    Ok(())
+                } else {
+                    Err(format!("open exited with status {status}"))
+                }
+            })
+    })
+    .await
 }
