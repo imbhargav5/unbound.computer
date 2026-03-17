@@ -292,6 +292,26 @@ mod tests {
 
         assert!(deserialized.current.is_none());
     }
+
+    #[test]
+    fn worktree_serde_roundtrip() {
+        let worktree = GitWorktree {
+            name: "issue-123".to_string(),
+            path: "/tmp/repo/worktrees/issue-123".to_string(),
+            branch: Some("unbound/issue-123".to_string()),
+            head_oid: Some("f".repeat(40)),
+        };
+
+        let json = serde_json::to_string(&worktree).expect("serialize");
+        let deserialized: GitWorktree = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.name, "issue-123");
+        assert_eq!(deserialized.branch.as_deref(), Some("unbound/issue-123"));
+        assert_eq!(
+            deserialized.head_oid.as_deref(),
+            Some("ffffffffffffffffffffffffffffffffffffffff")
+        );
+    }
 }
 
 /// A file entry in git status.
@@ -455,6 +475,19 @@ pub struct GitBranchesResult {
     ///
     /// `None` if in a detached HEAD state.
     pub current: Option<String>,
+}
+
+/// A linked git worktree discovered for a repository.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitWorktree {
+    /// Git's logical name for the worktree.
+    pub name: String,
+    /// Absolute path to the worktree checkout.
+    pub path: String,
+    /// Current branch for the worktree, if HEAD is attached.
+    pub branch: Option<String>,
+    /// HEAD commit OID for the worktree, if available.
+    pub head_oid: Option<String>,
 }
 
 /// Result of a git commit operation.

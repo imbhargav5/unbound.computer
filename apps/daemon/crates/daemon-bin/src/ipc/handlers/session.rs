@@ -1,18 +1,21 @@
 //! Session handlers.
 
 use crate::app::DaemonState;
+use crate::armin_adapter::DaemonArmin;
 use crate::observability::spawn_in_current_span;
 use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, SetupHookStageConfig,
 };
+use crate::utils::SessionSecretCache;
 use agent_session_sqlite_persist_core::{
     NewSession, RepositoryId, SessionId, SessionReader, SessionUpdate, SessionWriter,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use daemon_storage::SecretsManager;
-use git_ops::{create_worktree_with_options, remove_worktree};
+use git_ops::{create_worktree_with_options, list_worktrees, remove_worktree};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
@@ -174,6 +177,26 @@ fn validate_worktree_name(name: &str) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+fn validate_existing_worktree_path(
+    repo_path: &Path,
+    worktree_path: &str,
+) -> Result<String, String> {
+    let requested = Path::new(worktree_path)
+        .canonicalize()
+        .map_err(|error| format!("worktree_path could not be resolved: {}", error))?;
+    let requested_text = requested.to_string_lossy().to_string();
+    let worktrees = list_worktrees(repo_path)?;
+
+    if worktrees
+        .iter()
+        .any(|worktree| worktree.path == requested_text)
+    {
+        Ok(requested_text)
+    } else {
+        Err("worktree_path is not an existing worktree for this repository".to_string())
+    }
 }
 
 fn resolve_worktree_branch(params: &serde_json::Value) -> Option<String> {
@@ -436,6 +459,21 @@ pub async fn create_session_core(
     state: &DaemonState,
     params: &serde_json::Value,
 ) -> Result<serde_json::Value, SessionCreateCoreError> {
+    create_session_core_with_services(
+        state.armin.as_ref(),
+        &state.db_encryption_key,
+        &state.session_secret_cache,
+        params,
+    )
+    .await
+}
+
+pub async fn create_session_core_with_services(
+    armin: &DaemonArmin,
+    db_encryption_key: &Arc<Mutex<Option<[u8; 32]>>>,
+    session_secret_cache: &SessionSecretCache,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, SessionCreateCoreError> {
     let repository_id = params
         .get("repository_id")
         .and_then(|v| v.as_str())
@@ -458,6 +496,10 @@ pub async fn create_session_core(
         .get("worktree_name")
         .and_then(|v| v.as_str())
         .and_then(|s| normalize_optional_string(Some(s)));
+    let existing_worktree_path = params
+        .get("worktree_path")
+        .and_then(|v| v.as_str())
+        .and_then(|s| normalize_optional_string(Some(s)));
     let requested_base_branch =
         normalize_optional_string(params.get("base_branch").and_then(|v| v.as_str()));
     let requested_worktree_branch = resolve_worktree_branch(params);
@@ -472,6 +514,12 @@ pub async fn create_session_core(
         validate_worktree_name(name)
             .map_err(|msg| SessionCreateCoreError::new("invalid_params", msg))?;
     }
+    if existing_worktree_path.is_some() && !is_worktree {
+        return Err(SessionCreateCoreError::new(
+            "invalid_params",
+            "worktree_path requires is_worktree=true",
+        ));
+    }
 
     let session_id = SessionId::new();
     let session_secret = SecretsManager::generate_session_secret();
@@ -479,7 +527,7 @@ pub async fn create_session_core(
 
     let worktree_path = if is_worktree {
         let repo_id = RepositoryId::from_string(&repository_id);
-        let repo = match state.armin.get_repository(&repo_id) {
+        let repo = match armin.get_repository(&repo_id) {
             Ok(Some(r)) => r,
             Ok(None) => {
                 return Err(SessionCreateCoreError::new(
@@ -505,78 +553,85 @@ pub async fn create_session_core(
                 )
             })?;
 
-        let effective_base_branch = resolve_base_branch(
-            requested_base_branch,
-            repo_config.worktree.default_base_branch.clone(),
-            repo.default_branch.clone(),
-        );
-        let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
-        let root_dir = if repo_config.worktree.root_dir.trim().is_empty() {
-            default_worktree_root_dir.clone()
+        if let Some(existing_worktree_path) = existing_worktree_path {
+            Some(
+                validate_existing_worktree_path(repo_path, &existing_worktree_path)
+                    .map_err(|message| SessionCreateCoreError::new("invalid_params", message))?,
+            )
         } else {
-            repo_config.worktree.root_dir.clone()
-        };
+            let effective_base_branch = resolve_base_branch(
+                requested_base_branch,
+                repo_config.worktree.default_base_branch.clone(),
+                repo.default_branch.clone(),
+            );
+            let wt_name = worktree_name.as_deref().unwrap_or(session_id.as_str());
+            let root_dir = if repo_config.worktree.root_dir.trim().is_empty() {
+                default_worktree_root_dir.clone()
+            } else {
+                repo_config.worktree.root_dir.clone()
+            };
 
-        if is_legacy_worktree_root(&root_dir) {
-            return Err(SessionCreateCoreError::with_data(
-                "legacy_worktree_unsupported",
-                "legacy worktree root '.unbound-worktrees' is not supported; use '~/.unbound/<repo_id>/worktrees'",
-                serde_json::json!({
-                    "configured_root_dir": root_dir,
-                    "supported_root_dir": default_worktree_root_dir,
-                }),
-            ));
-        }
-
-        run_setup_hook(
-            HookStage::PreCreate,
-            &repo_config.setup_hooks.pre_create,
-            repo_path,
-        )
-        .await?;
-
-        let created_worktree_path = match create_worktree_with_options(
-            repo_path,
-            wt_name,
-            Path::new(&root_dir),
-            effective_base_branch.as_deref(),
-            requested_worktree_branch.as_deref(),
-        ) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(SessionCreateCoreError::new(
-                    "internal_error",
-                    format!("Failed to create worktree: {}", e),
+            if is_legacy_worktree_root(&root_dir) {
+                return Err(SessionCreateCoreError::with_data(
+                    "legacy_worktree_unsupported",
+                    "legacy worktree root '.unbound-worktrees' is not supported; use '~/.unbound/<repo_id>/worktrees'",
+                    serde_json::json!({
+                        "configured_root_dir": root_dir,
+                        "supported_root_dir": default_worktree_root_dir,
+                    }),
                 ));
             }
-        };
 
-        if let Err(mut hook_error) = run_setup_hook(
-            HookStage::PostCreate,
-            &repo_config.setup_hooks.post_create,
-            Path::new(&created_worktree_path),
-        )
-        .await
-        {
-            if let Err(cleanup_error) =
-                remove_worktree(repo_path, Path::new(&created_worktree_path))
-            {
-                let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
-                if let Some(data) = hook_error.data.as_mut() {
-                    data["cleanup_error"] = serde_json::json!(cleanup_summary);
-                } else {
-                    hook_error.data = Some(serde_json::json!({
-                        "cleanup_error": cleanup_summary,
-                    }));
+            run_setup_hook(
+                HookStage::PreCreate,
+                &repo_config.setup_hooks.pre_create,
+                repo_path,
+            )
+            .await?;
+
+            let created_worktree_path = match create_worktree_with_options(
+                repo_path,
+                wt_name,
+                Path::new(&root_dir),
+                effective_base_branch.as_deref(),
+                requested_worktree_branch.as_deref(),
+            ) {
+                Ok(path) => path,
+                Err(e) => {
+                    return Err(SessionCreateCoreError::new(
+                        "internal_error",
+                        format!("Failed to create worktree: {}", e),
+                    ));
                 }
-                hook_error.message =
-                    format!("{}; cleanup failed: {}", hook_error.message, cleanup_error);
-            }
-            return Err(hook_error);
-        }
+            };
 
-        worktree_cleanup_context = Some((repo.path.clone(), created_worktree_path.clone()));
-        Some(created_worktree_path)
+            if let Err(mut hook_error) = run_setup_hook(
+                HookStage::PostCreate,
+                &repo_config.setup_hooks.post_create,
+                Path::new(&created_worktree_path),
+            )
+            .await
+            {
+                if let Err(cleanup_error) =
+                    remove_worktree(repo_path, Path::new(&created_worktree_path))
+                {
+                    let cleanup_summary = truncate_for_error(&cleanup_error, MAX_HOOK_STDERR_CHARS);
+                    if let Some(data) = hook_error.data.as_mut() {
+                        data["cleanup_error"] = serde_json::json!(cleanup_summary);
+                    } else {
+                        hook_error.data = Some(serde_json::json!({
+                            "cleanup_error": cleanup_summary,
+                        }));
+                    }
+                    hook_error.message =
+                        format!("{}; cleanup failed: {}", hook_error.message, cleanup_error);
+                }
+                return Err(hook_error);
+            }
+
+            worktree_cleanup_context = Some((repo.path.clone(), created_worktree_path.clone()));
+            Some(created_worktree_path)
+        }
     } else {
         None
     };
@@ -595,7 +650,7 @@ pub async fn create_session_core(
         worktree_path,
     };
 
-    let created_session = match state.armin.create_session_with_metadata(new_session) {
+    let created_session = match armin.create_session_with_metadata(new_session) {
         Ok(s) => s,
         Err(e) => {
             if let Some((repo_path, created_worktree_path)) = worktree_cleanup_context.take() {
@@ -625,11 +680,12 @@ pub async fn create_session_core(
     };
 
     // Source of truth: persist the session secret to Armin/SQLite.
-    let db_key = match *state.db_encryption_key.lock().unwrap() {
+    let db_key = match *db_encryption_key.lock().unwrap() {
         Some(db_key) => db_key,
         None => {
             return Err(rollback_session_creation_after_secret_failure(
-                state,
+                armin,
+                session_secret_cache,
                 &created_session.id,
                 &mut worktree_cleanup_context,
                 "Database encryption key is unavailable; cannot persist session secret".to_string(),
@@ -643,7 +699,8 @@ pub async fn create_session_core(
             Ok(encrypted_secret) => encrypted_secret,
             Err(err) => {
                 return Err(rollback_session_creation_after_secret_failure(
-                    state,
+                    armin,
+                    session_secret_cache,
                     &created_session.id,
                     &mut worktree_cleanup_context,
                     format!("Failed to encrypt session secret: {}", err),
@@ -664,9 +721,10 @@ pub async fn create_session_core(
         encrypted_secret,
         nonce: nonce.to_vec(),
     };
-    if let Err(err) = state.armin.set_session_secret(new_secret) {
+    if let Err(err) = armin.set_session_secret(new_secret) {
         return Err(rollback_session_creation_after_secret_failure(
-            state,
+            armin,
+            session_secret_cache,
             &created_session.id,
             &mut worktree_cleanup_context,
             format!("Failed to store session secret: {}", err),
@@ -679,9 +737,7 @@ pub async fn create_session_core(
     );
 
     if let Ok(key) = SecretsManager::parse_session_secret(&session_secret) {
-        state
-            .session_secret_cache
-            .insert(created_session.id.as_str(), key);
+        session_secret_cache.insert(created_session.id.as_str(), key);
     }
 
     let session_data = session_json(&created_session);
@@ -690,14 +746,15 @@ pub async fn create_session_core(
 }
 
 fn rollback_session_creation_after_secret_failure(
-    state: &DaemonState,
+    armin: &DaemonArmin,
+    session_secret_cache: &SessionSecretCache,
     session_id: &SessionId,
     worktree_cleanup_context: &mut Option<(String, String)>,
     reason: String,
 ) -> SessionCreateCoreError {
-    state.session_secret_cache.remove(session_id.as_str());
+    session_secret_cache.remove(session_id.as_str());
 
-    if let Err(delete_err) = state.armin.delete_session(session_id) {
+    if let Err(delete_err) = armin.delete_session(session_id) {
         warn!(
             session_id = %session_id.as_str(),
             error = %delete_err,

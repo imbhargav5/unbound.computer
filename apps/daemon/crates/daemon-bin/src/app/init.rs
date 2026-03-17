@@ -71,10 +71,14 @@ pub async fn run_daemon(
     let shared_paths = Arc::new(paths.clone());
     let claude_processes = Arc::new(Mutex::new(HashMap::new()));
     let device_id_state = Arc::new(Mutex::new(Some(device_id)));
+    let db_encryption_key_state = Arc::new(Mutex::new(Some(db_encryption_key)));
+    let session_secret_cache = SessionSecretCache::new();
     let agent_run_coordinator = Arc::new(AgentRunCoordinator::new(
         db.clone(),
         shared_paths.clone(),
         armin.clone(),
+        db_encryption_key_state.clone(),
+        session_secret_cache.clone(),
         ipc_server.subscriptions().clone(),
         claude_processes.clone(),
         device_id_state.clone(),
@@ -88,9 +92,9 @@ pub async fn run_daemon(
         claude_processes,
         agent_run_coordinator,
         terminal_processes: Arc::new(Mutex::new(HashMap::new())),
-        db_encryption_key: Arc::new(Mutex::new(Some(db_encryption_key))),
+        db_encryption_key: db_encryption_key_state,
         subscriptions: ipc_server.subscriptions().clone(),
-        session_secret_cache: SessionSecretCache::new(),
+        session_secret_cache,
         device_id: device_id_state,
         device_private_key: Arc::new(Mutex::new(Some(device_private_key))),
         armin,

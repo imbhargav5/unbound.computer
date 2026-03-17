@@ -342,6 +342,7 @@ pub struct UpdateIssueInput {
     pub parent_id: Option<Option<String>>,
     pub assignee_agent_id: Option<Option<String>>,
     pub assignee_user_id: Option<Option<String>>,
+    pub execution_workspace_settings: Option<Option<serde_json::Value>>,
     pub hidden_at: Option<Option<String>>,
 }
 

@@ -16,6 +16,7 @@ import type {
   GitDiffResult,
   GitLogResult,
   GitStatusResult,
+  GitWorktreeRecord,
   IssueCommentRecord,
   IssueRecord,
   ProjectRecord,
@@ -298,6 +299,17 @@ export const gitBranches = (sessionId?: string, repositoryId?: string) =>
   invokeCommand<GitBranchesResult>("git_branches", {
     sessionId,
     repositoryId,
+  });
+
+export const gitWorktrees = (
+  sessionId?: string,
+  repositoryId?: string,
+  path?: string
+) =>
+  invokeCommand<GitWorktreeRecord[]>("git_worktrees", {
+    sessionId,
+    repositoryId,
+    path,
   });
 
 export const gitDiffFile = (

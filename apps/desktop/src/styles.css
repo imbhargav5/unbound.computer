@@ -3126,6 +3126,11 @@ p {
   min-height: 40px;
 }
 
+.issue-property-row-select {
+  align-items: start;
+  padding: 4px 0;
+}
+
 .issue-property-label {
   color: #8a8a92;
   font-size: 13px;
@@ -3224,6 +3229,14 @@ p {
   line-height: 1;
   pointer-events: none;
   transform: translateY(-50%);
+}
+
+.issue-property-hint {
+  grid-column: 2;
+  margin-top: -8px;
+  color: #6f6f78;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .issues-sidebar-actions {

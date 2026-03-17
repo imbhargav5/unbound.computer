@@ -187,8 +187,9 @@ pub async fn update_company(
                 &now,
             )?;
 
-            let company = get_company_sync(&tx, &existing_company.id)?
-                .ok_or_else(|| DatabaseError::NotFound("Company missing after update".to_string()))?;
+            let company = get_company_sync(&tx, &existing_company.id)?.ok_or_else(|| {
+                DatabaseError::NotFound("Company missing after update".to_string())
+            })?;
 
             tx.commit()?;
             Ok(company)
@@ -1213,6 +1214,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
     let parent_id = normalize_optional_update(input.parent_id);
     let assignee_agent_id = normalize_optional_update(input.assignee_agent_id);
     let assignee_user_id = normalize_optional_update(input.assignee_user_id);
+    let execution_workspace_settings = input.execution_workspace_settings;
     let hidden_at = normalize_optional_update(input.hidden_at);
     let now = now_rfc3339();
 
@@ -1234,6 +1236,8 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
             let next_parent_id = parent_id.unwrap_or_else(|| current.parent_id.clone());
             let next_assignee_agent_id = assignee_agent_id.unwrap_or_else(|| current.assignee_agent_id.clone());
             let next_assignee_user_id = assignee_user_id.unwrap_or_else(|| current.assignee_user_id.clone());
+            let next_execution_workspace_settings = execution_workspace_settings
+                .unwrap_or_else(|| current.execution_workspace_settings.clone());
             let next_hidden_at = hidden_at.unwrap_or_else(|| current.hidden_at.clone());
 
             if next_parent_id.as_deref() == Some(issue_id.as_str()) {
@@ -1306,13 +1310,14 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                      assignee_agent_id = ?7,
                      assignee_user_id = ?8,
                      execution_agent_name_key = ?9,
-                     request_depth = ?10,
-                     started_at = ?11,
-                     completed_at = ?12,
-                     cancelled_at = ?13,
-                     hidden_at = ?14,
-                     updated_at = ?15
-                 WHERE id = ?16",
+                     execution_workspace_settings = ?10,
+                     request_depth = ?11,
+                     started_at = ?12,
+                     completed_at = ?13,
+                     cancelled_at = ?14,
+                     hidden_at = ?15,
+                     updated_at = ?16
+                 WHERE id = ?17",
                 params![
                     next_title,
                     next_description,
@@ -1323,6 +1328,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     next_assignee_agent_id,
                     next_assignee_user_id,
                     execution_agent_name_key,
+                    next_execution_workspace_settings.as_ref().map(Value::to_string),
                     next_request_depth,
                     started_at,
                     completed_at,
@@ -1350,6 +1356,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     "project_id": next_project_id,
                     "parent_id": next_parent_id,
                     "assignee_agent_id": next_assignee_agent_id,
+                    "execution_workspace_settings": next_execution_workspace_settings,
                     "hidden_at": next_hidden_at,
                 })),
                 &now,
@@ -1719,7 +1726,6 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
         .call_with_operation("board.workspace.start.context", move |conn| {
             let issue = get_issue_sync(conn, &issue_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Issue not found".to_string()))?;
-            let company_id = issue.company_id.clone();
             let assignee_agent_id = issue.assignee_agent_id.clone().ok_or_else(|| {
                 DatabaseError::InvalidData("Issue must be assigned to an agent".to_string())
             })?;
@@ -1771,8 +1777,6 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                 .unwrap_or_else(|| issue.title.clone());
             Ok(StartWorkspaceContext::Create {
                 issue,
-                company_id,
-                project_id,
                 agent_id: assignee_agent_id,
                 repository_id: repository.0,
                 repo_path: cwd,
@@ -1782,29 +1786,25 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
         })
         .await?;
 
-    let (issue, company_id, project_id, agent_id, repository_id, repo_path, repo_branch, title) =
-        match ctx {
-            StartWorkspaceContext::Existing(workspace) => return Ok(workspace),
-            StartWorkspaceContext::Create {
-                issue,
-                company_id,
-                project_id,
-                agent_id,
-                repository_id,
-                repo_path,
-                repo_branch,
-                title,
-            } => (
-                issue,
-                company_id,
-                project_id,
-                agent_id,
-                repository_id,
-                repo_path,
-                repo_branch,
-                title,
-            ),
-        };
+    let (issue, agent_id, repository_id, repo_path, repo_branch, title) = match ctx {
+        StartWorkspaceContext::Existing(workspace) => return Ok(workspace),
+        StartWorkspaceContext::Create {
+            issue,
+            agent_id,
+            repository_id,
+            repo_path,
+            repo_branch,
+            title,
+            ..
+        } => (
+            issue,
+            agent_id,
+            repository_id,
+            repo_path,
+            repo_branch,
+            title,
+        ),
+    };
 
     let agent = get_agent(db, &agent_id)
         .await?
@@ -1827,10 +1827,44 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
         .map_err(|error| BoardError::Runtime(error.to_string()))?;
 
     let session_id = session.id.as_str().to_string();
+    let workspace_repo_path = session.worktree_path.unwrap_or(repo_path);
+    attach_issue_workspace_session(
+        db,
+        &issue.id,
+        &session_id,
+        &workspace_repo_path,
+        repo_branch,
+    )
+    .await
+}
+
+pub async fn attach_issue_workspace_session(
+    db: &AsyncDatabase,
+    issue_id: &str,
+    session_id: &str,
+    workspace_repo_path: &str,
+    workspace_branch: Option<String>,
+) -> BoardResult<Workspace> {
+    let issue_id = require_name(issue_id, "issue_id")?;
+    let session_id = require_name(session_id, "session_id")?;
+    let workspace_repo_path = require_name(workspace_repo_path, "workspace_repo_path")?;
     let now = now_rfc3339();
+
     Ok(db
         .call_with_operation("board.workspace.start.persist", move |conn| {
             let tx = conn.unchecked_transaction()?;
+            let issue = get_issue_sync(&tx, &issue_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Issue not found".to_string()))?;
+            let project_id = issue.project_id.clone().ok_or_else(|| {
+                DatabaseError::InvalidData("Issue must belong to a project".to_string())
+            })?;
+            let agent_id = issue.assignee_agent_id.clone().ok_or_else(|| {
+                DatabaseError::InvalidData("Issue must be assigned to an agent".to_string())
+            })?;
+            let company_id = issue.company_id.clone();
+            let issue_row_id = issue.id.clone();
+            let issue_identifier = issue.identifier.clone();
+
             tx.execute(
                 "UPDATE agent_coding_sessions
                  SET company_id = ?1,
@@ -1843,23 +1877,23 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                      workspace_branch = ?6,
                      workspace_metadata = ?7,
                      updated_at = ?8
-                 WHERE id = ?9",
+                WHERE id = ?9",
                 params![
-                    company_id,
-                    project_id,
-                    issue.id,
-                    agent_id,
-                    repo_path,
-                    repo_branch,
+                    company_id.clone(),
+                    project_id.clone(),
+                    issue_row_id.clone(),
+                    agent_id.clone(),
+                    workspace_repo_path.clone(),
+                    workspace_branch.clone(),
                     json!({
-                        "issue_id": issue.id,
-                        "issue_identifier": issue.identifier,
-                        "project_id": project_id,
-                        "agent_id": agent_id,
+                        "issue_id": issue_row_id.clone(),
+                        "issue_identifier": issue_identifier.clone(),
+                        "project_id": project_id.clone(),
+                        "agent_id": agent_id.clone(),
                     })
                     .to_string(),
-                    now,
-                    session_id,
+                    now.clone(),
+                    session_id.clone(),
                 ],
             )?;
 
@@ -1869,19 +1903,20 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                     session_display_id, last_run_id, last_error, created_at, updated_at
                  ) VALUES (
                     ?1, ?2, ?3, 'issue_workspace', ?4, ?5, ?6, NULL, NULL, ?7, ?7
-                 )
+                )
                  ON CONFLICT(company_id, agent_id, adapter_type, task_key) DO UPDATE SET
                     session_params_json = excluded.session_params_json,
                     session_display_id = excluded.session_display_id,
                     updated_at = excluded.updated_at",
                 params![
                     Uuid::new_v4().to_string(),
-                    company_id,
-                    agent_id,
-                    format!("issue:{}", issue.id),
-                    json!({ "session_id": session_id, "issue_id": issue.id }).to_string(),
-                    issue.identifier,
-                    now,
+                    company_id.clone(),
+                    agent_id.clone(),
+                    format!("issue:{}", issue_row_id.clone()),
+                    json!({ "session_id": session_id.clone(), "issue_id": issue_row_id.clone() })
+                        .to_string(),
+                    issue_identifier.clone(),
+                    now.clone(),
                 ],
             )?;
 
@@ -1894,7 +1929,7 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                      started_at = COALESCE(started_at, ?1),
                      updated_at = ?1
                  WHERE id = ?2",
-                params![now, issue.id],
+                params![now.clone(), issue_row_id.clone()],
             )?;
 
             insert_activity_sync(
@@ -1907,14 +1942,14 @@ pub async fn start_issue_workspace<W: SessionWriter + Sync>(
                 &session_id,
                 Some(&agent_id),
                 Some(json!({
-                    "issue_id": issue.id,
+                    "issue_id": issue_row_id,
                     "project_id": project_id,
-                    "repo_path": repo_path,
+                    "repo_path": workspace_repo_path,
                 })),
                 &now,
             )?;
 
-            let workspace = conn
+            let workspace = tx
                 .query_row(
                     &workspace_select_sql(Some("s.id = ?1")),
                     params![session_id],
@@ -1936,8 +1971,6 @@ enum StartWorkspaceContext {
     Existing(Workspace),
     Create {
         issue: Issue,
-        company_id: String,
-        project_id: String,
         agent_id: String,
         repository_id: String,
         repo_path: String,
@@ -2745,7 +2778,9 @@ fn load_hire_approval_activation_target_sync(
         .payload
         .get("agent_id")
         .and_then(Value::as_str)
-        .ok_or_else(|| DatabaseError::InvalidData("Hire approval payload missing agent_id".to_string()))?;
+        .ok_or_else(|| {
+            DatabaseError::InvalidData("Hire approval payload missing agent_id".to_string())
+        })?;
     let agent = conn
         .query_row(
             "SELECT
@@ -3281,7 +3316,9 @@ mod tests {
         assert_eq!(hired_agent.status, "pending_approval");
         assert_eq!(hired_agent.reports_to, Some(ceo.id.clone()));
         assert!(
-            !paths.agent_home_dir(&company.id, &hired_agent.slug).exists(),
+            !paths
+                .agent_home_dir(&company.id, &hired_agent.slug)
+                .exists(),
             "Pending approval hires should not have a local home provisioned yet"
         );
         assert!(
@@ -3418,7 +3455,9 @@ mod tests {
         .unwrap();
 
         assert!(
-            !paths.agent_home_dir(&company.id, &hired_agent.slug).exists(),
+            !paths
+                .agent_home_dir(&company.id, &hired_agent.slug)
+                .exists(),
             "Pending approval hires should not be provisioned before approval"
         );
 
@@ -3438,7 +3477,9 @@ mod tests {
         let refreshed_agent = get_agent(&db, &hired_agent.id).await.unwrap().unwrap();
         assert_eq!(approved.status, "approved");
         assert_eq!(refreshed_agent.status, "idle");
-        assert!(paths.agent_home_dir(&company.id, &hired_agent.slug).exists());
+        assert!(paths
+            .agent_home_dir(&company.id, &hired_agent.slug)
+            .exists());
         assert!(Path::new(refreshed_agent.instructions_path.as_deref().unwrap()).exists());
     }
 
@@ -3581,9 +3622,7 @@ mod tests {
 
         assert!(
             error.to_string().contains("File exists")
-                || error
-                    .to_string()
-                    .contains("Not a directory")
+                || error.to_string().contains("Not a directory")
                 || error.to_string().contains("directory"),
             "unexpected activation failure: {error}"
         );
@@ -3881,6 +3920,9 @@ mod tests {
                 project_id: Some(Some(project.id.clone())),
                 parent_id: Some(Some(parent_issue.id.clone())),
                 assignee_agent_id: Some(Some(agent.id.clone())),
+                execution_workspace_settings: Some(Some(json!({
+                    "mode": "new_worktree"
+                }))),
                 ..UpdateIssueInput::default()
             },
         )
@@ -3898,6 +3940,10 @@ mod tests {
         assert_eq!(updated.parent_id, Some(parent_issue.id.clone()));
         assert_eq!(updated.assignee_agent_id, Some(agent.id.clone()));
         assert_eq!(updated.execution_agent_name_key, Some(agent.slug.clone()));
+        assert_eq!(
+            updated.execution_workspace_settings,
+            Some(json!({ "mode": "new_worktree" }))
+        );
         assert_eq!(updated.request_depth, parent_issue.request_depth + 1);
 
         let cleared = update_issue(
@@ -3908,6 +3954,7 @@ mod tests {
                 project_id: Some(None),
                 parent_id: Some(None),
                 assignee_agent_id: Some(None),
+                execution_workspace_settings: Some(None),
                 hidden_at: Some(Some(now_rfc3339())),
                 ..UpdateIssueInput::default()
             },
@@ -3920,6 +3967,7 @@ mod tests {
         assert_eq!(cleared.parent_id, None);
         assert_eq!(cleared.assignee_agent_id, None);
         assert_eq!(cleared.execution_agent_name_key, None);
+        assert_eq!(cleared.execution_workspace_settings, None);
         assert!(cleared.hidden_at.is_some());
         assert_eq!(cleared.request_depth, 0);
     }

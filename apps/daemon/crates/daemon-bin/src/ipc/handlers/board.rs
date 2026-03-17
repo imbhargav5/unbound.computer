@@ -1,6 +1,6 @@
 //! Local board IPC handlers.
 
-use crate::app::DaemonState;
+use crate::app::{ensure_issue_workspace, DaemonState};
 use daemon_board::service;
 use daemon_board::{
     AddIssueCommentInput, ApprovalDecisionInput, BoardError, CreateAgentHireInput,
@@ -106,7 +106,6 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
             }
         })
         .await;
-
 }
 
 async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
@@ -542,13 +541,11 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         })
         .await;
 
-    let checkout_db = state.db.clone();
-    let checkout_armin = state.armin.clone();
     let checkout_runs = state.agent_run_coordinator.clone();
+    let checkout_state = state.clone();
     server
         .register_handler(Method::IssueCheckout, move |req| {
-            let db = checkout_db.clone();
-            let armin = checkout_armin.clone();
+            let state = checkout_state.clone();
             let runs = checkout_runs.clone();
             async move {
                 let issue_id = match required_string_param(&req.id, req.params.as_ref(), "issue_id")
@@ -556,9 +553,17 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                     Ok(issue_id) => issue_id,
                     Err(response) => return response,
                 };
-                match service::start_issue_workspace(&db, armin.as_ref(), &issue_id).await {
+                match ensure_issue_workspace(
+                    &state.db,
+                    state.armin.as_ref(),
+                    &state.db_encryption_key,
+                    &state.session_secret_cache,
+                    &issue_id,
+                )
+                .await
+                {
                     Ok(workspace) => {
-                        if let Ok(Some(issue)) = service::get_issue(&db, &issue_id).await {
+                        if let Ok(Some(issue)) = service::get_issue(&state.db, &issue_id).await {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,

@@ -639,6 +639,25 @@ pub async fn git_branches(
 }
 
 #[tauri::command]
+pub async fn git_worktrees(
+    session_id: Option<String>,
+    repository_id: Option<String>,
+    path: Option<String>,
+) -> Result<Value, String> {
+    let mut params = json!({});
+    if let Some(session_id) = session_id {
+        params["session_id"] = json!(session_id);
+    }
+    if let Some(repository_id) = repository_id {
+        params["repository_id"] = json!(repository_id);
+    }
+    if let Some(path) = path {
+        params["path"] = json!(path);
+    }
+    call_daemon(Method::GitWorktrees, Some(params)).await
+}
+
+#[tauri::command]
 pub async fn git_stage(paths: Vec<String>, session_id: Option<String>) -> Result<Value, String> {
     call_daemon(
         Method::GitStage,

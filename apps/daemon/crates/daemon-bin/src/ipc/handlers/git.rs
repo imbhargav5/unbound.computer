@@ -3,8 +3,8 @@
 use crate::app::DaemonState;
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use git_ops::{
-    commit, discard_changes, get_branches, get_file_diff, get_log, get_status, push, stage_files,
-    unstage_files, GitOpsError,
+    commit, discard_changes, get_branches, get_file_diff, get_log, get_status, list_worktrees,
+    push, stage_files, unstage_files, GitOpsError,
 };
 use workspace_resolver::{resolve_repository_path, resolve_working_dir_from_str, ResolveError};
 
@@ -20,6 +20,7 @@ pub async fn register(server: &IpcServer, state: DaemonState) {
     register_git_diff_file(server, state.clone()).await;
     register_git_log(server, state.clone()).await;
     register_git_branches(server, state.clone()).await;
+    register_git_worktrees(server, state.clone()).await;
     register_git_stage(server, state.clone()).await;
     register_git_unstage(server, state.clone()).await;
     register_git_discard(server, state.clone()).await;
@@ -320,6 +321,30 @@ async fn register_git_branches(server: &IpcServer, state: DaemonState) {
                             "local": branches.local,
                             "remote": branches.remote,
                             "current": branches.current,
+                        }),
+                    ),
+                    Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),
+                }
+            }
+        })
+        .await;
+}
+
+async fn register_git_worktrees(server: &IpcServer, state: DaemonState) {
+    server
+        .register_handler(Method::GitWorktrees, move |req| {
+            let state = state.clone();
+            async move {
+                let repo_path = match extract_repo_path(&state, &req.params).await {
+                    Ok(p) => p,
+                    Err((code, msg)) => return Response::error(&req.id, code, &msg),
+                };
+
+                match list_worktrees(std::path::Path::new(&repo_path)) {
+                    Ok(worktrees) => Response::success(
+                        &req.id,
+                        serde_json::json!({
+                            "worktrees": worktrees,
                         }),
                     ),
                     Err(e) => Response::error(&req.id, error_codes::INTERNAL_ERROR, &e),

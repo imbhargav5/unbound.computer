@@ -123,9 +123,10 @@ mod types;
 pub use error::GitOpsError;
 pub use operations::{
     commit, create_worktree, create_worktree_with_options, discard_changes, get_branches,
-    get_file_diff, get_log, get_status, push, remove_worktree, stage_files, unstage_files,
+    get_file_diff, get_log, get_status, list_worktrees, push, remove_worktree, stage_files,
+    unstage_files,
 };
 pub use types::{
     GitBranch, GitBranchesResult, GitCommit, GitCommitResult, GitDiffResult, GitFileStatus,
-    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult,
+    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult, GitWorktree,
 };

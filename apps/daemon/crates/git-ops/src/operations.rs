@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::error::GitOpsError;
 use crate::types::{
     GitBranch, GitBranchesResult, GitCommit, GitCommitResult, GitDiffResult, GitFileStatus,
-    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult,
+    GitLogResult, GitPushResult, GitStatusFile, GitStatusResult, GitWorktree,
 };
 
 /// Get the git status for a repository.
@@ -552,6 +552,56 @@ pub fn get_branches(repo_path: &Path) -> Result<GitBranchesResult, String> {
         remote: remote_branches,
         current,
     })
+}
+
+/// List all linked worktrees for a repository.
+pub fn list_worktrees(repo_path: &Path) -> Result<Vec<GitWorktree>, String> {
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
+    let worktree_names = repo
+        .worktrees()
+        .map_err(|e| format!("Failed to list worktrees: {}", e))?;
+
+    let mut worktrees = Vec::new();
+    for index in 0..worktree_names.len() {
+        let Some(name) = worktree_names.get(index) else {
+            continue;
+        };
+
+        let worktree = repo
+            .find_worktree(name)
+            .map_err(|e| format!("Failed to inspect worktree '{}': {}", name, e))?;
+        let path_buf = worktree.path().to_path_buf();
+        let canonical_path = path_buf
+            .canonicalize()
+            .unwrap_or(path_buf)
+            .to_string_lossy()
+            .to_string();
+
+        let (branch, head_oid) = match Repository::open(worktree.path()) {
+            Ok(worktree_repo) => {
+                let head = worktree_repo.head().ok();
+                let branch = head
+                    .as_ref()
+                    .and_then(|value| value.shorthand().map(String::from));
+                let head_oid = head
+                    .and_then(|value| value.target())
+                    .map(|oid| oid.to_string());
+                (branch, head_oid)
+            }
+            Err(_) => (None, None),
+        };
+
+        worktrees.push(GitWorktree {
+            name: name.to_string(),
+            path: canonical_path,
+            branch,
+            head_oid,
+        });
+    }
+
+    worktrees.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(worktrees)
 }
 
 /// Stage files for commit.

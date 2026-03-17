@@ -1,5 +1,7 @@
+use crate::app::ensure_issue_workspace;
 use crate::armin_adapter::DaemonArmin;
 use crate::observability::{current_trace_context, spawn_in_current_span};
+use crate::utils::SessionSecretCache;
 use agent_session_sqlite_persist_core::{
     CodingSessionStatus, NewMessage, NewSession, RepositoryId, SessionId, SessionWriter,
 };
@@ -45,6 +47,8 @@ pub struct AgentRunCoordinator {
     db: AsyncDatabase,
     paths: Arc<Paths>,
     armin: Arc<DaemonArmin>,
+    db_encryption_key: Arc<Mutex<Option<[u8; 32]>>>,
+    session_secret_cache: SessionSecretCache,
     subscriptions: SubscriptionManager,
     claude_processes: Arc<Mutex<HashMap<String, broadcast::Sender<()>>>>,
     device_id: Arc<Mutex<Option<String>>>,
@@ -104,6 +108,8 @@ impl AgentRunCoordinator {
         db: AsyncDatabase,
         paths: Arc<Paths>,
         armin: Arc<DaemonArmin>,
+        db_encryption_key: Arc<Mutex<Option<[u8; 32]>>>,
+        session_secret_cache: SessionSecretCache,
         subscriptions: SubscriptionManager,
         claude_processes: Arc<Mutex<HashMap<String, broadcast::Sender<()>>>>,
         device_id: Arc<Mutex<Option<String>>>,
@@ -112,6 +118,8 @@ impl AgentRunCoordinator {
             db,
             paths,
             armin,
+            db_encryption_key,
+            session_secret_cache,
             subscriptions,
             claude_processes,
             device_id,
@@ -592,8 +600,9 @@ impl AgentRunCoordinator {
 
         for (agent_id, company_id, runtime_config_text) in agents {
             let runtime_config = serde_json::from_str::<Value>(&runtime_config_text).ok();
-            let heartbeat_config =
-                runtime_config.as_ref().and_then(|config| config.get("heartbeat"));
+            let heartbeat_config = runtime_config
+                .as_ref()
+                .and_then(|config| config.get("heartbeat"));
             let heartbeat_enabled = heartbeat_config
                 .and_then(|config| config.get("enabled"))
                 .and_then(Value::as_bool)
@@ -1592,9 +1601,14 @@ impl AgentRunCoordinator {
                 .await?
                 .ok_or_else(|| BoardError::NotFound("Issue not found for run".to_string()))?;
             if issue.project_id.is_some() {
-                let workspace =
-                    service::start_issue_workspace(&self.db, self.armin.as_ref(), &issue_id)
-                        .await?;
+                let workspace = ensure_issue_workspace(
+                    &self.db,
+                    self.armin.as_ref(),
+                    &self.db_encryption_key,
+                    &self.session_secret_cache,
+                    &issue_id,
+                )
+                .await?;
                 return Ok(RunSessionContext {
                     local_session_id: workspace.session_id,
                     local_session_title: workspace.title,

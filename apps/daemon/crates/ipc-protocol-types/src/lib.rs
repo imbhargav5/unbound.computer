@@ -193,6 +193,8 @@ pub enum Method {
     GitLog,
     #[serde(rename = "git.branches")]
     GitBranches,
+    #[serde(rename = "git.worktrees")]
+    GitWorktrees,
     #[serde(rename = "git.stage")]
     GitStage,
     #[serde(rename = "git.unstage")]
@@ -553,6 +555,7 @@ mod tests {
             (Method::GitDiffFile, "\"git.diff_file\""),
             (Method::GitLog, "\"git.log\""),
             (Method::GitBranches, "\"git.branches\""),
+            (Method::GitWorktrees, "\"git.worktrees\""),
             (Method::GitStage, "\"git.stage\""),
             (Method::GitUnstage, "\"git.unstage\""),
             (Method::GitDiscard, "\"git.discard\""),
@@ -611,6 +614,7 @@ mod tests {
             Method::GitDiffFile,
             Method::GitLog,
             Method::GitBranches,
+            Method::GitWorktrees,
             Method::GitStage,
             Method::GitUnstage,
             Method::GitDiscard,
@@ -1111,6 +1115,7 @@ mod tests {
             Method::GitDiffFile,
             Method::GitLog,
             Method::GitBranches,
+            Method::GitWorktrees,
             Method::GitStage,
             Method::GitUnstage,
             Method::GitDiscard,

@@ -52,6 +52,7 @@ import {
   gitPush,
   gitStage,
   gitStatus,
+  gitWorktrees,
   gitUnstage,
   listenToSessionEvents,
   listenToSessionStreamErrors,
@@ -84,9 +85,10 @@ import type {
   GitBranchesResult,
   GitDiffResult,
   GitLogResult,
-  GoalRecord,
   GitStatusFile,
   GitStatusResult,
+  GitWorktreeRecord,
+  GoalRecord,
   IssueCommentRecord,
   IssueRecord,
   ProjectRecord,
@@ -156,6 +158,7 @@ interface DashboardCanvasOffset {
 }
 
 type DashboardProjectGrouping = "status" | "priority" | "assignee";
+type IssueWorkspaceTargetMode = "main" | "new_worktree" | "existing_worktree";
 
 interface DashboardProjectColumn {
   createDefaults: CreateIssueDialogDefaults;
@@ -193,6 +196,16 @@ interface IssueEditDraft {
   projectId: string;
   assigneeAgentId: string;
   parentId: string;
+  workspaceTargetMode: IssueWorkspaceTargetMode;
+  workspaceWorktreePath: string;
+  workspaceWorktreeBranch: string;
+  workspaceWorktreeName: string;
+}
+
+interface ProjectWorktreeState {
+  worktrees: GitWorktreeRecord[];
+  isLoading: boolean;
+  errorMessage: string | null;
 }
 
 interface AgentConfigEnvVarDraft {
@@ -246,6 +259,205 @@ interface ActivityFeedItem {
 interface DashboardBreadcrumbItem {
   label: string;
   onClick?: () => void;
+}
+
+function useProjectWorktrees(repoPath: string | null): ProjectWorktreeState {
+  const [worktrees, setWorktrees] = useState<GitWorktreeRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!repoPath) {
+      setWorktrees([]);
+      setIsLoading(false);
+      setErrorMessage(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    void gitWorktrees(undefined, undefined, repoPath)
+      .then((nextWorktrees) => {
+        if (cancelled) {
+          return;
+        }
+        setWorktrees(nextWorktrees);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setWorktrees([]);
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath]);
+
+  return {
+    worktrees,
+    isLoading,
+    errorMessage,
+  };
+}
+
+function parseIssueExecutionWorkspaceSettings(value: unknown) {
+  const record =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const modeValue = record?.mode;
+  const mode =
+    modeValue === "new_worktree" || modeValue === "existing_worktree"
+      ? modeValue
+      : "main";
+
+  return {
+    workspaceTargetMode: mode as IssueWorkspaceTargetMode,
+    workspaceWorktreePath:
+      typeof record?.worktree_path === "string" ? record.worktree_path : "",
+    workspaceWorktreeBranch:
+      typeof record?.worktree_branch === "string" ? record.worktree_branch : "",
+    workspaceWorktreeName:
+      typeof record?.worktree_name === "string" ? record.worktree_name : "",
+  };
+}
+
+function issueExecutionWorkspaceSettingsFromDraft(
+  draft: Pick<
+    IssueEditDraft,
+    | "workspaceTargetMode"
+    | "workspaceWorktreePath"
+    | "workspaceWorktreeBranch"
+    | "workspaceWorktreeName"
+  >
+) {
+  switch (draft.workspaceTargetMode) {
+    case "new_worktree":
+      return {
+        mode: "new_worktree",
+      };
+    case "existing_worktree":
+      return draft.workspaceWorktreePath
+        ? {
+            mode: "existing_worktree",
+            worktree_path: draft.workspaceWorktreePath,
+            worktree_branch: draft.workspaceWorktreeBranch || null,
+            worktree_name: draft.workspaceWorktreeName || null,
+          }
+        : null;
+    case "main":
+    default:
+      return null;
+  }
+}
+
+function existingWorktreeTargetValue(path: string) {
+  return `existing:${path}`;
+}
+
+function issueWorkspaceTargetSelectValue(
+  mode: IssueWorkspaceTargetMode,
+  worktreePath: string
+) {
+  if (mode === "new_worktree") {
+    return "new_worktree";
+  }
+
+  if (mode === "existing_worktree" && worktreePath) {
+    return existingWorktreeTargetValue(worktreePath);
+  }
+
+  return "main";
+}
+
+function issueWorkspaceDraftPatchFromSelection(
+  value: string,
+  worktrees: GitWorktreeRecord[],
+  current: Pick<
+    IssueEditDraft,
+    | "workspaceWorktreeBranch"
+    | "workspaceWorktreeName"
+    | "workspaceWorktreePath"
+  >
+): Partial<IssueEditDraft> {
+  if (value === "new_worktree") {
+    return {
+      workspaceTargetMode: "new_worktree",
+      workspaceWorktreePath: "",
+      workspaceWorktreeBranch: "",
+      workspaceWorktreeName: "",
+    };
+  }
+
+  if (value.startsWith("existing:")) {
+    const selectedPath = value.slice("existing:".length);
+    const selectedWorktree = worktrees.find(
+      (worktree) => worktree.path === selectedPath
+    );
+    return {
+      workspaceTargetMode: "existing_worktree",
+      workspaceWorktreePath: selectedPath,
+      workspaceWorktreeBranch:
+        selectedWorktree?.branch ?? current.workspaceWorktreeBranch,
+      workspaceWorktreeName:
+        selectedWorktree?.name ??
+        current.workspaceWorktreeName ??
+        fileName(selectedPath),
+    };
+  }
+
+  return {
+    workspaceTargetMode: "main",
+    workspaceWorktreePath: "",
+    workspaceWorktreeBranch: "",
+    workspaceWorktreeName: "",
+  };
+}
+
+function issueWorkspaceTargetHint({
+  errorMessage,
+  hasProject,
+  hasRepoPath,
+  isLoading,
+  worktreeCount,
+}: {
+  errorMessage: string | null;
+  hasProject: boolean;
+  hasRepoPath: boolean;
+  isLoading: boolean;
+  worktreeCount: number;
+}) {
+  if (!hasProject) {
+    return "Link the issue to a project first.";
+  }
+
+  if (!hasRepoPath) {
+    return "The selected project does not have a repository folder yet.";
+  }
+
+  if (errorMessage) {
+    return errorMessage;
+  }
+
+  if (isLoading) {
+    return "Loading existing worktrees...";
+  }
+
+  if (worktreeCount > 0) {
+    return `${worktreeCount} existing ${worktreeCount === 1 ? "worktree is" : "worktrees are"} available to reuse.`;
+  }
+
+  return "Run in the main area or create a fresh git worktree for this issue.";
 }
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
@@ -423,6 +635,20 @@ export function App() {
   const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] =
     useState("");
   const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
+  const [issueDialogWorkspaceTargetMode, setIssueDialogWorkspaceTargetMode] =
+    useState<IssueWorkspaceTargetMode>("main");
+  const [
+    issueDialogWorkspaceWorktreePath,
+    setIssueDialogWorkspaceWorktreePath,
+  ] = useState("");
+  const [
+    issueDialogWorkspaceWorktreeBranch,
+    setIssueDialogWorkspaceWorktreeBranch,
+  ] = useState("");
+  const [
+    issueDialogWorkspaceWorktreeName,
+    setIssueDialogWorkspaceWorktreeName,
+  ] = useState("");
   const [issueDialogError, setIssueDialogError] = useState<string | null>(null);
   const [isIssueDialogSaving, setIsIssueDialogSaving] = useState(false);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
@@ -520,6 +746,18 @@ export function App() {
     boardGoals[0] ??
     null;
   const boardProjects = companySnapshot?.projects ?? [];
+  const issueDialogProjectRepoPath =
+    boardProjects.find((project) => project.id === issueDialogProjectId)
+      ?.primary_workspace?.cwd ?? null;
+  const issueDialogWorktreeState = useProjectWorktrees(
+    issueDialogProjectRepoPath
+  );
+  const issueDetailProjectRepoPath =
+    boardProjects.find((project) => project.id === issueDraft.projectId)
+      ?.primary_workspace?.cwd ?? null;
+  const issueDetailWorktreeState = useProjectWorktrees(
+    issueDetailProjectRepoPath
+  );
   const boardAgents = companySnapshot?.agents ?? [];
   const dashboardProjectViews = settings.dashboard_project_views ?? {};
   const dashboardProjectBoards = useMemo(
@@ -2164,8 +2402,39 @@ export function App() {
     setIssueDialogProjectId("");
     setIssueDialogAssigneeAgentId("");
     setIssueDialogParentIssueId("");
+    setIssueDialogWorkspaceTargetMode("main");
+    setIssueDialogWorkspaceWorktreePath("");
+    setIssueDialogWorkspaceWorktreeBranch("");
+    setIssueDialogWorkspaceWorktreeName("");
     setIssueDialogError(null);
     setIsIssueDialogSaving(false);
+  };
+
+  const handleIssueDialogProjectChange = (projectId: string) => {
+    setIssueDialogProjectId(projectId);
+    setIssueDialogWorkspaceTargetMode("main");
+    setIssueDialogWorkspaceWorktreePath("");
+    setIssueDialogWorkspaceWorktreeBranch("");
+    setIssueDialogWorkspaceWorktreeName("");
+  };
+
+  const handleIssueDialogWorkspaceTargetChange = (value: string) => {
+    const patch = issueWorkspaceDraftPatchFromSelection(
+      value,
+      issueDialogWorktreeState.worktrees,
+      {
+        workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
+        workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
+        workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
+      }
+    );
+
+    setIssueDialogWorkspaceTargetMode(
+      (patch.workspaceTargetMode ?? "main") as IssueWorkspaceTargetMode
+    );
+    setIssueDialogWorkspaceWorktreePath(patch.workspaceWorktreePath ?? "");
+    setIssueDialogWorkspaceWorktreeBranch(patch.workspaceWorktreeBranch ?? "");
+    setIssueDialogWorkspaceWorktreeName(patch.workspaceWorktreeName ?? "");
   };
 
   const handleOpenCreateIssueDialog = (
@@ -2211,6 +2480,16 @@ export function App() {
       }
       if (issueDialogParentIssueId) {
         params.parent_id = issueDialogParentIssueId;
+      }
+      const executionWorkspaceSettings =
+        issueExecutionWorkspaceSettingsFromDraft({
+          workspaceTargetMode: issueDialogWorkspaceTargetMode,
+          workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
+          workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
+          workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
+        });
+      if (executionWorkspaceSettings) {
+        params.execution_workspace_settings = executionWorkspaceSettings;
       }
 
       const createdIssue = await boardCreateIssue(params);
@@ -2332,6 +2611,19 @@ export function App() {
     if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
       nextDraftPatch.parentId = updatedIssue.parent_id ?? "";
     }
+    if (
+      Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
+      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
+      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeBranch") ||
+      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName")
+    ) {
+      Object.assign(
+        nextDraftPatch,
+        parseIssueExecutionWorkspaceSettings(
+          updatedIssue.execution_workspace_settings
+        )
+      );
+    }
 
     if (Object.keys(nextDraftPatch).length === 0) {
       return;
@@ -2388,10 +2680,39 @@ export function App() {
       }
 
       if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
-        params.parent_id = patch.parentId?.trim() ? patch.parentId.trim() : null;
+        params.parent_id = patch.parentId?.trim()
+          ? patch.parentId.trim()
+          : null;
       }
 
-      if (options && Object.prototype.hasOwnProperty.call(options, "hiddenAt")) {
+      const shouldPersistWorkspaceSettings =
+        Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
+        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
+        Object.prototype.hasOwnProperty.call(
+          patch,
+          "workspaceWorktreeBranch"
+        ) ||
+        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName");
+
+      if (shouldPersistWorkspaceSettings) {
+        params.execution_workspace_settings =
+          issueExecutionWorkspaceSettingsFromDraft({
+            workspaceTargetMode:
+              patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
+            workspaceWorktreePath:
+              patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
+            workspaceWorktreeBranch:
+              patch.workspaceWorktreeBranch ??
+              issueDraft.workspaceWorktreeBranch,
+            workspaceWorktreeName:
+              patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
+          });
+      }
+
+      if (
+        options &&
+        Object.prototype.hasOwnProperty.call(options, "hiddenAt")
+      ) {
         params.hidden_at = options.hiddenAt;
       }
 
@@ -2436,14 +2757,14 @@ export function App() {
       projectId: issueDraft.projectId,
       assigneeAgentId: issueDraft.assigneeAgentId,
       parentId: issueDraft.parentId,
+      workspaceTargetMode: issueDraft.workspaceTargetMode,
+      workspaceWorktreePath: issueDraft.workspaceWorktreePath,
+      workspaceWorktreeBranch: issueDraft.workspaceWorktreeBranch,
+      workspaceWorktreeName: issueDraft.workspaceWorktreeName,
     });
 
   const handleHideIssue = async (issue: IssueRecord) =>
-    handlePersistIssuePatch(
-      issue,
-      {},
-      { hiddenAt: new Date().toISOString() }
-    );
+    handlePersistIssuePatch(issue, {}, { hiddenAt: new Date().toISOString() });
 
   const handleAddIssueComment = async (issue: IssueRecord) => {
     const body = newIssueCommentBody.trim();
@@ -3310,6 +3631,11 @@ export function App() {
                   agents={companySnapshot?.agents ?? []}
                   selectableParentIssues={selectableParentIssues}
                   subissues={issueSubissues}
+                  workspaceTargetErrorMessage={
+                    issueDetailWorktreeState.errorMessage
+                  }
+                  workspaceTargetLoading={issueDetailWorktreeState.isLoading}
+                  workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
                 />
               ) : (
                 <IssuesListView
@@ -3349,7 +3675,8 @@ export function App() {
                 currentProjectWorkspaceCount={
                   selectedProject
                     ? companyWorkspaces.filter(
-                        (workspace) => workspace.project_id === selectedProject.id
+                        (workspace) =>
+                          workspace.project_id === selectedProject.id
                       ).length
                     : 0
                 }
@@ -4230,8 +4557,9 @@ export function App() {
           onDescriptionChange={setIssueDialogDescription}
           onParentIssueChange={setIssueDialogParentIssueId}
           onPriorityChange={setIssueDialogPriority}
-          onProjectChange={setIssueDialogProjectId}
+          onProjectChange={handleIssueDialogProjectChange}
           onTitleChange={setIssueDialogTitle}
+          onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
           priorities={["low", "medium", "high", "urgent"]}
           projects={boardProjects}
           selectedAssigneeAgentId={issueDialogAssigneeAgentId}
@@ -4239,8 +4567,15 @@ export function App() {
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
           selectedStatus={issueDialogStatus}
+          selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
+            issueDialogWorkspaceTargetMode,
+            issueDialogWorkspaceWorktreePath
+          )}
           title={issueDialogTitle}
           description={issueDialogDescription}
+          workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
+          workspaceTargetLoading={issueDialogWorktreeState.isLoading}
+          workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
         />
       ) : null}
     </div>
@@ -4352,10 +4687,7 @@ function AgentsRouteView({
         <DashboardBreadcrumbs
           items={
             selectedAgent
-              ? [
-                  { label: "Agents" },
-                  { label: selectedAgent.name || "Agent" },
-                ]
+              ? [{ label: "Agents" }, { label: selectedAgent.name || "Agent" }]
               : [{ label: "Agents" }]
           }
         />
@@ -4414,7 +4746,11 @@ function AgentsRouteView({
                 </div>
               </div>
 
-              <div className="agents-tab-strip" role="tablist" aria-label="Agent views">
+              <div
+                className="agents-tab-strip"
+                role="tablist"
+                aria-label="Agent views"
+              >
                 {(
                   [
                     ["dashboard", "Dashboard"],
@@ -4914,9 +5250,7 @@ function AgentConfigurationTab({
             checked={draft.heartbeatEnabled}
             description="Schedule recurring heartbeat runs for this agent."
             label="Heartbeat on interval"
-            onChange={(checked) =>
-              onDraftChange({ heartbeatEnabled: checked })
-            }
+            onChange={(checked) => onDraftChange({ heartbeatEnabled: checked })}
           />
           <AgentConfigToggleField
             checked={draft.wakeOnDemand}
@@ -4994,7 +5328,9 @@ function AgentConfigToggleField({
       </div>
       <button
         aria-pressed={checked}
-        className={checked ? "agent-config-toggle active" : "agent-config-toggle"}
+        className={
+          checked ? "agent-config-toggle active" : "agent-config-toggle"
+        }
         onClick={() => onChange(!checked)}
         type="button"
       >
@@ -5435,7 +5771,9 @@ function ShadcnSelect<T extends string>({
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      optionRefs.current[(index - 1 + options.length) % options.length]?.focus();
+      optionRefs.current[
+        (index - 1 + options.length) % options.length
+      ]?.focus();
       return;
     }
 
@@ -5627,7 +5965,10 @@ function DashboardCanvasRouteView({
                       <ShadcnSelect
                         ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} board by`}
                         onChange={(nextValue) =>
-                          onProjectGroupingChange(projectBoard.project.id, nextValue)
+                          onProjectGroupingChange(
+                            projectBoard.project.id,
+                            nextValue
+                          )
                         }
                         options={dashboardProjectGroupingSelectOptions}
                         value={projectBoard.grouping}
@@ -5672,7 +6013,10 @@ function DashboardCanvasRouteView({
                     );
 
                     return (
-                      <section className="project-kanban-column" key={column.id}>
+                      <section
+                        className="project-kanban-column"
+                        key={column.id}
+                      >
                         <div className="project-kanban-column-header">
                           <div className="project-kanban-column-header-copy">
                             <span>{column.label}</span>
@@ -6033,6 +6377,9 @@ function IssueDetailView({
   assigneeLabel,
   parentIssueLabel,
   priorityLabel,
+  workspaceTargetErrorMessage,
+  workspaceTargetLoading,
+  workspaceTargetWorktrees,
 }: {
   issue: IssueRecord;
   issueDraft: IssueEditDraft;
@@ -6068,6 +6415,9 @@ function IssueDetailView({
   assigneeLabel: (assigneeAgentId?: string | null) => string;
   parentIssueLabel: (parentIssueId?: string | null) => string;
   priorityLabel: (value: string) => string;
+  workspaceTargetErrorMessage: string | null;
+  workspaceTargetLoading: boolean;
+  workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
   const [activeTab, setActiveTab] = useState<IssueDetailTab>("conversation");
   const [linkedRuns, setLinkedRuns] = useState<IssueLinkedRun[]>([]);
@@ -6080,6 +6430,35 @@ function IssueDetailView({
   const issueActionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const issueProjectName = projectLabel(issueDraft.projectId || null);
+  const selectedProject =
+    projects.find((project) => project.id === issueDraft.projectId) ?? null;
+  const selectedProjectRepoPath =
+    selectedProject?.primary_workspace?.cwd ?? null;
+  const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
+    issueDraft.workspaceTargetMode,
+    issueDraft.workspaceWorktreePath
+  );
+  const workspaceTargetHint = issueWorkspaceTargetHint({
+    errorMessage: workspaceTargetErrorMessage,
+    hasProject: Boolean(selectedProject),
+    hasRepoPath: Boolean(selectedProjectRepoPath),
+    isLoading: workspaceTargetLoading,
+    worktreeCount: workspaceTargetWorktrees.length,
+  });
+  const fallbackSelectedWorktree =
+    selectedWorkspaceTargetValue.startsWith("existing:") &&
+    !workspaceTargetWorktrees.some(
+      (worktree) =>
+        existingWorktreeTargetValue(worktree.path) ===
+        selectedWorkspaceTargetValue
+    )
+      ? {
+          name:
+            issueDraft.workspaceWorktreeName ||
+            fileName(issueDraft.workspaceWorktreePath),
+          path: issueDraft.workspaceWorktreePath,
+        }
+      : null;
 
   const syncDescriptionInputHeight = () => {
     const textarea = descriptionInputRef.current;
@@ -6318,7 +6697,9 @@ function IssueDetailView({
             <div className="issues-detail-toolbar-actions">
               <button
                 aria-label={
-                  isPropertiesOpen ? "Close properties sidebar" : "Open properties sidebar"
+                  isPropertiesOpen
+                    ? "Close properties sidebar"
+                    : "Open properties sidebar"
                 }
                 className={
                   isPropertiesOpen
@@ -6535,7 +6916,9 @@ function IssueDetailView({
                                 aria-hidden="true"
                                 className="issues-linked-run-agent-avatar"
                               >
-                                {agentInitials(issueAssigneeLabel(agents, run.agent_id))}
+                                {agentInitials(
+                                  issueAssigneeLabel(agents, run.agent_id)
+                                )}
                               </span>
                               <strong>
                                 {issueAssigneeLabel(agents, run.agent_id)}
@@ -6684,6 +7067,10 @@ function IssueDetailView({
                     onChange={(value) =>
                       commitPropertyPatch({
                         projectId: value,
+                        workspaceTargetMode: "main",
+                        workspaceWorktreePath: "",
+                        workspaceWorktreeBranch: "",
+                        workspaceWorktreeName: "",
                       })
                     }
                     value={issueDraft.projectId}
@@ -6694,6 +7081,45 @@ function IssueDetailView({
                         {project.name ?? project.title ?? project.id}
                       </option>
                     ))}
+                  </IssuePropertySelectRow>
+
+                  <IssuePropertySelectRow
+                    disabled={isSavingIssue || !selectedProjectRepoPath}
+                    hint={workspaceTargetHint}
+                    label="Workspace target"
+                    tone="neutral"
+                    onChange={(value) =>
+                      commitPropertyPatch(
+                        issueWorkspaceDraftPatchFromSelection(
+                          value,
+                          workspaceTargetWorktrees,
+                          issueDraft
+                        )
+                      )
+                    }
+                    value={selectedWorkspaceTargetValue}
+                  >
+                    <option value="main">Main area</option>
+                    <option value="new_worktree">New git worktree</option>
+                    {workspaceTargetWorktrees.map((worktree) => (
+                      <option
+                        key={worktree.path}
+                        value={existingWorktreeTargetValue(worktree.path)}
+                      >
+                        {worktree.branch
+                          ? `${worktree.name} · ${worktree.branch}`
+                          : worktree.name}
+                      </option>
+                    ))}
+                    {fallbackSelectedWorktree ? (
+                      <option
+                        value={existingWorktreeTargetValue(
+                          fallbackSelectedWorktree.path
+                        )}
+                      >
+                        {fallbackSelectedWorktree.name}
+                      </option>
+                    ) : null}
                   </IssuePropertySelectRow>
 
                   <IssuePropertySelectRow
@@ -6725,7 +7151,11 @@ function IssueDetailView({
                   />
                   <IssuePropertyStaticRow
                     label="Started"
-                    value={issue.started_at ? formatBoardDate(issue.started_at) : "Not started"}
+                    value={
+                      issue.started_at
+                        ? formatBoardDate(issue.started_at)
+                        : "Not started"
+                    }
                   />
                   <IssuePropertyStaticRow
                     label="Completed"
@@ -6759,7 +7189,9 @@ function IssueDetailView({
                             type="button"
                           >
                             <strong>
-                              {priorityLabel(approval.approval_type ?? "approval")}
+                              {priorityLabel(
+                                approval.approval_type ?? "approval"
+                              )}
                             </strong>
                             <span>
                               {priorityLabel(approval.status ?? "pending")}
@@ -6785,6 +7217,7 @@ function IssueDetailView({
 function IssuePropertySelectRow({
   children,
   disabled,
+  hint,
   label,
   onChange,
   tone,
@@ -6792,6 +7225,7 @@ function IssuePropertySelectRow({
 }: {
   children: ReactNode;
   disabled?: boolean;
+  hint?: string;
   label: string;
   onChange: (value: string) => void;
   tone?: string;
@@ -6816,6 +7250,7 @@ function IssuePropertySelectRow({
           </span>
         </div>
       </div>
+      {hint ? <small className="issue-property-hint">{hint}</small> : null}
     </label>
   );
 }
@@ -6952,11 +7387,7 @@ function AgentHeaderPauseIcon() {
 
 function ChevronUpDownIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
       <path
         d="m8 10 4-4 4 4"
         stroke="currentColor"
@@ -6977,11 +7408,7 @@ function ChevronUpDownIcon() {
 
 function CheckIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
       <path
         d="m5 12.5 4.2 4.2L19 7"
         stroke="currentColor"
@@ -7009,24 +7436,9 @@ function SlidersHorizontalIcon() {
         strokeLinejoin="round"
         strokeWidth="1.8"
       />
-      <circle
-        cx="4"
-        cy="12"
-        fill="currentColor"
-        r="1.6"
-      />
-      <circle
-        cx="12"
-        cy="9"
-        fill="currentColor"
-        r="1.6"
-      />
-      <circle
-        cx="20"
-        cy="15"
-        fill="currentColor"
-        r="1.6"
-      />
+      <circle cx="4" cy="12" fill="currentColor" r="1.6" />
+      <circle cx="12" cy="9" fill="currentColor" r="1.6" />
+      <circle cx="20" cy="15" fill="currentColor" r="1.6" />
     </svg>
   );
 }
@@ -7945,8 +8357,8 @@ function DeleteProjectDialogView({
               Delete {project.name ?? project.title ?? "project"}?
             </h2>
             <p id="delete-project-dialog-description">
-              This will permanently delete this project, all related issues,
-              and all related workspaces. This action cannot be undone.
+              This will permanently delete this project, all related issues, and
+              all related workspaces. This action cannot be undone.
             </p>
           </div>
           <button
@@ -8239,10 +8651,15 @@ function CreateIssueDialogView({
   onDescriptionChange,
   onPriorityChange,
   onProjectChange,
+  onWorkspaceTargetChange,
   onAssigneeChange,
   onParentIssueChange,
   onCreate,
   onClose,
+  selectedWorkspaceTargetValue,
+  workspaceTargetErrorMessage,
+  workspaceTargetLoading,
+  workspaceTargetWorktrees,
 }: {
   title: string;
   description: string;
@@ -8261,17 +8678,45 @@ function CreateIssueDialogView({
   onDescriptionChange: (value: string) => void;
   onPriorityChange: (value: string) => void;
   onProjectChange: (value: string) => void;
+  onWorkspaceTargetChange: (value: string) => void;
   onAssigneeChange: (value: string) => void;
   onParentIssueChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
+  selectedWorkspaceTargetValue: string;
+  workspaceTargetErrorMessage: string | null;
+  workspaceTargetLoading: boolean;
+  workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
   const canCreate = !isSaving && title.trim().length > 0;
   const selectedProject =
     projects.find((project) => project.id === selectedProjectId) ?? null;
+  const selectedProjectRepoPath =
+    selectedProject?.primary_workspace?.cwd ?? null;
+  const fallbackSelectedWorktree =
+    selectedWorkspaceTargetValue.startsWith("existing:") &&
+    !workspaceTargetWorktrees.some(
+      (worktree) =>
+        existingWorktreeTargetValue(worktree.path) ===
+        selectedWorkspaceTargetValue
+    )
+      ? {
+          name: fileName(
+            selectedWorkspaceTargetValue.slice("existing:".length)
+          ),
+          path: selectedWorkspaceTargetValue.slice("existing:".length),
+        }
+      : null;
   const shouldShowRoutingContext =
     Boolean(selectedProject) ||
     normalizeBoardIssueValue(selectedStatus) !== "backlog";
+  const workspaceTargetHint = issueWorkspaceTargetHint({
+    errorMessage: workspaceTargetErrorMessage,
+    hasProject: Boolean(selectedProject),
+    hasRepoPath: Boolean(selectedProjectRepoPath),
+    isLoading: workspaceTargetLoading,
+    worktreeCount: workspaceTargetWorktrees.length,
+  });
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -8382,6 +8827,37 @@ function CreateIssueDialogView({
                   {project.name}
                 </option>
               ))}
+            </IssueDialogSelectField>
+
+            <IssueDialogSelectField
+              hint={workspaceTargetHint}
+              label="Workspace target"
+              onChange={onWorkspaceTargetChange}
+              value={selectedWorkspaceTargetValue}
+            >
+              <option value="main">Main area</option>
+              <option disabled={!selectedProjectRepoPath} value="new_worktree">
+                New git worktree
+              </option>
+              {workspaceTargetWorktrees.map((worktree) => (
+                <option
+                  key={worktree.path}
+                  value={existingWorktreeTargetValue(worktree.path)}
+                >
+                  {worktree.branch
+                    ? `${worktree.name} · ${worktree.branch}`
+                    : worktree.name}
+                </option>
+              ))}
+              {fallbackSelectedWorktree ? (
+                <option
+                  value={existingWorktreeTargetValue(
+                    fallbackSelectedWorktree.path
+                  )}
+                >
+                  {fallbackSelectedWorktree.name}
+                </option>
+              ) : null}
             </IssueDialogSelectField>
 
             <IssueDialogSelectField
@@ -8498,18 +8974,17 @@ function ApprovalQueueRow({
   );
 }
 
-function DashboardBreadcrumbs({
-  items,
-}: {
-  items: DashboardBreadcrumbItem[];
-}) {
+function DashboardBreadcrumbs({ items }: { items: DashboardBreadcrumbItem[] }) {
   return (
     <nav aria-label="Breadcrumb" className="dashboard-breadcrumbs">
       {items.map((item, index) => {
         const isCurrent = index === items.length - 1;
 
         return (
-          <div className="dashboard-breadcrumb-step" key={`${item.label}-${index}`}>
+          <div
+            className="dashboard-breadcrumb-step"
+            key={`${item.label}-${index}`}
+          >
             {item.onClick && !isCurrent ? (
               <button
                 className="dashboard-breadcrumb-button"
@@ -8531,7 +9006,10 @@ function DashboardBreadcrumbs({
             )}
 
             {!isCurrent ? (
-              <span aria-hidden="true" className="dashboard-breadcrumb-separator">
+              <span
+                aria-hidden="true"
+                className="dashboard-breadcrumb-separator"
+              >
                 ›
               </span>
             ) : null}
@@ -9336,10 +9814,18 @@ function createEmptyIssueDraft(): IssueEditDraft {
     projectId: "",
     assigneeAgentId: "",
     parentId: "",
+    workspaceTargetMode: "main",
+    workspaceWorktreePath: "",
+    workspaceWorktreeBranch: "",
+    workspaceWorktreeName: "",
   };
 }
 
 function createIssueDraft(issue: IssueRecord): IssueEditDraft {
+  const workspaceDraft = parseIssueExecutionWorkspaceSettings(
+    issue.execution_workspace_settings
+  );
+
   return {
     title: issue.title,
     description: issue.description ?? "",
@@ -9348,6 +9834,7 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
     projectId: issue.project_id ?? "",
     assigneeAgentId: issue.assignee_agent_id ?? "",
     parentId: issue.parent_id ?? "",
+    ...workspaceDraft,
   };
 }
 
@@ -9455,7 +9942,8 @@ function buildAgentConfigUpdateParams(
     ...objectFromUnknown(agent.adapter_config),
     command: normalizeOptionalDraftString(draft.command) ?? "claude",
     model: normalizeOptionalDraftString(draft.model) ?? "default",
-    thinkingEffort: normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
+    thinkingEffort:
+      normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
     enableChrome: draft.enableChrome,
     skipPermissions: draft.skipPermissions,
   } as Record<string, unknown>;
@@ -9566,10 +10054,11 @@ function parseAgentConfigEnvVars(value: unknown): AgentConfigEnvVarDraft[] {
       return createAgentConfigEnvVarDraft({
         key,
         value: envValue,
-        mode: booleanFromUnknown(record.secret) ||
+        mode:
+          booleanFromUnknown(record.secret) ||
           stringFromUnknown(record.mode) === "secret"
-          ? "secret"
-          : "plain",
+            ? "secret"
+            : "plain",
       });
     })
     .filter((entry): entry is AgentConfigEnvVarDraft => entry !== null);
@@ -9607,11 +10096,15 @@ function booleanFromUnknown(value: unknown) {
 }
 
 function numberFromUnknown(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function numericInputValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  return typeof value === "number" && Number.isFinite(value)
+    ? String(value)
+    : "";
 }
 
 function budgetInputValue(value: number | null | undefined) {
@@ -9768,14 +10261,14 @@ function projectBoardColumnsByAssignee(
         .filter((assigneeAgentId) => assigneeAgentId.length > 0)
     )
   ).sort((left, right) =>
-    issueAssigneeLabel(agents, left).localeCompare(issueAssigneeLabel(agents, right))
+    issueAssigneeLabel(agents, left).localeCompare(
+      issueAssigneeLabel(agents, right)
+    )
   );
 
   return ["", ...assigneeIds].map((assigneeAgentId) => ({
     createDefaults: assigneeAgentId ? { assigneeAgentId } : {},
-    id: assigneeAgentId
-      ? `assignee:${assigneeAgentId}`
-      : "assignee:unassigned",
+    id: assigneeAgentId ? `assignee:${assigneeAgentId}` : "assignee:unassigned",
     issues: issues.filter(
       (issue) => (issue.assignee_agent_id?.trim() ?? "") === assigneeAgentId
     ),
@@ -9826,7 +10319,8 @@ function buildDashboardProjectBoards(
       issueCount: projectIssues.length,
       left:
         120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
-      top: 104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
+      top:
+        104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
     };
   });
 }
@@ -9951,10 +10445,7 @@ function issueAssigneeLabel(
 }
 
 function agentInitials(value: string) {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = value.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) {
     return "?";
   }
