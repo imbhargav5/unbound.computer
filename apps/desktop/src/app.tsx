@@ -7894,10 +7894,7 @@ function buildDashboardProjectBoards(
       issueCount: projectIssues.length,
       left:
         120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
-      top:
-        104 +
-        row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY) +
-        (col === 1 ? 42 : 0),
+      top: 104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
     };
   });
 }
