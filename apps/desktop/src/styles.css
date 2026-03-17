@@ -2993,7 +2993,8 @@ p {
 
 .issues-linked-run-card {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  width: 100%;
   padding: 16px;
   border: 1px solid #1f1f23;
   border-radius: 20px;
@@ -3002,39 +3003,77 @@ p {
     rgba(19, 19, 22, 0.96),
     rgba(10, 10, 12, 0.98)
   );
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.issues-linked-run-card:hover {
+  border-color: #2f2f38;
+  transform: translateY(-1px);
 }
 
 .issues-linked-run-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.issues-linked-run-heading {
-  display: grid;
-  gap: 4px;
+.issues-linked-run-agent {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.issues-linked-run-label {
-  color: #7b7b86;
+.issues-linked-run-agent-avatar {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #2f2f38;
+  border-radius: 999px;
+  background: #131318;
+  color: #f2f2f7;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  flex: 0 0 auto;
 }
 
-.issues-linked-run-summary {
-  color: #d8d8de;
-  white-space: pre-wrap;
+.issues-linked-run-agent strong {
+  min-width: 0;
+  color: #e6e6ea;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.issues-linked-run-created-at {
+  color: #9797a6;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .issues-linked-run-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  color: #8f8f98;
+  align-items: center;
+  gap: 10px;
+}
+
+.issues-linked-run-id-pill {
+  padding: 2px 8px;
+  border: 1px solid #2b2b35;
+  border-radius: 999px;
+  background: #16161c;
+  color: #b8b8c3;
   font-size: 12px;
+  font-family: "SFMono-Regular", ui-monospace, "Menlo", monospace;
 }
 
 .issues-comment-list {

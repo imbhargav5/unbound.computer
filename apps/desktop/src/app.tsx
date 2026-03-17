@@ -1838,6 +1838,15 @@ export function App() {
     setSelectedAgentRunId(runId);
   };
 
+  const handleOpenIssueLinkedRun = (run: AgentRunRecord) => {
+    startTransition(() => {
+      setSelectedAgentId(run.agent_id);
+      setSelectedAgentRunId(run.id);
+      setAgentsRouteMode("runs");
+      setSelectedScreen("agents");
+    });
+  };
+
   const handleCancelSelectedAgentRun = async () => {
     if (!selectedAgentRun) {
       return;
@@ -3168,6 +3177,7 @@ export function App() {
                     setSelectedApprovalId(approvalId);
                     handleSelectScreen("approvals");
                   }}
+                  onOpenRunDetail={handleOpenIssueLinkedRun}
                   onNewCommentBodyChange={setNewIssueCommentBody}
                   onParentIssueSelect={(parentIssueId) =>
                     setIssueDraft((current) => ({
@@ -5682,6 +5692,7 @@ function IssueDetailView({
   onStartWorkspace,
   onIssueDraftChange,
   onLinkedApprovalSelect,
+  onOpenRunDetail,
   onNewCommentBodyChange,
   onAddComment,
   projectLabel,
@@ -5716,6 +5727,7 @@ function IssueDetailView({
   onProjectSelect: (projectId: string) => void;
   onParentIssueSelect: (parentIssueId: string) => void;
   onLinkedApprovalSelect: (approvalId: string) => void;
+  onOpenRunDetail: (run: AgentRunRecord) => void;
   onNewCommentBodyChange: (value: string) => void;
   onAddComment: () => void;
   projectLabel: (projectId?: string | null) => string;
@@ -6158,38 +6170,36 @@ function IssueDetailView({
                   {linkedRuns.length ? (
                     <div className="issues-linked-run-list">
                       {linkedRuns.map(({ label, run }) => (
-                        <article
+                        <button
+                          aria-label={`Open ${label} ${shortAgentRunTitle(run.id)} details`}
                           className="issues-linked-run-card"
                           key={`${label}-${run.id}`}
+                          onClick={() => onOpenRunDetail(run)}
+                          type="button"
                         >
                           <div className="issues-linked-run-header">
-                            <div className="issues-linked-run-heading">
-                              <span className="issues-linked-run-label">
-                                {label}
+                            <div className="issues-linked-run-agent">
+                              <span
+                                aria-hidden="true"
+                                className="issues-linked-run-agent-avatar"
+                              >
+                                {agentInitials(issueAssigneeLabel(agents, run.agent_id))}
                               </span>
-                              <strong>{shortAgentRunTitle(run.id)}</strong>
+                              <strong>
+                                {issueAssigneeLabel(agents, run.agent_id)}
+                              </strong>
                             </div>
+                            <span className="issues-linked-run-created-at">
+                              {formatIssueDate(run.created_at)}
+                            </span>
+                          </div>
+                          <div className="issues-linked-run-meta">
+                            <span className="issues-linked-run-id-pill">
+                              {run.id.slice(0, 8)}
+                            </span>
                             <RunStatusBadge status={run.status} />
                           </div>
-                          <p className="issues-linked-run-summary">
-                            {agentRunSummary(run)}
-                          </p>
-                          <div className="issues-linked-run-meta">
-                            <span>
-                              {agentRunInvocationSourceLabel(
-                                run.invocation_source
-                              )}
-                            </span>
-                            <span>
-                              {formatRelativeAgentRunDate(run.created_at)}
-                            </span>
-                            {run.wake_reason ? (
-                              <span>
-                                {agentRunWakeReasonLabel(run.wake_reason)}
-                              </span>
-                            ) : null}
-                          </div>
-                        </article>
+                        </button>
                       ))}
                     </div>
                   ) : !isLoadingLinkedRuns && !linkedRunsError ? (
@@ -9158,6 +9168,20 @@ function issueAssigneeLabel(
 
   const agent = agents.find((entry) => entry.id === assigneeAgentId);
   return agent?.name || agent?.title || agent?.role || assigneeAgentId;
+}
+
+function agentInitials(value: string) {
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) {
+    return "?";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`.toUpperCase();
 }
 
 function goalOwnerLabel(agents: AgentRecord[], ownerAgentId?: string | null) {
