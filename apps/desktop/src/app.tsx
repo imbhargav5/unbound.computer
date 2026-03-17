@@ -2795,7 +2795,7 @@ export function App() {
                   backgroundColor: companyRailColor,
                   borderColor: isSelected ? "#FFFFFF" : "transparent",
                   color: companyRailForegroundColor(companyRailColor),
-                  opacity: isSelected ? 1 : 0.75,
+                  opacity: isSelected ? 1 : 0.5,
                 }}
                 title={company.name}
                 type="button"
