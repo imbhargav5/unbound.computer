@@ -1081,7 +1081,7 @@ pub async fn create_issue(db: &AsyncDatabase, input: CreateIssueInput) -> BoardR
     let company_id = require_name(&input.company_id, "company_id")?;
     let title = require_name(&input.title, "issue title")?;
     let description = normalize_optional_string(input.description);
-    let status = input.status.unwrap_or_else(|| "backlog".to_string());
+    let status = input.status.unwrap_or_else(|| "todo".to_string());
     let priority = input.priority.unwrap_or_else(|| "medium".to_string());
     let project_id = normalize_optional_string(input.project_id);
     let goal_id = normalize_optional_string(input.goal_id);
@@ -1291,12 +1291,12 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
             let completed_at = if next_status == "done" {
                 current.completed_at.clone().or_else(|| Some(now.clone()))
             } else {
-                current.completed_at.clone()
+                None
             };
             let cancelled_at = if next_status == "cancelled" {
                 current.cancelled_at.clone().or_else(|| Some(now.clone()))
             } else {
-                current.cancelled_at.clone()
+                None
             };
 
             tx.execute(
@@ -3679,6 +3679,7 @@ mod tests {
 
         assert_eq!(issue.assignee_agent_id, Some(ceo.id.clone()));
         assert_eq!(issue.execution_agent_name_key, Some(ceo.slug.clone()));
+        assert_eq!(issue.status, "todo");
     }
 
     #[tokio::test]
@@ -3970,6 +3971,91 @@ mod tests {
         assert_eq!(cleared.execution_workspace_settings, None);
         assert!(cleared.hidden_at.is_some());
         assert_eq!(cleared.request_depth, 0);
+    }
+
+    #[tokio::test]
+    async fn reopening_issue_to_todo_clears_completion_timestamps() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Closed".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let done_issue = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                status: Some("done".to_string()),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(done_issue.completed_at.is_some());
+
+        let reopened_done = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: done_issue.id.clone(),
+                status: Some("todo".to_string()),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(reopened_done.status, "todo");
+        assert_eq!(reopened_done.completed_at, None);
+
+        let cancelled_issue = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                status: Some("cancelled".to_string()),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(cancelled_issue.cancelled_at.is_some());
+
+        let reopened_cancelled = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: cancelled_issue.id.clone(),
+                status: Some("todo".to_string()),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(reopened_cancelled.status, "todo");
+        assert_eq!(reopened_cancelled.cancelled_at, None);
     }
 
     #[tokio::test]

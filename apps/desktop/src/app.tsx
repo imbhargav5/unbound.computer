@@ -457,7 +457,7 @@ function issueWorkspaceTargetHint({
     return `${worktreeCount} existing ${worktreeCount === 1 ? "worktree is" : "worktrees are"} available to reuse.`;
   }
 
-  return "Run in the main area or create a fresh git worktree for this issue.";
+  return "Run in the main worktree or create a fresh git worktree for this issue.";
 }
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
@@ -509,7 +509,7 @@ const companyContextMenuItems: Array<{
   screen: CompanyContextMenuScreen;
 }> = [
   { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
-  { icon: "workspaces", label: "Workspaces", screen: "workspaces" },
+  { icon: "workspaces", label: "Worktrees", screen: "workspaces" },
   { icon: "issues", label: "Issues", screen: "issues" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
@@ -630,7 +630,7 @@ export function App() {
   const [issueDialogTitle, setIssueDialogTitle] = useState("");
   const [issueDialogDescription, setIssueDialogDescription] = useState("");
   const [issueDialogPriority, setIssueDialogPriority] = useState("medium");
-  const [issueDialogStatus, setIssueDialogStatus] = useState("backlog");
+  const [issueDialogStatus, setIssueDialogStatus] = useState("todo");
   const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
   const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] =
     useState("");
@@ -838,7 +838,7 @@ export function App() {
   const issueStatusOptions = useMemo(
     () =>
       mergeIssueOptions(
-        ["backlog", "in_progress", "blocked", "done", "cancelled"],
+        ["todo", "backlog", "in_progress", "blocked", "done", "cancelled"],
         issueDraft.status
       ),
     [issueDraft.status]
@@ -2398,7 +2398,7 @@ export function App() {
     setIssueDialogTitle("");
     setIssueDialogDescription("");
     setIssueDialogPriority("medium");
-    setIssueDialogStatus("backlog");
+    setIssueDialogStatus("todo");
     setIssueDialogProjectId("");
     setIssueDialogAssigneeAgentId("");
     setIssueDialogParentIssueId("");
@@ -2443,7 +2443,7 @@ export function App() {
     resetIssueDialog();
     setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(defaults?.status ?? "backlog");
+    setIssueDialogStatus(defaults?.status ?? "todo");
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
@@ -3091,7 +3091,7 @@ export function App() {
         <div className="splash-card">
           <h1>Booting Unbound Desktop</h1>
           <p>
-            Checking for a compatible daemon and loading your local workspace.
+            Checking for a compatible daemon and loading your local worktree.
           </p>
         </div>
       </div>
@@ -3832,7 +3832,7 @@ export function App() {
           <aside className="workspace-sidebar">
             <div className="workspace-sidebar-header">
               <div>
-                <h2>Workspaces</h2>
+                <h2>Worktrees</h2>
                 <span>{selectedCompany?.name ?? "Company"} board</span>
               </div>
               <button
@@ -3857,9 +3857,9 @@ export function App() {
               </div>
             ) : (
               <div className="workspace-empty-state">
-                <h3>No active workspaces</h3>
+                <h3>No active worktrees</h3>
                 <p>
-                  Workspaces appear automatically when an assigned agent starts
+                  Worktrees appear automatically when an assigned agent starts
                   an issue.
                 </p>
               </div>
@@ -3872,7 +3872,7 @@ export function App() {
                 <section className="workspace-summary-banner">
                   <div>
                     <span className="route-kicker">
-                      {selectedBoardWorkspace.issue_identifier ?? "Workspace"}
+                      {selectedBoardWorkspace.issue_identifier ?? "Worktree"}
                     </span>
                     <h1>
                       {selectedBoardWorkspace.issue_title ??
@@ -4068,9 +4068,9 @@ export function App() {
               </>
             ) : (
               <section className="workspace-empty-state workspace-center-empty">
-                <h3>Select a workspace</h3>
+                <h3>Select a worktree</h3>
                 <p>
-                  Issue-owned coding sessions appear here. The main repo path is
+                  Issue-owned coding sessions appear here. The main worktree is
                   used directly.
                 </p>
               </section>
@@ -4080,7 +4080,7 @@ export function App() {
           <aside className="workspace-inspector">
             {selectedBoardWorkspace ? (
               <section className="inspector-panel workspace-details-panel">
-                <h3>Workspace Details</h3>
+                <h3>Worktree Details</h3>
                 <div className="workspace-detail-grid">
                   <DetailRow
                     label="Issue"
@@ -4430,7 +4430,7 @@ export function App() {
                           <option value="stats">Stats</option>
                           <option value="activity">Activity</option>
                           <option value="costs">Costs</option>
-                          <option value="workspaces">Workspaces</option>
+                          <option value="workspaces">Worktrees</option>
                           <option value="settings">Settings</option>
                         </select>
                       </label>
@@ -4695,7 +4695,7 @@ function AgentsRouteView({
         <h1>{selectedAgent?.name ?? "Agents"}</h1>
         <p>
           Review the selected agent, adjust its configuration, and inspect its
-          run history from one shared workspace.
+          run history from one shared worktree.
         </p>
       </div>
 
@@ -6150,7 +6150,7 @@ function StatsRouteView({
         <MetricCard label="Agents" value={snapshot?.agents.length ?? 0} />
         <MetricCard label="Approvals" value={snapshot?.approvals.length ?? 0} />
         <MetricCard
-          label="Workspaces"
+          label="Worktrees"
           value={snapshot?.workspaces.length ?? 0}
         />
         <MetricCard label="Repositories" value={repositoriesCount} />
@@ -6207,7 +6207,7 @@ function StatsRouteView({
             </div>
           ) : (
             <p className="surface-empty-copy">
-              Projects define the main repo path for workspaces.
+              Projects define the main repo path for worktrees.
             </p>
           )}
         </section>
@@ -6225,7 +6225,7 @@ function StatsRouteView({
         </section>
 
         <section className="surface-panel">
-          <h3>Active Workspaces</h3>
+          <h3>Active Worktrees</h3>
           <div className="surface-list">
             {(snapshot?.workspaces ?? []).map((workspace) => (
               <button
@@ -6244,7 +6244,7 @@ function StatsRouteView({
                     .filter(Boolean)
                     .join(" · ") ||
                     workspace.workspace_status ||
-                    "workspace"}
+                    "worktree"}
                 </span>
               </button>
             ))}
@@ -6338,7 +6338,7 @@ function IssuesListView({
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
             <p>
-              Issues own workspaces. Create one from the sidebar to start agent
+              Issues own worktrees. Create one from the sidebar to start agent
               work.
             </p>
           </div>
@@ -6799,7 +6799,7 @@ function IssueDetailView({
                 onClick={onStartWorkspace}
                 type="button"
               >
-                Start Workspace
+                Start Worktree
               </button>
             </div>
           ) : null}
@@ -7086,7 +7086,7 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue || !selectedProjectRepoPath}
                     hint={workspaceTargetHint}
-                    label="Workspace target"
+                    label="Worktree target"
                     tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch(
@@ -7099,7 +7099,7 @@ function IssueDetailView({
                     }
                     value={selectedWorkspaceTargetValue}
                   >
-                    <option value="main">Main area</option>
+                    <option value="main">Main worktree</option>
                     <option value="new_worktree">New git worktree</option>
                     {workspaceTargetWorktrees.map((worktree) => (
                       <option
@@ -8022,7 +8022,7 @@ function ProjectsRouteView({
                   value={String(currentProjectIssueCount)}
                 />
                 <DetailRow
-                  label="Workspaces"
+                  label="Worktrees"
                   value={String(currentProjectWorkspaceCount)}
                 />
                 <DetailRow
@@ -8066,7 +8066,7 @@ function ProjectsRouteView({
             </div>
           ) : (
             <p className="projects-empty-text">
-              Projects define the main repo anchor that issue workspaces run
+              Projects define the main repo anchor that issue worktrees run
               inside.
             </p>
           )}
@@ -8358,7 +8358,7 @@ function DeleteProjectDialogView({
             </h2>
             <p id="delete-project-dialog-description">
               This will permanently delete this project, all related issues, and
-              all related workspaces. This action cannot be undone.
+              all related worktrees. This action cannot be undone.
             </p>
           </div>
           <button
@@ -8386,12 +8386,12 @@ function DeleteProjectDialogView({
             </div>
             <div className="project-delete-impact-card">
               <strong>{workspaceCount}</strong>
-              <span>Workspaces will be deleted</span>
+              <span>Worktrees will be deleted</span>
             </div>
           </div>
 
           <p className="project-delete-warning">
-            Repository records stay intact, but every board issue and workspace
+            Repository records stay intact, but every board issue and worktree
             anchored to this project will be removed.
           </p>
         </div>
@@ -8783,7 +8783,7 @@ function CreateIssueDialogView({
               value={title}
             />
             <small className="issue-dialog-hint">
-              This becomes the main issue title and the default workspace label.
+              This becomes the main issue title and the default worktree label.
             </small>
           </label>
 
@@ -8816,7 +8816,7 @@ function CreateIssueDialogView({
             </IssueDialogSelectField>
 
             <IssueDialogSelectField
-              hint="Optional project anchor for workspace routing and repo context."
+              hint="Optional project anchor for worktree routing and repo context."
               label="Project"
               onChange={onProjectChange}
               value={selectedProjectId}
@@ -8831,11 +8831,11 @@ function CreateIssueDialogView({
 
             <IssueDialogSelectField
               hint={workspaceTargetHint}
-              label="Workspace target"
+              label="Worktree target"
               onChange={onWorkspaceTargetChange}
               value={selectedWorkspaceTargetValue}
             >
-              <option value="main">Main area</option>
+              <option value="main">Main worktree</option>
               <option disabled={!selectedProjectRepoPath} value="new_worktree">
                 New git worktree
               </option>
@@ -9355,7 +9355,7 @@ function WorkspaceBoardItem({
       <small>
         {[workspace.project_name, workspace.agent_name]
           .filter(Boolean)
-          .join(" · ") || "Assigned workspace"}
+          .join(" · ") || "Assigned worktree"}
       </small>
     </button>
   );
@@ -9613,7 +9613,7 @@ function screenLabel(screen: AppScreen) {
     case "inbox":
       return "Inbox";
     case "workspaces":
-      return "Workspaces";
+      return "Worktrees";
     case "agents":
       return "Agents";
     case "issues":
@@ -9809,7 +9809,7 @@ function createEmptyIssueDraft(): IssueEditDraft {
   return {
     title: "",
     description: "",
-    status: "backlog",
+    status: "todo",
     priority: "medium",
     projectId: "",
     assigneeAgentId: "",
@@ -10203,7 +10203,14 @@ function normalizeDashboardProjectGrouping(
 }
 
 function projectBoardColumnStatuses(issues: IssueRecord[]) {
-  const statuses = ["backlog", "in_progress", "blocked", "done"];
+  const statuses = [
+    "todo",
+    "in_progress",
+    "blocked",
+    "done",
+    "backlog",
+    "cancelled",
+  ];
   for (const issue of issues) {
     const normalizedStatus = normalizeBoardIssueValue(issue.status);
     if (!statuses.includes(normalizedStatus)) {
@@ -11132,7 +11139,7 @@ function issueActivitySummary(issue: IssueRecord) {
   }
 
   if (issue.workspace_session_id) {
-    return "Workspace attached";
+    return "Worktree attached";
   }
 
   return "Issue updated";

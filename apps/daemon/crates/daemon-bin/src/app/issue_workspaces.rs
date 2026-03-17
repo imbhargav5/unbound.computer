@@ -65,10 +65,10 @@ pub async fn ensure_issue_workspace(
         .await?
         .ok_or_else(|| BoardError::NotFound("Project not found".to_string()))?;
     let primary_workspace = project.primary_workspace.ok_or_else(|| {
-        BoardError::NotFound("Project primary workspace not configured".to_string())
+        BoardError::NotFound("Project main worktree is not configured".to_string())
     })?;
     let repo_path = primary_workspace.cwd.clone().ok_or_else(|| {
-        BoardError::InvalidInput("Project primary workspace has no repo path".to_string())
+        BoardError::InvalidInput("Project main worktree does not have a repo path".to_string())
     })?;
     let repository =
         ensure_workspace_repository(armin, &repo_path, primary_workspace.repo_ref.clone())?;
@@ -108,7 +108,7 @@ pub async fn ensure_issue_workspace(
         IssueWorkspaceTargetMode::ExistingWorktree => {
             let worktree_path = settings.worktree_path.clone().ok_or_else(|| {
                 BoardError::InvalidInput(
-                    "Issue workspace target is missing worktree_path".to_string(),
+                    "Issue worktree target is missing worktree_path".to_string(),
                 )
             })?;
             session_params["is_worktree"] = json!(true);

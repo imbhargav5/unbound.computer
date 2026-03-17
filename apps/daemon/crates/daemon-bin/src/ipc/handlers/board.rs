@@ -361,14 +361,16 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 };
                 match service::create_issue(&db, input).await {
                     Ok(issue) => {
-                        maybe_enqueue_issue_run(
-                            runs.as_ref(),
-                            &issue,
-                            "assignment",
-                            Some("system"),
-                            Some("issue_assigned"),
-                        )
-                        .await;
+                        if should_wake_assignee_for_todo_issue(&issue) {
+                            maybe_enqueue_issue_run(
+                                runs.as_ref(),
+                                &issue,
+                                "assignment",
+                                Some("system"),
+                                Some("issue_assigned"),
+                            )
+                            .await;
+                        }
                         json_response(&req.id, &serde_json::json!({ "issue": issue }))
                     }
                     Err(error) => board_error_response(&req.id, error),
@@ -399,7 +401,9 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
 
                 match service::update_issue(&db, input).await {
                     Ok(issue) => {
-                        if previous.assignee_agent_id != issue.assignee_agent_id {
+                        if previous.assignee_agent_id != issue.assignee_agent_id
+                            && should_wake_assignee_for_todo_issue(&issue)
+                        {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
@@ -409,7 +413,7 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                             )
                             .await;
                         }
-                        if previous.status == "backlog" && issue.status != "backlog" {
+                        if issue_became_todo(&previous, &issue) {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
@@ -490,7 +494,7 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                                         &db,
                                         UpdateIssueInput {
                                             issue_id: issue.id.clone(),
-                                            status: Some("in_progress".to_string()),
+                                            status: Some("todo".to_string()),
                                             ..UpdateIssueInput::default()
                                         },
                                     )
@@ -937,6 +941,23 @@ fn board_error_response(request_id: &str, error: BoardError) -> Response {
     }
 }
 
+fn is_todo_status(status: &str) -> bool {
+    status.trim().eq_ignore_ascii_case("todo")
+}
+
+fn should_wake_assignee_for_todo_issue(issue: &Issue) -> bool {
+    issue
+        .assignee_agent_id
+        .as_deref()
+        .map(|agent_id| !agent_id.trim().is_empty())
+        .unwrap_or(false)
+        && is_todo_status(&issue.status)
+}
+
+fn issue_became_todo(previous: &Issue, next: &Issue) -> bool {
+    !is_todo_status(&previous.status) && should_wake_assignee_for_todo_issue(next)
+}
+
 async fn maybe_enqueue_issue_run(
     coordinator: &crate::app::AgentRunCoordinator,
     issue: &Issue,
@@ -1009,4 +1030,72 @@ struct InvokeAgentRunInput {
     agent_id: String,
     issue_id: Option<String>,
     prompt: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn test_issue(status: &str, assignee_agent_id: Option<&str>) -> Issue {
+        Issue {
+            id: "issue-1".to_string(),
+            company_id: "company-1".to_string(),
+            project_id: None,
+            goal_id: None,
+            parent_id: None,
+            title: "Test issue".to_string(),
+            description: None,
+            status: status.to_string(),
+            priority: "medium".to_string(),
+            assignee_agent_id: assignee_agent_id.map(ToOwned::to_owned),
+            assignee_user_id: None,
+            checkout_run_id: None,
+            execution_run_id: None,
+            execution_agent_name_key: None,
+            execution_locked_at: None,
+            created_by_agent_id: None,
+            created_by_user_id: None,
+            issue_number: Some(1),
+            identifier: Some("TEST-1".to_string()),
+            request_depth: 0,
+            billing_code: None,
+            assignee_adapter_overrides: None,
+            execution_workspace_settings: Some(json!({ "mode": "main" })),
+            started_at: None,
+            completed_at: None,
+            cancelled_at: None,
+            hidden_at: None,
+            workspace_session_id: None,
+            created_at: "2026-03-18T00:00:00Z".to_string(),
+            updated_at: "2026-03-18T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn only_assigned_todo_issues_wake_immediately() {
+        assert!(should_wake_assignee_for_todo_issue(&test_issue(
+            "todo",
+            Some("agent-1")
+        )));
+        assert!(!should_wake_assignee_for_todo_issue(&test_issue(
+            "backlog",
+            Some("agent-1")
+        )));
+        assert!(!should_wake_assignee_for_todo_issue(&test_issue(
+            "todo", None
+        )));
+    }
+
+    #[test]
+    fn issue_became_todo_detects_assignment_ready_transition() {
+        assert!(issue_became_todo(
+            &test_issue("backlog", Some("agent-1")),
+            &test_issue("todo", Some("agent-1"))
+        ));
+        assert!(!issue_became_todo(
+            &test_issue("todo", Some("agent-1")),
+            &test_issue("todo", Some("agent-1"))
+        ));
+    }
 }

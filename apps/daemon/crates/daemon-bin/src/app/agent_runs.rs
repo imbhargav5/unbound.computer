@@ -839,7 +839,13 @@ impl AgentRunCoordinator {
 
         let mut config = ClaudeConfig::new(&prompt, resolved_workspace.working_dir);
         if let Some(ref previous_session_id) = claude_session_id_before {
-            config = config.with_resume_session(previous_session_id);
+            if should_resume_claude_session(
+                run.invocation_source.as_str(),
+                run.trigger_detail.as_deref(),
+                run.wake_reason.as_deref(),
+            ) {
+                config = config.with_resume_session(previous_session_id);
+            }
         }
 
         let mut process = match ClaudeProcess::spawn(config).await {
@@ -1808,7 +1814,7 @@ impl AgentRunCoordinator {
              Instructions: {instructions_path}\n\n\
              {governance_instructions}\n\
              {issue_summary}\n\
-             Work directly in the local workspace, make useful progress for this run, and finish with a concise summary that covers:\n\
+             Work directly in the local worktree. If the user explicitly asks for a fresh git worktree, create or switch to one before making changes. Finish with a concise summary that covers:\n\
              1. what you changed or concluded\n\
              2. any blockers or follow-up needed\n\
              3. whether the linked issue status should change\n",
@@ -1966,6 +1972,22 @@ fn build_idempotency_key(
         wake_reason = wake_reason.unwrap_or(""),
         issue_id = issue_id.unwrap_or(""),
     ))
+}
+
+fn should_resume_claude_session(
+    invocation_source: &str,
+    trigger_detail: Option<&str>,
+    wake_reason: Option<&str>,
+) -> bool {
+    if wake_reason == Some("issue_assigned") {
+        return false;
+    }
+
+    if invocation_source == SOURCE_TIMER {
+        return false;
+    }
+
+    !(invocation_source == SOURCE_ON_DEMAND && trigger_detail == Some(TRIGGER_MANUAL))
 }
 
 fn push_excerpt(buffer: &mut String, line: &str) {
@@ -2190,5 +2212,33 @@ mod tests {
         assert!(instructions.contains("Never create sibling agent directories"));
         assert!(instructions.contains("board hire-agent"));
         assert!(instructions.contains("--source-issue-id \"issue-1\""));
+    }
+
+    #[test]
+    fn issue_assignment_wakes_start_fresh_claude_session() {
+        assert!(!should_resume_claude_session(
+            "assignment",
+            Some("system"),
+            Some("issue_assigned")
+        ));
+    }
+
+    #[test]
+    fn timer_and_manual_wakes_start_fresh_claude_session() {
+        assert!(!should_resume_claude_session("timer", Some("system"), None));
+        assert!(!should_resume_claude_session(
+            SOURCE_ON_DEMAND,
+            Some(TRIGGER_MANUAL),
+            None
+        ));
+    }
+
+    #[test]
+    fn comment_driven_issue_wakes_can_resume_existing_session() {
+        assert!(should_resume_claude_session(
+            "automation",
+            Some("system"),
+            Some("issue_commented")
+        ));
     }
 }

@@ -3166,12 +3166,24 @@ p {
   background: transparent;
 }
 
+.issue-property-tone-marker[data-tone="todo"] {
+  background: #38bdf8;
+}
+
 .issue-property-tone-marker[data-tone="in_progress"] {
   background: #60a5fa;
 }
 
 .issue-property-tone-marker[data-tone="blocked"] {
   background: #f87171;
+}
+
+.issue-property-tone-marker[data-tone="cancelled"] {
+  background: #6b7280;
+}
+
+.issue-property-tone-marker[data-tone="backlog"] {
+  background: #52525b;
 }
 
 .issue-property-tone-marker[data-tone="urgent"] {
