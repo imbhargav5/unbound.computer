@@ -3678,27 +3678,17 @@ function IssueDetailView({
       <section className="surface-panel issues-detail-panel">
         <div className="issues-detail-title-row">
           <div className="issues-detail-title-block">
-            <span className="route-kicker">
-              {issue.identifier ?? issue.title}
-            </span>
+            <span className="route-kicker">{issue.identifier ?? issue.title}</span>
+            <h2>{isEditingIssue ? "Edit Issue" : issue.title}</h2>
             {isEditingIssue ? (
-              <input
-                className="issues-title-input"
-                onChange={(event) =>
-                  onIssueDraftChange({
-                    title: event.target.value,
-                  })
-                }
-                placeholder="Issue title"
-                value={issueDraft.title}
-              />
-            ) : (
-              <h2>{issue.title}</h2>
-            )}
+              <p className="issues-edit-subtitle">
+                Update the issue title, routing, ownership, and execution context.
+              </p>
+            ) : null}
           </div>
 
           <div className="issues-detail-actions">
-            {canStartWorkspace ? (
+            {!isEditingIssue && canStartWorkspace ? (
               <button
                 className="primary-button"
                 disabled={isWorking}
@@ -3709,65 +3699,72 @@ function IssueDetailView({
               </button>
             ) : null}
 
-            {isEditingIssue ? (
-              <>
-                <button
-                  className="secondary-button"
-                  disabled={isSavingIssue}
-                  onClick={onCancelEditing}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={!canSaveIssueEdits}
-                  onClick={onSave}
-                  type="button"
-                >
-                  {isSavingIssue ? "Saving..." : "Save Changes"}
-                </button>
-              </>
-            ) : (
+            {!isEditingIssue ? (
               <button className="secondary-button" onClick={onBeginEditing} type="button">
                 Edit Issue
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
         {isEditingIssue ? (
-          <label className="form-field">
-            <span>Description</span>
-            <textarea
-              className="issues-description-input"
-              onChange={(event) =>
-                onIssueDraftChange({
-                  description: event.target.value,
-                })
-              }
-              placeholder="What needs to happen, what context matters, and what should the assignee do next?"
-              value={issueDraft.description}
-            />
-            <small>
-              Background, acceptance criteria, and bootstrap instructions all live here.
-            </small>
-          </label>
-        ) : issue.description ? (
-          <section className="issues-detail-section">
-            <h3>Description</h3>
-            <p className="issues-detail-copy">{issue.description}</p>
-          </section>
-        ) : null}
+          <section className="issue-edit-shell">
+            <div className="issue-dialog-context">
+              <div className="issue-dialog-context-chip">
+                <span className="issue-dialog-context-label">Issue</span>
+                <strong>{issue.identifier ?? issue.id}</strong>
+              </div>
+              <div className="issue-dialog-context-chip">
+                <span className="issue-dialog-context-label">Current status</span>
+                <strong>{priorityLabel(issue.status)}</strong>
+              </div>
+              <div className="issue-dialog-context-chip">
+                <span className="issue-dialog-context-label">Current priority</span>
+                <strong>{priorityLabel(issue.priority)}</strong>
+              </div>
+            </div>
 
-        {isEditingIssue ? (
-          <div className="issues-edit-grid">
-            <label className="form-field">
-              <span>Status</span>
-              <select
+            <label className="issue-dialog-field issue-dialog-field-full">
+              <span className="issue-dialog-label">Title</span>
+              <input
+                className="issue-dialog-input issue-edit-title-input"
                 onChange={(event) =>
                   onIssueDraftChange({
-                    status: event.target.value,
+                    title: event.target.value,
+                  })
+                }
+                placeholder="Issue title"
+                value={issueDraft.title}
+              />
+              <small className="issue-dialog-hint">
+                This is the main issue title and the default workspace label.
+              </small>
+            </label>
+
+            <label className="issue-dialog-field issue-dialog-field-full">
+              <span className="issue-dialog-label">Description</span>
+              <textarea
+                className="issue-dialog-input issue-dialog-textarea issue-edit-description-input"
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    description: event.target.value,
+                  })
+                }
+                placeholder="What needs to happen, what context matters, and what should the assignee do next?"
+                value={issueDraft.description}
+              />
+              <small className="issue-dialog-hint">
+                Background, acceptance criteria, and bootstrap instructions all live here.
+              </small>
+            </label>
+
+            <div className="issue-dialog-grid">
+              <IssueDialogSelectField
+                hint="Moves the issue through the board lifecycle."
+                label="Status"
+                onChange={(value) =>
+                  onIssueDraftChange({
+                    status: value,
                   })
                 }
                 value={issueDraft.status}
@@ -3777,16 +3774,14 @@ function IssueDetailView({
                     {priorityLabel(status)}
                   </option>
                 ))}
-              </select>
-              <small>Moves the issue through the board lifecycle.</small>
-            </label>
+              </IssueDialogSelectField>
 
-            <label className="form-field">
-              <span>Priority</span>
-              <select
-                onChange={(event) =>
+              <IssueDialogSelectField
+                hint="Controls ordering and urgency in issue views."
+                label="Priority"
+                onChange={(value) =>
                   onIssueDraftChange({
-                    priority: event.target.value,
+                    priority: value,
                   })
                 }
                 value={issueDraft.priority}
@@ -3796,14 +3791,12 @@ function IssueDetailView({
                     {priorityLabel(priority)}
                   </option>
                 ))}
-              </select>
-              <small>Controls ordering and urgency in issue views.</small>
-            </label>
+              </IssueDialogSelectField>
 
-            <label className="form-field">
-              <span>Project</span>
-              <select
-                onChange={(event) => onProjectSelect(event.target.value)}
+              <IssueDialogSelectField
+                hint="Optional project anchor for execution routing and repo context."
+                label="Project"
+                onChange={onProjectSelect}
                 value={issueDraft.projectId}
               >
                 <option value="">No project</option>
@@ -3812,16 +3805,14 @@ function IssueDetailView({
                     {project.name ?? project.title ?? project.id}
                   </option>
                 ))}
-              </select>
-              <small>Optional project anchor for execution routing and repo context.</small>
-            </label>
+              </IssueDialogSelectField>
 
-            <label className="form-field">
-              <span>Assignee</span>
-              <select
-                onChange={(event) =>
+              <IssueDialogSelectField
+                hint="Choose the agent who owns this work."
+                label="Assignee"
+                onChange={(value) =>
                   onIssueDraftChange({
-                    assigneeAgentId: event.target.value,
+                    assigneeAgentId: value,
                   })
                 }
                 value={issueDraft.assigneeAgentId}
@@ -3832,14 +3823,12 @@ function IssueDetailView({
                     {agent.name || agent.title || agent.role || agent.id}
                   </option>
                 ))}
-              </select>
-              <small>Choose the agent who owns this work.</small>
-            </label>
+              </IssueDialogSelectField>
 
-            <label className="form-field">
-              <span>Parent Issue</span>
-              <select
-                onChange={(event) => onParentIssueSelect(event.target.value)}
+              <IssueDialogSelectField
+                hint="Nest the issue under another issue or clear the parent."
+                label="Parent Issue"
+                onChange={onParentIssueSelect}
                 value={issueDraft.parentId}
               >
                 <option value="">No parent issue</option>
@@ -3848,11 +3837,38 @@ function IssueDetailView({
                     {parentIssue.identifier ?? parentIssue.title}
                   </option>
                 ))}
-              </select>
-              <small>Nest the issue under another issue or clear the parent.</small>
-            </label>
-          </div>
-        ) : (
+              </IssueDialogSelectField>
+            </div>
+
+            {issueEditorError ? <div className="issue-dialog-alert">{issueEditorError}</div> : null}
+
+            <div className="issue-edit-footer">
+              <button
+                className="secondary-button"
+                disabled={isSavingIssue}
+                onClick={onCancelEditing}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button"
+                disabled={!canSaveIssueEdits}
+                onClick={onSave}
+                type="button"
+              >
+                {isSavingIssue ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </section>
+        ) : issue.description ? (
+          <section className="issues-detail-section">
+            <h3>Description</h3>
+            <p className="issues-detail-copy">{issue.description}</p>
+          </section>
+        ) : null}
+
+        {!isEditingIssue ? (
           <div className="issues-detail-grid">
             <DetailRow label="Status" value={priorityLabel(issue.status)} />
             <DetailRow label="Priority" value={priorityLabel(issue.priority)} />
@@ -3861,9 +3877,7 @@ function IssueDetailView({
             <DetailRow label="Parent" value={parentIssueLabel(issue.parent_id)} />
             <DetailRow label="Depth" value={String(issue.request_depth)} />
           </div>
-        )}
-
-        {issueEditorError ? <div className="status-banner">{issueEditorError}</div> : null}
+        ) : null}
 
         {subissues.length ? (
           <section className="issues-detail-section">

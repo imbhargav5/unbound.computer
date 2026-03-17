@@ -1914,6 +1914,13 @@ p {
   letter-spacing: -0.04em;
 }
 
+.issues-edit-subtitle {
+  max-width: 560px;
+  color: #8f8f98;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .issues-detail-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1921,21 +1928,40 @@ p {
   gap: 10px;
 }
 
-.issues-title-input {
-  max-width: 420px;
+.issues-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.issues-description-input,
+.issue-edit-shell {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #232327;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 22, 0.96), rgba(10, 10, 12, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.issue-edit-title-input {
+  min-height: 48px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.issue-edit-description-input,
 .issues-comment-composer textarea {
   min-height: 120px;
   resize: vertical;
 }
 
-.issues-edit-grid,
-.issues-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+.issue-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .issues-detail-section {
