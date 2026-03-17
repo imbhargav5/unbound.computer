@@ -983,7 +983,7 @@ p {
 
 .project-kanban-column-create {
   width: 100%;
-  display: flex;
+  display: none;
   align-items: center;
   gap: 10px;
   padding: 12px;
@@ -997,6 +997,11 @@ p {
     background-color 160ms ease,
     color 160ms ease,
     transform 160ms ease;
+}
+
+.project-kanban-column:hover .project-kanban-column-create,
+.project-kanban-column:focus-within .project-kanban-column-create {
+  display: flex;
 }
 
 .project-kanban-column-create-icon {
