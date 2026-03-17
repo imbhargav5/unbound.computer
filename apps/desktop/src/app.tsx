@@ -77,7 +77,8 @@ type AppScreen =
   | "goals"
   | "activity"
   | "costs"
-  | "settings";
+  | "companySettings"
+  | "appSettings";
 
 type SettingsSection =
   | "general"
@@ -100,7 +101,7 @@ const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
   title: "Company",
-  screens: ["activity", "costs", "settings"],
+  screens: ["activity", "costs", "companySettings"],
 };
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
@@ -181,6 +182,8 @@ export function App() {
     (companySnapshot?.agents ?? []).find((agent) => agent.id === selectedAgentId) ??
     companySnapshot?.agents[0] ??
     null;
+  const selectedCompanyCeo =
+    findCompanyCeo(companySnapshot?.agents ?? [], selectedCompany?.ceo_agent_id ?? null);
   const orderedSidebarAgents = useMemo(
     () =>
       orderSidebarAgents(
@@ -860,6 +863,7 @@ export function App() {
   const handleSettingsSubmit = async (event: FormEvent) => {
     event.preventDefault();
     await persistSettings(settings);
+    setSelectedScreen(normalizeScreen(settings.preferred_view));
   };
 
   const persistSettings = async (nextSettings: DesktopSettings) => {
@@ -867,9 +871,6 @@ export function App() {
       const saved = await settingsUpdate(nextSettings);
       const merged = mergeDesktopSettings(saved);
       setSettings(merged);
-      if (merged.preferred_view) {
-        setSelectedScreen(normalizeScreen(merged.preferred_view));
-      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     }
@@ -1062,11 +1063,11 @@ export function App() {
         </div>
         <button
           className={
-            selectedScreen === "settings"
+            selectedScreen === "appSettings"
               ? "company-rail-button settings active"
               : "company-rail-button settings"
           }
-          onClick={() => handleSelectScreen("settings")}
+          onClick={() => handleSelectScreen("appSettings")}
           type="button"
         >
           ⚙
@@ -1414,6 +1415,90 @@ export function App() {
                 body="The Goals route is present in the shell. Goal-specific daemon UI parity still needs dedicated data surfaces."
                 title="Goals"
               />
+            ) : null}
+
+            {selectedScreen === "companySettings" ? (
+              <section className="route-scroll">
+                <div className="route-header compact">
+                  <span className="route-kicker">Company settings</span>
+                  <h1>{selectedCompany?.name ?? "Company settings"}</h1>
+                  <p>
+                    Board-specific company details and policies live here. Device and app settings
+                    stay behind the rail gear.
+                  </p>
+                </div>
+
+                <div className="surface-grid">
+                  <section className="surface-panel wide">
+                    <h3>Company profile</h3>
+                    <p>
+                      This route follows the board/company admin surface rather than the desktop
+                      preferences shell.
+                    </p>
+                    <div className="surface-list">
+                      <DetailRow label="Company Name" value={selectedCompany?.name ?? "n/a"} />
+                      <DetailRow
+                        label="Description"
+                        value={selectedCompany?.description ?? "No description"}
+                      />
+                      <DetailRow
+                        label="Brand Color"
+                        value={selectedCompany?.brand_color ?? "Default board accent"}
+                      />
+                      <DetailRow
+                        label="Issue Prefix"
+                        value={selectedCompany?.issue_prefix ?? "n/a"}
+                      />
+                    </div>
+                  </section>
+
+                  <section className="surface-panel">
+                    <h3>Board policy</h3>
+                    <div className="summary-grid">
+                      <SummaryPill
+                        label="Issue Prefix"
+                        value={selectedCompany?.issue_prefix ?? "n/a"}
+                      />
+                      <SummaryPill
+                        label="Monthly Budget"
+                        value={formatCents(selectedCompany?.budget_monthly_cents)}
+                      />
+                      <SummaryPill
+                        label="Monthly Spend"
+                        value={formatCents(selectedCompany?.spent_monthly_cents)}
+                      />
+                    </div>
+
+                    <div className="surface-list">
+                      <DetailRow
+                        label="Require Agent Approval"
+                        value={
+                          selectedCompany?.require_board_approval_for_new_agents
+                            ? "Enabled"
+                            : "Disabled"
+                        }
+                      />
+                      <DetailRow label="Status" value={String(selectedCompany?.status ?? "active")} />
+                      <DetailRow
+                        label="CEO"
+                        value={selectedCompanyCeo?.name ?? selectedCompany?.ceo_agent_id ?? "Unassigned"}
+                      />
+                      <DetailRow
+                        label="Issue Counter"
+                        value={String(selectedCompany?.issue_counter ?? 0)}
+                      />
+                      <DetailRow
+                        label="Created"
+                        value={formatTimestamp(selectedCompany?.created_at)}
+                      />
+                      <DetailRow
+                        label="Updated"
+                        value={formatTimestamp(selectedCompany?.updated_at)}
+                      />
+                    </div>
+                  </section>
+                </div>
+              </section>
             ) : null}
 
             {selectedScreen === "activity" ? (
@@ -1864,8 +1949,8 @@ export function App() {
                 icon="house"
                 isSelected={false}
                 label="Home"
-                onClick={() => handleSelectScreen("dashboard")}
-              />
+                  onClick={() => handleSelectScreen("dashboard")}
+                />
               {settingsSections.map((section) => (
                 <SettingsSidebarItem
                   icon={settingsSectionIcon(section.id)}
@@ -1954,7 +2039,7 @@ export function App() {
                               preferred_view: event.target.value,
                             }))
                           }
-                          value={settings.preferred_view ?? "dashboard"}
+                          value={preferredViewSelectValue(settings.preferred_view)}
                         >
                           <option value="dashboard">Dashboard</option>
                           <option value="workspaces">Workspaces</option>
@@ -2463,7 +2548,8 @@ function screenLabel(screen: AppScreen) {
       return "Activity";
     case "costs":
       return "Costs";
-    case "settings":
+    case "companySettings":
+    case "appSettings":
       return "Settings";
   }
 }
@@ -2473,7 +2559,7 @@ function boardRootLayout(screen: AppScreen): BoardRootLayout {
     return "workspace";
   }
 
-  if (screen === "settings") {
+  if (screen === "appSettings") {
     return "settings";
   }
 
@@ -2485,14 +2571,34 @@ function preferredViewForScreen(screen: AppScreen) {
     return "workspaces";
   }
 
-  if (screen === "settings") {
+  if (screen === "appSettings") {
     return "settings";
+  }
+
+  if (screen === "companySettings") {
+    return "company_settings";
   }
 
   return "dashboard";
 }
 
 function normalizeScreen(view: string | null | undefined): AppScreen {
+  if (view === "settings") {
+    return "appSettings";
+  }
+
+  if (view === "company_settings") {
+    return "companySettings";
+  }
+
+  if (view === "workspace" || view === "workspaces") {
+    return "workspaces";
+  }
+
+  return "dashboard";
+}
+
+function preferredViewSelectValue(view: string | null | undefined) {
   if (view === "settings") {
     return "settings";
   }
@@ -2580,6 +2686,52 @@ function fontSizePresetDescription(preset: FontSizePreset) {
 
 function capitalize(value: string) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function formatCents(value: number | null | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value / 100);
+}
+
+function formatTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return "n/a";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function findCompanyCeo<
+  T extends { id: string; role?: string | null }
+>(agents: T[], ceoAgentId: string | null) {
+  if (ceoAgentId) {
+    const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
+    if (ceoAgent) {
+      return ceoAgent;
+    }
+  }
+
+  return (
+    agents.find((agent) => agent.role?.toLowerCase() === "ceo") ?? null
+  );
 }
 
 function orderSidebarAgents<

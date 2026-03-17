@@ -41,7 +41,16 @@ export interface Company {
   id: string;
   name: string;
   description?: string | null;
+  status?: string | null;
+  issue_prefix?: string | null;
+  issue_counter?: number | null;
+  budget_monthly_cents?: number | null;
+  spent_monthly_cents?: number | null;
+  require_board_approval_for_new_agents?: boolean | null;
   brand_color?: string | null;
+  ceo_agent_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 
